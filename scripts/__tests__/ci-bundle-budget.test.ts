@@ -6,7 +6,7 @@ import {
     findModuleResolutionFailure,
     formatDeltaPercent,
     formatMeasurement,
-    PACKAGED_NODE_ENTRIES,
+    PACKAGED_SERVER_ENTRIES,
     REPORT_COMPONENTS,
     SIZE_BUDGETS,
     TIME_BUDGETS,
@@ -46,6 +46,7 @@ describe('ci-bundle-budget', () => {
     it('tracks every packaged artifact the app ships from', () => {
         const paths = SIZE_BUDGETS.map((budget) => budget.path);
         expect(paths).toContain('out/main');
+        expect(paths).toContain('apps/server/dist/server');
         expect(paths).toContain('out/preload');
         expect(paths).toContain('out/renderer');
         expect(paths).toContain('release.noindex/mac-arm64/Caxri.app/Contents/Resources/app.asar');
@@ -70,11 +71,11 @@ describe('ci-bundle-budget', () => {
         expect(findModuleResolutionFailure('')).toBeUndefined();
     });
 
-    it('verifies every Node-executable packaged entry point', () => {
-        expect(PACKAGED_NODE_ENTRIES).toEqual([
-            'out/main/host.js',
-            'out/main/extension-host.js',
-            'out/main/runtime.js',
+    it('verifies every executable packaged Server entry point', () => {
+        expect(PACKAGED_SERVER_ENTRIES).toEqual([
+            'bundles/server-core.js',
+            'bundles/extension-host.js',
+            'bundles/terminal-host.js',
         ]);
     });
 

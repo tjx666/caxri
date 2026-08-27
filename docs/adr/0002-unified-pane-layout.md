@@ -3,6 +3,7 @@
 - Status: accepted
 - Date: 2026-08-21
 - Refs: [#257](https://github.com/tjx666/caxri/issues/257)
+- Amended by: ADR 0005 (target, pending)
 
 The Workbench renders exactly one of two mutually exclusive split trees — Terminals or Editors —
 behind a single global tab strip, so a running Agent and the file it is editing can never be visible
@@ -111,4 +112,4 @@ Project records are untouched — only pane placement resets. A layout is capped
 The old mutually-exclusive trees exposed separate split commands per tree. The unified tree exposes
 one family — `workbench.splitLeft` / `splitRight` / `splitUp` / `splitDown` — that splits whatever
 pane is active regardless of what its tabs hold; `workbench.closeActiveTab`, `workbench.nextTab`, and
-`workbench.previousTab` follow the same pattern (`src/renderer/src/commands/definitions.ts`).
+`workbench.previousTab` follow the same pattern (`apps/desktop/src/renderer/src/commands/definitions.ts`).

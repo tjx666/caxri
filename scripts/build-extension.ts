@@ -3,9 +3,9 @@ import { resolve } from 'node:path';
 import process from 'node:process';
 import { parseArgs } from 'node:util';
 
+import { extensionManifestSchema } from '@caxri/protocol';
 import { build } from 'vite';
 
-import { extensionManifestSchema } from '../packages/protocol/src/index.ts';
 import {
     assertExtensionBundleContract,
     assertProductExtensionBundleContract,

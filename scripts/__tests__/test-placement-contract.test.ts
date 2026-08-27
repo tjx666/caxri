@@ -7,8 +7,8 @@ const root = resolve(import.meta.dirname, '../..');
 
 /**
  * Mirrors `scripts/__tests__/workspace-contract.test.ts`'s CLI-scoped `looseTestFiles` walker for the Desktop source
- * trees that are not the Renderer: `.agents/skills/source-layout/SKILL.md` "Place tests" requires Main, Host, Runtime,
- * and shared Node tests to live in a domain-local `__tests__/` directory. The Renderer is deliberately excluded —
+ * trees that are not the Renderer: `.agents/skills/source-layout/SKILL.md` "Place tests" requires Desktop Main, Server,
+ * and system package tests to live in a domain-local `__tests__/` directory. The Renderer is deliberately excluded —
  * colocated `foo.test.ts` beside `foo.ts` is the documented, allowed placement there.
  */
 function looseTestFiles(directory: string): string[] {
@@ -52,8 +52,14 @@ function testTsxFiles(directory: string): string[] {
 }
 
 describe('test placement contract', () => {
-    it('keeps Main, Host, Runtime, and shared Node tests inside __tests__/ (Renderer stays colocated)', () => {
-        for (const domain of ['src/main', 'src/host', 'src/runtime', 'src/shared']) {
+    it('keeps Desktop Main, Server, and system tests inside __tests__/ (Renderer stays colocated)', () => {
+        for (const domain of [
+            'apps/desktop/src/main',
+            'apps/desktop/src/shared',
+            'apps/server/src/core',
+            'apps/server/src/domains',
+            'packages/system/src',
+        ]) {
             expect(looseTestFiles(join(root, domain)), `${domain} loose *.test.ts files`).toEqual(
                 [],
             );

@@ -2,7 +2,8 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { execFileAsync } from '../src/shared/node/exec.ts';
+import { execFileAsync } from '@caxri/system';
+
 import { expect, test } from './support/fixtures.ts';
 import { createShellSession, launchCaxri, runtimeStatus } from './support/helpers.ts';
 
@@ -31,12 +32,11 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
         const memoryAction = running.page.getByRole('button', {
             name: /^Open Process Explorer — Terminal memory: [\d.]+ MB$/,
         });
-        await memoryAction.hover();
-        await expect(running.page.locator('.tooltip-popup')).toHaveText(
-            /^Open Process Explorer — Terminal memory: [\d.]+ MB$/,
-        );
-        await running.page.mouse.move(0, 0);
-        await expect(running.page.locator('.tooltip-popup')).toHaveCount(0);
+        /**
+         * This visible-window workflow owns native keyboard focus and Process Explorer lifecycle. Mouse tooltip
+         * behavior for the same shared StatusItem primitive stays covered by `statusbar.e2e.ts`, where the OS pointer
+         * is isolated.
+         */
         await memoryAction.focus();
         await expect(memoryAction).toBeFocused();
         await memoryAction.press('Enter');
@@ -50,7 +50,11 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
         const grid = processPage.getByRole('treegrid', { name: 'Caxri processes' });
         await expect(grid.getByRole('columnheader')).toHaveCount(4);
         await expect(grid).toContainText('caxri');
-        await expect(grid).toContainText('runtime');
+        await expect(grid.locator('button.process-name[title="server-core"]')).toHaveCount(1);
+        await expect(grid.locator('button.process-name[title="extension-host"]')).toHaveCount(1);
+        await expect(grid.locator('button.process-name[title="terminal-host"]')).toHaveCount(1);
+        await expect(grid).not.toContainText('/bundles/extension-host.js');
+        await expect(grid).not.toContainText('/bundles/terminal-host.js');
         await expect(grid).toContainText(/\/(?:bin\/)?(?:zsh|bash|sh)/);
         const expandedRowCount = await processPage.locator('.process-row').count();
         expect(expandedRowCount).toBeGreaterThan(3);
@@ -72,7 +76,7 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
             )
             .toBeGreaterThan(sampledAt);
 
-        const mainLogPath = join(userData, 'logs', 'main.jsonl');
+        const mainLogPath = join(userData, 'logs', 'desktop.jsonl');
         await expect
             .poll(async () => {
                 const log = await readFile(mainLogPath, 'utf8');

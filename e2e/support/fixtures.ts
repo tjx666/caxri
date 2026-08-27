@@ -7,7 +7,7 @@ import { expect, test as base } from '@playwright/test';
 import { runWithE2EErrorGate } from './error-gate.ts';
 import {
     e2eWorkerTemporaryDirectory,
-    removeE2EWorkerTemporaryDirectory,
+    removeE2ETemporaryDirectory,
     resolveE2EWorkerIsolation,
 } from './worker-isolation.ts';
 
@@ -59,7 +59,7 @@ export const test = base.extend<E2EFixtures, E2EWorkerFixtures>({
                     else process.env[key] = value;
                 }
                 if (workerDirectory) {
-                    await removeE2EWorkerTemporaryDirectory(workerDirectory);
+                    await removeE2ETemporaryDirectory(workerDirectory);
                 }
             } catch (error) {
                 failure ??= error;

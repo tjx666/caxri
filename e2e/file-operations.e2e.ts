@@ -53,8 +53,8 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
     // dialog scenarios exercised further down (Cancel, Replace, Keep Both), each preceded by exactly
     // one failed `reject` attempt = 1 + 3 = 4 pairs, one on `main` and one on `runtime` per attempt.
     allowE2EErrors([
-        { source: 'main', event: 'ipc.request_failed', code: 'CONFLICT', count: 4 },
-        { source: 'runtime', event: 'ipc.request_failed', code: 'CONFLICT', count: 4 },
+        { source: 'desktop', event: 'ipc.request_failed', code: 'CONFLICT', count: 4 },
+        { source: 'server-core', event: 'ipc.request_failed', code: 'CONFLICT', count: 4 },
     ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-file-operations-e2e-'));
     const userData = join(testDirectory, 'user-data');

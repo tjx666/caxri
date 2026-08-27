@@ -3,8 +3,9 @@ import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { execFileAsync } from '../src/shared/node/exec.ts';
-import type { ThemeTokens } from '../src/shared/types.ts';
+import type { ThemeTokens } from '@caxri/protocol';
+import { execFileAsync } from '@caxri/system';
+
 import type { E2EApp as ElectronApp } from './support/electron-app.ts';
 import type { Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';

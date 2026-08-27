@@ -60,8 +60,9 @@ export function parseDialogOptions(arguments_: string[]): DialogOptions | 'help'
 }
 
 /**
- * The re-identified Acceptance app is the only valid owner of Caxri native windows. Renderer, GPU, Host, Runtime, and
- * AppKit service PIDs must never become alternative owners merely because a native query is difficult.
+ * The re-identified Acceptance app is the only valid owner of Caxri native windows. Renderer, GPU, Server Core,
+ * Extension Host, and AppKit service PIDs must never become alternative owners merely because a native query is
+ * difficult.
  */
 export function ownedDialogProcessIds(runtime: { electronPid?: number | null }): number[] {
     if (!runtime.electronPid) throw new Error('Owned Acceptance runtime has no Electron PID');

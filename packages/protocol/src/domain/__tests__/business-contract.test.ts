@@ -111,7 +111,9 @@ describe('logQueryParametersSchema', () => {
     });
 
     it('accepts registered event filters and rejects unknown events', () => {
-        expect(logQueryParametersSchema.safeParse({ event: 'runtime.ready' }).success).toBe(true);
+        expect(logQueryParametersSchema.safeParse({ event: 'server_core.ready' }).success).toBe(
+            true,
+        );
         expect(logQueryParametersSchema.safeParse({ event: 'runtime.typo' }).success).toBe(false);
     });
 
@@ -120,7 +122,7 @@ describe('logQueryParametersSchema', () => {
             logQueryRecordSchema.safeParse({
                 id: 'record-1',
                 timestamp: '2026-08-22T00:00:00.000Z',
-                process: 'runtime',
+                process: 'server-core',
                 level: 'info',
                 event: 'external.legacy_event',
             }).success,
@@ -129,9 +131,9 @@ describe('logQueryParametersSchema', () => {
 });
 
 describe('businessMethods', () => {
-    it('keeps every public business command Host-owned', () => {
+    it('keeps every public business command Server-owned', () => {
         for (const spec of Object.values(businessMethods)) {
-            expect(spec.owner).toBe('host');
+            expect(spec.owner).toBe('server');
         }
     });
 

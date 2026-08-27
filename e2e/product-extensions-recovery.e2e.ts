@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import { execFileAsync } from '../src/shared/node/exec.ts';
+import { execFileAsync } from '@caxri/system';
+
 import type { Locator, Page } from './support/fixtures.ts';
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import { createShellSession, launchCaxri, pageRequest } from './support/helpers.ts';
@@ -73,12 +74,12 @@ async function expectStatusData(page: Page): Promise<void> {
 test('Files Core persists while Git and Status recover after Extension Host restart', async () => {
     allowE2EErrors([
         {
-            source: 'host',
-            event: 'host.extension_host_exit',
-            code: 'HOST_EXTENSION_HOST_EXIT',
+            source: 'server-core',
+            event: 'extension_host.exit',
+            code: 'EXTENSION_HOST_EXIT',
             count: 1,
         },
-        { source: 'main', event: 'ipc.request_failed', code: 'INTERNAL', count: 1 },
+        { source: 'desktop', event: 'ipc.request_failed', code: 'INTERNAL', count: 1 },
     ]);
 
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-product-extension-recovery-e2e-'));

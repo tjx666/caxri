@@ -16,7 +16,8 @@ import { copyFile, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/pro
 import path from 'node:path';
 import process from 'node:process';
 
-import { execFileAsync } from '../../../../src/shared/node/exec';
+import { execFileAsync } from '@caxri/system';
+
 import { inlineThemeCss } from './inline-theme-css';
 
 const skillDirectory = path.resolve(import.meta.dirname, '..');
@@ -70,8 +71,7 @@ async function buildRuntime(): Promise<void> {
             '--loader:.woff2=dataurl',
             '--loader:.svg=dataurl',
             '--loader:.png=dataurl',
-            `--alias:@=${path.join(repoRoot, 'src/renderer/src')}`,
-            `--alias:@shared=${path.join(repoRoot, 'src/shared')}`,
+            `--alias:@=${path.join(repoRoot, 'apps/desktop/src/renderer/src')}`,
             `--outfile=${path.join(outDirectory, 'caxri-prototype-runtime.js')}`,
         ],
         { cwd: repoRoot, maxBuffer: 64 * 1024 * 1024 },
@@ -79,7 +79,7 @@ async function buildRuntime(): Promise<void> {
 }
 
 async function buildThemeScript(): Promise<void> {
-    const stylesDirectory = path.join(repoRoot, 'src/renderer/src/styles');
+    const stylesDirectory = path.join(repoRoot, 'apps/desktop/src/renderer/src/styles');
     const css = inlineThemeCss({
         themeCss: await readFile(path.join(stylesDirectory, 'theme.css'), 'utf8'),
         twAnimateCss: await readFile(

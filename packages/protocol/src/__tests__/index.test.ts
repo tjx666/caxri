@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { CommandAdapter, CommandExecutionContext, RuntimeEvent } from '../index';
+import type { CommandAdapter, CommandExecutionContext, ServerEvent } from '../index';
 import {
     acceptEventSequence,
     agentSkillHealthSchema,
@@ -9,19 +9,17 @@ import {
     createCommandDispatcher,
     createEventJournal,
     createProtocolWelcome,
-    createRecoveringEventClient,
     errorCodes,
-    hostManifestSchema,
-    isNonExpiringRuntimeMethod,
-    MAX_EVENT_JOURNAL_EVENTS,
+    isNonExpiringServerOperation,
     methods,
     negotiateProtocolVersion,
-    parseRuntimeRequest,
+    parseServerOperationRequest,
     principalProjectionSchemas,
     projectObservableEventRecovery,
     protocolWelcomeSchema,
     requestEnvelopeSchema,
-    runtimeEventSchema,
+    serverEventSchema,
+    serverManifestSchema,
 } from '../index';
 
 const desktop = {
@@ -91,13 +89,13 @@ describe('@caxri/protocol contract', () => {
             principalProjectionSchemas.project.safeParse({ id: 'p1', displayTitle: 'P' }).success,
         ).toBe(true);
         expect(
-            runtimeEventSchema.safeParse({
+            serverEventSchema.safeParse({
                 event: 'files.changed',
                 payload: { changes: [], overflow: false, sessionId: 'session-1' },
             }).success,
         ).toBe(false);
         expect(
-            runtimeEventSchema.safeParse({
+            serverEventSchema.safeParse({
                 event: 'files.changed',
                 payload: {
                     changes: [],
@@ -111,7 +109,7 @@ describe('@caxri/protocol contract', () => {
 
     it('gives every command one owner, effect, capability set, schemas, and idempotency policy', () => {
         for (const [name, spec] of Object.entries(methods)) {
-            expect(['host', 'desktop'], name).toContain(spec.owner);
+            expect(['server', 'desktop'], name).toContain(spec.owner);
             expect(['read', 'write', 'control'], name).toContain(spec.effect);
             expect(['none', 'request'], name).toContain(spec.idempotency);
             expect(spec.requiredCapabilities.length, name).toBeGreaterThan(0);
@@ -173,10 +171,10 @@ describe('@caxri/protocol contract', () => {
     });
 
     it('keeps bounded authoritative Runtime operations alive until their own result', () => {
-        expect(isNonExpiringRuntimeMethod('files.copy')).toBe(true);
-        expect(isNonExpiringRuntimeMethod('files.write')).toBe(true);
-        expect(isNonExpiringRuntimeMethod('agent.dispatch.waitInternal')).toBe(true);
-        expect(isNonExpiringRuntimeMethod('files.read')).toBe(false);
+        expect(isNonExpiringServerOperation('files.copy')).toBe(true);
+        expect(isNonExpiringServerOperation('files.write')).toBe(true);
+        expect(isNonExpiringServerOperation('agent.dispatch.waitInternal')).toBe(true);
+        expect(isNonExpiringServerOperation('files.read')).toBe(false);
     });
 
     it('keeps human steer bounded and distinct from peer text', () => {
@@ -209,7 +207,7 @@ describe('@caxri/protocol contract', () => {
 
     it('negotiates only commands reachable by the authenticated principal', () => {
         const welcome = createProtocolWelcome(
-            { host: { invoke: () => null } },
+            { server: { invoke: () => null } },
             { supportedVersions: [2] },
             human,
         );
@@ -225,7 +223,7 @@ describe('@caxri/protocol contract', () => {
 
     it('does not negotiate or parse the retired raw git.diff command', () => {
         const welcome = createProtocolWelcome(
-            { host: { invoke: () => null } },
+            { server: { invoke: () => null } },
             { supportedVersions: [2] },
             desktop,
         );
@@ -240,7 +238,7 @@ describe('@caxri/protocol contract', () => {
             }).success,
         ).toBe(false);
         expect(() =>
-            parseRuntimeRequest('git.diff', {
+            parseServerOperationRequest('git.diff', {
                 sessionId: 'session-1',
                 repositoryId: 'repository-1',
                 path: 'README.md',
@@ -249,10 +247,15 @@ describe('@caxri/protocol contract', () => {
     });
 
     it('keeps Host discovery parseable across protocol versions without exposing credentials', () => {
-        const manifest = hostManifestSchema.parse({
-            manifestVersion: 1,
+        const manifest = serverManifestSchema.parse({
+            manifestVersion: 2,
             profileId: 'profile-1',
-            endpoint: '/private/tmp/caxri.sock',
+            endpoint: {
+                protocol: 'ws',
+                host: '127.0.0.1',
+                port: 41_337,
+                path: '/control',
+            },
             pid: 42,
             startedAt: 1,
             processIdentity: '1'.repeat(32),
@@ -266,7 +269,7 @@ describe('@caxri/protocol contract', () => {
 
     it('negotiates the bounded Host control surface for an authenticated operator', () => {
         const welcome = createProtocolWelcome(
-            { host: { invoke: () => null } },
+            { server: { invoke: () => null } },
             { supportedVersions: [2] },
             hostOperator,
         );
@@ -280,7 +283,7 @@ describe('@caxri/protocol contract', () => {
 });
 
 describe('transport-neutral dispatcher', () => {
-    const host: CommandAdapter = {
+    const server: CommandAdapter = {
         invoke: (command) => {
             if (command.method === 'project.list') return { view: 'desktop', projects };
             if (command.method === 'session.rename')
@@ -294,7 +297,7 @@ describe('transport-neutral dispatcher', () => {
     it('preserves submission order for overlapping Terminal input', async () => {
         const invoked: string[] = [];
         const dispatch = createCommandDispatcher({
-            host: {
+            server: {
                 invoke: (command) => {
                     if (command.method === 'terminal.input') invoked.push(command.params.data);
                     return null;
@@ -336,7 +339,7 @@ describe('transport-neutral dispatcher', () => {
     });
 
     it('projects the same handler result for Desktop, human CLI, and scoped Agent principals', async () => {
-        const dispatch = createCommandDispatcher({ host });
+        const dispatch = createCommandDispatcher({ server });
         const desktopReply = await dispatch(request('r1', 'project.list'), desktop);
         const humanReply = await dispatch(request('r2', 'project.list'), human);
         const agentReply = await dispatch(request('r3', 'project.list'), agent);
@@ -429,7 +432,7 @@ describe('transport-neutral dispatcher', () => {
     });
 
     it('enforces capability checks and a stable unavailable Desktop owner', async () => {
-        const dispatch = createCommandDispatcher({ host });
+        const dispatch = createCommandDispatcher({ server });
         await expect(dispatch(request('r1', 'app.bootstrap'), human)).resolves.toMatchObject({
             ok: false,
             error: { code: 'FORBIDDEN' },
@@ -458,10 +461,10 @@ describe('transport-neutral dispatcher', () => {
         const release = gateResolvers.resolve;
         const gate = gateResolvers.promise;
         const dispatch = createCommandDispatcher({
-            host: {
+            server: {
                 invoke: async (command, context, invocation) => {
                     if (command.method !== 'session.rename')
-                        return host.invoke(command, context, invocation);
+                        return server.invoke(command, context, invocation);
                     writes += 1;
                     await gate;
                     return {
@@ -514,7 +517,7 @@ describe('transport-neutral dispatcher', () => {
 });
 
 describe('recoverable event cursor', () => {
-    const changed = (reason: 'project.create' | 'session.create'): RuntimeEvent => ({
+    const changed = (reason: 'project.create' | 'session.create'): ServerEvent => ({
         event: 'state.changed',
         payload: { kind: 'full', reason },
     });
@@ -573,10 +576,15 @@ describe('recoverable event cursor', () => {
             projectObservableEventRecovery({
                 kind: 'events',
                 cursor: 1,
+                serverId: 'a'.repeat(32),
+                stateEpoch: 'b'.repeat(32),
+                barrier: { kind: 'live', cursor: 1 },
                 events: [
                     {
                         protocolVersion: 2,
                         cursor: 1,
+                        serverId: 'a'.repeat(32),
+                        stateEpoch: 'b'.repeat(32),
                         event: {
                             event: 'settings.changed',
                             payload: { source: 'secret-sentinel' },
@@ -593,6 +601,9 @@ describe('recoverable event cursor', () => {
             projectObservableEventRecovery({
                 kind: 'snapshot',
                 cursor: 2,
+                serverId: 'a'.repeat(32),
+                stateEpoch: 'b'.repeat(32),
+                barrier: { kind: 'live', cursor: 2 },
                 snapshot: {
                     cursor: 2,
                     projectIds: ['private-project'],
@@ -637,125 +648,5 @@ describe('recoverable event cursor', () => {
             cursor: 3,
             events: [later],
         });
-    });
-
-    it('converges a reconnect while preserving the direct Terminal output path', async () => {
-        const emitted: RuntimeEvent[] = [];
-        const journal = createEventJournal({
-            maximumEvents: 2,
-            snapshot: (cursor) => ({
-                cursor,
-                projectIds: [],
-                sessionIds: [],
-                terminalIds: [],
-                settingsRevision: cursor,
-                diagnosticsRevision: cursor,
-                agentRevision: cursor,
-            }),
-        });
-        const first = journal.publish(changed('project.create'));
-        const client = createRecoveringEventClient({
-            emit: (event) => {
-                emitted.push(event);
-            },
-            recover: (cursor) => journal.recover(cursor),
-        });
-
-        await client.start();
-        client.receive(first);
-        client.receive({
-            event: 'terminal.output',
-            payload: { terminalId: 'terminal-1', data: 'visible only to the attached view' },
-        });
-        expect(emitted).toEqual([
-            changed('project.create'),
-            {
-                event: 'terminal.output',
-                payload: {
-                    terminalId: 'terminal-1',
-                    data: 'visible only to the attached view',
-                },
-            },
-        ]);
-
-        journal.publish(changed('session.create'));
-        journal.publish(changed('project.create'));
-        const snapshotClientEvents: RuntimeEvent[] = [];
-        const snapshotClient = createRecoveringEventClient({
-            emit: (event) => {
-                snapshotClientEvents.push(event);
-            },
-            recover: (cursor) => journal.recover(cursor),
-        });
-        await snapshotClient.start();
-        expect(snapshotClientEvents).toEqual([
-            { event: 'state.changed', payload: { kind: 'full', reason: 'unknown' } },
-        ]);
-    });
-
-    it('bounds delayed recovery and converges from a fresh snapshot after the journal capacity', async () => {
-        const firstRecoveryResolvers = Promise.withResolvers<void>();
-        const releaseFirstRecovery = firstRecoveryResolvers.resolve;
-        const firstRecovery = firstRecoveryResolvers.promise;
-        const recoveryStartedResolvers = Promise.withResolvers<void>();
-        const firstRecoveryStarted = recoveryStartedResolvers.resolve;
-        const recoveryStarted = recoveryStartedResolvers.promise;
-        const journal = createEventJournal({
-            snapshot: (cursor) => ({
-                cursor,
-                projectIds: [],
-                sessionIds: [],
-                terminalIds: [],
-                settingsRevision: cursor,
-                diagnosticsRevision: cursor,
-                agentRevision: cursor,
-            }),
-        });
-        const emitted: RuntimeEvent[] = [];
-        let recoveryCalls = 0;
-        const client = createRecoveringEventClient({
-            emit: (event) => {
-                emitted.push(event);
-            },
-            recover: async (cursor) => {
-                recoveryCalls += 1;
-                if (recoveryCalls === 1) {
-                    firstRecoveryStarted();
-                    await firstRecovery;
-                }
-                return journal.recover(cursor);
-            },
-        });
-
-        const starting = client.start();
-        await recoveryStarted;
-        client.receive({
-            event: 'terminal.output',
-            payload: { terminalId: 'terminal-1', data: 'direct' },
-        });
-        client.receive({
-            event: 'command.execute',
-            payload: { command: 'session.selectNext' },
-        });
-        for (let index = 0; index <= MAX_EVENT_JOURNAL_EVENTS; index += 1) {
-            client.receive(
-                journal.publish(changed(index % 2 === 0 ? 'project.create' : 'session.create')),
-            );
-        }
-        releaseFirstRecovery();
-
-        await starting;
-        expect(recoveryCalls).toBe(2);
-        expect(emitted).toEqual([
-            {
-                event: 'terminal.output',
-                payload: { terminalId: 'terminal-1', data: 'direct' },
-            },
-            {
-                event: 'command.execute',
-                payload: { command: 'session.selectNext' },
-            },
-            { event: 'state.changed', payload: { kind: 'full', reason: 'unknown' } },
-        ]);
     });
 });

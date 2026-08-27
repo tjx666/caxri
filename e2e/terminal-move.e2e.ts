@@ -2,8 +2,9 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { listPaneTerminalIds } from '../src/shared/pane-layout.ts';
-import type { BootstrapState } from '../src/shared/types.ts';
+import type { BootstrapState } from '@caxri/protocol';
+import { listPaneTerminalIds } from '@caxri/protocol';
+
 import type { Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
 import {

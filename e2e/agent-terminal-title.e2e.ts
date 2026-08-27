@@ -2,7 +2,8 @@ import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { execFileAsync } from '../src/shared/node/exec.ts';
+import { execFileAsync } from '@caxri/system';
+
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import { launchCaxri, openAddProjectDialog, pageRequest, typeTerminal } from './support/helpers.ts';

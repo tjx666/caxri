@@ -120,9 +120,9 @@ export async function stopElectron(
     for (const ownedProcess of runtime.ownedProcesses) {
         capturedProcesses.set(processKey(ownedProcess), ownedProcess);
     }
-    const acceptedHostKeys = new Set(
+    const acceptedServerCoreKeys = new Set(
         runtime.ownedProcesses
-            .filter(({ role }) => role === 'host')
+            .filter(({ role }) => role === 'server-core')
             .map((ownedProcess) => processKey(ownedProcess)),
     );
     const captureCurrentProcesses = async (): Promise<void> => {
@@ -130,27 +130,30 @@ export async function stopElectron(
             runtime,
             dependencies.projectRoot,
         );
-        const discoveredHost = discoveredProcesses.find(({ role }) => role === 'host');
-        if (discoveredHost) {
-            const discoveredHostKey = processKey(discoveredHost);
-            if (acceptedHostKeys.size > 0 && !acceptedHostKeys.has(discoveredHostKey)) {
+        const discoveredServerCore = discoveredProcesses.find(({ role }) => role === 'server-core');
+        if (discoveredServerCore) {
+            const discoveredServerCoreKey = processKey(discoveredServerCore);
+            if (
+                acceptedServerCoreKeys.size > 0 &&
+                !acceptedServerCoreKeys.has(discoveredServerCoreKey)
+            ) {
                 throw new Error('Acceptance profile owner changed process identity');
             }
-            acceptedHostKeys.add(discoveredHostKey);
+            acceptedServerCoreKeys.add(discoveredServerCoreKey);
         }
-        let isRuntimeChanged = false;
+        let isOwnershipChanged = false;
         for (const ownedProcess of discoveredProcesses) {
             const key = processKey(ownedProcess);
             if (!capturedProcesses.has(key)) {
                 capturedProcesses.set(key, ownedProcess);
                 runtime.ownedProcesses.push(ownedProcess);
-                isRuntimeChanged = true;
+                isOwnershipChanged = true;
             }
         }
         /**
-         * Persist every exact Runtime generation before signaling so a later orphan remains recoverable.
+         * Persist every exact Server generation before signaling so a later orphan remains recoverable.
          */
-        if (isRuntimeChanged) await dependencies.writeRuntime(runtime);
+        if (isOwnershipChanged) await dependencies.writeRuntime(runtime);
     };
     await captureCurrentProcesses();
 
@@ -180,7 +183,7 @@ export async function stopElectron(
           : undefined;
     if (desktopOwner) await signalOnce(desktopOwner, 'SIGTERM');
     for (const ownedProcess of capturedProcesses.values()) {
-        if (ownedProcess.role === 'host') {
+        if (ownedProcess.role === 'server-core') {
             // eslint-disable-next-line no-await-in-loop -- exact identities must be rechecked immediately before signal
             await signalOnce(ownedProcess, 'SIGTERM');
         }
@@ -200,15 +203,15 @@ export async function stopElectron(
             // eslint-disable-next-line no-await-in-loop -- every signal decision rechecks the exact captured identity
             if (await dependencies.isOwnedProcess(ownedProcess)) liveProcesses.push(ownedProcess);
         }
-        const liveHosts = liveProcesses.filter(({ role }) => role === 'host');
-        for (const host of liveHosts) {
+        const liveServerCores = liveProcesses.filter(({ role }) => role === 'server-core');
+        for (const serverCore of liveServerCores) {
             // eslint-disable-next-line no-await-in-loop -- newly discovered generations are signaled exactly once
-            await signalOnce(host, 'SIGTERM');
+            await signalOnce(serverCore, 'SIGTERM');
         }
-        if (liveHosts.length === 0) {
+        if (liveServerCores.length === 0) {
             for (const ownedProcess of liveProcesses) {
-                if (ownedProcess.role === 'runtime') {
-                    // eslint-disable-next-line no-await-in-loop -- orphan Runtime cleanup follows verified Host exit
+                if (ownedProcess.role === 'extension-host') {
+                    // eslint-disable-next-line no-await-in-loop -- orphan process cleanup follows verified Server exit
                     await signalOnce(ownedProcess, 'SIGTERM');
                 }
             }

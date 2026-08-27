@@ -2,7 +2,14 @@ import { chmod, mkdir, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 import process from 'node:process';
 
-import { connectToHost, discoverHostManifest } from '@caxri/cli';
+import { connectToServer, discoverServerManifest } from '@caxri/client/supervise';
+import type { AgentProvider } from '@caxri/protocol';
+import { agentProviderCatalog } from '@caxri/protocol';
+import {
+    e2eAgentPolicyEnvironment,
+    e2eAgentShellShims,
+    e2eFakeExecutableEnvironmentKeys,
+} from '@caxri/system';
 import type { ElectronApplication, Locator, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 import { _electron as electron } from 'playwright';
@@ -14,13 +21,6 @@ import {
     releaseDesktopLease,
     transferDesktopLease,
 } from '../../.agents/skills/switch-worktree/scripts/desktop-lease.ts';
-import type { AgentProvider } from '../../src/shared/agents.ts';
-import { agentProviderCatalog } from '../../src/shared/agents.ts';
-import {
-    e2eAgentPolicyEnvironment,
-    e2eAgentShellShims,
-    e2eFakeExecutableEnvironmentKeys,
-} from '../../src/shared/node/e2e-agent-policy.ts';
 import {
     createE2EAgentIsolationEnvironment,
     e2eAgentStateEnvironmentKeys,
@@ -37,6 +37,7 @@ import {
 } from './clipboard.ts';
 import type { E2EApp } from './electron-app.ts';
 import { registerE2ELaunch } from './error-gate.ts';
+import { stageDevelopmentTestExtension } from './test-extension.ts';
 import { resolveE2EClipboardPolicy, resolveE2EWorkerIsolation } from './worker-isolation.ts';
 
 const projectRoot = resolve(import.meta.dirname, '../..');
@@ -181,9 +182,9 @@ function errorCode(error: unknown): string | undefined {
 }
 
 async function stopE2EHost(userDataDirectory: string): Promise<void> {
-    let client: Awaited<ReturnType<typeof connectToHost>> | undefined;
+    let client: Awaited<ReturnType<typeof connectToServer>> | undefined;
     try {
-        client = await connectToHost(userDataDirectory, 2_000);
+        client = await connectToServer(userDataDirectory, 2_000);
         await client.request('host.stop', { confirmLivePtys: true });
     } catch (error) {
         if (errorCode(error) !== 'NOT_FOUND' && errorCode(error) !== 'UNAVAILABLE') throw error;
@@ -195,7 +196,7 @@ async function stopE2EHost(userDataDirectory: string): Promise<void> {
         try {
             // Sequential polling by design: each attempt depends on the previous one finishing.
             // eslint-disable-next-line no-await-in-loop
-            await discoverHostManifest(userDataDirectory);
+            await discoverServerManifest(userDataDirectory);
         } catch (error) {
             if (errorCode(error) === 'NOT_FOUND') return;
             throw error;
@@ -264,6 +265,7 @@ export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<Runni
         clipboard = false,
         clipboardFixture,
     } = options;
+    if (!executablePath) await stageDevelopmentTestExtension(projectRoot, userDataDir);
     const agentEnvironment = await e2eAgentEnvironment(userDataDir, agentMode, environment);
     const clipboardPolicy = resolveE2EClipboardPolicy(process.env, clipboard);
     if (clipboardFixture && !clipboard) {
@@ -316,8 +318,8 @@ export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<Runni
                     ? []
                     : ['--disable-gpu']
                 : gpuMode === 'enabled'
-                  ? ['.']
-                  : ['.', '--disable-gpu'],
+                  ? ['apps/desktop']
+                  : ['apps/desktop', '--disable-gpu'],
             cwd: projectRoot,
             env: launchEnvironment,
         });
@@ -531,6 +533,18 @@ export async function waitForCreatedSession(
 }
 
 /**
+ * Activates a Terminal choice through its keyboard contract. The choice handler synchronously closes the dialog, so a
+ * pointer click can observe the button detaching after its click event already created the Session and then retry the
+ * action until timeout. Enter dispatches the same accessible activation without waiting on the removed pointer target.
+ */
+async function chooseDefaultTerminal(page: Page, name: string): Promise<void> {
+    const choice = page.getByRole('dialog').getByRole('button', { exact: true, name });
+    await choice.focus();
+    await expect(choice).toBeFocused();
+    await choice.press('Enter');
+}
+
+/**
  * Opens the "Add Project" dialog, picks the requested default Terminal, and returns only after the new Session
  * satisfies {@link waitForCreatedSession}. Specs that also need a writable Shell surface should use
  * {@link createShellSession} instead.
@@ -542,13 +556,10 @@ export async function createProjectSession(
     const previous = await pageRequest<{ selectedSessionId?: string }>(page, 'app.bootstrap');
     await openAddProjectDialog(page);
     await expect(page.getByRole('heading', { name: 'Choose the default Terminal' })).toBeVisible();
-    await page
-        .getByRole('dialog')
-        .getByRole('button', {
-            name: kind === 'shell' ? 'Shell' : agentProviderCatalog[kind].displayName,
-            exact: true,
-        })
-        .click();
+    await chooseDefaultTerminal(
+        page,
+        kind === 'shell' ? 'Shell' : agentProviderCatalog[kind].displayName,
+    );
     return waitForCreatedSession(page, previous.selectedSessionId);
 }
 
@@ -581,7 +592,14 @@ export async function createAdditionalShellSession(page: Page): Promise<void> {
         .hover();
     await page.getByRole('button', { name: /^New Session in / }).click();
     await expect(page.getByRole('heading', { name: 'Choose the default Terminal' })).toBeVisible();
-    await page.getByRole('dialog').getByRole('button', { name: 'Shell', exact: true }).click();
+    await chooseDefaultTerminal(page, 'Shell');
+    /**
+     * Opening the action requires hovering the Project heading. Park the pointer in the Workbench after activation so
+     * the trigger's delayed tooltip cannot cover a caller's next click or leave the Project in a synthetic hover
+     * state.
+     */
+    await page.mouse.move(500, 300);
+    await expect(page.locator('.tooltip-popup')).toHaveCount(0);
     const terminalId = await waitForNewTerminalId(
         page,
         before.terminals.map((terminal) => terminal.id),

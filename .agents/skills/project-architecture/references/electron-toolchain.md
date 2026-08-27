@@ -5,7 +5,7 @@
 
 ## Decision
 
-Use `electron-vite` for separate Main, Headless Host, Extension Host, Preload, Runtime, and Renderer Vite builds, and `electron-builder` for macOS packaging and native dependency rebuilds.
+Use `electron-vite` for Desktop Main, Preload, and Renderer builds; use Vite directly for the standalone Server bundles; and use `electron-builder` for macOS packaging.
 
 Every local and CI package stages beneath `release.noindex/`. The output root must carry the `.noindex` suffix before
 Electron Builder creates a runnable `.app`; modern macOS can index an ordinary staging directory before a later marker
@@ -16,41 +16,35 @@ E2E-specific, bundle-budget, local-DMG, release-workflow, and self-hosted cleanu
 and Process Explorer windows always resolve their renderer entry files from the application bundle,
 so an inherited development URL cannot redirect either privileged window.
 
-The root remains the private pnpm workspace owner and the only lockfile owner. `packages/protocol`
-owns browser-safe schemas, types, and wire errors, while `packages/cli` is a Node-only client that
-may depend on the protocol but never on Electron, the Runtime, or native modules. Existing Desktop
-source stays under `src/`; introducing workspaces is not an application-directory migration.
+The root remains the private pnpm workspace owner and the only lockfile owner. `apps/desktop`,
+`apps/server`, and `apps/cli` own independently runnable product entrypoints; the root owns no product
+`src/` tree. `packages/protocol` owns browser-safe schemas, types, and wire errors, while `apps/cli`
+may depend on public packages but never on Electron, Server internals, or native modules.
 Day-to-day commands continue through `ni` and `bun run`. `mise.toml` pins Node and pnpm for local
 development, CI provisions those versions explicitly, and the root intentionally omits
 `packageManager` and `devEngines.packageManager` so package-manager selection does not depend on
 Corepack-compatible manifest metadata.
 
-Workspace builds run before Desktop development startup and the production Desktop build. This
-keeps ignored `dist` artifacts synchronized before electron-vite resolves workspace runtime exports.
-electron-builder excludes the development workspace links from its broad `node_modules` input; a
-workspace artifact enters the app only through an explicit Desktop build or packaging entry. This
-prevents workspace-link traversal from accidentally shipping the standalone CLI. Local installs keep
-pnpm's isolated layout; electron-builder flattens the packaged dependency graph into its ASAR-facing
-`node_modules` layout so the existing ASAR unpack rules keep matching native modules.
+Workspace builds run before Desktop development startup and the production Desktop build. Server
+development has its own Vite watcher, which refreshes the standalone directory artifact after bundle
+changes. electron-builder embeds that exact artifact under `Contents/Resources/server` and has no
+production dependency graph to flatten into ASAR. The standalone CLI enters the app only through its
+explicit packaging resource.
 
 Bundled extensions are independent `extensions/*` workspace packages with package-local TypeScript
 programs and a development-only `caxri: workspace:*` dependency. Their ESM bundles keep `caxri`
-external so the Extension Host remains the only runtime API provider. Production packaging copies
-only product extensions such as Status; `testOnly` Fixture is added only by the explicit
-`package:e2e` profile into a separate output directory. Runtime `testOnly` filtering is defense in
-depth, not the release-artifact boundary.
+external so the Extension Host remains the only runtime API provider. The Server artifact contains
+only product extensions; `package:e2e` rebuilds a separately manifested Server artifact with the
+`testOnly` Fixture and restores the production artifact afterward.
 
-The Electron `RunAsNode` fuse remains enabled deliberately. Both the provider lifecycle-hook bridge
-and the profile-scoped Headless Host execute the packaged Caxri binary with
-`ELECTRON_RUN_AS_NODE=1`; the Host then separately supervises `out/main/runtime.js` and
-`out/main/extension-host.js` as advanced-serialization Node IPC children so they retain Electron ABI
-parity without launching Chromium. Packaging validation must keep proving that `host.js`,
-`extension-host.js`, and `runtime.js` load from `app.asar` while native modules load
-from `app.asar.unpacked`. Disabling this fuse requires replacing both production launch paths first.
+The Electron `RunAsNode` fuse remains enabled only for the packaged CLI launcher. Server supervision
+uses `server/runtime/bin/node` from the standalone artifact; its Core, Runtime, Extension Host,
+lifecycle-hook bridge, and native dependencies never execute through Electron. Packaging validation
+hashes both Server copies and loads all three Server entrypoints using the pinned artifact runtime.
 
-The Desktop build explicitly bundles `@caxri/cli` and `@caxri/protocol` into Main while leaving the
-standalone workspace links out of the packaged application. This gives Main the authenticated Host
-client without making packaged startup depend on a pnpm workspace symlink.
+The Desktop build consumes `@caxri/client` and `@caxri/protocol` through public package exports while
+leaving workspace links out of the packaged application. Main discovers and supervises the embedded
+Server artifact without importing `apps/server` source.
 
 Packaged Main processes treat `ELECTRON_RENDERER_URL` as a development-only override: application
 logs always resolve beneath Electron `userData`, never relative to the packaged application bundle.
@@ -76,12 +70,10 @@ Vite 8 requires `electron-vite@6`; while that integration is still beta, it expl
 
 TypeScript 7 is the registry latest but does not ship a JavaScript API. Caxri follows the official side-by-side layout: `@typescript/native` supplies the TypeScript 7 `tsc` binary, while the `typescript` package name aliases `@typescript/typescript6` so typed ESLint rules continue to receive the supported TypeScript 6 API. Re-evaluate the alias after TypeScript 7.1 and native typed-lint support ship.
 
-`@parcel/watcher`, `better-sqlite3`, and `node-pty` remain production dependencies and are unpacked
-from ASAR. `@parcel/watcher` loads its platform-specific Node-API package directly; rebuilding its
-wrapper package compiles an unused duplicate binary, so development and CI rebuild only
-`better-sqlite3` and `node-pty`. The Electron native spike must load all three modules after that
-selective rebuild. Packaging verification must execute a probe from the packaged Runtime before
-release.
+`@parcel/watcher`, `better-sqlite3`, and `node-pty` are Server application dependencies. The artifact
+builder copies only their selected runtime inputs and compatible prebuilds, preserves executable helper
+modes, and records every byte in the artifact manifest. The native spike loads all three with the
+artifact runtime, performs a real watcher subscription, opens SQLite, and spawns a PTY.
 
 The private GitHub Release path runs on the repository-level Apple Silicon self-hosted runner and
 publishes an unsigned arm64 DMG for personal use. Only a pushed `main` commit whose subject exactly matches

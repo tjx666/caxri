@@ -104,7 +104,7 @@ template bug.
   usually means a non-token color class.
 - The primitives are compositional shadcn style: `Empty` + `EmptyTitle` (+
   `EmptyMedia`), `Dialog` + `DialogContent`…, not prop bags — check the component
-  source in `src/renderer/src/components/ui/` for the exact API.
+  source in `apps/desktop/src/renderer/src/components/ui/` for the exact API.
 - `theme.css` sets `html, body, #root { height: 100%; overflow: hidden }` like the real
   workbench — give your surface its own scroll container, as production does.
 - Prototypes have no Electron preload: never touch `window.caxri`; fake data inline.

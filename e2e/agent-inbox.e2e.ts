@@ -4,16 +4,15 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
 
-import { discoverHostManifest, HostClient } from '@caxri/cli';
+import { discoverServerManifest, ServerClient } from '@caxri/client/supervise';
+import type { AppSettings, ServerEvent } from '@caxri/protocol';
 
-import type { RuntimeEvent } from '../src/shared/ipc/events';
-import type { AppSettings } from '../src/shared/types';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
-const cliPath = join(projectRoot, 'packages', 'cli', 'dist', 'caxri.cjs');
+const cliPath = join(projectRoot, 'apps', 'cli', 'dist', 'caxri.cjs');
 
 interface EndpointCapture {
     context: {
@@ -86,8 +85,8 @@ process.stdin.resume();
         },
     });
     const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
-    let sender: HostClient | undefined;
-    let receiver: HostClient | undefined;
+    let sender: ServerClient | undefined;
+    let receiver: ServerClient | undefined;
     try {
         const sessionId = await createProjectSession(running.page, 'codex');
         await pageRequest(running.page, 'terminal.create', { sessionId, kind: 'codex' });
@@ -109,12 +108,12 @@ process.stdin.resume();
             health: 'ready',
             reason: 'fixture_pull_ready',
         });
-        const manifest = await discoverHostManifest(userData);
-        sender = await HostClient.connect(manifest, 2_000, {
+        const manifest = await discoverServerManifest(userData);
+        sender = await ServerClient.connect(manifest, 2_000, {
             kind: 'agent',
             ...senderCapture.credential,
         });
-        receiver = await HostClient.connect(manifest, 2_000, {
+        receiver = await ServerClient.connect(manifest, 2_000, {
             kind: 'agent',
             ...receiverCapture.credential,
         });
@@ -254,7 +253,7 @@ process.stdin.resume();
         const restarted = (await captures(capturePath)).at(2);
         if (!restarted) throw new Error('Restarted Agent Endpoint capture missing');
         receiver.close();
-        receiver = await HostClient.connect(manifest, 2_000, {
+        receiver = await ServerClient.connect(manifest, 2_000, {
             kind: 'agent',
             ...restarted.credential,
         });
@@ -263,7 +262,7 @@ process.stdin.resume();
             outcome: 'timed_out',
         });
 
-        const messagingEvents: RuntimeEvent[] = [];
+        const messagingEvents: ServerEvent[] = [];
         receiver.onEvent((event) => {
             if (!('cursor' in event)) messagingEvents.push(event);
         });
@@ -308,10 +307,9 @@ process.stdin.resume();
                 ?.lastProcessState,
         ).toBe('running');
 
-        const [database, hostLog, runtimeLog, diagnostics, snapshot] = await Promise.all([
+        const [database, serverCoreLog, diagnostics, snapshot] = await Promise.all([
             readFile(join(userData, 'caxri.db')),
-            readFile(join(userData, 'logs', 'host.jsonl'), 'utf8'),
-            readFile(join(userData, 'logs', 'runtime.jsonl'), 'utf8'),
+            readFile(join(userData, 'logs', 'server-core.jsonl'), 'utf8'),
             pageRequest(running.page, 'diagnostics.snapshot'),
             pageRequest<{ payload: string }>(running.page, 'terminal.snapshot', {
                 terminalId: receiverCapture.context.endpoint.terminalId,
@@ -325,8 +323,7 @@ process.stdin.resume();
         }
         for (const body of [directBody, checkBody, heldBody, racedBody, staleBody]) {
             expect(database.includes(Buffer.from(body))).toBe(false);
-            expect(hostLog).not.toContain(body);
-            expect(runtimeLog).not.toContain(body);
+            expect(serverCoreLog).not.toContain(body);
             expect(JSON.stringify(diagnostics)).not.toContain(body);
             expect(snapshot.payload).not.toContain(body);
             expect(terminalInput.includes(Buffer.from(body))).toBe(false);

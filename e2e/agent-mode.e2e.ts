@@ -25,7 +25,7 @@ async function isPathPresent(path: string): Promise<boolean> {
 test('the default E2E launch cannot resolve a host Agent executable', async () => {
     allowE2EErrors([
         {
-            source: 'runtime',
+            source: 'server-core',
             event: 'pty.spawn_failed',
             code: 'UNAVAILABLE',
             count: 1,
@@ -58,7 +58,7 @@ test('the default E2E launch cannot resolve a host Agent executable', async () =
             running.page.getByText('Agent CLI executable was not found', { exact: true }),
         ).toBeVisible();
         await expect.poll(() => isPathPresent(launchMarker)).toBe(false);
-        const launchRecord = (await readFile(join(userData, 'logs', 'main.jsonl'), 'utf8'))
+        const launchRecord = (await readFile(join(userData, 'logs', 'desktop.jsonl'), 'utf8'))
             .split('\n')
             .filter(Boolean)
             .map(
@@ -125,19 +125,19 @@ test('the blocked E2E mode shadows host Agents inside a Shell Terminal', async (
 test('real mode rejects unsafe launch args and interactive Agent input', async () => {
     allowE2EErrors([
         {
-            source: 'main',
+            source: 'desktop',
             event: 'ipc.request_failed',
             code: 'VALIDATION',
             count: 1,
         },
         {
-            source: 'runtime',
+            source: 'server-core',
             event: 'ipc.request_failed',
             code: 'VALIDATION',
             count: 1,
         },
         {
-            source: 'runtime',
+            source: 'server-core',
             event: 'pty.spawn_failed',
             code: 'VALIDATION',
             count: 1,
@@ -233,7 +233,7 @@ test('real mode rejects unsafe launch args and interactive Agent input', async (
 test('real mode cannot bypass its Agent policy through a Shell Terminal', async () => {
     allowE2EErrors([
         {
-            source: 'runtime',
+            source: 'server-core',
             event: 'pty.spawn_failed',
             code: 'VALIDATION',
             count: 1,

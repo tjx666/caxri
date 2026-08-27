@@ -1,4 +1,4 @@
 export * from './argv-config.js';
 export * from './desktop-contract.js';
 export * from './desktop-launch.js';
-export * from './desktop-runtime.js';
+export * from './desktop-server-operations.js';

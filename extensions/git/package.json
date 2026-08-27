@@ -8,10 +8,8 @@
         "build": "bun run --cwd ../.. scripts/build-extension.ts --extension-root extensions/git",
         "typecheck": "tsc --noEmit -p tsconfig.json"
     },
-    "dependencies": {
-        "@caxri/utils": "workspace:*"
-    },
     "devDependencies": {
+        "@caxri/protocol": "workspace:*",
         "caxri": "workspace:*"
     },
     "engines": {

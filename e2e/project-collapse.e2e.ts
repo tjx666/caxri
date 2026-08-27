@@ -2,9 +2,9 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { execFileAsync } from '@caxri/system';
 import Database from 'better-sqlite3';
 
-import { execFileAsync } from '../src/shared/node/exec.ts';
 import type { E2EApp } from './support/electron-app.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';

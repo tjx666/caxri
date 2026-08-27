@@ -42,13 +42,13 @@ export const desktopOpenParametersSchema = z.object({
 });
 
 const hostDesktopRead = {
-    owner: 'host',
+    owner: 'server',
     effect: 'read',
     requiredCapabilities: ['desktop.window'],
     idempotency: 'none',
 } as const;
 const hostDesktopControl = {
-    owner: 'host',
+    owner: 'server',
     effect: 'control',
     requiredCapabilities: ['desktop.window'],
     idempotency: 'request',
@@ -56,7 +56,7 @@ const hostDesktopControl = {
 const noParameters = z.object({}).default({});
 
 /**
- * Host-owned commands that route only bounded native-window operations to the current Desktop.
+ * Server-owned commands that route only bounded native-window operations to the current Desktop.
  */
 export const desktopHostMethods = {
     'desktop.status': {

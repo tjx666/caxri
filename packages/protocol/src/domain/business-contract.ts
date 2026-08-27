@@ -2,7 +2,10 @@ import { z } from 'zod';
 
 import { appSettingsSchema } from '../configuration/settings-schema.js';
 import { projectListForPrincipal, projectListResultSchema } from '../registry/projections.js';
-import { observableEventRecoverySchema } from '../transport/event-journal.js';
+import {
+    eventRecoveryRequestSchema,
+    observableEventRecoverySchema,
+} from '../transport/event-journal.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 import { principalSchema } from '../transport/principal.js';
@@ -158,7 +161,11 @@ export const settingsPatchResultSchema = settingsInspectionSchema.extend({
 });
 
 export const logLevelSchema = z.enum(['debug', 'info', 'warn', 'error']);
-export const logProcessSchema = z.enum(['host', 'main', 'runtime']);
+export const logProcesses = ['desktop', 'extension-host', 'server-core', 'terminal-host'] as const;
+export const logProcessSchema = z.enum(logProcesses);
+export function isLogProcess(value: unknown): value is LogProcess {
+    return typeof value === 'string' && logProcesses.includes(value as LogProcess);
+}
 export const logQueryParametersSchema = z
     .object({
         afterCursor: z.string().min(1).max(512).optional(),
@@ -233,66 +240,66 @@ export const diagnosticsSnapshotSchema = z.object({
 
 export const businessMethods = {
     'project.list': {
-        ...commandPolicy('host', 'read', ['projects.read']),
+        ...commandPolicy('server', 'read', ['projects.read']),
         params: noParameters,
         result: projectListResultSchema,
         projectResult: projectListForPrincipal,
     },
     'project.query': {
-        ...commandPolicy('host', 'read', ['projects.read']),
+        ...commandPolicy('server', 'read', ['projects.read']),
         params: projectQuerySchema,
         result: projectQueryResultSchema,
     },
     'session.query': {
-        ...commandPolicy('host', 'read', ['sessions.read']),
+        ...commandPolicy('server', 'read', ['sessions.read']),
         params: sessionQuerySchema,
         result: sessionQueryResultSchema,
     },
     'terminal.query': {
-        ...commandPolicy('host', 'read', ['terminals.read']),
+        ...commandPolicy('server', 'read', ['terminals.read']),
         params: terminalQuerySchema,
         result: terminalQueryResultSchema,
     },
     'settings.inspect': {
-        ...commandPolicy('host', 'read', ['settings.read']),
+        ...commandPolicy('server', 'read', ['settings.read']),
         params: noParameters,
         result: settingsInspectionSchema,
     },
     'settings.patch': {
-        ...commandPolicy('host', 'write', ['settings.write']),
+        ...commandPolicy('server', 'write', ['settings.write']),
         params: settingsPatchParametersSchema,
         result: settingsPatchResultSchema,
     },
     'logs.query': {
-        ...commandPolicy('host', 'read', ['diagnostics.read']),
+        ...commandPolicy('server', 'read', ['diagnostics.read']),
         params: logQueryParametersSchema,
         result: logQueryResultSchema,
     },
     'diagnostics.snapshot': {
-        ...commandPolicy('host', 'read', ['diagnostics.read']),
+        ...commandPolicy('server', 'read', ['diagnostics.read']),
         params: noParameters,
         result: diagnosticsSnapshotSchema,
     },
     'events.query': {
-        ...commandPolicy('host', 'read', ['events.read']),
-        params: z.object({ afterCursor: z.number().int().nonnegative() }),
+        ...commandPolicy('server', 'read', ['events.read']),
+        params: eventRecoveryRequestSchema,
         result: observableEventRecoverySchema,
     },
 } as const satisfies Record<string, MethodSpec>;
 
 export const businessInternalMethods = {
     'project.queryForPrincipal': {
-        ...commandPolicy('host', 'read'),
+        ...commandPolicy('server', 'read'),
         params: z.object({ query: projectQuerySchema, principal: principalSchema }),
         result: projectQueryResultSchema,
     },
     'session.queryForPrincipal': {
-        ...commandPolicy('host', 'read'),
+        ...commandPolicy('server', 'read'),
         params: z.object({ query: sessionQuerySchema, principal: principalSchema }),
         result: sessionQueryResultSchema,
     },
     'terminal.queryForPrincipal': {
-        ...commandPolicy('host', 'read'),
+        ...commandPolicy('server', 'read'),
         params: z.object({ query: terminalQuerySchema, principal: principalSchema }),
         result: terminalQueryResultSchema,
     },
@@ -306,7 +313,7 @@ export type SessionQueryResult = z.infer<typeof sessionQueryResultSchema>;
 export type TerminalQueryResult = z.infer<typeof terminalQueryResultSchema>;
 export type SettingsPatchChange = z.infer<typeof settingsPatchChangeSchema>;
 export type SettingsPatchResult = z.infer<typeof settingsPatchResultSchema>;
-// eslint-disable-next-line unicorn/name-replacements -- exported type is imported by src/runtime/introspection/logs.ts, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
+// eslint-disable-next-line unicorn/name-replacements -- exported type is imported by apps/server/src/domains/introspection/logs.ts, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
 export type LogQueryParams = z.infer<typeof logQueryParametersSchema>;
 export type LogQueryRecord = z.infer<typeof logQueryRecordSchema>;
 export type LogQueryResult = z.infer<typeof logQueryResultSchema>;

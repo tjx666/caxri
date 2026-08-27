@@ -1,13 +1,13 @@
 {
-    "name": "@caxri/desktop",
+    "name": "@caxri/workspace",
     "version": "0.0.19",
     "private": true,
     "author": "Caxri contributors",
     "description": "A project-first, terminal-native local development workbench for macOS.",
-    "main": "./out/main/index.js",
     "type": "module",
     "scripts": {
-        "dev": "bun run build:workspaces && electron-vite dev",
+        "dev": "bun run build:workspaces && bun run scripts/development.ts",
+        "dev:desktop": "bun run scripts/development.ts",
         "format": "prettier --write .",
         "format:check": "prettier --check . --cache --cache-strategy content --cache-location .cache/prettier",
         "format:md": "prettier --write \"**/*.md\"",
@@ -21,29 +21,31 @@
         "doctor": "react-doctor --no-score --blocking warning",
         "doctor:changed": "bun run scripts/doctor-changed.ts",
         "typecheck": "bun run typecheck:workspaces && tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
-        "typecheck:workspaces": "bun run typecheck:api && bun run typecheck:protocol && bun run typecheck:cli && bun run typecheck:extensions",
-        "typecheck:api": "bun run --cwd packages/api typecheck",
-        "typecheck:protocol": "bun run --cwd packages/protocol typecheck",
-        "typecheck:cli": "bun run --cwd packages/cli typecheck",
+        "typecheck:workspaces": "pnpm --recursive --filter './apps/*' --filter './packages/*' --filter './extensions/*' run typecheck",
+        "typecheck:api": "pnpm --filter caxri run typecheck",
+        "typecheck:protocol": "pnpm --filter @caxri/protocol run typecheck",
+        "typecheck:cli": "pnpm --filter @caxri/cli run typecheck",
         "typecheck:extensions": "pnpm --recursive --filter './extensions/*' run typecheck",
         "test": "vitest run",
-        "test:workspaces": "bun run test:api && bun run test:protocol && bun run test:cli",
-        "test:api": "bun run --cwd packages/api test",
-        "test:protocol": "bun run --cwd packages/protocol test",
-        "test:cli": "bun run --cwd packages/cli test",
+        "test:workspaces": "pnpm --recursive --filter './apps/*' --filter './packages/*' run test",
+        "test:api": "pnpm --filter caxri run test",
+        "test:protocol": "pnpm --filter @caxri/protocol run test",
+        "test:cli": "pnpm --filter @caxri/cli run test",
+        "test:server-artifact": "bun run scripts/smoke-server-artifact.ts",
         "test:watch": "vitest",
+        "refactor:parity": "bun run scripts/refactor-parity.ts",
         "test:e2e": "bun run build && playwright test",
         "test:e2e:real-agent": "CAXRI_REAL_AGENT_E2E=1 playwright test e2e/real-agent-smoke.e2e.ts --reporter=line",
         "test:smoke": "bun run --silent check e2e/smoke.e2e.ts --e2e",
         "benchmark:startup": "bun run build && playwright test e2e/startup.performance.e2e.ts --reporter=line",
         "benchmark:editor": "bun run build && playwright test e2e/editor.performance.e2e.ts --reporter=line",
         "build": "bun run build:workspaces && bun run build:desktop",
-        "build:workspaces": "bun run build:api && bun run build:protocol && bun run build:cli && bun run build:extensions",
-        "build:api": "bun run --cwd packages/api build",
-        "build:protocol": "bun run --cwd packages/protocol build",
-        "build:cli": "bun run --cwd packages/cli build",
+        "build:workspaces": "pnpm --recursive --filter './apps/*' --filter './packages/*' --filter './extensions/*' --filter '!@caxri/desktop' --filter '!@caxri/server' --if-present run build && pnpm --filter @caxri/server run build",
+        "build:api": "pnpm --filter caxri run build",
+        "build:protocol": "pnpm --filter @caxri/protocol run build",
+        "build:cli": "pnpm --filter @caxri/cli run build",
         "build:extensions": "pnpm --recursive --filter './extensions/*' run build",
-        "link:cli": "bun run build:cli && bun run packages/cli/scripts/link-global.ts",
+        "link:cli": "bun run build:cli && bun run apps/cli/scripts/link-global.ts",
         "unlink:cli": "pnpm remove --global @caxri/cli",
         "uninstall:caxri": "bun run scripts/uninstall-caxri.ts",
         "install:caxri": "bun run scripts/install-caxri.ts",
@@ -51,9 +53,7 @@
         "package": "bun run build && electron-builder --mac dir",
         "package:e2e": "bun run build && bun run scripts/package-extension-test-app.ts",
         "package:dmg": "bun run build && electron-builder --mac dmg --publish never",
-        "postinstall": "electron-rebuild --only better-sqlite3,node-pty --parallel",
         "prepare": "git rev-parse --git-dir > /dev/null 2>&1 && git config core.hooksPath .githooks || true",
-        "rebuild": "electron-rebuild --only better-sqlite3,node-pty --parallel",
         "spike:native": "bun run scripts/native-spike.ts",
         "spike:pty": "bun run scripts/pty-spike.ts",
         "spike:agents": "bun run scripts/agent-discovery-spike.ts"
@@ -85,6 +85,7 @@
                     ".agents/skills/acceptance/scripts/report.ts",
                     ".agents/skills/acceptance/scripts/start-electron.ts",
                     ".agents/skills/acceptance/scripts/stop-electron.ts",
+                    ".agents/skills/design-prototype/assets/entry.mjs",
                     ".agents/skills/design-prototype/scripts/build-runtime.ts",
                     ".agents/skills/design-prototype/scripts/verify-prototype.ts",
                     ".agents/skills/go/scripts/start.ts",
@@ -112,15 +113,34 @@
                     "scripts/fixtures/eslint/use-wrong-casing-hook-fixture.ts",
                     "scripts/fixtures/eslint/wrong-casing-component-fixture.tsx",
                     "scripts/fixtures/eslint/feature-structure/**/*.ts",
+                    "scripts/fixtures/eslint/architecture/**/*.ts",
                     "scripts/run-e2e-failure-isolation.ts",
                     "scripts/run-e2e-pools.ts"
                 ],
                 "ignore": [
-                    ".agents/skills/deep-review/scripts/vitest.config.ts",
-                    ".agents/skills/design-prototype/assets/**"
+                    ".agents/skills/deep-review/scripts/vitest.config.ts"
+                ],
+                "ignoreDependencies": [
+                    "tailwindcss",
+                    "tw-animate-css",
+                    "ws"
                 ]
             },
-            "packages/cli": {
+            "apps/desktop": {
+                "entry": [
+                    "src/preload/process-explorer.ts",
+                    "src/renderer/src/main.tsx",
+                    "src/renderer/src/process-explorer-main.tsx"
+                ]
+            },
+            "apps/server": {
+                "entry": [
+                    "src/extension-host/process.ts",
+                    "src/core/process.ts",
+                    "src/terminal-host/process.ts"
+                ]
+            },
+            "*/cli": {
                 "entry": [
                     "src/bin.ts"
                 ]
@@ -128,40 +148,38 @@
             "extensions/fixture": {
                 "entry": [
                     "src/extension.ts"
+                ],
+                "ignoreDependencies": [
+                    "@caxri/protocol"
                 ]
             },
             "extensions/git": {
                 "entry": [
                     "src/extension.ts"
+                ],
+                "ignoreDependencies": [
+                    "@caxri/protocol"
                 ]
             },
             "extensions/status": {
                 "entry": [
                     "src/extension.ts"
+                ],
+                "ignoreDependencies": [
+                    "@caxri/protocol"
                 ]
             }
         }
     },
-    "dependencies": {
-        "@parcel/watcher": "2.5.6",
-        "better-sqlite3": "13.0.2",
-        "node-pty": "1.1.0"
-    },
     "devDependencies": {
-        "@base-ui/react": "1.6.0",
-        "@caxri/cli": "workspace:*",
+        "@caxri/client": "workspace:*",
         "@caxri/protocol": "workspace:*",
+        "@caxri/system": "workspace:*",
         "@caxri/utils": "workspace:*",
         "@electron-toolkit/tsconfig": "2.0.0",
-        "@electron/rebuild": "4.2.0",
-        "@lobehub/icons-static-svg": "^1.94.0",
-        "@monaco-editor/react": "4.7.0",
         "@playwright/test": "1.62.1",
         "@rolldown/plugin-babel": "0.2.3",
         "@tailwindcss/vite": "4.3.3",
-        "@tanstack/react-query": "5.101.4",
-        "@tanstack/react-virtual": "3.14.9",
-        "@types/archiver": "8.0.0",
         "@types/better-sqlite3": "9.6.0",
         "@types/estree": "1.0.9",
         "@types/node": "26.1.2",
@@ -170,32 +188,20 @@
         "@types/semver": "catalog:",
         "@typescript/native": "npm:typescript@7.0.2",
         "@vitejs/plugin-react": "6.0.5",
-        "@xterm/addon-clipboard": "0.3.0-beta.301",
-        "@xterm/addon-fit": "0.12.0-beta.299",
-        "@xterm/addon-image": "0.10.0-beta.299",
-        "@xterm/addon-progress": "0.3.0-beta.299",
-        "@xterm/addon-search": "0.17.0-beta.299",
-        "@xterm/addon-serialize": "0.15.0-beta.299",
-        "@xterm/addon-unicode11": "0.10.0-beta.299",
-        "@xterm/addon-webgl": "0.20.0-beta.298",
-        "@xterm/headless": "6.1.0-beta.301",
-        "@xterm/xterm": "6.1.0-beta.301",
         "@yutengjing/eslint-config-typescript": "catalog:",
         "@yutengjing/prettier-config": "catalog:",
-        "@yutengjing/vscode-icons": "^0.1.1",
-        "archiver": "8.0.0",
         "babel-plugin-react-compiler": "1.0.0",
+        "better-sqlite3": "13.0.2",
         "caxri": "workspace:*",
         "class-variance-authority": "0.7.1",
         "clsx": "2.1.1",
         "cmdk": "1.1.1",
         "drizzle-kit": "0.31.10",
-        "drizzle-orm": "0.45.2",
         "electron": "43.2.0",
         "electron-builder": "26.15.3",
         "electron-vite": "6.0.0-beta.1",
-        "es-toolkit": "1.50.0",
         "eslint": "10.8.1",
+        "eslint-plugin-import-x": "catalog:",
         "eslint-plugin-react-hooks": "7.1.1",
         "eslint-plugin-react-refresh": "0.5.3",
         "jsonc-parser": "3.3.1",
@@ -204,12 +210,11 @@
         "lucide-react": "1.28.0",
         "markdownlint": "catalog:",
         "markdownlint-cli2": "catalog:",
-        "monaco-editor": "0.56.0",
         "motion": "13.0.0",
+        "node-pty": "1.1.0",
         "oxlint": "catalog:",
         "oxlint-tsgolint": "catalog:",
         "playwright": "1.62.1",
-        "plist": "5.0.0",
         "prettier": "3.9.6",
         "prettier-plugin-tailwindcss": "catalog:",
         "react": "19.2.8",
@@ -224,6 +229,7 @@
         "typescript": "npm:@typescript/typescript6@6.0.2",
         "vite": "8.2.0",
         "vitest": "4.1.10",
+        "ws": "catalog:",
         "yaml": "2.9.0",
         "zod": "catalog:",
         "zustand": "5.0.14"
@@ -231,6 +237,10 @@
     "build": {
         "appId": "com.caxri.app",
         "productName": "Caxri",
+        "extraMetadata": {
+            "main": "out/main/index.js",
+            "name": "@caxri/desktop"
+        },
         "electronFuses": {
             "runAsNode": true
         },
@@ -238,15 +248,9 @@
             "output": "release.noindex"
         },
         "asar": true,
-        "asarUnpack": [
-            "node_modules/@parcel/watcher/**",
-            "node_modules/@parcel/watcher-*/**",
-            "node_modules/better-sqlite3/**",
-            "node_modules/node-pty/**"
-        ],
         "extraResources": [
             {
-                "from": "packages/cli/dist/caxri.cjs",
+                "from": "apps/cli/dist/caxri.cjs",
                 "to": "cli/caxri.cjs"
             },
             {
@@ -254,22 +258,8 @@
                 "to": "bin/caxri"
             },
             {
-                "from": "extensions/git",
-                "to": "extensions/git",
-                "filter": [
-                    "package.json",
-                    "dist/**",
-                    "media/**"
-                ]
-            },
-            {
-                "from": "extensions/status",
-                "to": "extensions/status",
-                "filter": [
-                    "package.json",
-                    "dist/**",
-                    "media/**"
-                ]
+                "from": "apps/server/dist/server",
+                "to": "server"
             }
         ],
         "files": [
@@ -277,11 +267,7 @@
             "package.json",
             "THIRD_PARTY_NOTICES.md",
             "licenses/**",
-            "!**/*.map",
-            "!node_modules/better-sqlite3/{deps,src}{,/**}",
-            "!node_modules/better-sqlite3/prebuilds/{linux,linuxmusl,win32}-*.node",
-            "!node_modules/node-pty/{deps,src,scripts,third_party}{,/**}",
-            "!node_modules/node-pty/prebuilds/win32-*{,/**}"
+            "!**/*.map"
         ],
         "electronLanguages": [
             "en",

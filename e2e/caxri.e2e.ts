@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import { execFileAsync } from '../src/shared/node/exec.ts';
+import { execFileAsync } from '@caxri/system';
+
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import {
@@ -303,8 +304,8 @@ test('Info secondarySidebar lists only the current Session Terminals', async () 
 
 test('Git secondarySidebar shows child repositories, submodule state, and changed-file trees', async () => {
     allowE2EErrors([
-        { source: 'main', event: 'ipc.request_failed', code: 'GIT', count: 1 },
-        { source: 'runtime', event: 'ipc.request_failed', code: 'GIT', count: 1 },
+        { source: 'desktop', event: 'ipc.request_failed', code: 'GIT', count: 1 },
+        { source: 'server-core', event: 'ipc.request_failed', code: 'GIT', count: 1 },
     ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-git-repositories-e2e-'));
     const userData = join(testDirectory, 'user-data');
@@ -520,7 +521,7 @@ test('removing a Project deletes only Caxri metadata', async () => {
 test('canceling the Agent choice revokes the selected Project root grant', async () => {
     allowE2EErrors([
         {
-            source: 'main',
+            source: 'desktop',
             event: 'ipc.request_failed',
             code: 'PATH_DENIED',
             count: 1,
@@ -644,11 +645,14 @@ test('switching Sessions discards expanded file-tree state from the previous roo
         // disk, then assert the symlink-rejection message is absent.
         await expect
             .poll(async () => {
-                const contents = await readFile(join(userData, 'logs', 'runtime.jsonl'), 'utf8');
+                const contents = await readFile(
+                    join(userData, 'logs', 'server-core.jsonl'),
+                    'utf8',
+                );
                 return contents.includes('"event":"file.list"');
             })
             .toBe(true);
-        expect(await readFile(join(userData, 'logs', 'runtime.jsonl'), 'utf8')).not.toContain(
+        expect(await readFile(join(userData, 'logs', 'server-core.jsonl'), 'utf8')).not.toContain(
             'Symlink target is outside the Project root',
         );
         await expect(running.page.locator('.toast')).toHaveCount(0);

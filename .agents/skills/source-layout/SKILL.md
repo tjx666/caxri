@@ -11,35 +11,39 @@ skill owns placement inside those roots.
 
 ## 1. Pick the tree
 
-| Work                          | Live here                |
-| ----------------------------- | ------------------------ |
-| Host                          | `src/host/`              |
-| Desktop Main                  | `src/main/`              |
-| Preload                       | `src/preload/`           |
-| Renderer                      | `src/renderer/src/`      |
-| Runtime                       | `src/runtime/`           |
-| Browser-safe shared contracts | `src/shared/`            |
-| Node-only shared helpers      | `src/shared/node/`       |
-| Protocol schemas and registry | `packages/protocol/src/` |
-| Browser-safe pure utilities   | `packages/utils/src/`    |
-| CLI adapter                   | `packages/cli/src/`      |
+The current topology has one independently runnable product per `apps/*` workspace and only
+importable boundaries under `packages/*`:
 
-`src/shared/ipc/` is a compatibility re-export layer; it must not define a second method or schema
-table. Renderer never imports Node, Electron, or native APIs. Playwright support stays in
+| Work                          | Target path                   |
+| ----------------------------- | ----------------------------- |
+| Desktop                       | `apps/desktop/`               |
+| Server                        | `apps/server/`                |
+| CLI                           | `apps/cli/`                   |
+| Shared Client                 | `packages/client/src/`        |
+| Protocol schemas and registry | `packages/protocol/src/`      |
+| Extension API                 | `packages/extension-api/src/` |
+| Shared system primitives      | `packages/system/src/`        |
+| Browser-safe pure utilities   | `packages/utils/src/`         |
+
+Do not create an empty future application. The repository root owns no product `src/` tree.
+The executable source of truth for ownership is `scripts/architecture-boundaries.ts`.
+`caxri/architecture-boundaries` rejects application-to-application source imports, package-private
+imports, and platform dependencies in browser-safe packages; `import-x/no-cycle` protects current
+workspaces. Renderer never imports Node.js, Electron, or native APIs. Playwright support stays in
 `e2e/support/`. Contributor skills live at `.agents/skills/<name>/`.
 
 ## 2. Place React components
 
-| Kind                                        | Live here                              |
-| ------------------------------------------- | -------------------------------------- |
-| Feature screen, panel, or dialog            | `src/renderer/src/features/<feature>/` |
-| Shared chrome used by more than one feature | `src/renderer/src/components/`         |
-| shadcn primitives                           | `src/renderer/src/components/ui/`      |
-| Shared hooks                                | `src/renderer/src/hooks/`              |
-| Icons                                       | `src/renderer/src/icons/`              |
+| Kind                                        | Live here                                           |
+| ------------------------------------------- | --------------------------------------------------- |
+| Feature screen, panel, or dialog            | `apps/desktop/src/renderer/src/features/<feature>/` |
+| Shared chrome used by more than one feature | `apps/desktop/src/renderer/src/components/`         |
+| shadcn primitives                           | `apps/desktop/src/renderer/src/components/ui/`      |
+| Shared hooks                                | `apps/desktop/src/renderer/src/hooks/`              |
+| Icons                                       | `apps/desktop/src/renderer/src/icons/`              |
 
 Do not put product UI in `components/ui/`. Do not invent a second hooks directory; `@/hooks` is
-`src/renderer/src/hooks/`. Process Explorer UI stays under `features/process-explorer/` with its
+`apps/desktop/src/renderer/src/hooks/`. Process Explorer UI stays under `features/process-explorer/` with its
 own entry.
 
 A component file is kebab-case `.tsx`; its primary named export is the PascalCase mapping of the
@@ -49,7 +53,7 @@ follows `DESIGN.md` token utilities only.
 
 ## 3. Shape a Renderer feature directory
 
-A feature directory under `src/renderer/src/features/<feature>/` starts flat and earns a kind
+A feature directory under `apps/desktop/src/renderer/src/features/<feature>/` starts flat and earns a kind
 folder only when files of that kind accumulate. The `caxri/feature-directory-structure` ESLint
 rule enforces the thresholds and the no-coexistence contract.
 
@@ -80,8 +84,8 @@ a folder for a one- or two-file cluster.
 
 Locked protocol and CLI domains in `AGENTS.md` stay even when they have only two production
 modules. Do not add or remove one of those domains without updating `AGENTS.md` and
-`scripts/__tests__/workspace-contract.test.ts`. A new Runtime domain with three or more modules
-needs a barrel; `src/runtime/__tests__/structure.test.ts` rejects a missing one and rejects
+`scripts/__tests__/workspace-contract.test.ts`. A new Server domain with three or more modules
+needs a barrel; `apps/server/src/domains/__tests__/structure.test.ts` rejects a missing one and rejects
 production imports that reach past another domain's root.
 
 ## 5. Name files for the job
@@ -109,22 +113,22 @@ production imports that reach past another domain's root.
   `file-conflict-dialog-store.ts`.
 
 Cross-domain production imports target the domain barrel, not a deep file. Package consumers use
-the package root; `packages/cli/src` composition-root files (`application`, `environment`,
-`output`, `selectors`) stay at that root.
+the package root; `apps/cli/src` composition-root files (`application`, `environment`, `output`,
+`selectors`) stay at that root and are not an importable package boundary.
 
 When moving, `git mv`, then fix relative imports and `import.meta.url` paths in the same change.
 
 ## 6. Place tests
 
-| Surface                          | Tests                                          |
-| -------------------------------- | ---------------------------------------------- |
-| Renderer feature logic           | Colocated below three files, else `__tests__/` |
-| React components                 | Do not unit-test the `.tsx`; extract logic     |
-| Renderer-wide contracts          | `src/renderer/__tests__/`                      |
-| Main, Host, Runtime, shared, CLI | Domain-local `__tests__/`                      |
-| Skill scripts                    | `scripts/*.test.ts` or `scripts/__tests__/`    |
-| Repo scripts                     | `scripts/__tests__/`                           |
-| Electron workflows               | `e2e/*.e2e.ts`                                 |
+| Surface                        | Tests                                          |
+| ------------------------------ | ---------------------------------------------- |
+| Renderer feature logic         | Colocated below three files, else `__tests__/` |
+| React components               | Do not unit-test the `.tsx`; extract logic     |
+| Renderer-wide contracts        | `apps/desktop/src/renderer/__tests__/`         |
+| Desktop, Server, packages, CLI | Domain-local `__tests__/`                      |
+| Skill scripts                  | `scripts/*.test.ts` or `scripts/__tests__/`    |
+| Repo scripts                   | `scripts/__tests__/`                           |
+| Electron workflows             | `e2e/*.e2e.ts`                                 |
 
 Do not leave `*.test.ts` beside production files outside the Renderer. For test execution guidance,
 Call the Skill tool with "unit-testing" or "e2e-testing" as applicable. Rendering and interaction

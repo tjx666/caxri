@@ -4,7 +4,7 @@
 
 Caxri is a macOS-first Electron desktop workbench. Electron Main owns windows
 and lifecycle, Preload exposes the typed `window.caxri` bridge, the Renderer owns
-the UI, and the utility-process Runtime owns PTYs, Git, files, SQLite, settings,
+the UI, and the detached Server Core owns PTYs, Git, files, SQLite, settings,
 and agent adapters. Acceptance uses the real macOS Electron desktop surface.
 
 ## 2. Environment
@@ -55,20 +55,20 @@ and agent adapters. Acceptance uses the real macOS Electron desktop surface.
   that receipt in `cases[].evidence`; finalization verifies exact profile reuse and cleanup.
 
 - **Stop:** `bun run .agents/skills/acceptance/scripts/stop-electron.ts`. The adapter stops only the
-  immutable launcher/window identities recorded in the runtime file plus the Host that owns that
-  profile's kernel lock and its exact worktree Runtime child. It rechecks every identity before
+  immutable launcher/window identities recorded in the runtime file plus the Server Core that owns
+  that profile's kernel lock and its exact artifact children. It rechecks every identity before
   signaling, preserves state on a mismatch or timeout, and does not return success until CDP and all
   captured owned processes are gone.
 - **Already-running detection:** the adapter compares the recorded launcher PID
   and immutable process identity. It refuses to replace a verified live owner
-  and treats a recycled PID as stale state. A declared restart may carry the same verified Host
+  and treats a recycled PID as stale state. A declared restart may carry the same verified Server Core
   generation into its next launch only when the case, canonical profile, and worktree all match.
-  State written before Host/Runtime ownership was verified is preserved for inspection rather than
+  State written before Server ownership was verified is preserved for inspection rather than
   being treated as safely stale.
 - **CDP resolution:** read `port` and `cdpUrl` from the runtime file or from the
   JSON readiness line printed by the start script. Do not assume another Caxri
   instance uses the same port.
-- **Required services:** none beyond the local Caxri Main and Runtime processes.
+- **Required services:** none beyond the local Caxri Desktop and detached Server processes.
 
 ## 3. Auth
 
@@ -102,7 +102,7 @@ lobehub acceptance run list --json
   `bun run .agents/skills/acceptance/scripts/capture-renderer.ts --help`; it
   validates runtime ownership and supports `--url-contains` for secondary Caxri
   windows.
-- **Main and Runtime logs:** the isolated user-data directory recorded in
+- **Desktop and Server logs:** the isolated user-data directory recorded in
   `.records/acceptance/runtime.json` owns packaged/test logs. Development logs
   may also appear under `logs/`. Copy any cited excerpt into the current round's
   `assets/` directory before stopping the isolated app.
@@ -116,7 +116,7 @@ lobehub acceptance run list --json
 
 - Run Acceptance on macOS against the isolated Electron desktop app.
 - A stale `out/` bundle invalidates screenshots. Build before launch and restart
-  after Main, Preload, or Runtime changes; Renderer reload alone is insufficient.
+  after Desktop Main, Preload, Renderer, or Server changes; Renderer reload alone is insufficient.
   A commit created after the last build is stale even when file mtimes appear
   current; the adapter compares the build stamp with `result.json` before launch.
 - Never run the full local Electron E2E suite. Use focused Playwright coverage

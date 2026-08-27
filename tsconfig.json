@@ -3,8 +3,8 @@
     "compilerOptions": {
         "baseUrl": ".",
         "paths": {
-            "@/*": ["./src/renderer/src/*"],
-            "@shared/*": ["./src/shared/*"]
+            "@/*": ["./apps/desktop/src/renderer/src/*"],
+            "@desktop-shared/*": ["./apps/desktop/src/shared/*"]
         }
     },
     "references": [{ "path": "./tsconfig.node.json" }, { "path": "./tsconfig.web.json" }]

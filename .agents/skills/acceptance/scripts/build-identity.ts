@@ -1,4 +1,5 @@
-const BUILD_COMMIT_PATTERN = /process\.env\.CAXRI_GIT_COMMIT\s*=\s*["']([0-9a-f]{7,64})["']/iu;
+const BUILD_COMMIT_PATTERN =
+    /process(?:\$[\w$]+)?\.env\.CAXRI_GIT_COMMIT\s*=\s*["']([0-9a-f]{7,64})["']/iu;
 const COMMIT_PATTERN = /^[0-9a-f]{7,64}$/iu;
 
 /**

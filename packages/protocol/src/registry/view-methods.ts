@@ -76,7 +76,7 @@ const extensionViewOperationResultSchema = z.union([
 
 export const extensionViewMethods = {
     'viewContainers.viewOperation': {
-        ...commandPolicy('host', 'control'),
+        ...commandPolicy('server', 'control'),
         params: extensionViewOperationSchema,
         result: extensionViewOperationResultSchema,
     },

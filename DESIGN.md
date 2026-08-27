@@ -29,7 +29,7 @@ reference this file; deviations require updating this spec first.
    not compile, which makes rule 4 a build-time guarantee instead of a convention.
    Non-color scales (spacing, type, radius) use stock Tailwind defaults.
 
-`src/renderer/src/styles/theme.css` is the single Tailwind/default-theme/bootstrap source imported
+`apps/desktop/src/renderer/src/styles/theme.css` is the single Tailwind/default-theme/bootstrap source imported
 by both `styles.css` (main workbench) and `process-explorer.css`; entry files contain only their
 window-specific rules. `components.json` points shadcn at that shared source. Its `baseColor: zinc`
 is immutable initialization metadata for the chosen shadcn style, not a live palette: the shared
@@ -99,7 +99,7 @@ tracking. No other arbitrary typography values are allowed.
   reserved for intrinsically circular shapes — activity dots, the drag insertion line's leading
   cap, and the Switch track/thumb (the one sanctioned fully-round control). No other radii.
 
-`src/renderer/__tests__/renderer-design-contract.test.ts` enforces the numeric arbitrary-class
+`apps/desktop/src/renderer/__tests__/renderer-design-contract.test.ts` enforces the numeric arbitrary-class
 allowlist above and rejects feature-local raw text inputs and raw checkboxes. Boolean controls use
 the shared shadcn primitives: instant preferences render Switch, deliberate pre-submit opt-ins
 render Checkbox, and label/description/control rows compose Field. `input[type=color]` is the one
@@ -251,7 +251,7 @@ A glyph reused for two meanings on one screen is a bug: the Git tab keeps the br
 Source Control caption drops it, repository rows take a repository mark (`FolderGit2`, or the
 vendored `file-submodule` codicon for a submodule) regardless of panel mode, and the mode switch's
 working-tree segment takes a diff mark. Where lucide has no equivalent glyph, vendor the VS Code
-codicon inline (`src/renderer/src/icons/codicons`) rather than bending a lucide icon to fit.
+codicon inline (`apps/desktop/src/renderer/src/icons/codicons`) rather than bending a lucide icon to fit.
 
 **Git secondarySidebar** — every discovered repository is an independent disclosure node, with
 its changed files grouped by directory. Selecting a file opens a read-only Monaco diff in

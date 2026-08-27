@@ -16,7 +16,9 @@ import {
 } from './support/helpers.ts';
 
 test('Terminal links open Project files and confirm URLs through Main', async () => {
-    allowE2EErrors([{ source: 'main', event: 'ipc.request_failed', code: 'INTERNAL', count: 1 }]);
+    allowE2EErrors([
+        { source: 'desktop', event: 'ipc.request_failed', code: 'INTERNAL', count: 1 },
+    ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-links-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const isolatedHome = join(userData, 'e2e-agents', 'home');
@@ -198,10 +200,10 @@ test('Terminal links open Project files and confirm URLs through Main', async ()
 
 test('Terminal detected-link picker opens file and OSC 8 links without a pointer', async () => {
     allowE2EErrors([
-        { source: 'main', event: 'ipc.request_failed', code: 'PATH_DENIED', count: 1 },
-        { source: 'runtime', event: 'ipc.request_failed', code: 'PATH_DENIED', count: 1 },
-        { source: 'main', event: 'ipc.request_failed', code: 'NOT_FOUND', count: 1 },
-        { source: 'runtime', event: 'ipc.request_failed', code: 'NOT_FOUND', count: 1 },
+        { source: 'desktop', event: 'ipc.request_failed', code: 'PATH_DENIED', count: 1 },
+        { source: 'server-core', event: 'ipc.request_failed', code: 'PATH_DENIED', count: 1 },
+        { source: 'desktop', event: 'ipc.request_failed', code: 'NOT_FOUND', count: 1 },
+        { source: 'server-core', event: 'ipc.request_failed', code: 'NOT_FOUND', count: 1 },
     ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-link-picker-e2e-'));
     const userData = join(testDirectory, 'user-data');

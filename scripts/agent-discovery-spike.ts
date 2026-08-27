@@ -2,8 +2,9 @@ import { access } from 'node:fs/promises';
 import { delimiter } from 'node:path';
 import process from 'node:process';
 
-import type { AgentProvider } from '../src/shared/agents';
-import { agentProviderCatalog, agentProviderIds } from '../src/shared/agents';
+import type { AgentProvider } from '@caxri/protocol';
+import { agentProviderCatalog, agentProviderIds } from '@caxri/protocol';
+
 import { execFileAsync } from './exec';
 
 async function findExecutable(name: string): Promise<string | undefined> {

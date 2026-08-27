@@ -1,0 +1,290 @@
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import type { ServerOperation } from '@caxri/protocol';
+import { CaxriError, internalMethods, methods } from '@caxri/protocol';
+import { StructuredLogger } from '@caxri/system';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { createTestDomainServices } from '../../__tests__/support/domain-services';
+import type { DomainHandlers } from '../../domains/domain-services';
+import { createOperationDispatcher } from '../operation-dispatcher';
+
+const temporaryDirectories: string[] = [];
+
+async function temporaryDirectory(prefix: string): Promise<string> {
+    const directory = await mkdtemp(join(tmpdir(), prefix));
+    temporaryDirectories.push(directory);
+    return directory;
+}
+
+const serverOperationNames = [...Object.keys(methods), ...Object.keys(internalMethods)].toSorted(
+    (a, b) => a.localeCompare(b),
+) as ServerOperation[];
+
+/**
+ * Handlers whose only job is to observe dispatch behaviour, independent of real domain services.
+ */
+function stubHandlers(overrides: Partial<Record<ServerOperation, unknown>> = {}): DomainHandlers {
+    const table = Object.fromEntries(serverOperationNames.map((method) => [method, () => null]));
+    return { ...table, ...overrides } as unknown as DomainHandlers;
+}
+
+/**
+ * Request completion does not imply that buffered log records are durable yet.
+ */
+async function logRecords(logger: StructuredLogger) {
+    await logger.flush();
+    const source = (await readFile(logger.path, 'utf8')).trim();
+    return source
+        ? source.split('\n').map(
+              (line) =>
+                  JSON.parse(line) as {
+                      event: string;
+                      correlationId?: string;
+                      durationMs?: number;
+                      fields?: Record<string, string | number | boolean | null>;
+                  },
+          )
+        : [];
+}
+
+afterEach(async () => {
+    const pendingDirectories = temporaryDirectories.slice();
+    temporaryDirectories.length = 0;
+    await Promise.all(pendingDirectories.map((path) => rm(path, { recursive: true, force: true })));
+});
+
+describe('domain handler table', () => {
+    it('implements every Renderer-callable and internal domain operation', async () => {
+        const directory = await temporaryDirectory('caxri-handler-table-');
+        const runtime = await createTestDomainServices({
+            userDataPath: join(directory, 'user-data'),
+            logger: new StructuredLogger(join(directory, 'logs')),
+            send: () => {},
+        });
+
+        try {
+            expect(Object.keys(runtime.handlers).toSorted((a, b) => a.localeCompare(b))).toEqual(
+                serverOperationNames,
+            );
+            for (const method of serverOperationNames)
+                expect(runtime.handlers[method]).toBeTypeOf('function');
+        } finally {
+            await runtime.close();
+        }
+    });
+});
+
+describe('createOperationDispatcher', () => {
+    it('exposes stable direct-call results without a wire response envelope', async () => {
+        const directory = await temporaryDirectory('caxri-operation-dispatch-');
+        const logger = new StructuredLogger(join(directory, 'logs'));
+        const dispatch = createOperationDispatcher(
+            stubHandlers({
+                'app.health': () => ({
+                    ready: true,
+                    pid: 123,
+                    startedAt: 1,
+                    activePtyCount: 0,
+                }),
+                'terminal.attach': () => {
+                    throw new CaxriError('NOT_FOUND', 'Terminal not found');
+                },
+            }),
+            logger,
+        );
+
+        await expect(
+            dispatch({ id: 'direct-1', method: 'app.health', params: {} }),
+        ).resolves.toEqual({ ready: true, pid: 123, startedAt: 1, activePtyCount: 0 });
+        await expect(
+            dispatch({
+                id: 'direct-2',
+                method: 'terminal.attach',
+                params: { terminalId: 'terminal-1' },
+            }),
+        ).rejects.toMatchObject({ code: 'NOT_FOUND', message: 'Terminal not found' });
+    });
+
+    it('revalidates a typed Workbench Root context before invoking a handler', async () => {
+        const directory = await temporaryDirectory('caxri-dispatch-context-');
+        const logger = new StructuredLogger(join(directory, 'logs'));
+        const handler = vi.fn(() => []);
+        const validateContext = vi.fn(() => {
+            throw new CaxriError('CONFLICT', 'Workbench Root changed');
+        });
+        const dispatch = createOperationDispatcher(
+            stubHandlers({ 'files.list': handler }),
+            logger,
+            validateContext,
+        );
+
+        await expect(
+            dispatch({
+                context: { sessionId: 'session-1', workbenchProjectId: 'project-1' },
+                id: 'r-context',
+                method: 'files.list',
+                params: { sessionId: 'session-1' },
+            }),
+        ).rejects.toMatchObject({ code: 'CONFLICT', message: 'Workbench Root changed' });
+        expect(validateContext).toHaveBeenCalledWith({
+            sessionId: 'session-1',
+            workbenchProjectId: 'project-1',
+        });
+        expect(handler).not.toHaveBeenCalled();
+    });
+
+    it('rejects an unknown method and invalid parameters as VALIDATION failures', async () => {
+        const directory = await temporaryDirectory('caxri-dispatch-validation-');
+        const logger = new StructuredLogger(join(directory, 'logs'));
+        const dispatch = createOperationDispatcher(stubHandlers(), logger);
+
+        await expect(dispatch({ id: 'r1', method: 'nope', params: {} })).rejects.toMatchObject({
+            code: 'VALIDATION',
+            message: 'Unknown Runtime method: nope',
+        });
+        await expect(
+            dispatch({
+                id: 'r2',
+                method: 'terminal.resize',
+                params: { terminalId: 'terminal-1', cols: 0, rows: 24 },
+            }),
+        ).rejects.toMatchObject({ code: 'VALIDATION' });
+        await expect(
+            dispatch({
+                id: 'r3',
+                method: 'bugReport.send',
+                params: {
+                    report: 'safe\u{1B}[201~unsafe',
+                    sessionId: 'session-1',
+                    terminalId: 'terminal-1',
+                },
+            }),
+        ).rejects.toMatchObject({ code: 'VALIDATION' });
+        const records = await logRecords(logger);
+        expect(records.map((record) => record.event)).toEqual([
+            'ipc.request_failed',
+            'ipc.request_failed',
+            'ipc.request_failed',
+        ]);
+        expect(records[0]).toMatchObject({
+            correlationId: 'r1',
+            fields: { method: 'nope', code: 'VALIDATION', stack: null },
+        });
+        expect(records[0].durationMs).toBeTypeOf('number');
+    });
+
+    it('preserves a handler error code and logs a stack only for unclassified faults', async () => {
+        const directory = await temporaryDirectory('caxri-dispatch-errors-');
+        const logger = new StructuredLogger(join(directory, 'logs'));
+        const dispatch = createOperationDispatcher(
+            stubHandlers({
+                'terminal.attach': () => {
+                    throw new CaxriError('NOT_FOUND', 'Terminal not found');
+                },
+                'terminal.snapshot': () => {
+                    throw new Error('unexpected boom');
+                },
+            }),
+            logger,
+        );
+
+        await expect(
+            dispatch({ id: 'r1', method: 'terminal.attach', params: { terminalId: 'terminal-1' } }),
+        ).rejects.toMatchObject({ code: 'NOT_FOUND', message: 'Terminal not found' });
+        await expect(
+            dispatch({
+                id: 'r2',
+                method: 'terminal.snapshot',
+                params: { terminalId: 'terminal-1' },
+            }),
+        ).rejects.toMatchObject({ code: 'INTERNAL', message: 'unexpected boom' });
+        const records = await logRecords(logger);
+        expect(records[0].fields?.stack).toBeNull();
+        expect(records[1].fields?.stack).toContain('unexpected boom');
+    });
+
+    it('records one boundary log per request except for high-frequency PTY traffic', async () => {
+        const directory = await temporaryDirectory('caxri-dispatch-logging-');
+        const logger = new StructuredLogger(join(directory, 'logs'));
+        const dispatch = createOperationDispatcher(
+            stubHandlers({
+                'app.health': () => ({
+                    ready: true,
+                    pid: 123,
+                    startedAt: 1,
+                    activePtyCount: 0,
+                }),
+            }),
+            logger,
+        );
+
+        await expect(dispatch({ id: 'r1', method: 'app.health', params: {} })).resolves.toEqual({
+            ready: true,
+            pid: 123,
+            startedAt: 1,
+            activePtyCount: 0,
+        });
+        await dispatch({
+            id: 'r2',
+            method: 'terminal.input',
+            params: { terminalId: 'terminal-1', data: 'ls\r' },
+        });
+        await dispatch({
+            id: 'r3',
+            method: 'terminal.resize',
+            params: { terminalId: 'terminal-1', cols: 100, rows: 30 },
+        });
+
+        const records = await logRecords(logger);
+        expect(records).toHaveLength(1);
+        expect(records[0]).toMatchObject({
+            event: 'ipc.request',
+            correlationId: 'r1',
+            fields: { method: 'app.health' },
+        });
+        expect(records[0].durationMs).toBeTypeOf('number');
+    });
+
+    it('cancels an admitted handler and rejects cancellation that arrived before registration', async () => {
+        const directory = await temporaryDirectory('caxri-dispatch-cancel-');
+        const logger = new StructuredLogger(join(directory, 'logs'));
+        const started = Promise.withResolvers<void>();
+        const released = Promise.withResolvers<void>();
+        const handler = vi.fn(async (_parameters: unknown, signal: AbortSignal) => {
+            started.resolve();
+            await new Promise<void>((resolve) => {
+                signal.addEventListener('abort', () => resolve(), { once: true });
+            });
+            released.resolve();
+            signal.throwIfAborted();
+        });
+        const dispatch = createOperationDispatcher(stubHandlers({ 'app.health': handler }), logger);
+
+        expect(dispatch.cancel('before-registration')).toBe(true);
+        await expect(
+            dispatch({ id: 'before-registration', method: 'app.health', params: {} }),
+        ).rejects.toMatchObject({ code: 'CANCELLED' });
+        expect(handler).not.toHaveBeenCalled();
+
+        const pending = dispatch({ id: 'active-request', method: 'app.health', params: {} });
+        await started.promise;
+        expect(dispatch.cancel('active-request')).toBe(true);
+        await released.promise;
+        await expect(pending).rejects.toMatchObject({ code: 'CANCELLED' });
+        expect(await logRecords(logger)).toEqual([
+            expect.objectContaining({
+                event: 'ipc.request',
+                correlationId: 'before-registration',
+                fields: { method: 'app.health', code: 'CANCELLED' },
+            }),
+            expect.objectContaining({
+                event: 'ipc.request',
+                correlationId: 'active-request',
+                fields: { method: 'app.health', code: 'CANCELLED' },
+            }),
+        ]);
+    });
+});

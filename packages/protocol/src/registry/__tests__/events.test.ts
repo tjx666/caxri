@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { runtimeEventPayloads, runtimeEventSchema } from '../events';
+import { serverEventPayloads, serverEventSchema } from '../events';
 
-describe('runtimeEventSchema', () => {
+describe('serverEventSchema', () => {
     it('rejects an unknown event name', () => {
         expect(
-            runtimeEventSchema.safeParse({
+            serverEventSchema.safeParse({
                 event: 'not.a.real.event',
                 payload: {},
             }).success,
@@ -14,7 +14,7 @@ describe('runtimeEventSchema', () => {
 
     it('rejects a known event name paired with another event payload', () => {
         expect(
-            runtimeEventSchema.safeParse({
+            serverEventSchema.safeParse({
                 event: 'terminal.exit',
                 payload: { terminalId: 'terminal-1', data: 'not part of terminal.exit' },
             }).success,
@@ -23,13 +23,13 @@ describe('runtimeEventSchema', () => {
 
     it('accepts every declared event with a minimal valid payload', () => {
         expect(
-            runtimeEventSchema.safeParse({
+            serverEventSchema.safeParse({
                 event: 'terminal.exit',
                 payload: { terminalId: 'terminal-1', exitCode: 0 },
             }).success,
         ).toBe(true);
         expect(
-            runtimeEventSchema.safeParse({
+            serverEventSchema.safeParse({
                 event: 'viewContainers.viewChanged',
                 payload: {
                     viewId: 'publisher.fixture.files',
@@ -45,7 +45,7 @@ describe('runtimeEventSchema', () => {
             }).success,
         ).toBe(true);
         expect(
-            runtimeEventSchema.safeParse({
+            serverEventSchema.safeParse({
                 event: 'viewContainers.treeChanged',
                 payload: {
                     viewId: 'publisher.fixture.status',
@@ -56,19 +56,19 @@ describe('runtimeEventSchema', () => {
             }).success,
         ).toBe(true);
         expect(
-            runtimeEventSchema.safeParse({
+            serverEventSchema.safeParse({
                 event: 'window.fullScreen',
                 payload: { isFullScreen: true },
             }).success,
         ).toBe(true);
         expect(
-            runtimeEventSchema.safeParse({
+            serverEventSchema.safeParse({
                 event: 'command.execute',
                 payload: { command: 'session.selectNext' },
             }).success,
         ).toBe(true);
         expect(
-            runtimeEventSchema.safeParse({
+            serverEventSchema.safeParse({
                 event: 'desktop.openRequested',
                 payload: {
                     sessionId: 'session-1',
@@ -83,13 +83,13 @@ describe('runtimeEventSchema', () => {
 describe('runtime.status payload', () => {
     it('excludes the transient starting status from the wire event', () => {
         expect(
-            runtimeEventPayloads['runtime.status'].safeParse({
+            serverEventPayloads['runtime.status'].safeParse({
                 status: 'starting',
                 restartCount: 0,
             }).success,
         ).toBe(false);
         expect(
-            runtimeEventPayloads['runtime.status'].safeParse({
+            serverEventPayloads['runtime.status'].safeParse({
                 status: 'ready',
                 restartCount: 0,
             }).success,
@@ -100,14 +100,14 @@ describe('runtime.status payload', () => {
 describe('workbench.changed payload', () => {
     it('only accepts a bounded reason enum', () => {
         expect(
-            runtimeEventPayloads['workbench.changed'].safeParse({
+            serverEventPayloads['workbench.changed'].safeParse({
                 sessionId: 'session-1',
                 workbenchProjectId: 'project-1',
                 reason: 'selected',
             }).success,
         ).toBe(true);
         expect(
-            runtimeEventPayloads['workbench.changed'].safeParse({
+            serverEventPayloads['workbench.changed'].safeParse({
                 sessionId: 'session-1',
                 workbenchProjectId: 'project-1',
                 reason: 'unsupported-reason',
@@ -117,7 +117,7 @@ describe('workbench.changed payload', () => {
 });
 
 describe('state.changed normalization', () => {
-    const schema = runtimeEventPayloads['state.changed'];
+    const schema = serverEventPayloads['state.changed'];
 
     it('passes through a well-formed full-state payload', () => {
         expect(schema.parse({ kind: 'full', reason: 'session.create' })).toEqual({

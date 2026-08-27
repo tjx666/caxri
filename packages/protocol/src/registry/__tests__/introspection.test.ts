@@ -7,7 +7,7 @@ describe('describeCaxriMethod', () => {
         const description = describeCaxriMethod('project.list');
         expect(description).toMatchObject({
             method: 'project.list',
-            owner: 'host',
+            owner: 'server',
             effect: 'read',
             idempotency: 'none',
             capabilities: ['projects.read'],

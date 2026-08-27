@@ -19,7 +19,7 @@ reproducible; the recommendation below is advisory, per issue #177's decision ga
   `Failed to find tsgolint executable` without it)
 - Machine: Apple M5 Max, 18 logical CPUs, 128 GB RAM (`sysctl -n machdep.cpu.brand_string`)
 - Repository size at HEAD: 794 tracked `.ts`/`.tsx`/`.js`/`.mts`/`.cts` files under
-  `src`, `packages/protocol/src`, `packages/cli/src`, `e2e`, `scripts`, `.agents`
+  `src`, `packages/protocol/src`, `apps/cli/src`, `e2e`, `scripts`, `.agents`
 - Commands used throughout: `bun run spike:oxlint` (`oxlint -c .oxlintrc.json .`) and
   `bun run spike:oxlint:type-aware` (`oxlint -c .oxlintrc.json --type-aware .`)
 

@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { desktopCommandEnvironment } from '../../.agents/skills/switch-worktree/scripts/switch-worktree';
 import {
     e2eWorkerTemporaryDirectory,
-    removeE2EWorkerTemporaryDirectory,
+    removeE2ETemporaryDirectory,
     resolveE2EClipboardPolicy,
     resolveE2EWorkerIsolation,
 } from '../../e2e/support/worker-isolation';
@@ -92,7 +92,7 @@ describe('E2E worker isolation', () => {
         const delays: number[] = [];
 
         try {
-            await removeE2EWorkerTemporaryDirectory(workerDirectory, {
+            await removeE2ETemporaryDirectory(workerDirectory, {
                 remove: async (path, options) => {
                     removeCalls += 1;
                     expect(path).toBe(workerDirectory);
@@ -140,7 +140,7 @@ describe('E2E worker isolation', () => {
         let attempt = 0;
 
         await expect(
-            removeE2EWorkerTemporaryDirectory(path, {
+            removeE2ETemporaryDirectory(path, {
                 remove: () => Promise.reject(failures[attempt++]),
                 wait: (delay) => {
                     delays.push(delay);

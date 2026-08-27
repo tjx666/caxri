@@ -1,0 +1,148 @@
+import { dirname, join } from 'node:path';
+import process from 'node:process';
+import { fileURLToPath } from 'node:url';
+
+import { SERVER_DESKTOP_LAUNCH_ENVIRONMENT_KEY, serverDesktopLaunchSchema } from '@caxri/protocol';
+import {
+    computeBuildFingerprint,
+    installProcessErrorMonitor,
+    observationProcessManifestDirectory,
+    ObservationProcessManifestPublisher,
+    startProcessObservationSampler,
+    StructuredLogger,
+} from '@caxri/system';
+
+import { createDesktopLauncher } from './desktop-launcher';
+import { extensionRootsForServer } from './extensions/discovery';
+import { startServerCore } from './server-core';
+
+const userDataPath = process.env.CAXRI_USER_DATA_PATH;
+if (!userDataPath) throw new Error('CAXRI_USER_DATA_PATH is required');
+
+const version = typeof __CAXRI_VERSION__ === 'string' ? __CAXRI_VERSION__ : 'unknown';
+const commit = typeof __CAXRI_COMMIT__ === 'string' ? __CAXRI_COMMIT__ : 'unknown';
+process.env.CAXRI_APP_VERSION = version;
+process.env.CAXRI_GIT_COMMIT = commit;
+const logger = new StructuredLogger(join(userDataPath, 'logs'), 'server-core', 'info');
+const processErrorMonitor = installProcessErrorMonitor({ processName: 'server-core' });
+processErrorMonitor.attach(logger);
+const serverBundleDirectory = dirname(fileURLToPath(import.meta.url));
+/**
+ * Captured once at startup: this is the fingerprint of the code this Server Core is actually running. A later watch
+ * rebuild changes the on-disk bundles but not this value, which is exactly what lets the Desktop detect staleness.
+ */
+const buildId = await computeBuildFingerprint(serverBundleDirectory);
+logger.updateBaseContext({ buildId });
+const processManifest = new ObservationProcessManifestPublisher({
+    context: { buildId },
+    directory: observationProcessManifestDirectory(userDataPath),
+    owner: 'server-core',
+});
+processManifest.publish('starting');
+const desktopLaunchSource = process.env[SERVER_DESKTOP_LAUNCH_ENVIRONMENT_KEY];
+const desktopLaunch = desktopLaunchSource
+    ? serverDesktopLaunchSchema.parse(JSON.parse(desktopLaunchSource) as unknown)
+    : serverBundleDirectory.includes('.asar') && process.resourcesPath
+      ? {
+            executable: process.execPath,
+            args: [],
+            cwd: dirname(process.execPath),
+        }
+      : undefined;
+const cliPath = process.env.CAXRI_CLI_PATH;
+
+const app = await startServerCore({
+    agentHooksPath: process.env.CAXRI_AGENT_HOOKS_PATH,
+    buildId,
+    commit,
+    cliPath,
+    executable: process.execPath,
+    extensionHostPath: join(serverBundleDirectory, 'extension-host.js'),
+    terminalHostPath: join(serverBundleDirectory, 'terminal-host.js'),
+    extensionRoots: extensionRootsForServer({
+        serverBundleDirectory,
+        userDataPath,
+        ...(serverBundleDirectory.includes('.asar') &&
+            process.resourcesPath && { resourcesPath: process.resourcesPath }),
+    }),
+    includeTestExtensions: process.env.CAXRI_E2E === '1',
+    logger,
+    ...(desktopLaunch && {
+        launchDesktop: createDesktopLauncher({
+            launch: desktopLaunch,
+            userDataPath,
+        }),
+    }),
+    userDataPath,
+    version,
+});
+const processContext = {
+    bootId: app.lease.identity.processIdentity,
+    buildId,
+    serverId: app.protocolIdentity.serverId,
+};
+logger.updateBaseContext(processContext);
+processManifest.publish('ready', { context: processContext });
+/**
+ * The first resource sample reads process state immediately. Start it only after Core readiness so diagnostics cannot
+ * contend with Project watcher installation on the startup critical path.
+ */
+const processSampler = startProcessObservationSampler({
+    logger,
+    owner: 'server-core',
+    publisher: processManifest,
+});
+
+{
+    let finalizationPromise: Promise<void> | undefined;
+    let isSignalReceived = false;
+    const finalizeProcess = (): Promise<void> => {
+        finalizationPromise ??= (async () => {
+            processSampler.stop();
+            processManifest.publish('stopped');
+            /**
+             * `process.exit()` does not wait for pending filesystem work. Persist the terminal lifecycle state before
+             * exiting so offline diagnostics can distinguish an intentional shutdown from a crashed ready process.
+             */
+            await processManifest.flush();
+            // This file is the Server Core process entrypoint supervised by a client or platform;
+            // an explicit exit after graceful async shutdown is the correct terminal action here.
+            // eslint-disable-next-line unicorn/no-process-exit -- Server Core process entrypoint, not a library
+            process.exit(0);
+        })();
+        return finalizationPromise;
+    };
+    const stopForSignal = async (signal: NodeJS.Signals): Promise<void> => {
+        if (isSignalReceived) return;
+        isSignalReceived = true;
+        try {
+            await app.stop(signal);
+        } finally {
+            await finalizeProcess();
+        }
+    };
+    process.once('SIGINT', async (signal) => {
+        try {
+            await stopForSignal(signal);
+        } catch {
+            // stopForSignal already exits the process on success; a rejection here means
+            // shutdown itself failed, which is not actionable from a signal handler.
+        }
+    });
+    process.once('SIGTERM', async (signal) => {
+        try {
+            await stopForSignal(signal);
+        } catch {
+            // stopForSignal already exits the process on success; a rejection here means
+            // shutdown itself failed, which is not actionable from a signal handler.
+        }
+    });
+    /**
+     * Both signal-driven and protocol-driven stops must expose the same offline lifecycle.
+     */
+    await app.stopping;
+    processSampler.stop();
+    processManifest.publish('stopping');
+    await app.stopped;
+    await finalizeProcess();
+}

@@ -113,52 +113,52 @@ const desktopMessageTargetSchema = z.strictObject({ messageId: identifierSchema 
 
 export const agentInboxMethods = {
     'agent.message.send': {
-        ...commandPolicy('host', 'write', ['agents.message']),
+        ...commandPolicy('server', 'write', ['agents.message']),
         params: sendParametersSchema,
         result: agentMessageReceiptSchema,
     },
     'agent.message.reply': {
-        ...commandPolicy('host', 'write', ['agents.message']),
+        ...commandPolicy('server', 'write', ['agents.message']),
         params: sendParametersSchema.extend({ replyTo: identifierSchema }),
         result: agentMessageReceiptSchema,
     },
     /**
-     * A pull consumes only after the Host confirms that its UDS reply was flushed.
+     * A pull consumes only after the Host confirms that its control reply was flushed.
      */
     'agent.message.wait': {
-        ...commandPolicy('host', 'read', ['agents.message']),
+        ...commandPolicy('server', 'read', ['agents.message']),
         params: z.strictObject({
             timeoutMs: z.number().int().min(100).max(120_000).default(15_000),
         }),
         result: agentMessagePullResultSchema,
     },
     'agent.message.check': {
-        ...commandPolicy('host', 'read', ['agents.message']),
+        ...commandPolicy('server', 'read', ['agents.message']),
         params: z.strictObject({}).default({}),
         result: agentMessagePullResultSchema,
     },
     'agent.message.receipt': {
-        ...commandPolicy('host', 'read', ['agents.message']),
+        ...commandPolicy('server', 'read', ['agents.message']),
         params: z.strictObject({ messageId: identifierSchema }),
         result: agentMessageReceiptSchema,
     },
     'agent.message.policy.get': {
-        ...commandPolicy('host', 'read', ['agents.message']),
+        ...commandPolicy('server', 'read', ['agents.message']),
         params: z.strictObject({}).default({}),
         result: agentInboundPolicyResultSchema,
     },
     'agent.message.policy.set': {
-        ...commandPolicy('host', 'write', ['agents.message']),
+        ...commandPolicy('server', 'write', ['agents.message']),
         params: agentInboundPolicyResultSchema,
         result: agentInboundPolicyResultSchema,
     },
     'agent.message.held': {
-        ...commandPolicy('host', 'read', ['desktop']),
+        ...commandPolicy('server', 'read', ['desktop']),
         params: z.strictObject({}).default({}),
         result: z.strictObject({ messages: z.array(agentHeldMessageSchema).max(1_024) }),
     },
     'agent.message.held.get': {
-        ...commandPolicy('host', 'read', ['desktop']),
+        ...commandPolicy('server', 'read', ['desktop']),
         params: desktopMessageTargetSchema,
         /**
          * `null` means the Host still recognizes the receipt but it already left the held state. This lets a Desktop
@@ -167,12 +167,12 @@ export const agentInboxMethods = {
         result: agentHeldMessageDetailSchema.nullable(),
     },
     'agent.message.approve': {
-        ...commandPolicy('host', 'write', ['desktop']),
+        ...commandPolicy('server', 'write', ['desktop']),
         params: desktopMessageTargetSchema,
         result: agentMessageReceiptSchema,
     },
     'agent.message.deny': {
-        ...commandPolicy('host', 'write', ['desktop']),
+        ...commandPolicy('server', 'write', ['desktop']),
         params: desktopMessageTargetSchema,
         result: agentMessageReceiptSchema,
     },

@@ -9,12 +9,18 @@ catalogs:
     '@types/semver':
       specifier: ^7.8.0
       version: 7.8.0
+    '@types/ws':
+      specifier: ^8.18.1
+      version: 8.18.1
     '@yutengjing/eslint-config-typescript':
       specifier: ^4.0.0
       version: 4.0.0
     '@yutengjing/prettier-config':
       specifier: ^2.0.0
       version: 2.0.0
+    eslint-plugin-import-x:
+      specifier: ^4.17.1
+      version: 4.17.1
     markdownlint:
       specifier: ^0.41.1
       version: 0.41.1
@@ -36,6 +42,9 @@ catalogs:
     sonda:
       specifier: ^0.14.0
       version: 0.14.0
+    ws:
+      specifier: ^8.21.3
+      version: 8.21.3
     zod:
       specifier: 4.4.3
       version: 4.4.3
@@ -49,41 +58,22 @@ patchedDependencies:
 importers:
 
   .:
-    dependencies:
-      '@parcel/watcher':
-        specifier: 2.5.6
-        version: 2.5.6
-      better-sqlite3:
-        specifier: 13.0.2
-        version: 13.0.2
-      node-pty:
-        specifier: 1.1.0
-        version: 1.1.0
     devDependencies:
-      '@base-ui/react':
-        specifier: 1.6.0
-        version: 1.6.0(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      '@caxri/cli':
+      '@caxri/client':
         specifier: workspace:*
-        version: link:packages/cli
+        version: link:packages/client
       '@caxri/protocol':
         specifier: workspace:*
         version: link:packages/protocol
+      '@caxri/system':
+        specifier: workspace:*
+        version: link:packages/system
       '@caxri/utils':
         specifier: workspace:*
         version: link:packages/utils
       '@electron-toolkit/tsconfig':
         specifier: 2.0.0
         version: 2.0.0(@types/node@26.1.2)
-      '@electron/rebuild':
-        specifier: 4.2.0
-        version: 4.2.0(supports-color@7.2.0)
-      '@lobehub/icons-static-svg':
-        specifier: ^1.94.0
-        version: 1.94.0
-      '@monaco-editor/react':
-        specifier: 4.7.0
-        version: 4.7.0(monaco-editor@0.56.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@playwright/test':
         specifier: 1.62.1
         version: 1.62.1
@@ -93,15 +83,6 @@ importers:
       '@tailwindcss/vite':
         specifier: 4.3.3
         version: 4.3.3(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))
-      '@tanstack/react-query':
-        specifier: 5.101.4
-        version: 5.101.4(react@19.2.8)
-      '@tanstack/react-virtual':
-        specifier: 3.14.9
-        version: 3.14.9(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      '@types/archiver':
-        specifier: 8.0.0
-        version: 8.0.0
       '@types/better-sqlite3':
         specifier: 9.6.0
         version: 9.6.0
@@ -126,54 +107,21 @@ importers:
       '@vitejs/plugin-react':
         specifier: 6.0.5
         version: 6.0.5(@rolldown/plugin-babel@0.2.3(@babel/core@7.29.7(supports-color@7.2.0))(@babel/runtime@7.29.7)(rolldown@1.2.4)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0)))(babel-plugin-react-compiler@1.0.0)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))
-      '@xterm/addon-clipboard':
-        specifier: 0.3.0-beta.301
-        version: 0.3.0-beta.301(@xterm/xterm@6.1.0-beta.301)
-      '@xterm/addon-fit':
-        specifier: 0.12.0-beta.299
-        version: 0.12.0-beta.299(@xterm/xterm@6.1.0-beta.301)
-      '@xterm/addon-image':
-        specifier: 0.10.0-beta.299
-        version: 0.10.0-beta.299(@xterm/xterm@6.1.0-beta.301)
-      '@xterm/addon-progress':
-        specifier: 0.3.0-beta.299
-        version: 0.3.0-beta.299(@xterm/xterm@6.1.0-beta.301)
-      '@xterm/addon-search':
-        specifier: 0.17.0-beta.299
-        version: 0.17.0-beta.299(@xterm/xterm@6.1.0-beta.301)
-      '@xterm/addon-serialize':
-        specifier: 0.15.0-beta.299
-        version: 0.15.0-beta.299(@xterm/xterm@6.1.0-beta.301)
-      '@xterm/addon-unicode11':
-        specifier: 0.10.0-beta.299
-        version: 0.10.0-beta.299(@xterm/xterm@6.1.0-beta.301)
-      '@xterm/addon-webgl':
-        specifier: 0.20.0-beta.298
-        version: 0.20.0-beta.298(@xterm/xterm@6.1.0-beta.301)
-      '@xterm/headless':
-        specifier: 6.1.0-beta.301
-        version: 6.1.0-beta.301
-      '@xterm/xterm':
-        specifier: 6.1.0-beta.301
-        version: 6.1.0-beta.301
       '@yutengjing/eslint-config-typescript':
         specifier: 'catalog:'
         version: 4.0.0(@typescript-eslint/eslint-plugin@8.67.0(@typescript-eslint/parser@8.67.0(@typescript/typescript6@6.0.2)(eslint@10.8.1(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(@typescript/typescript6@6.0.2)(eslint@10.8.1(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(@typescript-eslint/utils@8.67.0(@typescript/typescript6@6.0.2)(eslint@10.8.1(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(@typescript/typescript6@6.0.2)(eslint@10.8.1(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
       '@yutengjing/prettier-config':
         specifier: 'catalog:'
         version: 2.0.0(prettier@3.9.6)(supports-color@7.2.0)
-      '@yutengjing/vscode-icons':
-        specifier: ^0.1.1
-        version: 0.1.1
-      archiver:
-        specifier: 8.0.0
-        version: 8.0.0
       babel-plugin-react-compiler:
         specifier: 1.0.0
         version: 1.0.0
+      better-sqlite3:
+        specifier: 13.0.2
+        version: 13.0.2
       caxri:
         specifier: workspace:*
-        version: link:packages/api
+        version: link:packages/extension-api
       class-variance-authority:
         specifier: 0.7.1
         version: 0.7.1
@@ -186,9 +134,6 @@ importers:
       drizzle-kit:
         specifier: 0.31.10
         version: 0.31.10
-      drizzle-orm:
-        specifier: 0.45.2
-        version: 0.45.2(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(better-sqlite3@13.0.2)
       electron:
         specifier: 43.2.0
         version: 43.2.0(supports-color@7.2.0)
@@ -198,12 +143,12 @@ importers:
       electron-vite:
         specifier: 6.0.0-beta.1
         version: 6.0.0-beta.1(supports-color@7.2.0)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))
-      es-toolkit:
-        specifier: 1.50.0
-        version: 1.50.0
       eslint:
         specifier: 10.8.1
         version: 10.8.1(jiti@2.7.0)(supports-color@7.2.0)
+      eslint-plugin-import-x:
+        specifier: 'catalog:'
+        version: 4.17.1(@typescript-eslint/utils@8.67.0(@typescript/typescript6@6.0.2)(eslint@10.8.1(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(eslint@10.8.1(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
       eslint-plugin-react-hooks:
         specifier: 7.1.1
         version: 7.1.1(eslint@10.8.1(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
@@ -228,12 +173,12 @@ importers:
       markdownlint-cli2:
         specifier: 'catalog:'
         version: 0.23.2(supports-color@7.2.0)
-      monaco-editor:
-        specifier: 0.56.0
-        version: 0.56.0
       motion:
         specifier: 13.0.0
         version: 13.0.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      node-pty:
+        specifier: 1.1.0
+        version: 1.1.0
       oxlint:
         specifier: 'catalog:'
         version: 1.78.0(oxlint-tsgolint@7.0.2001)
@@ -243,9 +188,6 @@ importers:
       playwright:
         specifier: 1.62.1
         version: 1.62.1
-      plist:
-        specifier: 5.0.0
-        version: 5.0.0
       prettier:
         specifier: 3.9.6
         version: 3.9.6
@@ -288,6 +230,9 @@ importers:
       vitest:
         specifier: 4.1.10
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))
+      ws:
+        specifier: 'catalog:'
+        version: 8.21.3
       yaml:
         specifier: 2.9.0
         version: 2.9.0
@@ -298,44 +243,299 @@ importers:
         specifier: 5.0.14
         version: 5.0.14(@types/react@19.2.18)(react@19.2.8)(use-sync-external-store@1.6.0(react@19.2.8))
 
-  extensions/fixture:
-    devDependencies:
-      caxri:
-        specifier: workspace:*
-        version: link:../../packages/api
-
-  extensions/git:
+  apps/cli:
     dependencies:
+      '@caxri/agent-skills':
+        specifier: workspace:*
+        version: link:../../packages/agent-skills
+      '@caxri/client':
+        specifier: workspace:*
+        version: link:../../packages/client
+      '@caxri/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
+
+  apps/desktop:
+    dependencies:
+      '@base-ui/react':
+        specifier: 1.6.0
+        version: 1.6.0(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@caxri/client':
+        specifier: workspace:*
+        version: link:../../packages/client
+      '@caxri/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
+      '@caxri/system':
+        specifier: workspace:*
+        version: link:../../packages/system
       '@caxri/utils':
         specifier: workspace:*
         version: link:../../packages/utils
+      '@lobehub/icons-static-svg':
+        specifier: ^1.94.0
+        version: 1.94.0
+      '@monaco-editor/react':
+        specifier: 4.7.0
+        version: 4.7.0(monaco-editor@0.56.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@tanstack/react-query':
+        specifier: 5.101.4
+        version: 5.101.4(react@19.2.8)
+      '@tanstack/react-virtual':
+        specifier: 3.14.9
+        version: 3.14.9(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@xterm/addon-clipboard':
+        specifier: 0.3.0-beta.301
+        version: 0.3.0-beta.301(@xterm/xterm@6.1.0-beta.301)
+      '@xterm/addon-fit':
+        specifier: 0.12.0-beta.299
+        version: 0.12.0-beta.299(@xterm/xterm@6.1.0-beta.301)
+      '@xterm/addon-image':
+        specifier: 0.10.0-beta.299
+        version: 0.10.0-beta.299(@xterm/xterm@6.1.0-beta.301)
+      '@xterm/addon-progress':
+        specifier: 0.3.0-beta.299
+        version: 0.3.0-beta.299(@xterm/xterm@6.1.0-beta.301)
+      '@xterm/addon-search':
+        specifier: 0.17.0-beta.299
+        version: 0.17.0-beta.299(@xterm/xterm@6.1.0-beta.301)
+      '@xterm/addon-unicode11':
+        specifier: 0.10.0-beta.299
+        version: 0.10.0-beta.299(@xterm/xterm@6.1.0-beta.301)
+      '@xterm/addon-webgl':
+        specifier: 0.20.0-beta.298
+        version: 0.20.0-beta.298(@xterm/xterm@6.1.0-beta.301)
+      '@xterm/xterm':
+        specifier: 6.1.0-beta.301
+        version: 6.1.0-beta.301
+      '@yutengjing/vscode-icons':
+        specifier: ^0.1.1
+        version: 0.1.1
+      class-variance-authority:
+        specifier: 0.7.1
+        version: 0.7.1
+      clsx:
+        specifier: 2.1.1
+        version: 2.1.1
+      cmdk:
+        specifier: 1.1.1
+        version: 1.1.1(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      es-toolkit:
+        specifier: 1.50.0
+        version: 1.50.0
+      jsonc-parser:
+        specifier: 3.3.1
+        version: 3.3.1
+      lucide-react:
+        specifier: 1.28.0
+        version: 1.28.0(react@19.2.8)
+      monaco-editor:
+        specifier: 0.56.0
+        version: 0.56.0
+      motion:
+        specifier: 13.0.0
+        version: 13.0.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      react:
+        specifier: 19.2.8
+        version: 19.2.8
+      react-dom:
+        specifier: 19.2.8
+        version: 19.2.8(react@19.2.8)
+      tailwind-merge:
+        specifier: 3.6.0
+        version: 3.6.0
+      tailwindcss:
+        specifier: 4.3.3
+        version: 4.3.3
+      tw-animate-css:
+        specifier: 1.4.0
+        version: 1.4.0
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
+      zustand:
+        specifier: 5.0.14
+        version: 5.0.14(@types/react@19.2.18)(react@19.2.8)(use-sync-external-store@1.6.0(react@19.2.8))
     devDependencies:
+      '@types/node':
+        specifier: 26.1.2
+        version: 26.1.2
+      '@types/react':
+        specifier: 19.2.18
+        version: 19.2.18
+      '@types/react-dom':
+        specifier: 19.2.4
+        version: 19.2.4(@types/react@19.2.18)
+      electron:
+        specifier: 43.2.0
+        version: 43.2.0(supports-color@7.2.0)
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+      vitest:
+        specifier: 4.1.10
+        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))
+
+  apps/server:
+    dependencies:
+      '@caxri/agent-skills':
+        specifier: workspace:*
+        version: link:../../packages/agent-skills
+      '@caxri/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
+      '@caxri/system':
+        specifier: workspace:*
+        version: link:../../packages/system
+      '@caxri/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
+      '@parcel/watcher':
+        specifier: 2.5.6
+        version: 2.5.6
+      '@xterm/addon-serialize':
+        specifier: 0.15.0-beta.299
+        version: 0.15.0-beta.299(@xterm/xterm@6.1.0-beta.301)
+      '@xterm/addon-unicode11':
+        specifier: 0.10.0-beta.299
+        version: 0.10.0-beta.299(@xterm/xterm@6.1.0-beta.301)
+      '@xterm/headless':
+        specifier: 6.1.0-beta.301
+        version: 6.1.0-beta.301
+      archiver:
+        specifier: 8.0.0
+        version: 8.0.0
+      better-sqlite3:
+        specifier: 13.0.2
+        version: 13.0.2
       caxri:
         specifier: workspace:*
-        version: link:../../packages/api
+        version: link:../../packages/extension-api
+      drizzle-orm:
+        specifier: 0.45.2
+        version: 0.45.2(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(better-sqlite3@13.0.2)
+      es-toolkit:
+        specifier: 1.50.0
+        version: 1.50.0
+      jsonc-parser:
+        specifier: 3.3.1
+        version: 3.3.1
+      node-pty:
+        specifier: 1.1.0
+        version: 1.1.0
+      plist:
+        specifier: 5.0.0
+        version: 5.0.0
+      semver:
+        specifier: 'catalog:'
+        version: 7.8.5
+      ws:
+        specifier: 'catalog:'
+        version: 8.21.3
+      yaml:
+        specifier: 2.9.0
+        version: 2.9.0
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
+    devDependencies:
+      '@types/archiver':
+        specifier: 8.0.0
+        version: 8.0.0
+      '@types/better-sqlite3':
+        specifier: 9.6.0
+        version: 9.6.0
+      '@types/node':
+        specifier: 26.1.2
+        version: 26.1.2
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.8.0
+      '@types/ws':
+        specifier: 'catalog:'
+        version: 8.18.1
+      vite:
+        specifier: 8.2.0
+        version: 8.2.0(@types/node@26.1.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0)
+
+  extensions/fixture:
+    devDependencies:
+      '@caxri/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
+      caxri:
+        specifier: workspace:*
+        version: link:../../packages/extension-api
+
+  extensions/git:
+    devDependencies:
+      '@caxri/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
+      caxri:
+        specifier: workspace:*
+        version: link:../../packages/extension-api
 
   extensions/status:
     devDependencies:
+      '@caxri/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
       caxri:
         specifier: workspace:*
-        version: link:../../packages/api
+        version: link:../../packages/extension-api
 
-  packages/api: {}
-
-  packages/cli:
+  packages/agent-skills:
     dependencies:
       '@caxri/protocol':
         specifier: workspace:*
         version: link:../protocol
+
+  packages/client:
+    dependencies:
+      '@caxri/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      ws:
+        specifier: 'catalog:'
+        version: 8.21.3
+    devDependencies:
+      '@types/ws':
+        specifier: 'catalog:'
+        version: 8.18.1
+
+  packages/extension-api: {}
+
+  packages/protocol:
+    dependencies:
+      '@caxri/utils':
+        specifier: workspace:*
+        version: link:../utils
       zod:
         specifier: 'catalog:'
         version: 4.4.3
 
-  packages/protocol:
+  packages/system:
     dependencies:
-      zod:
-        specifier: 'catalog:'
-        version: 4.4.3
+      '@caxri/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@caxri/utils':
+        specifier: workspace:*
+        version: link:../utils
+      es-toolkit:
+        specifier: 1.50.0
+        version: 1.50.0
+      jsonc-parser:
+        specifier: 3.3.1
+        version: 3.3.1
+    devDependencies:
+      '@types/node':
+        specifier: 26.1.2
+        version: 26.1.2
 
   packages/utils: {}
 
@@ -2375,6 +2575,9 @@ packages:
 
   '@types/unist@3.0.3':
     resolution: {integrity: sha512-ko/gIFJRv177XgZsZcBwnqJN5x/Gien8qNOn0D5bQU/zAzVf9Zt3BlcUiLqhV9y4ARk0GbT3tnUiPNgnTXzc/Q==}
+
+  '@types/ws@8.18.1':
+    resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
 
   '@typescript-eslint/eslint-plugin@8.67.0':
     resolution: {integrity: sha512-Un7Heoyj65NREbKAyIrFxeM143NZpExWmy1Nep4DLeQOeLlTeumPjoNKnBrU5D5moWXbPJgRa5Uwcdu0faVNGQ==}
@@ -5901,6 +6104,18 @@ packages:
   wrappy@1.0.2:
     resolution: {integrity: sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==}
 
+  ws@8.21.3:
+    resolution: {integrity: sha512-201TZ/kPWxoPr/OKWjquZR1SWKXcvxdH+e1xrx89b3YbmzLMFCLfnaG1HFIgWzJOEWZ7MvpK++odZufgYR50Rw==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+
   xmlbuilder@15.1.1:
     resolution: {integrity: sha512-yMqGBqtXyeN1e3TGYvgNgDVZ3j84W4cwkOXQswghol6APgZWaff9lnbvN7MHYJOiXsvGPXtjTYJEiC9J2wv9Eg==}
     engines: {node: '>=8.0'}
@@ -7538,6 +7753,10 @@ snapshots:
   '@types/unist@2.0.11': {}
 
   '@types/unist@3.0.3': {}
+
+  '@types/ws@8.18.1':
+    dependencies:
+      '@types/node': 26.1.2
 
   '@typescript-eslint/eslint-plugin@8.67.0(@typescript-eslint/parser@8.67.0(@typescript/typescript6@6.0.2)(eslint@10.8.1(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(@typescript/typescript6@6.0.2)(eslint@10.8.1(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)':
     dependencies:
@@ -11311,6 +11530,8 @@ snapshots:
       strip-ansi: 7.2.0
 
   wrappy@1.0.2: {}
+
+  ws@8.21.3: {}
 
   xmlbuilder@15.1.1: {}
 

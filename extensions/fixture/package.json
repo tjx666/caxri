@@ -9,6 +9,7 @@
         "typecheck": "tsc --noEmit -p tsconfig.json"
     },
     "devDependencies": {
+        "@caxri/protocol": "workspace:*",
         "caxri": "workspace:*"
     },
     "engines": {

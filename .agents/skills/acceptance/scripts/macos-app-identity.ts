@@ -4,7 +4,7 @@ import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import { execFileAsync } from '../../../../src/shared/node/exec';
+import { execFileAsync } from '@caxri/system';
 
 const APP_BUNDLE_SUFFIXES = [
     { bundleSuffix: '', helperApp: null },

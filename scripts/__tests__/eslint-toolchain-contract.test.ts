@@ -14,6 +14,17 @@ async function lint(path: string) {
     return result;
 }
 
+async function lintAll(paths: string[]) {
+    const eslint = new ESLint({ cwd: root, ignore: false });
+    return eslint.lintFiles(paths);
+}
+
+async function lintSource(path: string, source: string) {
+    const eslint = new ESLint({ cwd: root, ignore: false });
+    const [result] = await eslint.lintText(source, { filePath: resolve(root, path) });
+    return result;
+}
+
 /**
  * `ESLint#calculateConfigForFile` is typed as `Promise<any>` (there is no narrower public type), so this local shape is
  * asserted explicitly rather than relying on the untyped return value.
@@ -38,7 +49,7 @@ describe('shared ESLint preset toolchain contract', () => {
         expect(ruleIds).not.toContain('@typescript-eslint/no-floating-promises');
         expect(ruleIds).not.toContain('@typescript-eslint/no-unsafe-assignment');
 
-        const config = await effectiveConfigFor('src/main/index.ts');
+        const config = await effectiveConfigFor('apps/desktop/src/main/index.ts');
         expect(config.rules?.['@typescript-eslint/no-floating-promises']).toBeUndefined();
         expect(config.rules?.['@typescript-eslint/no-misused-promises']).toBeUndefined();
     });
@@ -51,7 +62,7 @@ describe('shared ESLint preset toolchain contract', () => {
     });
 
     it('keeps Caxri-specific boundary rules active on a representative renderer file', async () => {
-        const config = await effectiveConfigFor('src/renderer/src/app.tsx');
+        const config = await effectiveConfigFor('apps/desktop/src/renderer/src/app.tsx');
 
         // Caxri-specific overrides layered on top of the shared preset.
         expect(config.rules?.['max-lines']?.[1]).toMatchObject({ max: 800 });
@@ -76,8 +87,8 @@ describe('shared ESLint preset toolchain contract', () => {
         expect(config.rules?.['import-x/order']).toBeDefined();
     });
 
-    it('bans default exports on .tsx files under src/', async () => {
-        const config = await effectiveConfigFor('src/renderer/src/app.tsx');
+    it('bans default exports on Desktop .tsx files', async () => {
+        const config = await effectiveConfigFor('apps/desktop/src/renderer/src/app.tsx');
         const noRestrictedSyntax = config.rules?.['no-restricted-syntax'] as [
             number,
             { selector?: string; message?: string },
@@ -96,19 +107,23 @@ describe('shared ESLint preset toolchain contract', () => {
         ).resolves.toBe(true);
     });
 
-    it('bans the @shared/@ Renderer aliases outside the Renderer', async () => {
-        const config = await effectiveConfigFor('src/runtime/index.ts');
+    it('does not apply source line limits to generated migration metadata', async () => {
+        const config = await effectiveConfigFor(
+            'apps/server/src/domains/db/migrations/meta/0016_snapshot.json',
+        );
+
+        expect(config.rules?.['max-lines']).toBeUndefined();
+    });
+
+    it('bans the Renderer alias outside the Renderer', async () => {
+        const config = await effectiveConfigFor('apps/server/src/domains/index.ts');
         const noRestrictedImports = config.rules?.['no-restricted-imports'] as [
             number,
             { patterns?: Array<{ group?: string[] }> },
         ];
 
         expect(noRestrictedImports[0]).toBe(2);
-        expect(noRestrictedImports[1].patterns?.[0]?.group).toEqual([
-            '@shared',
-            '@shared/*',
-            '@/*',
-        ]);
+        expect(noRestrictedImports[1].patterns?.[0]?.group).toEqual(['@/*']);
     });
 
     it('bans child_process exec/execSync everywhere they are imported from', async () => {
@@ -118,6 +133,24 @@ describe('shared ESLint preset toolchain contract', () => {
         expect(ruleIds).toContain('no-restricted-imports');
     });
 
+    it('covers every executable application and extension source root with shell-string guards', async () => {
+        const roots = [
+            'apps/cli/src/shell-guard.ts',
+            'apps/desktop/src/shared/shell-guard.ts',
+            'extensions/fixture/src/shell-guard.ts',
+        ];
+        for (const path of roots) {
+            // eslint-disable-next-line no-await-in-loop -- each synthetic path verifies a distinct flat-config scope
+            const result = await lintSource(
+                path,
+                "import { exec, spawn } from 'node:child_process'; exec('unsafe'); spawn('tool', [], { shell: true });",
+            );
+            const ruleIds = result.messages.map((message) => message.ruleId);
+            expect(ruleIds, path).toContain('no-restricted-imports');
+            expect(ruleIds, path).toContain('no-restricted-syntax');
+        }
+    });
+
     it('bans spawn/execFile with shell: true', async () => {
         const result = await lint('scripts/fixtures/eslint/spawn-shell-true-fixture.ts');
         const ruleIds = result.messages.map((message) => message.ruleId);
@@ -125,9 +158,122 @@ describe('shared ESLint preset toolchain contract', () => {
         expect(ruleIds).toContain('no-restricted-syntax');
     });
 
+    it('rejects application-to-application source imports', async () => {
+        const result = await lint(
+            'scripts/fixtures/eslint/architecture/apps/desktop/src/renderer/src/bad-app-import.ts',
+        );
+
+        expect(result.messages.map(({ ruleId }) => ruleId)).toContain(
+            'caxri/architecture-boundaries',
+        );
+    });
+
+    it('enforces Server process and Domain layers from the first import', async () => {
+        const results = await lintAll([
+            'scripts/fixtures/eslint/architecture/apps/server/src/domains/bad-terminal-host-import.ts',
+            'scripts/fixtures/eslint/architecture/apps/server/src/domains/cross-layer.test.ts',
+            'scripts/fixtures/eslint/architecture/apps/server/src/terminal-host/bad-domain-import.ts',
+            'scripts/fixtures/eslint/architecture/apps/server/src/extension-host/bad-core-import.ts',
+            'scripts/fixtures/eslint/architecture/apps/server/src/observability/bad-core-import.ts',
+        ]);
+
+        expect(results).toHaveLength(5);
+        for (const result of results)
+            expect(result.messages.map(({ ruleId }) => ruleId)).toContain(
+                'caxri/architecture-boundaries',
+            );
+    });
+
+    it('rejects package-private source imports from consumers', async () => {
+        const result = await lint(
+            'scripts/fixtures/eslint/architecture/apps/desktop/src/renderer/src/bad-package-private-import.ts',
+        );
+
+        expect(result.messages.map(({ ruleId }) => ruleId)).toContain(
+            'caxri/architecture-boundaries',
+        );
+    });
+
+    it('enforces the reviewed package dependency direction', async () => {
+        const result = await lint(
+            'scripts/fixtures/eslint/architecture/apps/desktop/src/renderer/src/bad-package-dependency.ts',
+        );
+
+        expect(result.messages.map(({ ruleId }) => ruleId)).toContain(
+            'caxri/architecture-boundaries',
+        );
+    });
+
+    it('rejects CommonJS require calls that cross an application boundary', async () => {
+        const result = await lint(
+            'scripts/fixtures/eslint/architecture/apps/desktop/src/renderer/src/bad-require-import.ts',
+        );
+
+        expect(result.messages.map(({ ruleId }) => ruleId)).toContain(
+            'caxri/architecture-boundaries',
+        );
+    });
+
+    it('rejects platform imports from browser-safe packages', async () => {
+        const result = await lint(
+            'scripts/fixtures/eslint/architecture/packages/protocol/src/bad-browser-import.ts',
+        );
+
+        expect(result.messages.map(({ ruleId }) => ruleId)).toContain(
+            'caxri/architecture-boundaries',
+        );
+    });
+
+    it('keeps every shared browser-unsafe dependency out of Renderer source', async () => {
+        const results = await Promise.all(
+            ['ws', '@parcel/watcher'].map((specifier) =>
+                lintSource(
+                    `apps/desktop/src/renderer/src/${specifier.replace('/', '-')}-import.ts`,
+                    `import '${specifier}';`,
+                ),
+            ),
+        );
+
+        for (const result of results)
+            expect(result.messages.map(({ ruleId }) => ruleId)).toContain('no-restricted-imports');
+    });
+
+    it('keeps the platform-only Client supervisor out of browser code', async () => {
+        const result = await lintSource(
+            'scripts/fixtures/eslint/architecture/apps/desktop/src/renderer/src/platform-client-import.ts',
+            "import '@caxri/client/supervise';",
+        );
+
+        expect(result.messages.map(({ ruleId }) => ruleId)).toContain(
+            'caxri/architecture-boundaries',
+        );
+    });
+
+    it('keeps test-only package seams out of production source', async () => {
+        const result = await lintSource(
+            'scripts/fixtures/eslint/architecture/apps/server/src/test-only-import.ts',
+            "import '@caxri/agent-skills/testing';",
+        );
+
+        expect(result.messages.map(({ ruleId }) => ruleId)).toContain(
+            'caxri/architecture-boundaries',
+        );
+    });
+
+    it('rejects cycles in target applications and packages', async () => {
+        const results = await lintAll([
+            'scripts/fixtures/eslint/architecture/packages/client/src/cycle-a.ts',
+            'scripts/fixtures/eslint/architecture/packages/client/src/cycle-b.ts',
+        ]);
+
+        expect(results.flatMap(({ messages }) => messages.map(({ ruleId }) => ruleId))).toContain(
+            'import-x/no-cycle',
+        );
+    });
+
     it('leaves the async-Node-API ban to oxlint (n/no-sync requires typed linting)', async () => {
         // See scripts/__tests__/oxlint-toolchain-contract.test.ts for the node/no-sync coverage.
-        const config = await effectiveConfigFor('src/runtime/index.ts');
+        const config = await effectiveConfigFor('apps/server/src/domains/index.ts');
 
         expect(config.rules?.['n/no-sync']).toBeUndefined();
     });

@@ -6,7 +6,8 @@ import { basename, dirname, join, relative, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-import { assertBuildOutputsFresh } from '../../../../src/shared/node/build-freshness';
+import { assertBuildOutputsFresh } from '@caxri/system';
+
 import type { DesktopLeaseHandle } from '../../switch-worktree/scripts/desktop-lease';
 import {
     acquireDesktopLease,
@@ -49,18 +50,22 @@ const ELECTRON_APP_PATH = join(PROJECT_ROOT, 'node_modules', 'electron', 'dist',
 const BUILT_MAIN_PATH = join(PROJECT_ROOT, 'out', 'main', 'index.js');
 const STALE_BUILD_MESSAGE = 'Build output is stale; run `bun run build` before Acceptance';
 const BUILD_INPUT_PATHS = [
-    join(PROJECT_ROOT, 'src'),
+    join(PROJECT_ROOT, 'apps', 'desktop', 'package.json'),
+    join(PROJECT_ROOT, 'apps', 'desktop', 'src'),
+    join(PROJECT_ROOT, 'apps', 'desktop', 'tsconfig.node.json'),
+    join(PROJECT_ROOT, 'apps', 'desktop', 'tsconfig.web.json'),
+    join(PROJECT_ROOT, 'apps', 'server', 'package.json'),
+    join(PROJECT_ROOT, 'apps', 'server', 'scripts'),
+    join(PROJECT_ROOT, 'apps', 'server', 'src'),
+    join(PROJECT_ROOT, 'apps', 'server', 'vite.config.ts'),
     join(PROJECT_ROOT, 'electron.vite.config.ts'),
     join(PROJECT_ROOT, 'package.json'),
-    join(PROJECT_ROOT, 'packages', 'cli', 'package.json'),
-    join(PROJECT_ROOT, 'packages', 'cli', 'scripts'),
-    join(PROJECT_ROOT, 'packages', 'cli', 'src'),
-    join(PROJECT_ROOT, 'packages', 'cli', 'tsconfig.build.json'),
-    join(PROJECT_ROOT, 'packages', 'cli', 'tsconfig.json'),
-    join(PROJECT_ROOT, 'packages', 'protocol', 'package.json'),
-    join(PROJECT_ROOT, 'packages', 'protocol', 'src'),
-    join(PROJECT_ROOT, 'packages', 'protocol', 'tsconfig.build.json'),
-    join(PROJECT_ROOT, 'packages', 'protocol', 'tsconfig.json'),
+    join(PROJECT_ROOT, 'apps', 'cli', 'package.json'),
+    join(PROJECT_ROOT, 'apps', 'cli', 'scripts'),
+    join(PROJECT_ROOT, 'apps', 'cli', 'src'),
+    join(PROJECT_ROOT, 'apps', 'cli', 'tsconfig.build.json'),
+    join(PROJECT_ROOT, 'apps', 'cli', 'tsconfig.json'),
+    join(PROJECT_ROOT, 'packages'),
     join(PROJECT_ROOT, 'pnpm-lock.yaml'),
     join(PROJECT_ROOT, 'pnpm-workspace.yaml'),
     join(PROJECT_ROOT, 'tsconfig.node.json'),
@@ -68,7 +73,9 @@ const BUILD_INPUT_PATHS = [
 ];
 const BUILD_OUTPUT_PATHS = [
     BUILT_MAIN_PATH,
-    join(PROJECT_ROOT, 'out', 'main', 'runtime.js'),
+    join(PROJECT_ROOT, 'apps', 'server', 'dist', 'server', 'metadata', 'manifest.json'),
+    join(PROJECT_ROOT, 'apps', 'server', 'dist', 'server', 'bundles', 'server-core.js'),
+    join(PROJECT_ROOT, 'apps', 'server', 'dist', 'server', 'bundles', 'extension-host.js'),
     join(PROJECT_ROOT, 'out', 'preload', 'index.cjs'),
     join(PROJECT_ROOT, 'out', 'preload', 'process-explorer.cjs'),
     join(PROJECT_ROOT, 'out', 'renderer', 'index.html'),
@@ -219,7 +226,7 @@ export function createElectronLaunchSpec({
 }: ElectronLaunchSpecInput) {
     if (!useTestRootFixture) assertNativeDialogAuthorization(environment);
     return {
-        args: ['.', `--remote-debugging-port=${port}`],
+        args: ['apps/desktop', `--remote-debugging-port=${port}`],
         command: electronPath,
         options: {
             cwd: projectRoot,
@@ -249,16 +256,14 @@ export function createMacosAcceptanceLaunchSpec({
     ...input
 }: MacosAcceptanceLaunchSpecInput) {
     const electronLaunch = createElectronLaunchSpec(input);
+    /**
+     * LaunchServices does not preserve the caller's working directory for the application process. Pass the Desktop
+     * workspace as an absolute application path so Electron never falls back to the repository composition root.
+     */
+    const desktopAppPath = resolve(electronLaunch.options.cwd, electronLaunch.args[0]);
     return {
         ...electronLaunch,
-        args: [
-            '-n',
-            '-W',
-            appPath,
-            '--args',
-            electronLaunch.options.cwd,
-            ...electronLaunch.args.slice(1),
-        ],
+        args: ['-n', '-W', appPath, '--args', desktopAppPath, ...electronLaunch.args.slice(1)],
         command: '/usr/bin/open',
     };
 }
@@ -310,7 +315,7 @@ export async function removeStaleRuntime(
         throw new Error('Acceptance instance already running with a live owned process');
     }
     /**
-     * An empty receipt means startup never crossed the Host/Runtime ownership boundary, so absence is not proof.
+     * An empty receipt means startup never crossed the Server process ownership boundary, so absence is not proof.
      */
     if (current.ownedProcesses.length === 0) {
         throw new Error(
@@ -334,17 +339,19 @@ export async function removeStaleRuntime(
         : false;
     if (isMatchingRestart && (persistedLiveness.some(Boolean) || discoveredProcesses.length > 0)) {
         /**
-         * A restart may inherit the same verified Host generation, but never adopt a replacement profile owner.
+         * A restart may inherit the same verified Server Core generation, but never adopt a replacement profile owner.
          */
-        const persistedHostKeys = new Set(
+        const persistedServerCoreKeys = new Set(
             current.ownedProcesses
-                .filter(({ role }) => role === 'host')
+                .filter(({ role }) => role === 'server-core')
                 .map(({ identity, pid }) => `${pid}:${identity}`),
         );
-        const discoveredHost = discoveredProcesses.find(({ role }) => role === 'host');
+        const discoveredServerCore = discoveredProcesses.find(({ role }) => role === 'server-core');
         if (
-            !discoveredHost ||
-            !persistedHostKeys.has(`${discoveredHost.pid}:${discoveredHost.identity}`)
+            !discoveredServerCore ||
+            !persistedServerCoreKeys.has(
+                `${discoveredServerCore.pid}:${discoveredServerCore.identity}`,
+            )
         ) {
             throw new Error('Acceptance restart profile owner changed process identity');
         }
@@ -383,12 +390,12 @@ export async function waitForOwnedProcesses(
 ): Promise<RuntimeState['ownedProcesses']> {
     const deadline = dependencies.now() + OWNED_PROCESS_DISCOVERY_TIMEOUT_MS;
     while (true) {
-        // eslint-disable-next-line no-await-in-loop -- readiness must observe one ordered Host/Runtime ownership snapshot
+        // eslint-disable-next-line no-await-in-loop -- readiness must observe one ordered Server ownership snapshot
         const processes = await dependencies.discoverOwnedProcesses(runtime, expectedProjectRoot);
         const roles = new Set(processes.map(({ role }) => role));
-        if (roles.has('host') && roles.has('runtime')) return processes;
+        if (roles.has('server-core') && roles.has('extension-host')) return processes;
         if (dependencies.now() >= deadline) {
-            throw new Error('Timed out waiting for owned Acceptance Host and Runtime processes');
+            throw new Error('Timed out waiting for owned Acceptance Server processes');
         }
         // eslint-disable-next-line no-await-in-loop -- poll cadence is intentionally sequential
         await dependencies.sleep(100);
@@ -678,7 +685,7 @@ async function main(): Promise<void> {
                     await writeRuntimeState(RUNTIME_PATH, runtime);
                 }
                 /**
-                 * The Host owns the profile lock, but Runtime can survive after Host exits and is then reparented. Keep
+                 * Server Core owns the profile lock, but a child may survive after Core exits and be reparented. Keep
                  * runtime.json while any identity captured at CDP readiness is still alive so stop-electron can recover
                  * that orphan without scanning unrelated worktrees or profiles.
                  */

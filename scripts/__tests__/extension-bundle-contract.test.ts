@@ -18,7 +18,7 @@ describe('assertExtensionBundleContract', () => {
     it.each([
         ['outside-host stub', 'const leak = "CAXRI_API_OUTSIDE_EXTENSION_HOST";'],
         ['protocol import', 'const leak = "@caxri/protocol";'],
-        ['Runtime import', 'const leak = "/src/runtime/private.js";'],
+        ['Runtime import', 'const leak = "/apps/server/src/domains/private.js";'],
         ['Electron import', 'import "electron/main";'],
     ])('rejects bundled implementation leak %s', (_name, statement) =>
         expect(() =>
@@ -45,7 +45,7 @@ describe('assertProductExtensionBundleContract', () => {
         ['bare Node builtin', 'import { join } from "path";'],
         ['Electron', 'import { app } from "electron";'],
         ['protocol package', 'import { viewCatalogSnapshotSchema } from "@caxri/protocol";'],
-        ['Desktop source', 'import { resolve } from "../../src/host/paths";'],
+        ['Desktop source', 'import { resolve } from "../../apps/server/src/core/paths";'],
         ['Renderer alias', 'import { useMemo } from "@/hooks/use-memo";'],
         ['third-party package', 'import debounce from "lodash/debounce";'],
         ['dynamic Node import', 'const fs = import("node:fs");'],

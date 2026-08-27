@@ -1,31 +1,68 @@
 # Caxri
 
-Caxri organizes local development work around Projects, Sessions, Terminals, and the Agent activity that may require a user's attention.
+Caxri organizes development work around independently deployed Servers, the Clients that connect to
+them, and durable Projects, Sessions, Terminals, and Agent activity.
 
-## Language
+This glossary defines the current language after the architecture cutover. `_Avoid_` constrains new
+design and code but does not rename frozen public compatibility identifiers such as `host.status`; those
+identifiers require a separate product and protocol change.
+
+## Execution environment
+
+**Server**:
+An independently deployable, single-tenant Caxri execution environment that owns authorized Projects,
+durable work state, and managed processes.
+_Avoid_: Host, backend, Local Server, Remote Server
+
+**Client**:
+A Desktop, CLI, Web, Mobile, or Agent Endpoint that connects to a Server under an explicit grant.
+_Avoid_: Frontend, UI owner
+
+**Session View**:
+One Client's presentation of a Session, including its pane layout, open resources, selection, and an
+optional Workbench Root override. It never owns the resources it presents.
+_Avoid_: Session state, Desktop state
+
+## Work
 
 **Project**:
-A user-authorized local directory. A Session's owning Project remains its durable identity and the
-root for its Terminals and Agent Endpoint.
-_Avoid_: Workspace, repository
+A directory accessible to and explicitly authorized for a Server. A Project owns exactly one root,
+regardless of whether the connecting Client runs on the same machine.
+_Avoid_: Workspace, repository, local folder
 
 **Session**:
-A durable unit of work within one owning Project that owns Terminals, root-scoped Workbench state,
-layout, and attention state.
-_Avoid_: Conversation, tab
+A durable unit of work within one owning Project that owns Terminals, the shared Workbench Root,
+document Drafts, and Agent activity and Attention.
+_Avoid_: Conversation, tab, Session View
 
 **Workbench Root**:
 The currently selected authorized Project whose Files, Editor, Search, and Git surfaces a Session
-operate on. It may temporarily differ from the Session's owning Project when an Agent creates or
-selects a linked Git worktree.
-_Avoid_: Session Project, Terminal root
+operate on. A Session View may temporarily override it without changing the Session's owning Project.
+_Avoid_: Session Project, Terminal root, Client root
+
+**Draft**:
+Durable unsaved document content owned by a Session and Workbench Root and protected by a Server
+revision until it is saved or discarded.
+_Avoid_: Dirty flag, tab content, Client buffer
 
 **Terminal**:
 One Shell or Agent CLI process surface inside a Session.
 _Avoid_: Session, pane
 
+## Agents and attention
+
+**Agent Session**:
+A provider-owned conversation identity that may continue across more than one Agent Run.
+_Avoid_: Session, Caxri Session
+
+**Agent Run**:
+One Agent CLI process lifecycle inside a Terminal. Resuming the same Agent Session in a new process
+starts a new Agent Run.
+_Avoid_: Conversation, Terminal, generation
+
 **Primary Agent**:
-The first Agent Terminal in a Session, which owns that Session's generated title, activity, and attention signals.
+The first Agent Terminal in a Session, which owns that Session's generated title, activity, and
+attention signals.
 _Avoid_: Active Terminal, selected Agent
 
 **Agent Activity**:
@@ -37,5 +74,6 @@ A reliable Primary Agent event that tells the user a Session is waiting, complet
 _Avoid_: Output, activity
 
 **Unread Attention**:
-Attention whose current generation has not been acknowledged after the Session was visibly focused.
-_Avoid_: Activity, notification count
+Attention whose current generation has not been acknowledged by any Client. Visibly focusing the
+Session is one acknowledgement path, and acknowledgement is shared across all Clients.
+_Avoid_: Activity, per-device notification count

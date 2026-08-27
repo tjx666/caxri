@@ -10,22 +10,29 @@ Git tag and GitHub Release. Runner labels, availability, and recovery are owned 
 
 ## Create a release
 
-Update the root application version before committing. The public API, CLI workspace, bundled
-extension versions, bundled extension `engines.caxri` ranges, and `packages/cli/src/version.ts` must
+Update the root application version before committing. The public API, Agent skill package, CLI workspace,
+bundled extension versions, bundled extension `engines.caxri` ranges, and version sources must
 move in lockstep. The workspace and CLI artifact contract tests fail release CI when they diverge
 or when a bundled extension rejects the new Desktop version:
 
 ```bash
 pnpm version patch --no-git-tag-version --no-git-checks
 version="$(node -p 'require("./package.json").version')"
-(cd packages/cli && npm version "${version}" --no-git-tag-version)
-(cd packages/api && npm version "${version}" --no-git-tag-version)
+(cd apps/desktop && npm version "${version}" --no-git-tag-version)
+(cd apps/server && npm version "${version}" --no-git-tag-version)
+(cd apps/cli && npm version "${version}" --no-git-tag-version)
+(cd packages/agent-skills && npm version "${version}" --no-git-tag-version)
+(cd packages/client && npm version "${version}" --no-git-tag-version)
+(cd packages/extension-api && npm version "${version}" --no-git-tag-version)
 for extension in fixture git status; do
   (cd "extensions/${extension}" && npm version "${version}" --no-git-tag-version)
   (cd "extensions/${extension}" && npm pkg set "engines.caxri=^${version}")
 done
-sed -i '' "s/CLI_VERSION = '.*'/CLI_VERSION = '${version}'/" packages/cli/src/version.ts
-git add package.json packages/api/package.json packages/cli/package.json packages/cli/src/version.ts \
+sed -i '' "s/CLI_VERSION = '.*'/CLI_VERSION = '${version}'/" apps/cli/src/version.ts
+sed -i '' "s/SKILL_BUNDLE_VERSION = '.*'/SKILL_BUNDLE_VERSION = '${version}'/" packages/agent-skills/src/version.ts
+git add package.json packages/agent-skills/package.json packages/agent-skills/src/version.ts \
+  packages/client/package.json packages/extension-api/package.json apps/cli/package.json \
+  apps/cli/src/version.ts apps/desktop/package.json apps/server/package.json \
   extensions/{fixture,git,status}/package.json
 git commit -m "release: v${version}"
 git push origin main

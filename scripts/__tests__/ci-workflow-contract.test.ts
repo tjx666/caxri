@@ -20,6 +20,10 @@ const concurrentValidation = await readFile(
     'utf8',
 );
 const platformChecks = await readFile(new URL('../ci-platform-checks.ts', import.meta.url), 'utf8');
+const selfHostedRunner = await readFile(
+    new URL('../self-hosted-runner.ts', import.meta.url),
+    'utf8',
+);
 const bunVersion = (await readFile(new URL('../../.bun-version', import.meta.url), 'utf8')).trim();
 const packageManifest = JSON.parse(
     await readFile(new URL('../../package.json', import.meta.url), 'utf8'),
@@ -29,6 +33,20 @@ const setupActionDocument = parse(setupAction) as {
 };
 
 describe('CI workflow contract', () => {
+    it('keeps the pre-install runner boundary free of runtime package imports', () => {
+        const packageImports = selfHostedRunner
+            .split(';')
+            .flatMap((statement) => {
+                const source = statement.trim();
+                if (!source.startsWith('import ') || source.startsWith('import type ')) return [];
+                const match = /['"]([^'"]+)['"]$/u.exec(source);
+                return match ? [match[1]] : [];
+            })
+            .filter((specifier) => !specifier.startsWith('node:') && !specifier.startsWith('.'));
+
+        expect(packageImports).toEqual([]);
+    });
+
     it('evaluates retry trailers on the pushed PR head instead of the synthetic merge commit', () => {
         const retryPolicyJob = workflow.match(/\n {2}retry-policy:\n([\s\S]*?)\n {2}checks:/u)?.[1];
 
@@ -75,10 +93,14 @@ describe('CI workflow contract', () => {
         expect(setupAction).toContain(
             'pnpm install --frozen-lockfile --ignore-scripts --prefer-offline --no-runtime',
         );
+        expect(setupAction).toContain('bun run scripts/prepare-node-pty.ts');
         expect(setupAction).toContain('pnpm rebuild electron');
-        expect(setupAction).toContain('bun run rebuild');
+        expect(setupAction.indexOf('bun run scripts/prepare-node-pty.ts')).toBeGreaterThan(
+            setupAction.indexOf('pnpm install --frozen-lockfile'),
+        );
+        expect(setupAction).not.toContain('bun run rebuild');
         expect(bunVersion).toBe('1.4.0');
-        expect(workflow).toContain('Electron native compatibility');
+        expect(workflow).toContain('Server artifact native compatibility');
         expect(workflow).toContain('bun run spike:native');
         expect(workflow).toContain(
             "CAXRI_VITEST_PARTITION: ${{ inputs.vitest_partition || 'optimized' }}",
@@ -102,10 +124,10 @@ describe('CI workflow contract', () => {
                 /--label "Bundle budget gate" -- bun run scripts\/ci-bundle-budget\.ts/gu,
             ),
         ).toHaveLength(1);
-        expect(packageManifest.scripts.rebuild).toContain('--only better-sqlite3,node-pty');
-        expect(packageManifest.scripts.rebuild).not.toContain('@parcel/watcher');
+        expect(packageManifest.scripts.rebuild).toBeUndefined();
         expect(workflow.match(/install-electron:/gu)).toHaveLength(2);
-        expect(workflow.match(/rebuild-native:/gu)).toHaveLength(2);
+        expect(workflow).not.toContain('rebuild-native:');
+        expect(setupAction).not.toContain('Electron native rebuild');
     });
 
     it('always tears down the self-hosted boundary, including a partial setup failure', () => {
@@ -268,6 +290,7 @@ describe('CI workflow contract', () => {
         expect(e2eJob).toContain('CAXRI_CHECKS_HEAD_REVISION:');
         expect(e2eJob).toContain('CAXRI_CHECKS_REQUIRE_MERGE:');
         expect(e2eJob).toContain('CAXRI_GITHUB_TOKEN: ${{ github.token }}');
+        expect(e2eJob).toContain('timeout-minutes: 30');
         expect(e2eJob).toContain(
             "CAXRI_VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '1' }}",
         );
@@ -288,8 +311,12 @@ describe('CI workflow contract', () => {
         expect(checksWorktree).toContain('Synthetic merge parents do not match');
         expect(checksWorktree).toContain('CAXRI_REACT_DOCTOR_BASE=${baseRevision}');
         expect(checksWorktree).toContain('env: sanitizedChildEnvironment(environment)');
+        expect(checksWorktree.match(/execFileAsync\(/gu)).toHaveLength(1);
+        expect(checksWorktree).not.toContain("command === 'create'");
         expect(concurrentValidation).toContain('prepareChecksWorktree');
-        expect(concurrentValidation).toContain('runE2E(safeEnvironment)');
+        expect(concurrentValidation).toContain('processes.capture(command, arguments_, options)');
+        expect(concurrentValidation).toContain('runE2E(safeEnvironment, processes)');
+        expect(concurrentValidation).toContain('concurrent validation exceeded 25 minutes');
         expect(concurrentValidation).toContain('await Promise.all([checksPromise, e2ePromise])');
         for (const gate of [
             "'lint'",

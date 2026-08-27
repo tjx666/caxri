@@ -1,0 +1,112 @@
+import { create } from 'zustand';
+
+import { isPathAtOrBelow } from '../../../lib/file-path';
+
+export interface PendingFileOperation {
+    id: string;
+    label: string;
+    projectId: string;
+    /**
+     * Directory (or item) paths whose listing this operation can still change. UI blocking is scoped to these subtrees
+     * instead of gating the entire Project, so one slow folder copy no longer freezes unrelated Paste/Duplicate/Drag
+     * actions elsewhere in the tree.
+     */
+    affectedPaths: readonly string[];
+    /**
+     * Only a durable mutation (create/rename/move) is journaled with a Server-recognized `operationId`, so only those
+     * can be canceled through `files.operation.cancel`. A plain copy has no journal entry to cancel — offering Cancel
+     * for it would be a dead button.
+     */
+    cancelable: boolean;
+    startedAt: number;
+}
+
+interface BeginFileOperationInput {
+    id: string;
+    label: string;
+    projectId: string;
+    affectedPaths: readonly string[];
+    cancelable?: boolean;
+}
+
+interface FileOperationState {
+    operations: PendingFileOperation[];
+    begin(operation: BeginFileOperationInput): boolean;
+    finish(id: string): void;
+    update(id: string, label: string): void;
+    clear(): void;
+}
+
+/**
+ * Renderer lifecycle for long file mutations; Server remains the authority for every path.
+ */
+export const useFileOperationStore = create<FileOperationState>((set, get) => ({
+    operations: [],
+    begin(operation) {
+        if (get().operations.some((current) => current.id === operation.id)) return false;
+        set((state) => ({
+            operations: [
+                ...state.operations,
+                {
+                    ...operation,
+                    cancelable: operation.cancelable === true,
+                    startedAt: Date.now(),
+                },
+            ],
+        }));
+        return true;
+    },
+    finish: (id) =>
+        set((state) => ({
+            operations: state.operations.filter((operation) => operation.id !== id),
+        })),
+    update: (id, label) =>
+        set((state) => ({
+            operations: state.operations.map((operation) =>
+                operation.id === id ? { ...operation, label } : operation,
+            ),
+        })),
+    clear: () => set({ operations: [] }),
+}));
+
+/**
+ * True when a Project-scoped action targeting `path` overlaps a pending file operation's affected subtree. Used instead
+ * of "any operation pending for this Project" so a slow copy in one folder cannot block Paste/Duplicate/Drag somewhere
+ * unrelated in the same tree.
+ */
+export function isPathBlockedByFileOperations(
+    operations: readonly PendingFileOperation[],
+    projectId: string,
+    path: string,
+): boolean {
+    return operations.some(
+        (operation) =>
+            operation.projectId === projectId &&
+            operation.affectedPaths.some((affected) => isPathAtOrBelow(path, affected)),
+    );
+}
+
+/**
+ * Every pending operation for a Project whose affected subtree overlaps `path`, oldest first.
+ */
+export function fileOperationsBlockingPath(
+    operations: readonly PendingFileOperation[],
+    projectId: string,
+    path: string,
+): PendingFileOperation[] {
+    return operations.filter(
+        (operation) =>
+            operation.projectId === projectId &&
+            operation.affectedPaths.some((affected) => isPathAtOrBelow(path, affected)),
+    );
+}
+
+/**
+ * A Cancel affordance appears only once an operation has been running long enough that a progress label alone is no
+ * longer reassuring, and only for a durable mutation Server can actually cancel.
+ */
+export const CANCEL_REVEAL_THRESHOLD_MS = 1_500;
+
+export function isFileOperationCancelable(operation: PendingFileOperation, now: number): boolean {
+    return operation.cancelable && now - operation.startedAt >= CANCEL_REVEAL_THRESHOLD_MS;
+}

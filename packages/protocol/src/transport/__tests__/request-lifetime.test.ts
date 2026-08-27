@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { isNonExpiringRuntimeMethod, isNonExpiringViewOperation } from '../request-lifetime';
+import { isNonExpiringServerOperation, isNonExpiringViewOperation } from '../request-lifetime';
 
-describe('isNonExpiringRuntimeMethod', () => {
+describe('isNonExpiringServerOperation', () => {
     it('allows the documented non-expiring methods', () => {
-        expect(isNonExpiringRuntimeMethod('agent.dispatch.waitInternal')).toBe(true);
-        expect(isNonExpiringRuntimeMethod('agent.message.wait')).toBe(true);
+        expect(isNonExpiringServerOperation('agent.dispatch.waitInternal')).toBe(true);
+        expect(isNonExpiringServerOperation('agent.message.wait')).toBe(true);
         for (const method of [
             'files.create',
             'files.copy',
@@ -15,17 +15,17 @@ describe('isNonExpiringRuntimeMethod', () => {
             'files.operation.acknowledge',
             'files.trash',
         ])
-            expect(isNonExpiringRuntimeMethod(method)).toBe(true);
-        expect(isNonExpiringRuntimeMethod('files.write')).toBe(true);
-        expect(isNonExpiringRuntimeMethod('git.discard.apply')).toBe(true);
+            expect(isNonExpiringServerOperation(method)).toBe(true);
+        expect(isNonExpiringServerOperation('files.write')).toBe(true);
+        expect(isNonExpiringServerOperation('git.discard.apply')).toBe(true);
     });
 
     it('rejects representative expiring and unrelated methods', () => {
-        expect(isNonExpiringRuntimeMethod('agent.dispatch.wait')).toBe(false);
-        expect(isNonExpiringRuntimeMethod('agent.dispatch.start')).toBe(false);
-        expect(isNonExpiringRuntimeMethod('files.read')).toBe(false);
-        expect(isNonExpiringRuntimeMethod('terminal.send')).toBe(false);
-        expect(isNonExpiringRuntimeMethod('')).toBe(false);
+        expect(isNonExpiringServerOperation('agent.dispatch.wait')).toBe(false);
+        expect(isNonExpiringServerOperation('agent.dispatch.start')).toBe(false);
+        expect(isNonExpiringServerOperation('files.read')).toBe(false);
+        expect(isNonExpiringServerOperation('terminal.send')).toBe(false);
+        expect(isNonExpiringServerOperation('')).toBe(false);
     });
 });
 

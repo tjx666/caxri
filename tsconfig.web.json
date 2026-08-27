@@ -1,29 +1,29 @@
 {
     "extends": "@electron-toolkit/tsconfig/tsconfig.web.json",
-    "exclude": [
-        // Renderer feature `__tests__/` directories stay in this project (they test Renderer
-        // modules through `@/` aliases); only the node-side shared tests are carved out.
-        "src/shared/**/__tests__/**",
-        "src/shared/node/**",
-        "packages/**/__tests__/**",
-        "packages/**/*.test.ts"
-    ],
+    "exclude": ["packages/**/__tests__/**", "packages/**/*.test.ts"],
     "include": [
-        "src/renderer/src/**/*.ts",
-        "src/renderer/src/**/*.tsx",
-        "src/shared/**/*.ts",
+        "apps/desktop/src/renderer/src/**/*.ts",
+        "apps/desktop/src/renderer/src/**/*.tsx",
+        "apps/desktop/src/shared/**/*.ts",
         "packages/protocol/src/**/*.ts",
+        "packages/client/src/index.ts",
+        "packages/client/src/connection.ts",
+        "packages/client/src/connection/**/*.ts",
+        "packages/client/src/state.ts",
+        "packages/client/src/state/**/*.ts",
+        "packages/extension-api/src/**/*.ts",
         "packages/utils/src/**/*.ts"
     ],
     "compilerOptions": {
         "composite": true,
         "jsx": "react-jsx",
+        "types": ["vite/client", "react", "react-dom"],
         "noEmit": true,
         "noImplicitAny": true,
         "strict": true,
         "paths": {
-            "@/*": ["./src/renderer/src/*"],
-            "@shared/*": ["./src/shared/*"]
+            "@/*": ["./apps/desktop/src/renderer/src/*"],
+            "@desktop-shared/*": ["./apps/desktop/src/shared/*"]
         }
     }
 }

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
 
-import { discoverHostManifest, HostClient } from '@caxri/cli';
+import { discoverServerManifest, ServerClient } from '@caxri/client/supervise';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
@@ -17,7 +17,7 @@ import {
 } from './support/helpers.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
-const cliPath = join(projectRoot, 'packages', 'cli', 'dist', 'caxri.cjs');
+const cliPath = join(projectRoot, 'apps', 'cli', 'dist', 'caxri.cjs');
 
 interface EndpointCapture {
     context: {
@@ -109,7 +109,7 @@ process.stdin.resume();
             grants: [],
         });
         expect(JSON.stringify(first.context)).not.toContain(first.credential.token);
-        const agent = await HostClient.connect(await discoverHostManifest(userData), 2_000, {
+        const agent = await ServerClient.connect(await discoverServerManifest(userData), 2_000, {
             kind: 'agent',
             ...first.credential,
         });
@@ -136,18 +136,16 @@ process.stdin.resume();
         await expect(agent.request('agent.context')).rejects.toMatchObject({ code: 'UNAVAILABLE' });
         agent.close();
 
-        const [database, hostLog, runtimeLog, snapshot] = await Promise.all([
+        const [database, serverCoreLog, snapshot] = await Promise.all([
             readFile(join(userData, 'caxri.db')),
-            readFile(join(userData, 'logs', 'host.jsonl'), 'utf8'),
-            readFile(join(userData, 'logs', 'runtime.jsonl'), 'utf8'),
+            readFile(join(userData, 'logs', 'server-core.jsonl'), 'utf8'),
             pageRequest<{ payload: string }>(running.page, 'terminal.snapshot', {
                 terminalId: second.context.endpoint.terminalId,
             }),
         ]);
         for (const token of [first.credential.token, second.credential.token]) {
             expect(database.includes(Buffer.from(token))).toBe(false);
-            expect(hostLog).not.toContain(token);
-            expect(runtimeLog).not.toContain(token);
+            expect(serverCoreLog).not.toContain(token);
             expect(snapshot.payload).not.toContain(token);
         }
     } finally {

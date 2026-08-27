@@ -1,10 +1,10 @@
 import { resolve } from 'node:path';
 import process from 'node:process';
 
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 
 export const desktopTestFiles = [
-    'src/**/*.test.ts',
+    'apps/desktop/src/**/*.test.ts',
     'extensions/**/*.test.ts',
     'e2e/support/*.test.ts',
     '.agents/skills/**/scripts/*.test.ts',
@@ -12,21 +12,34 @@ export const desktopTestFiles = [
     'scripts/__tests__/*.test.ts',
 ];
 export const protocolTestFiles = ['packages/protocol/src/**/*.test.ts'];
-export const apiTestFiles = ['packages/api/src/**/*.test.ts'];
+export const agentSkillsTestFiles = ['packages/agent-skills/{scripts,src}/**/*.test.ts'];
+export const apiTestFiles = ['packages/extension-api/src/**/*.test.ts'];
+export const clientTestFiles = ['packages/client/src/**/*.test.ts'];
+export const serverTestFiles = ['apps/server/{scripts,src}/**/*.test.ts'];
+export const systemTestFiles = ['packages/system/src/**/*.test.ts'];
 export const utilitiesTestFiles = ['packages/utils/src/**/*.test.ts'];
-export const cliTestFiles = ['packages/cli/{scripts,src}/**/*.test.ts'];
+export const cliTestFiles = ['apps/cli/{scripts,src}/**/*.test.ts'];
 export const testProjectNames = [
     'desktop-parallel',
-    'desktop-serial-native',
+    'agent-skills',
     'protocol',
     'api',
+    'client',
+    'server-parallel',
+    'server-serial-native',
+    'system',
     'utils',
     'cli',
 ];
 const serialNativeTestPrefix = [
-    'src/runtime/__tests__/agent-hooks.integration.test.ts',
-    'src/runtime/__tests__/configuration.test.ts',
-    'src/runtime/agents/hooks/__tests__/manager.integration.test.ts',
+    'apps/server/src/domains/__tests__/agent-hooks.integration.test.ts',
+    'apps/server/src/domains/__tests__/configuration.test.ts',
+    'apps/server/src/domains/agents/hooks/__tests__/manager.integration.test.ts',
+    /**
+     * The real-process suite loads node-pty. Its worker must finish native child teardown before another native suite
+     * starts on macOS CI.
+     */
+    'apps/server/src/domains/terminal/__tests__/terminal-process.integration.test.ts',
 ];
 
 export type VitestPartition = 'legacy' | 'optimized';
@@ -59,24 +72,40 @@ export function resolveVitestPartition(
         serialNativeTests: [
             ...serialNativeTestPrefix,
             partition === 'legacy'
-                ? 'src/runtime/files/__tests__/*.test.ts'
-                : 'src/runtime/files/__tests__/files.integration.test.ts',
-            'src/runtime/git/__tests__/git.integration.test.ts',
+                ? 'apps/server/src/domains/files/__tests__/*.test.ts'
+                : 'apps/server/src/domains/files/__tests__/files.integration.test.ts',
+            'apps/server/src/domains/git/__tests__/git.integration.test.ts',
         ],
     };
 }
 
 const partition = resolveVitestPartition();
 export const serialNativeTests = partition.serialNativeTests;
+export const serverParallelExcludes = [...configDefaults.exclude, ...serialNativeTests];
 export const parallelMaxWorkers = partition.maxWorkers;
 
 export const workspaceAliases = {
-    '@': resolve(import.meta.dirname, 'src/renderer/src'),
-    '@caxri/cli': resolve(import.meta.dirname, 'packages/cli/src/index.ts'),
+    '@': resolve(import.meta.dirname, 'apps/desktop/src/renderer/src'),
+    '@desktop-shared': resolve(import.meta.dirname, 'apps/desktop/src/shared'),
+    '@caxri/agent-skills/testing': resolve(
+        import.meta.dirname,
+        'packages/agent-skills/src/testing.ts',
+    ),
+    '@caxri/agent-skills': resolve(import.meta.dirname, 'packages/agent-skills/src/index.ts'),
+    '@caxri/client/connection': resolve(
+        import.meta.dirname,
+        'packages/client/src/connection/index.ts',
+    ),
+    '@caxri/client/state': resolve(import.meta.dirname, 'packages/client/src/state/index.ts'),
+    '@caxri/client/supervise': resolve(
+        import.meta.dirname,
+        'packages/client/src/supervise/index.ts',
+    ),
+    '@caxri/client': resolve(import.meta.dirname, 'packages/client/src/index.ts'),
     '@caxri/protocol': resolve(import.meta.dirname, 'packages/protocol/src/index.ts'),
+    '@caxri/system': resolve(import.meta.dirname, 'packages/system/src/index.ts'),
     '@caxri/utils': resolve(import.meta.dirname, 'packages/utils/src/index.ts'),
-    '@shared': resolve(import.meta.dirname, 'src/shared'),
-    'caxri': resolve(import.meta.dirname, 'packages/api/src/index.ts'),
+    'caxri': resolve(import.meta.dirname, 'packages/extension-api/src/index.ts'),
 };
 
 export default defineConfig({
@@ -94,19 +123,16 @@ export default defineConfig({
                 test: {
                     name: 'desktop-parallel',
                     include: desktopTestFiles,
-                    exclude: serialNativeTests,
+                    exclude: configDefaults.exclude,
                     maxWorkers: parallelMaxWorkers,
                 },
             },
             {
                 extends: true,
                 test: {
-                    name: 'desktop-serial-native',
-                    /**
-                     * Native watchers and process-global environment fixtures cannot overlap.
-                     */
-                    fileParallelism: false,
-                    include: serialNativeTests,
+                    name: 'agent-skills',
+                    include: agentSkillsTestFiles,
+                    maxWorkers: parallelMaxWorkers,
                 },
             },
             {
@@ -122,6 +148,39 @@ export default defineConfig({
                 test: {
                     name: 'api',
                     include: apiTestFiles,
+                    maxWorkers: parallelMaxWorkers,
+                },
+            },
+            {
+                extends: true,
+                test: {
+                    name: 'client',
+                    include: clientTestFiles,
+                    maxWorkers: parallelMaxWorkers,
+                },
+            },
+            {
+                extends: true,
+                test: {
+                    name: 'server-parallel',
+                    include: serverTestFiles,
+                    exclude: serverParallelExcludes,
+                    maxWorkers: parallelMaxWorkers,
+                },
+            },
+            {
+                extends: true,
+                test: {
+                    name: 'server-serial-native',
+                    fileParallelism: false,
+                    include: serialNativeTests,
+                },
+            },
+            {
+                extends: true,
+                test: {
+                    name: 'system',
+                    include: systemTestFiles,
                     maxWorkers: parallelMaxWorkers,
                 },
             },

@@ -1,0 +1,324 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+
+import type {
+    AgentHookHealthMap,
+    AgentProvider,
+    AgentSkillHealth,
+    AppSettings,
+    ArgvConfig,
+    ArgvConfigChanges,
+} from '@caxri/protocol';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { Search, X } from 'lucide-react';
+
+import { cn } from '@/lib/utilities';
+
+import { Input, InputGroup } from '../../components/ui/input';
+import { Tooltip } from '../../components/ui/tooltip';
+import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
+import { SettingRow } from './setting-row';
+import type { SettingsCategory } from './settings-registry';
+import { agentProviderForSubcategory, settingsCategories, settingsRows } from './settings-registry';
+import type { SettingsListItem } from './settings-search';
+import { buildSettingsList, countRowsByCategory, filterSettingsRows } from './settings-search';
+import { rowResetAction } from './settings-values';
+
+export interface SettingsPageProperties {
+    settings: AppSettings;
+    argvConfig?: ArgvConfig;
+    agentHookHealth?: AgentHookHealthMap;
+    agentSkillHealth?: AgentSkillHealth;
+    agentActionsFocusRequest?: { id: number; provider: AgentProvider };
+    trustedDomainsFocusRequestId?: number;
+    onArgvConfigChange: (changes: ArgvConfigChanges) => void;
+    onFieldChange: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
+}
+
+const clearSearchButtonClassName =
+    'grid size-6 shrink-0 place-items-center rounded border-0 bg-transparent p-0 text-muted cursor-pointer hover:bg-elevated hover:text-foreground';
+
+/**
+ * Anchor id a TOC entry scrolls to: a category id, or `category:subcategory`.
+ */
+const anchorOf = (item: SettingsListItem): string | undefined => {
+    if (item.kind === 'category') return item.category.id;
+    if (item.kind === 'subcategory') return `${item.categoryId}:${item.title}`;
+    return undefined;
+};
+
+interface SettingsTocProperties {
+    categories: SettingsCategory[];
+    counts: Partial<Record<string, number>>;
+    activeAnchor?: string;
+    searching: boolean;
+    onNavigate: (anchor: string) => void;
+}
+
+function SettingsToc({
+    categories,
+    counts,
+    activeAnchor,
+    searching,
+    onNavigate,
+}: SettingsTocProperties) {
+    return (
+        <nav aria-label="Settings categories" className="min-h-0 overflow-y-auto py-2 pl-2">
+            <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
+                {categories.map((category) => {
+                    const count = counts[category.id] ?? 0;
+                    if (searching && count === 0) return null;
+                    const isActive =
+                        activeAnchor === category.id ||
+                        (activeAnchor?.startsWith(`${category.id}:`) ?? false);
+                    return (
+                        <li key={category.id}>
+                            <button
+                                type="button"
+                                aria-current={isActive ? 'location' : undefined}
+                                className={cn(
+                                    'flex h-7 w-full cursor-pointer items-center justify-between gap-2 rounded border-0 bg-transparent px-2 text-left text-[12px] text-muted hover:bg-elevated hover:text-foreground',
+                                    isActive && 'bg-elevated text-foreground',
+                                )}
+                                onClick={() => onNavigate(category.id)}
+                            >
+                                <span className="truncate">{category.title}</span>
+                                {searching && (
+                                    <span className="text-[10px] text-muted">{count}</span>
+                                )}
+                            </button>
+                            {category.subcategories.length > 0 && (
+                                <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
+                                    {category.subcategories.map((subcategory) => {
+                                        const anchor = `${category.id}:${subcategory}`;
+                                        // A subcategory with no matches has no heading in the
+                                        // filtered list, so its TOC entry would be a dead click.
+                                        if (searching && (counts[anchor] ?? 0) === 0) return null;
+                                        const provider = agentProviderForSubcategory(subcategory);
+                                        return (
+                                            <li key={anchor}>
+                                                <button
+                                                    type="button"
+                                                    aria-current={
+                                                        activeAnchor === anchor
+                                                            ? 'location'
+                                                            : undefined
+                                                    }
+                                                    className={cn(
+                                                        'flex h-7 w-full cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 pl-6 text-left text-[12px] text-muted hover:bg-elevated hover:text-foreground',
+                                                        activeAnchor === anchor &&
+                                                            'bg-elevated text-foreground',
+                                                    )}
+                                                    onClick={() => onNavigate(anchor)}
+                                                >
+                                                    {provider && (
+                                                        <AgentIdentityIcon
+                                                            identity={provider}
+                                                            size={13}
+                                                        />
+                                                    )}
+                                                    <span className="truncate">{subcategory}</span>
+                                                </button>
+                                            </li>
+                                        );
+                                    })}
+                                </ul>
+                            )}
+                        </li>
+                    );
+                })}
+            </ul>
+        </nav>
+    );
+}
+
+function SubcategoryHeading({ title }: { title: string }) {
+    const provider = agentProviderForSubcategory(title);
+    return (
+        <h4
+            data-agent-provider={provider}
+            className="m-0 flex items-center gap-2 px-3 pt-3 pb-1 text-[13px] font-medium text-foreground"
+        >
+            {provider && <AgentIdentityIcon identity={provider} size={14} />}
+            {title}
+        </h4>
+    );
+}
+
+const estimateItemSize = (item: SettingsListItem): number => {
+    if (item.kind === 'category') return 42;
+    if (item.kind === 'subcategory') return 34;
+    return 76;
+};
+
+/**
+ * VS Code-style Settings surface: search on top, category table of contents left, and one virtualized flat list of
+ * headings and rows right. Rendering stays schema-driven — rows come from `settingsRows`, so the list scales to any
+ * number of settings without DOM cost.
+ */
+export function SettingsPage(properties: SettingsPageProperties) {
+    const { settings, argvConfig, trustedDomainsFocusRequestId } = properties;
+    const [query, setQuery] = useState('');
+    const isSearching = query.trim().length > 0;
+    const scrollParentReference = useRef<HTMLDivElement>(null);
+    const handledFocusRequest = useRef(0);
+    const handledAgentActionsFocusRequest = useRef(0);
+
+    const visibleRows = useMemo(() => filterSettingsRows(settingsRows, query), [query]);
+    const list = useMemo(() => buildSettingsList(settingsCategories, visibleRows), [visibleRows]);
+    const counts = useMemo(() => countRowsByCategory(visibleRows), [visibleRows]);
+
+    // TanStack Virtual is knowingly incompatible with React Compiler memoization; the compiler
+    // skips this component, which is the library's documented, expected behavior.
+    // eslint-disable-next-line react-hooks/incompatible-library -- see above
+    const virtualizer = useVirtualizer({
+        count: list.length,
+        estimateSize: (index) => estimateItemSize(list[index]),
+        getItemKey: (index) => list[index].id,
+        getScrollElement: () => scrollParentReference.current,
+        overscan: 8,
+    });
+
+    // Scroll-spy: the anchor owning the first item in the viewport drives the TOC highlight.
+    const virtualItems = virtualizer.getVirtualItems();
+    const scrollOffset = virtualizer.scrollOffset ?? 0;
+    const activeAnchor = useMemo(() => {
+        const topItem = virtualItems.find((item) => item.end > scrollOffset) ?? virtualItems.at(0);
+        if (topItem === undefined) return;
+        for (let index = topItem.index; index >= 0; index -= 1) {
+            const item = list[index];
+            if (item.kind === 'subcategory' || item.kind === 'category') return anchorOf(item);
+            if (item.row.subcategory) return `${item.row.category}:${item.row.subcategory}`;
+        }
+        return list[0] ? anchorOf(list[0]) : undefined;
+    }, [list, scrollOffset, virtualItems]);
+
+    const navigate = (anchor: string): void => {
+        const index = list.findIndex((item) => anchorOf(item) === anchor);
+        if (index !== -1) virtualizer.scrollToIndex(index, { align: 'start' });
+    };
+
+    // A `trusted-domains` open request scrolls the row into view; the mounted editor then grabs
+    // focus through its own `focusRequestId` effect.
+    useEffect(() => {
+        if (!trustedDomainsFocusRequestId) return;
+        if (handledFocusRequest.current === trustedDomainsFocusRequestId) return;
+        handledFocusRequest.current = trustedDomainsFocusRequestId;
+        const index = list.findIndex(
+            (item) => item.kind === 'row' && item.row.id === 'security.trustedDomains',
+        );
+        if (index !== -1) virtualizer.scrollToIndex(index, { align: 'start' });
+    }, [list, trustedDomainsFocusRequestId, virtualizer]);
+
+    useEffect(() => {
+        const request = properties.agentActionsFocusRequest;
+        if (!request || handledAgentActionsFocusRequest.current === request.id) return;
+        handledAgentActionsFocusRequest.current = request.id;
+        const index = list.findIndex(
+            (item) => item.kind === 'row' && item.row.id === `agents.${request.provider}.actions`,
+        );
+        if (index !== -1) virtualizer.scrollToIndex(index, { align: 'start' });
+    }, [list, properties.agentActionsFocusRequest, virtualizer]);
+
+    const handlers = {
+        onArgvConfigChange: properties.onArgvConfigChange,
+        onFieldChange: properties.onFieldChange,
+        onResetRow: (row: (typeof settingsRows)[number]): void => {
+            const action = rowResetAction(row.binding, settings);
+            if (!action) return;
+            if (action.kind === 'argv') properties.onArgvConfigChange(action.changes);
+            else properties.onFieldChange(action.key, action.value);
+        },
+    };
+
+    return (
+        <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden">
+            <div className="border-b border-border p-3 pb-2">
+                <InputGroup appearance="workbench" size="dense">
+                    <Search aria-hidden="true" className="shrink-0 text-muted" size={14} />
+                    <Input
+                        appearance="embedded"
+                        aria-label="Search settings"
+                        placeholder="Search settings"
+                        size="dense"
+                        value={query}
+                        onChange={(event) => setQuery(event.target.value)}
+                    />
+                    {query && (
+                        <Tooltip content="Clear Search">
+                            <button
+                                type="button"
+                                className={clearSearchButtonClassName}
+                                aria-label="Clear settings search"
+                                onClick={() => setQuery('')}
+                            >
+                                <X size={13} />
+                            </button>
+                        </Tooltip>
+                    )}
+                </InputGroup>
+                {isSearching && (
+                    <p className="mt-2 mb-0 text-[11px] text-muted" role="status">
+                        {visibleRows.length} of {settingsRows.length} settings
+                    </p>
+                )}
+            </div>
+            <div className="grid min-h-0 grid-cols-[168px_minmax(0,1fr)] overflow-hidden">
+                <SettingsToc
+                    activeAnchor={activeAnchor}
+                    categories={settingsCategories}
+                    counts={counts}
+                    searching={isSearching}
+                    onNavigate={navigate}
+                />
+                <div ref={scrollParentReference} className="min-h-0 overflow-y-auto pr-2 pb-6 pl-1">
+                    {list.length === 0 ? (
+                        <p className="px-3 py-6 text-center text-[12px] text-muted">
+                            No settings match “{query.trim()}”
+                        </p>
+                    ) : (
+                        <div
+                            className="relative w-full"
+                            style={{ height: virtualizer.getTotalSize() }}
+                        >
+                            {virtualItems.map((virtualItem) => {
+                                const item = list[virtualItem.index];
+                                return (
+                                    <div
+                                        key={virtualItem.key}
+                                        ref={virtualizer.measureElement}
+                                        data-index={virtualItem.index}
+                                        className="absolute top-0 left-0 w-full"
+                                        style={{
+                                            transform: `translateY(${virtualItem.start}px)`,
+                                        }}
+                                    >
+                                        {item.kind === 'category' && (
+                                            <h3 className="m-0 px-3 pt-4 pb-1 text-[15px] font-semibold text-foreground">
+                                                {item.category.title}
+                                            </h3>
+                                        )}
+                                        {item.kind === 'subcategory' && (
+                                            <SubcategoryHeading title={item.title} />
+                                        )}
+                                        {item.kind === 'row' && (
+                                            <SettingRow
+                                                agentHookHealth={properties.agentHookHealth}
+                                                agentSkillHealth={properties.agentSkillHealth}
+                                                context={{ argvConfig, settings }}
+                                                handlers={handlers}
+                                                row={item.row}
+                                                trustedDomainsFocusRequestId={
+                                                    trustedDomainsFocusRequestId
+                                                }
+                                            />
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}

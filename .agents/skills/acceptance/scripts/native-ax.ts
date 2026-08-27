@@ -7,7 +7,8 @@ import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-import { execFileAsync } from '../../../../src/shared/node/exec';
+import { execFileAsync } from '@caxri/system';
+
 import { assertNativeDialogAuthorization } from './native-dialog-authorization';
 
 export interface NativeAxResult {

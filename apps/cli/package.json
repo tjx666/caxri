@@ -1,0 +1,28 @@
+{
+    "name": "@caxri/cli",
+    "version": "0.0.19",
+    "private": true,
+    "description": "Command-line application for Caxri Server.",
+    "type": "module",
+    "sideEffects": false,
+    "files": [
+        "dist"
+    ],
+    "bin": {
+        "caxri": "./dist/caxri.cjs"
+    },
+    "scripts": {
+        "build": "bun run scripts/validate-skill.ts && tsc -p tsconfig.build.json && bun build src/bin.ts --target=node --format=cjs --outfile dist/caxri.cjs && bun run scripts/verify-bundle.ts",
+        "test": "vitest run --root ../.. --project cli",
+        "typecheck": "tsc --noEmit -p tsconfig.json"
+    },
+    "dependencies": {
+        "@caxri/agent-skills": "workspace:*",
+        "@caxri/client": "workspace:*",
+        "@caxri/protocol": "workspace:*",
+        "zod": "catalog:"
+    },
+    "engines": {
+        "node": ">=24.0.0"
+    }
+}

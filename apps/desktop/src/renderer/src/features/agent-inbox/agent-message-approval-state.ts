@@ -1,0 +1,60 @@
+import type { AgentHeldMessageDetail } from '@caxri/protocol';
+import { isCaxriError } from '@caxri/protocol';
+
+export type HeldMessageActionResult = 'confirmed' | 'rejected' | 'final-rejection';
+
+interface LoadHeldMessageDetailOptions {
+    isActive: () => boolean;
+    onDetail: (detail: AgentHeldMessageDetail) => void;
+    onFailure: (error: unknown) => void;
+    onStale: () => void;
+    request: () => Promise<AgentHeldMessageDetail | null>;
+}
+
+/**
+ * Reconciles an in-flight detail request with a receipt or decision that can remove the same held message first.
+ * Keeping the active check beside the nullable Server result makes both callback orders deterministic and testable.
+ */
+export async function loadHeldMessageDetail({
+    isActive,
+    onDetail,
+    onFailure,
+    onStale,
+    request,
+}: LoadHeldMessageDetailOptions): Promise<void> {
+    try {
+        const detail = await request();
+        if (!isActive()) return;
+        if (detail) onDetail(detail);
+        else onStale();
+    } catch (error) {
+        if (isActive()) onFailure(error);
+    }
+}
+
+/**
+ * Non-retryable protocol failures mean the Server can no longer settle this held message. Retaining it would leave an
+ * undismissable modal whose buttons can only repeat the same failure.
+ */
+export function heldMessageActionResultForError(error: unknown): HeldMessageActionResult {
+    if (
+        isCaxriError(error) &&
+        ['NOT_FOUND', 'VALIDATION', 'FORBIDDEN', 'PATH_DENIED'].includes(error.code)
+    )
+        return 'final-rejection';
+    return 'rejected';
+}
+
+/**
+ * Retains a held message until Server confirms its transition. A rejected Desktop request can be a transient transport
+ * failure, so removing it would leave the user unable to retry the decision.
+ */
+export function updateHeldMessagesAfterAction<T extends { messageId: string }>(
+    messages: T[],
+    messageId: string,
+    result: HeldMessageActionResult,
+): T[] {
+    return result === 'confirmed' || result === 'final-rejection'
+        ? messages.filter((message) => message.messageId !== messageId)
+        : messages;
+}
