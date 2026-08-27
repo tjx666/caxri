@@ -8,14 +8,10 @@ import { createTerminal } from './terminal-links-test-helpers';
 describe('createTerminalLinkScanner', () => {
     const baseContext = () => {
         const openFile = vi.fn();
-        const openHomeFile = vi.fn();
         const openUrl = vi.fn();
         const context: TerminalLinkContext = {
-            cwd: '/repo',
-            projectRoot: '/repo',
             wordSeparators: TERMINAL_DEFAULT_WORD_SEPARATORS,
             openFile,
-            openHomeFile,
             openUrl,
         };
         return context;

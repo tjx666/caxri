@@ -149,7 +149,11 @@ export function createServiceHandlers(services: {
             if (withContent) await transcripts.watch(terminalId);
             return readAgentTranscript(database, terminalId, withContent, agentEnvironment);
         },
-        'terminal.fileLink.resolve': (parameters) => resolveTerminalFileLink(database, parameters),
+        'terminal.fileLink.resolve': (parameters) =>
+            resolveTerminalFileLink(database, parameters, {
+                searchProjectFileNames: (sessionId, root, query, signal) =>
+                    files.searchProjectFileNames(sessionId, root, query, signal),
+            }),
         'project.create': async ({ expectedRootIdentity, rootPath }) => {
             const project = database.createProject(
                 await resolveProjectRoot(rootPath, expectedRootIdentity),

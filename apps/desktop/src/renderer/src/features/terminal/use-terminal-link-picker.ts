@@ -10,28 +10,48 @@ import type { TerminalDetectedLink } from './terminal-links';
 export interface TerminalLinkPickerState {
     isOpen: boolean;
     links: TerminalDetectedLink[];
+    mode: 'candidates' | 'detected';
     status: TerminalLinkScanStatus;
+    isTruncated: boolean;
 }
 
 export type TerminalLinkPickerAction =
     | { type: 'close' }
     | { type: 'open' }
+    | { type: 'openCandidates'; links: TerminalDetectedLink[]; isTruncated: boolean }
     | { type: 'update'; links: TerminalDetectedLink[]; status: TerminalLinkScanStatus };
 
 const initialTerminalLinkPickerState: TerminalLinkPickerState = {
     isOpen: false,
     links: [],
+    mode: 'detected',
     status: 'complete',
+    isTruncated: false,
 };
 
 export function terminalLinkPickerReducer(
     state: TerminalLinkPickerState,
     action: TerminalLinkPickerAction,
 ): TerminalLinkPickerState {
-    if (action.type === 'open') return { isOpen: true, links: [], status: 'scanning' };
+    if (action.type === 'open')
+        return {
+            isOpen: true,
+            links: [],
+            mode: 'detected',
+            status: 'scanning',
+            isTruncated: false,
+        };
+    if (action.type === 'openCandidates')
+        return {
+            isOpen: true,
+            links: action.links,
+            mode: 'candidates',
+            status: 'complete',
+            isTruncated: action.isTruncated,
+        };
     if (action.type === 'update') {
         if (!state.isOpen) return state;
-        return { isOpen: true, links: action.links, status: action.status };
+        return { ...state, links: action.links, status: action.status };
     }
     if (!state.isOpen && state.links.length === 0) return state;
     return initialTerminalLinkPickerState;
@@ -63,9 +83,18 @@ export function useTerminalLinkPicker(terminalId: string, focusTerminal: () => v
         runNextChunk();
     }, [terminalId]);
 
+    const openCandidates = useCallback((links: TerminalDetectedLink[], isTruncated: boolean) => {
+        scanTokenReference.current += 1;
+        dispatch({ type: 'openCandidates', links, isTruncated });
+    }, []);
+
     useEffect(
-        () => registerTerminalLinkPickerHandler(terminalId, openPicker),
-        [openPicker, terminalId],
+        () =>
+            registerTerminalLinkPickerHandler(terminalId, {
+                openCandidates,
+                openDetected: openPicker,
+            }),
+        [openCandidates, openPicker, terminalId],
     );
 
     useEffect(

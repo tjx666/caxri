@@ -6,7 +6,6 @@ import {
     MAX_TERMINAL_DETECTED_LINK_TARGET_BYTES,
     MAX_TERMINAL_DETECTED_LINKS,
     registerTerminalLinks,
-    resolveTerminalFilePath,
     TERMINAL_DEFAULT_WORD_SEPARATORS,
     terminalLinkHintPosition,
 } from '../terminal-links';
@@ -316,40 +315,16 @@ describe('terminalLinkHintPosition', () => {
     });
 });
 
-describe('resolveTerminalFilePath', () => {
-    const context = { cwd: '/repo/packages/app', projectRoot: '/repo' };
-
-    it('anchors bare Project paths at the root and explicit relative paths at the Terminal cwd', () => {
-        expect(resolveTerminalFilePath('src/index.ts', context)).toBe('/repo/src/index.ts');
-        expect(resolveTerminalFilePath('./local.ts', context)).toBe('/repo/packages/app/local.ts');
-        expect(resolveTerminalFilePath('../shared.ts', context)).toBe('/repo/packages/shared.ts');
-    });
-
-    it('normalizes absolute and local file URLs without accepting remote file hosts', () => {
-        expect(resolveTerminalFilePath('/repo/a/../b.ts', context)).toBe('/repo/b.ts');
-        expect(resolveTerminalFilePath('file:///repo/a%20b.ts', context)).toBe('/repo/a b.ts');
-        expect(resolveTerminalFilePath('file://remote/repo/a.ts', context)).toBeUndefined();
-    });
-
-    it('rejects shell-home shorthand that cannot be authorized against the Project root', () => {
-        expect(resolveTerminalFilePath('~/example/path.json', context)).toBeUndefined();
-    });
-});
-
 describe('registerTerminalLinks', () => {
     const baseContext = () => {
         const openFile = vi.fn();
-        const openHomeFile = vi.fn();
         const openUrl = vi.fn();
         const context: TerminalLinkContext = {
-            cwd: '/repo',
-            projectRoot: '/repo',
             wordSeparators: TERMINAL_DEFAULT_WORD_SEPARATORS,
             openFile,
-            openHomeFile,
             openUrl,
         };
-        return { context, openFile, openHomeFile, openUrl };
+        return { context, openFile, openUrl };
     };
 
     it('maps a link after wide CJK cells to the correct xterm range', async () => {
@@ -398,7 +373,7 @@ describe('registerTerminalLinks', () => {
 
         links[0].activate();
         links[1].activate();
-        expect(openFile).toHaveBeenCalledWith('/repo/src/file.ts', {
+        expect(openFile).toHaveBeenCalledWith('src/file.ts', {
             mode: 'caret',
             line: 12,
             column: 3,
@@ -409,7 +384,7 @@ describe('registerTerminalLinks', () => {
             'src/range.ts#L20-L21',
             { start: { x: 1, y: 1 }, end: { x: 1, y: 1 } },
         );
-        expect(openFile).toHaveBeenCalledWith('/repo/src/range.ts', {
+        expect(openFile).toHaveBeenCalledWith('src/range.ts', {
             mode: 'line',
             startLine: 20,
             endLine: 21,
@@ -704,7 +679,7 @@ describe('registerTerminalLinks', () => {
         expect(openUrl).not.toHaveBeenCalled();
     });
 
-    it('opens file links with their resolved path and location and handles OSC 8 file URLs', async () => {
+    it('forwards raw file targets and locations through the shared trusted resolver', async () => {
         const text = 'src/file.ts:12:3';
         const terminal = createTerminal(text, cellsFor(text));
         const { context, openFile } = baseContext();
@@ -712,7 +687,7 @@ describe('registerTerminalLinks', () => {
 
         const links = await terminal.links();
         links?.[0].activate({ metaKey: true } as MouseEvent, links[0].text);
-        expect(openFile).toHaveBeenCalledWith('/repo/src/file.ts', {
+        expect(openFile).toHaveBeenCalledWith('src/file.ts', {
             mode: 'caret',
             line: 12,
             column: 3,
@@ -723,7 +698,7 @@ describe('registerTerminalLinks', () => {
             'file:///repo/other.ts:8',
             { start: { x: 1, y: 1 }, end: { x: 1, y: 1 } },
         );
-        expect(openFile).toHaveBeenCalledWith('/repo/other.ts', {
+        expect(openFile).toHaveBeenCalledWith('file:///repo/other.ts', {
             mode: 'line',
             startLine: 8,
             endLine: 8,
@@ -734,7 +709,7 @@ describe('registerTerminalLinks', () => {
             '说明。.local-config/model-config/meta.json:4',
             { start: { x: 1, y: 1 }, end: { x: 1, y: 1 } },
         );
-        expect(openFile).toHaveBeenCalledWith('/repo/.local-config/model-config/meta.json', {
+        expect(openFile).toHaveBeenCalledWith('.local-config/model-config/meta.json', {
             mode: 'line',
             startLine: 4,
             endLine: 4,
@@ -748,17 +723,16 @@ describe('registerTerminalLinks', () => {
     it('forwards an exact Home link to the trusted resolver without expanding it in Renderer', async () => {
         const text = '~/outside/project.json#L12-L14';
         const terminal = createTerminal(text, cellsFor(text));
-        const { context, openFile, openHomeFile } = baseContext();
+        const { context, openFile } = baseContext();
         registerTerminalLinks(terminal.terminal, context);
 
         const links = await terminal.links();
         links?.[0].activate({ metaKey: true } as MouseEvent, links[0].text);
 
-        expect(openHomeFile).toHaveBeenCalledWith('~/outside/project.json', {
+        expect(openFile).toHaveBeenCalledWith('~/outside/project.json', {
             mode: 'line',
             startLine: 12,
             endLine: 14,
         });
-        expect(openFile).not.toHaveBeenCalled();
     });
 });

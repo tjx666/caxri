@@ -58,6 +58,10 @@ import { editorNavigationTargetSchema } from '../domain/editor.js';
 import { gitInternalMethods, gitMethods } from '../domain/git-contract.js';
 import { projectIconSchema } from '../domain/project-customization.js';
 import {
+    terminalFileLinkAmbiguousResolutionSchema,
+    terminalFileLinkAmbiguousResultSchema,
+} from '../domain/terminal-file-link.js';
+import {
     extensionCommandIdSchema,
     extensionErrorSchema,
     extensionIdSchema,
@@ -487,7 +491,11 @@ export const methods = {
             target: z.string().min(3).max(4_096),
             location: editorNavigationTargetSchema.optional(),
         }),
-        result: z.union([canceled, z.object({ opened: z.literal(true) })]),
+        result: z.union([
+            canceled,
+            z.object({ opened: z.literal(true) }),
+            terminalFileLinkAmbiguousResultSchema,
+        ]),
     },
     'terminal.snapshot': {
         ...serverRead,
@@ -779,6 +787,7 @@ export const internalMethods = {
                 rootPath: pathSchema,
                 sourceSessionId: identifierSchema,
             }),
+            terminalFileLinkAmbiguousResolutionSchema,
         ]),
     },
     'terminal.detachAll': { ...serverControl, params: noParameters, result: z.null() },

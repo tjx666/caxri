@@ -178,8 +178,9 @@ export class SearchService {
         parameters: SearchParameters,
         signal: AbortSignal,
         startedAt: number,
+        authorizedRoot?: string,
     ): Promise<SearchResult> {
-        const { root } = await this.resolveSessionPath(parameters.sessionId);
+        const root = authorizedRoot ?? (await this.resolveSessionPath(parameters.sessionId)).root;
         const rootBefore = await lstat(root);
         if (!rootBefore.isDirectory() || rootBefore.isSymbolicLink())
             throw new CaxriError('IO', 'Project root is not a directory');
@@ -446,5 +447,33 @@ export class SearchService {
             if (this.active.get(parameters.sessionId) === controller)
                 this.active.delete(parameters.sessionId);
         }
+    }
+
+    /**
+     * Reuses the bounded name-search walker for an already-authorized Project without canceling an unrelated Files
+     * panel search for the source Session. Only Server-owned callers may supply `root`; Renderer requests stay
+     * Session-rooted through `search` above.
+     */
+    searchProjectFileNames(
+        sessionId: string,
+        root: string,
+        query: string,
+        signal: AbortSignal,
+    ): Promise<SearchResult> {
+        return this.run(
+            {
+                sessionId,
+                mode: 'name',
+                query,
+                caseSensitive: false,
+                wholeWord: false,
+                regex: false,
+                include: '',
+                exclude: '',
+            },
+            signal,
+            performance.now(),
+            root,
+        );
     }
 }
