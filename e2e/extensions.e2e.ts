@@ -4,8 +4,10 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import { execFileAsync } from '@caxri/system';
+import type { MessageBoxOptions } from 'electron';
 
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
+import type { RunningCaxri } from './support/helpers.ts';
 import {
     createAdditionalShellSession,
     createShellSession,
@@ -18,6 +20,15 @@ import {
 import { stubPackagedProjectDialog } from './support/packaged-project-dialog.ts';
 
 const packagedExecutable = process.env.CAXRI_PACKAGED_EXECUTABLE;
+
+function treeCommandOpenedUrls(running: RunningCaxri): Promise<string[] | undefined> {
+    return running.app.evaluate(() => {
+        const target = globalThis as typeof globalThis & {
+            caxriTreeCommandProbe?: { opened: string[] };
+        };
+        return target.caxriTreeCommandProbe?.opened;
+    });
+}
 
 async function writePersistenceExtension(extensionRoot: string): Promise<void> {
     await mkdir(join(extensionRoot, 'dist'), { recursive: true });
@@ -192,6 +203,73 @@ esac
         await expect(
             tree.getByRole('treeitem', { name: 'Test / App, 2m 5s', exact: true }),
         ).toBeVisible();
+        await running.app.evaluate(({ dialog, shell }) => {
+            const target = globalThis as typeof globalThis & {
+                caxriTreeCommandProbe?: { confirmations: string[]; opened: string[] };
+            };
+            target.caxriTreeCommandProbe = { confirmations: [], opened: [] };
+            dialog.showMessageBox = (
+                windowOrOptions: unknown,
+                maybeOptions?: MessageBoxOptions,
+            ) => {
+                const options = maybeOptions ?? (windowOrOptions as MessageBoxOptions);
+                target.caxriTreeCommandProbe!.confirmations.push(options.message);
+                return Promise.resolve({
+                    response: 0,
+                    checkboxChecked: false,
+                });
+            };
+            shell.openExternal = (url) => {
+                target.caxriTreeCommandProbe!.opened.push(url);
+                return Promise.resolve();
+            };
+        });
+        await expect(pullRequestA).toHaveCSS('cursor', 'pointer');
+        const collapsePullRequest = pullRequestA.getByRole('button', {
+            name: 'Collapse #42 Status A',
+            exact: true,
+        });
+        await expect(collapsePullRequest).toHaveAttribute('aria-expanded', 'true');
+
+        await pullRequestA.click();
+        await expect
+            .poll(() => treeCommandOpenedUrls(running))
+            .toEqual(['https://github.com/tjx666/project/pull/42']);
+        await expect(pullRequestA).toHaveAttribute('aria-expanded', 'true');
+
+        await collapsePullRequest.click();
+        await expect(pullRequestA).toHaveAttribute('aria-expanded', 'false');
+        await expect(
+            tree.getByRole('treeitem', { name: 'Test / App, 2m 5s', exact: true }),
+        ).toHaveCount(0);
+        await expect.poll(() => treeCommandOpenedUrls(running)).toHaveLength(1);
+        await pullRequestA
+            .getByRole('button', { name: 'Expand #42 Status A', exact: true })
+            .click();
+        await expect(pullRequestA).toHaveAttribute('aria-expanded', 'true');
+        await expect.poll(() => treeCommandOpenedUrls(running)).toHaveLength(1);
+
+        await pullRequestA.focus();
+        const composingEnterWasNotCanceled = await pullRequestA.evaluate((target) =>
+            target.dispatchEvent(
+                new KeyboardEvent('keydown', {
+                    bubbles: true,
+                    cancelable: true,
+                    isComposing: true,
+                    key: 'Enter',
+                }),
+            ),
+        );
+        expect(composingEnterWasNotCanceled).toBe(true);
+        await expect.poll(() => treeCommandOpenedUrls(running)).toHaveLength(1);
+        await running.page.keyboard.press('Enter');
+        await expect.poll(() => treeCommandOpenedUrls(running)).toHaveLength(2);
+        await expect(pullRequestA).toHaveAttribute('aria-expanded', 'true');
+        await running.page.keyboard.press('Space');
+        await expect(pullRequestA).toHaveAttribute('aria-expanded', 'false');
+        await expect.poll(() => treeCommandOpenedUrls(running)).toHaveLength(2);
+        await running.page.keyboard.press('Space');
+        await expect(pullRequestA).toHaveAttribute('aria-expanded', 'true');
         const deployments = tree.getByRole('treeitem', {
             name: 'Deployments, 1 on preview',
             exact: true,
