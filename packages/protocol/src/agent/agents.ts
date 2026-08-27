@@ -1,4 +1,5 @@
 import type { AgentActionsSettings } from './agent-action-settings.js';
+import { defaultAgentActionsSettings } from './agent-action-settings.js';
 
 /**
  * Single source of truth for the Agent provider family Caxri hosts (Claude Code, Codex). Both the IPC domain schema and
@@ -114,7 +115,7 @@ export const defaultAgentProviderSettings = Object.fromEntries(
     agentProviderIds.map((provider) => [
         provider,
         {
-            actions: { items: {} },
+            actions: structuredClone(defaultAgentActionsSettings),
             hooks: { enabled: false },
             messaging: { enabled: true },
             recovery: { ...defaultAgentOutputRecoverySettings, patterns: [] },

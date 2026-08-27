@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { ServerEvent } from '@caxri/protocol';
-import { defaultAgentOutputRecoverySettings } from '@caxri/protocol';
+import { defaultAgentActionsSettings, defaultAgentOutputRecoverySettings } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import type { IPty, spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -90,7 +90,7 @@ describe('TerminalManager Agent Endpoint lifecycle', () => {
                 agentLaunchSettings: () => ({ executable: 'codex', args: [] }),
                 lifecycleEnvironment: (record) =>
                     endpoints.environment(record, created.session.projectId, {
-                        actions: { items: {} },
+                        actions: structuredClone(defaultAgentActionsSettings),
                         hooks: { enabled: false },
                         launch: { executable: 'codex', args: [] },
                         messaging: { enabled: true },
@@ -207,7 +207,7 @@ describe('TerminalManager Agent Endpoint lifecycle', () => {
                 agentLaunchSettings: () => ({ executable: 'codex', args: [] }),
                 lifecycleEnvironment: (record) =>
                     endpoints.environment(record, created.session.projectId, {
-                        actions: { items: {} },
+                        actions: structuredClone(defaultAgentActionsSettings),
                         hooks: { enabled: false },
                         launch: { executable: 'codex', args: [] },
                         messaging: { enabled: true },

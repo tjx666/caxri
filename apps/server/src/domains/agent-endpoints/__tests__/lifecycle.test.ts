@@ -6,7 +6,11 @@ import type {
     AgentEndpointRetireParams as AgentEndpointRetireParameters,
     TerminalRecord,
 } from '@caxri/protocol';
-import { defaultAgentOutputRecoverySettings, defaultAgentProviderSettings } from '@caxri/protocol';
+import {
+    defaultAgentActionsSettings,
+    defaultAgentOutputRecoverySettings,
+    defaultAgentProviderSettings,
+} from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AgentMessagingCapabilityProbe } from '../../agent-messaging';
@@ -75,7 +79,7 @@ describe('AgentEndpointLifecycle', () => {
 
         await expect(
             lifecycle.environment(terminal(), 'project-1', {
-                actions: { items: {} },
+                actions: structuredClone(defaultAgentActionsSettings),
                 hooks: { enabled: false },
                 launch: { executable: 'codex', args: [] },
                 messaging: { enabled: true },
@@ -115,7 +119,7 @@ describe('AgentEndpointLifecycle', () => {
         await vi.waitFor(() => expect(messaging).toHaveBeenCalledOnce());
         await expect(
             lifecycle.environment(terminal('shell'), 'project-1', {
-                actions: { items: {} },
+                actions: structuredClone(defaultAgentActionsSettings),
                 hooks: { enabled: false },
                 launch: { executable: '/bin/zsh', args: [] },
                 messaging: { enabled: true },
@@ -202,7 +206,7 @@ describe('AgentEndpointLifecycle', () => {
             probe(),
         );
         const settings = {
-            actions: { items: {} },
+            actions: structuredClone(defaultAgentActionsSettings),
             hooks: { enabled: false },
             launch: { executable: 'codex', args: [] },
             messaging: { enabled: true },
@@ -240,7 +244,7 @@ describe('AgentEndpointLifecycle', () => {
             probe(),
         );
         const settings = {
-            actions: { items: {} },
+            actions: structuredClone(defaultAgentActionsSettings),
             hooks: { enabled: false },
             launch: { executable: 'codex', args: [] },
             messaging: { enabled: true },

@@ -1,6 +1,7 @@
 import type { AppSettings } from '@caxri/protocol';
 import { CaxriError, MAX_AGENT_ACTIONS, mergeAgentActions } from '@caxri/protocol';
 
+import type { ConfigService } from '../config';
 import type { CaxriDatabase } from '../db';
 import { discoverAgentActions } from './action-discovery';
 import type { AgentEnvironment } from './contract';
@@ -45,4 +46,19 @@ export async function listAgentActions(
                 ? ('partial' as const)
                 : ('complete' as const),
     };
+}
+
+/**
+ * Resolves the provider from the authoritative Terminal record before mutating Settings. This prevents a Renderer
+ * request from writing one provider's action identity into another provider's history.
+ */
+export function recordRecentAgentAction(
+    database: CaxriDatabase,
+    config: ConfigService,
+    terminalId: string,
+    invocation: string,
+) {
+    const terminal = database.getTerminal(terminalId);
+    if (!terminal?.provider) throw new CaxriError('NOT_FOUND', 'Agent Terminal not found');
+    return config.recordRecentAgentAction(terminal.provider, invocation);
 }
