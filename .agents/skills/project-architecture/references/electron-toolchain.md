@@ -25,11 +25,14 @@ development, CI provisions those versions explicitly, and the root intentionally
 `packageManager` and `devEngines.packageManager` so package-manager selection does not depend on
 Corepack-compatible manifest metadata.
 
-Workspace builds run before Desktop development startup and the production Desktop build. Server
-development has its own Vite watcher, which refreshes the standalone directory artifact after bundle
-changes. electron-builder embeds that exact artifact under `Contents/Resources/server` and has no
-production dependency graph to flatten into ASAR. The standalone CLI enters the app only through its
-explicit packaging resource.
+Workspace builds run before Desktop development startup and the production Desktop build. The root
+manifest intentionally has no Electron `main`, so development launches electron-vite with the explicit
+`out/main/index.js` entry. Server development has its own Vite watcher, which refreshes the standalone
+directory artifact after bundle changes; Desktop waits for that watcher's first verified artifact and
+fails clearly after five minutes if readiness is never published. `CAXRI_SERVER_WATCH_READY_TIMEOUT_MS`
+overrides that development-only timeout for diagnostics. electron-builder embeds that exact artifact under
+`Contents/Resources/server` and has no production dependency graph to flatten into ASAR. The standalone
+CLI enters the app only through its explicit packaging resource.
 
 Bundled extensions are independent `extensions/*` workspace packages with package-local TypeScript
 programs and a development-only `caxri: workspace:*` dependency. Their ESM bundles keep `caxri`
