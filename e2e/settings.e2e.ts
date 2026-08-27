@@ -181,7 +181,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
                 return providerSettings.value['agents.providers'].claude;
             })
             .toEqual({
-                actions: { items: {} },
+                actions: { items: {}, recent: { version: 1, invocations: [] } },
                 hooks: { enabled: true },
                 launch: { executable: 'claude', args: [] },
                 messaging: { enabled: true },

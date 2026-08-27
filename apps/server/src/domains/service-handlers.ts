@@ -3,7 +3,7 @@ import { CaxriError } from '@caxri/protocol';
 
 import { agentSkillHealthReader } from './agent-skills';
 import type { AgentEnvironment, AgentHookManager, AgentTranscriptWatcher } from './agents';
-import { listAgentActions, readAgentTranscript } from './agents';
+import { listAgentActions, readAgentTranscript, recordRecentAgentAction } from './agents';
 import type { ConfigService } from './config';
 import type { CaxriDatabase } from './db';
 import type { DiagnosticsService } from './diagnostics';
@@ -18,6 +18,7 @@ import { resolveTerminalFileLink } from './terminal';
 
 type ServiceHandlerMethods =
     | 'agentActions.list'
+    | 'agentActions.recordRecent'
     | 'files.list'
     | 'files.browse'
     | 'files.create'
@@ -124,6 +125,8 @@ export function createServiceHandlers(services: {
                 configuration.getSettings().value,
                 terminalId,
             ),
+        'agentActions.recordRecent': ({ invocation, terminalId }) =>
+            recordRecentAgentAction(database, configuration, terminalId, invocation),
         'files.list': ({ sessionId, directory }, signal) =>
             files.listDirectory(sessionId, directory, signal),
         'files.browse': (parameters) => files.browse(parameters),

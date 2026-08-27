@@ -7,6 +7,7 @@ import type { ServerMethod } from '@caxri/protocol';
  */
 export const coreForwardedMethods = [
     'agentActions.list',
+    'agentActions.recordRecent',
     'agentHooks.get',
     'agentSkills.get',
     'app.bootstrap',

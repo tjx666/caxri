@@ -133,7 +133,20 @@ describe('wire schema versus file schema', () => {
                 },
             },
         });
-        expect(parsed['agents.providers'].codex.actions).toEqual({ items: {} });
+        expect(parsed['agents.providers'].codex.actions).toEqual({
+            items: {},
+            recent: { version: 1, invocations: [] },
+        });
+
+        const recentOnly = appSettingsFileSchema.parse({
+            'agents.providers': {
+                codex: { actions: { recent: { version: 1, invocations: ['/status'] } } },
+            },
+        });
+        expect(recentOnly['agents.providers'].codex).toMatchObject({
+            actions: { items: {}, recent: { version: 1, invocations: ['/status'] } },
+            launch: { executable: 'codex', args: [] },
+        });
 
         const customized = appSettingsFileSchema.parse({
             'agents.providers': {
@@ -162,6 +175,22 @@ describe('wire schema versus file schema', () => {
                 },
             }).success,
         ).toBe(false);
+
+        const damagedRecent = appSettingsFileSchema.parse({
+            'agents.providers': {
+                codex: {
+                    ...defaultAgentProviderSettings.codex,
+                    actions: {
+                        items: {},
+                        recent: { version: 99, invocations: ['/status'] },
+                    },
+                },
+            },
+        });
+        expect(damagedRecent['agents.providers'].codex.actions.recent).toEqual({
+            version: 1,
+            invocations: [],
+        });
     });
 
     it('merges files.exclude on top of the shipped exclusions in the file parser only', () => {

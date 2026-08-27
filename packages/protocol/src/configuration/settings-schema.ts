@@ -1,6 +1,9 @@
 import { z } from 'zod';
 
-import { agentActionsSettingsSchema } from '../agent/agent-action-settings.js';
+import {
+    agentActionsSettingsFileSchema,
+    agentActionsSettingsSchema,
+} from '../agent/agent-action-settings.js';
 import type { AgentProvider, AgentProviderSettings } from '../agent/agents.js';
 import {
     agentProviderIds,
@@ -83,6 +86,10 @@ const agentProviderSettingsSchema = z.object({
     launch: agentLaunchSettingsSchema,
     messaging: agentMessagingSettingsSchema,
     recovery: agentOutputRecoverySettingsSchema,
+});
+
+const agentProviderSettingsFileSchema = agentProviderSettingsSchema.partial().extend({
+    actions: agentActionsSettingsFileSchema.optional(),
 });
 
 /**
@@ -174,14 +181,19 @@ const filesExcludeFileSchema = filesExcludeRecordSchema
     .transform((value): Record<string, boolean> => ({ ...DEFAULT_FILES_EXCLUDE, ...value }));
 
 const agentProvidersFileSchema = z
-    .partialRecord(z.enum(agentProviderIds), agentProviderSettingsSchema)
+    .partialRecord(z.enum(agentProviderIds), agentProviderSettingsFileSchema)
     .default({})
     .transform(
         (value) =>
             Object.fromEntries(
                 agentProviderIds.map((provider) => [
                     provider,
-                    value[provider] ?? structuredClone(defaultAgentProviderSettings[provider]),
+                    value[provider]
+                        ? {
+                              ...structuredClone(defaultAgentProviderSettings[provider]),
+                              ...value[provider],
+                          }
+                        : structuredClone(defaultAgentProviderSettings[provider]),
                 ]),
             ) as unknown as Record<AgentProvider, AgentProviderSettings>,
     );

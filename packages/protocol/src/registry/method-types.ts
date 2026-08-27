@@ -74,6 +74,7 @@ export function isCaxriMethod(value: string): value is CaxriMethod {
  * paths, arbitrary failure messages, or lifecycle semantics tied to one boot.
  */
 export const effectfulCommandRecovery = {
+    'agentActions.recordRecent': 'none',
     'agent.dispatch.start': 'durable',
     'agent.dispatch.resume': 'durable',
     'agent.control.interrupt': 'durable',

@@ -58,13 +58,14 @@ export function AgentActionSettingsEditor({
         )
             delete items[invocation];
         else items[invocation] = { ...current, enabled: isEnabled };
-        onChange({ items });
+        onChange({ ...value, items });
     };
 
     const addAction = (): void => {
         const invocation = invocationDraft.trim();
         if (!hasCapacity || !agentActionInvocationSchema.safeParse(invocation).success) return;
         onChange({
+            ...value,
             items: {
                 ...value.items,
                 [invocation]: {
@@ -125,6 +126,7 @@ export function AgentActionSettingsEditor({
                             value={value.items[invocation].description ?? ''}
                             onChange={(event) =>
                                 onChange({
+                                    ...value,
                                     items: {
                                         ...value.items,
                                         [invocation]: {
@@ -144,7 +146,7 @@ export function AgentActionSettingsEditor({
                                 onClick={() => {
                                     const items = { ...value.items };
                                     delete items[invocation];
-                                    onChange({ items });
+                                    onChange({ ...value, items });
                                 }}
                             >
                                 <Trash2 size={13} />

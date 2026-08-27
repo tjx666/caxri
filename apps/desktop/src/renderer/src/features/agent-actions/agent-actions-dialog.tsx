@@ -1,8 +1,12 @@
 import type { KeyboardEvent } from 'react';
-import { useId, useMemo, useRef } from 'react';
+import { useId, useMemo, useRef, useState } from 'react';
 
-import type { AgentAction } from '@caxri/protocol';
-import { agentProviderCatalog, mergeAgentActions } from '@caxri/protocol';
+import type { AgentAction, AgentActionRecentSettings, AgentProvider } from '@caxri/protocol';
+import {
+    agentProviderCatalog,
+    mergeAgentActions,
+    resolveRecentAgentActions,
+} from '@caxri/protocol';
 import { Settings2 } from 'lucide-react';
 
 import { ShortcutBadge } from '../../components/shortcut-badge';
@@ -41,14 +45,15 @@ const sourceLabels: Record<AgentAction['source'], string> = {
 
 interface AgentActionRowProperties {
     action: AgentAction;
+    location: 'catalog' | 'recent';
     onSelect: (action: AgentAction) => void;
 }
 
-function AgentActionRow({ action, onSelect }: AgentActionRowProperties) {
+function AgentActionRow({ action, location, onSelect }: AgentActionRowProperties) {
     return (
         <CommandItem
             data-agent-action={action.invocation}
-            value={`${action.invocation} ${action.invocation.slice(1)} ${action.description ?? ''}`}
+            value={`${location} ${action.invocation} ${action.invocation.slice(1)} ${action.description ?? ''}`}
             onSelect={() => onSelect(action)}
         >
             <span className="flex min-w-0 flex-col gap-0.5">
@@ -75,6 +80,11 @@ export function AgentActionsDialog() {
     const targetDescriptionId = useId();
     const interactionDescriptionId = useId();
     const shouldRestoreTerminalFocusReference = useRef(true);
+    const [search, setSearch] = useState('');
+    const [recentOverride, setRecentOverride] = useState<{
+        provider: AgentProvider;
+        recent: AgentActionRecentSettings;
+    }>();
     const isOpen = useDialogStore((state) => state.agentActionsOpen);
     const terminalId = useDialogStore((state) => state.agentActionsTerminalId);
     const settings = useSettings();
@@ -102,9 +112,21 @@ export function AgentActionsDialog() {
         query.data && !query.isFetching && !query.isError ? query.data.actions : fallbackActions;
     const commands = actions.filter((action) => action.kind === 'command');
     const skills = actions.filter((action) => action.kind === 'skill');
+    const actionSettings = provider ? settings?.['agents.providers'][provider].actions : undefined;
+    const recentActions = actionSettings
+        ? resolveRecentAgentActions(actions, {
+              ...actionSettings,
+              recent:
+                  recentOverride && recentOverride.provider === provider
+                      ? recentOverride.recent
+                      : actionSettings.recent,
+          })
+        : [];
+    const shouldShowRecent = search.trim() === '' && recentActions.length > 0;
 
     const closePicker = (shouldRestoreTerminalFocus = true): void => {
         shouldRestoreTerminalFocusReference.current = shouldRestoreTerminalFocus;
+        setSearch('');
         setAgentActionsOpen(false);
     };
 
@@ -119,14 +141,25 @@ export function AgentActionsDialog() {
             closePicker();
             return;
         }
+        const currentProvider = current.provider;
         closePicker();
-        // eslint-disable-next-line no-void -- tryCommand owns the asynchronous failure path
-        void tryCommand('Unable to send Agent command or skill', () =>
-            caxri.request('terminal.input', {
-                terminalId: current.id,
-                data: agentActionTerminalInput(action, mode),
-            }),
-        );
+        // eslint-disable-next-line no-void -- each request owns its user-visible failure path
+        void (async () => {
+            const inputReceipt = await tryCommand('Unable to send Agent command or skill', () =>
+                caxri.request('terminal.input', {
+                    terminalId: current.id,
+                    data: agentActionTerminalInput(action, mode),
+                }),
+            );
+            if (inputReceipt === undefined) return;
+            const recent = await tryCommand('Unable to save recent Agent action', () =>
+                caxri.request('agentActions.recordRecent', {
+                    terminalId: current.id,
+                    invocation: action.invocation,
+                }),
+            );
+            if (recent) setRecentOverride({ provider: currentProvider, recent });
+        })();
     };
 
     const providerName = provider ? agentProviderCatalog[provider].displayName : 'Agent';
@@ -218,15 +251,32 @@ export function AgentActionsDialog() {
                         autoFocus
                         aria-describedby={`${targetDescriptionId} ${interactionDescriptionId}`}
                         placeholder="Search skills and slash commands…"
+                        value={search}
+                        onValueChange={setSearch}
                     />
                     <CommandList>
                         <CommandEmpty>No Agent command or skill found.</CommandEmpty>
+                        {shouldShowRecent && (
+                            <CommandGroup data-agent-action-group="recent" heading="Recently Used">
+                                {recentActions.map((action) => (
+                                    <AgentActionRow
+                                        key={action.invocation}
+                                        action={action}
+                                        location="recent"
+                                        onSelect={(selected) =>
+                                            submit(selected, agentActionSubmitModes.primary)
+                                        }
+                                    />
+                                ))}
+                            </CommandGroup>
+                        )}
                         {commands.length > 0 && (
                             <CommandGroup heading="Commands">
                                 {commands.map((action) => (
                                     <AgentActionRow
                                         key={action.invocation}
                                         action={action}
+                                        location="catalog"
                                         onSelect={(selected) =>
                                             submit(selected, agentActionSubmitModes.primary)
                                         }
@@ -240,6 +290,7 @@ export function AgentActionsDialog() {
                                     <AgentActionRow
                                         key={action.invocation}
                                         action={action}
+                                        location="catalog"
                                         onSelect={(selected) =>
                                             submit(selected, agentActionSubmitModes.primary)
                                         }
