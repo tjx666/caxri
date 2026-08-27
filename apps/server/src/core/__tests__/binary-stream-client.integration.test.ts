@@ -30,6 +30,16 @@ function controlSource(data: RawData): string {
     return Buffer.concat(data).toString('utf8');
 }
 
+async function captureOutcome<Value>(
+    promise: Promise<Value>,
+): Promise<{ error?: unknown; value?: Value }> {
+    try {
+        return { value: await promise };
+    } catch (error) {
+        return { error };
+    }
+}
+
 describe('architecture-a5-binary-streams: ServerClient integration', () => {
     it('cancels an in-flight attachment when the Terminal detaches', async () => {
         const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-binary-detach-overlap-'));
@@ -95,15 +105,15 @@ describe('architecture-a5-binary-streams: ServerClient integration', () => {
                 return issueTicket(id, operation);
             };
 
-            const attaching = client.request('terminal.attach', {
-                terminalId: 'terminal-1',
-            });
+            const attaching = captureOutcome(
+                client.request('terminal.attach', { terminalId: 'terminal-1' }),
+            );
             await vi.waitFor(() => expect(authorizations).toEqual(['terminal.attach']));
             await expect(
                 client.request('terminal.detach', { terminalId: 'terminal-1' }),
             ).resolves.toBeNull();
             attachAuthorization.resolve();
-            await expect(attaching).rejects.toMatchObject({ code: 'CANCELLED' });
+            await expect(attaching).resolves.toMatchObject({ error: { code: 'CANCELLED' } });
             await expect(
                 client.request('terminal.input', {
                     terminalId: 'terminal-1',
@@ -113,6 +123,112 @@ describe('architecture-a5-binary-streams: ServerClient integration', () => {
             expect(authorizations).toEqual(['terminal.attach', 'terminal.input']);
             expect(requests).toEqual(['terminal.detach', 'terminal.input']);
         } finally {
+            client?.close();
+            await server.close();
+            await lease.release();
+            await rm(userDataPath, { recursive: true, force: true });
+        }
+    });
+
+    it('keeps an attachment started after an earlier detach request', async () => {
+        const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-binary-reattach-detach-'));
+        const lease = await acquireServerProfile({ userDataPath, version: '1.0.0' });
+        const detachResult = Promise.withResolvers<unknown>();
+        const requests: string[] = [];
+        const server = new ControlServer({
+            adapters: {
+                features: protocolFeatures,
+                server: {
+                    invoke: (request) => {
+                        requests.push(request.method);
+                        if (request.method === 'terminal.attach')
+                            return {
+                                terminalId: request.params.terminalId,
+                                encodingVersion: 3,
+                                cols: 80,
+                                rows: 24,
+                                lineCount: 0,
+                                byteCount: 0,
+                                payload: '',
+                                updatedAt: 1,
+                            };
+                        if (request.method === 'terminal.detach') return detachResult.promise;
+                        if (request.method === 'terminal.input') return null;
+                        throw new Error(`Unexpected method: ${request.method}`);
+                    },
+                },
+            },
+            desktopCredential: lease.desktopCredential,
+            identity: lease.identity,
+            protocolIdentity: {
+                serverId: '5'.repeat(32),
+                stateEpoch: '6'.repeat(32),
+            },
+        });
+        let client: ServerClient | undefined;
+        try {
+            await lease.publish(await server.start());
+            client = await ServerClient.connect(lease.manifest, 2_000, {
+                kind: 'desktop',
+                desktopId: 'desktop-binary-reattach-detach',
+                credential: lease.desktopCredential,
+                handleCommand: () => Promise.resolve(null),
+            });
+            await client.markDesktopReady();
+
+            const binaryStreams = Reflect.get(client, 'binaryStreams') as object;
+            const options = Reflect.get(binaryStreams, 'options') as {
+                issueTicket: (
+                    id: string,
+                    operation: BinaryStreamOperation,
+                ) => Promise<BinaryStreamTicketGrant>;
+            };
+            const issueTicket = options.issueTicket;
+            const authorizations: string[] = [];
+            options.issueTicket = (id, operation) => {
+                authorizations.push(operation.method);
+                return issueTicket(id, operation);
+            };
+
+            await client.request('terminal.attach', { terminalId: 'terminal-1' });
+            const detaching = captureOutcome(
+                client.request('terminal.detach', { terminalId: 'terminal-1' }),
+            );
+            await vi.waitFor(() =>
+                expect(requests).toEqual(['terminal.attach', 'terminal.detach']),
+            );
+            const reattaching = client.request('terminal.attach', { terminalId: 'terminal-1' });
+            const reattachingOutcome = captureOutcome(reattaching);
+            const settledBeforeDetach = await Promise.race([
+                (async () => {
+                    await reattachingOutcome;
+                    return true;
+                })(),
+                new Promise<false>((resolve) => setTimeout(() => resolve(false), 25)),
+            ]);
+            expect(settledBeforeDetach).toBe(false);
+            expect(authorizations).toEqual(['terminal.attach']);
+
+            detachResult.resolve(null);
+            await expect(detaching).resolves.toEqual({ value: null });
+            await expect(reattachingOutcome).resolves.toMatchObject({
+                value: { terminalId: 'terminal-1' },
+            });
+            await expect(
+                client.request('terminal.input', {
+                    terminalId: 'terminal-1',
+                    data: 'after-reattach',
+                }),
+            ).resolves.toBeNull();
+            expect(authorizations).toEqual(['terminal.attach', 'terminal.attach']);
+            expect(requests).toEqual([
+                'terminal.attach',
+                'terminal.detach',
+                'terminal.attach',
+                'terminal.input',
+            ]);
+        } finally {
+            detachResult.resolve(null);
             client?.close();
             await server.close();
             await lease.release();

@@ -35,6 +35,18 @@ export class TerminalOperationQueue {
         return this.tails.has(terminalId);
     }
 
+    /**
+     * Holds later operations behind a lifecycle request that travels over the control channel. The returned release
+     * callback is idempotent because both a control reply and transport teardown may settle the same request.
+     */
+    block(terminalId: string): () => void {
+        const gate = Promise.withResolvers<void>();
+        const barrier = this.run(terminalId, (lease) => lease.wait(gate.promise));
+        // eslint-disable-next-line unicorn/prefer-await -- callers need the release handle before the barrier settles
+        barrier.catch(() => {});
+        return () => gate.resolve();
+    }
+
     run<Result>(
         terminalId: string,
         action: (lease: TerminalOperationLease) => Promise<Result>,
