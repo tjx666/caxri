@@ -294,7 +294,9 @@ export async function discoverOwnedProcesses(
     );
     const serverCoreEntryPath = join(artifactBundleRoot, 'server-core.js');
     const serverCoreCommand = await dependencies.getProcessCommand(serverCorePid);
-    if (!serverCoreCommand || !isCommandForEntry(serverCoreCommand, serverCoreEntryPath)) {
+    // The profile lock may outlive a Server Core briefly; a missing process command means the PID has exited.
+    if (!serverCoreCommand) return [];
+    if (!isCommandForEntry(serverCoreCommand, serverCoreEntryPath)) {
         throw new Error('Acceptance profile lock owner is outside the recorded worktree');
     }
     const serverCoreIdentity = await dependencies.getProcessIdentity(serverCorePid);
