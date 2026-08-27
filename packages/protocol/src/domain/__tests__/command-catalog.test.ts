@@ -37,7 +37,7 @@ describe('command registry', () => {
                 { key: 'cmd+p', command: 'pathBrowser.open' },
                 { key: 'cmd+shift+p', command: 'commandPalette.open' },
                 { key: 'cmd+shift+a', command: 'agentActions.open' },
-                { key: 'ctrl+alt+tab', command: 'session.switchMru' },
+                { key: 'cmd+`', command: 'session.switchMru' },
                 { key: 'cmd+t', command: 'terminal.new' },
                 { key: 'cmd+w', command: 'workbench.closeActiveTab' },
             ]),
@@ -45,6 +45,9 @@ describe('command registry', () => {
         expect(
             defaultKeybindings.filter((binding) => binding.command === 'pathBrowser.open'),
         ).toEqual([{ key: 'cmd+p', command: 'pathBrowser.open' }]);
+        expect(
+            defaultKeybindings.filter((binding) => binding.command === 'session.switchMru'),
+        ).toEqual([{ key: 'cmd+`', command: 'session.switchMru' }]);
         const changes: readonly DefaultKeybindingChange[] = defaultKeybindingChanges;
         for (const change of changes) {
             const current = change.type === 'add' ? change.binding : change.current;

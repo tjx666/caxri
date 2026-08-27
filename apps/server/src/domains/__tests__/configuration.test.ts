@@ -252,6 +252,28 @@ describe('ConfigurationService', () => {
         await service.close();
     });
 
+    it('replaces the exact previous Session MRU default with Cmd+Backquote', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-session-mru-migration-'));
+        temporaryDirectories.push(directory);
+        const configDirectory = join(directory, 'config');
+        await mkdir(configDirectory);
+        const previous = [{ key: 'ctrl+alt+tab', command: 'session.switchMru' }];
+        await writeFile(
+            join(configDirectory, 'keybindings.jsonc'),
+            `${JSON.stringify(previous, null, 2)}\n`,
+            'utf8',
+        );
+        const service = new ConfigService(directory, () => {});
+
+        await service.initialize();
+
+        expect(service.getKeybindings().value).toEqual([
+            { key: 'cmd+`', command: 'session.switchMru' },
+        ]);
+        expect(await readFile(service.keybindingsPath, 'utf8')).toContain('"key": "cmd+`"');
+        await service.close();
+    });
+
     it('leaves a customized keybinding file untouched', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-config-custom-keybindings-'));
         temporaryDirectories.push(directory);

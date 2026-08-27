@@ -85,6 +85,7 @@ export interface CommandContext {
 }
 
 export interface SessionMruShortcutInvocation {
+    direction: 1 | -1;
     heldModifiers: Array<'Alt' | 'Control' | 'Meta' | 'Shift'>;
     triggerCode: string;
 }

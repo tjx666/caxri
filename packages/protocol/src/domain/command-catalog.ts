@@ -452,10 +452,13 @@ export const defaultKeybindings: Keybinding[] = [
     },
     { key: 'ctrl+tab', command: 'workbench.nextTab' },
     { key: 'ctrl+shift+tab', command: 'workbench.previousTab' },
-    { key: 'ctrl+alt+tab', command: 'session.switchMru' },
     /**
-     * Session navigation shares one `Ctrl+Alt` family: `Tab` cycles recently used Sessions, the arrows walk the visit
-     * history. VS Code's `Ctrl+-` / `Ctrl+Shift+-` is unavailable here because these commands must fire while a
+     * `Cmd+Backquote` follows the macOS current-app window switching convention for Caxri's closest equivalent context:
+     * Sessions inside its single window. `Ctrl+Tab` remains dedicated to Workbench tabs.
+     */
+    { key: 'cmd+`', command: 'session.switchMru' },
+    /**
+     * VS Code's `Ctrl+-` / `Ctrl+Shift+-` history chords are unavailable because these commands must fire while a
      * Terminal owns focus, where they would shadow the shell's own `Ctrl+_`.
      */
     { key: 'ctrl+alt+arrowleft', command: 'session.navigateBack' },
@@ -501,5 +504,10 @@ export const defaultKeybindingChanges = [
         type: 'replace',
         previous: { key: 'alt+p', command: 'pathBrowser.open' },
         current: { key: 'cmd+p', command: 'pathBrowser.open' },
+    },
+    {
+        type: 'replace',
+        previous: { key: 'ctrl+alt+tab', command: 'session.switchMru' },
+        current: { key: 'cmd+`', command: 'session.switchMru' },
     },
 ] satisfies readonly DefaultKeybindingChange[];

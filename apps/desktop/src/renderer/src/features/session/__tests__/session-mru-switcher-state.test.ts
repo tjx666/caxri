@@ -54,6 +54,7 @@ describe('Session MRU switcher state', () => {
     it('cycles in both directions and commits the highlighted Session', () => {
         const store = useSessionMruSwitcherStore.getState();
         store.beginOrCycle(['session-b', 'session-a'], {
+            direction: 1,
             heldModifiers: ['Control', 'Alt'],
             triggerCode: 'Tab',
         });
@@ -64,9 +65,22 @@ describe('Session MRU switcher state', () => {
         expect(useSessionMruSwitcherStore.getState().isOpen).toBe(false);
     });
 
+    it('opens on the last candidate when the initial shortcut requests reverse navigation', () => {
+        const store = useSessionMruSwitcherStore.getState();
+        store.beginOrCycle(['session-b', 'session-a', 'session-c'], {
+            direction: -1,
+            heldModifiers: ['Meta'],
+            triggerCode: 'Backquote',
+        });
+
+        expect(useSessionMruSwitcherStore.getState().selectedIndex).toBe(2);
+        expect(store.commit()).toBe('session-c');
+    });
+
     it('commits the candidate a pointer highlighted and ignores out-of-range rows', () => {
         const store = useSessionMruSwitcherStore.getState();
         store.beginOrCycle(['session-b', 'session-a', 'session-c'], {
+            direction: 1,
             heldModifiers: ['Control', 'Alt'],
             triggerCode: 'Tab',
         });
@@ -88,6 +102,7 @@ describe('Session MRU switcher state', () => {
     it('does not reveal the overlay during a quick press and release', () => {
         const store = useSessionMruSwitcherStore.getState();
         store.beginOrCycle(['session-b'], {
+            direction: 1,
             heldModifiers: ['Control', 'Alt'],
             triggerCode: 'Tab',
         });
@@ -99,6 +114,7 @@ describe('Session MRU switcher state', () => {
     it('performs a one-shot MRU jump when no modifier is held', () => {
         expect(
             useSessionMruSwitcherStore.getState().beginOrCycle(['session-b', 'session-a'], {
+                direction: 1,
                 heldModifiers: [],
                 triggerCode: 'KeyM',
             }),
@@ -123,6 +139,7 @@ describe('Session MRU switcher state', () => {
     it('commits the candidate displayed after a selected Session disappears', () => {
         const store = useSessionMruSwitcherStore.getState();
         store.beginOrCycle(['session-a', 'session-b', 'session-c'], {
+            direction: 1,
             heldModifiers: ['Control', 'Alt'],
             triggerCode: 'Tab',
         });
