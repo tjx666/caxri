@@ -533,6 +533,7 @@ test('Terminal paints complete ASCII and CJK glyphs in the final grid cells', as
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
     const output = join(testDirectory, 'terminal-glyph-output.sh');
+    const cjkGlyph = '界';
     await execFileAsync('mkdir', ['-p', root]);
     await writeFile(
         output,
@@ -547,9 +548,9 @@ if [ "$1" = ascii ]; then
   printf '%*sW\n' "$((cols - 1))" ''
 else
   for offset in 2 3 4 5 6 7 8 9 10 11 12; do
-    if [ "$offset" -lt "$((cols - 2))" ]; then printf '%*s界\n' "$((cols - 2 - offset))" ''; fi
+    if [ "$offset" -lt "$((cols - 2))" ]; then printf '%*s${cjkGlyph}\n' "$((cols - 2 - offset))" ''; fi
   done
-  printf '%*s界\n' "$((cols - 2))" ''
+  printf '%*s${cjkGlyph}\n' "$((cols - 2))" ''
 fi
 sleep 30
 `,

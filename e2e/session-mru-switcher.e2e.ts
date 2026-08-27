@@ -44,6 +44,11 @@ test('Session MRU switching cycles, respects editable focus, and persists across
                 `.terminal-pane[data-terminal-id="${secondTerminalId}"] .terminal-surface[data-terminal-attached="true"]`,
             ),
         ).toBeVisible();
+        const secondTerminalInput = running.page.locator(
+            `.terminal-pane[data-terminal-id="${secondTerminalId}"] .xterm-helper-textarea`,
+        );
+        await secondTerminalInput.focus();
+        await expect(secondTerminalInput).toBeFocused();
         await running.page.keyboard.press('Control+Tab');
         await expect(activeWorkTab).not.toHaveAttribute('data-terminal-id', secondTerminalId!);
         expect(await selectedSessionId(running.page)).toBe(sessionC);

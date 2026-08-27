@@ -178,6 +178,11 @@ export function useTerminalPaneRuntime({
             disableStdin: latest.processState !== 'running',
             fontFamily: latest.fontFamily,
             fontSize: latest.fontSize,
+            /**
+             * FitAddon reads this option when calculating columns. Keeping it aligned with the styled scrollbar width
+             * prevents the grid from reserving xterm's 14px default while the visible scrollbar occupies only 8px.
+             */
+            scrollbar: { width: 8 },
             scrollback: latest.scrollback,
             theme: latest.terminalTheme,
             wordSeparator: latest.wordSeparators,
