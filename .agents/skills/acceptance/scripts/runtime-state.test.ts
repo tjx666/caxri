@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
     discoverOwnedProcesses,
     errorCode,
+    getProcessCommand,
     getProcessIdentity,
     isAlive,
     isOwnedLauncher,
@@ -55,6 +56,13 @@ describe('Acceptance runtime ownership', () => {
             isOwnedLauncher({ launcherIdentity: 'recycled process', launcherPid: process.pid }),
         ).resolves.toBe(false);
         expect(isAlive(2_147_483_647)).toBe(false);
+    });
+
+    it('fails closed when the process command probe cannot start', async () => {
+        const missingExecutable = join(tmpdir(), 'caxri-missing-process-query');
+        await expect(getProcessCommand(process.pid, missingExecutable)).rejects.toMatchObject({
+            code: 'ENOENT',
+        });
     });
 
     it('keeps an Acceptance runtime owned when its launcher has died but Electron remains live', async () => {
