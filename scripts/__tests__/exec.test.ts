@@ -20,6 +20,15 @@ describe('child process exit handling', () => {
         await expect(result).resolves.toBe(7);
     });
 
+    it('returns an exit code that was observed before the waiter attached', async () => {
+        const child = createChild();
+        Object.defineProperty(child, 'exitCode', { value: 0 });
+
+        const result = await Promise.race([waitForChildExit(child), Promise.resolve(99)]);
+
+        expect(result).toBe(0);
+    });
+
     it('maps signal termination to a non-zero exit code', async () => {
         const child = createChild();
         const result = waitForChildExit(child);
