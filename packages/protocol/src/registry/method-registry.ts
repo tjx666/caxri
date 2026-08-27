@@ -22,6 +22,7 @@ import {
     desktopRootIdentitySchema,
     desktopStatusResultSchema,
 } from '../desktop/desktop-contract.js';
+import { MAX_PATH_BROWSER_ENTRIES, pathBrowserMethods } from '../desktop/path-browser-contract.js';
 import { bugReportScreenshot, bugReportText } from '../domain/bug-report-contract.js';
 import { businessInternalMethods, businessMethods } from '../domain/business-contract.js';
 import {
@@ -97,10 +98,7 @@ const desktopEventRead = commandPolicy('server', 'read');
  */
 const noParameters = z.object({}).default({});
 
-/**
- * Keeps path-browser IPC and rendering bounded while still allowing users to refine by name.
- */
-export const MAX_FILE_BROWSE_ENTRIES = 200;
+export const MAX_FILE_BROWSE_ENTRIES = MAX_PATH_BROWSER_ENTRIES;
 /**
  * Keeps one expanded Files tree directory within the controlled Renderer and transport budget. The result carries an
  * explicit truncation bit so a large directory never silently appears complete.
@@ -138,7 +136,6 @@ const externalOpenResult = z.discriminatedUnion('status', [
         reason: z.enum(['invalid_url', 'unsupported_protocol', 'credentials_not_allowed']),
     }),
 ]);
-
 /**
  * The single source of truth for every public command. Each entry declares its Host/Desktop owner, effect, capability
  * boundary, idempotency policy, and Zod input/output shape. Transport adapters may route an entry but must never copy
@@ -151,6 +148,7 @@ export const methods = {
     ...agentInboxMethods,
     ...businessMethods,
     ...workbenchMethods,
+    ...pathBrowserMethods,
     ...extensionViewMethods,
     'viewContainers.catalog': {
         ...serverRead,

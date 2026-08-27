@@ -87,6 +87,16 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 });
             case 'dialog.selectDirectory':
                 return options.workbenchRootAuthority.selectProjectDirectory();
+            case 'pathBrowser.start':
+                return options.workbenchRootAuthority.pathBrowser.start(request.params);
+            case 'pathBrowser.browse':
+                return options.workbenchRootAuthority.pathBrowser.browse(request.params);
+            case 'pathBrowser.navigate':
+                return options.workbenchRootAuthority.pathBrowser.navigate(request.params);
+            case 'pathBrowser.open':
+                return options.workbenchRootAuthority.pathBrowser.open(request.params);
+            case 'pathBrowser.close':
+                return options.workbenchRootAuthority.pathBrowser.close(request.params);
             case 'session.continueInWorktree':
                 return options.workbenchRootAuthority.continueInWorktree(request.params);
             case 'session.authorizeWorkbenchRoot':

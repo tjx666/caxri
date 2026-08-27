@@ -1,5 +1,5 @@
 import { realpath } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { dirname, isAbsolute, relative, sep } from 'node:path';
 
 import type {
     MainRequest,
@@ -10,6 +10,8 @@ import { CaxriError } from '@caxri/protocol';
 import type { BrowserWindow } from 'electron';
 import { dialog } from 'electron';
 
+import type { PathBrowserOpenTarget } from './path-browser-authority';
+import { createPathBrowserAuthority } from './path-browser-authority';
 import type { ProjectRootGrants } from './root-grants';
 import type { DesktopServerConnection } from './server-connection';
 
@@ -167,6 +169,54 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
         return { opened: true as const };
     }
 
+    async function openPathBrowserFile(target: PathBrowserOpenTarget) {
+        const server = options.getServer();
+        let projectId = target.projectId;
+        if (!projectId) {
+            const state = await server.request('app.bootstrap');
+            projectId = state.projects
+                .filter((project) => {
+                    const fromRoot = relative(project.rootPath, target.path);
+                    return (
+                        fromRoot === '' ||
+                        (!isAbsolute(fromRoot) &&
+                            fromRoot !== '..' &&
+                            !fromRoot.startsWith(`..${sep}`))
+                    );
+                })
+                .toSorted((left, right) => right.rootPath.length - left.rootPath.length)
+                .at(0)?.id;
+        }
+        if (!projectId) {
+            if (!target.grantRoot)
+                throw new CaxriError('PATH_DENIED', 'Path browser file has no authorized root');
+            options.grants.grant(target.grantRoot.path);
+            const project = await options.grants.use(target.grantRoot.path, () =>
+                server.request('project.create', {
+                    rootPath: target.grantRoot!.path,
+                    expectedRootIdentity: target.grantRoot,
+                }),
+            );
+            projectId = project.id;
+        }
+        const sessionId = await chooseTargetSession(projectId);
+        if (!sessionId) return { canceled: true as const };
+        await server.request('desktop.openFile', {
+            expectedIdentity: target.expectedIdentity,
+            path: target.path,
+            sessionId,
+            launchIfNeeded: false,
+        });
+        return { opened: true as const };
+    }
+
+    const pathBrowser = createPathBrowserAuthority({
+        getServer: () => options.getServer(),
+        getWindow: () => options.getWindow(),
+        nextTestRoot: () => options.nextTestRoot(),
+        openFile: openPathBrowserFile,
+    });
+
     return {
         async selectProjectDirectory() {
             const testRoot = options.nextTestRoot();
@@ -200,6 +250,8 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
         },
 
         openTerminalFileLink,
+
+        pathBrowser,
 
         async authorizeSelection(parameters: AuthorizeParameters) {
             const testRoot = options.nextTestRoot();

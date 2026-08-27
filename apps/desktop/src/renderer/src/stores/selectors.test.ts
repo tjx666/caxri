@@ -6,6 +6,7 @@ import {
     getWorkbenchProjectSessionIds,
     selectSelectedProject,
     selectSelectedSession,
+    selectSelectedWorkbenchProject,
 } from './selectors';
 import { useWorkbenchStore } from './workbench';
 
@@ -89,6 +90,24 @@ describe('selectSelectedProject', () => {
         const state = bootstrap({ projects: [{ id: 'project-1' }] });
 
         expect(selectSelectedProject(state)).toBeUndefined();
+    });
+});
+
+describe('selectSelectedWorkbenchProject', () => {
+    it('follows the selected Session to its active Workbench Project', () => {
+        const state = bootstrap({
+            sessions: [
+                {
+                    id: 'session-1',
+                    projectId: 'project-owner',
+                    workbenchProjectId: 'project-worktree',
+                },
+            ],
+            projects: [{ id: 'project-owner' }, { id: 'project-worktree' }],
+            selectedSessionId: 'session-1',
+        });
+
+        expect(selectSelectedWorkbenchProject(state)?.id).toBe('project-worktree');
     });
 });
 

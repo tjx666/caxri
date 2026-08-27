@@ -218,6 +218,48 @@ describe('processExplorer.open', () => {
     });
 });
 
+describe('path browser routing', () => {
+    it('keeps every opaque browser operation inside the workbench root authority', async () => {
+        const pathBrowser = {
+            start: vi.fn(() => Promise.resolve({ browserId: 'browser-1' })),
+            browse: vi.fn(() => Promise.resolve({ browserId: 'browser-1' })),
+            navigate: vi.fn(() => Promise.resolve({ canceled: true })),
+            open: vi.fn(() => Promise.resolve({ opened: true })),
+            close: vi.fn(() => null),
+        };
+        const handle = createMainMethodHandler(
+            options({ workbenchRootAuthority: { pathBrowser } }),
+        );
+
+        await handle({ method: 'pathBrowser.start', params: { sessionId: 'session-1' } });
+        await handle({
+            method: 'pathBrowser.browse',
+            params: { browserId: 'browser-1', query: 'src' },
+        });
+        await handle({
+            method: 'pathBrowser.navigate',
+            params: { browserId: 'browser-1', target: { kind: 'parent' } },
+        });
+        await handle({
+            method: 'pathBrowser.open',
+            params: { browserId: 'browser-1', entryId: 'entry-1' },
+        });
+        await handle({ method: 'pathBrowser.close', params: { browserId: 'browser-1' } });
+
+        expect(pathBrowser.start).toHaveBeenCalledWith({ sessionId: 'session-1' });
+        expect(pathBrowser.browse).toHaveBeenCalledWith({ browserId: 'browser-1', query: 'src' });
+        expect(pathBrowser.navigate).toHaveBeenCalledWith({
+            browserId: 'browser-1',
+            target: { kind: 'parent' },
+        });
+        expect(pathBrowser.open).toHaveBeenCalledWith({
+            browserId: 'browser-1',
+            entryId: 'entry-1',
+        });
+        expect(pathBrowser.close).toHaveBeenCalledWith({ browserId: 'browser-1' });
+    });
+});
+
 describe('updates.* delegation', () => {
     it.each([
         ['updates.getState', 'getState'],

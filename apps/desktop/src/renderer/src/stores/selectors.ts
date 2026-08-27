@@ -31,7 +31,9 @@ export function selectSelectedProject(bootstrap?: BootstrapState): ProjectRecord
 /**
  * Files, Editor, and Git follow this Project; PrimarySidebar ownership still uses `selectSelectedProject`.
  */
-function selectSelectedWorkbenchProject(bootstrap?: BootstrapState): ProjectRecord | undefined {
+export function selectSelectedWorkbenchProject(
+    bootstrap?: BootstrapState,
+): ProjectRecord | undefined {
     if (!bootstrap) return undefined;
     const workbenchProjectId = selectSelectedSession(bootstrap)?.workbenchProjectId;
     return bootstrap.projects.find((project) => project.id === workbenchProjectId);
