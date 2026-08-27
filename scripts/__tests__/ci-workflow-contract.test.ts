@@ -290,6 +290,7 @@ describe('CI workflow contract', () => {
         expect(e2eJob).toContain('CAXRI_CHECKS_HEAD_REVISION:');
         expect(e2eJob).toContain('CAXRI_CHECKS_REQUIRE_MERGE:');
         expect(e2eJob).toContain('CAXRI_GITHUB_TOKEN: ${{ github.token }}');
+        expect(e2eJob).toContain('timeout-minutes: 30');
         expect(e2eJob).toContain(
             "CAXRI_VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '1' }}",
         );
@@ -310,8 +311,12 @@ describe('CI workflow contract', () => {
         expect(checksWorktree).toContain('Synthetic merge parents do not match');
         expect(checksWorktree).toContain('CAXRI_REACT_DOCTOR_BASE=${baseRevision}');
         expect(checksWorktree).toContain('env: sanitizedChildEnvironment(environment)');
+        expect(checksWorktree.match(/execFileAsync\(/gu)).toHaveLength(1);
+        expect(checksWorktree).not.toContain("command === 'create'");
         expect(concurrentValidation).toContain('prepareChecksWorktree');
-        expect(concurrentValidation).toContain('runE2E(safeEnvironment)');
+        expect(concurrentValidation).toContain('processes.capture(command, arguments_, options)');
+        expect(concurrentValidation).toContain('runE2E(safeEnvironment, processes)');
+        expect(concurrentValidation).toContain('concurrent validation exceeded 25 minutes');
         expect(concurrentValidation).toContain('await Promise.all([checksPromise, e2ePromise])');
         for (const gate of [
             "'lint'",

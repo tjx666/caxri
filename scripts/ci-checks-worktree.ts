@@ -9,6 +9,69 @@ import { execFileAsync, runChildProcess } from './exec';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 
+interface ChecksWorktreeSetupCommand {
+    arguments: string[];
+    command: string;
+    label: string;
+}
+
+interface ChecksWorktreeOperations {
+    execFile?: CaptureProcess;
+    runChildProcess?: typeof runChildProcess;
+}
+
+interface CaptureProcessOptions {
+    cwd?: string;
+    env?: NodeJS.ProcessEnv;
+}
+
+interface CaptureProcessResult {
+    stderr: string;
+    stdout: string;
+}
+
+type CaptureProcess = (
+    command: string,
+    arguments_: readonly string[],
+    options?: CaptureProcessOptions,
+) => Promise<CaptureProcessResult>;
+
+async function captureProcess(
+    command: string,
+    arguments_: readonly string[],
+    options: CaptureProcessOptions = {},
+): Promise<CaptureProcessResult> {
+    const { stderr, stdout } = await execFileAsync(command, [...arguments_], options);
+    return { stderr, stdout };
+}
+
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- regression-tested by the concurrent CI contract
+export function checksWorktreeSetupCommands(): ChecksWorktreeSetupCommand[] {
+    return [
+        {
+            arguments: [
+                'install',
+                '--frozen-lockfile',
+                '--ignore-scripts',
+                '--prefer-offline',
+                '--no-runtime',
+            ],
+            command: 'pnpm',
+            label: 'synthetic merge pnpm registry, unpack, and link',
+        },
+        {
+            arguments: ['rebuild', 'electron'],
+            command: 'pnpm',
+            label: 'synthetic merge Electron download',
+        },
+        {
+            arguments: ['run', 'scripts/prepare-node-pty.ts'],
+            command: 'bun',
+            label: 'synthetic merge node-pty spawn helper',
+        },
+    ];
+}
+
 function requiredEnvironment(environment: NodeJS.ProcessEnv, key: string): string {
     const value = environment[key];
     if (!value || value.includes('\n')) throw new Error(`${key} is required and must be one line`);
@@ -83,10 +146,11 @@ async function isCommitAvailable(
     revision: string,
     repoRoot = projectRoot,
     environment: NodeJS.ProcessEnv = process.env,
+    execute: CaptureProcess = captureProcess,
 ): Promise<boolean> {
     const commitObject = [revision, '^{commit}'].join('');
     try {
-        await execFileAsync('git', ['cat-file', '-e', commitObject], {
+        await execute('git', ['cat-file', '-e', commitObject], {
             cwd: repoRoot,
             env: sanitizedChildEnvironment(environment),
         });
@@ -101,22 +165,23 @@ async function ensureRevisionAvailable(
     fetchReference: string,
     repoRoot = projectRoot,
     environment: NodeJS.ProcessEnv = process.env,
+    execute: CaptureProcess = captureProcess,
 ): Promise<string> {
     if (expectedRevision && /^0+$/u.test(expectedRevision)) return expectedRevision;
     const mustVerifyRemoteReference = fetchReference.startsWith('refs/pull/');
     if (
         expectedRevision &&
         !mustVerifyRemoteReference &&
-        (await isCommitAvailable(expectedRevision, repoRoot, environment))
+        (await isCommitAvailable(expectedRevision, repoRoot, environment, execute))
     ) {
         return expectedRevision;
     }
 
-    await execFileAsync('git', ['fetch', '--no-tags', '--depth=1', 'origin', fetchReference], {
+    await execute('git', ['fetch', '--no-tags', '--depth=1', 'origin', fetchReference], {
         cwd: repoRoot,
         env: authenticatedGitEnvironment(environment),
     });
-    const { stdout } = await execFileAsync('git', ['rev-parse', 'FETCH_HEAD'], {
+    const { stdout } = await execute('git', ['rev-parse', 'FETCH_HEAD'], {
         cwd: repoRoot,
         env: sanitizedChildEnvironment(environment),
     });
@@ -126,7 +191,7 @@ async function ensureRevisionAvailable(
     if (expectedRevision && fetchedRevision !== expectedRevision) {
         throw new Error('Fetched checks revision mismatch');
     }
-    if (!(await isCommitAvailable(fetchedRevision, repoRoot, environment))) {
+    if (!(await isCommitAvailable(fetchedRevision, repoRoot, environment, execute))) {
         throw new Error('Fetched checks revision is not a commit');
     }
     return fetchedRevision;
@@ -137,9 +202,10 @@ async function readMergeBase(
     baseRevision: string,
     repoRoot: string,
     environment: NodeJS.ProcessEnv,
+    execute: CaptureProcess,
 ): Promise<string | undefined> {
     try {
-        const { stdout } = await execFileAsync('git', ['merge-base', baseRevision, revision], {
+        const { stdout } = await execute('git', ['merge-base', baseRevision, revision], {
             cwd: repoRoot,
             env: sanitizedChildEnvironment(environment),
         });
@@ -161,31 +227,32 @@ async function ensureDiffBaseAvailable(
     isMergeRequired: boolean,
     repoRoot: string,
     environment: NodeJS.ProcessEnv,
+    execute: CaptureProcess,
 ): Promise<void> {
-    let mergeBase = await readMergeBase(revision, baseRevision, repoRoot, environment);
+    let mergeBase = await readMergeBase(revision, baseRevision, repoRoot, environment, execute);
     for (const deepenBy of [1, 32, 128]) {
         if (mergeBase) break;
         // eslint-disable-next-line no-await-in-loop -- bounded progressive history fetch avoids a full clone normally
-        await execFileAsync(
+        await execute(
             'git',
             ['fetch', '--no-tags', `--deepen=${deepenBy}`, 'origin', revision, baseRevision],
             { cwd: repoRoot, env: authenticatedGitEnvironment(environment) },
         );
         // eslint-disable-next-line no-await-in-loop -- re-check after each bounded deepening step
-        mergeBase = await readMergeBase(revision, baseRevision, repoRoot, environment);
+        mergeBase = await readMergeBase(revision, baseRevision, repoRoot, environment, execute);
     }
     if (!mergeBase) {
-        const { stdout } = await execFileAsync('git', ['rev-parse', '--is-shallow-repository'], {
+        const { stdout } = await execute('git', ['rev-parse', '--is-shallow-repository'], {
             cwd: repoRoot,
             env: sanitizedChildEnvironment(environment),
         });
         if (stdout.trim() === 'true') {
-            await execFileAsync(
+            await execute(
                 'git',
                 ['fetch', '--no-tags', '--unshallow', 'origin', revision, baseRevision],
                 { cwd: repoRoot, env: authenticatedGitEnvironment(environment) },
             );
-            mergeBase = await readMergeBase(revision, baseRevision, repoRoot, environment);
+            mergeBase = await readMergeBase(revision, baseRevision, repoRoot, environment, execute);
         }
     }
     if (!mergeBase || (isMergeRequired && mergeBase !== baseRevision)) {
@@ -206,12 +273,13 @@ export async function verifyRevisionProvenance(
     isMergeRequired: boolean,
     repoRoot = projectRoot,
     environment: NodeJS.ProcessEnv = process.env,
+    execute: CaptureProcess = captureProcess,
 ): Promise<void> {
     if (!isMergeRequired) {
         if (revision !== headRevision) throw new Error('Exact checks revision does not match head');
         return;
     }
-    const { stdout } = await execFileAsync('git', ['cat-file', 'commit', revision], {
+    const { stdout } = await execute('git', ['cat-file', 'commit', revision], {
         cwd: repoRoot,
         env: sanitizedChildEnvironment(environment),
     });
@@ -244,12 +312,14 @@ export async function createFetchedCheckout(
         remoteUrl: string;
     },
     environment: NodeJS.ProcessEnv = process.env,
+    operations: Pick<ChecksWorktreeOperations, 'execFile'> = {},
 ): Promise<{ baseRevision: string; revision: string }> {
-    await execFileAsync('git', ['init', path], {
+    const execute = operations.execFile ?? captureProcess;
+    await execute('git', ['init', path], {
         cwd: resolve(path, '..'),
         env: sanitizedChildEnvironment(environment),
     });
-    await execFileAsync('git', ['remote', 'add', 'origin', options.remoteUrl], {
+    await execute('git', ['remote', 'add', 'origin', options.remoteUrl], {
         cwd: path,
         env: sanitizedChildEnvironment(environment),
     });
@@ -258,8 +328,9 @@ export async function createFetchedCheckout(
         options.fetchReference,
         path,
         environment,
+        execute,
     );
-    await execFileAsync('git', ['checkout', '--detach', revision], {
+    await execute('git', ['checkout', '--detach', revision], {
         cwd: path,
         env: sanitizedChildEnvironment(environment),
     });
@@ -268,6 +339,7 @@ export async function createFetchedCheckout(
         options.baseFetchReference,
         path,
         environment,
+        execute,
     );
     await ensureDiffBaseAvailable(
         revision,
@@ -275,6 +347,7 @@ export async function createFetchedCheckout(
         options.isMergeRequired,
         path,
         environment,
+        execute,
     );
     await verifyRevisionProvenance(
         revision,
@@ -283,12 +356,13 @@ export async function createFetchedCheckout(
         options.isMergeRequired,
         path,
         environment,
+        execute,
     );
-    await execFileAsync('git', ['remote', 'remove', 'origin'], {
+    await execute('git', ['remote', 'remove', 'origin'], {
         cwd: path,
         env: sanitizedChildEnvironment(environment),
     });
-    const { stdout } = await execFileAsync('git', ['rev-parse', 'HEAD'], {
+    const { stdout } = await execute('git', ['rev-parse', 'HEAD'], {
         cwd: path,
         env: sanitizedChildEnvironment(environment),
     });
@@ -302,8 +376,9 @@ async function runInChecksWorktree(
     command: string,
     arguments_: string[],
     environment: NodeJS.ProcessEnv,
+    execute: typeof runChildProcess,
 ): Promise<void> {
-    const result = await runChildProcess(
+    const result = await execute(
         'bun',
         ['run', 'scripts/ci-metrics.ts', '--label', label, '--', command, ...arguments_],
         { cwd: worktree, env: sanitizedChildEnvironment(environment), stdio: 'inherit' },
@@ -324,6 +399,7 @@ async function prepareCaches(worktree: string, environment: NodeJS.ProcessEnv): 
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- the concurrent runner overlaps checkout preparation with E2E setup
 export async function prepareChecksWorktree(
     environment: NodeJS.ProcessEnv = process.env,
+    operations: ChecksWorktreeOperations = {},
 ): Promise<{ baseRevision: string; worktree: string }> {
     const revision = requiredEnvironment(environment, 'CAXRI_CHECKS_REVISION');
     if (!/^[0-9a-f]{40}$/u.test(revision)) throw new Error('Invalid CAXRI_CHECKS_REVISION');
@@ -343,7 +419,8 @@ export async function prepareChecksWorktree(
         throw new Error('Invalid checks base revision');
     }
     const expectedBaseRevision = baseRevisionValue?.length ? baseRevisionValue : undefined;
-    const { stdout: remoteOutput } = await execFileAsync('git', ['remote', 'get-url', 'origin'], {
+    const execute = operations.execFile ?? captureProcess;
+    const { stdout: remoteOutput } = await execute('git', ['remote', 'get-url', 'origin'], {
         cwd: projectRoot,
         env: sanitizedChildEnvironment(environment),
     });
@@ -365,30 +442,21 @@ export async function prepareChecksWorktree(
             remoteUrl,
         },
         environment,
+        { execFile: execute },
     );
 
     await prepareCaches(worktree, environment);
-    await runInChecksWorktree(
-        worktree,
-        'synthetic merge pnpm registry, unpack, and link',
-        'pnpm',
-        ['install', '--frozen-lockfile', '--ignore-scripts', '--prefer-offline', '--no-runtime'],
-        environment,
-    );
-    await runInChecksWorktree(
-        worktree,
-        'synthetic merge Electron download',
-        'pnpm',
-        ['rebuild', 'electron'],
-        environment,
-    );
-    await runInChecksWorktree(
-        worktree,
-        'synthetic merge Electron native rebuild',
-        'bun',
-        ['run', 'rebuild'],
-        environment,
-    );
+    for (const command of checksWorktreeSetupCommands()) {
+        // eslint-disable-next-line no-await-in-loop -- each setup command consumes the previous command's outputs
+        await runInChecksWorktree(
+            worktree,
+            command.label,
+            command.command,
+            command.arguments,
+            environment,
+            operations.runChildProcess ?? runChildProcess,
+        );
+    }
 
     const githubEnvironment = requiredEnvironment(environment, 'GITHUB_ENV');
     await appendFile(
@@ -408,9 +476,8 @@ async function remove(): Promise<void> {
 
 async function main(): Promise<void> {
     const [command] = process.argv.slice(2);
-    if (command === 'create') await prepareChecksWorktree();
-    else if (command === 'remove') await remove();
-    else throw new Error('Usage: ci-checks-worktree.ts <create|remove>');
+    if (command === 'remove') await remove();
+    else throw new Error('Usage: ci-checks-worktree.ts remove');
 }
 
 if (import.meta.main) await main();

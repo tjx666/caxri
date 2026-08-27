@@ -205,6 +205,7 @@ jobs:
 
   e2e:
     name: e2e
+    timeout-minutes: 30
     outputs:
       full_checks_result: ${{ steps.full-checks-receipt.outcome }}
     needs: [retry-policy, checks]
