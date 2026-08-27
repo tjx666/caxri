@@ -17,6 +17,7 @@ import type {
 import {
     CAXRI_PROTOCOL_VERSION,
     CaxriError,
+    CONTROL_TRANSPORT_MAX_FRAME_BYTES,
     getMethodSpec,
     localServerDesktopLeaseRevokedSchema,
     toWireError,
@@ -42,6 +43,26 @@ export function controlMessageText(data: RawData): string {
     if (Buffer.isBuffer(data)) return data.toString('utf8');
     if (data instanceof ArrayBuffer) return Buffer.from(data).toString('utf8');
     return Buffer.concat(data).toString('utf8');
+}
+
+export function writeControlMessage(
+    socket: WebSocket,
+    message: unknown,
+    flushed?: () => void,
+): void {
+    const source = JSON.stringify(message);
+    if (
+        socket.readyState !== WebSocket.OPEN ||
+        socket.bufferedAmount + Buffer.byteLength(source, 'utf8') >
+            CONTROL_TRANSPORT_MAX_FRAME_BYTES
+    ) {
+        socket.terminate();
+        return;
+    }
+    socket.send(source, (error) => {
+        if (error) socket.terminate();
+        else flushed?.();
+    });
 }
 
 export function trackControlRequest(state: ClientState, id: string): void {

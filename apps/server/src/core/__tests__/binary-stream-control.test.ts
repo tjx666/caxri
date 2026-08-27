@@ -80,10 +80,11 @@ describe('BinaryStreamTicketAuthority', () => {
 
 describe('BinaryStreamControl ticket admission', () => {
     it('requires feature negotiation and an advertised command', () => {
+        const authority = new BinaryStreamTicketAuthority({
+            createTicket: () => '2'.repeat(64),
+        });
         const control = new BinaryStreamControl({
-            ticketAuthority: new BinaryStreamTicketAuthority({
-                createTicket: () => '2'.repeat(64),
-            }),
+            ticketAuthority: authority,
         });
         const request = {
             type: 'stream-ticket.request' as const,
@@ -117,5 +118,36 @@ describe('BinaryStreamControl ticket admission', () => {
                 request,
             ),
         ).toEqual(expect.objectContaining({ ok: true }));
+    });
+
+    it('captures the Server-owned generation without exposing it in the bearer grant', () => {
+        const authority = new BinaryStreamTicketAuthority({
+            createTicket: () => '3'.repeat(64),
+        });
+        const control = new BinaryStreamControl({
+            terminalGeneration: () => 7,
+            ticketAuthority: authority,
+        });
+        const response = control.issue(
+            {
+                commands: ['terminal.attach'],
+                context,
+                features: ['binary-streams-v1'],
+            },
+            {
+                type: 'stream-ticket.request',
+                protocolVersion: 2,
+                id: 'request-2',
+                operation: { method: 'terminal.attach', terminalId: 'terminal-1' },
+            },
+        );
+
+        expect(response?.ok).toBe(true);
+        if (!response?.ok) throw new Error('Expected ticket grant');
+        expect(response.grant).not.toHaveProperty('terminalGeneration');
+        expect(authority.redeem(response.grant.ticket)).toMatchObject({
+            requestId: 'request-2',
+            terminalGeneration: 7,
+        });
     });
 });

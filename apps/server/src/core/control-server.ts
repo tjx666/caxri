@@ -1,4 +1,3 @@
-import { Buffer } from 'node:buffer';
 import { randomUUID } from 'node:crypto';
 import type { Server } from 'node:http';
 
@@ -17,7 +16,6 @@ import type {
 import {
     CAXRI_PROTOCOL_VERSION,
     CaxriError,
-    CONTROL_TRANSPORT_MAX_FRAME_BYTES,
     createCommandDispatcher,
     createProtocolWelcome,
     fromWireError,
@@ -39,8 +37,8 @@ import {
     parseServerOperationRequest,
     toWireError,
 } from '@caxri/protocol';
+import type WebSocket from 'ws';
 import type { WebSocketServer } from 'ws';
-import WebSocket from 'ws';
 
 import { BinaryStreamControl } from './binary-stream-control';
 import { BinaryStreamRuntime } from './binary-stream-runtime';
@@ -70,7 +68,9 @@ import {
     shouldSettleOutsideOrderedLane,
     trackControlRequest,
     untrackControlRequest,
+    writeControlMessage,
 } from './control-server-support';
+import type { TerminalDetachTransition } from './terminal-stream-lifecycle';
 
 export type { ControlServerOptions } from './control-server-support';
 
@@ -105,6 +105,7 @@ export class ControlServer {
             handleClaim:
                 options.handleBinaryStream ??
                 ((socket, claim) => this.binaryRuntime.accept(socket, claim)),
+            terminalGeneration: (operation) => this.binaryRuntime.terminalGeneration(operation),
         });
     }
 
@@ -180,7 +181,7 @@ export class ControlServer {
             socket.terminate();
             return;
         }
-        this.write(socket, localServerReplySchema.parse({ type: 'reply', reply }), () => {
+        writeControlMessage(socket, localServerReplySchema.parse({ type: 'reply', reply }), () => {
             release();
             untrackControlRequest(state, request.id);
             this.options.onReplyFlushed?.(request, reply, context);
@@ -193,7 +194,17 @@ export class ControlServer {
         request: LocalClientCommand['request'],
         timing?: OrderedQueueTiming,
         shouldSettleOutsideLane = false,
+        terminalDetach?: TerminalDetachTransition,
     ): Promise<void> {
+        if (terminalDetach) {
+            await terminalDetach.waitForPriorOperations();
+            try {
+                await this.dispatchCommand(socket, state, request, timing, shouldSettleOutsideLane);
+            } finally {
+                terminalDetach.complete();
+            }
+            return;
+        }
         const startedAt = performance.now();
         if (isBinaryStreamMethod(request.method)) {
             const reply: CommandReplyEnvelope = {
@@ -212,7 +223,7 @@ export class ControlServer {
                 startedAt,
                 timing,
             );
-            this.write(socket, localServerReplySchema.parse({ type: 'reply', reply }));
+            writeControlMessage(socket, localServerReplySchema.parse({ type: 'reply', reply }));
             return;
         }
         const release = reserveControlRequest(state);
@@ -226,7 +237,7 @@ export class ControlServer {
                 startedAt,
                 timing,
             );
-            this.write(socket, localServerReplySchema.parse({ type: 'reply', reply }));
+            writeControlMessage(socket, localServerReplySchema.parse({ type: 'reply', reply }));
             return;
         }
         trackControlRequest(state, request.id);
@@ -301,7 +312,7 @@ export class ControlServer {
               })
             : controlCapacityReply(request.id);
         logControlRequestOutcome(this.options, request, reply, state.context, startedAt, timing);
-        this.write(
+        writeControlMessage(
             socket,
             localServerDesktopOperationReplySchema.parse({
                 type: 'desktop-runtime-reply',
@@ -330,7 +341,7 @@ export class ControlServer {
                   return this.options.consumeDesktopTarget(request.targetId, request.generation);
               })
             : controlCapacityReply(request.id);
-        this.write(
+        writeControlMessage(
             socket,
             localServerDesktopTargetReplySchema.parse({
                 type: 'desktop-target.reply',
@@ -414,7 +425,7 @@ export class ControlServer {
                 try {
                     if (state.desktopLease?.generation !== renew.data.generation)
                         throw new CaxriError('CONFLICT', 'Desktop capability lease is stale');
-                    this.write(
+                    writeControlMessage(
                         socket,
                         localServerLeaseRenewedSchema.parse({
                             type: 'desktop-lease.renewed',
@@ -428,13 +439,19 @@ export class ControlServer {
             }
             const streamTicket = state ? this.binaryStreams.issue(state, raw) : undefined;
             if (streamTicket) {
-                this.write(socket, streamTicket);
+                writeControlMessage(socket, streamTicket);
                 return;
             }
             const immediateCommand = state ? localClientCommandSchema.safeParse(raw) : undefined;
             const immediateRequest = immediateCommand?.success
                 ? immediateCommand.data.request
                 : undefined;
+            const terminalDetach =
+                state &&
+                immediateRequest?.method === 'terminal.detach' &&
+                state.commands.includes(immediateRequest.method)
+                    ? this.binaryRuntime.beginTerminalDetachRequest(immediateRequest.params)
+                    : undefined;
             /**
              * Cancellation is authenticated control traffic. It must reach the Core adapter immediately even when an
              * earlier request is still waiting on domain or Extension Host work.
@@ -558,7 +575,7 @@ export class ControlServer {
                             this.renewDesktop(nextState);
                         }
                         this.options.onClientCountChanged?.(this.clients.size, 'connected');
-                        this.write(
+                        writeControlMessage(
                             socket,
                             localServerWelcomeSchema.parse({
                                 type: 'welcome',
@@ -623,6 +640,7 @@ export class ControlServer {
                             command.request,
                             timing,
                             shouldSettleOutsideOrderedLane(command.request.method),
+                            terminalDetach,
                         ),
                     );
                     if (isConcurrentRead(command.request.method)) {
@@ -639,22 +657,6 @@ export class ControlServer {
                     // Concurrent reads continue independently after their ordered admission entry.
                     orderedBacklog -= 1;
                 });
-        });
-    }
-
-    private write(socket: WebSocket, message: unknown, flushed?: () => void): void {
-        const source = JSON.stringify(message);
-        if (
-            socket.readyState !== WebSocket.OPEN ||
-            socket.bufferedAmount + Buffer.byteLength(source, 'utf8') >
-                CONTROL_TRANSPORT_MAX_FRAME_BYTES
-        ) {
-            socket.terminate();
-            return;
-        }
-        socket.send(source, (error) => {
-            if (error) socket.terminate();
-            else flushed?.();
         });
     }
 
@@ -707,7 +709,7 @@ export class ControlServer {
                 reject(new CaxriError('TIMEOUT', 'Desktop command timed out'));
             }, DESKTOP_COMMAND_TIMEOUT_MS);
             this.pendingDesktopCommands.set(id, { reject, resolve, state, timer });
-            this.write(
+            writeControlMessage(
                 state.socket,
                 localServerDesktopCommandSchema.parse({
                     type: 'desktop-command',
@@ -735,7 +737,6 @@ export class ControlServer {
         this.endpoint = listener.endpoint;
         return listener.endpoint;
     }
-
     broadcast(event: ProtocolEventEnvelope | TransientServerEvent): void {
         const projected = typeof event.event === 'string' ? event : event.event;
         if (this.binaryRuntime.deliver(event) || projected.event === 'terminal.output') return;
@@ -743,9 +744,9 @@ export class ControlServer {
         /**
          * Raw domain payloads are a Desktop-only transport; other principals use projections.
          */
-        if (this.currentDesktop?.desktopReady) this.write(this.currentDesktop.socket, message);
+        if (this.currentDesktop?.desktopReady)
+            writeControlMessage(this.currentDesktop.socket, message);
     }
-
     /**
      * Delivers a transient, body-free receipt only to the exact authenticated Agent generation.
      */
@@ -758,16 +759,16 @@ export class ControlServer {
                 principal.endpointId === endpoint.endpointId &&
                 principal.generation === endpoint.generation
             )
-                this.write(state.socket, message);
+                writeControlMessage(state.socket, message);
         }
     }
-
     /**
      * Delivers a one-shot Server UI event without placing it in the recoverable event journal.
      */
     broadcastDesktop(event: TransientServerEvent): void {
         const message = localServerEventSchema.parse({ type: 'event', event });
-        if (this.currentDesktop?.desktopReady) this.write(this.currentDesktop.socket, message);
+        if (this.currentDesktop?.desktopReady)
+            writeControlMessage(this.currentDesktop.socket, message);
     }
 
     async close(): Promise<void> {

@@ -26,6 +26,7 @@ import {
     CaxriError,
     decodeBinaryStreamFrame,
     encodeBinaryStreamFrame,
+    parseCaxriRequest,
     toWireError,
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
@@ -33,6 +34,8 @@ import type { RawData } from 'ws';
 import WebSocket from 'ws';
 
 import type { BinaryStreamClaim } from './binary-stream-control';
+import type { TerminalDetachTransition } from './terminal-stream-lifecycle';
+import { TerminalStreamLifecycle } from './terminal-stream-lifecycle';
 
 type StreamMethod = BinaryStreamOperation['method'];
 type TerminalStreamOperation = Extract<BinaryStreamOperation, { terminalId: string }>;
@@ -650,6 +653,7 @@ class FileBinarySession extends BaseBinarySession {
  */
 export class BinaryStreamRuntime {
     private readonly sessions = new Set<BinarySession>();
+    private readonly terminalLifecycle = new TerminalStreamLifecycle();
     private readonly terminalSessions = new Map<string, TerminalBinarySession>();
     private execute: ExecuteStreamCommand = async (id, method, parameters, context) => {
         if (
@@ -674,6 +678,29 @@ export class BinaryStreamRuntime {
 
     constructor(private readonly options: BinaryStreamRuntimeOptions) {}
 
+    private async executeTerminal(
+        claim: BinaryStreamClaim,
+        id: string,
+        method: StreamMethod,
+        parameters: unknown,
+        context: CommandExecutionContext,
+    ): Promise<CommandReplyEnvelope> {
+        if (!isTerminalOperation(claim.operation) || claim.terminalGeneration === undefined)
+            return commandFailure(
+                id,
+                new CaxriError('VALIDATION', 'Terminal stream generation is missing'),
+            );
+        try {
+            return await this.terminalLifecycle.run(
+                claim.operation.terminalId,
+                claim.terminalGeneration,
+                () => this.execute(id, method, parameters, context),
+            );
+        } catch (error) {
+            return commandFailure(id, error);
+        }
+    }
+
     private terminalKey(session: TerminalBinarySession): string {
         return `${session.connectionId}:${session.terminalId}`;
     }
@@ -692,12 +719,20 @@ export class BinaryStreamRuntime {
             const terminal = new TerminalBinarySession(
                 socket,
                 claim,
-                this.execute,
+                (id, method, parameters, context) =>
+                    this.executeTerminal(claim, id, method, parameters, context),
                 this.options.logger,
                 onClosed,
             );
             session = terminal;
-            if (claim.operation.method === 'terminal.attach') {
+            if (
+                claim.operation.method === 'terminal.attach' &&
+                claim.terminalGeneration !== undefined &&
+                this.terminalLifecycle.isCurrent(
+                    claim.operation.terminalId,
+                    claim.terminalGeneration,
+                )
+            ) {
                 const key = this.terminalKey(terminal);
                 this.terminalSessions.get(key)?.close('completed');
                 this.terminalSessions.set(key, terminal);
@@ -735,9 +770,27 @@ export class BinaryStreamRuntime {
             if (session.connectionId === connectionId) session.close(reason);
     }
 
+    beginTerminalDetachRequest(parameters: unknown): TerminalDetachTransition | undefined {
+        try {
+            const request = parseCaxriRequest('terminal.detach', parameters);
+            return request.method === 'terminal.detach'
+                ? this.terminalLifecycle.beginDetach(request.params.terminalId)
+                : undefined;
+        } catch {
+            return;
+        }
+    }
+
+    terminalGeneration(operation: BinaryStreamOperation): number | undefined {
+        return isTerminalOperation(operation)
+            ? this.terminalLifecycle.generationFor(operation.terminalId)
+            : undefined;
+    }
+
     close(): void {
         for (const session of this.sessions) session.close('server-unavailable');
         this.sessions.clear();
+        this.terminalLifecycle.clear();
         this.terminalSessions.clear();
     }
 }

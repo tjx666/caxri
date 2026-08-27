@@ -96,6 +96,7 @@ async function connectRuntime(
     claim: ServerBinaryStreamClaim,
     adapter: CommandAdapter,
     logger?: { recordMetric: StructuredLogger['recordMetric'] },
+    prepareRuntime?: (runtime: BinaryStreamRuntime) => void,
 ): Promise<{ client: WebSocket; reader: FrameReader; runtime: BinaryStreamRuntime }> {
     const server = new WebSocketServer({ host: '127.0.0.1', port: 0 });
     await new Promise<void>((resolve) => server.once('listening', () => resolve()));
@@ -107,6 +108,7 @@ async function connectRuntime(
         isDesktopConnectionCurrent: () => true,
         logger,
     });
+    prepareRuntime?.(runtime);
     server.once('connection', (socket) => runtime.accept(socket, claim));
     const client = new WebSocket(`ws://127.0.0.1:${address.port}`);
     const reader = new FrameReader(client);
@@ -122,12 +124,31 @@ async function connectRuntime(
     return { client, reader, runtime };
 }
 
+async function connectRuntimeSocket(
+    server: WebSocketServer,
+    runtime: BinaryStreamRuntime,
+    streamClaim: ServerBinaryStreamClaim,
+): Promise<{ client: WebSocket; reader: FrameReader }> {
+    server.once('connection', (socket) => runtime.accept(socket, streamClaim));
+    const address = server.address();
+    if (!address || typeof address === 'string')
+        throw new Error('Expected a TCP WebSocket listener');
+    const client = new WebSocket(`ws://127.0.0.1:${address.port}`);
+    const reader = new FrameReader(client);
+    await new Promise<void>((resolve, reject) => {
+        client.once('open', resolve);
+        client.once('error', reject);
+    });
+    return { client, reader };
+}
+
 function claim(operation: ServerBinaryStreamClaim['operation']): ServerBinaryStreamClaim {
     return {
         connectionId: context.connection!.connectionId,
         context,
         operation,
         requestId: 'request-1',
+        ...('terminalId' in operation && { terminalGeneration: 0 }),
     };
 }
 
@@ -256,6 +277,74 @@ describe('BinaryStreamRuntime file transfer', () => {
 });
 
 describe('BinaryStreamRuntime Terminal attachment', () => {
+    it('does not replace a current attachment with a stale generation', async () => {
+        const server = new WebSocketServer({ host: '127.0.0.1', port: 0 });
+        await new Promise<void>((resolve) => server.once('listening', () => resolve()));
+        const runtime = new BinaryStreamRuntime({
+            dispatch: createCommandDispatcher({ server: { invoke: () => null } }),
+            isDesktopConnectionCurrent: () => true,
+        });
+        const detachTransition = runtime.beginTerminalDetachRequest({ terminalId: 'terminal-1' });
+        detachTransition?.complete();
+        const currentClaim = {
+            ...claim({ method: 'terminal.attach', terminalId: 'terminal-1' }),
+            requestId: 'request-current',
+            terminalGeneration: 1,
+        };
+        const current = await connectRuntimeSocket(server, runtime, currentClaim);
+        const stale = await connectRuntimeSocket(server, runtime, {
+            ...currentClaim,
+            requestId: 'request-stale',
+            terminalGeneration: 0,
+        });
+        cleanups.push(async () => {
+            runtime.close();
+            current.client.terminate();
+            stale.client.terminate();
+            await new Promise<void>((resolve) => server.close(() => resolve()));
+        });
+
+        expect(reply(await current.reader.group('terminal-reply'))).toMatchObject({ ok: true });
+        expect(reply(await stale.reader.group('terminal-reply'))).toMatchObject({
+            ok: false,
+            error: { code: 'CANCELLED' },
+        });
+        expect(
+            runtime.deliver({
+                event: 'terminal.output',
+                payload: { terminalId: 'terminal-1', data: 'still-current' },
+            }),
+        ).toBe(true);
+        expect(new TextDecoder().decode(await current.reader.group('terminal-output', 1))).toBe(
+            'still-current',
+        );
+    });
+
+    it('rejects an attachment authorized before the Server detach generation', async () => {
+        const invoke = vi.fn<CommandAdapter['invoke']>(() => null);
+        let detachTransition:
+            NonNullable<ReturnType<BinaryStreamRuntime['beginTerminalDetachRequest']>> | undefined;
+        const { reader } = await connectRuntime(
+            claim({ method: 'terminal.attach', terminalId: 'terminal-1' }),
+            { invoke },
+            undefined,
+            (runtime) => {
+                expect(runtime.beginTerminalDetachRequest({})).toBeUndefined();
+                detachTransition = runtime.beginTerminalDetachRequest({
+                    terminalId: 'terminal-1',
+                });
+            },
+        );
+
+        expect(reply(await reader.group('terminal-reply'))).toMatchObject({
+            method: 'terminal.attach',
+            ok: false,
+            error: { code: 'CANCELLED' },
+        });
+        expect(invoke).not.toHaveBeenCalled();
+        detachTransition!.complete();
+    });
+
     it('preserves snapshot, output, input, resize, and output-gap behavior', async () => {
         const requests: Array<{ method: string; params: unknown }> = [];
         const snapshot = {

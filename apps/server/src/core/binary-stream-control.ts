@@ -31,6 +31,7 @@ export interface BinaryStreamOwner {
 export interface BinaryStreamClaim extends BinaryStreamOwner {
     operation: BinaryStreamOperation;
     requestId: string;
+    terminalGeneration?: number;
 }
 
 interface PendingTicket extends BinaryStreamClaim {
@@ -100,6 +101,7 @@ export class BinaryStreamTicketAuthority {
         owner: BinaryStreamOwner,
         operation: BinaryStreamOperation,
         requestId: string,
+        terminalGeneration?: number,
     ): BinaryStreamTicketGrant {
         this.prune();
         const revoked = this.revokedConnections.get(owner.connectionId);
@@ -116,7 +118,14 @@ export class BinaryStreamTicketAuthority {
         }
         if (!ticket) throw new CaxriError('INTERNAL', 'Binary stream ticket entropy collided');
         const expiresAt = this.now() + this.ticketTtlMs;
-        this.tickets.set(ticket, { ...owner, operation, requestId, expiresAt, ticket });
+        this.tickets.set(ticket, {
+            ...owner,
+            operation,
+            requestId,
+            ...(terminalGeneration !== undefined && { terminalGeneration }),
+            expiresAt,
+            ticket,
+        });
         return { ticket, path: BINARY_STREAM_PATH, expiresAt };
     }
 
@@ -129,8 +138,14 @@ export class BinaryStreamTicketAuthority {
         const revoked = this.revokedConnections.get(pending.connectionId);
         if (revoked) throw new BinaryStreamTicketError(revoked.reason);
         if (pending.expiresAt <= this.now()) throw new BinaryStreamTicketError('ticket-expired');
-        const { context, connectionId, operation, requestId } = pending;
-        return { context, connectionId, operation, requestId };
+        const { context, connectionId, operation, requestId, terminalGeneration } = pending;
+        return {
+            context,
+            connectionId,
+            operation,
+            requestId,
+            ...(terminalGeneration !== undefined && { terminalGeneration }),
+        };
     }
 
     revokeConnection(connectionId: string, reason: BinaryStreamCloseReason): void {
@@ -158,6 +173,7 @@ interface TicketRequestState {
 
 export interface BinaryStreamControlOptions {
     handleClaim?(socket: WebSocket, claim: BinaryStreamClaim): void;
+    terminalGeneration?(operation: BinaryStreamOperation): number | undefined;
     ticketAuthority?: BinaryStreamTicketAuthority;
 }
 
@@ -198,6 +214,7 @@ export class BinaryStreamControl {
                 { context: state.context, connectionId },
                 request.operation,
                 request.id,
+                this.options.terminalGeneration?.(request.operation),
             );
             return localServerStreamTicketReplySchema.parse({
                 type: 'stream-ticket.reply',
