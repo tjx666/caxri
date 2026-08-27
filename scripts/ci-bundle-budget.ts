@@ -15,7 +15,6 @@ import { dirname, join, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import process from 'node:process';
 
-import { verifyServerArtifact } from '../apps/server/scripts/artifact';
 import { execFileAsync } from './exec';
 
 const MiB = 1_024 * 1_024;
@@ -269,6 +268,11 @@ export function findModuleResolutionFailure(stderr: string): string | undefined 
 }
 
 async function verifyPackagedModuleResolution(): Promise<string[]> {
+    /**
+     * The synthetic-merge checkout has no generated workspace output when this gate starts. Load the verifier only
+     * after the timed build has emitted `@caxri/protocol`; a static import would fail before the build can run.
+     */
+    const { verifyServerArtifact } = await import('../apps/server/scripts/artifact');
     const failures: string[] = [];
     const packagedServer = resolve(PACKAGED_SERVER);
     const packagedManifest = await verifyServerArtifact(packagedServer);
