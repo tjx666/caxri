@@ -31,7 +31,8 @@
                     "icon": {
                         "kind": "builtin",
                         "id": "status"
-                    }
+                    },
+                    "command": "secondarySidebar.showStatus"
                 }
             ]
         },

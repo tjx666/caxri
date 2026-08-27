@@ -180,6 +180,7 @@ describe('ConfigurationService', () => {
         expect(service.getKeybindings().value).toEqual([
             { key: 'cmd+p', command: 'pathBrowser.open' },
             { key: 'cmd+t', command: 'terminal.new' },
+            { key: 'cmd+3', command: 'secondarySidebar.showStatus' },
         ]);
         const source = await readFile(service.keybindingsPath, 'utf8');
         expect(source).toContain('// Keep the explanation attached to the migrated default.');
@@ -188,7 +189,7 @@ describe('ConfigurationService', () => {
         await service.close();
     });
 
-    it('preserves customized Open File Path bindings instead of adding the new default', async () => {
+    it('preserves a customized Open File Path binding while adding an unrelated default', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-config-keybinding-custom-'));
         temporaryDirectories.push(directory);
         const configDirectory = join(directory, 'config');
@@ -200,8 +201,11 @@ describe('ConfigurationService', () => {
 
         await service.initialize();
 
-        expect(service.getKeybindings()).toMatchObject({ value: customized, source });
-        expect(await readFile(service.keybindingsPath, 'utf8')).toBe(source);
+        expect(service.getKeybindings().value).toEqual([
+            ...customized,
+            { key: 'cmd+3', command: 'secondarySidebar.showStatus' },
+        ]);
+        expect(await readFile(service.keybindingsPath, 'utf8')).toContain('"key": "cmd+alt+p"');
         await service.close();
     });
 
@@ -220,8 +224,11 @@ describe('ConfigurationService', () => {
 
         await service.initialize();
 
-        expect(service.getKeybindings()).toMatchObject({ value: conflicted, source });
-        expect(await readFile(service.keybindingsPath, 'utf8')).toBe(source);
+        expect(service.getKeybindings().value).toEqual([
+            ...conflicted,
+            { key: 'cmd+3', command: 'secondarySidebar.showStatus' },
+        ]);
+        expect(await readFile(service.keybindingsPath, 'utf8')).toContain('"key": "alt+p"');
         await service.close();
     });
 
@@ -269,8 +276,33 @@ describe('ConfigurationService', () => {
 
         expect(service.getKeybindings().value).toEqual([
             { key: 'cmd+`', command: 'session.switchMru' },
+            { key: 'cmd+3', command: 'secondarySidebar.showStatus' },
         ]);
         expect(await readFile(service.keybindingsPath, 'utf8')).toContain('"key": "cmd+`"');
+        await service.close();
+    });
+
+    it('adds the Status shortcut to an existing keybinding file when Cmd+3 is free', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-status-shortcut-addition-'));
+        temporaryDirectories.push(directory);
+        const configDirectory = join(directory, 'config');
+        await mkdir(configDirectory);
+        await writeFile(
+            join(configDirectory, 'keybindings.jsonc'),
+            `${JSON.stringify([{ key: 'cmd+1', command: 'secondarySidebar.showFiles' }], null, 2)}\n`,
+            'utf8',
+        );
+        const service = new ConfigService(directory, () => {});
+
+        await service.initialize();
+
+        expect(service.getKeybindings().value).toEqual([
+            { key: 'cmd+1', command: 'secondarySidebar.showFiles' },
+            { key: 'cmd+3', command: 'secondarySidebar.showStatus' },
+        ]);
+        expect(await readFile(service.keybindingsPath, 'utf8')).toContain(
+            '"command": "secondarySidebar.showStatus"',
+        );
         await service.close();
     });
 

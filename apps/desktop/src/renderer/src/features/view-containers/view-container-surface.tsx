@@ -65,7 +65,7 @@ function ContainerTabTooltip({
     title: string;
     triggerId: string;
 }) {
-    // Builtin container commands are registry-backed CommandIds; extension ones simply have no bound shortcut.
+    // Product extension containers may opt into a stable CommandId so their live binding appears here too.
     const shortcut = useCommandShortcut(commandId as CommandId);
     return (
         <Tooltip content={title} shortcut={shortcut} triggerId={triggerId}>

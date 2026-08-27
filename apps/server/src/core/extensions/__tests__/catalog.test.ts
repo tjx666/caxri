@@ -143,6 +143,15 @@ describe('buildViewCatalog', () => {
             source: { kind: 'extension', extensionId: 'caxri.project-status' },
             viewKind: { kind: 'tree' },
         });
+        expect(catalog.containers.find(({ id }) => id === 'caxri.project-status')).toMatchObject({
+            commandId: 'secondarySidebar.showStatus',
+        });
+        expect(
+            catalog.commands.find(({ id }) => id === 'secondarySidebar.showStatus'),
+        ).toMatchObject({
+            allowInEditable: true,
+            title: 'Show Status',
+        });
     });
 
     it('orders view containers by their manifest contribution instead of discovery order', async () => {

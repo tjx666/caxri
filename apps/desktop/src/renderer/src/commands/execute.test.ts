@@ -27,6 +27,7 @@ const mockedIsEditableEventTarget = vi.mocked(isEditableEventTarget);
 const catalogOwnedSharedIds = new Set<CommandId>([
     'secondarySidebar.showFiles',
     'secondarySidebar.showGit',
+    'secondarySidebar.showStatus',
     'secondarySidebar.searchFiles',
 ]);
 
