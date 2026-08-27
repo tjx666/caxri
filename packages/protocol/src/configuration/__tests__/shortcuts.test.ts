@@ -45,6 +45,7 @@ describe('shortcut presentation', () => {
 
     it('formats named keys consistently', () => {
         expect(formatShortcut('ctrl+shift+tab')).toBe('⌃⇧⇥');
+        expect(formatShortcut('cmd+`')).toBe('⌘`');
         expect(formatShortcut('cmd+arrowleft')).toBe('⌘←');
         expect(formatShortcut('escape')).toBe('Esc');
     });

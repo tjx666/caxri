@@ -23,14 +23,17 @@ function shortcutMainKey(event: KeyboardEvent): string {
     return mainKey.length === 1 ? mainKey : mainKey.toLowerCase();
 }
 
-export function keyboardEventShortcut(event: KeyboardEvent): string {
+export function keyboardEventShortcut(
+    event: KeyboardEvent,
+    { mainKey, omitShift = false }: { mainKey?: string; omitShift?: boolean } = {},
+): string {
     return normalizeShortcut(
         [
             event.metaKey && 'cmd',
             event.ctrlKey && 'ctrl',
             event.altKey && 'alt',
-            event.shiftKey && 'shift',
-            shortcutMainKey(event),
+            event.shiftKey && !omitShift && 'shift',
+            mainKey ?? shortcutMainKey(event),
         ]
             .filter(Boolean)
             .join('+'),

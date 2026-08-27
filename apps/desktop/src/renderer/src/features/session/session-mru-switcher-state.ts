@@ -100,18 +100,20 @@ export const useSessionMruSwitcherStore = create<SessionMruSwitcherState>((set, 
         ...closedState,
         beginOrCycle: (candidateIds, invocation) => {
             if (get().isOpen) {
-                get().cycle(1);
+                get().cycle(invocation?.direction ?? 1);
                 return;
             }
             if (candidateIds.length === 0) return;
-            if (!invocation || invocation.heldModifiers.length === 0) return candidateIds[0];
+            if (!invocation) return candidateIds[0];
+            const selectedIndex = invocation.direction === -1 ? candidateIds.length - 1 : 0;
+            if (invocation.heldModifiers.length === 0) return candidateIds[selectedIndex];
             clearRevealTimer();
             set({
                 candidateIds,
                 heldModifiers: invocation.heldModifiers,
                 isOpen: true,
                 isVisible: false,
-                selectedIndex: 0,
+                selectedIndex,
                 triggerCode: invocation.triggerCode,
             });
             revealTimer = setTimeout(() => {

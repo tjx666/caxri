@@ -25,11 +25,13 @@ function sessionMruInvocation(arguments_: unknown): SessionMruShortcutInvocation
     if (!shortcut || typeof shortcut !== 'object') return;
     if (!('triggerCode' in shortcut) || typeof shortcut.triggerCode !== 'string') return;
     if (!('heldModifiers' in shortcut) || !Array.isArray(shortcut.heldModifiers)) return;
+    if (!('direction' in shortcut) || (shortcut.direction !== 1 && shortcut.direction !== -1))
+        return;
     const heldModifiers = shortcut.heldModifiers.filter(
         (modifier): modifier is SessionMruShortcutInvocation['heldModifiers'][number] =>
             SESSION_MRU_MODIFIERS.has(modifier),
     );
-    return { heldModifiers, triggerCode: shortcut.triggerCode };
+    return { direction: shortcut.direction, heldModifiers, triggerCode: shortcut.triggerCode };
 }
 
 function projectIdArgument(arguments_: unknown): string | undefined {
