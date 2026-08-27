@@ -138,6 +138,22 @@ describe('Acceptance runtime ownership', () => {
         ).rejects.toThrow('outside the recorded worktree');
     });
 
+    it('ignores a stale profile lock when its Server Core process has exited', async () => {
+        await expect(
+            discoverOwnedProcesses(
+                { projectRoot: '/repo', userDataDir: '/tmp/acceptance-profile' },
+                '/repo',
+                {
+                    canonicalPath: vi.fn((path: string) => Promise.resolve(path)),
+                    getProcessCommand: vi.fn().mockResolvedValue(null),
+                    getProcessIdentity: vi.fn().mockResolvedValue(null),
+                    inspectPathOwner: vi.fn().mockResolvedValue(333),
+                    listChildProcesses: vi.fn().mockResolvedValue([]),
+                },
+            ),
+        ).resolves.toEqual([]);
+    });
+
     it('removes only explicitly owned Acceptance temp directories', async () => {
         const owned = await mkdtemp(join(tmpdir(), 'caxri-acceptance-user-'));
         const unowned = await mkdtemp(join(tmpdir(), 'caxri-unowned-user-'));
