@@ -1,29 +1,101 @@
 #!/usr/bin/env bun
 
 import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import process from 'node:process';
 
-const commands = [
-    ['pnpm', '--filter', '@caxri/server', 'run', 'dev'],
-    ['electron-vite', 'dev'],
-] as const;
+import { developmentCommands } from './development-commands';
+
+const SERVER_WATCH_READY_POLL_MS = 25;
+const SERVER_WATCH_READY_TIMEOUT_MS = 5 * 60_000;
+
+function resolveServerWatchReadyTimeout(): number {
+    const configured = process.env.CAXRI_SERVER_WATCH_READY_TIMEOUT_MS;
+    if (!configured) return SERVER_WATCH_READY_TIMEOUT_MS;
+    const timeout = Number(configured);
+    if (!Number.isSafeInteger(timeout) || timeout <= 0) {
+        throw new Error('CAXRI_SERVER_WATCH_READY_TIMEOUT_MS must be a positive integer');
+    }
+    return timeout;
+}
 
 class DevelopmentProcesses {
-    readonly #children = commands.map(([command, ...arguments_]) =>
-        spawn(command, arguments_, { stdio: 'inherit' }),
-    );
+    readonly #children: Array<ReturnType<typeof spawn>> = [];
     #isClosing = false;
+    readonly #serverReadyPath = join(
+        tmpdir(),
+        `caxri-server-watch-${process.pid}-${randomUUID()}.ready`,
+    );
 
     constructor() {
-        for (const child of this.#children) {
-            child.once('error', (error) => {
-                console.error(error);
-                this.close('SIGTERM', 1);
-            });
-            child.once('exit', (exitCode, signal) => {
-                if (this.#isClosing) return;
-                this.close('SIGTERM', exitCode ?? (signal ? 1 : 0));
-            });
+        const [serverCommand] = developmentCommands;
+        const server = this.#spawn(serverCommand, {
+            CAXRI_SERVER_WATCH_READY_FILE: this.#serverReadyPath,
+        });
+        // eslint-disable-next-line unicorn/prefer-await -- constructors cannot await the child-owned readiness barrier
+        this.#startDesktopWhenServerIsReady(server).catch((error: unknown) => {
+            console.error(error);
+            this.close('SIGTERM', 1);
+        });
+    }
+
+    #spawn(
+        [command, ...arguments_]: (typeof developmentCommands)[number],
+        environment?: NodeJS.ProcessEnv,
+    ): ReturnType<typeof spawn> {
+        const child = spawn(command, arguments_, {
+            env: environment ? { ...process.env, ...environment } : process.env,
+            stdio: 'inherit',
+        });
+        this.#children.push(child);
+        child.once('error', (error) => {
+            console.error(error);
+            this.close('SIGTERM', 1);
+        });
+        child.once('exit', (exitCode, signal) => {
+            if (this.#isClosing) return;
+            this.close('SIGTERM', exitCode ?? (signal ? 1 : 0));
+        });
+        return child;
+    }
+
+    #canStartDesktop(): boolean {
+        return !this.#isClosing;
+    }
+
+    /**
+     * The watcher removes and reassembles the live Server artifact during its first build. Wait for its
+     * verified-artifact marker so Desktop cannot validate that directory while it is incomplete.
+     */
+    async #startDesktopWhenServerIsReady(server: ReturnType<typeof spawn>): Promise<void> {
+        const timeout = resolveServerWatchReadyTimeout();
+        const deadline = Date.now() + timeout;
+        console.log('Waiting for the initial Server artifact to be ready...');
+        try {
+            while (!this.#isClosing && server.exitCode === null && server.signalCode === null) {
+                try {
+                    // eslint-disable-next-line no-await-in-loop -- the watcher publishes readiness asynchronously
+                    await readFile(this.#serverReadyPath);
+                    if (this.#canStartDesktop()) this.#spawn(developmentCommands[1]);
+                    return;
+                } catch (error) {
+                    if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) {
+                        throw error;
+                    }
+                }
+                if (Date.now() >= deadline) {
+                    throw new Error(
+                        `Timed out after ${timeout} ms waiting for the initial Server artifact`,
+                    );
+                }
+                // eslint-disable-next-line no-await-in-loop -- the child-owned readiness file is a bounded local barrier
+                await new Promise((resolve) => setTimeout(resolve, SERVER_WATCH_READY_POLL_MS));
+            }
+        } finally {
+            await rm(this.#serverReadyPath, { force: true });
         }
     }
 
