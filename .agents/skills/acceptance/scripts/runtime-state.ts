@@ -10,6 +10,7 @@ const ACCEPTANCE_USER_DATA_PREFIX = 'caxri-acceptance-user-';
 const ACCEPTANCE_CASE_ID_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/u;
 const PROCESS_PROBE_MAX_BUFFER_BYTES = 4 * 1024 * 1024;
 const PROCESS_PROBE_TIMEOUT_MS = 2_000;
+const PROCESS_QUERY_EXECUTABLE = '/bin/ps';
 const acceptanceCaseModeSchema = z.enum(['isolated', 'restart']);
 const acceptanceCaseSchema = z.object({
     id: z.string().min(1),
@@ -175,7 +176,7 @@ export function isAlive(pid: number | null | undefined): boolean {
 export async function getProcessIdentity(pid: number): Promise<string | null> {
     try {
         const { stdout } = await execFileAsync(
-            'ps',
+            PROCESS_QUERY_EXECUTABLE,
             ['-ww', '-p', String(pid), '-o', 'lstart=', '-o', 'command='],
             {
                 maxBuffer: PROCESS_PROBE_MAX_BUFFER_BYTES,
@@ -184,20 +185,31 @@ export async function getProcessIdentity(pid: number): Promise<string | null> {
         );
         return stdout.trim() || null;
     } catch (error: unknown) {
-        if (errorCode(error) === '1' || errorCode(error) === 'ENOENT') return null;
+        if (errorCode(error) === '1') return null;
         throw error;
     }
 }
 
-async function getProcessCommand(pid: number): Promise<string | null> {
+/**
+ * Returns `null` only when `ps` confirms that the PID no longer exists. Probe startup failures must propagate so
+ * Acceptance cleanup cannot mistake a broken ownership check for an exited Server Core.
+ */
+export async function getProcessCommand(
+    pid: number,
+    executable: string = PROCESS_QUERY_EXECUTABLE,
+): Promise<string | null> {
     try {
-        const { stdout } = await execFileAsync('ps', ['-ww', '-p', String(pid), '-o', 'command='], {
-            maxBuffer: PROCESS_PROBE_MAX_BUFFER_BYTES,
-            timeout: PROCESS_PROBE_TIMEOUT_MS,
-        });
+        const { stdout } = await execFileAsync(
+            executable,
+            ['-ww', '-p', String(pid), '-o', 'command='],
+            {
+                maxBuffer: PROCESS_PROBE_MAX_BUFFER_BYTES,
+                timeout: PROCESS_PROBE_TIMEOUT_MS,
+            },
+        );
         return stdout.trim() || null;
     } catch (error: unknown) {
-        if (errorCode(error) === '1' || errorCode(error) === 'ENOENT') return null;
+        if (errorCode(error) === '1') return null;
         throw error;
     }
 }
@@ -227,7 +239,7 @@ async function listChildProcesses(
     parentPid: number,
 ): Promise<Array<{ command: string; pid: number }>> {
     const { stdout } = await execFileAsync(
-        'ps',
+        PROCESS_QUERY_EXECUTABLE,
         ['-ww', '-axo', 'pid=', '-o', 'ppid=', '-o', 'command='],
         {
             maxBuffer: PROCESS_PROBE_MAX_BUFFER_BYTES,
