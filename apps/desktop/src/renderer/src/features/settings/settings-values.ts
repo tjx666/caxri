@@ -48,6 +48,8 @@ export function isRowModified(binding: SettingRowBinding, context: SettingsValue
             return !isEqual(settings['files.exclude'], defaultAppSettings['files.exclude']);
         case 'remote-debugging':
             return argvConfig !== undefined && !argvConfig.remoteDebugging;
+        case 'hardware-acceleration':
+            return argvConfig !== undefined && !argvConfig.hardwareAcceleration;
         case 'archived-sessions':
         case 'provider-skill-health':
             return false;
@@ -133,6 +135,8 @@ export function rowResetAction(
             };
         case 'remote-debugging':
             return { kind: 'argv', changes: { remoteDebugging: true } };
+        case 'hardware-acceleration':
+            return { kind: 'argv', changes: { hardwareAcceleration: true } };
         case 'archived-sessions':
         case 'provider-skill-health':
             return undefined;

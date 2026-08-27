@@ -568,7 +568,7 @@ function TreeItemRow({
                 <button
                     aria-expanded={isExpanded}
                     aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${row.item.accessibilityLabel}`}
-                    className="-m-1 flex size-[21px] shrink-0 cursor-pointer items-center justify-center rounded-sm text-muted hover:text-foreground"
+                    className="-m-1 flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-sm text-muted hover:text-foreground"
                     data-tree-disclosure="true"
                     tabIndex={-1}
                     type="button"

@@ -7,6 +7,10 @@ import { z } from 'zod';
  */
 export const argvConfigSchema = z.object({
     /**
+     * Enables Chromium hardware acceleration. Main consumes this before `app.whenReady()`; false is GPU Safe Mode.
+     */
+    hardwareAcceleration: z.boolean(),
+    /**
      * Exposes CDP on `127.0.0.1:9224` in packaged builds; default-on during internal testing. Unpackaged launches
      * ignore this and always expose CDP on `127.0.0.1:9223` (repository agent contract); `CAXRI_DEV_CDP_PORT` overrides
      * either port.

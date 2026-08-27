@@ -351,6 +351,11 @@ export function useSettingsDialogController() {
                 setView('ui');
                 return;
             }
+            if (request.view === 'hardware-acceleration') {
+                setTab('settings');
+                setView('ui');
+                return;
+            }
             if (request.view === 'keybindings') {
                 setTab('keybindings');
                 setView('ui');
@@ -478,10 +483,14 @@ export function useSettingsDialogController() {
                 if (argvWriteGeneration.current !== generation) return;
                 setArgvConfig(result.value);
                 const baseline = argvConfigAtLoad.current;
-                if (baseline && result.value.remoteDebugging !== baseline.remoteDebugging)
+                if (
+                    baseline &&
+                    (result.value.remoteDebugging !== baseline.remoteDebugging ||
+                        result.value.hardwareAcceleration !== baseline.hardwareAcceleration)
+                )
                     pushToast(
                         'info',
-                        'Remote debugging changes take effect after restarting Caxri',
+                        'Boot configuration changes take effect after restarting Caxri',
                     );
             } catch (error) {
                 onSettingsError(error, 'argv.jsonc');
@@ -515,6 +524,8 @@ export function useSettingsDialogController() {
         argvConfig,
         changeTab,
         commitSource,
+        hardwareAccelerationFocusRequestId:
+            request.view === 'hardware-acceleration' ? request.id : undefined,
         importTheme,
         keybindingsFocusRequestId: request.view === 'keybindings' ? request.id : undefined,
         onOpenChange,

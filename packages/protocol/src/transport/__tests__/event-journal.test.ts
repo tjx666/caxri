@@ -62,6 +62,12 @@ describe('isTransientServerEvent / transient and durable schemas', () => {
             isTransientServerEvent({ event: 'host.connectionChanged', payload: {} } as never),
         ).toBe(true);
         expect(
+            isTransientServerEvent({ event: 'gpu.recoveryRequested', payload: {} } as never),
+        ).toBe(true);
+        expect(isTransientServerEvent({ event: 'gpu.safeModeStatus', payload: {} } as never)).toBe(
+            true,
+        );
+        expect(
             isTransientServerEvent({ event: 'projectStatus.changed', payload: {} } as never),
         ).toBe(true);
         expect(

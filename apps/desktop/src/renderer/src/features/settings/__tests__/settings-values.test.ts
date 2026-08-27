@@ -10,7 +10,7 @@ import {
 } from '../settings-values';
 
 const settings = (): AppSettings => structuredClone(defaultAppSettings);
-const argv: ArgvConfig = { remoteDebugging: true };
+const argv: ArgvConfig = { hardwareAcceleration: true, remoteDebugging: true };
 
 describe('isRowModified', () => {
     it('flags a scalar setting only when it diverges from its default', () => {
@@ -79,6 +79,23 @@ describe('isRowModified', () => {
             ),
         ).toBe(true);
     });
+
+    it('treats hardware acceleration as modified only when the loaded argv config disables it', () => {
+        const current = settings();
+        expect(isRowModified({ type: 'hardware-acceleration' }, { settings: current })).toBe(false);
+        expect(
+            isRowModified(
+                { type: 'hardware-acceleration' },
+                { settings: current, argvConfig: argv },
+            ),
+        ).toBe(false);
+        expect(
+            isRowModified(
+                { type: 'hardware-acceleration' },
+                { settings: current, argvConfig: { ...argv, hardwareAcceleration: false } },
+            ),
+        ).toBe(true);
+    });
 });
 
 describe('isRowResettable / rowResetAction', () => {
@@ -124,6 +141,13 @@ describe('isRowResettable / rowResetAction', () => {
         expect(rowResetAction({ type: 'remote-debugging' }, settings())).toEqual({
             kind: 'argv',
             changes: { remoteDebugging: true },
+        });
+    });
+
+    it('re-enables hardware acceleration through the argv channel', () => {
+        expect(rowResetAction({ type: 'hardware-acceleration' }, settings())).toEqual({
+            kind: 'argv',
+            changes: { hardwareAcceleration: true },
         });
     });
 });

@@ -8,6 +8,7 @@ import { parseJsonc } from '@caxri/system';
 import { applyEdits, modify } from 'jsonc-parser';
 
 const defaultArgvConfig: ArgvConfig = {
+    hardwareAcceleration: true,
     remoteDebugging: true,
 };
 
@@ -29,6 +30,10 @@ function normalizeArgvConfig(parsed: unknown): ArgvConfig {
     if (typeof parsed !== 'object' || parsed === null) return { ...defaultArgvConfig };
     const record = parsed as Record<string, unknown>;
     return {
+        hardwareAcceleration:
+            typeof record.hardwareAcceleration === 'boolean'
+                ? record.hardwareAcceleration
+                : defaultArgvConfig.hardwareAcceleration,
         remoteDebugging:
             typeof record.remoteDebugging === 'boolean'
                 ? record.remoteDebugging

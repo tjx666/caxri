@@ -22,6 +22,7 @@ import {
     desktopRootIdentitySchema,
     desktopStatusResultSchema,
 } from '../desktop/desktop-contract.js';
+import { gpuDesktopMethods } from '../desktop/gpu-contract.js';
 import { MAX_PATH_BROWSER_ENTRIES, pathBrowserMethods } from '../desktop/path-browser-contract.js';
 import { bugReportScreenshot, bugReportText } from '../domain/bug-report-contract.js';
 import { businessInternalMethods, businessMethods } from '../domain/business-contract.js';
@@ -251,8 +252,7 @@ export const methods = {
     },
     ...desktopHostMethods,
     /**
-     * Main-owned boot configuration (`argv.jsonc`); separate from `settings.*` because its values gate pre-`whenReady`
-     * Chromium switches and only take effect on the next launch.
+     * Main-owned pre-`whenReady` boot configuration (`argv.jsonc`).
      */
     'argv.get': {
         ...desktopRead,
@@ -264,6 +264,7 @@ export const methods = {
         params: z.object({ changes: argvConfigChangesSchema }),
         result: z.object({ value: argvConfigSchema }),
     },
+    ...gpuDesktopMethods,
     'external.open': {
         ...desktopControl,
         params: z.object({ url: z.string().min(1).max(16_384) }),

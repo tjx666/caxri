@@ -112,6 +112,9 @@ function SettingsDialogView(controller: SettingsDialogController) {
                                 agentHookHealth={controller.agentHookHealth}
                                 agentSkillHealth={controller.agentSkillHealth}
                                 argvConfig={controller.argvConfig}
+                                hardwareAccelerationFocusRequestId={
+                                    controller.hardwareAccelerationFocusRequestId
+                                }
                                 settings={state.settings.value}
                                 trustedDomainsFocusRequestId={
                                     controller.trustedDomainsFocusRequestId

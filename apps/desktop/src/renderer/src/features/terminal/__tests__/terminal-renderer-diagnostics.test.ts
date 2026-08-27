@@ -6,6 +6,7 @@ const status = {
     contextLossCount: 1,
     mode: 'dom' as const,
     reason: 'context-loss' as const,
+    recoveryResult: 'dom-restored' as const,
     redrawCount: 2,
     trigger: 'webgl-context-loss' as const,
 };
@@ -24,6 +25,9 @@ describe('terminal Renderer diagnostics', () => {
                 documentVisible: true,
                 documentFocused: true,
                 terminalFocused: false,
+                correlationId: '75f635fb-b53f-44cf-a99d-a731f97455d8',
+                droppedBytes: 7,
+                receivedBytes: 42,
             }),
         ).toEqual({
             kind: 'terminal-renderer',
@@ -41,6 +45,10 @@ describe('terminal Renderer diagnostics', () => {
             documentVisible: true,
             documentFocused: true,
             terminalFocused: false,
+            correlationId: '75f635fb-b53f-44cf-a99d-a731f97455d8',
+            droppedBytes: 7,
+            receivedBytes: 42,
+            recoveryResult: 'dom-restored',
         });
     });
 
@@ -49,7 +57,12 @@ describe('terminal Renderer diagnostics', () => {
             createTerminalRendererDiagnostic({
                 diagnosticId: '3fcf11c1-19de-4fdd-8d6c-17ce43c70aae',
                 terminalId: 'terminal-1',
-                status: { ...status, mode: 'webgl', reason: 'active' },
+                status: {
+                    ...status,
+                    mode: 'webgl',
+                    reason: 'active',
+                    recoveryResult: 'not-requested',
+                },
                 preference: 'auto',
                 paneActive: false,
                 terminalProcessRunning: true,
@@ -57,13 +70,15 @@ describe('terminal Renderer diagnostics', () => {
                 documentVisible: true,
                 documentFocused: true,
                 terminalFocused: false,
+                droppedBytes: 0,
+                receivedBytes: 0,
             }),
         ).toBeUndefined();
         expect(
             createTerminalRendererDiagnostic({
                 diagnosticId: '3fcf11c1-19de-4fdd-8d6c-17ce43c70aae',
                 terminalId: 'terminal-1',
-                status,
+                status: { ...status, recoveryResult: 'not-requested' },
                 preference: 'auto',
                 paneActive: false,
                 terminalProcessRunning: true,
@@ -71,6 +86,8 @@ describe('terminal Renderer diagnostics', () => {
                 documentVisible: true,
                 documentFocused: true,
                 terminalFocused: false,
+                droppedBytes: 0,
+                receivedBytes: 0,
             }),
         ).toBeDefined();
     });

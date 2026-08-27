@@ -1,3 +1,4 @@
+import { readdir, readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -6,7 +7,7 @@ import { z } from 'zod';
 import { captureCommand } from './command-runner';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
-export const PROJECT_ROOT = resolve(dirname(SCRIPT_PATH), '../../../..');
+const PROJECT_ROOT = resolve(dirname(SCRIPT_PATH), '../../../..');
 const EXACT_VERSION = /^\d+\.\d+\.\d+-beta\.\d+$/u;
 const XTERM_PACKAGE = /^@xterm\/[a-z0-9-]+$/u;
 
@@ -27,6 +28,58 @@ export interface XtermBetaLineInput {
     dependencies: Record<string, string>;
     devDependencies: Record<string, string>;
     resolve: string[];
+}
+
+const manifestSchema = z.object({
+    dependencies: z.record(z.string(), z.string()).default({}),
+    devDependencies: z.record(z.string(), z.string()).default({}),
+});
+
+function mergeDependencies(target: Record<string, string>, source: Record<string, string>): void {
+    for (const [name, version] of Object.entries(source)) {
+        const existing = target[name];
+        if (existing && existing !== version)
+            throw new Error(`${name} has conflicting workspace manifest versions`);
+        target[name] = version;
+    }
+}
+
+/**
+ * Reads the root and every declared one-level Caxri workspace package manifest.
+ */
+export async function readWorkspaceDependencies(
+    projectRoot = PROJECT_ROOT,
+): Promise<Pick<XtermBetaLineInput, 'dependencies' | 'devDependencies'>> {
+    const workspaceGroups = await Promise.all(
+        ['apps', 'extensions', 'packages'].map(async (group) => {
+            const directory = resolve(projectRoot, group);
+            const entries = await readdir(directory, { withFileTypes: true });
+            return entries
+                .filter((entry) => entry.isDirectory())
+                .map((entry) => resolve(directory, entry.name, 'package.json'));
+        }),
+    );
+    const manifestPaths = [resolve(projectRoot, 'package.json'), ...workspaceGroups.flat()];
+    const manifests = await Promise.all(
+        manifestPaths.map(async (path) => {
+            try {
+                return manifestSchema.parse(JSON.parse(await readFile(path, 'utf8')));
+            } catch (error) {
+                if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+                throw error;
+            }
+        }),
+    );
+    const result = { dependencies: {}, devDependencies: {} } satisfies Pick<
+        XtermBetaLineInput,
+        'dependencies' | 'devDependencies'
+    >;
+    for (const manifest of manifests) {
+        if (!manifest) continue;
+        mergeDependencies(result.dependencies, manifest.dependencies);
+        mergeDependencies(result.devDependencies, manifest.devDependencies);
+    }
+    return result;
 }
 
 const defaultRunner: XtermRegistryRunner = {
