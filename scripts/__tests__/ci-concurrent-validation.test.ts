@@ -102,6 +102,43 @@ describe('concurrent CI validation', () => {
         }
     });
 
+    it('preserves sibling receipts after an isolated component fails', async () => {
+        // eslint-disable-next-line unicorn/prefer-event-target -- ChildProcess exposes Node EventEmitter events.
+        const failedChild = new EventEmitter() as ChildProcess;
+        Object.defineProperty(failedChild, 'pid', { value: 4251 });
+        // eslint-disable-next-line unicorn/prefer-event-target -- ChildProcess exposes Node EventEmitter events.
+        const siblingChild = new EventEmitter() as ChildProcess;
+        Object.defineProperty(siblingChild, 'pid', { value: 4252 });
+        // eslint-disable-next-line unicorn/prefer-event-target -- ChildProcess exposes Node EventEmitter events.
+        const laterChild = new EventEmitter() as ChildProcess;
+        Object.defineProperty(laterChild, 'pid', { value: 4253 });
+        const children = [failedChild, siblingChild, laterChild];
+        const signals: NodeJS.Signals[] = [];
+        const runner = new ConcurrentValidationProcesses({
+            signalProcessGroup: (_target, signal) => signals.push(signal),
+            spawnProcess: () => children.shift() as ChildProcess,
+        });
+
+        const failed = runner.run(
+            'isolated-e2e',
+            [],
+            { stdio: 'ignore' },
+            { abortOnFailure: false },
+        );
+        const sibling = runner.run('full-checks', [], { stdio: 'ignore' });
+        failedChild.emit('exit', 7, null);
+
+        await expect(failed).resolves.toBe(7);
+        expect(signals).toEqual([]);
+
+        const later = runner.run('later-e2e', [], { stdio: 'ignore' });
+        laterChild.emit('exit', 0, null);
+        siblingChild.emit('exit', 0, null);
+
+        await expect(Promise.all([sibling, later])).resolves.toEqual([0, 0]);
+        expect(signals).toEqual([]);
+    });
+
     it('aborts active validation when the shared deadline expires', () => {
         vi.useFakeTimers();
         const runner = new ConcurrentValidationProcesses();
