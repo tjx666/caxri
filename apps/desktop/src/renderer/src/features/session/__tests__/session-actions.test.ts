@@ -30,18 +30,23 @@ vi.mock('../../../stores/selectors', () => ({
     getBootstrap: mocks.getBootstrap,
     getSelectedSession: mocks.getSelectedSession,
     selectSelectedProject: vi.fn(),
+    selectSelectedSession: vi.fn(),
 }));
 vi.mock('../../../stores/session-view', () => ({
     useSessionViewStore: { getState: vi.fn(() => ({ dropSessions: mocks.dropSessions })) },
 }));
 vi.mock('../../../stores/toasts', () => ({ tryCommand: mocks.tryCommand }));
-vi.mock('../../../stores/workbench', () => ({ refreshWorkbench: mocks.refreshWorkbench }));
+vi.mock('../../../stores/workbench', () => ({
+    refreshWorkbench: mocks.refreshWorkbench,
+    useWorkbenchStore: { getState: () => ({ bootstrap: undefined }) },
+}));
 
 import {
     deleteSelectedSession,
     deleteSession,
     didReorderProject,
     moveTerminalToNewSession,
+    selectAdjacentSession,
     selectProject,
 } from '../session-actions';
 
@@ -59,10 +64,13 @@ describe('Session actions', () => {
 
     it('does not start Session creation when a Project has no active Sessions', () => {
         mocks.getBootstrap.mockReturnValue({
+            projects: [{ id: 'project-1' }],
             sessions: [
                 {
                     archivedAt: Date.now(),
+                    createdAt: 1,
                     id: 'session-1',
+                    lastSessionActivityAt: 1,
                     projectId: 'project-1',
                 },
             ],
@@ -73,6 +81,69 @@ describe('Session actions', () => {
 
         expect(mocks.askAgentForProject).not.toHaveBeenCalled();
         expect(mocks.caxriRequest).not.toHaveBeenCalled();
+    });
+
+    it('selects the most recently active Session when a Project is opened', async () => {
+        mocks.getBootstrap.mockReturnValue({
+            projects: [{ id: 'project-1' }],
+            sessions: [
+                {
+                    createdAt: 1,
+                    id: 'older',
+                    lastSessionActivityAt: 10,
+                    projectId: 'project-1',
+                },
+                {
+                    createdAt: 2,
+                    id: 'newer',
+                    lastSessionActivityAt: 20,
+                    projectId: 'project-1',
+                },
+            ],
+            settings: {},
+        });
+
+        selectProject('project-1');
+        await mocks.tryCommand.mock.results[0]?.value;
+
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('session.select', {
+            sessionId: 'newer',
+        });
+    });
+
+    it('walks adjacent Sessions in visible Project and activity order', async () => {
+        mocks.getBootstrap.mockReturnValue({
+            projects: [{ id: 'project-1' }, { id: 'project-2' }],
+            sessions: [
+                {
+                    createdAt: 1,
+                    id: 'project-1-older',
+                    lastSessionActivityAt: 10,
+                    projectId: 'project-1',
+                },
+                {
+                    createdAt: 2,
+                    id: 'project-2-newest',
+                    lastSessionActivityAt: 100,
+                    projectId: 'project-2',
+                },
+                {
+                    createdAt: 3,
+                    id: 'project-1-newer',
+                    lastSessionActivityAt: 20,
+                    projectId: 'project-1',
+                },
+            ],
+            settings: {},
+        });
+        mocks.getSelectedSession.mockReturnValue({ id: 'project-1-older' });
+
+        selectAdjacentSession(1);
+        await mocks.tryCommand.mock.results[0]?.value;
+
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('session.select', {
+            sessionId: 'project-2-newest',
+        });
     });
 
     it('lets the Runtime full-state event be the sole Project reorder refresh', async () => {

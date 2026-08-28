@@ -17,6 +17,7 @@ import { useCaxriQuery } from '../../queries/client';
 import { setPaletteOpen, useDialogStore } from '../../stores/dialogs';
 import { useProjects, useSessions } from '../../stores/selectors';
 import { didSelectSession, selectProject } from '../session/session-actions';
+import { activeSessionsInSidebarOrder } from '../session/session-activity-order';
 import { didExecuteViewCatalogCommand } from '../view-containers/view-container-commands';
 import {
     getPaletteExtensionCommands,
@@ -91,9 +92,7 @@ export function CommandPalette() {
     const onOpenChange = setPaletteOpen;
     const projects = useProjects() ?? NO_RECORDS;
     const catalog = useCaxriQuery('viewContainers.catalog', {}, { enabled: isOpen }).data;
-    const sessions = (useSessions() ?? NO_RECORDS).filter(
-        (session) => session.archivedAt === undefined,
-    );
+    const sessions = activeSessionsInSidebarOrder(projects, useSessions() ?? NO_RECORDS);
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
             {/* The palette closes on Escape or on select; a close X would be dead weight in it. */}

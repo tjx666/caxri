@@ -15,6 +15,7 @@ import {
     defaultTerminalTitle,
     processActivityState,
     selectFallbackAfterDeletion,
+    sessionActivityReasonForAgentState,
     shutdownOutcome,
     withTerminalRemovedFromLayout,
 } from '../session-policy';
@@ -45,6 +46,8 @@ function session(overrides: Partial<SessionRecord> = {}): SessionRecord {
         rootPath: '/repo',
         createdAt: 0,
         lastOpenedAt: 0,
+        lastSessionActivityAt: 0,
+        lastSessionActivityReason: 'created',
         primaryAgentTerminalId: undefined,
         lastActivityState: 'idle',
         attentionEpoch: 0,
@@ -77,6 +80,17 @@ describe('processActivityState', () => {
         expect(processActivityState('stopped')).toBe('completed');
         expect(processActivityState('dead')).toBe('failed');
         expect(processActivityState('failed')).toBe('failed');
+    });
+});
+
+describe('sessionActivityReasonForAgentState', () => {
+    it('maps only meaningful Primary Agent states onto Session Activity', () => {
+        expect(sessionActivityReasonForAgentState('running')).toBe('agent_started');
+        expect(sessionActivityReasonForAgentState('waiting')).toBe('agent_waiting');
+        expect(sessionActivityReasonForAgentState('completed')).toBe('agent_completed');
+        expect(sessionActivityReasonForAgentState('failed')).toBe('agent_failed');
+        expect(sessionActivityReasonForAgentState('idle')).toBeUndefined();
+        expect(sessionActivityReasonForAgentState('unknown')).toBeUndefined();
     });
 });
 

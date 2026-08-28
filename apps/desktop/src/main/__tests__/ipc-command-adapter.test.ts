@@ -34,6 +34,8 @@ function handler(): CommandAdapter {
                     rootPath: '/project',
                     createdAt: 1,
                     lastOpenedAt: 2,
+                    lastSessionActivityAt: 1,
+                    lastSessionActivityReason: 'created',
                     lastActivityState: 'unknown',
                     attentionEpoch: 0,
                     readAttentionEpoch: 0,

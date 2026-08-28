@@ -8,6 +8,7 @@ import type {
     ProcessState,
     ProjectIcon,
     ProjectRecord,
+    SessionActivityReason,
     SessionRecord,
     SessionState,
     TerminalFailureReason,
@@ -27,8 +28,10 @@ import {
     decideAgentMetadataUpdate,
     DEFAULT_SESSION_TITLE,
     defaultTerminalTitle,
+    firstActiveSession,
     processActivityState,
     selectFallbackAfterDeletion,
+    sessionActivityReasonForAgentState,
 } from '../session-policy';
 import type { CaxriDatabaseConnectionOptions as CaxriDatabaseOptions } from './database-connection';
 import { CaxriDatabaseConnection as CaxriDatabase_ } from './database-connection';
@@ -157,9 +160,7 @@ export class CaxriDatabase {
             if (this.db.appState.get('lastSelectedProjectId') !== projectId) return;
             const fallbackProject = this.db.projects.list().at(0);
             const fallbackSession = fallbackProject
-                ? this.db.sessions
-                      .list(fallbackProject.id)
-                      .find((session) => session.archivedAt === undefined)
+                ? firstActiveSession(this.db.sessions.list(fallbackProject.id))
                 : undefined;
             const selection = selectFallbackAfterDeletion(
                 fallbackSession,
@@ -176,6 +177,14 @@ export class CaxriDatabase {
 
     getSession(id: string): SessionRecord | undefined {
         return this.db.sessions.get(id);
+    }
+
+    touchSessionActivity(
+        sessionId: string,
+        reason: SessionActivityReason,
+        now = Date.now(),
+    ): boolean {
+        return this.db.sessions.touchActivity(sessionId, reason, now);
     }
 
     getSessionWorkbenchBinding(id: string): SessionWorkbenchBinding | undefined {
@@ -208,7 +217,11 @@ export class CaxriDatabase {
         return this.db.sessions.get(sessionId)!;
     }
 
-    updateAgentMetadata(terminalId: string, snapshot: AgentSnapshot): boolean {
+    updateAgentMetadata(
+        terminalId: string,
+        snapshot: AgentSnapshot,
+        shouldRecordSessionActivity = false,
+    ): boolean {
         return this.db.transaction(() => {
             const terminal = this.db.terminals.get(terminalId);
             if (!terminal) return false;
@@ -234,13 +247,23 @@ export class CaxriDatabase {
             if (!session) return false;
             const decision = decideAgentMetadataUpdate(terminal, session, snapshot);
             if (!decision) return false;
-            if (decision.sessionPatch)
+            if (decision.sessionPatch) {
+                const activityReason =
+                    shouldRecordSessionActivity &&
+                    (session.lastActivityState !== decision.sessionPatch.lastActivityState ||
+                        decision.sessionPatch.attentionKind)
+                        ? sessionActivityReasonForAgentState(
+                              decision.sessionPatch.lastActivityState,
+                          )
+                        : undefined;
                 this.db.sessions.setDisplayTitleAndActivity(
                     session.id,
                     decision.sessionPatch.displayTitle,
                     decision.sessionPatch.lastActivityState,
                     decision.sessionPatch.attentionKind,
+                    activityReason,
                 );
+            }
             if (decision.terminalTitle !== undefined)
                 this.db.terminals.setTitle(terminal.id, decision.terminalTitle);
             this.db.terminals.updateAgentSessionId(terminal.id, decision.agentSessionId);
@@ -269,6 +292,7 @@ export class CaxriDatabase {
                 session.displayTitle,
                 decision.lastActivityState,
                 decision.attentionKind,
+                sessionActivityReasonForAgentState(decision.lastActivityState),
             );
             return true;
         });
@@ -333,6 +357,9 @@ export class CaxriDatabase {
             const decision = decideAgentMetadataUpdate(promoted, updatedSession, snapshot);
             if (!decision)
                 throw new CaxriError('INTERNAL', 'Agent promotion produced no metadata update');
+            /**
+             * The submitted launch command already advanced Session Activity; promotion only binds Agent identity.
+             */
             if (decision.sessionPatch)
                 this.db.sessions.setDisplayTitleAndActivity(
                     session.id,
@@ -544,7 +571,7 @@ export class CaxriDatabase {
                 ? this.db.sessions.list(selectedProjectId)
                 : this.db.sessions.list();
             const selection = selectFallbackAfterDeletion(
-                candidateSessions.find((session) => session.archivedAt === undefined),
+                firstActiveSession(candidateSessions),
                 selectedProjectId ?? null,
             );
             this.db.appState.set('lastSelectedSessionId', selection.sessionId);
@@ -564,12 +591,10 @@ export class CaxriDatabase {
             if (session.archivedAt === undefined && !this.db.sessions.setArchived(sessionId, now))
                 throw new CaxriError('NOT_FOUND', 'Session not found');
             if (this.db.appState.get('lastSelectedSessionId') === sessionId) {
-                const fallback = this.db.sessions
-                    .list(session.projectId)
-                    .find(
-                        (candidate) =>
-                            candidate.id !== sessionId && candidate.archivedAt === undefined,
-                    );
+                const fallback = firstActiveSession(
+                    this.db.sessions.list(session.projectId),
+                    sessionId,
+                );
                 const selection = selectFallbackAfterDeletion(fallback, session.projectId);
                 this.db.appState.set('lastSelectedSessionId', selection.sessionId);
                 this.db.appState.set('lastSelectedProjectId', selection.projectId);
@@ -659,6 +684,28 @@ export class CaxriDatabase {
             this.db.terminals.updateState(id, state, failureReason);
             if (terminal.provider)
                 this.db.sessions.setActivityStateByPrimaryTerminal(id, processActivityState(state));
+        });
+    }
+
+    /**
+     * A real child-process exit is user-relevant completion/failure. Recovery, explicit close, restart preparation, and
+     * orderly shutdown keep using {@link updateTerminalState} so they cannot fabricate Session Activity.
+     */
+    updateTerminalExitState(id: string, state: 'dead' | 'stopped'): string | undefined {
+        return this.db.transaction(() => {
+            const terminal = this.db.terminals.get(id);
+            if (!terminal) return;
+            this.db.terminals.updateState(id, state);
+            if (!terminal.provider) return;
+            const activityState = processActivityState(state);
+            const activityReason = sessionActivityReasonForAgentState(activityState);
+            return this.db.sessions.setActivityStateByPrimaryTerminal(
+                id,
+                activityState,
+                activityReason,
+            )
+                ? terminal.sessionId
+                : undefined;
         });
     }
 

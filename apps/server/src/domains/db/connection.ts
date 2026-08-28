@@ -43,6 +43,7 @@ function installCurrentSchema(database: Database.Database): void {
 
 const PROJECT_ORDER_SCHEMA_VERSION = schemaVersionForMigration('0004_wonderful_gladiator');
 const TERMINAL_PTY_TITLE_SCHEMA_VERSION = schemaVersionForMigration('0015_terminal-pty-title');
+const SESSION_ACTIVITY_SCHEMA_VERSION = schemaVersionForMigration('0017_salty_piledriver');
 
 /**
  * Preserves the v9 PrimarySidebar order, which was defined by `created_at, id`, as explicit indexes.
@@ -68,11 +69,24 @@ function backfillTerminalTitles(database: Database.Database): void {
         restoreStableTitle.run(defaultTerminalTitle(kind), kind);
 }
 
+/**
+ * Creation is the only historical event whose meaning is known. `last_opened_at` is deliberately excluded: a visit must
+ * not become retroactive evidence that work progressed merely because the schema gained Session Activity.
+ */
+function backfillSessionActivity(database: Database.Database): void {
+    database
+        .prepare(
+            "UPDATE sessions SET last_session_activity_at = created_at, last_session_activity_reason = 'created'",
+        )
+        .run();
+}
+
 function migratePreservingData(database: Database.Database, version: number): void {
     for (const migration of preservingMigrations)
         if (migration.version > version) runGeneratedSql(database, migration.sql);
     if (version < PROJECT_ORDER_SCHEMA_VERSION) backfillProjectOrder(database);
     if (version < TERMINAL_PTY_TITLE_SCHEMA_VERSION) backfillTerminalTitles(database);
+    if (version < SESSION_ACTIVITY_SCHEMA_VERSION) backfillSessionActivity(database);
 }
 
 function initializeSchema(database: Database.Database): void {

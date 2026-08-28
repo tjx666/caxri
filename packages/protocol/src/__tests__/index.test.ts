@@ -475,6 +475,8 @@ describe('transport-neutral dispatcher', () => {
                         titleMode: 'manual',
                         createdAt: 1,
                         lastOpenedAt: 1,
+                        lastSessionActivityAt: 1,
+                        lastSessionActivityReason: 'created',
                         archivedAt: undefined,
                         primaryAgentTerminalId: undefined,
                         lastActivityState: 'unknown',

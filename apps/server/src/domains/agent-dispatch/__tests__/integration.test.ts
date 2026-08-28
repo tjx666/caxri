@@ -100,6 +100,7 @@ describe('Agent dispatch Runtime integration', () => {
                 projectId: project.id,
                 defaultAgent: 'shell',
             });
+            const createdActivityAt = created.session.lastSessionActivityAt;
             const principal = { kind: 'human-cli' as const, id: 'human-cli:test' };
             const input = {
                 projectId: project.id,
@@ -125,6 +126,11 @@ describe('Agent dispatch Runtime integration', () => {
             expect(duplicate).toEqual(first);
             expect(spawn).toHaveBeenCalledTimes(2);
             expect(events).toContain('agent.dispatch.changed');
+            const dispatchedSession = (await runtime.handlers['app.bootstrap']({})).sessions.find(
+                (session) => session.id === created.session.id,
+            )!;
+            expect(dispatchedSession.lastSessionActivityAt).toBeGreaterThan(createdActivityAt);
+            expect(dispatchedSession.lastSessionActivityReason).toBe('agent_started');
 
             const stale = { ...first.endpoint!, generation: first.endpoint!.generation + 1 };
             expect(() =>
@@ -145,6 +151,13 @@ describe('Agent dispatch Runtime integration', () => {
                 }),
             ).toMatchObject({ accepted: true, byteLength: 11, enter: true });
             expect(spawned[0].write).toHaveBeenCalledWith('human steer\r');
+            const steeredSession = (await runtime.handlers['app.bootstrap']({})).sessions.find(
+                (session) => session.id === created.session.id,
+            )!;
+            expect(steeredSession.lastSessionActivityAt).toBeGreaterThan(
+                dispatchedSession.lastSessionActivityAt,
+            );
+            expect(steeredSession.lastSessionActivityReason).toBe('user_submission');
         } finally {
             await runtime.close();
         }

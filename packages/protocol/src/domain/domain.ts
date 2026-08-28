@@ -43,6 +43,14 @@ const agentActivityStateSchema = z.enum([
     'unknown',
 ]);
 const sessionAttentionKindSchema = z.enum(['waiting', 'completed', 'failed']);
+const sessionActivityReasonSchema = z.enum([
+    'created',
+    'user_submission',
+    'agent_started',
+    'agent_waiting',
+    'agent_completed',
+    'agent_failed',
+]);
 const agentOperationSchema = z.enum(['compacting']);
 const sessionTitleModeSchema = z.enum(['automatic', 'manual']);
 export const newWorktreeBehaviorSchema = z.enum(['ask', 'continueWhenAuthorized', 'ignore']);
@@ -69,6 +77,7 @@ const terminalFailureReasonSchema = z.enum([
 export type AgentActivityState = z.infer<typeof agentActivityStateSchema>;
 export type AgentOperation = z.infer<typeof agentOperationSchema>;
 export type SessionAttentionKind = z.infer<typeof sessionAttentionKindSchema>;
+export type SessionActivityReason = z.infer<typeof sessionActivityReasonSchema>;
 export type SessionTitleMode = z.infer<typeof sessionTitleModeSchema>;
 export type TerminalKind = z.infer<typeof terminalKindSchema>;
 export type ProcessState = z.infer<typeof processStateSchema>;
@@ -100,6 +109,12 @@ export const sessionRecordSchema = z.object({
     rootPath: pathSchema,
     createdAt: z.number(),
     lastOpenedAt: z.number(),
+    /**
+     * Latest meaningful Session work event. This is independent from both visit history and the Primary Agent's current
+     * `lastActivityState`.
+     */
+    lastSessionActivityAt: z.number(),
+    lastSessionActivityReason: sessionActivityReasonSchema,
     /**
      * Archived Sessions stay durable and keep their Terminals; only active navigation hides them.
      */
@@ -731,6 +746,19 @@ export interface AgentSnapshot {
 }
 export type ProjectRecord = z.infer<typeof projectRecordSchema>;
 export type SessionRecord = z.infer<typeof sessionRecordSchema>;
+
+/**
+ * Canonical newest-first Session Activity order. The ID comparison avoids locale-dependent fallbacks for records whose
+ * logical clocks and creation timestamps are equal.
+ */
+export function compareSessionActivityRecency(left: SessionRecord, right: SessionRecord): number {
+    return (
+        right.lastSessionActivityAt - left.lastSessionActivityAt ||
+        right.createdAt - left.createdAt ||
+        (left.id < right.id ? -1 : left.id > right.id ? 1 : 0)
+    );
+}
+
 export type TerminalRecord = z.infer<typeof terminalRecordSchema>;
 export type TerminalSnapshot = z.infer<typeof terminalSnapshotSchema>;
 export type TerminalOscLinkSnapshot = z.infer<typeof terminalOscLinkSnapshotSchema>;

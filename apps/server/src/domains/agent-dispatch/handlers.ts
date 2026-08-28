@@ -1,9 +1,11 @@
 import { Buffer } from 'node:buffer';
 
+import type { ServerEvent } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
 import type { AgentEndpointLifecycle } from '../agent-endpoints';
 import type { AgentCoordinator } from '../agents';
+import type { CaxriDatabase } from '../db';
 import type { DomainHandlers } from '../domain-services';
 import type { TerminalManager } from '../terminal';
 import type { AgentDispatchService } from './service';
@@ -28,9 +30,11 @@ type AgentCommandMethod =
 
 export interface AgentCommandHandlerOptions {
     coordinator: AgentCoordinator;
+    database: CaxriDatabase;
     dispatch: AgentDispatchService;
     endpoints?: AgentEndpointLifecycle;
     mainOwned(method: AgentCommandMethod): never;
+    emit(event: ServerEvent): void;
     terminals: TerminalManager;
 }
 
@@ -40,6 +44,15 @@ export interface AgentCommandHandlerOptions {
 export function createAgentCommandHandlers(
     options: AgentCommandHandlerOptions,
 ): Pick<DomainHandlers, AgentCommandMethod> {
+    const recordUserSubmission = (terminalId: string): void => {
+        const terminal = options.database.getTerminal(terminalId);
+        if (!terminal) return;
+        if (!options.database.touchSessionActivity(terminal.sessionId, 'user_submission')) return;
+        options.emit({
+            event: 'state.changed',
+            payload: { kind: 'records', sessionIds: [terminal.sessionId], terminalIds: [] },
+        });
+    };
     const signalAgent = (
         endpoint: Parameters<DomainHandlers['agent.control.interruptInternal']>[0]['endpoint'],
         signal: 'SIGINT' | 'SIGHUP',
@@ -87,10 +100,11 @@ export function createAgentCommandHandlers(
         'agent.control.stopInternal': ({ endpoint }) => signalAgent(endpoint, 'SIGHUP'),
         'terminal.sendInternal': ({ enter, terminalId, text }) => {
             const data = `${text}${enter ? '\r' : ''}`;
-            if (options.terminals.processId(terminalId) !== undefined)
-                options.coordinator.observeInput(terminalId, data);
+            const isRunning = options.terminals.processId(terminalId) !== undefined;
             if (!options.terminals.write(terminalId, data))
                 throw new CaxriError('UNAVAILABLE', 'Terminal is no longer running');
+            if (isRunning && options.coordinator.observeInput(terminalId, data))
+                recordUserSubmission(terminalId);
             return {
                 terminalId,
                 accepted: true,

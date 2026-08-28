@@ -9,6 +9,7 @@ import { getBootstrap, getSelectedSession, selectSelectedProject } from '../../s
 import { useSessionViewStore } from '../../stores/session-view';
 import { tryCommand } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
+import { activeSessionsInSidebarOrder } from './session-activity-order';
 import type { PendingSessionMruSelection } from './session-mru-switcher-state';
 import {
     resolveSessionMruNavigation,
@@ -118,9 +119,12 @@ export async function chooseProjectDirectory(): Promise<void> {
 }
 
 export function selectProject(projectId: string): void {
-    const session = getBootstrap()?.sessions.find(
-        (item) => item.projectId === projectId && item.archivedAt === undefined,
-    );
+    const bootstrap = getBootstrap();
+    const session = bootstrap
+        ? activeSessionsInSidebarOrder(bootstrap.projects, bootstrap.sessions).find(
+              (item) => item.projectId === projectId,
+          )
+        : undefined;
     // Fire-and-forget: `didSelectSession` funnels its own failures into a toast via `tryCommand`.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     if (session) void didSelectSession(session.id);
@@ -262,7 +266,7 @@ export function moveTerminalToNewSession(terminalId: string, isOnlyWorkTab = fal
 export function selectAdjacentSession(delta: 1 | -1): void {
     const bootstrap = getBootstrap();
     if (!bootstrap) return;
-    const activeSessions = bootstrap.sessions.filter((session) => session.archivedAt === undefined);
+    const activeSessions = activeSessionsInSidebarOrder(bootstrap.projects, bootstrap.sessions);
     if (activeSessions.length === 0) return;
     const selectedIndex = activeSessions.findIndex(
         (session) => session.id === getSelectedSession()?.id,

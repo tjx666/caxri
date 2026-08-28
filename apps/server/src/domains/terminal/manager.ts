@@ -165,7 +165,7 @@ export class TerminalManager {
             if (!this.database.getTerminal(event.record.id)) return;
             const isExitedNormally = event.exitCode === 0 && !event.signal;
             const state = isExitedNormally ? 'stopped' : 'dead';
-            this.database.updateTerminalState(event.record.id, state);
+            const activitySessionId = this.database.updateTerminalExitState(event.record.id, state);
             this.onStateChanged?.(event.record.id, state);
             this.emit({
                 event: 'terminal.exit',
@@ -177,7 +177,11 @@ export class TerminalManager {
             });
             this.emit({
                 event: 'state.changed',
-                payload: { kind: 'records', sessionIds: [], terminalIds: [event.record.id] },
+                payload: {
+                    kind: 'records',
+                    sessionIds: activitySessionId ? [activitySessionId] : [],
+                    terminalIds: [event.record.id],
+                },
             });
             this.logger.write('info', ptyLogEvents.exited, {
                 fields: {

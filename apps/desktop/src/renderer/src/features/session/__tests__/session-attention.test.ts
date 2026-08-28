@@ -10,6 +10,8 @@ const session: SessionRecord = {
     rootPath: '/project',
     createdAt: 0,
     lastOpenedAt: 0,
+    lastSessionActivityAt: 0,
+    lastSessionActivityReason: 'created',
     primaryAgentTerminalId: 'terminal-1',
     lastActivityState: 'waiting',
     attentionEpoch: 2,

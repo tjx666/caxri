@@ -66,9 +66,15 @@ The first Agent Terminal in a Session, which owns that Session's generated title
 attention signals.
 _Avoid_: Active Terminal, selected Agent
 
+**Session Activity**:
+The latest content-free, Server-persisted evidence that work in a Session meaningfully progressed.
+Creation, submitted Terminal input, and allowlisted Primary Agent lifecycle transitions advance it;
+visits, arbitrary row writes, output chunks, metadata reconciliation, and recovery do not.
+_Avoid_: Agent Activity, Attention, last opened, updated timestamp
+
 **Agent Activity**:
 The Primary Agent's current reported state, independent of whether the user has seen it.
-_Avoid_: Notification, unread state
+_Avoid_: Session Activity, notification, unread state
 
 **Attention**:
 A reliable Primary Agent event that tells the user a Session is waiting, completed, or failed.

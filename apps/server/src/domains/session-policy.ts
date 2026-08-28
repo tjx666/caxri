@@ -2,13 +2,19 @@ import type {
     AgentActivityState,
     AgentSnapshot,
     ProcessState,
+    SessionActivityReason,
     SessionAttentionKind,
     SessionRecord,
     SessionState,
     TerminalKind,
     TerminalRecord,
 } from '@caxri/protocol';
-import { agentProviderCatalog, normalizeTerminalTitle, removePaneTerminal } from '@caxri/protocol';
+import {
+    agentProviderCatalog,
+    compareSessionActivityRecency,
+    normalizeTerminalTitle,
+    removePaneTerminal,
+} from '@caxri/protocol';
 
 import type { AgentLifecyclePhase } from './agents';
 
@@ -34,6 +40,27 @@ export function processActivityState(state: ProcessState): AgentActivityState {
     if (state === 'running' || state === 'starting') return 'running';
     if (state === 'stopped') return 'completed';
     return 'failed';
+}
+
+/**
+ * Maps only user-relevant Primary Agent states onto the content-free Session Activity reason allowlist. Idle and
+ * unknown observations are reconciliation states, not evidence that work progressed.
+ */
+export function sessionActivityReasonForAgentState(
+    state: AgentActivityState,
+): SessionActivityReason | undefined {
+    switch (state) {
+        case 'running':
+            return 'agent_started';
+        case 'waiting':
+            return 'agent_waiting';
+        case 'completed':
+            return 'agent_completed';
+        case 'failed':
+            return 'agent_failed';
+        default:
+            return undefined;
+    }
 }
 
 /**
@@ -305,6 +332,19 @@ export function decideAgentMetadataUpdate(
 export interface FallbackSelection {
     projectId: string | null;
     sessionId: string | null;
+}
+
+/**
+ * Picks the newest visible Session using the same deterministic comparison policy as the Renderer.
+ */
+export function firstActiveSession(
+    records: SessionRecord[],
+    excludedSessionId?: string,
+): SessionRecord | undefined {
+    return records
+        .filter((session) => session.archivedAt === undefined && session.id !== excludedSessionId)
+        .toSorted(compareSessionActivityRecency)
+        .at(0);
 }
 
 /**

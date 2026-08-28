@@ -41,3 +41,16 @@ states, and only then cite it. Report finalization now rejects short, static,
 duplicated, or previously non-passing media. See the canonical
 [evidence contract](../skills/acceptance/references/evidence.md) and
 [CDP recording workflow](../skills/acceptance/references/recording-cdp.md).
+
+## Interacting before a closing dialog overlay unmounts
+
+**Situation:** A dialog action creates the expected product state, and the next target is already visible behind the
+closing dialog.
+
+**Does not work:** Interacting as soon as the target appears, or adding a fixed sleep after the dialog action. Base UI
+keeps the exit backdrop mounted until its animation finishes, so the visible target can still be covered; a fixed delay
+only hides the missing stop condition and varies across motion settings and machines.
+
+**Works:** Wait until both `[data-slot="dialog-content"]` and `[data-slot="dialog-overlay"]` are absent, together with
+the target product state being present, before the next interaction. This mirrors the product's actual interaction
+boundary and avoids timing guesses.

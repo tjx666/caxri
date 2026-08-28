@@ -3,10 +3,10 @@ import { relative, resolve } from 'node:path';
 
 import type {
     AgentActivityState,
+    SessionActivityReason,
     SessionAttentionKind,
     SessionRecord,
     SessionState,
-    SessionTitleMode,
 } from '@caxri/protocol';
 import {
     addPaneTerminalSilently,
@@ -20,7 +20,6 @@ import {
     sessionStateSchema,
 } from '@caxri/protocol';
 import { and, asc, eq, lt, sql } from 'drizzle-orm';
-import { alias } from 'drizzle-orm/sqlite-core';
 import { z } from 'zod';
 
 import { isOutsideRoot } from '../../path-security';
@@ -28,70 +27,19 @@ import type { CaxriDrizzleDatabase } from '../connection';
 import { DEFAULT_LAYOUT_VERSION } from '../connection';
 import {
     CURRENT_SESSION_STATE_VERSION,
-    projects,
     sessions,
     sessionState as sessionStateTable,
     terminals,
 } from '../schema';
+import {
+    effectiveWorkbenchProjectId,
+    mapSession,
+    sessionSelection,
+    workbenchProjects,
+} from './session-record';
 
-const workbenchProjects = alias(projects, 'workbench_projects');
-const effectiveWorkbenchProjectId = sql<string>`COALESCE(${sessions.workbenchProjectId}, ${sessions.projectId})`;
-
-const sessionSelection = {
-    id: sessions.id,
-    projectId: sessions.projectId,
-    workbenchProjectId: effectiveWorkbenchProjectId,
-    rootPath: workbenchProjects.rootPath,
-    createdAt: sessions.createdAt,
-    lastOpenedAt: sessions.lastOpenedAt,
-    archivedAt: sessions.archivedAt,
-    primaryAgentTerminalId: sessions.primaryAgentTerminalId,
-    lastActivityState: sessions.lastActivityState,
-    attentionEpoch: sessions.attentionEpoch,
-    readAttentionEpoch: sessions.readAttentionEpoch,
-    lastAttentionKind: sessions.lastAttentionKind,
-    layoutVersion: sessions.layoutVersion,
-    displayTitle: sessions.displayTitle,
-    titleMode: sessions.titleMode,
-};
-
-interface SessionJoinRow {
-    id: string;
-    projectId: string;
-    workbenchProjectId: string;
-    rootPath: string;
-    createdAt: number;
-    lastOpenedAt: number;
-    archivedAt: number | null;
-    primaryAgentTerminalId: string | null;
-    lastActivityState: string;
-    attentionEpoch: number;
-    readAttentionEpoch: number;
-    lastAttentionKind: string | null;
-    layoutVersion: number;
-    displayTitle: string;
-    titleMode: string;
-}
-
-function mapSession(row: SessionJoinRow): SessionRecord {
-    return {
-        id: row.id,
-        projectId: row.projectId,
-        workbenchProjectId: row.workbenchProjectId,
-        rootPath: row.rootPath,
-        createdAt: row.createdAt,
-        lastOpenedAt: row.lastOpenedAt,
-        archivedAt: row.archivedAt ?? undefined,
-        primaryAgentTerminalId: row.primaryAgentTerminalId ?? undefined,
-        lastActivityState: row.lastActivityState as AgentActivityState,
-        attentionEpoch: row.attentionEpoch,
-        readAttentionEpoch: row.readAttentionEpoch,
-        lastAttentionKind: (row.lastAttentionKind as SessionAttentionKind | null) ?? undefined,
-        hasUnread: row.attentionEpoch > row.readAttentionEpoch,
-        layoutVersion: row.layoutVersion,
-        displayTitle: row.displayTitle,
-        titleMode: row.titleMode as SessionTitleMode,
-    };
+function nextSessionActivityAt(now: number) {
+    return sql<number>`MAX(${now}, COALESCE((SELECT MAX(${sessions.lastSessionActivityAt}) + 1 FROM ${sessions}), ${now}))`;
 }
 
 export interface NewSessionInput {
@@ -492,6 +440,7 @@ export class SessionsModel {
     insert(input: NewSessionInput): SessionRecord {
         const id = randomUUID();
         const now = Date.now();
+        const lastSessionActivityAt = nextSessionActivityAt(now);
         this.database
             .insert(sessions)
             .values({
@@ -499,6 +448,8 @@ export class SessionsModel {
                 projectId: input.projectId,
                 createdAt: now,
                 lastOpenedAt: now,
+                lastSessionActivityAt,
+                lastSessionActivityReason: 'created',
                 primaryAgentTerminalId: null,
                 lastActivityState: 'idle',
                 attentionEpoch: 0,
@@ -528,6 +479,21 @@ export class SessionsModel {
         return (
             this.database.update(sessions).set({ lastOpenedAt }).where(eq(sessions.id, id)).run()
                 .changes === 1
+        );
+    }
+
+    /**
+     * Advances only the product-owned Session Activity clock. Keeping the reason beside the timestamp makes every
+     * caller choose an allowlisted, content-free event instead of inferring activity from arbitrary row writes.
+     */
+    touchActivity(id: string, reason: SessionActivityReason, now = Date.now()): boolean {
+        const lastSessionActivityAt = nextSessionActivityAt(now);
+        return (
+            this.database
+                .update(sessions)
+                .set({ lastSessionActivityAt, lastSessionActivityReason: reason })
+                .where(eq(sessions.id, id))
+                .run().changes === 1
         );
     }
 
@@ -565,7 +531,10 @@ export class SessionsModel {
         displayTitle: string,
         lastActivityState: AgentActivityState,
         attentionKind?: SessionAttentionKind,
+        activityReason?: SessionActivityReason,
     ): void {
+        const now = Date.now();
+        const lastSessionActivityAt = nextSessionActivityAt(now);
         this.database
             .update(sessions)
             .set({
@@ -574,6 +543,10 @@ export class SessionsModel {
                 ...(attentionKind && {
                     attentionEpoch: sql`${sessions.attentionEpoch} + 1`,
                     lastAttentionKind: attentionKind,
+                }),
+                ...(activityReason && {
+                    lastSessionActivityAt,
+                    lastSessionActivityReason: activityReason,
                 }),
             })
             .where(eq(sessions.id, id))
@@ -612,12 +585,23 @@ export class SessionsModel {
     setActivityStateByPrimaryTerminal(
         terminalId: string,
         lastActivityState: AgentActivityState,
-    ): void {
-        this.database
-            .update(sessions)
-            .set({ lastActivityState })
-            .where(eq(sessions.primaryAgentTerminalId, terminalId))
-            .run();
+        activityReason?: SessionActivityReason,
+    ): boolean {
+        const now = Date.now();
+        const lastSessionActivityAt = nextSessionActivityAt(now);
+        return (
+            this.database
+                .update(sessions)
+                .set({
+                    lastActivityState,
+                    ...(activityReason && {
+                        lastSessionActivityAt,
+                        lastSessionActivityReason: activityReason,
+                    }),
+                })
+                .where(eq(sessions.primaryAgentTerminalId, terminalId))
+                .run().changes === 1
+        );
     }
 
     getState(sessionId: string): SessionState {

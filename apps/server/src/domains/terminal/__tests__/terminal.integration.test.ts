@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { AgentLaunchSettings, TerminalKind } from '@caxri/protocol';
+import type { AgentLaunchSettings, ServerEvent, TerminalKind } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import type { IPty, spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -273,10 +273,12 @@ describe('TerminalManager', () => {
         temporaryDirectories.push(directory);
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'codex');
+        const createdActivityAt = created.session.lastSessionActivityAt;
         const failed = createFakePty();
+        const events: ServerEvent[] = [];
         const manager = createTestTerminalManager(
             database,
-            () => {},
+            (event) => events.push(event),
             createTestLogger(join(directory, 'logs')),
             {
                 resolveExecutable: () => Promise.resolve('/bin/echo'),
@@ -290,6 +292,21 @@ describe('TerminalManager', () => {
         await vi.waitFor(() =>
             expect(database.getTerminal(created.terminal!.id)?.lastProcessState).toBe('dead'),
         );
+        expect(database.getSession(created.session.id)).toMatchObject({
+            lastActivityState: 'failed',
+            lastSessionActivityReason: 'agent_failed',
+        });
+        expect(database.getSession(created.session.id)!.lastSessionActivityAt).toBeGreaterThan(
+            createdActivityAt,
+        );
+        expect(events).toContainEqual({
+            event: 'state.changed',
+            payload: {
+                kind: 'records',
+                sessionIds: [created.session.id],
+                terminalIds: [created.terminal!.id],
+            },
+        });
         expect(manager.runningCount()).toBe(0);
         expect(database.listProjects()).toHaveLength(1);
         database.close();
