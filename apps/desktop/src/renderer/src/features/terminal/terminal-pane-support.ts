@@ -5,15 +5,21 @@ import type { ITheme, Terminal } from '@xterm/xterm';
 import { caxri } from '../../lib/caxri';
 import { openExternalUrl } from '../../lib/external-link';
 import { pushToast } from '../../stores/toasts';
+import {
+    dispatchExtensionViewAction,
+    executeViewCatalogShortcut,
+    invalidateControlledViewSnapshot,
+} from '../view-containers/view-container-commands';
 import { registerTerminalPasteHandler } from './terminal-actions';
 import {
-    openTerminalFileCandidatePicker,
+    openTerminalLinkCandidatePicker,
     registerTerminalLinkScanner,
 } from './terminal-link-actions';
 import { createTerminalLinkScanner } from './terminal-link-scanner';
 import type { TerminalLinkContext } from './terminal-links';
 import { registerTerminalLinks } from './terminal-links';
 import type { Osc52BlockReason } from './terminal-osc52-clipboard';
+import type { TerminalLinkReferenceContext } from './terminal-reference-links';
 import type { TerminalSearchResults } from './terminal-search';
 
 /**
@@ -103,6 +109,7 @@ export function registerTerminalInputHandlers(
 }
 
 interface TerminalLinkSnapshot {
+    referenceContext: TerminalLinkReferenceContext;
     terminalId: string;
     wordSeparators: string;
 }
@@ -131,7 +138,7 @@ export function registerTerminalPaneLinks(
                 ...(location && { location }),
             });
             if ('status' in result)
-                openTerminalFileCandidatePicker(
+                openTerminalLinkCandidatePicker(
                     latest().terminalId,
                     result.candidates.map((candidate) => ({
                         accessibleName: `Open matching file ${candidate.relativePath} in ${candidate.projectTitle}`,
@@ -151,9 +158,55 @@ export function registerTerminalPaneLinks(
             onError(errorMessage(error, 'Terminal file link failed'));
         }
     };
+    const openCommitCandidate = async (repoId: string, sha: string): Promise<void> => {
+        await executeViewCatalogShortcut('secondarySidebar.showGit');
+        const status = await dispatchExtensionViewAction(
+            'caxri.git.openCommit',
+            'Open Git Commit',
+            [repoId, sha],
+        );
+        if (status === 'executed')
+            await invalidateControlledViewSnapshot('caxri.git.sourceControl');
+    };
+    const openCommitLink = async (reference: string): Promise<void> => {
+        try {
+            const result = await caxri.request('terminal.commitLink.resolve', {
+                terminalId: latest().terminalId,
+                reference,
+            });
+            if (result.status === 'resolved') {
+                await openCommitCandidate(result.candidate.repositoryId, result.candidate.sha);
+                return;
+            }
+            openTerminalLinkCandidatePicker(
+                latest().terminalId,
+                result.candidates.map((candidate) => ({
+                    accessibleName: `Show commit ${reference} in ${candidate.repositoryName}`,
+                    activate: () => {
+                        // eslint-disable-next-line no-void -- this helper owns user-visible failure reporting
+                        void openCommitCandidate(candidate.repositoryId, candidate.sha);
+                    },
+                    bufferLine: 0,
+                    detail: candidate.repositoryName,
+                    id: `commit:${candidate.repositoryId}:${candidate.sha}`,
+                    kind: 'commit',
+                    target: candidate.sha,
+                })),
+                false,
+            );
+        } catch (error) {
+            onError(errorMessage(error, 'Git commit link failed'));
+        }
+    };
     const context: TerminalLinkContext = {
+        get referenceContext() {
+            return latest().referenceContext;
+        },
         get wordSeparators() {
             return latest().wordSeparators;
+        },
+        async openCommit(reference) {
+            await openCommitLink(reference);
         },
         async openFile(target, location) {
             await openFileLink(target, location);

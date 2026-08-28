@@ -35,7 +35,9 @@ type ServiceHandlerMethods =
     | 'files.write'
     | 'files.search'
     | 'terminal.agentTranscript'
+    | 'terminal.commitLink.resolve'
     | 'terminal.fileLink.resolve'
+    | 'terminal.referenceContext'
     | 'project.create'
     | 'project.setIcon'
     | 'git.summary'
@@ -167,6 +169,16 @@ export function createServiceHandlers(services: {
                 searchProjectFileNames: (sessionId, root, query, signal) =>
                     files.searchProjectFileNames(sessionId, root, query, signal),
             }),
+        'terminal.referenceContext': ({ terminalId }) => {
+            const terminal = database.getTerminal(terminalId);
+            if (!terminal) throw new CaxriError('NOT_FOUND', 'Terminal not found');
+            return git.referenceContext(terminal.sessionId);
+        },
+        'terminal.commitLink.resolve': ({ terminalId, reference }) => {
+            const terminal = database.getTerminal(terminalId);
+            if (!terminal) throw new CaxriError('NOT_FOUND', 'Terminal not found');
+            return git.resolveCommitReference(terminal.sessionId, reference, terminal.cwd);
+        },
         'project.create': async ({ expectedRootIdentity, rootPath }) => {
             const project = database.createProject(
                 await resolveProjectRoot(rootPath, expectedRootIdentity),

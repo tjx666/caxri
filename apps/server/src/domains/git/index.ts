@@ -13,6 +13,8 @@ import type {
     GitSummary,
     ServerEvent,
     ServerOperationParameters,
+    TerminalCommitLinkResolution,
+    TerminalReferenceContext,
 } from '@caxri/protocol';
 import {
     CaxriError,
@@ -40,6 +42,7 @@ import { toGitError } from './errors';
 import type { GitMetadataWatcherOptions } from './metadata-watcher';
 import { GitMetadataWatcher } from './metadata-watcher';
 import { GitPullRequestService } from './pull-request';
+import { loadTerminalReferenceContext, resolveTerminalCommitLink } from './reference-links';
 import { parseGitRemoteHost } from './remote-host';
 import { computeRepoId, GitRepoService } from './repo';
 import { gitSignalOptions, sharedGitRequest } from './request-signal';
@@ -292,6 +295,10 @@ export class GitService {
         return this.repositoryService.resolveRepository(sessionId, repoIdValue);
     }
 
+    private originRemote(rootPath: string): Promise<string> {
+        return this.git(rootPath, ['remote', 'get-url', 'origin'], { allowFailure: true });
+    }
+
     private async listBranches(
         repo: GitRepoSummary,
     ): Promise<Array<{ name: string; committedAt: number }>> {
@@ -424,6 +431,25 @@ export class GitService {
 
     summary(sessionId: string, refresh = 0): Promise<GitSummary> {
         return this.repositoryService.summary(sessionId, refresh);
+    }
+
+    async referenceContext(sessionId: string): Promise<TerminalReferenceContext> {
+        return loadTerminalReferenceContext(await this.summary(sessionId), (rootPath) =>
+            this.originRemote(rootPath),
+        );
+    }
+
+    async resolveCommitReference(
+        sessionId: string,
+        reference: string,
+        terminalCwd: string,
+    ): Promise<TerminalCommitLinkResolution> {
+        return resolveTerminalCommitLink(
+            await this.summary(sessionId),
+            reference,
+            terminalCwd,
+            (rootPath, arguments_) => this.git(rootPath, arguments_, { allowFailure: true }),
+        );
     }
 
     /**

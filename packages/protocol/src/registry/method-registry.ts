@@ -63,6 +63,7 @@ import {
     terminalFileLinkAmbiguousResolutionSchema,
     terminalFileLinkAmbiguousResultSchema,
 } from '../domain/terminal-file-link.js';
+import { terminalReferenceMethods } from '../domain/terminal-reference-contract.js';
 import {
     extensionCommandIdSchema,
     extensionErrorSchema,
@@ -82,8 +83,7 @@ const serverRead = commandPolicy('server', 'read');
 const serverWrite = commandPolicy('server', 'write');
 const serverControl = commandPolicy('server', 'control');
 /**
- * PTY stream setup and traffic must enter adapters in transport submission order. Request fingerprints are asynchronous
- * and can let overlapping input or resize overtake attachment before either Desktop or Server reaches its adapter.
+ * PTY traffic preserves submission order because asynchronous fingerprints could otherwise reorder input or resize.
  */
 const terminalStreamControl = { ...serverControl, idempotency: 'none' as const };
 const desktopRead = commandPolicy('desktop', 'read');
@@ -496,6 +496,7 @@ export const methods = {
             terminalFileLinkAmbiguousResultSchema,
         ]),
     },
+    ...terminalReferenceMethods,
     'terminal.snapshot': {
         ...serverRead,
         params: z.object({ terminalId: identifierSchema }),

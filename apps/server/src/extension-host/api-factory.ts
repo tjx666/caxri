@@ -343,6 +343,10 @@ function createBinding(registration: ExtensionHostRegistration): ApiBinding {
             onDidChangeGit: git.event,
             onDidChangeProjectStatus: projectStatus.event,
             git: workspace.git,
+            getCurrentContext: () => {
+                const context = currentViewEventContext();
+                return context ? workspaceChangeContext(context) : undefined;
+            },
             getConfiguration: <Value>(key: string) => requestConfig<Value>(request, key),
             getProjectStatus: (options?: ProjectStatusRequestOptions) => {
                 assertBindingCurrent(registration);

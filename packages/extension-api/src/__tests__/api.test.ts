@@ -75,5 +75,8 @@ describe('caxri public API runtime', () => {
         expect(() => caxri.workspace.getConfiguration('example.setting')).toThrow(
             expect.objectContaining({ code: 'CAXRI_API_OUTSIDE_EXTENSION_HOST' }),
         );
+        expect(() => caxri.workspace.getCurrentContext()).toThrow(
+            expect.objectContaining({ code: 'CAXRI_API_OUTSIDE_EXTENSION_HOST' }),
+        );
     });
 });

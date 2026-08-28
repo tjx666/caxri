@@ -47,6 +47,56 @@ afterEach(async () => {
 });
 
 describe('GitService', () => {
+    it('derives GitHub reference context and resolves commit hashes inside the Session scope', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-git-reference-'));
+        temporaryDirectories.push(directory);
+        await execFileAsync('git', ['init', '-b', 'main'], { cwd: directory });
+        await execFileAsync('git', ['config', 'user.email', 'test@example.com'], {
+            cwd: directory,
+        });
+        await execFileAsync('git', ['config', 'user.name', 'Caxri Test'], { cwd: directory });
+        await writeFile(join(directory, 'reference.txt'), 'reference\n', 'utf8');
+        await execFileAsync('git', ['add', 'reference.txt'], { cwd: directory });
+        await execFileAsync('git', ['commit', '-m', 'reference commit'], { cwd: directory });
+        await execFileAsync('git', ['remote', 'add', 'origin', 'git@github.com:tjx666/caxri.git'], {
+            cwd: directory,
+        });
+        const sha = (
+            await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: directory })
+        ).stdout.trim();
+        const database = new CaxriDatabase(join(directory, '.caxri-test.db'));
+        const session = database.createSession(
+            database.createProject(directory).id,
+            'shell',
+        ).session;
+        const rootResolver = new ProjectRootResolver(database);
+        const gitLogger = new StructuredLogger(join(directory, '.logs'));
+        const git = trackGitService(new GitService(rootResolver, gitLogger));
+
+        await expect(git.referenceContext(session.id)).resolves.toEqual({
+            githubRepositories: [{ owner: 'tjx666', repo: 'caxri' }],
+        });
+        await expect(
+            git.resolveCommitReference(session.id, sha.slice(0, 8), directory),
+        ).resolves.toMatchObject({
+            status: 'resolved',
+            candidate: { sha },
+        });
+        await expect(
+            git.resolveCommitReference(session.id, 'abcdef0', directory),
+        ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+
+        await execFileAsync(
+            'git',
+            ['remote', 'set-url', 'origin', 'https://github.com/lobehub/lobe-chat.git'],
+            { cwd: directory },
+        );
+        await expect(git.referenceContext(session.id)).resolves.toEqual({
+            githubRepositories: [{ owner: 'lobehub', repo: 'lobe-chat' }],
+        });
+        database.close();
+    });
+
     it('returns blame metadata for the selected file line', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-git-blame-'));
         temporaryDirectories.push(directory);

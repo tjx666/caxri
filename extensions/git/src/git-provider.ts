@@ -41,6 +41,8 @@ interface GitProviderScopeState {
     actions: Map<string, RegisteredAction>;
     avatarHosts: Map<string, string | null>;
     commitDetails: Map<string, DetailState<GitCommitDetails>>;
+    commitOpenSequence: number;
+    commitSelection?: { repositoryId: string; sha: string };
     contentTimer?: ReturnType<typeof setTimeout>;
     mode: GitSourceControlMode;
     pullRequests: Map<string, DetailState<GitPullRequestChanges | null>>;
@@ -99,6 +101,7 @@ export class GitProvider implements SourceControlProvider {
             actions: new Map(),
             avatarHosts: new Map(),
             commitDetails: new Map(),
+            commitOpenSequence: 0,
             mode: 'working',
             pullRequests: new Map(),
             repositories: new Map(),
@@ -189,8 +192,10 @@ export class GitProvider implements SourceControlProvider {
     }
 
     private loadCommitDetails(state: GitProviderScopeState, repo: GitRepositorySummary): void {
-        if (!repo.head) return;
-        const key = `${repo.head}:${state.refreshSequence}`;
+        const sha =
+            state.commitSelection?.repositoryId === repo.id ? state.commitSelection.sha : repo.head;
+        if (!sha) return;
+        const key = `${sha}:${state.refreshSequence}`;
         const current = state.commitDetails.get(repo.id);
         if (current?.key === key) return;
         current?.cancellation.cancel();
@@ -203,7 +208,7 @@ export class GitProvider implements SourceControlProvider {
             run: async () => {
                 try {
                     const value = await this.workspace.git.commitDetails(
-                        { repositoryId: repo.id, sha: repo.head! },
+                        { repositoryId: repo.id, sha },
                         cancellation.token,
                     );
                     this.setDetailResult(state, state.commitDetails, repo.id, detail, value);
@@ -363,7 +368,11 @@ export class GitProvider implements SourceControlProvider {
     ): Promise<SourceControlViewModel> {
         assertNotCancelled(token);
         const state = this.stateFor(request.scopeId);
-        if (isMode(request.preferredModeId) && request.preferredModeId !== state.mode) {
+        if (
+            isMode(request.preferredModeId) &&
+            request.preferredModeId !== state.mode &&
+            (!state.commitSelection || request.preferredModeId === 'commit')
+        ) {
             state.mode = request.preferredModeId;
             this.clearDetails(state);
         }
@@ -372,11 +381,26 @@ export class GitProvider implements SourceControlProvider {
             this.clearDetails(state);
         }
         const revision = this.nextRevision(state);
-        const summary = await this.workspace.git.summary(state.refreshSequence, token);
+        const rawSummary = await this.workspace.git.summary(state.refreshSequence, token);
         assertNotCancelled(token);
         if (revision !== state.revision)
             throw providerError('GENERATION_EXPIRED', 'Source Control snapshot was superseded');
 
+        if (
+            state.commitSelection &&
+            rawSummary.repositories.every(({ id }) => id !== state.commitSelection?.repositoryId)
+        ) {
+            state.commitSelection = undefined;
+            this.clearDetails(state);
+        }
+        const summary = state.commitSelection
+            ? {
+                  ...rawSummary,
+                  repositories: rawSummary.repositories.filter(
+                      ({ id }) => id === state.commitSelection?.repositoryId,
+                  ),
+              }
+            : rawSummary;
         const details = new Map<string, GitCommitDetails>();
         const pullRequests = new Map<string, GitPullRequestChanges | null>();
         const detailErrors = new Map<string, true>();
@@ -403,6 +427,7 @@ export class GitProvider implements SourceControlProvider {
                 revision,
                 detailsByRepository: details,
                 detailErrorsByRepository: detailErrors,
+                selectedCommitSha: state.commitSelection?.sha,
                 pullRequestsByRepository: pullRequests,
                 registerAction: this.registerActionFor(state),
             }),
@@ -538,7 +563,46 @@ export class GitProvider implements SourceControlProvider {
         return this.executeAction(state, { id: commandId, arguments: arguments_ }, token);
     }
 
-    setMode(mode: GitSourceControlMode): void {
+    async openCommit(
+        scopeId: string,
+        repoId: string,
+        sha: string,
+        token: CancellationToken,
+    ): Promise<void> {
+        if (!/^[0-9a-f]{40}$/.test(sha))
+            throw providerError('PROVIDER_FAILED', 'Git commit reference is invalid');
+        const state = this.stateFor(scopeId);
+        const openSequence = ++state.commitOpenSequence;
+        const summary = await this.workspace.git.summary(0, token);
+        assertNotCancelled(token);
+        if (this.disposed || openSequence !== state.commitOpenSequence) return;
+        if (summary.repositories.every(({ id }) => id !== repoId))
+            throw providerError(
+                'PROJECT_SCOPE_DENIED',
+                'Git commit does not belong to the active Session',
+            );
+        this.clearDetails(state);
+        state.commitSelection = { repositoryId: repoId, sha };
+        state.mode = 'commit';
+        this.changed.fire({ kind: 'selection', selectedModeId: 'commit' });
+    }
+
+    /**
+     * Renderer navigation can start the new snapshot before its matching extension command arrives. A repeated
+     * same-mode command must preserve those in-flight details; clearing them would leave the already-rendered loading
+     * model without another query to replace it. Selecting Last Commit still clears an arbitrary commit selection.
+     */
+    setMode(mode: GitSourceControlMode, scopeId?: string): void {
+        const state = scopeId ? this.scopes.get(scopeId) : undefined;
+        if (state) {
+            state.commitOpenSequence += 1;
+            if (state.mode !== mode || state.commitSelection) {
+                this.clearDetails(state);
+                state.commitSelection = undefined;
+                state.mode = mode;
+                this.scheduleContentChange(state);
+            }
+        }
         this.changed.fire({ kind: 'selection', selectedModeId: mode });
     }
 

@@ -113,15 +113,6 @@ export function isNoPullRequest(error: unknown): boolean {
     );
 }
 
-export function parseGitHubRemote(value: string): { owner: string; repo: string } | undefined {
-    const match = value
-        .trim()
-        .replace(/\/$/, '')
-        .replace(/\.git$/, '')
-        .match(/github\.com[:/]([^/\s]+)\/([^/\s]+)$/i);
-    return match ? { owner: match[1], repo: match[2] } : undefined;
-}
-
 export function extractLinearReferences(body: string): LinearReference[] {
     const references: LinearReference[] = [];
     const add = (identifier: string, workspace?: string): void => {

@@ -16,6 +16,7 @@ import { Spinner } from '../../components/ui/spinner';
 import { CommandTooltip, Tooltip } from '../../components/ui/tooltip';
 import { useCommandShortcut } from '../../lib/keybindings';
 import { cn } from '../../lib/utilities';
+import { useCaxriQuery } from '../../queries/client';
 import { useSelectedSession, useSettings, useTerminal, useTheme } from '../../stores/selectors';
 import { useWorkbenchStore } from '../../stores/workbench';
 import {
@@ -166,6 +167,12 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
     const isOsc52ClipboardWrite = settings?.['terminal.osc52ClipboardWrite'] ?? false;
     const wordSeparators =
         settings?.['terminal.wordSeparators'] ?? TERMINAL_DEFAULT_WORD_SEPARATORS;
+    const referenceLinks = settings?.['terminal.referenceLinks'] ?? [];
+    const referenceContext = useCaxriQuery(
+        'terminal.referenceContext',
+        { terminalId },
+        { enabled: Boolean(terminal), staleTime: 30_000 },
+    ).data;
     const processState = terminal?.lastProcessState ?? 'starting';
     const provider =
         terminal?.provider ?? (terminal?.kind === 'shell' ? undefined : terminal?.kind);
@@ -195,11 +202,13 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         fontFamily,
         fontSize,
         gpuAcceleration,
+        githubRepositories: referenceContext?.githubRepositories ?? [],
         imagePasteInput,
         isAgent,
         osc52ClipboardWrite: isOsc52ClipboardWrite,
         processState,
         projectRoot: session?.rootPath ?? '',
+        referenceLinks,
         scrollback,
         successColor: theme?.colors.success,
         terminalCwd: terminal?.cwd ?? '',

@@ -17,7 +17,9 @@ const COMPLETE_TARGET =
 function context() {
     const openFile = vi.fn();
     const value: TerminalLinkContext = {
+        referenceContext: { githubRepositories: [], rules: [] },
         wordSeparators: TERMINAL_DEFAULT_WORD_SEPARATORS,
+        openCommit: vi.fn(),
         openFile,
         openUrl: vi.fn(),
     };
