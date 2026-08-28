@@ -64,6 +64,23 @@ function revealViewContainer(catalog: ViewCatalogSnapshot, containerId: string):
 }
 
 /**
+ * Reveals an already rendered container synchronously. Catalog invalidation may leave a Server reload pending, but a
+ * show command only selects local UI that the cached catalog still renders; making that selection wait on IPC causes
+ * unrelated catalog refreshes to swallow otherwise valid keyboard shortcuts. Extension actions continue through the
+ * refreshed catalog path below, so this fast path never executes provider code or relaxes command permissions.
+ */
+function didRevealCachedViewContainerCommand(commandId: string): boolean {
+    const catalog = queryClient.getQueryData<ViewCatalogSnapshot>(
+        caxriQueryKey('viewContainers.catalog', {}),
+    );
+    if (!catalog || !findViewCatalogCommand(catalog, commandId)) return false;
+    const container = catalog.containers.find((candidate) => candidate.commandId === commandId);
+    if (!container) return false;
+    revealViewContainer(catalog, container.id);
+    return true;
+}
+
+/**
  * Routes a catalog command from every Renderer entry point. Container show commands stay local, Workbench Core actions
  * enter the generic controlled-surface queue, and extension-owned commands cross the typed Server boundary once.
  */
@@ -110,6 +127,7 @@ export async function executeViewCatalogShortcut(
     commandId: string,
     arguments_: readonly unknown[] = [],
 ): Promise<void> {
+    if (didRevealCachedViewContainerCommand(commandId)) return;
     const catalog = await tryCommand('Unable to load extension commands', () =>
         queryClient.fetchQuery({
             queryKey: caxriQueryKey('viewContainers.catalog', {}),
