@@ -32,5 +32,5 @@ still routes correctly.
 - Never call an explicit-only entry skill from another skill. Human-facing `$skill-name` or
   `/skill-name` labels in routing prose and documentation are not executable cross-skill calls.
 
-The explicit-only list in `scripts/__tests__/skill-invocation.test.ts` is the executable authority;
-the test keeps this document, every frontmatter flag, and every OpenAI policy in sync.
+The explicit-only list in `scripts/__tests__/skill-invocation.test.ts` is the executable authority.
+The test keeps this document, every frontmatter flag, and every OpenAI policy in sync.

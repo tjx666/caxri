@@ -47,16 +47,16 @@ handler with branching, awaiting, or state sequencing moves out.
 
 Before writing a small helper or hook (`useDebouncedValue`, relative-time formatting, clamp,
 keyboard predicates…), check `es-toolkit`, `@caxri/utils`, and the Renderer for an existing
-implementation. This codebase has already paid for per-feature copies of the same debounce hook and
-time formatter drifting apart; do not add another.
+implementation. This codebase has already paid for per-feature copies of the same debounce hook
+and time formatter drifting apart; do not add another.
 
 - A generic pure function comes from `es-toolkit` first. When it lacks one, a browser-safe,
   dependency-free pure function goes to `@caxri/utils` (`packages/utils`) with a colocated
   `*.test.ts` (e.g. `relativeTime`, `formatBytes` live there today).
 - A pure helper coupled to Renderer concerns (React, DOM, Tailwind class merging, Monaco) that two
   or more features need → `apps/desktop/src/renderer/src/lib/`, with a colocated `*.test.ts`.
-- A hook needed by two or more features → `apps/desktop/src/renderer/src/hooks/` (`@/hooks` is the only shared
-  hooks directory).
+- A hook needed by two or more features → `apps/desktop/src/renderer/src/hooks/` (`@/hooks` is the
+  only shared hooks directory).
 - On the second use of a feature-local helper, promote it in the same change — moving it later is
   never cheaper, and the second copy is where drift starts.
 
@@ -88,7 +88,7 @@ that owns its own refresh (an interval-ticked timestamp hook), or document the a
 where the value is produced.
 
 Hooks that derive objects return stable identities when consumers depend on them (`useMemo`, or
-select primitives); a hook that fabricates a fresh object every render forces callers to either
+select primitives). A hook that fabricates a fresh object every render forces callers to either
 over-render or memoize defensively.
 
 ## 6. Tests

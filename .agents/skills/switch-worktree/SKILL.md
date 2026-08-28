@@ -17,10 +17,10 @@ Pass `--json` when another tool or agent will consume the result.
 ## Default delivery flow
 
 An isolated worktree is a self-contained development environment: its branch, dependencies, and
-profile cannot disturb the primary checkout or sibling agent sessions. That isolation is the point —
-when the user starts a standalone session and asks to switch to a worktree to get work done (e.g.
-"切 worktree 处理 issue #123"), they are delegating the entire development loop, not just the
-implementation. This flow governs exactly that standalone-session case; a run under the `go`
+profile cannot disturb the primary checkout or sibling agent sessions. That isolation is the point
+— when the user starts a standalone session and asks to switch to a worktree to get work done
+(e.g. "切 worktree 处理 issue #123"), they are delegating the entire development loop, not just
+the implementation. This flow governs exactly that standalone-session case; a run under the `go`
 workflow follows `go`'s own orchestration instead. Run it end to end without pausing for permission
 between stages:
 
@@ -70,8 +70,8 @@ bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts doctor [branch
 ```
 
 Treat a symlinked `node_modules`, missing profile, or missing dependencies as blocking. `list`
-reports Git status, ahead/behind counts, dependency state, isolated profile, dev process identity, and
-the repository-wide desktop lease.
+reports Git status, ahead/behind counts, dependency state, isolated profile, dev process identity,
+and the repository-wide desktop lease.
 
 ## Start development
 
@@ -103,9 +103,9 @@ reserve the developer's macOS keyboard focus or active application: those are us
 outside repository process coordination. Acquiring the lease therefore never authorizes taking or
 retaining foreground control. Prepare visible or native actions while backgrounded, then limit each
 foreground interval to one pre-authored interaction, its capture or readback, and immediate
-dismissal. If the result is unexpected, dismiss the owned native UI and stop the owned launch before
-investigating. Never iterate on Accessibility actions, synthesized input, or timing while the app
-remains frontmost, and never manipulate which developer application should regain focus.
+dismissal. If the result is unexpected, dismiss the owned native UI and stop the owned launch
+before investigating. Never iterate on Accessibility actions, synthesized input, or timing while
+the app remains frontmost, and never manipulate which developer application should regain focus.
 
 ## Remove safely
 

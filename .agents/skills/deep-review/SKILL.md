@@ -29,10 +29,10 @@ reviews, keep the delegate read-only and apply this policy only in the primary a
 ## Core principles
 
 1. Read the full relevant path, not only the diff. Trace Renderer requests through the shared IPC
-   contract, Main/Preload, Runtime, persistence, and the user-visible consumer when those layers are
-   involved.
-2. Prefer concrete failure scenarios over speculative concerns. Search for upstream guards,
-   bounded inputs, cleanup, and tests before reporting a problem.
+   contract, Main/Preload, Runtime, persistence, and the user-visible consumer when those layers
+   are involved.
+2. Prefer concrete failure scenarios over speculative concerns. Search for upstream guards, bounded
+   inputs, cleanup, and tests before reporting a problem.
 3. Calibrate maintainability findings to this repository's current conventions. Security, privacy,
    path containment, and data-loss hazards are never excused by precedent.
 4. Keep scope narrow. Distinguish a problem introduced by the change from legacy code that the

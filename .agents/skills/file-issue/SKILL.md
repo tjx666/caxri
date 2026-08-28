@@ -5,13 +5,17 @@ description: 'Draft and directly file a well-formed GitHub issue for this reposi
 
 # File Issue
 
-Turn a bug, an idea, or a conclusion from the current conversation into a GitHub issue on this repository. The issue must be self-contained: a fresh agent (or the user three weeks later) should be able to pick it up without this conversation's context.
+Turn a bug, an idea, or a conclusion from the current conversation into a GitHub issue on this
+repository. The issue must be self-contained: a fresh agent (or the user three weeks later) should
+be able to pick it up without this conversation's context.
 
 ## Title
 
-- Simplified Chinese, outcome-oriented, and ≤ 70 characters: “移除遮挡 Terminal 的恢复浮层”, not “Bug：浮层有问题” or “正在修复浮层”.
+- Simplified Chinese, outcome-oriented, and ≤ 70 characters: “移除遮挡 Terminal 的恢复浮层”, not
+  “Bug：浮层有问题” or “正在修复浮层”.
 - No `[Bug]` / `feat:` prefixes — labels carry the classification.
-- Use the repo's domain vocabulary with its capitalization: Project, Session, Terminal, Agent, Runtime, Renderer.
+- Use the repo's domain vocabulary with its capitalization: Project, Session, Terminal, Agent,
+  Runtime, Renderer.
 
 ## Body structure
 
@@ -19,25 +23,32 @@ Write naturally under these sections. Bugs and enhancements emphasize different 
 `UX 设计` and `Acceptance 方案` in every issue; when the work has no direct UI or interaction
 change, state that explicitly instead of inventing a visual claim.
 
-- **问题** — every issue starts here. For a bug: observed behavior, expected behavior, and reproduction steps or the triggering condition. For an enhancement: the friction or gap, from the user's perspective.
-- **诊断** (bug) — root cause if known, citing the load-bearing code as `path/to/file.ts:42` or symbol names. State clearly when the cause is a hypothesis, not confirmed.
-- **目标** (enhancement) — the end state in one or two sentences: what works afterwards that doesn't today.
+- **问题** — every issue starts here. For a bug: observed behavior, expected behavior, and
+  reproduction steps or the triggering condition. For an enhancement: the friction or gap, from
+  the user's perspective.
+- **诊断** (bug) — root cause if known, citing the load-bearing code as `path/to/file.ts:42` or
+  symbol names. State clearly when the cause is a hypothesis, not confirmed.
+- **目标** (enhancement) — the end state in one or two sentences: what works afterwards that
+  doesn't today.
 - **UX 设计** — describe the user scenario, entry point, interaction flow, visible states, copy,
   keyboard behavior, and accessibility expectations affected by the issue. For non-UI architecture
   work, write `不涉及直接 UI 变化` and name the nearest user-visible outcome or explain why none
   exists.
-- **方案 / 修复方案** — the approach, numbered when there are ordered steps. Mention schema migrations, IPC contract changes, or startup-gate impact explicitly since they cross process boundaries.
-- **参考实现** — how competitors solve this, when relevant; consult the `competitors` skill rather than guessing.
+- **方案 / 修复方案** — the approach, numbered when there are ordered steps. Mention schema
+  migrations, IPC contract changes, or startup-gate impact explicitly since they cross process
+  boundaries.
+- **参考实现** — how competitors solve this, when relevant; consult the `competitors` skill rather
+  than guessing.
 - **范围 / 非目标** — what is explicitly out, especially the tempting adjacent work.
-- **验收标准** — checkable statements of done; cover the core path plus the edge cases that motivated
-  the issue. Include the behavior-level regression expectation from the `unit-testing` or
+- **验收标准** — checkable statements of done; cover the core path plus the edge cases that
+  motivated the issue. Include the behavior-level regression expectation from the `unit-testing` or
   `e2e-testing` skill.
 - **Acceptance 方案** — keep this separate from the definition of done. Describe the isolated
-  macOS Electron path, fixture or failure injection, expected observable result, and evidence needed
-  for human review. Prefer screenshots for settled UI and GIF/video for behavior over time. Use DOM,
-  structured logs, or text evidence only when the claim cannot be shown faithfully in the UI. Give
-  every Go-owned check a stable id, and explain a non-visual check instead of fabricating desktop
-  evidence.
+  macOS Electron path, fixture or failure injection, expected observable result, and evidence
+  needed for human review. Prefer screenshots for settled UI and GIF/video for behavior over time.
+  Use DOM, structured logs, or text evidence only when the claim cannot be shown faithfully in the UI.
+  Give every Go-owned check a stable id, and explain a non-visual check instead of fabricating
+  desktop evidence.
 
 `验收标准` defines what must be true. `Acceptance 方案` defines how the final reviewer will see or
 otherwise verify that truth. Do not replace either section with the other.
@@ -84,17 +95,20 @@ bun run .agents/skills/file-issue/scripts/create-refactor-issue.ts \
 Use `validate-refactor-acceptance.ts --body-file "$body_file"` only for draft-only checks that do
 not create an issue.
 
-Code references (`path:line`) are welcome when they anchor the diagnosis or design — but keep them to load-bearing ones; broad file inventories go stale.
+Code references (`path:line`) are welcome when they anchor the diagnosis or design — but keep them
+to load-bearing ones; broad file inventories go stale.
 
 ## Mechanics
 
-- Write the title, section headings, body prose, and follow-up issue comments in Simplified Chinese.
-  Keep code, identifiers, paths, commands, enum values, and quoted upstream errors in English.
-  This applies to every issue comment, not only comments created during filing.
-- Never pass the body inline with `--body` and `\n` escapes — that ships literal `\n` into the issue. Write the body to a temp file and use `gh issue create --body-file`, or a real heredoc.
+- Write the title, section headings, body prose, and follow-up issue comments in Simplified
+  Chinese. Keep code, identifiers, paths, commands, enum values, and quoted upstream errors in
+  English. This applies to every issue comment, not only comments created during filing.
+- Never pass the body inline with `--body` and `\n` escapes — that ships literal `\n` into the
+  issue. Write the body to a temp file and use `gh issue create --body-file`, or a real heredoc.
 - For a refactor issue, use `create-refactor-issue.ts`; do not split validation and creation into
   separate commands.
-- Link related issues and PRs with `#NN` references; if the issue is spun out of another one, name it in the 问题 section. Do not close or edit the parent.
+- Link related issues and PRs with `#NN` references; if the issue is spun out of another one, name
+  it in the 问题 section. Do not close or edit the parent.
 
 ## Labels
 
@@ -132,8 +146,8 @@ a surface label when that surface is only incidental evidence. Labels do not enc
 continue to use the Project `Priority` field for that.
 
 Use only labels returned by the live query. Creating or changing repository labels requires a
-separate explicit request; do not silently invent one during issue filing. Pass multiple labels with
-repeated `--label` flags and verify the complete label set after creation.
+separate explicit request; do not silently invent one during issue filing. Pass multiple labels
+with repeated `--label` flags and verify the complete label set after creation.
 
 ## Project tracking
 
@@ -149,13 +163,16 @@ gh project item-edit 2 --owner tjx666 --url "$issue_url" --field Status --value 
 ```
 
 - Do not assign the sole maintainer or invent a milestone merely to fill metadata.
-- If a Project mutation fails, retry it once. Keep the successfully created issue, report the tracking failure, and never delete or recreate the issue to recover.
-- Fetch the Project item once and verify its URL, Status, Priority, and Size before reporting success.
+- If a Project mutation fails, retry it once. Keep the successfully created issue, report the
+  tracking failure, and never delete or recreate the issue to recover.
+- Fetch the Project item once and verify its URL, Status, Priority, and Size before reporting
+  success.
 
 ### Status lifecycle — keep it current, and honor `Backlog`
 
-`Status` is how the owner sees what is happening without asking, so it is updated as the work moves,
-not only at filing time. The options are `Backlog`, `Next`, `In Progress`, `Blocked`, and `Done`.
+`Status` is how the owner sees what is happening without asking, so it is updated as the work
+moves, not only at filing time. The options are `Backlog`, `Next`, `In Progress`, `Blocked`, and
+`Done`.
 
 | Moment                                               | Status        |
 | ---------------------------------------------------- | ------------- |
@@ -169,9 +186,9 @@ When work starts later, flip it in the same turn you start — before writing co
 `Done` only once the PR is merged; a PR that is merely open leaves the issue `In Progress`.
 
 **`Backlog` means the owner does not want this done yet.** Never start work on a `Backlog` issue,
-even when it is routed to you — including through the `go` skill's issue queue, which does not filter
-by Status. Skip it and say why. The only thing that overrides this is the owner explicitly asking for
-that issue by name in the current conversation; a general "clear the queue" does not.
+even when it is routed to you — including through the `go` skill's issue queue, which does not
+filter by Status. Skip it and say why. The only thing that overrides this is the owner explicitly
+asking for that issue by name in the current conversation; a general "clear the queue" does not.
 
 ### Priority (assess, never default)
 
@@ -200,9 +217,14 @@ State the chosen value and its dominant cost driver in the filing report.
 
 ## Filing behavior
 
-Treat explicit invocation as execution authorization. When the user invokes `$file-issue` or asks to file, create, or 提 an issue, draft it internally and file it immediately. Do not present a preview or ask for confirmation first. Reply with the verified issue link and a concise summary of what was filed.
+Treat explicit invocation as execution authorization. When the user invokes `$file-issue` or asks
+to file, create, or 提 an issue, draft it internally and file it immediately. Do not present a
+preview or ask for confirmation first. Reply with the verified issue link and a concise summary of
+what was filed.
 
-Stop before creating only when the user explicitly asks for a draft, preview, or review, or when a missing decision would materially change the issue. In draft-only mode, present the title, label, and full body without creating anything.
+Stop before creating only when the user explicitly asks for a draft, preview, or review, or when a
+missing decision would materially change the issue. In draft-only mode, present the title, label,
+and full body without creating anything.
 
-After creation, fetch the issue and Project item once to verify the title, body, complete label set,
-Status, and Priority rather than treating command exit statuses as the complete outcome.
+After creation, fetch the issue and Project item once to verify the title, body, complete label
+set, Status, and Priority rather than treating command exit statuses as the complete outcome.
