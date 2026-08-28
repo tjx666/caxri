@@ -47,8 +47,8 @@ export function opaqueSearchColor(color: string): string {
 
 /**
  * Xterm creates an overview-ruler canvas whenever the custom scrollbar has a width and paints its left border with the
- * Terminal foreground color even when no overview markers exist. Keep the canvas available for future markers while
- * hiding only that otherwise permanent white hairline.
+ * Terminal foreground color even when no overview markers exist. Caxri uses that ruler for transient search markers,
+ * not persistent decorations, so preserve the markers while hiding the otherwise permanent white hairline.
  */
 export function xtermThemeWithoutOverviewRulerBorder(theme: ITheme | undefined): ITheme {
     return { ...theme, overviewRulerBorder: 'transparent' };
