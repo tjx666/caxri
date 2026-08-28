@@ -26,6 +26,7 @@ import { FileService } from '../service';
 interface Fixture {
     database: CaxriDatabase;
     directory: string;
+    logger: StructuredLogger;
     root: string;
     service: FileService;
     sessionId: string;
@@ -62,14 +63,15 @@ async function createFixture(prefix: string, options: FileServiceOptions = {}): 
     const root = await realpath(rootInput);
     const database = new CaxriDatabase(join(directory, 'state.db'));
     const session = database.createSession(database.createProject(root).id, 'shell').session;
+    const logger = new StructuredLogger(join(directory, 'logs'));
     const service = new FileService(
         database,
         () => {},
-        new StructuredLogger(join(directory, 'logs')),
+        logger,
         () => 1024,
         options,
     );
-    const fixture = { database, directory, root, service, sessionId: session.id };
+    const fixture = { database, directory, logger, root, service, sessionId: session.id };
     fixtures.push(fixture);
     return fixture;
 }
@@ -79,8 +81,12 @@ afterEach(async () => {
     const pendingFixtures = fixtures.slice();
     fixtures.length = 0;
     await Promise.all(
-        pendingFixtures.map(async ({ database, directory, service }) => {
+        pendingFixtures.map(async ({ database, directory, logger, service }) => {
             await service.close();
+            /**
+             * Stop log producers before draining their asynchronous writes so teardown cannot recreate `logs`.
+             */
+            await logger.flush();
             database.close();
             await rm(directory, { recursive: true, force: true });
         }),
