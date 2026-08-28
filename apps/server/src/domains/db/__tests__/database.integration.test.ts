@@ -549,7 +549,7 @@ describe('CaxriDatabaseConnection', () => {
         database.close();
     });
 
-    it('round-trips extension tree state independently for each Session', async () => {
+    it('round-trips view state independently for each Session', async () => {
         const directory = await temporaryDirectory('caxri-db-extension-tree-state-');
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const project = database.projects.create(directory);
@@ -567,6 +567,14 @@ describe('CaxriDatabaseConnection', () => {
                     focusedItemId: 'repository',
                 },
             },
+            sourceControlViewStates: {
+                'caxri.git.sourceControl': {
+                    expandedDirectories: {},
+                    expandedGroups: { changes: false },
+                    expandedProviders: { repository: true },
+                    modeId: 'changes',
+                },
+            },
         });
 
         expect(database.sessions.getState(first.id).extensionTreeViewStates).toEqual({
@@ -577,6 +585,15 @@ describe('CaxriDatabaseConnection', () => {
             },
         });
         expect(database.sessions.getState(second.id).extensionTreeViewStates).toBeUndefined();
+        expect(database.sessions.getState(first.id).sourceControlViewStates).toEqual({
+            'caxri.git.sourceControl': {
+                expandedDirectories: {},
+                expandedGroups: { changes: false },
+                expandedProviders: { repository: true },
+                modeId: 'changes',
+            },
+        });
+        expect(database.sessions.getState(second.id).sourceControlViewStates).toBeUndefined();
         database.close();
     });
 

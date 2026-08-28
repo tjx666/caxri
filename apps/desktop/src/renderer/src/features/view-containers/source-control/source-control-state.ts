@@ -1,35 +1,46 @@
-export interface SourceControlViewNavigation {
-    expandedDirectories: Record<string, boolean | undefined>;
-    expandedGroups: Record<string, boolean | undefined>;
-    expandedProviders: Record<string, boolean | undefined>;
-    modeId?: string;
-}
+import type { SourceControlViewState } from '@caxri/protocol';
+import { MAX_SOURCE_CONTROL_VIEW_STATE_ENTRIES } from '@caxri/protocol';
 
-export function defaultSourceControlViewNavigation(): SourceControlViewNavigation {
-    return {
-        expandedDirectories: {},
-        expandedGroups: {},
-        expandedProviders: {},
-    };
-}
+export type SourceControlViewNavigation = SourceControlViewState;
 
-export function sourceControlNavigationForScope(
-    navigationByScope: Readonly<Record<string, SourceControlViewNavigation>>,
-    scope: string | undefined,
+export function createSourceControlViewNavigation(
+    persisted?: SourceControlViewState,
 ): SourceControlViewNavigation {
-    return scope
-        ? (navigationByScope[scope] ?? defaultSourceControlViewNavigation())
-        : defaultSourceControlViewNavigation();
+    return persisted
+        ? {
+              ...persisted,
+              expandedDirectories: { ...persisted.expandedDirectories },
+              expandedGroups: { ...persisted.expandedGroups },
+              expandedProviders: { ...persisted.expandedProviders },
+          }
+        : {
+              expandedDirectories: {},
+              expandedGroups: {},
+              expandedProviders: {},
+          };
+}
+
+function boundedDisclosureState(state: Readonly<Record<string, boolean>>): Record<string, boolean> {
+    return Object.fromEntries(Object.entries(state).slice(-MAX_SOURCE_CONTROL_VIEW_STATE_ENTRIES));
 }
 
 export function updateSourceControlViewNavigation(
-    navigationByScope: Readonly<Record<string, SourceControlViewNavigation>>,
-    scope: string,
     navigation: SourceControlViewNavigation,
     patch: Partial<SourceControlViewNavigation>,
-): Record<string, SourceControlViewNavigation> {
+): SourceControlViewNavigation {
     return {
-        ...navigationByScope,
-        [scope]: { ...navigation, ...patch },
+        ...navigation,
+        ...patch,
+    };
+}
+
+export function serializeSourceControlViewNavigation(
+    navigation: SourceControlViewNavigation,
+): SourceControlViewState {
+    return {
+        expandedDirectories: boundedDisclosureState(navigation.expandedDirectories),
+        expandedGroups: boundedDisclosureState(navigation.expandedGroups),
+        expandedProviders: boundedDisclosureState(navigation.expandedProviders),
+        ...(navigation.modeId && { modeId: navigation.modeId }),
     };
 }

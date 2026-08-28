@@ -44,6 +44,7 @@ function activeFilePath(layout: PaneLayout): string | undefined {
 interface StoredRootState {
     editorRemapOperationId?: string;
     extensionTreeViewStates?: unknown;
+    sourceControlViewStates?: unknown;
     paneLayout: PaneLayout;
 }
 
@@ -91,11 +92,26 @@ describe('CaxriDatabase Workbench Root editor state', () => {
                 initializedItemIds: ['worktree-root'],
             },
         };
+        const ownerSourceControlState = {
+            'caxri.git.sourceControl': {
+                expandedDirectories: {},
+                expandedGroups: { owner: false },
+                expandedProviders: {},
+            },
+        };
+        const worktreeSourceControlState = {
+            'caxri.git.sourceControl': {
+                expandedDirectories: {},
+                expandedGroups: { worktree: false },
+                expandedProviders: {},
+            },
+        };
 
         database.updateSessionState({
             ...database.getSessionState(created.session.id),
             editorRemapOperationId: 'owner-operation',
             extensionTreeViewStates: ownerTreeState,
+            sourceControlViewStates: ownerSourceControlState,
         });
         database.selectWorkbenchProject(created.session.id, worktree.id, {
             device: worktreeIdentity.dev.toString(),
@@ -105,6 +121,7 @@ describe('CaxriDatabase Workbench Root editor state', () => {
             ...database.getSessionState(created.session.id),
             editorRemapOperationId: 'worktree-operation',
             extensionTreeViewStates: worktreeTreeState,
+            sourceControlViewStates: worktreeSourceControlState,
         });
         const historicalState = database.database
             .prepare(
@@ -120,6 +137,7 @@ describe('CaxriDatabase Workbench Root editor state', () => {
         const healedWorktree = database.getSessionState(created.session.id);
         expect(listPaneTerminalIds(healedWorktree.paneLayout)).toEqual([created.terminal!.id]);
         expect(healedWorktree.extensionTreeViewStates).toEqual(worktreeTreeState);
+        expect(healedWorktree.sourceControlViewStates).toEqual(worktreeSourceControlState);
         expect(healedWorktree.editorRemapOperationId).toBe('worktree-operation');
 
         const afterWorktreeRead = readStoredRootStates(database, created.session.id);
@@ -127,25 +145,36 @@ describe('CaxriDatabase Workbench Root editor state', () => {
             created.terminal!.id,
         ]);
         expect(afterWorktreeRead[worktree.id].extensionTreeViewStates).toEqual(worktreeTreeState);
+        expect(afterWorktreeRead[worktree.id].sourceControlViewStates).toEqual(
+            worktreeSourceControlState,
+        );
         expect(listPaneTerminalIds(afterWorktreeRead[owner.id].paneLayout)).toContain(orphan.id);
         expect(afterWorktreeRead[owner.id].extensionTreeViewStates).toEqual(ownerTreeState);
+        expect(afterWorktreeRead[owner.id].sourceControlViewStates).toEqual(
+            ownerSourceControlState,
+        );
 
         database.selectWorkbenchProject(created.session.id, owner.id);
         const healedOwner = database.getSessionState(created.session.id);
         expect(listPaneTerminalIds(healedOwner.paneLayout)).toEqual([created.terminal!.id]);
         expect(healedOwner.extensionTreeViewStates).toEqual(ownerTreeState);
+        expect(healedOwner.sourceControlViewStates).toEqual(ownerSourceControlState);
         expect(healedOwner.editorRemapOperationId).toBe('owner-operation');
         const afterOwnerRead = readStoredRootStates(database, created.session.id);
         expect(listPaneTerminalIds(afterOwnerRead[owner.id].paneLayout)).toEqual([
             created.terminal!.id,
         ]);
         expect(afterOwnerRead[worktree.id].extensionTreeViewStates).toEqual(worktreeTreeState);
+        expect(afterOwnerRead[worktree.id].sourceControlViewStates).toEqual(
+            worktreeSourceControlState,
+        );
         database.close();
 
         const reopened = new CaxriDatabase(databasePath);
         const persisted = reopened.getSessionState(created.session.id);
         expect(listPaneTerminalIds(persisted.paneLayout)).toEqual([created.terminal!.id]);
         expect(persisted.extensionTreeViewStates).toEqual(ownerTreeState);
+        expect(persisted.sourceControlViewStates).toEqual(ownerSourceControlState);
         reopened.close();
     });
 

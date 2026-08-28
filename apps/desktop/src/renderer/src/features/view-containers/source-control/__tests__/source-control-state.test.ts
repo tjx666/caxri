@@ -1,48 +1,63 @@
+import { MAX_SOURCE_CONTROL_VIEW_STATE_ENTRIES } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
-    defaultSourceControlViewNavigation,
-    sourceControlNavigationForScope,
+    createSourceControlViewNavigation,
+    serializeSourceControlViewNavigation,
     updateSourceControlViewNavigation,
 } from '../source-control-state';
 
-describe('Source Control scoped navigation', () => {
+describe('Source Control navigation state', () => {
     it('starts with generic empty disclosure and provider-mode state', () => {
-        expect(defaultSourceControlViewNavigation()).toEqual({
+        expect(createSourceControlViewNavigation()).toEqual({
             expandedDirectories: {},
             expandedGroups: {},
             expandedProviders: {},
         });
     });
 
-    it('retains provider-owned mode ids and disclosures independently per scope', () => {
-        const first = updateSourceControlViewNavigation(
-            {},
-            'session-a:project-a',
-            defaultSourceControlViewNavigation(),
-            {
-                expandedDirectories: { 'mode-a:provider-a:src': true },
-                expandedGroups: { 'provider-a:group-a': false },
-                expandedProviders: { 'provider-a': false },
-                modeId: 'mode-a',
-            },
-        );
-        const second = updateSourceControlViewNavigation(
-            first,
-            'session-b:project-b',
-            defaultSourceControlViewNavigation(),
-            { modeId: 'mode-b' },
-        );
-
-        expect(sourceControlNavigationForScope(second, 'session-a:project-a')).toMatchObject({
-            modeId: 'mode-a',
+    it('restores persisted navigation without mutating the Session snapshot', () => {
+        const persisted = {
+            expandedDirectories: { 'mode-a:provider-a:src': true },
             expandedGroups: { 'provider-a:group-a': false },
+            expandedProviders: { 'provider-a': false },
+            modeId: 'mode-a',
+        };
+        const restored = createSourceControlViewNavigation(persisted);
+        const updated = updateSourceControlViewNavigation(restored, {
+            expandedGroups: { ...restored.expandedGroups, 'provider-a:group-b': false },
         });
-        expect(sourceControlNavigationForScope(second, 'session-b:project-b').modeId).toBe(
-            'mode-b',
+
+        expect(updated).toMatchObject({
+            expandedGroups: {
+                'provider-a:group-a': false,
+                'provider-a:group-b': false,
+            },
+            modeId: 'mode-a',
+        });
+        expect(persisted.expandedGroups).toEqual({ 'provider-a:group-a': false });
+    });
+
+    it('bounds persisted disclosure entries while retaining the newest interactions', () => {
+        const expandedDirectories = Object.fromEntries(
+            Array.from({ length: MAX_SOURCE_CONTROL_VIEW_STATE_ENTRIES + 2 }, (_, index) => [
+                `directory-${index}`,
+                false,
+            ]),
         );
-        expect(sourceControlNavigationForScope(second, undefined)).toEqual(
-            defaultSourceControlViewNavigation(),
+        const serialized = serializeSourceControlViewNavigation({
+            expandedDirectories,
+            expandedGroups: {},
+            expandedProviders: {},
+        });
+
+        expect(Object.keys(serialized.expandedDirectories)).toHaveLength(
+            MAX_SOURCE_CONTROL_VIEW_STATE_ENTRIES,
+        );
+        expect(serialized.expandedDirectories).not.toHaveProperty('directory-0');
+        expect(serialized.expandedDirectories).toHaveProperty(
+            `directory-${MAX_SOURCE_CONTROL_VIEW_STATE_ENTRIES + 1}`,
+            false,
         );
     });
 });

@@ -4,6 +4,7 @@ import type {
     SourceControlAction,
     SourceControlActionEffect,
     SourceControlViewModel,
+    SourceControlViewState,
 } from '@caxri/protocol';
 import { useQuery } from '@tanstack/react-query';
 
@@ -19,10 +20,8 @@ import { useControlledView, useSourceControlClient } from '../../controlled-view
 import { subscribeViewEvents } from '../../view-event-bridge';
 import { controlledViewQueryKey } from '../../view-operation-client';
 import type { SourceControlViewNavigation } from '../source-control-state';
-import {
-    sourceControlNavigationForScope,
-    updateSourceControlViewNavigation,
-} from '../source-control-state';
+import type { SourceControlNavigationScope } from './use-source-control-navigation';
+import { useSourceControlNavigation } from './use-source-control-navigation';
 
 type SourceControlMode = SourceControlViewModel['modes'][number];
 
@@ -60,36 +59,25 @@ export type SourceControlController =
 /**
  * Owns generic provider-model fetching, scoped disclosure state, action effects, and focus sequencing.
  */
-export function useSourceControlController(): SourceControlController {
+export function useSourceControlController(
+    navigationScope?: SourceControlNavigationScope,
+    persistedNavigation?: SourceControlViewState,
+): SourceControlController {
     const { configurationDependencies, presentation, providerGeneration, viewId } =
         useControlledView();
     const client = useSourceControlClient();
     const session = useSelectedSession();
     const settings = useSettings();
     const activeResource = useActivePaneTab()?.resource;
-    const scope = session ? `${session.id}:${session.workbenchProjectId}` : undefined;
-    const [navigationByScope, setNavigationByScope] = useState<
-        Record<string, SourceControlViewNavigation>
-    >({});
+    const queryScope = session ? `${session.id}:${session.workbenchProjectId}` : undefined;
     const [refresh, setRefresh] = useState(0);
     const [flashedProviderId, setFlashedProviderId] = useState<string>();
     const reduceMotion = useShouldReduceMotion();
     const flashTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
     useEffect(() => () => clearTimeout(flashTimer.current), []);
-    const navigation = sourceControlNavigationForScope(navigationByScope, scope);
-    const updateNavigation = useCallback(
-        (patch: Partial<SourceControlViewNavigation>): void => {
-            if (!scope) return;
-            setNavigationByScope((current) =>
-                updateSourceControlViewNavigation(
-                    current,
-                    scope,
-                    sourceControlNavigationForScope(current, scope),
-                    patch,
-                ),
-            );
-        },
-        [scope],
+    const [navigation, updateNavigation] = useSourceControlNavigation(
+        navigationScope,
+        persistedNavigation,
     );
     const snapshotRequest = {
         refresh,
@@ -106,7 +94,7 @@ export function useSourceControlController(): SourceControlController {
             viewId,
             'source.snapshot',
             snapshotRequest,
-            scope,
+            queryScope,
             configRevision,
         ),
         queryFn: ({ signal }) => client.snapshot(snapshotRequest, signal),
