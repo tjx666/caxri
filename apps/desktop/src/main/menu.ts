@@ -109,7 +109,7 @@ export function buildAppMenuTemplate({
                 : commandAccelerator(keybindings, definition.id),
         /**
          * `event.triggeredByAccelerator` tells the Renderer whether this click came from the menu's keyboard
-         * accelerator (which must honour the editable-focus shortcut policy, DESIGN.md:121-123, the same way
+         * accelerator (which must honour the editable-focus shortcut policy, DESIGN.md Interaction rules, the same way
          * `useCommandShortcuts` does) or an actual mouse/touch click on the menu item (a deliberate user action that
          * must keep working even while a Terminal/editor has focus).
          */

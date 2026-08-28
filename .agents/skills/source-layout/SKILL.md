@@ -25,8 +25,8 @@ importable boundaries under `packages/*`:
 | Shared system primitives      | `packages/system/src/`        |
 | Browser-safe pure utilities   | `packages/utils/src/`         |
 
-Do not create an empty future application. The repository root owns no product `src/` tree.
-The executable source of truth for ownership is `scripts/architecture-boundaries.ts`.
+Do not create an empty future application. The repository root owns no product `src/` tree. The
+executable source of truth for ownership is `scripts/architecture-boundaries.ts`.
 `caxri/architecture-boundaries` rejects application-to-application source imports, package-private
 imports, and platform dependencies in browser-safe packages; `import-x/no-cycle` protects current
 workspaces. Renderer never imports Node.js, Electron, or native APIs. Playwright support stays in
@@ -43,8 +43,8 @@ workspaces. Renderer never imports Node.js, Electron, or native APIs. Playwright
 | Icons                                       | `apps/desktop/src/renderer/src/icons/`              |
 
 Do not put product UI in `components/ui/`. Do not invent a second hooks directory; `@/hooks` is
-`apps/desktop/src/renderer/src/hooks/`. Process Explorer UI stays under `features/process-explorer/` with its
-own entry.
+`apps/desktop/src/renderer/src/hooks/`. Process Explorer UI stays under `features/process-explorer/`
+with its own entry.
 
 A component file is kebab-case `.tsx`; its primary named export is the PascalCase mapping of the
 filename (`file-tree-panel.tsx` exports `FileTreePanel`). No default export. Extract state and
@@ -53,9 +53,9 @@ follows `DESIGN.md` token utilities only.
 
 ## 3. Shape a Renderer feature directory
 
-A feature directory under `apps/desktop/src/renderer/src/features/<feature>/` starts flat and earns a kind
-folder only when files of that kind accumulate. The `caxri/feature-directory-structure` ESLint
-rule enforces the thresholds and the no-coexistence contract.
+A feature directory under `apps/desktop/src/renderer/src/features/<feature>/` starts flat and earns
+a kind folder only when files of that kind accumulate. The `caxri/feature-directory-structure`
+ESLint rule enforces the thresholds and the no-coexistence contract.
 
 | Kind                  | Flat form (fewer than three) | At three or more                    |
 | --------------------- | ---------------------------- | ----------------------------------- |
@@ -66,14 +66,14 @@ rule enforces the thresholds and the no-coexistence contract.
 - The flat form and the folder never coexist. Once `__tests__/` exists, no colocated `*.test.ts`
   stays behind; once `hooks/` exists, every feature-local hook moves in; `utils.ts` and `utils/`
   are mutually exclusive. An existing directory below a threshold is not folded back.
-- `types.ts` / `constants.ts` exist only for contracts shared by several modules of the feature.
-  A type or constant owned by one module stays in that module.
+- `types.ts` / `constants.ts` exist only for contracts shared by several modules of the feature. A
+  type or constant owned by one module stays in that module.
 - A helper enters `utils` only when its semantics are feature-specific. Generic helpers still
   follow the shared ladder: `es-toolkit` first, then `@caxri/utils`; a hook used by a second
   feature moves to `@/hooks`.
-- When a feature grows a cohesive sub-domain, split by sub-domain (`secondary-sidebar/panels/git/`) before
-  piling onto kind folders: kind folders solve "too many files of one kind", sub-domains solve
-  "the feature itself is too big". Each sub-domain directory applies the same scale rules.
+- When a feature grows a cohesive sub-domain, split by sub-domain (`secondary-sidebar/panels/git/`)
+  before piling onto kind folders: kind folders solve "too many files of one kind", sub-domains
+  solve "the feature itself is too big". Each sub-domain directory applies the same scale rules.
 
 ## 4. Scale before creating a folder
 
@@ -85,8 +85,8 @@ a folder for a one- or two-file cluster.
 Locked protocol and CLI domains in `AGENTS.md` stay even when they have only two production
 modules. Do not add or remove one of those domains without updating `AGENTS.md` and
 `scripts/__tests__/workspace-contract.test.ts`. A new Server domain with three or more modules
-needs a barrel; `apps/server/src/domains/__tests__/structure.test.ts` rejects a missing one and rejects
-production imports that reach past another domain's root.
+needs a barrel; `apps/server/src/domains/__tests__/structure.test.ts` rejects a missing one and
+rejects production imports that reach past another domain's root.
 
 ## 5. Name files for the job
 
@@ -137,5 +137,5 @@ belong to `e2e-testing`.
 ## 7. Finish
 
 If a file is approaching 800 physical lines, split a cohesive module before the `max-lines` gate.
-Call the Skill tool with "quality-check" on the moved set. If the change adds or removes a locked domain name, update
-the contract test that owns that list in the same change.
+Call the Skill tool with "quality-check" on the moved set. If the change adds or removes a locked
+domain name, update the contract test that owns that list in the same change.

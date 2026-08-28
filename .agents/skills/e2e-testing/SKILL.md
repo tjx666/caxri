@@ -16,7 +16,8 @@ boundary:
 - A user-visible flow spanning process boundaries (Renderer → IPC → Main/Runtime → back into the
   UI), where every layer can pass its unit tests while the wiring between them is wrong.
 - Native desktop capability with no faithful mock: window lifecycle, native menus, focus, keyboard
-  shortcuts as wired, and a real PTY running real processes. Native dialogs are the exception below.
+  shortcuts as wired, and a real PTY running real processes. Native dialogs are the exception
+  below.
 - Persistence and recovery across a process restart — Session/layout/Terminal restore, Runtime
   crash and reconnect. The restart itself is the behavior under test.
 - A small set of critical-journey smokes (launch → Project → Session → Terminal/Agent) whose
@@ -25,8 +26,8 @@ boundary:
   difference, CSP, event ordering); a unit-level test would not have caught it and will not guard
   it.
 - Pure UI interaction contracts (drag, tooltips, keyboard navigation): `.tsx` components are never
-  unit-tested, so E2E is their only verification surface. Assert what the user can accomplish,
-  not pixels or styling.
+  unit-tested, so E2E is their only verification surface. Assert what the user can accomplish, not
+  pixels or styling.
 
 Everything else — pure computation, store state machines, invalidation predicates, protocol
 schemas — belongs to `unit-testing`. Before writing an E2E spec, ask whether the logic can be
@@ -42,15 +43,15 @@ extracted below the boundary and tested there; if yes, extract it instead.
    bun run --silent check <e2e-file> --e2e --e2e-grep '<test name>'
    ```
 
-3. Every spec imports `test` and `expect` from `e2e/support/fixtures.ts`. The automatic error gate observes
-   current and future Renderer pages, structured Main/Runtime errors, and attaches content-free logs
-   before temporary profiles disappear.
-4. Focused launches use hidden windows. Use `windowMode: 'visible'` only for native focus or pointer
-   behavior. Every launch acquires the repository-wide desktop lease through `e2e/support/helpers.ts`.
-   Visible native work must also follow the lease's
-   [human-focus boundary](../switch-worktree/SKILL.md#serialize-desktop-work): prepare the exact action
-   before choosing visible mode and launching, then stop the owned launch before diagnosing an
-   unexpected result.
+3. Every spec imports `test` and `expect` from `e2e/support/fixtures.ts`. The automatic error gate
+   observes current and future Renderer pages, structured Main/Runtime errors, and attaches
+   content-free logs before temporary profiles disappear.
+4. Focused launches use hidden windows. Use `windowMode: 'visible'` only for native focus or
+   pointer behavior. Every launch acquires the repository-wide desktop lease through
+   `e2e/support/helpers.ts`. Visible native work must also follow the lease's
+   [human-focus boundary](../switch-worktree/SKILL.md#serialize-desktop-work): prepare the exact
+   action before choosing visible mode and launching, then stop the owned launch before diagnosing
+   an unexpected result.
 5. Ordinary launches use blocked Agent discovery. Agent specs explicitly choose a shared fake mode
    or the manual Codex-only real smoke; never inherit host Agent state by accident.
 6. A deliberate error must consume one exact `allowE2EErrors(...)` tuple. Wildcards, message
@@ -64,9 +65,9 @@ extracted below the boundary and tested there; if yes, extract it instead.
 Use the launch helpers instead of the developer's real profile:
 
 - Native macOS dialogs are manual verification boundaries by default. Stub `dialog.showMessageBox`,
-  `dialog.showOpenDialog`, or `dialog.showSaveDialog` in Main and assert the resulting product state;
-  never trigger or drive system UI from an E2E spec. Only a current user request explicitly asking
-  the agent to verify a native dialog permits the guarded Acceptance exception.
+  `dialog.showOpenDialog`, or `dialog.showSaveDialog` in Main and assert the resulting product
+  state; never trigger or drive system UI from an E2E spec. Only a current user request explicitly
+  asking the agent to verify a native dialog permits the guarded Acceptance exception.
 - `CAXRI_E2E=1` enables unpackaged test-only boundaries.
 - `CAXRI_USER_DATA_DIR=<tmpdir>` isolates Electron user data.
 - `CAXRI_TEST_ROOT_PATH=<dir>` supplies one deterministic directory-picker root only when
@@ -78,21 +79,21 @@ Use the launch helpers instead of the developer's real profile:
   `PATH`, `HOME`, `CODEX_HOME`, or `CLAUDE_CONFIG_DIR` accidentally.
 
 The manual real-Agent smoke is Codex-only: `bun run test:e2e:real-agent`. It requires an
-authenticated Codex CLI, sends one bounded read-only natural-language prompt in a temporary Project,
-disables screenshots and traces, and never falls back to another provider.
+authenticated Codex CLI, sends one bounded read-only natural-language prompt in a temporary
+Project, disables screenshots and traces, and never falls back to another provider.
 
 ## Readiness and failure-isolation contracts
 
 - Use `createProjectSession` / `waitForCreatedSession` so dialog removal, selected Session,
   durable Session/Terminal state, visible Session card, and focused Terminal converge together.
-- A fake Agent publishes its ready marker only after raw mode and input capture are installed. Wait
-  for that marker before sending bytes; never use a sleep as readiness.
+- A fake Agent publishes its ready marker only after raw mode and input capture are installed.
+  Wait for that marker before sending bytes; never use a sleep as readiness.
 - For Terminal resizing, wait for repeated identical guest/Runtime grid observations and compare
   them with the rendered xterm grid. Extra intermediate `SIGWINCH` values are valid.
 - Treat only an expected transient filesystem `ENOENT` as pending. Propagate permission, malformed
   data, and other IO errors immediately.
-- An `expect.poll` callback must return a pending sentinel for an expected transient state instead of
-  throwing. Use `e2e/support/polling.ts` only when callback errors are explicitly classified as
+- An `expect.poll` callback must return a pending sentinel for an expected transient state instead
+  of throwing. Use `e2e/support/polling.ts` only when callback errors are explicitly classified as
   retryable; its timeout keeps the most recent callback error in the failure text.
 - Match Terminal text across rendered rows when long CI paths or narrow panes can wrap it. Do not
   assume a logical token belongs to one DOM row.
@@ -100,8 +101,8 @@ disables screenshots and traces, and never falls back to another provider.
   launch finalization and lease cleanup so one worker failure cannot poison later specs.
 - Preserve the first causal failure and its artifacts. Do not use retries to turn an original red
   result green or allow a lock/lease cascade to hide it.
-- CI keeps `maxFailures` for fast containment, then reruns only suppressed tests one at a time. The
-  final pool receipt must classify every planned spec as `pass`, `fail`, or `timeout`, retain
+- CI keeps `maxFailures` for fast containment, then reruns only suppressed tests one at a time.
+  The final pool receipt must classify every planned spec as `pass`, `fail`, or `timeout`, retain
   per-test artifacts, and group repeated failures by stable error identity before repair begins.
 
 ## CI-only parity
@@ -144,16 +145,15 @@ following controls when collecting a new comparison:
   pool orchestration with an ad-hoc command.
 - Workflow dispatches run deterministic CI-parity cases through `scripts/run-ci-parity.ts` and
   preserve the profile receipts defined by the authority document.
-- Follow the authority document's frozen sample count, dispatch order, non-green treatment, adoption
-  threshold, and stop condition. Do not extend a declared experiment until it becomes green or
-  replace a red sample outside its documented infrastructure-failure rule.
+- Follow the authority document's frozen sample count, dispatch order, non-green treatment,
+  adoption threshold, and stop condition. Do not extend a declared experiment until it becomes
+  green or replace a red sample outside its documented infrastructure-failure rule.
 
 ## Controlled PR retries
 
 For a new repair commit after a base run's `checks` passed and `e2e` failed, first run the complete
-platform-check command sequence from `.github/workflows/ci.yml` on the clean commit.
-Then amend only commit metadata with this immutable receipt, using the exact tree printed before the
-amend:
+platform-check command sequence from `.github/workflows/ci.yml` on the clean commit. Then amend
+only commit metadata with this immutable receipt, using the exact tree printed before the amend:
 
 ```text
 CI-Mode: e2e-only
@@ -169,8 +169,8 @@ always continues to the complete suite on the same macOS runner. For the same SH
 `gh run rerun <run-id> --failed` without adding trailers.
 
 Do not push one repair per observed assertion. Download the original failure artifacts, inspect the
-whole failed spec and its async/locator assumptions, finish the repair batch locally, then create one
-new CI head. When protected workflow, dependency, fixture, pool, or retry-policy files changed,
+whole failed spec and its async/locator assumptions, finish the repair batch locally, then create
+one new CI head. When protected workflow, dependency, fixture, pool, or retry-policy files changed,
 the shortcut intentionally falls back to full CI; treat that as a reason to converge locally before
 pushing, never as a reason to iterate through full runs.
 
@@ -192,6 +192,6 @@ Use a local full-suite substitution only inside an explicit Go run after a curre
 Actions job is verified to have failed before execution for an eligible external GitHub Actions
 infrastructure reason and the user separately authorizes the substitution. The Go ledger must
 record the exact frozen head, failure URL/job/detail, authorization, platform-check commands, and
-one `bun run test:e2e` result. A changed head invalidates the admission. Code/test failures, missing
-authorization, releases, and deployment are never eligible, and the Actions check remains
+one `bun run test:e2e` result. A changed head invalidates the admission. Code/test failures,
+missing authorization, releases, and deployment are never eligible, and the Actions check remains
 externally failed rather than being relabeled green.

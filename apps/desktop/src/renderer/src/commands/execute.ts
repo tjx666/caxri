@@ -310,13 +310,13 @@ export function executeCommand(
  * Entry point for shortcuts and the native menu. App-wide commands must not mutate workbench state behind a modal
  * dialog, which is why the guard lives here and not in {@link executeCommand}.
  *
- * This is also the single authority for the editable-focus shortcut policy (DESIGN.md:121-123) on the native menu path:
- * `useCommandShortcuts` already applies the same gate — using `event.target` — before ever calling `runCommand`, so a
- * keyboard shortcut typed while a Terminal or the editor has focus never reaches here. The native menu's accelerator,
- * however, is delivered by Electron independently of that DOM keydown listener and previously bypassed the policy
- * entirely (e.g. `Cmd+N` still created a Project while a Terminal was focused). `viaAccelerator` (set by the
- * Main-process menu from `event.triggeredByAccelerator`, see `main/index.ts`) lets this function re-apply the same
- * `isEditableEventTarget` + `allowInEditable` gate — using `document.activeElement` in place of a keydown
+ * This is also the single authority for the editable-focus shortcut policy (DESIGN.md Interaction rules) on the native
+ * menu path. `useCommandShortcuts` already applies the same gate — using `event.target` — before ever calling
+ * `runCommand`, so a keyboard shortcut typed while a Terminal or the editor has focus never reaches here. The native
+ * menu's accelerator, however, is delivered by Electron independently of that DOM keydown listener and previously
+ * bypassed the policy entirely (e.g. `Cmd+N` still created a Project while a Terminal was focused). `viaAccelerator`
+ * (set by the Main-process menu from `event.triggeredByAccelerator`, see `main/index.ts`) lets this function re-apply
+ * the same `isEditableEventTarget` + `allowInEditable` gate — using `document.activeElement` in place of a keydown
  * `event.target` — but only for that accelerator path. A menu item invoked by an actual mouse/touch click is a
  * deliberate user action and Electron cannot report focus state for it, so it is intentionally left ungated here; the
  * tradeoff is that a non-`allowInEditable` command remains reachable by clicking the native menu while a Terminal or

@@ -258,7 +258,7 @@ export default defineConfig(
         rules: {
             /**
              * The renderer must never reach Node.js, Electron, PTY, Git, or filesystem APIs directly; it may only use
-             * the typed `window.caxri` bridge exposed by preload. See AGENTS.md "Architecture boundaries".
+             * the typed `window.caxri` bridge exposed by preload. See AGENTS.md "Architecture guardrails".
              */
             'no-restricted-imports': [
                 'error',

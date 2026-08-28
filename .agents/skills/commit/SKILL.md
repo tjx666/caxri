@@ -6,13 +6,13 @@ description: Create focused Git commits with GitHub-recognized semantic types, s
 # Commit
 
 Turn the requested working-tree changes into reviewable commits without absorbing unrelated work.
-Explicit invocation authorizes the commits and the conditional push described below; it does not
+Explicit invocation authorizes the commits and the conditional push described below. It does not
 authorize force-pushing, creating a PR, or changing unrelated files.
 
 ## Inspect
 
-1. Read `git status --short --branch`, `git diff --stat`, `git diff`, and `git diff --cached` before
-   staging anything.
+1. Read `git status --short --branch`, `git diff --stat`, `git diff`, and `git diff --cached`
+   before staging anything.
 2. Identify the exact files and hunks belonging to the user's request. Preserve pre-existing or
    unrelated changes even when they share the worktree.
 3. Check whether the current branch already has an open PR:
@@ -25,7 +25,7 @@ authorize force-pushing, creating a PR, or changing unrelated files.
    push step.
 
 4. Identify any GitHub issue fully handled by the changes. Use the issue named in the request or
-   conversation and verify uncertain references with `gh issue view`; do not infer a closing issue
+   conversation and verify uncertain references with `gh issue view`. Do not infer a closing issue
    from a coincidental number.
 
 ## Plan commits
@@ -71,8 +71,8 @@ Choose the narrowest applicable type:
 Keep the summary concise, imperative, and without a trailing period. Use a body only when the
 reason, trade-off, or issue link is not clear from the summary.
 
-When a commit fully handles an issue, add a closing line to that commit message so GitHub closes the
-issue after the commit reaches the default branch:
+When a commit fully handles an issue, add a closing line to that commit message so GitHub closes
+the issue after the commit reaches the default branch:
 
 ```text
 fix: preserve terminal attachment state
@@ -88,9 +88,8 @@ fully handling it, use `Refs #123` instead of a closing keyword.
 
 Call the Skill tool with "quality-check", then Call the Skill tool with "unit-testing" or
 "e2e-testing" when that owning testing discipline applies to the changed files. Re-inspect the
-staged diff, then commit it. Repeat the stage, validate, and commit
-sequence for every planned commit. Never amend or rewrite existing commits unless the user
-explicitly requests it.
+staged diff, then commit it. Repeat the stage, validate, and commit sequence for every planned
+commit. Never amend or rewrite existing commits unless the user explicitly requests it.
 
 Afterward, verify:
 

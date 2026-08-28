@@ -335,7 +335,7 @@ describe('executeCommand', () => {
 });
 
 /**
- * Regression coverage for the DESIGN.md:121-123 editable-focus shortcut policy on the native menu path (see
+ * Regression coverage for the DESIGN.md Interaction rules editable-focus shortcut policy on the native menu path (see
  * `runCommand`'s JSDoc). `useCommandShortcuts` already covers the DOM keydown path by gating before it ever calls
  * `runCommand`; these tests cover the other caller — the native menu, whose accelerator bypasses that DOM listener
  * entirely.

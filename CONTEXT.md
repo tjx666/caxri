@@ -4,14 +4,14 @@ Caxri organizes development work around independently deployed Servers, the Clie
 them, and durable Projects, Sessions, Terminals, and Agent activity.
 
 This glossary defines the current language after the architecture cutover. `_Avoid_` constrains new
-design and code but does not rename frozen public compatibility identifiers such as `host.status`; those
-identifiers require a separate product and protocol change.
+design and code. It does not rename frozen public compatibility identifiers such as `host.status`;
+those identifiers need a separate product and protocol change.
 
 ## Execution environment
 
 **Server**:
-An independently deployable, single-tenant Caxri execution environment that owns authorized Projects,
-durable work state, and managed processes.
+An independently deployable, single-tenant Caxri execution environment that owns authorized
+Projects, durable work state, and managed processes.
 _Avoid_: Host, backend, Local Server, Remote Server
 
 **Client**:
@@ -19,8 +19,8 @@ A Desktop, CLI, Web, Mobile, or Agent Endpoint that connects to a Server under a
 _Avoid_: Frontend, UI owner
 
 **Session View**:
-One Client's presentation of a Session, including its pane layout, open resources, selection, and an
-optional Workbench Root override. It never owns the resources it presents.
+One Client's presentation of a Session, including its pane layout, open resources, selection, and
+an optional Workbench Root override. It never owns the resources it presents.
 _Avoid_: Session state, Desktop state
 
 ## Work
@@ -37,7 +37,8 @@ _Avoid_: Conversation, tab, Session View
 
 **Workbench Root**:
 The currently selected authorized Project whose Files, Editor, Search, and Git surfaces a Session
-operate on. A Session View may temporarily override it without changing the Session's owning Project.
+operates on. A Session View may temporarily override it without changing the Session's owning
+Project.
 _Avoid_: Session Project, Terminal root, Client root
 
 **Draft**:
