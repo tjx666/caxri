@@ -1,8 +1,8 @@
 import type { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { readdir, readFile } from 'node:fs/promises';
-import { extname, isAbsolute, join, resolve } from 'node:path';
+import { lstat, readdir, readFile, realpath } from 'node:fs/promises';
+import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 import { execFileAsync } from '@caxri/system';
 
@@ -10,6 +10,10 @@ const MINIMUM_VIDEO_DURATION_SECONDS = 3;
 const MINIMUM_VIDEO_FRAMES = 12;
 const MINIMUM_SAMPLED_FRAMES = 6;
 const MINIMUM_DISTINCT_SAMPLED_FRAMES = 3;
+const MAXIMUM_VIDEO_DURATION_SECONDS = 120;
+const MAXIMUM_SAMPLED_FRAMES = MAXIMUM_VIDEO_DURATION_SECONDS * 2;
+const FFPROBE_TIMEOUT_MS = 10_000;
+const FFMPEG_TIMEOUT_MS = 30_000;
 const VIDEO_EXTENSIONS = new Set(['.m4v', '.mov', '.mp4', '.webm']);
 const MEDIA_EXTENSIONS = new Set([
     ...VIDEO_EXTENSIONS,
@@ -48,6 +52,12 @@ interface VideoProbe {
     streams?: Array<{ avg_frame_rate?: string; nb_frames?: string }>;
 }
 
+interface MediaHashSource {
+    caseId: string;
+    hash: string;
+    roundName?: string;
+}
+
 export interface VideoEvidenceIntegrity {
     distinctSampledFrames: number;
     durationSeconds: number;
@@ -58,6 +68,7 @@ export interface VideoEvidenceIntegrity {
 const defaultRunner: MediaCommandRunner = async (command, arguments_) => {
     const { stdout } = await execFileAsync(command, arguments_, {
         maxBuffer: 32 * 1024 * 1024,
+        timeout: command === 'ffprobe' ? FFPROBE_TIMEOUT_MS : FFMPEG_TIMEOUT_MS,
     });
     return String(stdout);
 };
@@ -130,6 +141,11 @@ export async function validateVideoEvidence(
             `Video evidence ${filePath} must be at least ${MINIMUM_VIDEO_DURATION_SECONDS} seconds`,
         );
     }
+    if (durationSeconds > MAXIMUM_VIDEO_DURATION_SECONDS) {
+        throw new Error(
+            `Video evidence ${filePath} must be at most ${MAXIMUM_VIDEO_DURATION_SECONDS} seconds`,
+        );
+    }
 
     const stream = probe.streams?.[0];
     const explicitFrameCount = finitePositiveNumber(stream?.nb_frames);
@@ -150,6 +166,10 @@ export async function validateVideoEvidence(
         'fps=2,scale=32:18:flags=area,format=gray',
         '-map',
         '0:v:0',
+        '-t',
+        String(MAXIMUM_VIDEO_DURATION_SECONDS),
+        '-frames:v',
+        String(MAXIMUM_SAMPLED_FRAMES),
         '-f',
         'framemd5',
         '-',
@@ -187,13 +207,23 @@ function roundNumber(directoryName: string): number | undefined {
     return Number(match[1]);
 }
 
-function resolveMediaPath(directory: string, evidence: string): string {
+async function resolveMediaPath(directory: string, evidence: string): Promise<string> {
     if (isAbsolute(evidence)) throw new Error(`Evidence path must be relative: ${evidence}`);
     const normalized = evidence.replaceAll('\\', '/');
     if (!normalized.startsWith('assets/')) {
         throw new Error(`Evidence path must stay under assets/: ${evidence}`);
     }
-    return resolve(directory, normalized);
+    const [canonicalAssets, canonicalEvidence] = await Promise.all([
+        realpath(resolve(directory, 'assets')),
+        realpath(resolve(directory, normalized)),
+    ]);
+    const relativePath = relative(canonicalAssets, canonicalEvidence);
+    if (relativePath === '..' || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath)) {
+        throw new Error(`Evidence path must stay under assets/: ${evidence}`);
+    }
+    const metadata = await lstat(canonicalEvidence);
+    if (!metadata.isFile()) throw new Error(`Evidence path is not a file: ${evidence}`);
+    return canonicalEvidence;
 }
 
 function parsePreviousRoundCases(raw: string, roundName: string): PreviousRoundCase[] {
@@ -222,7 +252,7 @@ function parsePreviousRoundCases(raw: string, roundName: string): PreviousRoundC
 
 async function nonPassingPriorMediaHashes(
     directory: string,
-): Promise<Map<string, Array<{ hash: string; roundName: string }>>> {
+): Promise<Map<string, MediaHashSource>> {
     const currentRoundNumber = roundNumber(directory.split('/').at(-1) ?? '');
     if (currentRoundNumber === undefined) return new Map();
     const parent = resolve(directory, '..');
@@ -235,7 +265,7 @@ async function nonPassingPriorMediaHashes(
                 entry.number !== undefined && entry.number < currentRoundNumber,
         )
         .toSorted((left, right) => left.number - right.number);
-    const hashesByCase = new Map<string, Array<{ hash: string; roundName: string }>>();
+    const sourcesByHash = new Map<string, MediaHashSource>();
 
     for (const previousRound of previousRounds) {
         const previousDirectory = join(parent, previousRound.name);
@@ -248,32 +278,62 @@ async function nonPassingPriorMediaHashes(
                 for (const evidence of acceptanceCase.evidence) {
                     const path = evidencePath(evidence);
                     if (isMediaEvidence(path)) {
-                        const resolvedPath = resolveMediaPath(previousDirectory, path);
+                        // Sequential canonicalization keeps malformed history failures deterministic.
+                        // eslint-disable-next-line no-await-in-loop
+                        const resolvedPath = await resolveMediaPath(previousDirectory, path);
                         // Sequential hashing avoids reading several large recordings into memory at once.
                         // eslint-disable-next-line no-await-in-loop
                         const hash = await sha256(resolvedPath);
-                        const existing = hashesByCase.get(acceptanceCase.id) ?? [];
-                        existing.push({ hash, roundName: previousRound.name });
-                        hashesByCase.set(acceptanceCase.id, existing);
+                        sourcesByHash.set(hash, {
+                            caseId: acceptanceCase.id,
+                            hash,
+                            roundName: previousRound.name,
+                        });
                     }
                 }
             }
         }
     }
-    return hashesByCase;
+    return sourcesByHash;
+}
+
+async function currentNonPassingMediaHashes(
+    cases: AcceptanceMediaCase[],
+    directory: string,
+): Promise<Map<string, MediaHashSource>> {
+    const sourcesByHash = new Map<string, MediaHashSource>();
+    for (const acceptanceCase of cases) {
+        if (acceptanceCase.status !== 'pass') {
+            for (const evidence of acceptanceCase.evidence) {
+                const path = evidencePath(evidence);
+                if (isMediaEvidence(path)) {
+                    // Sequential canonicalization and hashing bound large-media filesystem pressure.
+                    // eslint-disable-next-line no-await-in-loop
+                    const resolvedPath = await resolveMediaPath(directory, path);
+                    // eslint-disable-next-line no-await-in-loop
+                    const hash = await sha256(resolvedPath);
+                    sourcesByHash.set(hash, { caseId: acceptanceCase.id, hash });
+                }
+            }
+        }
+    }
+    return sourcesByHash;
 }
 
 async function validateCurrentCaseMedia(input: {
     acceptanceCase: AcceptanceMediaCase;
+    currentNonPassingByHash: Map<string, MediaHashSource>;
     currentVideoOwner: Map<string, string>;
     directory: string;
-    priorHashesByCase: Map<string, Array<{ hash: string; roundName: string }>>;
+    priorNonPassingByHash: Map<string, MediaHashSource>;
     runner?: MediaCommandRunner;
 }): Promise<void> {
     for (const evidence of input.acceptanceCase.evidence) {
         const path = evidencePath(evidence);
         if (isMediaEvidence(path)) {
-            const resolvedPath = resolveMediaPath(input.directory, path);
+            // Sequential canonicalization keeps evidence failures in report order.
+            // eslint-disable-next-line no-await-in-loop
+            const resolvedPath = await resolveMediaPath(input.directory, path);
             if (isVideoEvidence(path)) {
                 // Sequential probing avoids running several ffmpeg decoders during report finalization.
                 // eslint-disable-next-line no-await-in-loop
@@ -283,12 +343,16 @@ async function validateCurrentCaseMedia(input: {
                 // Sequential hashing avoids reading several large recordings into memory at once.
                 // eslint-disable-next-line no-await-in-loop
                 const hash = await sha256(resolvedPath);
-                const reused = input.priorHashesByCase
-                    .get(input.acceptanceCase.id)
-                    ?.find((previous) => previous.hash === hash);
-                if (reused) {
+                const currentReused = input.currentNonPassingByHash.get(hash);
+                if (currentReused) {
                     throw new Error(
-                        `Case ${input.acceptanceCase.id} reuses media from non-passing ${reused.roundName}`,
+                        `Case ${input.acceptanceCase.id} reuses media from non-passing case ${currentReused.caseId} in the current round`,
+                    );
+                }
+                const priorReused = input.priorNonPassingByHash.get(hash);
+                if (priorReused) {
+                    throw new Error(
+                        `Case ${input.acceptanceCase.id} reuses media from ${priorReused.caseId} in non-passing ${priorReused.roundName}`,
                     );
                 }
                 if (isVideoEvidence(path)) {
@@ -316,7 +380,10 @@ export async function validateReportMediaEvidence(input: {
     runner?: MediaCommandRunner;
 }): Promise<void> {
     const planIds = new Set(input.plans.map(({ id }) => id));
-    const priorHashesByCase = await nonPassingPriorMediaHashes(input.directory);
+    const [currentNonPassingByHash, priorNonPassingByHash] = await Promise.all([
+        currentNonPassingMediaHashes(input.cases, input.directory),
+        nonPassingPriorMediaHashes(input.directory),
+    ]);
     const currentVideoOwner = new Map<string, string>();
 
     for (const acceptanceCase of input.cases) {
@@ -329,9 +396,10 @@ export async function validateReportMediaEvidence(input: {
         // eslint-disable-next-line no-await-in-loop
         await validateCurrentCaseMedia({
             acceptanceCase,
+            currentNonPassingByHash,
             currentVideoOwner,
             directory: input.directory,
-            priorHashesByCase,
+            priorNonPassingByHash,
             runner: input.runner,
         });
     }

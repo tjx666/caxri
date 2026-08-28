@@ -61,6 +61,12 @@ describe('Acceptance media integrity', () => {
         ).rejects.toThrow('at least 3 distinct sampled frames');
     });
 
+    it('rejects an excessively long clip before sampling it', async () => {
+        await expect(
+            validateVideoEvidence('/tmp/unbounded.mp4', runnerFor({ duration: 121 })),
+        ).rejects.toThrow('at most 120 seconds');
+    });
+
     it('accepts a bounded clip with enough frames and visible variation', async () => {
         await expect(
             validateVideoEvidence('/tmp/interaction.mp4', runnerFor()),
@@ -99,7 +105,102 @@ describe('Acceptance media integrity', () => {
                 plans: [{ id: 'interaction', requiredEvidence: ['video'] }],
                 runner: runnerFor(),
             }),
-        ).rejects.toThrow('reuses media from non-passing round-1');
+        ).rejects.toThrow('reuses media from interaction in non-passing round-1');
+    });
+
+    it('rejects blocked prior-round media copied under a different passing case id', async () => {
+        const root = await temporaryRoot();
+        const firstRound = join(root, 'round-1');
+        const secondRound = join(root, 'round-2');
+        await Promise.all([
+            mkdir(join(firstRound, 'assets'), { recursive: true }),
+            mkdir(join(secondRound, 'assets'), { recursive: true }),
+        ]);
+        await Promise.all([
+            writeFile(join(firstRound, 'assets/blocked.mp4'), 'same-media'),
+            writeFile(join(secondRound, 'assets/renamed.mp4'), 'same-media'),
+            writeFile(
+                join(firstRound, 'result.json'),
+                JSON.stringify({
+                    cases: [
+                        {
+                            evidence: ['assets/blocked.mp4'],
+                            id: 'blocked-case',
+                            status: 'blocked',
+                        },
+                    ],
+                }),
+            ),
+        ]);
+
+        await expect(
+            validateReportMediaEvidence({
+                cases: [{ evidence: ['assets/renamed.mp4'], id: 'passing-case', status: 'pass' }],
+                directory: secondRound,
+                plans: [{ id: 'passing-case', requiredEvidence: ['video'] }],
+                runner: runnerFor(),
+            }),
+        ).rejects.toThrow('reuses media from blocked-case in non-passing round-1');
+    });
+
+    it('rejects media reused from a non-passing case in the current round', async () => {
+        const root = await temporaryRoot();
+        const directory = join(root, 'round-1');
+        await mkdir(join(directory, 'assets'), { recursive: true });
+        await Promise.all([
+            writeFile(join(directory, 'assets/blocked.mp4'), 'same-media'),
+            writeFile(join(directory, 'assets/passing.mp4'), 'same-media'),
+        ]);
+
+        await expect(
+            validateReportMediaEvidence({
+                cases: [
+                    { evidence: ['assets/passing.mp4'], id: 'passing-case', status: 'pass' },
+                    { evidence: ['assets/blocked.mp4'], id: 'blocked-case', status: 'blocked' },
+                ],
+                directory,
+                plans: [
+                    { id: 'passing-case', requiredEvidence: ['video'] },
+                    { id: 'blocked-case', requiredEvidence: ['video'] },
+                ],
+                runner: runnerFor(),
+            }),
+        ).rejects.toThrow('reuses media from non-passing case blocked-case in the current round');
+    });
+
+    it('rejects prior-round media paths that escape the assets directory', async () => {
+        const root = await temporaryRoot();
+        const firstRound = join(root, 'round-1');
+        const secondRound = join(root, 'round-2');
+        await Promise.all([
+            mkdir(join(firstRound, 'assets'), { recursive: true }),
+            mkdir(join(secondRound, 'assets'), { recursive: true }),
+        ]);
+        await Promise.all([
+            writeFile(join(firstRound, 'outside.mp4'), 'outside-media'),
+            writeFile(join(secondRound, 'assets/current.mp4'), 'current-media'),
+            writeFile(
+                join(firstRound, 'result.json'),
+                JSON.stringify({
+                    cases: [
+                        {
+                            evidence: ['assets/../outside.mp4'],
+                            id: 'blocked-case',
+                            status: 'blocked',
+                        },
+                    ],
+                }),
+            ),
+        ]);
+
+        await expect(
+            validateReportMediaEvidence({
+                cases: [{ evidence: ['assets/current.mp4'], id: 'current', status: 'pass' }],
+                directory: secondRound,
+                plans: [{ id: 'current', requiredEvidence: ['video'] }],
+                runner: runnerFor(),
+            }),
+        ).rejects.toThrow('must stay under assets');
     });
 
     it('rejects identical video bytes attached to different passing cases', async () => {
