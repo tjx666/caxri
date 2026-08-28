@@ -151,6 +151,20 @@ export default defineConfig(
                     ignore: [/^__tests__$/],
                 },
             ],
+            /**
+             * Prettier never inserts blank lines between class members. Require a blank line on either side of a
+             * method; consecutive fields may stay packed, and TypeScript overload signatures stay adjacent.
+             */
+            '@stylistic/lines-between-class-members': [
+                'error',
+                {
+                    enforce: [
+                        { blankLine: 'always', prev: 'method', next: '*' },
+                        { blankLine: 'always', prev: '*', next: 'method' },
+                    ],
+                },
+                { exceptAfterOverload: true },
+            ],
         },
     },
     {

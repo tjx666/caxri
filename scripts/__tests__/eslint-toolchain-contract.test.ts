@@ -1,4 +1,5 @@
-import { resolve } from 'node:path';
+import { readdir, readFile } from 'node:fs/promises';
+import { join, matchesGlob, relative, resolve } from 'node:path';
 
 import { ESLint } from 'eslint';
 import { describe, expect, it } from 'vitest';
@@ -304,5 +305,50 @@ describe('shared ESLint preset toolchain contract', () => {
         const ruleIds = result.messages.map((message) => message.ruleId);
 
         expect(ruleIds).not.toContain('caxri/filename-export-mapping');
+    });
+
+    it('requires a blank line between class methods', async () => {
+        const result = await lint(
+            'scripts/fixtures/eslint/class-members-packed-methods-fixture.ts',
+        );
+        const ruleIds = result.messages.map((message) => message.ruleId);
+
+        expect(ruleIds).toContain('@stylistic/lines-between-class-members');
+    });
+
+    it('keeps packed fields and overload signatures without requiring a blank line', async () => {
+        const result = await lint(
+            'scripts/fixtures/eslint/class-members-spaced-methods-fixture.ts',
+        );
+        const ruleIds = result.messages.map((message) => message.ruleId);
+
+        expect(ruleIds).not.toContain('@stylistic/lines-between-class-members');
+    });
+
+    it('keeps class-member blank lines active on a representative source file', async () => {
+        const config = await effectiveConfigFor('apps/server/src/core/control-server.ts');
+
+        expect(config.rules?.['@stylistic/lines-between-class-members']?.[0]).toBe(2);
+    });
+
+    it('registers every ESLint fixture as a Knip entry', async () => {
+        // Fixtures are only reached as string paths, so Knip reports them as unused files unless they are listed in
+        // package.json `knip.workspaces["."].entry`. Missing that listing failed CI on the class-member spacing change.
+        const manifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')) as {
+            knip: { workspaces: { '.': { entry: string[] } } };
+        };
+        const knipEntries = manifest.knip.workspaces['.'].entry.filter((entry) =>
+            entry.startsWith('scripts/fixtures/eslint/'),
+        );
+        const fixtureRoot = join(root, 'scripts/fixtures/eslint');
+        const unregistered = (await readdir(fixtureRoot, { recursive: true, withFileTypes: true }))
+            .filter((entry) => entry.isFile())
+            .map((entry) =>
+                relative(root, join(entry.parentPath, entry.name)).replaceAll('\\', '/'),
+            )
+            .filter((file) => knipEntries.every((entry) => !matchesGlob(file, entry)))
+            .toSorted((left, right) => left.localeCompare(right));
+
+        expect(unregistered).toEqual([]);
     });
 });

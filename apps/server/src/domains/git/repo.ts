@@ -667,6 +667,7 @@ export class GitRepoService {
             );
         return repo;
     }
+
     /**
      * Reads full status and binds destructive consent to a fresh, authorized repository projection.
      */
@@ -714,6 +715,7 @@ export class GitRepoService {
             repository: repo,
         };
     }
+
     /**
      * Resolves the repository that owns one listed directory without crossing its Project root.
      */
