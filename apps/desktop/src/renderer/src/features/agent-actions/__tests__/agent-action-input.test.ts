@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     agentActionSubmitModes,
-    agentActionTerminalInput,
+    agentActionTerminalInputSteps,
     canExecuteAgentAction,
 } from '../agent-action-input';
 
@@ -21,11 +21,30 @@ describe('agent action input', () => {
     });
 
     it('inserts an invocation with a trailing space and no Return', () => {
-        expect(agentActionTerminalInput(action(), 'insert')).toBe('/review ');
+        expect(agentActionTerminalInputSteps('codex', action(), 'insert')).toEqual([
+            { data: '/review ' },
+        ]);
     });
 
-    it('sends exactly one Return only for run mode', () => {
-        expect(agentActionTerminalInput(action(), 'run')).toBe('/review\r');
+    it('runs commands with Return for both providers', () => {
+        expect(agentActionTerminalInputSteps('claude', action(), 'run')).toEqual([
+            { data: '/review\r' },
+        ]);
+        expect(agentActionTerminalInputSteps('codex', action(), 'run')).toEqual([
+            { data: '/review\r' },
+        ]);
+    });
+
+    it('lets Codex flush a skill invocation before confirming and submitting it', () => {
+        const skill = action({ invocation: '$review', kind: 'skill' });
+
+        expect(agentActionTerminalInputSteps('codex', skill, 'run')).toEqual([
+            { data: '$review' },
+            { data: '\t\n', delayBeforeMs: 150 },
+        ]);
+        expect(agentActionTerminalInputSteps('claude', skill, 'run')).toEqual([
+            { data: '$review\r' },
+        ]);
     });
 
     it('blocks immediate execution for actions with required arguments', () => {
