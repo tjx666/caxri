@@ -333,14 +333,13 @@ describe('Go state ledger', () => {
         transitionState(state, 'acceptance');
         recordAcceptance(state, {
             id: 'acc-unverified',
-            round: 1,
             status: 'pending',
             url: 'https://app.lobehub.com/acceptance/acc-unverified',
         });
 
         expect(() => validateState(state)).toThrow('no verified publication lineage');
         expect(() => transitionState(state, 'acceptance_handoff')).toThrow(
-            'no verified publication lineage',
+            'published pending Acceptance round',
         );
     });
 

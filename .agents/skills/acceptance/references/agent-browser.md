@@ -6,13 +6,16 @@ attach to a developer-owned app.
 
 ## Connect and prove the target
 
-Repeat `--cdp "$PORT"` on every command. Before interacting, confirm the selected
-page is the Caxri renderer:
+Create a unique session name for the round. Repeat `--session "$SESSION"
+--no-pin-tab --cdp "$PORT"` on every command. Electron's raw CDP endpoint does
+not implement the `Target.createTarget` operation used by `--pin-tab`.
+Before interacting, confirm the selected page is the Caxri renderer:
 
 ```bash
-agent-browser --cdp "$PORT" get url
-agent-browser --cdp "$PORT" get title
-agent-browser --cdp "$PORT" snapshot -i
+SESSION="acceptance-<issue>-<round>-<random>"
+agent-browser --session "$SESSION" --no-pin-tab --cdp "$PORT" get url
+agent-browser --session "$SESSION" --no-pin-tab --cdp "$PORT" get title
+agent-browser --session "$SESSION" --no-pin-tab --cdp "$PORT" snapshot -i
 ```
 
 The URL must resolve to Caxri's renderer output and must not use the
@@ -25,12 +28,12 @@ Use a fresh snapshot to obtain element references, then drive the smallest path
 that proves the Acceptance check:
 
 ```bash
-agent-browser --cdp "$PORT" snapshot -i
-agent-browser --cdp "$PORT" click @e1
-agent-browser --cdp "$PORT" fill @e2 "value"
-agent-browser --cdp "$PORT" press Enter
-agent-browser --cdp "$PORT" wait --text "Expected state"
-agent-browser --cdp "$PORT" snapshot -i
+agent-browser --session "$SESSION" --no-pin-tab --cdp "$PORT" snapshot -i
+agent-browser --session "$SESSION" --no-pin-tab --cdp "$PORT" click @e1
+agent-browser --session "$SESSION" --no-pin-tab --cdp "$PORT" fill @e2 "value"
+agent-browser --session "$SESSION" --no-pin-tab --cdp "$PORT" press Enter
+agent-browser --session "$SESSION" --no-pin-tab --cdp "$PORT" wait --text "Expected state"
+agent-browser --session "$SESSION" --no-pin-tab --cdp "$PORT" snapshot -i
 ```
 
 References become stale after navigation, renderer reload, or meaningful DOM
@@ -39,8 +42,8 @@ replacement. Snapshot again before the next interaction.
 Use semantic locators when they describe the user path more clearly:
 
 ```bash
-agent-browser --cdp "$PORT" find role button click --name "Add Project"
-agent-browser --cdp "$PORT" find placeholder "Search" type "query"
+agent-browser --session "$SESSION" --no-pin-tab --cdp "$PORT" find role button click --name "Add Project"
+agent-browser --session "$SESSION" --no-pin-tab --cdp "$PORT" find placeholder "Search" type "query"
 ```
 
 ## Inspect and capture
@@ -49,7 +52,7 @@ Use `eval --stdin` for structured renderer observations and stringify objects so
 the captured result is stable:
 
 ```bash
-agent-browser --cdp "$PORT" eval --stdin <<'EVALEOF'
+agent-browser --session "$SESSION" --no-pin-tab --cdp "$PORT" eval --stdin <<'EVALEOF'
 JSON.stringify(
   {
     title: document.title,
@@ -62,16 +65,22 @@ JSON.stringify(
 EVALEOF
 ```
 
-Capture settled Renderer state to an explicit path:
+Capture settled Renderer state through the owned-runtime helper and its explicit
+output option:
 
 ```bash
-agent-browser --cdp "$PORT" screenshot "$ARTIFACT_PATH"
+bun run .agents/skills/acceptance/scripts/capture-renderer.ts screenshot \
+  --output "$ARTIFACT_PATH"
 ```
 
-This direct screenshot command is valid only for a case with no fixture preflight. When the frozen
-plan declares `fixturePreflight: terminal`, first write the ready preflight receipt to the case's
-fixed `assets/<case-id>-fixture-preflight.json` path and include it in `cases[].evidence`.
-`report.ts finalize` rejects the screenshot verdict if that receipt is missing or blocked.
+Do not use raw `agent-browser screenshot` for Acceptance evidence: its positional
+arguments can interpret an output path as a selector. The helper also validates
+the owned runtime and exact Renderer target. This screenshot command is valid
+only for a case with no fixture preflight. When the frozen plan declares
+`fixturePreflight: terminal`, first write the ready preflight receipt to the
+case's fixed `assets/<case-id>-fixture-preflight.json` path and include it in
+`cases[].evidence`. `report.ts finalize` rejects the screenshot verdict if that
+receipt is missing or blocked.
 
 Capture a required `dom_snapshot` as a real `.html` artifact from the smallest
 semantic subtree that supports the observation. Choose a selector specific to

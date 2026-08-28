@@ -54,3 +54,44 @@ only hides the missing stop condition and varies across motion settings and mach
 **Works:** Wait until both `[data-slot="dialog-content"]` and `[data-slot="dialog-overlay"]` are absent, together with
 the target product state being present, before the next interaction. This mirrors the product's actual interaction
 boundary and avoids timing guesses.
+
+## Pinning a tab on Electron's raw CDP endpoint
+
+**Situation:** An Acceptance command connects `agent-browser` directly to the
+owned Electron CDP port.
+
+**Does not work:** Passing `--pin-tab`. The option calls `Target.createTarget`,
+which Electron's raw CDP endpoint does not support, so the command fails before
+it can inspect the existing Renderer.
+
+**Works:** Give the round a unique `--session`, pass `--no-pin-tab`, and repeat
+the owned `--cdp` port on every command. See the canonical
+[agent-browser workflow](../skills/acceptance/references/agent-browser.md).
+
+## Passing an Acceptance screenshot path positionally
+
+**Situation:** A settled screenshot must be written beneath the round's
+`assets/` directory.
+
+**Does not work:** Calling `agent-browser screenshot <path>`. The command's
+positional shape accepts both selector and path, so a single path can be parsed
+as a selector and leave no usable evidence.
+
+**Works:** Call `capture-renderer.ts screenshot --output <path>`. The explicit
+option removes the ambiguity and the helper verifies the owned Acceptance
+runtime and Renderer target. See the canonical
+[agent-browser workflow](../skills/acceptance/references/agent-browser.md).
+
+## Advancing an Acceptance round through the status command
+
+**Situation:** The Go ledger needs to record that desktop Acceptance is running
+or pending.
+
+**Does not work:** Adding `--round` to `state.ts acceptance`. A round number is
+publication lineage, not ordinary status, and advancing it early makes the
+ledger disagree with the immutable remote history.
+
+**Works:** Record status without a round. Let `state.ts acceptance-publish`
+advance the round only after exact remote readback; reserve
+`acceptance-reconcile-round` for an explicitly documented ledger repair. See the
+canonical [Go Acceptance loop](../skills/go/references/acceptance-loop.md).

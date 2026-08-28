@@ -152,7 +152,7 @@ function measured(options: Options, key: string): number | 'unavailable' {
 
 const COMMAND_USAGE: Record<string, string> = {
     'acceptance':
-        'acceptance --state PATH [--status STATUS] [--id ID] [--url URL] [--round N] [--accepted-head-sha SHA] [--waived-head-sha SHA --waiver-reason TEXT]',
+        'acceptance --state PATH [--status STATUS] [--id ID] [--url URL] [--accepted-head-sha SHA] [--waived-head-sha SHA --waiver-reason TEXT]',
     'acceptance-orphan':
         'acceptance-orphan --state PATH --acceptance-id ID --reason TEXT [--verify-run-id ID]',
     'acceptance-reconcile-round': 'acceptance-reconcile-round --state PATH --round N --reason TEXT',
@@ -657,11 +657,15 @@ export async function runStateCli(argv: string[]): Promise<void> {
                 break;
             }
             case 'acceptance': {
+                if (options.round !== undefined) {
+                    throw new Error(
+                        'state.ts acceptance cannot set --round; acceptance-publish owns round advancement',
+                    );
+                }
                 const status = one(options, 'status');
                 recordAcceptance(state, {
                     acceptedHeadSha: one(options, 'accepted-head-sha'),
                     id: one(options, 'id'),
-                    round: integer(options, 'round'),
                     status: status ? acceptanceStatusSchema.parse(status) : undefined,
                     url: one(options, 'url'),
                     waivedHeadSha: one(options, 'waived-head-sha'),

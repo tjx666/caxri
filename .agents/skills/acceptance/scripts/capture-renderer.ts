@@ -98,7 +98,11 @@ export function parseCaptureOptions(arguments_: string[]): CaptureOptions | 'hel
     for (let index = 1; index < arguments_.length; index += 2) {
         // `index < arguments_.length` (loop condition) guarantees `option` is in bounds.
         const option = arguments_[index];
-        if (!option.startsWith('--')) throw new Error(`Unexpected argument: ${option}`);
+        if (!option.startsWith('--')) {
+            const guidance =
+                command === 'screenshot' ? '; pass the screenshot path with --output <file>' : '';
+            throw new Error(`Unexpected argument: ${option}${guidance}`);
+        }
         if (!allowedOptions.has(option)) throw new Error(`Unknown option: ${option}`);
         values.set(option, requiredValue(arguments_, index, option));
     }
@@ -118,6 +122,9 @@ export function parseCaptureOptions(arguments_: string[]): CaptureOptions | 'hel
     if (command === 'screenshot') {
         const output = values.get('--output');
         if (!output) throw new Error('--output is required');
+        if (!output.toLowerCase().endsWith('.png')) {
+            throw new Error('--output must use a .png extension');
+        }
         return { command, output: resolve(output), port, urlContains };
     }
 
@@ -287,6 +294,17 @@ class CdpClient {
     }
 }
 
+interface CaptureClient {
+    close(): void;
+    request<T>(
+        method: string,
+        parameters?: Record<string, unknown>,
+        timeoutMs?: number,
+    ): Promise<T>;
+}
+
+type CaptureConnector = (port: number, urlContains?: string) => Promise<CaptureClient>;
+
 async function connect(port: number, urlContains?: string): Promise<CdpClient> {
     const response = await fetch(`http://127.0.0.1:${port}/json/list`, {
         signal: AbortSignal.timeout(CDP_TIMEOUT_MS),
@@ -297,7 +315,11 @@ async function connect(port: number, urlContains?: string): Promise<CdpClient> {
     return CdpClient.connect(target.webSocketDebuggerUrl);
 }
 
-async function captureFrames(options: FrameOptions, port: number): Promise<void> {
+export async function captureFrames(
+    options: FrameOptions,
+    port: number,
+    connectClient: CaptureConnector = connect,
+): Promise<void> {
     await requireCapturePreflight(options.fixturePreflight);
     await mkdir(options.outDir, { recursive: true });
     const existingFrames = (await readdir(options.outDir)).filter((name) =>
@@ -307,10 +329,9 @@ async function captureFrames(options: FrameOptions, port: number): Promise<void>
         throw new Error(`Frame directory already contains captures: ${options.outDir}`);
     }
 
-    const client = await connect(port, options.urlContains);
+    const client = await connectClient(port, options.urlContains);
     try {
         await client.request('Page.enable');
-        await client.request('Page.bringToFront');
         const startedAt = Date.now();
         // Frames are captured one at a time over a single CDP connection and paced by
         // `intervalMs`; each iteration must await the previous capture and its pacing delay
@@ -372,11 +393,14 @@ async function captureDom(options: DomOptions, port: number): Promise<void> {
     console.log(`Captured Renderer DOM snapshot at ${options.output}`);
 }
 
-async function captureScreenshot(options: ScreenshotOptions, port: number): Promise<void> {
-    const client = await connect(port, options.urlContains);
+export async function captureScreenshot(
+    options: ScreenshotOptions,
+    port: number,
+    connectClient: CaptureConnector = connect,
+): Promise<void> {
+    const client = await connectClient(port, options.urlContains);
     try {
         await client.request('Page.enable');
-        await client.request('Page.bringToFront');
         const result = await client.request<{ data: string }>('Page.captureScreenshot', {
             captureBeyondViewport: false,
             format: 'png',
