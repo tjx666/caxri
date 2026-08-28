@@ -577,6 +577,7 @@ const projectStatusDeploymentSchema = z.object({
     hostname: z.string(),
     state: projectStatusStateSchema,
     url: z.url(),
+    inspectorUrl: z.url().optional(),
     createdAt: z.number().optional(),
 });
 

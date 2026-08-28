@@ -357,10 +357,11 @@ describe('ProjectStatusService', () => {
                 return Promise.resolve(
                     JSON.stringify([
                         {
+                            created: 1_700_000_000_000,
                             name: 'project',
                             readyState: 'READY',
                             target: environment,
-                            url: `${environment}.vercel.app`,
+                            url: `project-${environment}-lobehub.vercel.app`,
                         },
                     ]),
                 );
@@ -430,8 +431,15 @@ describe('ProjectStatusService', () => {
             errors: [],
         });
         expect(repo.deployments?.branchDeployments[0]).toMatchObject({ state: 'pending' });
-        expect(repo.deployments?.production).toMatchObject({ environment: 'production' });
-        expect(repo.deployments?.preview).toMatchObject({ environment: 'preview' });
+        expect(repo.deployments?.production).toMatchObject({
+            environment: 'production',
+            createdAt: 1_700_000_000_000,
+            inspectorUrl: 'https://vercel.com/lobehub/project/production',
+        });
+        expect(repo.deployments?.preview).toMatchObject({
+            environment: 'preview',
+            inspectorUrl: 'https://vercel.com/lobehub/project/preview',
+        });
         expect(runner.mock.calls.filter(([command]) => command === 'gh')).toHaveLength(1);
         expect(runner.mock.calls.find(([command]) => command === 'linear')?.[1]).toContain(
             'id=LOBE-42',

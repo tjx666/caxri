@@ -134,6 +134,28 @@ export interface Command {
     arguments?: readonly unknown[];
 }
 
+export type TreeItemTooltipTone = 'neutral' | 'success' | 'warning' | 'danger';
+
+export interface TreeItemTooltipRow {
+    label: string;
+    value: string;
+    /**
+     * HTTP(S) destination opened through Caxri's trusted-origin policy.
+     */
+    url?: string;
+}
+
+/**
+ * Bounded interactive content for a TreeItem hover card. Text is rendered literally and URLs are validated by the
+ * Extension Host before reaching the Renderer, so extensions cannot inject HTML, scripts, or command links.
+ */
+export interface TreeItemRichTooltip {
+    kind: 'rich';
+    title: string;
+    badge?: { label: string; tone: TreeItemTooltipTone };
+    rows: readonly TreeItemTooltipRow[];
+}
+
 export class TreeItem {
     id?: string;
     /**
@@ -142,7 +164,7 @@ export class TreeItem {
      */
     variant?: TreeItemVariant;
     description?: string;
-    tooltip?: string;
+    tooltip?: string | TreeItemRichTooltip;
     iconPath?: ThemeIcon;
     command?: Command;
     accessibilityInformation?: { label: string };
@@ -190,6 +212,7 @@ export interface ProjectStatusDeployment {
     hostname: string;
     state: ProjectStatusState;
     url: string;
+    inspectorUrl?: string;
     createdAt?: number;
 }
 
