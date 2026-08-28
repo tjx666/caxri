@@ -74,6 +74,17 @@ async function defaultInitialize(
     return capture('bun', arguments_, worktreePath);
 }
 
+/**
+ * State initialization imports `@caxri/utils` through its built runtime export. A fresh worktree installs dependencies
+ * but has no ignored `packages/utils/dist`, so build that owning package before loading the state CLI.
+ */
+async function prepareStateRuntime(
+    worktreePath: string,
+    run: StartDependencies['capture'],
+): Promise<void> {
+    await run('bun', ['run', '--cwd', 'packages/utils', 'build'], worktreePath);
+}
+
 const defaultDependencies: StartDependencies = {
     capture,
     create: async (branch, baseSha, mainCheckoutPath) =>
@@ -112,6 +123,9 @@ export async function startGoRun(
     if (createdHeadSha !== baseSha || createdBranch !== input.branch) {
         throw new Error('Go worktree must start on the requested branch at the pinned origin/main');
     }
+    await prepareStateRuntime(created.path, (command, arguments_, path) =>
+        dependencies.capture(command, arguments_, path),
+    );
     const statePath = await dependencies.initialize(created.path, input, {
         baseSha,
         mainCheckoutPath,
