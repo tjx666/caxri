@@ -1,6 +1,6 @@
 import type { EditorNavigationTarget } from '@caxri/protocol';
 import { errorMessage } from '@caxri/protocol';
-import type { Terminal } from '@xterm/xterm';
+import type { ITheme, Terminal } from '@xterm/xterm';
 
 import { caxri } from '../../lib/caxri';
 import { openExternalUrl } from '../../lib/external-link';
@@ -43,6 +43,15 @@ export const emptySearchResults: TerminalSearchResults = { resultCount: 0, resul
  */
 export function opaqueSearchColor(color: string): string {
     return color.slice(0, 7);
+}
+
+/**
+ * Xterm creates an overview-ruler canvas whenever the custom scrollbar has a width and paints its left border with the
+ * Terminal foreground color even when no overview markers exist. Keep the canvas available for future markers while
+ * hiding only that otherwise permanent white hairline.
+ */
+export function xtermThemeWithoutOverviewRulerBorder(theme: ITheme | undefined): ITheme {
+    return { ...theme, overviewRulerBorder: 'transparent' };
 }
 
 /**
