@@ -15,6 +15,7 @@ import { useToastStore } from '../../../stores/toasts';
 import { useWorkbenchStore } from '../../../stores/workbench';
 import {
     didExecuteViewCatalogCommand,
+    dispatchExtensionViewAction,
     executeEditableViewCatalogShortcut,
     executeViewCatalogShortcut,
     getCachedViewCatalogCommandAllowedInEditable,
@@ -257,6 +258,28 @@ describe('didExecuteViewCatalogCommand', () => {
         });
     });
 
+    it('reveals a cached container shortcut before an invalidated catalog reload settles', async () => {
+        const catalogRequest = Promise.withResolvers<unknown>();
+        queryClient.setQueryData(caxriQueryKey('viewContainers.catalog', {}), catalog());
+        await queryClient.invalidateQueries({
+            queryKey: caxriQueryKey('viewContainers.catalog', {}),
+            refetchType: 'none',
+        });
+        mocks.request.mockImplementation((method) =>
+            method === 'viewContainers.catalog' ? catalogRequest.promise : Promise.resolve({}),
+        );
+
+        const dispatch = executeViewCatalogShortcut('viewContainers.show.publisher.fixture');
+        const selectedImmediately =
+            useWorkbenchStore.getState().bootstrap?.sessionStates[0]
+                ?.desiredSecondarySidebarViewContainerId;
+        catalogRequest.resolve(catalog());
+        await dispatch;
+
+        expect(selectedImmediately).toBe('publisher.fixture');
+        expect(mocks.request).not.toHaveBeenCalledWith('viewContainers.catalog', {});
+    });
+
     it('reports a shortcut whose command is absent from the current catalog', async () => {
         mocks.request.mockResolvedValueOnce(catalog());
 
@@ -268,5 +291,24 @@ describe('didExecuteViewCatalogCommand', () => {
                 message: 'Unknown command: publisher.fixture.unknown',
             }),
         ]);
+    });
+});
+
+describe('dispatchExtensionViewAction', () => {
+    it('awaits one extension command dispatch for an in-place action', async () => {
+        const request = Promise.withResolvers<unknown>();
+        mocks.request.mockReturnValueOnce(request.promise);
+        const dispatch = dispatchExtensionViewAction(
+            'publisher.fixture.refresh',
+            'Refresh Fixture',
+        );
+
+        expect(mocks.request).toHaveBeenCalledTimes(1);
+        expect(mocks.request).toHaveBeenCalledWith('viewContainers.executeCommand', {
+            commandId: 'publisher.fixture.refresh',
+            arguments: [],
+        });
+        request.resolve({ executed: true });
+        await expect(dispatch).resolves.toBe('executed');
     });
 });

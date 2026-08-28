@@ -63,8 +63,7 @@ export async function createDomainServices(
     } = await createRootServices(dependencies);
     workbenchRoots.setRootChangedHandler((sessionId) => {
         if (selectedSessionId() === sessionId)
-            // `setRootChangedHandler` takes a synchronous callback, so this cannot become `await`.
-            // eslint-disable-next-line unicorn/prefer-await -- sync callback signature; see comment above
+            // eslint-disable-next-line unicorn/prefer-await -- synchronous callback cannot await
             files.refreshWatchSession(sessionId).catch((error: unknown) =>
                 logger.write('error', logEventCatalog.files.refreshWatchSessionFailed, {
                     fields: { sessionId, error: errorMessage(error, 'unknown') },
@@ -512,6 +511,8 @@ export async function createDomainServices(
         'external.open': () => mainOwned('external.open'),
         'argv.get': () => mainOwned('argv.get'),
         'argv.update': () => mainOwned('argv.update'),
+        'gpu.restartInSafeMode': () => mainOwned('gpu.restartInSafeMode'),
+        'gpu.testInjectContextLoss': () => mainOwned('gpu.testInjectContextLoss'),
         'processExplorer.open': () => mainOwned('processExplorer.open'),
         'dialog.selectDirectory': () => mainOwned('dialog.selectDirectory'),
         ...createWorkbenchRootHandlers(workbenchRoots, mainOwned, (endpoint) =>

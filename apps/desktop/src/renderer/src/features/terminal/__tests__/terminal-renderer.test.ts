@@ -102,6 +102,38 @@ describe('TerminalRendererController', () => {
         });
     });
 
+    it('rebuilds every enabled WebGL Terminal into DOM after a GPU process recovery request', () => {
+        const harness = createHarness();
+        harness.controller.setPreference('on');
+
+        const recovery = harness.controller.recoverFromGpuProcessLoss();
+
+        expect(recovery).toBe('dom-restored');
+        expect(harness.addon.dispose).toHaveBeenCalledTimes(1);
+        expect(harness.redraw).toHaveBeenCalledTimes(1);
+        expect(harness.statuses.at(-1)).toMatchObject({
+            mode: 'dom',
+            reason: 'context-loss',
+            trigger: 'gpu-process-recovery',
+        });
+    });
+
+    it('redraws an already-DOM Terminal without loading WebGL during global recovery', () => {
+        const harness = createHarness();
+        harness.controller.setPreference('off');
+
+        const recovery = harness.controller.recoverFromGpuProcessLoss();
+
+        expect(recovery).toBe('already-dom');
+        expect(harness.host.loadAddon).not.toHaveBeenCalled();
+        expect(harness.redraw).toHaveBeenCalledTimes(1);
+        expect(harness.statuses.at(-1)).toMatchObject({
+            mode: 'dom',
+            reason: 'disabled',
+            trigger: 'gpu-process-recovery',
+        });
+    });
+
     it('clears the texture atlas and redraws after the window becomes visible', () => {
         const harness = createHarness();
         harness.controller.setPreference('auto');

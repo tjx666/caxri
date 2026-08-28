@@ -1,4 +1,4 @@
-# Agent Actions
+# Agent Commands & Skills
 
 Caxri exposes skills and slash commands through one provider-neutral picker. `Command+Shift+A`
 opens it for the active running Agent Terminal; Shell, stopped, and missing Terminals cannot open
@@ -8,14 +8,16 @@ selection cannot drift to another Terminal.
 ## Interaction
 
 - Search matches the exact invocation, its prefix-free name, and its description.
-- `Enter` appends `<invocation>` to the existing Terminal draft without submitting it.
-- `Command+Enter` appends `<invocation>\r` for an argument-free action. Required-argument actions
-  must be inserted first and completed in the Terminal.
+- `Enter` and mouse selection append `<invocation>\r` to run an argument-free action immediately.
+  Required-argument actions remain open with a prompt to insert and complete them first.
+- `Command+Enter` appends `<invocation>` without submitting it, then returns focus to the Terminal
+  so the user can add arguments.
 - Both paths perform one structured `terminal.input` write. Caxri never reads, clears, or replaces
   the current draft.
 - Selection or `Escape` returns keyboard focus to the captured Terminal.
-- `Manage in Settings…` opens the matching provider's Agent Actions editor. Users can hide shipped
-  or discovered items and add an exact `/command` or `$skill` invocation with an optional label.
+- `Manage in Settings…` opens the matching provider's Agent Commands & Skills editor. Users can
+  hide shipped or discovered items and add an exact `/command` or `$skill` invocation with an
+  optional label.
 
 ## Sources and precedence
 

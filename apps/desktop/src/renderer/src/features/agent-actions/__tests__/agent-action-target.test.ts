@@ -1,0 +1,46 @@
+import { describe, expect, it } from 'vitest';
+
+import { describeAgentActionTarget, resolveAgentActionTargetTitle } from '../agent-action-target';
+
+describe('resolveAgentActionTargetTitle', () => {
+    it('collapses identical Session and Terminal titles into one target title', () => {
+        expect(resolveAgentActionTargetTitle('Investigate startup', 'Investigate startup')).toEqual(
+            {
+                kind: 'shared',
+                title: 'Investigate startup',
+            },
+        );
+    });
+
+    it('keeps distinct titles labeled by their hierarchy', () => {
+        expect(resolveAgentActionTargetTitle('Release planning', 'Codex')).toEqual({
+            kind: 'distinct',
+            sessionTitle: 'Release planning',
+            terminalTitle: 'Codex',
+        });
+    });
+
+    it('provides stable fallbacks for missing titles', () => {
+        expect(resolveAgentActionTargetTitle(' ', undefined)).toEqual({
+            kind: 'distinct',
+            sessionTitle: 'Session',
+            terminalTitle: 'Terminal',
+        });
+    });
+
+    it('describes shared and distinct targets for assistive technology', () => {
+        expect(
+            describeAgentActionTarget('Codex', {
+                kind: 'shared',
+                title: 'Investigate startup',
+            }),
+        ).toBe('Target: Codex; Investigate startup');
+        expect(
+            describeAgentActionTarget('Codex', {
+                kind: 'distinct',
+                sessionTitle: 'Release planning',
+                terminalTitle: 'Codex',
+            }),
+        ).toBe('Target: Codex; Session: Release planning; Terminal: Codex');
+    });
+});

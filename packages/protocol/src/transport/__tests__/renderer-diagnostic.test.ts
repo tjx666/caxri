@@ -12,6 +12,10 @@ const validDiagnostic = {
     preference: 'auto',
     contextLossCount: 1,
     redrawCount: 1,
+    recoveryResult: 'dom-restored',
+    correlationId: '75f635fb-b53f-44cf-a99d-a731f97455d8',
+    receivedBytes: 128,
+    droppedBytes: 0,
     paneActive: true,
     terminalProcessRunning: true,
     agentTerminal: true,
@@ -28,6 +32,14 @@ describe('Renderer diagnostic contract', () => {
     it('rejects arbitrary fields and unbounded identifiers', () => {
         expect(
             rendererDiagnosticSchema.safeParse({ ...validDiagnostic, terminalOutput: 'secret' })
+                .success,
+        ).toBe(false);
+        expect(
+            rendererDiagnosticSchema.safeParse({ ...validDiagnostic, path: '/private/project' })
+                .success,
+        ).toBe(false);
+        expect(
+            rendererDiagnosticSchema.safeParse({ ...validDiagnostic, environment: { TOKEN: 'x' } })
                 .success,
         ).toBe(false);
         expect(

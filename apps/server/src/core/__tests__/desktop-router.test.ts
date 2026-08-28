@@ -133,7 +133,7 @@ describe('Host Desktop router', () => {
         });
         await router.open('reveal', undefined, {
             launchIfNeeded: false,
-            location: { line: 12, column: 4 },
+            location: { mode: 'line', startLine: 12, endLine: 14 },
             path: authorized.path,
             sessionId: session.id,
         });
@@ -144,7 +144,7 @@ describe('Host Desktop router', () => {
             kind: 'file',
             sessionId: session.id,
             path: authorized.path,
-            location: { line: 12, column: 4 },
+            location: { mode: 'line', startLine: 12, endLine: 14 },
         });
         await expect(router.consumeTarget(operation.targetId, 4)).rejects.toMatchObject({
             code: 'NOT_FOUND',

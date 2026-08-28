@@ -293,6 +293,7 @@ export async function buildViewCatalog(options: {
                 commands.push({
                     id: commandId,
                     title: `Show ${contribution.title}`,
+                    allowInEditable: true,
                     source: { kind: 'extension', extensionId: extension.extensionId },
                     lifecycle,
                 });

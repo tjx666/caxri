@@ -49,6 +49,9 @@ describe('filterSettingsRows', () => {
         expect(filterSettingsRows(settingsRows, 'codex timeout').map((r) => r.id)).toEqual([
             'agents.codex.recovery',
         ]);
+        expect(
+            filterSettingsRows(settingsRows, 'Agent Commands & Skills').map((r) => r.id),
+        ).toEqual(['agents.claude.actions', 'agents.codex.actions']);
     });
 });
 

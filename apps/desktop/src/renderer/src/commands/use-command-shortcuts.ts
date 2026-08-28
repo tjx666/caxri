@@ -23,16 +23,40 @@ import { getRegisteredCommand } from './registry';
 
 function sessionMruShortcutInvocation(event: KeyboardEvent): SessionMruShortcutInvocation {
     return {
+        direction: event.shiftKey ? -1 : 1,
         heldModifiers: [
             event.altKey && 'Alt',
             event.ctrlKey && 'Control',
             event.metaKey && 'Meta',
-            event.shiftKey && 'Shift',
         ].filter((modifier): modifier is SessionMruShortcutInvocation['heldModifiers'][number] =>
             Boolean(modifier),
         ),
         triggerCode: event.code,
     };
+}
+
+/**
+ * Shift reverses Session MRU instead of defining a second configurable binding. On a US macOS layout it also changes
+ * the Backquote key's printable value to `~`, so an exact lookup cannot find the configured Command+Backquote chord.
+ * Only the MRU command may fall back to the same chord without Shift; every other shifted chord keeps exact first-match
+ * semantics.
+ */
+export function resolveKeydownBinding(
+    shortcutMap: ReadonlyMap<string, readonly Keybinding[]>,
+    event: KeyboardEvent,
+    context: { terminalFocus: boolean },
+): Keybinding | undefined {
+    const exact = resolveShortcutBinding(shortcutMap, keyboardEventShortcut(event), context);
+    if (exact || !event.shiftKey) return exact;
+    const unshifted = resolveShortcutBinding(
+        shortcutMap,
+        keyboardEventShortcut(event, {
+            mainKey: event.code === 'Backquote' ? '`' : undefined,
+            omitShift: true,
+        }),
+        context,
+    );
+    return unshifted?.command === 'session.switchMru' ? unshifted : undefined;
 }
 
 /**
@@ -61,7 +85,7 @@ export function useCommandShortcuts(): void {
                 cachedKeybindings = bootstrap.keybindings;
                 shortcutMap = buildShortcutMap(cachedKeybindings);
             }
-            const binding = resolveShortcutBinding(shortcutMap, keyboardEventShortcut(event), {
+            const binding = resolveKeydownBinding(shortcutMap, event, {
                 terminalFocus: isTerminalEventTarget(event.target),
             });
             if (!binding) return;

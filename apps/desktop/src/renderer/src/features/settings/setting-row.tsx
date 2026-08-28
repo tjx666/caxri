@@ -406,6 +406,22 @@ function rowControl(properties: SettingRowProperties): {
                     />
                 ),
             };
+        case 'hardware-acceleration':
+            return {
+                labelFor: controlId,
+                control: (
+                    <Switch
+                        id={controlId}
+                        aria-label={row.title}
+                        checked={argvConfig?.hardwareAcceleration ?? true}
+                        className="mt-0.5"
+                        disabled={!argvConfig}
+                        onCheckedChange={(checked) =>
+                            onArgvConfigChange({ hardwareAcceleration: checked })
+                        }
+                    />
+                ),
+            };
     }
 }
 

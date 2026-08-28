@@ -1,6 +1,7 @@
 import type {
     BootstrapState,
     CommandId,
+    EditorNavigationTarget,
     ServerEvent,
     SessionRecord,
     SessionState,
@@ -10,6 +11,10 @@ import { agentProviderCatalog, assertNever } from '@caxri/protocol';
 import { isEqual } from 'es-toolkit';
 import { create } from 'zustand';
 
+import {
+    showAutomaticGpuSafeModeToast,
+    showGpuRecoveryToast,
+} from '../features/gpu/gpu-recovery-notifications';
 import {
     dismissWorkbenchRootCandidate,
     showWorkbenchRootCandidate,
@@ -523,11 +528,7 @@ export interface WorkbenchEventHandlers {
     /**
      * Applies an authenticated Server open request after Main redeemed its one-use target.
      */
-    onDesktopOpen(
-        sessionId: string,
-        path?: string,
-        location?: { column: number; line: number },
-    ): void;
+    onDesktopOpen(sessionId: string, path?: string, location?: EditorNavigationTarget): void;
 }
 
 /**
@@ -614,6 +615,13 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                 return;
             case 'window.fullScreen':
                 useWorkbenchStore.setState({ isFullScreen: event.payload.isFullScreen });
+                return;
+            case 'gpu.recoveryRequested':
+                showGpuRecoveryToast();
+                return;
+            case 'gpu.safeModeStatus':
+                if (event.payload.active && event.payload.automatic)
+                    showAutomaticGpuSafeModeToast();
                 return;
             case 'terminal.outputRecovery': {
                 const providerName = agentProviderCatalog[event.payload.provider].displayName;

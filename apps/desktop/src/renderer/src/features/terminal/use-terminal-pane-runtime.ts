@@ -40,14 +40,13 @@ import {
     OSC52_BLOCK_MESSAGES,
     registerTerminalInputHandlers,
     registerTerminalPaneLinks,
-    RENDERER_FALLBACK_MESSAGES,
 } from './terminal-pane-support';
 import { reconcileTerminalProcessFocus, shouldAutoFocusTerminal } from './terminal-process-focus';
 import { clearTerminalProgress, updateTerminalProgress } from './terminal-progress';
 import { shouldReconcileTerminalRecovery } from './terminal-recovery';
-import type { TerminalGpuAcceleration, TerminalRendererStatus } from './terminal-renderer';
+import type { TerminalGpuAcceleration } from './terminal-renderer';
 import { TerminalRendererController } from './terminal-renderer';
-import { createTerminalRendererDiagnostic } from './terminal-renderer-diagnostics';
+import { createTerminalRendererObserver } from './terminal-renderer-observer';
 import { TerminalBackpressureRecovery, TerminalReplayCoordinator } from './terminal-replay';
 import type { TerminalSearchOptions, TerminalSearchResults } from './terminal-search';
 import { TERMINAL_SEARCH_HIGHLIGHT_LIMIT } from './terminal-search';
@@ -179,6 +178,11 @@ export function useTerminalPaneRuntime({
             disableStdin: latest.processState !== 'running',
             fontFamily: latest.fontFamily,
             fontSize: latest.fontSize,
+            /**
+             * FitAddon reads this option when calculating columns. Keeping it aligned with the styled scrollbar width
+             * prevents the grid from reserving xterm's 14px default while the visible scrollbar occupies only 8px.
+             */
+            scrollbar: { width: 8 },
             scrollback: latest.scrollback,
             theme: latest.terminalTheme,
             wordSeparator: latest.wordSeparators,
@@ -331,43 +335,18 @@ export function useTerminalPaneRuntime({
         const resizeSettler = new TerminalResizeSettler(fitAndResize);
         const scheduleResize = (): void => resizeSettler.schedule();
         fitAndResizeReference.current = scheduleResize;
-        let isRendererFallbackNotified = false;
-        const publishRendererStatus = (status: TerminalRendererStatus): void => {
-            container.dataset.terminalRenderer = status.mode;
-            container.dataset.terminalRendererReason = status.reason;
-            container.dataset.terminalWebglContextLosses = String(status.contextLossCount);
-            container.dataset.terminalRendererRedraws = String(status.redrawCount);
-            const current = latestReference.current;
-            const diagnostic = createTerminalRendererDiagnostic({
-                agentTerminal: current.isAgent,
-                diagnosticId: crypto.randomUUID(),
-                documentFocused: document.hasFocus(),
-                documentVisible: document.visibilityState === 'visible',
-                paneActive: current.active,
-                preference: current.gpuAcceleration,
-                status,
-                terminalFocused: container.contains(document.activeElement),
-                terminalId,
-                terminalProcessRunning: current.processState === 'running',
-            });
-            if (diagnostic) globalThis.caxri.reportDiagnostic(diagnostic);
-            /**
-             * A dropped GPU context can recur many times; only the first fallback for this pane's lifetime is worth a
-             * toast; repeats would just be noise about the same known state.
-             */
-            const message = RENDERER_FALLBACK_MESSAGES[status.reason];
-            if (message && !isRendererFallbackNotified) {
-                isRendererFallbackNotified = true;
-                pushToast('info', message);
-            }
-        };
+        const rendererObserver = createTerminalRendererObserver({
+            container,
+            current: () => latestReference.current,
+            terminalId,
+        });
         const renderer = new TerminalRendererController(
             xterm,
             () => {
                 fitToPane();
                 xterm.refresh(0, xterm.rows - 1);
             },
-            publishRendererStatus,
+            (status) => rendererObserver.publish(status),
         );
         rendererReference.current = renderer;
         renderer.setPreference(latest.gpuAcceleration);
@@ -461,8 +440,17 @@ export function useTerminalPaneRuntime({
         );
         replayReference.current = replay;
         const unsubscribe = caxri.onEvent((event) => {
+            if (event.event === 'gpu.recoveryRequested') {
+                const wasFocused = container.contains(document.activeElement);
+                rendererObserver.withRecovery(event.payload.correlationId, () =>
+                    renderer.recoverFromGpuProcessLoss(),
+                );
+                if (wasFocused) xterm.focus();
+                return;
+            }
             if (event.event !== 'terminal.output' || event.payload.terminalId !== terminalId)
                 return;
+            rendererObserver.recordOutput(event.payload.data, event.payload.droppedBytes ?? 0);
             /**
              * Server's `TerminalImageOutputFilter` now reports its own size-limit drops as an inline
              * `TERMINAL_IMAGE_OUTPUT_TRUNCATED_PLACEHOLDER` inside `data` above instead of folding them into this

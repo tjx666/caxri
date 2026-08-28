@@ -1,9 +1,15 @@
 import type { TerminalLinkScanner } from './terminal-link-scanner';
+import type { TerminalDetectedLink } from './terminal-links';
 
 type TerminalLinkScannerFactory = () => TerminalLinkScanner;
 
+interface TerminalLinkPickerHandler {
+    openCandidates(links: TerminalDetectedLink[], isTruncated: boolean): void;
+    openDetected(): void;
+}
+
 const linkScannerFactories = new Map<string, TerminalLinkScannerFactory>();
-const pickerHandlers = new Map<string, () => void>();
+const pickerHandlers = new Map<string, TerminalLinkPickerHandler>();
 
 /**
  * Bridges the pane-owned xterm buffer to the pane-owned React picker without copying Terminal content into a global
@@ -31,7 +37,7 @@ export function createTerminalLinkScanner(terminalId: string): TerminalLinkScann
  */
 export function registerTerminalLinkPickerHandler(
     terminalId: string,
-    handler: () => void,
+    handler: TerminalLinkPickerHandler,
 ): () => void {
     pickerHandlers.set(terminalId, handler);
     return () => {
@@ -40,5 +46,13 @@ export function registerTerminalLinkPickerHandler(
 }
 
 export function openTerminalLinkPicker(terminalId: string): void {
-    pickerHandlers.get(terminalId)?.();
+    pickerHandlers.get(terminalId)?.openDetected();
+}
+
+export function openTerminalFileCandidatePicker(
+    terminalId: string,
+    links: TerminalDetectedLink[],
+    isTruncated: boolean,
+): void {
+    pickerHandlers.get(terminalId)?.openCandidates(links, isTruncated);
 }

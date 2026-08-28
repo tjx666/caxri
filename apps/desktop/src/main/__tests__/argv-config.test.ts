@@ -22,7 +22,10 @@ function writeArgvConfig(userDataPath: string, source: string): void {
 
 describe('readArgvConfigAtBoot', () => {
     it('returns defaults when the file does not exist', () => {
-        expect(readArgvConfigAtBoot(createUserDataDirectory())).toEqual({ remoteDebugging: true });
+        expect(readArgvConfigAtBoot(createUserDataDirectory())).toEqual({
+            hardwareAcceleration: true,
+            remoteDebugging: true,
+        });
     });
 
     it('reads a commented JSONC file', () => {
@@ -31,25 +34,37 @@ describe('readArgvConfigAtBoot', () => {
             userDataPath,
             '{\n  // disabled for a demo\n  "remoteDebugging": false,\n}',
         );
-        expect(readArgvConfigAtBoot(userDataPath)).toEqual({ remoteDebugging: false });
+        expect(readArgvConfigAtBoot(userDataPath)).toEqual({
+            hardwareAcceleration: true,
+            remoteDebugging: false,
+        });
     });
 
     it('falls back to defaults on invalid JSONC', () => {
         const userDataPath = createUserDataDirectory();
         writeArgvConfig(userDataPath, '{ not valid');
-        expect(readArgvConfigAtBoot(userDataPath)).toEqual({ remoteDebugging: true });
+        expect(readArgvConfigAtBoot(userDataPath)).toEqual({
+            hardwareAcceleration: true,
+            remoteDebugging: true,
+        });
     });
 
     it('falls back per-field on mistyped values', () => {
         const userDataPath = createUserDataDirectory();
         writeArgvConfig(userDataPath, '{ "remoteDebugging": "off" }');
-        expect(readArgvConfigAtBoot(userDataPath)).toEqual({ remoteDebugging: true });
+        expect(readArgvConfigAtBoot(userDataPath)).toEqual({
+            hardwareAcceleration: true,
+            remoteDebugging: true,
+        });
     });
 
     it('ignores unknown fields', () => {
         const userDataPath = createUserDataDirectory();
         writeArgvConfig(userDataPath, '{ "remoteDebugging": false, "future": 1 }');
-        expect(readArgvConfigAtBoot(userDataPath)).toEqual({ remoteDebugging: false });
+        expect(readArgvConfigAtBoot(userDataPath)).toEqual({
+            hardwareAcceleration: true,
+            remoteDebugging: false,
+        });
     });
 });
 
@@ -57,11 +72,15 @@ describe('readArgvConfig', () => {
     it('matches the boot reader for a present file', async () => {
         const userDataPath = createUserDataDirectory();
         writeArgvConfig(userDataPath, '{ "remoteDebugging": false }');
-        await expect(readArgvConfig(userDataPath)).resolves.toEqual({ remoteDebugging: false });
+        await expect(readArgvConfig(userDataPath)).resolves.toEqual({
+            hardwareAcceleration: true,
+            remoteDebugging: false,
+        });
     });
 
     it('returns defaults when the file does not exist', async () => {
         await expect(readArgvConfig(createUserDataDirectory())).resolves.toEqual({
+            hardwareAcceleration: true,
             remoteDebugging: true,
         });
     });
@@ -71,7 +90,7 @@ describe('updateArgvConfig', () => {
     it('creates the file from the commented template on first write', async () => {
         const userDataPath = createUserDataDirectory();
         const result = await updateArgvConfig(userDataPath, { remoteDebugging: false });
-        expect(result).toEqual({ remoteDebugging: false });
+        expect(result).toEqual({ hardwareAcceleration: true, remoteDebugging: false });
         const source = readFileSync(argvConfigPath(userDataPath), 'utf8');
         expect(source).toContain('// Caxri boot configuration');
         expect(source).toContain('"remoteDebugging": false');
@@ -83,22 +102,28 @@ describe('updateArgvConfig', () => {
         await updateArgvConfig(userDataPath, { remoteDebugging: false });
         const source = readFileSync(argvConfigPath(userDataPath), 'utf8');
         expect(source).toContain('// keep me');
-        expect(readArgvConfigAtBoot(userDataPath)).toEqual({ remoteDebugging: false });
+        expect(readArgvConfigAtBoot(userDataPath)).toEqual({
+            hardwareAcceleration: true,
+            remoteDebugging: false,
+        });
     });
 
     it('replaces an unparseable file with the template instead of failing', async () => {
         const userDataPath = createUserDataDirectory();
         writeArgvConfig(userDataPath, '{ broken');
         const result = await updateArgvConfig(userDataPath, { remoteDebugging: false });
-        expect(result).toEqual({ remoteDebugging: false });
+        expect(result).toEqual({ hardwareAcceleration: true, remoteDebugging: false });
     });
 
     it('round-trips back to enabled', async () => {
         const userDataPath = createUserDataDirectory();
         await updateArgvConfig(userDataPath, { remoteDebugging: false });
         const result = await updateArgvConfig(userDataPath, { remoteDebugging: true });
-        expect(result).toEqual({ remoteDebugging: true });
-        expect(readArgvConfigAtBoot(userDataPath)).toEqual({ remoteDebugging: true });
+        expect(result).toEqual({ hardwareAcceleration: true, remoteDebugging: true });
+        expect(readArgvConfigAtBoot(userDataPath)).toEqual({
+            hardwareAcceleration: true,
+            remoteDebugging: true,
+        });
     });
 
     it('serializes overlapping writes without corrupting the file', async () => {
@@ -108,13 +133,27 @@ describe('updateArgvConfig', () => {
             updateArgvConfig(userDataPath, { remoteDebugging: true }),
             updateArgvConfig(userDataPath, { remoteDebugging: false }),
         ]);
-        expect(results.at(-1)).toEqual({ remoteDebugging: false });
-        expect(readArgvConfigAtBoot(userDataPath)).toEqual({ remoteDebugging: false });
+        expect(results.at(-1)).toEqual({ hardwareAcceleration: true, remoteDebugging: false });
+        expect(readArgvConfigAtBoot(userDataPath)).toEqual({
+            hardwareAcceleration: true,
+            remoteDebugging: false,
+        });
     });
 
     it('applies an empty change set without corrupting the file', async () => {
         const userDataPath = createUserDataDirectory();
         await updateArgvConfig(userDataPath, {});
-        expect(readArgvConfigAtBoot(userDataPath)).toEqual({ remoteDebugging: true });
+        expect(readArgvConfigAtBoot(userDataPath)).toEqual({
+            hardwareAcceleration: true,
+            remoteDebugging: true,
+        });
+    });
+
+    it('persists hardware acceleration independently from remote debugging', async () => {
+        const userDataPath = createUserDataDirectory();
+        const result = await updateArgvConfig(userDataPath, { hardwareAcceleration: false });
+
+        expect(result).toEqual({ hardwareAcceleration: false, remoteDebugging: true });
+        expect(readArgvConfigAtBoot(userDataPath)).toEqual(result);
     });
 });

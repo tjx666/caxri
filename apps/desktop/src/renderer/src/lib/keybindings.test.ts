@@ -37,6 +37,22 @@ describe('keyboardEventShortcut', () => {
         );
     });
 
+    it('normalizes a Backquote command chord without renaming its printable key', () => {
+        expect(
+            keyboardEventShortcut(keyEvent({ key: '`', code: 'Backquote', metaKey: true })),
+        ).toBe('cmd+`');
+        expect(
+            keyboardEventShortcut(
+                keyEvent({
+                    key: '~',
+                    code: 'Backquote',
+                    metaKey: true,
+                    shiftKey: true,
+                }),
+            ),
+        ).toBe('cmd+shift+~');
+    });
+
     /**
      * Regression for the dead Option chords: macOS composes Option+P into `π`, so a chord built from `event.key` alone
      * produced `alt+π` and could never match a stored `alt+p`.

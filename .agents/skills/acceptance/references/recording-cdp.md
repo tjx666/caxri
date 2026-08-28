@@ -30,6 +30,12 @@ sequence. For a secondary window such as Process Explorer, add
 marker, DOM row count, grid size, rendered lines, and ready/blocked result. The capture helper
 refuses capture before the first frame when that receipt is blocked.
 
+Keep the default 40-frame, 250 ms sequence unless the interaction itself needs a
+different bound. Four frames at this interval encode to a one-second clip and do
+not qualify as temporal evidence. The report finalizer rejects videos shorter
+than three seconds, videos with fewer than 12 frames, and sampled sequences that
+do not contain at least three visibly distinct frames.
+
 ## Assemble and validate the clip
 
 ```bash

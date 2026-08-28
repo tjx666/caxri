@@ -1,15 +1,18 @@
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { Page } from './support/fixtures.ts';
-import { expect, test } from './support/fixtures.ts';
+import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import {
     createShellSession,
     launchCaxri,
     pageRequest,
+    pressNewTerminal,
     revealSettingsSection,
+    splitTerminalToRight,
     typeTerminal,
+    waitForNewTerminalId,
 } from './support/helpers.ts';
 
 type GpuPreference = 'Auto' | 'On' | 'Off';
@@ -35,7 +38,10 @@ async function applyGpuPreference(page: Page, preference: GpuPreference): Promis
     await dialog.getByRole('button', { name: 'Close', exact: true }).click();
 }
 
-test('WebGL modes hot-switch, redraw on restore, and fail over without restarting the Terminal', async () => {
+test('WebGL modes hot-switch and every Terminal recovers from one GPU process loss', async () => {
+    allowE2EErrors([
+        { source: 'desktop', event: 'gpu.process_gone', code: 'GPU_PROCESS_GONE', count: 1 },
+    ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-webgl-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -50,7 +56,7 @@ test('WebGL modes hot-switch, redraw on restore, and fail over without restartin
         await createShellSession(running.page);
         const pane = running.page.locator('.terminal-pane');
         const surface = pane.locator('.terminal-surface');
-        const terminalId = await pane.getAttribute('data-terminal-id');
+        let terminalId = await pane.getAttribute('data-terminal-id');
         if (!terminalId) throw new Error('Terminal identity was not rendered');
         await expect(surface).toHaveAttribute('data-terminal-renderer', 'dom');
         await expect(surface).toHaveAttribute('data-terminal-renderer-reason', 'disabled');
@@ -75,23 +81,43 @@ test('WebGL modes hot-switch, redraw on restore, and fail over without restartin
 
         await applyGpuPreference(running.page, 'On');
         await expect(surface).toHaveAttribute('data-terminal-renderer', 'webgl');
+        const completedBeforeScrollback = Number(
+            (await surface.getAttribute('data-terminal-command-completed-count')) ?? 0,
+        );
+        await typeTerminal(running.page, String.raw`printf 'FIRST_PANE_SCROLLBACK\n'`);
+        await expect(surface).toHaveAttribute(
+            'data-terminal-command-completed-count',
+            String(completedBeforeScrollback + 1),
+        );
+        terminalId = await pane.getAttribute('data-terminal-id');
+        if (!terminalId) throw new Error('Terminal identity was not rendered after mode changes');
+
+        await pressNewTerminal(running.page);
+        const secondTerminalId = await waitForNewTerminalId(running.page, [terminalId]);
+        await splitTerminalToRight(running.page, secondTerminalId);
+        const surfaces = running.page.locator('.terminal-surface');
+        const firstPane = running.page.locator(`.terminal-pane[data-terminal-id="${terminalId}"]`);
+        const firstRows = firstPane.locator('.xterm-rows');
+        const secondRows = running.page.locator(
+            `.terminal-pane[data-terminal-id="${secondTerminalId}"] .xterm-rows`,
+        );
+        await expect(surfaces).toHaveCount(2);
+        await expect(surfaces.nth(0)).toHaveAttribute('data-terminal-renderer', 'webgl');
+        await expect(surfaces.nth(1)).toHaveAttribute('data-terminal-renderer', 'webgl');
         const runningBeforeLoss = await pageRequest<number>(running.page, 'terminal.runningCount');
         await typeTerminal(
             running.page,
             String.raw`printf 'WEBGL_CONTINUITY_界_😀\n'; for value in {1..160}; do printf 'atlas-%03d ┃  █\n' "$value"; done`,
         );
 
-        const isContextWasLost = await surface.evaluate((element) => {
-            for (const canvas of element.querySelectorAll('canvas')) {
-                const context = canvas.getContext('webgl2');
-                const extension = context?.getExtension('WEBGL_lose_context');
-                if (!extension) continue;
-                extension.loseContext();
-                return true;
-            }
-            return false;
-        });
-        expect(isContextWasLost).toBe(true);
+        const focusedTerminalId = await running.page
+            .locator('.terminal-pane:has(.xterm-helper-textarea:focus)')
+            .getAttribute('data-terminal-id');
+        const incident = await pageRequest<{ correlationId: string }>(
+            running.page,
+            'gpu.testInjectContextLoss',
+        );
+        expect(incident.correlationId).toMatch(/^[0-9a-f-]{36}$/u);
         /**
          * A dropped GPU context used to downgrade silently, with the reason only reaching `dataset` for Playwright. It
          * is now surfaced to the user once per Terminal. Asserted before the `data-terminal-renderer` attributes below
@@ -101,24 +127,153 @@ test('WebGL modes hot-switch, redraw on restore, and fail over without restartin
          */
         await expect(
             running.page.getByText(
-                'GPU acceleration was lost for this Terminal; it fell back to standard rendering.',
+                'GPU rendering failed. Caxri switched the Terminal to software rendering.',
                 { exact: true },
             ),
         ).toBeVisible({ timeout: 8_000 });
-        await expect(surface).toHaveAttribute('data-terminal-renderer', 'dom', { timeout: 8_000 });
-        await expect(surface).toHaveAttribute('data-terminal-renderer-reason', 'context-loss');
-        await expect(surface).toHaveAttribute('data-terminal-webgl-context-losses', '1');
-        await expect(pane).toHaveAttribute('data-terminal-id', terminalId);
+        await expect(
+            running.page.getByRole('button', { name: 'Restart in GPU Safe Mode' }),
+        ).toBeVisible();
+        await expect(surfaces.nth(0)).toHaveAttribute('data-terminal-renderer', 'dom', {
+            timeout: 8_000,
+        });
+        await expect(surfaces.nth(1)).toHaveAttribute('data-terminal-renderer', 'dom', {
+            timeout: 8_000,
+        });
+        await expect(surfaces.nth(0)).toHaveAttribute(
+            'data-terminal-renderer-reason',
+            'context-loss',
+        );
+        await expect(surfaces.nth(1)).toHaveAttribute(
+            'data-terminal-renderer-reason',
+            'context-loss',
+        );
+        await expect(firstPane).toHaveAttribute('data-terminal-id', terminalId);
+        await expect(
+            running.page.locator(`.terminal-pane[data-terminal-id="${secondTerminalId}"]`),
+        ).toBeAttached();
+        expect(
+            await running.page
+                .locator('.terminal-pane:has(.xterm-helper-textarea:focus)')
+                .getAttribute('data-terminal-id'),
+        ).toBe(focusedTerminalId);
         await expect
             .poll(() => pageRequest<number>(running.page, 'terminal.runningCount'))
             .toBe(runningBeforeLoss);
-        await expect(running.page.locator('.xterm-rows')).toContainText('atlas-160');
+        await expect(secondRows).toContainText('atlas-160');
+        await expect(firstRows).toContainText('FIRST_PANE_SCROLLBACK');
 
         await typeTerminal(running.page, String.raw`printf 'AFTER_WEBGL_FALLBACK\n'`);
-        await expect(running.page.locator('.xterm-rows')).toContainText('AFTER_WEBGL_FALLBACK');
+        await expect(secondRows).toContainText('AFTER_WEBGL_FALLBACK');
         await expect(
             running.page.locator(`.work-tab[data-terminal-id="${terminalId}"] .process-running`),
         ).toBeVisible();
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('two context losses activate reversible GPU Safe Mode on the next launch', async () => {
+    allowE2EErrors([
+        { source: 'desktop', event: 'gpu.process_gone', code: 'GPU_PROCESS_GONE', count: 4 },
+    ]);
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-gpu-safe-mode-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await mkdir(root);
+
+    let running = await launchCaxri({
+        gpuMode: 'enabled',
+        userDataDir: userData,
+        testRootPath: root,
+    });
+    try {
+        await createShellSession(running.page);
+        await pageRequest(running.page, 'gpu.testInjectContextLoss');
+        await pageRequest(running.page, 'gpu.testInjectContextLoss');
+        await expect
+            .poll(async () => {
+                const result = await pageRequest<{
+                    value: { hardwareAcceleration: boolean };
+                }>(running.page, 'argv.get');
+                return result.value.hardwareAcceleration;
+            })
+            .toBe(false);
+
+        await running.app.close();
+        running = await launchCaxri({
+            gpuMode: 'enabled',
+            userDataDir: userData,
+            testRootPath: root,
+        });
+        await expect(
+            running.page.getByText(
+                'Caxri disabled hardware acceleration after repeated GPU crashes.',
+                { exact: true },
+            ),
+        ).toBeVisible();
+        await typeTerminal(running.page, String.raw`printf 'SAFE_MODE_TERMINAL_OK\n'`);
+        await expect(running.page.locator('.xterm-rows')).toContainText('SAFE_MODE_TERMINAL_OK');
+        await running.page.getByRole('button', { name: 'Open Settings' }).click();
+        const dialog = running.page.getByRole('dialog');
+        const acceleration = dialog.getByRole('switch', { name: 'Hardware acceleration' });
+        await expect(acceleration).not.toBeChecked();
+        await acceleration.click();
+        await expect
+            .poll(async () => {
+                const result = await pageRequest<{
+                    value: { hardwareAcceleration: boolean };
+                }>(running.page, 'argv.get');
+                return result.value.hardwareAcceleration;
+            })
+            .toBe(true);
+        await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+
+        await running.app.close();
+        running = await launchCaxri({
+            gpuMode: 'enabled',
+            userDataDir: userData,
+            testRootPath: root,
+        });
+        await expect(
+            running.page.getByText(
+                'Caxri disabled hardware acceleration after repeated GPU crashes.',
+                { exact: true },
+            ),
+        ).toHaveCount(0);
+        await pageRequest(running.page, 'gpu.testInjectContextLoss');
+        const afterOne = await pageRequest<{ value: { hardwareAcceleration: boolean } }>(
+            running.page,
+            'argv.get',
+        );
+        expect(afterOne.value.hardwareAcceleration).toBe(true);
+        await pageRequest(running.page, 'gpu.testInjectContextLoss');
+        await expect
+            .poll(async () => {
+                const result = await pageRequest<{
+                    value: { hardwareAcceleration: boolean };
+                }>(running.page, 'argv.get');
+                return result.value.hardwareAcceleration;
+            })
+            .toBe(false);
+
+        const records = (await readFile(join(userData, 'logs', 'desktop.jsonl'), 'utf8'))
+            .trim()
+            .split('\n')
+            .map((line) => JSON.parse(line) as { event: string; fields?: Record<string, unknown> });
+        expect(
+            records.some(
+                (record) =>
+                    record.event === 'gpu.safe_mode' &&
+                    record.fields?.code === 'GPU_SAFE_MODE_BOOT' &&
+                    record.fields.hardwareAccelerationEnabled === false,
+            ),
+        ).toBe(true);
     } finally {
         try {
             await running.app.close();

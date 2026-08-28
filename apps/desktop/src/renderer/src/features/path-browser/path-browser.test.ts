@@ -5,6 +5,7 @@ import {
     completePathQuery,
     filterPathEntries,
     parentDirectoryWithinRoot,
+    parsePathBrowserInput,
     pathBrowserCreateCandidate,
     pathBrowserEmptyMessage,
 } from './path-browser';
@@ -17,6 +18,30 @@ const entries: FileEntry[] = [
 ];
 
 describe('path browser navigation', () => {
+    it('classifies Home, absolute, parent, and relative navigation without expanding paths', () => {
+        expect(parsePathBrowserInput('~/')).toEqual({ kind: 'home', value: '~/' });
+        expect(parsePathBrowserInput('~/src/')).toEqual({ kind: 'home', value: '~/src/' });
+        expect(parsePathBrowserInput('/Users/example/file.ts')).toEqual({
+            kind: 'absolute',
+            value: '/Users/example/file.ts',
+        });
+        expect(parsePathBrowserInput('../')).toEqual({ kind: 'parent', value: '../' });
+        expect(parsePathBrowserInput('src/')).toEqual({ kind: 'relative', value: 'src/' });
+        expect(parsePathBrowserInput('README.md')).toEqual({
+            kind: 'filter',
+            value: 'README.md',
+        });
+    });
+
+    it('rejects unsupported shell expansion forms', () => {
+        expect(() => parsePathBrowserInput('$HOME/file.ts')).toThrow(
+            'Shell path expansion is not supported',
+        );
+        expect(() => parsePathBrowserInput('~other/file.ts')).toThrow(
+            'Only current-user ~/ paths are supported',
+        );
+    });
+
     it('filters only the current directory without reordering Runtime results', () => {
         expect(filterPathEntries(entries, 's')).toEqual([entries[0], entries[1], entries[3]]);
         expect(filterPathEntries(entries, 'read')).toEqual([entries[2]]);

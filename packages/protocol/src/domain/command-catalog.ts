@@ -1,3 +1,4 @@
+import type { DefaultKeybindingChange } from '../configuration/config-files.js';
 import {
     filesCoreCommandDefinitions,
     filesCoreKeybindings,
@@ -10,6 +11,10 @@ export interface CommandDefinition {
     title: string;
     category: string;
     description: string;
+    /**
+     * Search-only aliases that preserve familiar language without leaking it back into visible command copy.
+     */
+    keywords?: readonly string[];
     /**
      * Commands that require configured arguments remain available to keybindings but stay out of the palette, whose
      * invocation path cannot supply those arguments.
@@ -116,9 +121,10 @@ export const commandDefinitions: CommandDefinition[] = [
     },
     {
         id: 'agentActions.open',
-        title: 'Run Agent Action…',
+        title: 'Run Agent Command or Skill…',
         category: 'Agent',
-        description: 'Search skills and slash commands for the active Agent Terminal',
+        description: 'Search Agent commands and skills for the active Agent Terminal',
+        keywords: ['action', 'actions', 'command', 'commands', 'skill', 'skills', 'slash'],
     },
     {
         id: 'terminal.new',
@@ -286,6 +292,12 @@ export const commandDefinitions: CommandDefinition[] = [
         description: 'Show Source Control in the Secondary Side Bar',
     },
     {
+        id: 'secondarySidebar.showStatus',
+        title: 'Show Status',
+        category: 'Secondary Side Bar',
+        description: 'Show Project Status in the Secondary Side Bar',
+    },
+    {
         id: 'secondarySidebar.toggle',
         title: 'Toggle Secondary Side Bar',
         category: 'Secondary Side Bar',
@@ -425,11 +437,10 @@ export function getNativeMenuCommandGroups(menu: NativeMenuId): CommandDefinitio
  */
 export const defaultKeybindings: Keybinding[] = [
     /**
-     * The path browser is a Helm-style directory walker, not a workspace-wide fuzzy quick-open, so it deliberately
-     * avoids `Cmd+P`: that chord sets a "type any filename, jump anywhere" expectation this dialog cannot meet while
-     * `files.browse` stays bounded to one directory.
+     * The current path browser owns the familiar macOS quick-open chord. A future workspace-wide fuzzy opener must make
+     * an explicit product decision instead of reserving `Cmd+P` while no such command exists.
      */
-    { key: 'alt+p', command: 'pathBrowser.open' },
+    { key: 'cmd+p', command: 'pathBrowser.open' },
     { key: 'cmd+shift+p', command: 'commandPalette.open' },
     { key: 'cmd+shift+a', command: 'agentActions.open' },
     /**
@@ -447,10 +458,13 @@ export const defaultKeybindings: Keybinding[] = [
     },
     { key: 'ctrl+tab', command: 'workbench.nextTab' },
     { key: 'ctrl+shift+tab', command: 'workbench.previousTab' },
-    { key: 'ctrl+alt+tab', command: 'session.switchMru' },
     /**
-     * Session navigation shares one `Ctrl+Alt` family: `Tab` cycles recently used Sessions, the arrows walk the visit
-     * history. VS Code's `Ctrl+-` / `Ctrl+Shift+-` is unavailable here because these commands must fire while a
+     * `Cmd+Backquote` follows the macOS current-app window switching convention for Caxri's closest equivalent context:
+     * Sessions inside its single window. `Ctrl+Tab` remains dedicated to Workbench tabs.
+     */
+    { key: 'cmd+`', command: 'session.switchMru' },
+    /**
+     * VS Code's `Ctrl+-` / `Ctrl+Shift+-` history chords are unavailable because these commands must fire while a
      * Terminal owns focus, where they would shadow the shell's own `Ctrl+_`.
      */
     { key: 'ctrl+alt+arrowleft', command: 'session.navigateBack' },
@@ -477,6 +491,7 @@ export const defaultKeybindings: Keybinding[] = [
     { key: 'cmd+s', command: 'editor.save' },
     ...filesCoreKeybindings,
     { key: 'cmd+2', command: 'secondarySidebar.showGit' },
+    { key: 'cmd+3', command: 'secondarySidebar.showStatus' },
     { key: 'cmd+shift+1', command: 'panel.showLogs' },
     { key: 'cmd+shift+2', command: 'panel.showInfo' },
     { key: 'cmd+[', command: 'primarySidebar.toggle' },
@@ -487,3 +502,23 @@ export const defaultKeybindings: Keybinding[] = [
     { key: 'cmd+j', command: 'panel.toggle' },
     { key: 'cmd+,', command: 'settings.open' },
 ];
+
+/**
+ * Reviewed changes to defaults that existing keybinding files can adopt without overwriting custom choices.
+ */
+export const defaultKeybindingChanges = [
+    {
+        type: 'replace',
+        previous: { key: 'alt+p', command: 'pathBrowser.open' },
+        current: { key: 'cmd+p', command: 'pathBrowser.open' },
+    },
+    {
+        type: 'replace',
+        previous: { key: 'ctrl+alt+tab', command: 'session.switchMru' },
+        current: { key: 'cmd+`', command: 'session.switchMru' },
+    },
+    {
+        type: 'add',
+        binding: { key: 'cmd+3', command: 'secondarySidebar.showStatus' },
+    },
+] satisfies readonly DefaultKeybindingChange[];

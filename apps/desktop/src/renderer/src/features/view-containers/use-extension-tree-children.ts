@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TreeItemDto } from '@caxri/protocol';
 
 import { caxri } from '../../lib/caxri';
+import type { RootLoadProgress } from './extension-tree-refresh-state';
 import type { ExtensionTreeState } from './extension-tree-state';
 import { focusTreeItem, reconcileTreeItems, replaceTreeChildren } from './extension-tree-state';
 
@@ -33,12 +34,15 @@ export function useExtensionTreeChildren(
     loading: ReadonlySet<string>;
     loadChildren: (parentHandle: string) => Promise<void>;
     requests: RefObject<Map<string, string>>;
+    rootLoads: RootLoadProgress;
 } {
     const requests = useRef(new Map<string, string>());
+    const rootLoadRevision = useRef(0);
     const childrenReference = useRef<ReadonlyMap<string, readonly TreeItemDto[]>>(new Map());
     const [children, setChildren] = useState<ReadonlyMap<string, readonly TreeItemDto[]>>(
         () => childrenReference.current,
     );
+    const [rootLoads, setRootLoads] = useState<RootLoadProgress>({ completed: 0, started: 0 });
     const [errors, setErrors] = useState<ReadonlyMap<string, string>>(() => new Map());
     const [loading, setLoading] = useState<ReadonlySet<string>>(() => new Set([ROOT_HANDLE]));
 
@@ -85,6 +89,10 @@ export function useExtensionTreeChildren(
 
     const loadChildren = useCallback(
         async (parentHandle: string): Promise<void> => {
+            const currentRootLoad =
+                parentHandle === ROOT_HANDLE ? (rootLoadRevision.current += 1) : undefined;
+            if (currentRootLoad !== undefined)
+                setRootLoads((current) => ({ ...current, started: currentRootLoad }));
             const previousRequestId = requests.current.get(parentHandle);
             if (previousRequestId) {
                 // eslint-disable-next-line no-void -- cancellation is best-effort and the next request owns loading state
@@ -127,6 +135,11 @@ export function useExtensionTreeChildren(
             } finally {
                 if (requests.current.get(parentHandle) === requestId) {
                     requests.current.delete(parentHandle);
+                    if (currentRootLoad !== undefined)
+                        setRootLoads((current) => ({
+                            ...current,
+                            completed: Math.max(current.completed, currentRootLoad),
+                        }));
                     setLoading((current) => {
                         const next = new Set(current);
                         next.delete(parentHandle);
@@ -174,5 +187,5 @@ export function useExtensionTreeChildren(
         };
     }, [loadChildren, resetLoadedChildren, scope]);
 
-    return { children, errors, loading, loadChildren, requests };
+    return { children, errors, loading, loadChildren, requests, rootLoads };
 }

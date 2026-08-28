@@ -22,6 +22,8 @@ import {
     desktopRootIdentitySchema,
     desktopStatusResultSchema,
 } from '../desktop/desktop-contract.js';
+import { gpuDesktopMethods } from '../desktop/gpu-contract.js';
+import { MAX_PATH_BROWSER_ENTRIES, pathBrowserMethods } from '../desktop/path-browser-contract.js';
 import { bugReportScreenshot, bugReportText } from '../domain/bug-report-contract.js';
 import { businessInternalMethods, businessMethods } from '../domain/business-contract.js';
 import {
@@ -54,8 +56,13 @@ import {
     themeTokensSchema,
     updateStateSchema,
 } from '../domain/domain.js';
+import { editorNavigationTargetSchema } from '../domain/editor.js';
 import { gitInternalMethods, gitMethods } from '../domain/git-contract.js';
 import { projectIconSchema } from '../domain/project-customization.js';
+import {
+    terminalFileLinkAmbiguousResolutionSchema,
+    terminalFileLinkAmbiguousResultSchema,
+} from '../domain/terminal-file-link.js';
 import {
     extensionCommandIdSchema,
     extensionErrorSchema,
@@ -92,10 +99,7 @@ const desktopEventRead = commandPolicy('server', 'read');
  */
 const noParameters = z.object({}).default({});
 
-/**
- * Keeps path-browser IPC and rendering bounded while still allowing users to refine by name.
- */
-export const MAX_FILE_BROWSE_ENTRIES = 200;
+export const MAX_FILE_BROWSE_ENTRIES = MAX_PATH_BROWSER_ENTRIES;
 /**
  * Keeps one expanded Files tree directory within the controlled Renderer and transport budget. The result carries an
  * explicit truncation bit so a large directory never silently appears complete.
@@ -133,7 +137,6 @@ const externalOpenResult = z.discriminatedUnion('status', [
         reason: z.enum(['invalid_url', 'unsupported_protocol', 'credentials_not_allowed']),
     }),
 ]);
-
 /**
  * The single source of truth for every public command. Each entry declares its Host/Desktop owner, effect, capability
  * boundary, idempotency policy, and Zod input/output shape. Transport adapters may route an entry but must never copy
@@ -146,6 +149,7 @@ export const methods = {
     ...agentInboxMethods,
     ...businessMethods,
     ...workbenchMethods,
+    ...pathBrowserMethods,
     ...extensionViewMethods,
     'viewContainers.catalog': {
         ...serverRead,
@@ -248,8 +252,7 @@ export const methods = {
     },
     ...desktopHostMethods,
     /**
-     * Main-owned boot configuration (`argv.jsonc`); separate from `settings.*` because its values gate pre-`whenReady`
-     * Chromium switches and only take effect on the next launch.
+     * Main-owned pre-`whenReady` boot configuration (`argv.jsonc`).
      */
     'argv.get': {
         ...desktopRead,
@@ -261,6 +264,7 @@ export const methods = {
         params: z.object({ changes: argvConfigChangesSchema }),
         result: z.object({ value: argvConfigSchema }),
     },
+    ...gpuDesktopMethods,
     'external.open': {
         ...desktopControl,
         params: z.object({ url: z.string().min(1).max(16_384) }),
@@ -484,14 +488,13 @@ export const methods = {
         params: z.object({
             terminalId: identifierSchema,
             target: z.string().min(3).max(4_096),
-            location: z
-                .object({
-                    line: z.number().int().positive(),
-                    column: z.number().int().positive(),
-                })
-                .optional(),
+            location: editorNavigationTargetSchema.optional(),
         }),
-        result: z.union([canceled, z.object({ opened: z.literal(true) })]),
+        result: z.union([
+            canceled,
+            z.object({ opened: z.literal(true) }),
+            terminalFileLinkAmbiguousResultSchema,
+        ]),
     },
     'terminal.snapshot': {
         ...serverRead,
@@ -783,6 +786,7 @@ export const internalMethods = {
                 rootPath: pathSchema,
                 sourceSessionId: identifierSchema,
             }),
+            terminalFileLinkAmbiguousResolutionSchema,
         ]),
     },
     'terminal.detachAll': { ...serverControl, params: noParameters, result: z.null() },

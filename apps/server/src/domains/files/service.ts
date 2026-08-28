@@ -338,6 +338,19 @@ export class FileService {
         return this.searcher.search(parameters, signal);
     }
 
+    /**
+     * Searches one root selected from the durable Project catalog. This is intentionally not a protocol method: the
+     * Terminal resolver owns the approved-root lookup, while the shared SearchService owns traversal limits.
+     */
+    searchProjectFileNames(
+        sessionId: string,
+        root: string,
+        query: string,
+        signal: AbortSignal,
+    ): Promise<ServerOperationResult<'files.search'>> {
+        return this.searcher.searchProjectFileNames(sessionId, root, query, signal);
+    }
+
     watchSession(sessionId?: string): Promise<void> {
         return this.watcher.watchSession(
             sessionId

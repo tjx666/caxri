@@ -8,7 +8,7 @@ import { vi } from 'vitest';
 export interface FakeTerminal {
     dispose: ReturnType<typeof vi.fn>;
     disposeMarkersAtLine(line: number): void;
-    links(): Promise<ILink[] | undefined>;
+    links(bufferLineNumber?: number): Promise<ILink[] | undefined>;
     osc8(data: string): boolean | undefined;
     reflowNormal(lines: readonly string[], columns: number): void;
     setActiveBuffer(type: 'alternate' | 'normal'): void;
@@ -154,8 +154,8 @@ export function createTerminal(
         disposeMarkersAtLine(line: number): void {
             for (const marker of markers) if (marker.line === line) marker.dispose();
         },
-        links(): Promise<ILink[] | undefined> {
-            return new Promise((resolve) => provider?.provideLinks(1, resolve));
+        links(bufferLineNumber = 1): Promise<ILink[] | undefined> {
+            return new Promise((resolve) => provider?.provideLinks(bufferLineNumber, resolve));
         },
         osc8(data: string): boolean | undefined {
             const result = osc8Handler?.(data);

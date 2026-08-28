@@ -3,11 +3,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { AppSettings, TerminalRecord } from '@caxri/protocol';
-import { defaultAppSettings } from '@caxri/protocol';
-import { afterEach, describe, expect, it } from 'vitest';
+import { defaultAgentActionsSettings, defaultAppSettings } from '@caxri/protocol';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { ConfigService } from '../../config';
 import type { CaxriDatabase } from '../../db';
-import { listAgentActions } from '../actions';
+import { listAgentActions, recordRecentAgentAction } from '../actions';
 
 const temporaryDirectories: string[] = [];
 
@@ -28,6 +29,7 @@ function databaseWith(terminal: Partial<TerminalRecord>): CaxriDatabase {
 function settings(): AppSettings {
     const value = structuredClone(defaultAppSettings);
     value['agents.providers'].codex.actions = {
+        ...structuredClone(defaultAgentActionsSettings),
         items: {
             '/goal': { enabled: true, description: 'Manage a long-running goal' },
             '/status': { enabled: false },
@@ -131,5 +133,28 @@ describe('listAgentActions', () => {
         expect(result.actions).toHaveLength(256);
         expect(result.discovery).toBe('partial');
         expect(result.actions.some((action) => action.invocation === '/status')).toBe(true);
+    });
+});
+
+describe('recordRecentAgentAction', () => {
+    it('derives the provider from the authoritative Terminal record', async () => {
+        const record = vi.fn(() =>
+            Promise.resolve({ version: 1 as const, invocations: ['/status'] }),
+        );
+        const config = { recordRecentAgentAction: record } as unknown as ConfigService;
+
+        await expect(
+            recordRecentAgentAction(
+                databaseWith({ id: 'agent-1', provider: 'codex' }),
+                config,
+                'agent-1',
+                '/status',
+            ),
+        ).resolves.toEqual({ version: 1, invocations: ['/status'] });
+        expect(record).toHaveBeenCalledWith('codex', '/status');
+
+        expect(() =>
+            recordRecentAgentAction(databaseWith({ id: 'shell-1' }), config, 'shell-1', '/status'),
+        ).toThrow(expect.objectContaining({ code: 'NOT_FOUND' }) as Error);
     });
 });

@@ -24,6 +24,7 @@ export const rendererDiagnosticSchema = z.strictObject({
     trigger: z.enum([
         'atlas-clear-failed',
         'dispose',
+        'gpu-process-recovery',
         'preference-change',
         'visibility-restore',
         'webgl-context-loss',
@@ -32,6 +33,10 @@ export const rendererDiagnosticSchema = z.strictObject({
     preference: z.enum(['auto', 'off', 'on']),
     contextLossCount: z.number().int().nonnegative().max(10_000),
     redrawCount: z.number().int().nonnegative().max(1_000_000),
+    correlationId: z.uuid().optional(),
+    recoveryResult: z.enum(['not-requested', 'already-dom', 'dom-restored', 'failed']),
+    receivedBytes: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+    droppedBytes: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
     paneActive: z.boolean(),
     terminalProcessRunning: z.boolean(),
     agentTerminal: z.boolean(),

@@ -3,6 +3,8 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { Locator } from '@playwright/test';
+
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
@@ -26,20 +28,30 @@ async function capturedInput(path: string): Promise<string> {
     }
 }
 
-test('Agent Actions discovers skills, preserves drafts, runs explicitly, and supports Settings overrides', async () => {
+test('Agent Commands & Skills stays discoverable, describes its target, and preserves Terminal input', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-agent-actions-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
     const skillDirectory = join(root, '.agents', 'skills', 'e2e-action');
+    const requiredSkillDirectory = join(root, '.agents', 'skills', 'e2e-required');
     const capture = join(testDirectory, 'agent-input.hex');
-    await Promise.all([mkdir(skillDirectory, { recursive: true }), writeFile(capture, '')]);
+    await Promise.all([
+        mkdir(skillDirectory, { recursive: true }),
+        mkdir(requiredSkillDirectory, { recursive: true }),
+        writeFile(capture, ''),
+    ]);
     await writeFile(
         join(skillDirectory, 'SKILL.md'),
         '---\nname: e2e-action\ndescription: E2E discovered action\n---\nNever exposed in picker metadata.\n',
     );
+    await writeFile(
+        join(requiredSkillDirectory, 'SKILL.md'),
+        '---\nname: e2e-required\ndescription: E2E action requiring input\nargument-hint: target\n---\nNever exposed in picker metadata.\n',
+    );
     const agentMode = await createFakeAgentMode({
         userDataDir: userData,
         providers: {
+            claude: { startupOutput: 'CLAUDE_ACTIONS_READY\r\n' },
             codex: {
                 startupOutput: 'AGENT_ACTIONS_READY\r\n',
                 inputCapture: { path: capture, encoding: 'hex', echoPrefix: 'ACTION_INPUT:' },
@@ -47,38 +59,102 @@ test('Agent Actions discovers skills, preserves drafts, runs explicitly, and sup
         },
     });
 
-    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    let running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
     try {
         await createProjectSession(running.page, 'codex');
         const state = await pageRequest<{
-            terminals: Array<{ id: string; provider?: string; lastProcessState: string }>;
+            sessions: Array<{ id: string; displayTitle: string; projectId: string }>;
+            terminals: Array<{
+                id: string;
+                provider?: string;
+                lastProcessState: string;
+                sessionId: string;
+                title: string;
+            }>;
         }>(running.page, 'app.bootstrap');
         const agentTerminal = state.terminals.find((terminal) => terminal.provider === 'codex');
         if (!agentTerminal) throw new Error('Codex Terminal was not created');
+        const agentSession = state.sessions.find(
+            (session) => session.id === agentTerminal.sessionId,
+        );
+        if (!agentSession) throw new Error('Codex Session was not created');
+        const recentInvocations = (pickerLocator: Locator) =>
+            pickerLocator
+                .locator('[data-agent-action-group="recent"] [data-agent-action]')
+                .evaluateAll((elements) => elements.map((element) => element.dataset.agentAction));
         const input = running.page.locator(
             `.terminal-pane[data-terminal-id="${agentTerminal.id}"] .xterm-helper-textarea`,
         );
         await expect(running.page.locator('.xterm-rows')).toContainText('AGENT_ACTIONS_READY');
+
+        const expectPaletteSearch = async (term: string): Promise<void> => {
+            await running.page.keyboard.press('Meta+Shift+P');
+            const palette = running.page.getByRole('dialog');
+            await palette.getByPlaceholder('Search projects, sessions, and commands…').fill(term);
+            await expect(
+                palette.getByText('Run Agent Command or Skill…', { exact: true }),
+            ).toBeVisible();
+            await running.page.keyboard.press('Escape');
+        };
+        await expectPaletteSearch('skills');
+        await expectPaletteSearch('slash');
+        await expectPaletteSearch('action');
+        await expectPaletteSearch('commands');
+
         await input.focus();
         await input.pressSequentially('draft-');
+        await pageRequest(running.page, 'session.rename', {
+            sessionId: agentSession.id,
+            displayTitle: agentTerminal.title,
+        });
         await running.page.keyboard.press('Meta+Shift+A');
 
         let picker = running.page.locator('[data-agent-actions-picker]');
         await expect(picker).toBeVisible();
         await expect(picker).toHaveAttribute('data-target-terminal-id', agentTerminal.id);
+        let target = picker.locator('[data-agent-action-target]');
+        await expect(target).toHaveAttribute('data-target-title-kind', 'shared');
+        await expect(target.locator('[data-agent-action-target-title]')).toHaveText(
+            agentTerminal.title,
+        );
+        await expect(target).toHaveAccessibleName(`Target: Codex; ${agentTerminal.title}`);
+        await running.page.keyboard.press('Escape');
+
+        await pageRequest(running.page, 'session.rename', {
+            sessionId: agentSession.id,
+            displayTitle: 'E2E Session Target',
+        });
+        await running.page.keyboard.press('Meta+Shift+A');
+        picker = running.page.locator('[data-agent-actions-picker]');
+        await expect(picker).toBeVisible();
+        target = picker.locator('[data-agent-action-target]');
+        await expect(target).toHaveAttribute('data-target-title-kind', 'distinct');
+        await expect(target.locator('[data-agent-action-target-title="session"]')).toHaveText(
+            'Session: E2E Session Target',
+        );
+        await expect(target.locator('[data-agent-action-target-title="terminal"]')).toHaveText(
+            `Terminal: ${agentTerminal.title}`,
+        );
+        await expect(target).toHaveAccessibleName(
+            `Target: Codex; Session: E2E Session Target; Terminal: ${agentTerminal.title}`,
+        );
         await expect(picker).toContainText('Codex');
         await expect(picker).toContainText('/status');
         const search = picker.getByPlaceholder('Search skills and slash commands…');
+        await expect(search).toHaveAccessibleDescription(
+            /Enter runs the selected action\. Command\+Enter inserts it for editing\./,
+        );
+        const footer = picker.locator('[data-agent-action-footer]');
+        await expect(footer.locator('[data-agent-action-mode="run"]')).toContainText('Run');
+        await expect(footer.locator('[data-agent-action-mode="insert"]')).toContainText('Insert');
         await search.fill('e2e action');
         await expect(picker.locator('[data-agent-action="$e2e-action"]')).toContainText(
             'E2E discovered action',
         );
         await search.press('Enter');
         await expect(picker).not.toBeVisible();
-        await expect.poll(() => capturedInput(capture)).toContain('draft-$e2e-action ');
-        await running.page.keyboard.type('argument');
-        await expect.poll(() => capturedInput(capture)).toContain('draft-$e2e-action argument');
-        expect(await capturedInput(capture)).not.toContain('draft-$e2e-action \r');
+        await expect(input).toBeFocused();
+        await expect.poll(() => capturedInput(capture)).toContain('draft-$e2e-action\r');
 
         await running.page.keyboard.press('Meta+Shift+A');
         picker = running.page.locator('[data-agent-actions-picker]');
@@ -87,7 +163,91 @@ test('Agent Actions discovers skills, preserves drafts, runs explicitly, and sup
         await expect(picker.locator('[data-agent-action="/status"]')).toBeVisible();
         await running.page.keyboard.press('Meta+Enter');
         await expect(picker).not.toBeVisible();
-        await expect.poll(() => capturedInput(capture)).toContain('/status\r');
+        await expect(input).toBeFocused();
+        await expect.poll(() => capturedInput(capture)).toContain('/status ');
+        await running.page.keyboard.type('details');
+        await expect.poll(() => capturedInput(capture)).toContain('/status details');
+        expect(await capturedInput(capture)).not.toContain('/status \r');
+
+        await running.page.keyboard.press('Meta+Shift+A');
+        picker = running.page.locator('[data-agent-actions-picker]');
+        const requiredSearch = picker.getByPlaceholder('Search skills and slash commands…');
+        await requiredSearch.fill('e2e required');
+        await expect(picker.locator('[data-agent-action="$e2e-required"]')).toBeVisible();
+        const beforeRequiredRun = await capturedInput(capture);
+        await requiredSearch.press('Enter');
+        await expect(picker).toBeVisible();
+        await expect(
+            running.page.getByText('$e2e-required needs arguments before it can run.'),
+        ).toBeVisible();
+        await expect.poll(() => capturedInput(capture)).toBe(beforeRequiredRun);
+        await expect
+            .poll(async () => {
+                const currentSettings = await pageRequest<{
+                    value: {
+                        'agents.providers': {
+                            codex: { actions: { recent: { invocations: string[] } } };
+                        };
+                    };
+                }>(running.page, 'settings.get');
+                return currentSettings.value['agents.providers'].codex.actions.recent.invocations;
+            })
+            .toEqual(['/status', '$e2e-action']);
+        await running.page.keyboard.press('Meta+Enter');
+        await expect(picker).not.toBeVisible();
+        await expect(input).toBeFocused();
+        await expect.poll(() => capturedInput(capture)).toContain('$e2e-required ');
+
+        await running.page.keyboard.press('Meta+Shift+A');
+        picker = running.page.locator('[data-agent-actions-picker]');
+        await picker.getByPlaceholder('Search skills and slash commands…').fill('diff');
+        await picker.locator('[data-agent-action="/diff"]').click();
+        await expect(picker).not.toBeVisible();
+        await expect(input).toBeFocused();
+        await expect
+            .poll(async () => (await capturedInput(capture)).split('/diff\r').length - 1)
+            .toBe(1);
+
+        await expect
+            .poll(async () => {
+                const currentSettings = await pageRequest<{
+                    value: {
+                        'agents.providers': {
+                            codex: { actions: { recent: { invocations: string[] } } };
+                        };
+                    };
+                }>(running.page, 'settings.get');
+                return currentSettings.value['agents.providers'].codex.actions.recent.invocations;
+            })
+            .toEqual(['/diff', '$e2e-required', '/status', '$e2e-action']);
+
+        await running.page.keyboard.press('Meta+Shift+A');
+        picker = running.page.locator('[data-agent-actions-picker]');
+        await expect(picker.locator('[data-agent-action-group="recent"]')).toBeVisible();
+        await expect
+            .poll(() => recentInvocations(picker))
+            .toEqual(['/diff', '$e2e-required', '/status', '$e2e-action']);
+        await picker.getByPlaceholder('Search skills and slash commands…').fill('diff');
+        await expect(picker.locator('[data-agent-action-group="recent"]')).toHaveCount(0);
+        await expect(picker.locator('[data-agent-action="/diff"]')).toHaveCount(1);
+        await running.page.keyboard.press('Escape');
+
+        await running.page.keyboard.press('Meta+Shift+A');
+        picker = running.page.locator('[data-agent-actions-picker]');
+        await picker.getByPlaceholder('Search skills and slash commands…').fill('status');
+        await running.page.keyboard.press('Enter');
+        await expect
+            .poll(async () => {
+                const currentSettings = await pageRequest<{
+                    value: {
+                        'agents.providers': {
+                            codex: { actions: { recent: { invocations: string[] } } };
+                        };
+                    };
+                }>(running.page, 'settings.get');
+                return currentSettings.value['agents.providers'].codex.actions.recent.invocations;
+            })
+            .toEqual(['/status', '/diff', '$e2e-required', '$e2e-action']);
 
         await running.page.keyboard.press('Meta+Shift+A');
         picker = running.page.locator('[data-agent-actions-picker]');
@@ -96,11 +256,12 @@ test('Agent Actions discovers skills, preserves drafts, runs explicitly, and sup
         const settingsDialog = running.page.getByRole('dialog');
         const actionsRow = settingsDialog.locator('[data-setting-row="agents.codex.actions"]');
         await expect(actionsRow).toBeVisible();
-        await actionsRow.getByLabel('New agent action invocation').fill('/goal');
+        await actionsRow.getByRole('switch', { name: 'Show /diff' }).uncheck();
+        await actionsRow.getByLabel('New command or skill invocation').fill('/goal');
         await actionsRow
-            .getByLabel('New agent action description')
+            .getByLabel('New command or skill description')
             .fill('Manage a long-running goal');
-        await actionsRow.getByRole('button', { name: 'Add agent action' }).click();
+        await actionsRow.getByRole('button', { name: 'Add command or skill' }).click();
         await expect(actionsRow.getByLabel('Description for /goal')).toHaveValue(
             'Manage a long-running goal',
         );
@@ -109,17 +270,66 @@ test('Agent Actions discovers skills, preserves drafts, runs explicitly, and sup
                 const settings = await pageRequest<{
                     value: {
                         'agents.providers': {
+                            codex: {
+                                actions: {
+                                    items: Record<string, { enabled?: boolean }>;
+                                    recent: { invocations: string[] };
+                                };
+                            };
+                        };
+                    };
+                }>(running.page, 'settings.get');
+                const actions = settings.value['agents.providers'].codex.actions;
+                return {
+                    hasGoal: Object.hasOwn(actions.items, '/goal'),
+                    diffEnabled: actions.items['/diff']?.enabled,
+                    recent: actions.recent.invocations,
+                };
+            })
+            .toEqual({
+                hasGoal: true,
+                diffEnabled: false,
+                recent: ['/status', '/diff', '$e2e-required', '$e2e-action'],
+            });
+        await settingsDialog.getByRole('button', { name: 'Close' }).click();
+
+        await input.focus();
+        await running.page.keyboard.press('Meta+Shift+A');
+        picker = running.page.locator('[data-agent-actions-picker]');
+        await expect
+            .poll(() => recentInvocations(picker))
+            .toEqual(['/status', '$e2e-required', '$e2e-action']);
+        await expect(picker.locator('[data-agent-action="/diff"]')).toHaveCount(0);
+        await picker.getByRole('button', { name: 'Manage in Settings…' }).click();
+        const reopenedSettings = running.page.getByRole('dialog');
+        const reopenedActionsRow = reopenedSettings.locator(
+            '[data-setting-row="agents.codex.actions"]',
+        );
+        await reopenedActionsRow.getByRole('switch', { name: 'Show /diff' }).check();
+        await expect
+            .poll(async () => {
+                const currentSettings = await pageRequest<{
+                    value: {
+                        'agents.providers': {
                             codex: { actions: { items: Record<string, unknown> } };
                         };
                     };
                 }>(running.page, 'settings.get');
                 return Object.hasOwn(
-                    settings.value['agents.providers'].codex.actions.items,
-                    '/goal',
+                    currentSettings.value['agents.providers'].codex.actions.items,
+                    '/diff',
                 );
             })
-            .toBe(true);
-        await settingsDialog.getByRole('button', { name: 'Close' }).click();
+            .toBe(false);
+        await reopenedSettings.getByRole('button', { name: 'Close' }).click();
+
+        await input.focus();
+        await running.page.keyboard.press('Meta+Shift+A');
+        picker = running.page.locator('[data-agent-actions-picker]');
+        await expect
+            .poll(() => recentInvocations(picker))
+            .toEqual(['/status', '/diff', '$e2e-required', '$e2e-action']);
+        await running.page.keyboard.press('Escape');
 
         await input.focus();
         await running.page.keyboard.press('Meta+Shift+A');
@@ -133,9 +343,122 @@ test('Agent Actions discovers skills, preserves drafts, runs explicitly, and sup
         await expect(input).toBeFocused();
         await running.page.keyboard.type('-after-escape');
         await expect.poll(() => capturedInput(capture)).toContain('-after-escape');
+        await expect
+            .poll(async () => {
+                const currentSettings = await pageRequest<{
+                    value: {
+                        'agents.providers': {
+                            codex: { actions: { recent: { invocations: string[] } } };
+                        };
+                    };
+                }>(running.page, 'settings.get');
+                return currentSettings.value['agents.providers'].codex.actions.recent.invocations;
+            })
+            .toEqual(['/status', '/diff', '$e2e-required', '$e2e-action']);
+
+        const claudeCreation = await pageRequest<{
+            session: { id: string };
+            terminal: { id: string };
+        }>(running.page, 'session.create', {
+            projectId: agentSession.projectId,
+            defaultAgent: 'claude',
+        });
+        await pageRequest(running.page, 'session.select', { sessionId: claudeCreation.session.id });
+        await expect
+            .poll(async () => {
+                const current = await pageRequest<{
+                    terminals: Array<{ id: string; lastProcessState: string }>;
+                }>(running.page, 'app.bootstrap');
+                return current.terminals.find(({ id }) => id === claudeCreation.terminal.id)
+                    ?.lastProcessState;
+            })
+            .toBe('running');
+        const claudeInput = running.page.locator(
+            `.terminal-pane[data-terminal-id="${claudeCreation.terminal.id}"] .xterm-helper-textarea`,
+        );
+        await claudeInput.focus();
+        await running.page.keyboard.press('Meta+Shift+A');
+        picker = running.page.locator('[data-agent-actions-picker]');
+        await expect(picker).toContainText('Claude Code');
+        await expect(picker.locator('[data-agent-action-group="recent"]')).toHaveCount(0);
+        await picker.getByPlaceholder('Search skills and slash commands…').fill('context');
+        await picker.locator('[data-agent-action="/context"]').click();
+        await expect
+            .poll(async () => {
+                const currentSettings = await pageRequest<{
+                    value: {
+                        'agents.providers': {
+                            claude: { actions: { recent: { invocations: string[] } } };
+                        };
+                    };
+                }>(running.page, 'settings.get');
+                return currentSettings.value['agents.providers'].claude.actions.recent.invocations;
+            })
+            .toEqual(['/context']);
+        await running.page.keyboard.press('Meta+Shift+A');
+        picker = running.page.locator('[data-agent-actions-picker]');
+        await expect.poll(() => recentInvocations(picker)).toEqual(['/context']);
+        await expect(
+            picker.locator('[data-agent-action-group="recent"] [data-agent-action="/status"]'),
+        ).toHaveCount(0);
+        await running.page.keyboard.press('Escape');
+
+        await pageRequest(running.page, 'session.select', { sessionId: agentSession.id });
+        await expect(input).toBeVisible();
+        await input.focus();
+        await running.page.keyboard.press('Meta+Shift+A');
+        picker = running.page.locator('[data-agent-actions-picker]');
+        await expect
+            .poll(() => recentInvocations(picker))
+            .toEqual(['/status', '/diff', '$e2e-required', '$e2e-action']);
+        await expect(
+            picker.locator('[data-agent-action-group="recent"] [data-agent-action="/context"]'),
+        ).toHaveCount(0);
+        await running.page.keyboard.press('Escape');
+
+        await running.app.close();
+        running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+        await pageRequest(running.page, 'session.select', { sessionId: agentSession.id });
+        await expect
+            .poll(async () => {
+                const current = await pageRequest<{
+                    terminals: Array<{ id: string; lastProcessState: string }>;
+                }>(running.page, 'app.bootstrap');
+                return current.terminals.find(({ id }) => id === agentTerminal.id)
+                    ?.lastProcessState;
+            })
+            .toBe('running');
+        await expect
+            .poll(async () => {
+                const currentSettings = await pageRequest<{
+                    value: {
+                        'agents.providers': {
+                            codex: { actions: { recent: { invocations: string[] } } };
+                        };
+                    };
+                }>(running.page, 'settings.get');
+                return currentSettings.value['agents.providers'].codex.actions.recent.invocations;
+            })
+            .toEqual(['/status', '/diff', '$e2e-required', '$e2e-action']);
+        const restoredInput = running.page.locator(
+            `.terminal-pane[data-terminal-id="${agentTerminal.id}"] .xterm-helper-textarea`,
+        );
+        await expect(restoredInput).toBeVisible();
+        await restoredInput.focus();
+        await expect(restoredInput).toBeFocused();
+        await running.page.keyboard.press('Meta+Shift+A');
+        picker = running.page.locator('[data-agent-actions-picker]');
+        await expect(picker).toBeVisible();
+        await expect
+            .poll(() => recentInvocations(picker))
+            .toEqual(['/status', '/diff', '$e2e-required', '$e2e-action']);
+        await running.page.keyboard.press('Escape');
 
         await pressNewTerminal(running.page);
-        const shellTerminalId = await waitForNewTerminalId(running.page, [agentTerminal.id]);
+        const shellTerminalId = await waitForNewTerminalId(running.page, [
+            agentTerminal.id,
+            claudeCreation.terminal.id,
+        ]);
         const shellInput = running.page.locator(
             `.terminal-pane[data-terminal-id="${shellTerminalId}"] .xterm-helper-textarea`,
         );
