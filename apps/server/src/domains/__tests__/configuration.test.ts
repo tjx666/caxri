@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import type { ServerEvent } from '@caxri/protocol';
 import {
     DEFAULT_FILES_EXCLUDE,
+    defaultKeybindingChanges,
     defaultKeybindings,
     findKeybindingConflicts,
     MAX_CONFIGURATION_SOURCE_BYTES,
@@ -19,6 +20,10 @@ import { ConfigService } from '../config';
 import { draculaTheme } from '../theme';
 
 const temporaryDirectories: string[] = [];
+const migratedDefaultKeybindingAdditions = defaultKeybindingChanges.flatMap((change) =>
+    change.type === 'add' ? [change.binding] : [],
+);
+
 afterEach(async () => {
     const pendingDirectories = temporaryDirectories.slice();
     temporaryDirectories.length = 0;
@@ -180,7 +185,7 @@ describe('ConfigurationService', () => {
         expect(service.getKeybindings().value).toEqual([
             { key: 'cmd+p', command: 'pathBrowser.open' },
             { key: 'cmd+t', command: 'terminal.new' },
-            { key: 'cmd+3', command: 'secondarySidebar.showStatus' },
+            ...migratedDefaultKeybindingAdditions,
         ]);
         const source = await readFile(service.keybindingsPath, 'utf8');
         expect(source).toContain('// Keep the explanation attached to the migrated default.');
@@ -203,7 +208,7 @@ describe('ConfigurationService', () => {
 
         expect(service.getKeybindings().value).toEqual([
             ...customized,
-            { key: 'cmd+3', command: 'secondarySidebar.showStatus' },
+            ...migratedDefaultKeybindingAdditions,
         ]);
         expect(await readFile(service.keybindingsPath, 'utf8')).toContain('"key": "cmd+alt+p"');
         await service.close();
@@ -226,7 +231,7 @@ describe('ConfigurationService', () => {
 
         expect(service.getKeybindings().value).toEqual([
             ...conflicted,
-            { key: 'cmd+3', command: 'secondarySidebar.showStatus' },
+            ...migratedDefaultKeybindingAdditions,
         ]);
         expect(await readFile(service.keybindingsPath, 'utf8')).toContain('"key": "alt+p"');
         await service.close();
@@ -276,7 +281,7 @@ describe('ConfigurationService', () => {
 
         expect(service.getKeybindings().value).toEqual([
             { key: 'cmd+`', command: 'session.switchMru' },
-            { key: 'cmd+3', command: 'secondarySidebar.showStatus' },
+            ...migratedDefaultKeybindingAdditions,
         ]);
         expect(await readFile(service.keybindingsPath, 'utf8')).toContain('"key": "cmd+`"');
         await service.close();
@@ -298,11 +303,10 @@ describe('ConfigurationService', () => {
 
         expect(service.getKeybindings().value).toEqual([
             { key: 'cmd+1', command: 'secondarySidebar.showFiles' },
-            { key: 'cmd+3', command: 'secondarySidebar.showStatus' },
+            ...migratedDefaultKeybindingAdditions,
         ]);
-        expect(await readFile(service.keybindingsPath, 'utf8')).toContain(
-            '"command": "secondarySidebar.showStatus"',
-        );
+        const saved = await readFile(service.keybindingsPath, 'utf8');
+        expect(saved).toContain('secondarySidebar.showStatus');
         await service.close();
     });
 

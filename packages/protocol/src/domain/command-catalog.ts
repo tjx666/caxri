@@ -433,6 +433,17 @@ export function getNativeMenuCommandGroups(menu: NativeMenuId): CommandDefinitio
 }
 
 /**
+ * Tab accepts the active Terminal completion and LF submits it. `sendSequence` preserves both bytes unchanged, matching
+ * the VS Code keybinding pattern without adding the more general `runCommands` command solely for one sequence.
+ */
+const terminalCompleteAndSubmitKeybinding = {
+    key: 'cmd+shift+enter',
+    command: 'workbench.action.terminal.sendSequence',
+    when: 'terminalFocus',
+    args: { text: '\t\n' },
+} satisfies Keybinding;
+
+/**
  * Default keyboard shortcuts, seeded into `keybindings.jsonc` on first run.
  */
 export const defaultKeybindings: Keybinding[] = [
@@ -449,6 +460,7 @@ export const defaultKeybindings: Keybinding[] = [
      */
     { key: 'cmd+o', command: 'project.create' },
     { key: 'cmd+t', command: 'terminal.new' },
+    terminalCompleteAndSubmitKeybinding,
     { key: 'cmd+k', command: 'terminal.clear' },
     { key: 'cmd+c', command: 'terminal.copy' },
     { key: 'cmd+f', command: 'terminal.find' },
@@ -521,5 +533,9 @@ export const defaultKeybindingChanges = [
     {
         type: 'add',
         binding: { key: 'cmd+3', command: 'secondarySidebar.showStatus' },
+    },
+    {
+        type: 'add',
+        binding: terminalCompleteAndSubmitKeybinding,
     },
 ] satisfies readonly DefaultKeybindingChange[];

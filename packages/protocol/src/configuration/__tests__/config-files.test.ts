@@ -59,4 +59,26 @@ describe('reconcileDefaultKeybindings', () => {
 
         expect(reconcileDefaultKeybindings(original, changes).replacements).toEqual([]);
     });
+
+    it('preserves command arguments when adding a new default', () => {
+        const binding = {
+            key: 'cmd+shift+enter',
+            command: 'workbench.action.terminal.sendSequence',
+            when: 'terminalFocus' as const,
+            args: { text: '\t\n' },
+        };
+
+        expect(reconcileDefaultKeybindings([], [{ type: 'add', binding }])).toEqual({
+            additions: [binding],
+            replacements: [],
+            value: [binding],
+        });
+
+        const custom = { ...binding, key: 'cmd+enter', args: { text: 'custom' } };
+        expect(reconcileDefaultKeybindings([custom], [{ type: 'add', binding }])).toEqual({
+            additions: [],
+            replacements: [],
+            value: [custom],
+        });
+    });
 });
