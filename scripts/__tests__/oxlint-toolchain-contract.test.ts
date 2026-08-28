@@ -8,6 +8,27 @@ import { execFileAsync } from '../exec';
 
 const root = resolve(import.meta.dirname, '../..');
 
+const activeAntiSlopRuleNames = [
+    'anti-slop/no-conditional-empty-object-spread',
+    'anti-slop/no-object-parameters',
+    'anti-slop/no-reflect-apply',
+    'anti-slop/no-unknown-type-aliases',
+    'anti-slop/no-widen-then-assert',
+] as const;
+
+const deferredAntiSlopRuleNames = [
+    'anti-slop/no-chained-type-assertions',
+    'anti-slop/no-known-value-widening',
+    'anti-slop/no-module-mocking',
+    'anti-slop/no-reflect-get',
+    'anti-slop/no-runtime-typeof',
+    'anti-slop/no-shape-in-symbol-names',
+    'anti-slop/no-unknown-parameters',
+    'anti-slop/no-unknown-returns',
+    'anti-slop/no-unsafe-dictionary-type',
+    'anti-slop/require-safety-comment-for-type-assertion',
+] as const;
+
 /**
  * Full-line `//` comments are the only comment form used in .oxlintrc.json.
  */
@@ -98,17 +119,59 @@ describe('oxlint type-aware toolchain contract', () => {
         expect(testExemption?.files).toContain('**/__tests__/**');
     });
 
-    it('owns only type-aware typescript rules, leaving syntactic linting to ESLint', async () => {
+    it('loads the vendored anti-slop plugin and rejects low-evidence patterns', async () => {
+        const result = await lintTypeAware(
+            fixtureConfigPath,
+            'scripts/fixtures/eslint/anti-slop-violation.ts',
+        );
+
+        expect(result.exitCode).not.toBe(0);
+        expect(result.stdout).toContain('anti-slop(no-conditional-empty-object-spread)');
+        expect(result.stdout).toContain('anti-slop(no-object-parameters)');
+        expect(result.stdout).toContain('anti-slop(no-reflect-apply)');
+        expect(result.stdout).toContain('anti-slop(no-unknown-type-aliases)');
+        expect(result.stdout).toContain('anti-slop(no-widen-then-assert)');
+    });
+
+    it('owns only curated type-aware and anti-slop rules, leaving other syntactic linting to ESLint', async () => {
         const config = parseJsonc(await readFile(join(root, '.oxlintrc.json'), 'utf8'));
 
         const rules = Object.keys(config.rules as Record<string, unknown>);
         expect(rules.length).toBeGreaterThan(0);
-        for (const rule of rules) {
-            expect(rule).toMatch(/^typescript\//);
-        }
+        const antiSlopRules = rules
+            .filter((rule) => rule.startsWith('anti-slop/'))
+            .toSorted((left, right) => left.localeCompare(right));
+        expect(antiSlopRules).toEqual(
+            [...activeAntiSlopRuleNames, ...deferredAntiSlopRuleNames].toSorted((left, right) =>
+                left.localeCompare(right),
+            ),
+        );
+        const configuredRules = config.rules as Record<string, unknown>;
+        expect(activeAntiSlopRuleNames.map((rule) => configuredRules[rule])).toEqual(
+            activeAntiSlopRuleNames.map(() => 'error'),
+        );
+        expect(deferredAntiSlopRuleNames.map((rule) => configuredRules[rule])).toEqual(
+            deferredAntiSlopRuleNames.map(() => 'off'),
+        );
+        expect(
+            rules
+                .filter((rule) => !rule.startsWith('anti-slop/'))
+                .every((rule) => rule.startsWith('typescript/')),
+        ).toBe(true);
 
-        // The default rule categories must stay off, or oxlint would re-lint syntactic territory
-        // that ESLint owns (and vice versa the whole point of the split collapses).
+        expect(config.jsPlugins).toContainEqual({
+            name: 'anti-slop',
+            specifier: './tools/oxlint/anti-slop/index.ts',
+        });
+        expect(config.ignorePatterns).toContain('tools/oxlint/anti-slop/**');
+
+        const manifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')) as {
+            knip: { workspaces: { '.': { ignore: string[] } } };
+        };
+        expect(manifest.knip.workspaces['.'].ignore).toContain('tools/oxlint/anti-slop/**');
+
+        // The default rule categories must stay off, or oxlint would add uncurated syntactic
+        // territory beyond the explicitly reviewed anti-slop policy.
         expect(config.categories).toMatchObject({ correctness: 'off', suspicious: 'off' });
 
         // Anchor rules that must never silently drop out of the type-aware gate.

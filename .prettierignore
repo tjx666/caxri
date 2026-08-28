@@ -10,5 +10,6 @@ pnpm-lock.yaml
 *.tsbuildinfo
 coverage/
 licenses/
+tools/oxlint/anti-slop/
 src/runtime/store/migrations/
 .agents/skills/design-prototype/assets/*.js

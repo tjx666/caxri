@@ -2,8 +2,9 @@
 
 > **Outcome (2026-08): partially adopted.** The "defer" recommendation below applied to a
 > wholesale ESLint replacement. The repository has since adopted the narrower split this spike's
-> §6 sketched: oxlint owns the type-aware layer (plus `node/no-sync`), ESLint stays
-> syntactic-only, and `.oxlintrc.json` is now a production gate wired into
+> §6 sketched: oxlint owns the type-aware layer, `node/no-sync`, and a small reviewed set of
+> vendored anti-slop policies; ESLint keeps the remaining syntactic rules. `.oxlintrc.json` is now
+> a production gate wired into
 > `bun run lint:type-aware`, `bun run check`, lint-staged, and CI. See
 > `docs/type-aware-linting.md` for the current contract; this file remains the historical evidence
 > record, and the config snippets below describe the spike-era `.oxlintrc.json`, not the current

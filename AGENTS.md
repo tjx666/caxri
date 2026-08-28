@@ -12,6 +12,7 @@ recipes live in `.agents/skills/` — load the owning skill instead of restating
 | `extensions/` | Bundled native ESM extensions and their packaging inputs                                        |
 | `e2e/`        | Playwright Electron workflows and shared desktop fixtures                                       |
 | `scripts/`    | Repository-wide CI, validation, benchmark, and runner tooling                                   |
+| `tools/`      | Vendored contributor tooling loaded by repository checks                                        |
 | `.agents/`    | Canonical contributor skills; `.claude/skills` is a compatibility symlink                       |
 | `skills/`     | Product skill embedded in and distributed with the Caxri CLI                                    |
 | `build/`      | Tracked packaging inputs, including icons and the CLI launcher                                  |

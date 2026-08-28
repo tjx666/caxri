@@ -47,6 +47,10 @@ interface PackageManifest {
     workspaces?: unknown;
 }
 
+interface RootPackageManifest extends PackageManifest {
+    'lint-staged'?: Record<string, string[]>;
+}
+
 interface PnpmWorkspace {
     allowBuilds?: Record<string, boolean>;
     catalog?: Record<string, string>;
@@ -126,7 +130,7 @@ function protocolDeepImports(source: string): string[] {
 }
 
 describe('pnpm workspace contract', () => {
-    const rootManifest = manifest(join(root, 'package.json'));
+    const rootManifest = manifest(join(root, 'package.json')) as RootPackageManifest;
     const agentSkillsManifest = manifest(join(root, 'packages/agent-skills/package.json'));
     const clientManifest = manifest(join(root, 'packages/client/package.json'));
     const protocolManifest = manifest(join(root, 'packages/protocol/package.json'));
@@ -156,7 +160,7 @@ describe('pnpm workspace contract', () => {
             'eslint-plugin-import-x': '^4.17.1',
             'markdownlint': '^0.41.1',
             'markdownlint-cli2': '^0.23.2',
-            'oxlint': '^1.78.0',
+            'oxlint': '^1.80.0',
             'oxlint-tsgolint': '^7.0.2001',
             'prettier-plugin-tailwindcss': '^0.8.1',
             'semver': '^7.8.5',
@@ -174,6 +178,15 @@ describe('pnpm workspace contract', () => {
             'unrs-resolver': true,
         });
         expect(workspace.overrides).toEqual({ dompurify: '3.4.13' });
+        expect(`^${rootManifest.devDependencies?.['@oxlint/plugins']}`).toBe(
+            workspace.catalog?.oxlint,
+        );
+        expect(rootManifest['lint-staged']?.['*.{js,jsx,mjs,cjs}']?.[0]).toBe(
+            'eslint --fix --no-warn-ignored',
+        );
+        expect(rootManifest['lint-staged']?.['*.{ts,tsx,mts,cts}']?.[0]).toBe(
+            'eslint --fix --no-warn-ignored',
+        );
         expect(
             lockfiles(root)
                 .map((path) => basename(path))
