@@ -58,6 +58,7 @@ describe('Agent Terminal restart', () => {
                     projectId: project.id,
                     defaultAgent: provider,
                 });
+                const createdActivityAt = created.session.lastSessionActivityAt;
                 const direct = new CaxriDatabase(join(userDataPath, 'caxri.db'));
                 direct.database
                     .prepare('UPDATE terminals SET agent_session_id = ? WHERE id = ?')
@@ -71,6 +72,11 @@ describe('Agent Terminal restart', () => {
 
                 expect(spawn.mock.calls[1]?.[1]).toEqual(resumeArguments);
                 const bootstrap = await runtime.handlers['app.bootstrap']({});
+                const restartedSession = bootstrap.sessions.find(
+                    (session) => session.id === created.session.id,
+                )!;
+                expect(restartedSession.lastSessionActivityAt).toBeGreaterThan(createdActivityAt);
+                expect(restartedSession.lastSessionActivityReason).toBe('agent_started');
                 expect(
                     bootstrap.terminals.find((terminal) => terminal.id === created.terminal!.id)
                         ?.agentSessionId,

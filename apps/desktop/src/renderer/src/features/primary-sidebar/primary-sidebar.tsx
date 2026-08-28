@@ -15,6 +15,7 @@ import {
     useTerminals,
 } from '../../stores/selectors';
 import { archiveSession, beginSessionCreation, selectProject } from '../session/session-actions';
+import { activeSessionsInSidebarOrder } from '../session/session-activity-order';
 import { useProjectCollapse } from './hooks/use-project-collapse';
 import type { PrimarySidebarVerticalKey } from './primary-sidebar-tree';
 import {
@@ -71,6 +72,10 @@ export function PrimarySidebar() {
     const [focusedRowId, setFocusedRowId] = useState<string>();
     const treeReference = useRef<HTMLDivElement>(null);
     const sessionRename = useSessionRename(sessions);
+    const sidebarSessions = useMemo(
+        () => activeSessionsInSidebarOrder(projects, sessions),
+        [projects, sessions],
+    );
 
     const isProjectExpanded = projectCollapse.isProjectExpanded;
 
@@ -82,14 +87,12 @@ export function PrimarySidebar() {
             // Single pass instead of `.filter().map()`: react-doctor's combine-iterations rule
             // flags the chained form even though both walk the same small `sessions` array.
             const sessionIds: string[] = [];
-            for (const session of sessions) {
-                if (session.projectId === project.id && session.archivedAt === undefined)
-                    sessionIds.push(session.id);
-            }
+            for (const session of sidebarSessions)
+                if (session.projectId === project.id) sessionIds.push(session.id);
             return { id: project.id, sessionIds };
         });
         return flattenPrimarySidebarRows(projectNodes, isProjectExpanded);
-    }, [projects, sessions, isProjectExpanded]);
+    }, [projects, sidebarSessions, isProjectExpanded]);
 
     /**
      * The single row that owns the tree's roving Tab stop (standard ARIA tree authoring pattern). Falls back through
@@ -221,11 +224,8 @@ export function PrimarySidebar() {
                 onPointerLeave={() => projectCollapse.setIsHovered(false)}
             >
                 {projects.map((project) => {
-                    const projectSessions = sessions.filter(
+                    const activeSessions = sidebarSessions.filter(
                         (session) => session.projectId === project.id,
-                    );
-                    const activeSessions = projectSessions.filter(
-                        (session) => session.archivedAt === undefined,
                     );
                     return (
                         <ProjectGroup

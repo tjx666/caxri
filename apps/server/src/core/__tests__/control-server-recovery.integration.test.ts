@@ -20,6 +20,8 @@ function session(displayTitle: string) {
         titleMode: 'manual' as const,
         createdAt: 1,
         lastOpenedAt: 1,
+        lastSessionActivityAt: 1,
+        lastSessionActivityReason: 'created' as const,
         archivedAt: undefined,
         primaryAgentTerminalId: undefined,
         lastActivityState: 'unknown' as const,

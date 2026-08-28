@@ -62,6 +62,7 @@ describe('Runtime Agent hook integration', () => {
                 projectId: project.id,
                 defaultAgent: 'codex',
             });
+            const backgroundCreatedAt = background.session.lastSessionActivityAt;
             const selected = await runtime.handlers['session.create']({
                 projectId: project.id,
                 defaultAgent: 'shell',
@@ -160,7 +161,16 @@ describe('Runtime Agent hook integration', () => {
                     hasUnread: true,
                     lastActivityState: 'completed',
                     lastAttentionKind: 'completed',
+                    lastSessionActivityReason: 'agent_completed',
                 });
+            expect(
+                (
+                    await runtime.handlers['app.records']({
+                        sessionIds: [background.session.id],
+                        terminalIds: [],
+                    })
+                ).sessions[0]?.lastSessionActivityAt,
+            ).toBeGreaterThan(backgroundCreatedAt);
         } finally {
             await runtime.close();
         }

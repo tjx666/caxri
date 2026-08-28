@@ -45,6 +45,14 @@ export const sessions = sqliteTable(
         workbenchRootInode: text('workbench_root_inode'),
         createdAt: integer('created_at').notNull(),
         lastOpenedAt: integer('last_opened_at').notNull(),
+        /**
+         * Product-owned recency for meaningful Session work. The zero default is migration-only; the preserving
+         * migration runner backfills legacy rows from `created_at`, and every new row supplies a real value.
+         */
+        lastSessionActivityAt: integer('last_session_activity_at').notNull().default(0),
+        lastSessionActivityReason: text('last_session_activity_reason')
+            .notNull()
+            .default('created'),
         archivedAt: integer('archived_at'),
         primaryAgentTerminalId: text('primary_agent_terminal_id'),
         lastActivityState: text('last_activity_state').notNull().default('idle'),
@@ -56,7 +64,10 @@ export const sessions = sqliteTable(
         titleMode: text('title_mode').notNull().default('automatic'),
     },
     (table) => [
-        index('sessions_project_activity').on(table.projectId, sql`${table.lastOpenedAt} DESC`),
+        index('sessions_project_activity').on(
+            table.projectId,
+            sql`${table.lastSessionActivityAt} DESC`,
+        ),
         index('sessions_workbench_project').on(table.workbenchProjectId),
     ],
 );

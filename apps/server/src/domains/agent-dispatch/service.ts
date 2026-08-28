@@ -259,10 +259,15 @@ export class AgentDispatchService {
                 terminalId: terminal.id,
                 endpoint,
             });
+            this.options.database.touchSessionActivity(terminal.sessionId, 'agent_started');
             this.options.coordinator.probeTerminal(terminal.id);
             this.options.emit({
                 event: 'state.changed',
-                payload: { kind: 'records', sessionIds: [], terminalIds: [terminal.id] },
+                payload: {
+                    kind: 'records',
+                    sessionIds: [terminal.sessionId],
+                    terminalIds: [terminal.id],
+                },
             });
             return receipt;
         } catch (error) {
