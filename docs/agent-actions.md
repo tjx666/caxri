@@ -7,7 +7,9 @@ selection cannot drift to another Terminal.
 
 ## Interaction
 
-- Search matches the exact invocation, its prefix-free name, and its description.
+- Search matches the exact invocation, its prefix-free name, and its description. Exact, prefix,
+  word-initial, and fuzzy name matches rank ahead of description-only matches; `/` and `$` remain
+  optional unless the user wants to restrict results to actions using that prefix.
 - `Enter` and mouse selection append `<invocation>\r` to run an argument-free action immediately.
   Required-argument actions remain open with a prompt to insert and complete them first.
 - `Command+Enter` appends `<invocation>` without submitting it, then returns focus to the Terminal
