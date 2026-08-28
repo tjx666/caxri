@@ -10,7 +10,7 @@ import ts from 'typescript';
 
 const MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
 const execFileAsync = promisify(execFile);
-const CODE_EXTENSIONS = new Set(['.cjs', '.js', '.jsx', '.mjs', '.ts', '.tsx']);
+const CODE_EXTENSIONS = new Set(['.cjs', '.cts', '.js', '.jsx', '.mjs', '.mts', '.ts', '.tsx']);
 /**
  * Type-aware linting (oxlint + tsgolint) only understands files that belong to a TypeScript program; plain JS files
  * stay on the syntactic ESLint pipeline alone.
@@ -545,11 +545,20 @@ async function runTool(root: string, executable: string, arguments_: string[]): 
     await runCapture(join(root, 'node_modules', '.bin', executable), arguments_, root);
 }
 
+/**
+ * Explicit changed-file lists can include intentionally ignored fixtures or vendored sources. ESLint must skip them
+ * silently so one ignored file does not turn a valid focused check into a warning failure under the repository's
+ * zero-warning policy.
+ */
+export function eslintArguments(files: string[]): string[] {
+    return ['--fix', '--no-warn-ignored', ...files];
+}
+
 async function runLint(root: string, files: string[]): Promise<number> {
     const { codeFiles, markdownFiles, otherFormatFiles } = lintBucketsForFiles(files);
 
     if (codeFiles.length > 0) {
-        await runTool(root, 'eslint', ['--fix', ...codeFiles]);
+        await runTool(root, 'eslint', eslintArguments(codeFiles));
         // ESLint is syntactic-only in this repository; type-aware rules run through oxlint/tsgolint
         // (see .oxlintrc.json). Run it before Prettier so its autofixes get reformatted.
         const typeAwareFiles = codeFiles.filter((file) =>

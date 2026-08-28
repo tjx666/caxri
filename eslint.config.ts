@@ -81,6 +81,11 @@ export default defineConfig(
          */
         'scripts/fixtures/markdown/**',
         /**
+         * Vendored Oxlint plugin source follows its upstream style and is exercised by the Oxlint contract test instead
+         * of being recursively linted by itself or by ESLint.
+         */
+        'tools/oxlint/anti-slop/**',
+        /**
          * Negative fixture for the refactor Acceptance validator: the mismatched closing fence is intentional so the
          * test can prove that trailing fence info cannot expose a hidden plan. ESLint otherwise parses the deliberately
          * malformed fixture as a virtual TypeScript module before the validator test can consume it as plain text.
