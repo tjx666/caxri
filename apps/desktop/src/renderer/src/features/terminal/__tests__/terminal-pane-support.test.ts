@@ -12,6 +12,7 @@ import {
     detachTerminalQuietly,
     opaqueSearchColor,
     registerTerminalInputHandlers,
+    xtermThemeWithoutOverviewRulerBorder,
 } from '../terminal-pane-support';
 
 beforeEach(() => {
@@ -26,6 +27,22 @@ describe('opaqueSearchColor', () => {
 
     it('leaves an already-opaque 6-digit hex color unchanged', () => {
         expect(opaqueSearchColor('#282836')).toBe('#282836');
+    });
+});
+
+describe('xtermThemeWithoutOverviewRulerBorder', () => {
+    it('preserves Terminal colors while making xterm overview ruler border transparent', () => {
+        expect(
+            xtermThemeWithoutOverviewRulerBorder({
+                background: '#101820',
+                foreground: '#f8f8f2',
+                overviewRulerBorder: '#ff0000',
+            }),
+        ).toEqual({
+            background: '#101820',
+            foreground: '#f8f8f2',
+            overviewRulerBorder: 'transparent',
+        });
     });
 });
 
