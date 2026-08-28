@@ -66,35 +66,31 @@ test('Agent identities stay consistent across every shared surface', async () =>
         });
         /**
          * This spec deliberately creates the secondary Terminal through IPC because the UI only exposes a generic Shell
-         * action. `waitForCreatedSession` proves the durable record and Session card, but a loaded parallel worker can
-         * observe those before the first Workbench tab has attached or before the new layout is durable. Waiting for
-         * both attached surfaces and the canonical Session state makes persistence the boundary before reload, rather
-         * than racing reload against the initial Session projection.
+         * action. The request returning proves Server creation, not that a loaded Renderer has consumed
+         * `state.changed`. Icon coverage does not own that event-delivery contract, so make the durable bootstrap
+         * snapshot the boundary before reloading and asserting every shared Renderer surface.
          */
-        const claudeTab = running.page.locator(
-            `.work-tab[data-terminal-id="${claudeTerminal.id}"]`,
-        );
-        await expect(claudeTab.locator('[data-agent-icon="claude"]')).toBeVisible();
-        await claudeTab.getByRole('tab').click();
-        await expect(
-            running.page.locator(
-                `.terminal-pane[data-terminal-id="${claudeTerminal.id}"] .terminal-surface[data-terminal-attached="true"]`,
-            ),
-        ).toBeVisible();
         await expect
             .poll(async () => {
                 const bootstrap = await pageRequest<{
                     sessionStates: Array<{ sessionId: string }>;
+                    terminals: Array<{ id: string }>;
                 }>(running.page, 'app.bootstrap');
                 const state = bootstrap.sessionStates.find(
                     (candidate) => candidate.sessionId === sessionId,
                 );
-                return JSON.stringify(state).includes(claudeTerminal.id);
+                return (
+                    bootstrap.terminals.some((terminal) => terminal.id === claudeTerminal.id) &&
+                    JSON.stringify(state).includes(claudeTerminal.id)
+                );
             })
             .toBe(true);
         await running.page.reload();
         await waitForRuntimeReady(running.page);
 
+        const claudeTab = running.page.locator(
+            `.work-tab[data-terminal-id="${claudeTerminal.id}"]`,
+        );
         await expect(codexTab.locator('[data-agent-icon="codex"]')).toBeVisible();
         await expect(claudeTab.locator('[data-agent-icon="claude"]')).toBeVisible();
         await claudeTab.getByRole('tab').click();
