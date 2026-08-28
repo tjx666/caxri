@@ -10,6 +10,7 @@ import {
     createTerminalFixturePreflightReceipt,
     terminalFixturePreflightReceiptSchema,
 } from './fixture-preflight';
+import { validateReportMediaEvidence } from './media-integrity';
 import type { RebindReportHeadInput } from './report-head';
 import { rebindReportDocument } from './report-head';
 import { reportCliHelp } from './report-help';
@@ -591,6 +592,12 @@ export async function finalizeReport(input: FinalizeReportInput) {
         // eslint-disable-next-line no-await-in-loop
         await validateCaseLifecycleEvidence(directory, planned, item);
     }
+
+    await validateReportMediaEvidence({
+        cases: report.cases,
+        directory,
+        plans: report.plan,
+    });
 
     const previousConclusion = report.summary?.conclusion?.trim();
     const customConclusion =

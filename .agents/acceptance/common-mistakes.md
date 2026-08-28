@@ -24,3 +24,20 @@ assert the Renderer, Runtime, configuration, or filesystem state on the product
 side of the boundary. Never claim the native surface itself passed from stubbed
 evidence. See the canonical
 [native-dialog policy](../skills/acceptance/references/native-dialogs.md).
+
+## Relabeling a short baseline capture as passing interaction evidence
+
+**Situation:** A blocked round captured four baseline frames and a later round
+changed the case status based on supporting tests without rerunning the desktop
+interaction.
+
+**Does not work:** Encoding four 250 ms frames into a one-second MP4, or copying
+that media into a passing case. A test result can support a desktop observation,
+but it cannot replace the target interaction or prove its visible state change.
+
+**Works:** Drive the real action in an owned desktop launch, capture the default
+40-frame bounded sequence, inspect its start, action, transient, and settled
+states, and only then cite it. Report finalization now rejects short, static,
+duplicated, or previously non-passing media. See the canonical
+[evidence contract](../skills/acceptance/references/evidence.md) and
+[CDP recording workflow](../skills/acceptance/references/recording-cdp.md).
