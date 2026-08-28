@@ -28,10 +28,11 @@ directories.
   boundaries, validation requirements, desktop or CI constraints, and expected agent iterations.
   Traditional manual implementation time and hand-written code volume are not the default baseline
   unless the user explicitly asks for them.
-- After each user request, briefly ask what in the execution workflow should become reusable. When
-  the improvement is concrete and broadly useful, extract or strengthen scripts, guards, tests,
-  `AGENTS.md` guidance, or task-routed skills so later agents can do the same work more reliably.
-  Do not invent process for a reuse case you have not demonstrated.
+- When completed work reveals a concrete, demonstrated, broadly useful workflow improvement,
+  directly extract or strengthen scripts, guards, tests, `AGENTS.md` guidance, or task-routed
+  skills when the change is safe, reversible, authorized, and in scope. Raise it for discussion
+  only when a real product choice, new authority, or material scope expansion requires the user's
+  decision. Do not invent process for a reuse case you have not demonstrated.
 - When an authorized implementation exposes an obvious, narrow defect in `AGENTS.md` or a
   repository skill, repair it in the same change. That does not authorize unrelated or remote
   mutation.
