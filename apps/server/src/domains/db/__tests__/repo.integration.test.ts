@@ -273,7 +273,7 @@ describe('CaxriDatabase', () => {
         reopened.close();
     });
 
-    it('never removes the Project directory or user files when deleting metadata', async () => {
+    it('never removes the Project folder or user files when deleting metadata', async () => {
         const directory = await temporaryDirectory('caxri-db-project-delete-');
         const root = join(directory, 'project');
         await writeFile(root, 'user-owned', 'utf8');

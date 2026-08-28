@@ -281,15 +281,15 @@ describe('updates.* delegation', () => {
 
 describe('Workbench Root Authority delegation', () => {
     it('forwards dialog.selectDirectory to the authority', async () => {
-        const selectProjectDirectory = vi.fn(() => Promise.resolve('/picked/root'));
+        const selectProjectFolder = vi.fn(() => Promise.resolve('/picked/root'));
         const handle = createMainMethodHandler(
-            options({ workbenchRootAuthority: { selectProjectDirectory } }),
+            options({ workbenchRootAuthority: { selectProjectFolder } }),
         );
 
         await expect(handle({ method: 'dialog.selectDirectory', params: {} })).resolves.toBe(
             '/picked/root',
         );
-        expect(selectProjectDirectory).toHaveBeenCalledOnce();
+        expect(selectProjectFolder).toHaveBeenCalledOnce();
     });
 
     it('forwards project.create with its params to the authority', async () => {

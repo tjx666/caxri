@@ -22,7 +22,7 @@ function parseQueuedTestRoots(value: string): string[] {
 }
 
 /**
- * Exposes the deterministic directory-picker seam only to explicit development E2E runs.
+ * Exposes the deterministic folder-picker seam only to explicit development E2E runs.
  */
 export function resolveTestRootPath({
     environment = process.env,

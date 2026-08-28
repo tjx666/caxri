@@ -8,7 +8,7 @@ recipes live in [`../probe-mock-patterns.md`](../probe-mock-patterns.md).
 The Acceptance launcher converts repeated `--test-root PATH` arguments into
 `CAXRI_TEST_ROOT_PATH` and `CAXRI_TEST_ROOT_PATHS`. Main consumes queued roots in
 order, then retains the last root. This exercises the real Project authorization
-path while preventing setup from opening a native directory picker.
+path while preventing setup from opening a native folder picker.
 
 Use a purpose-built temporary fixture for the case. Default to the repository
 root only when the requirement actually needs a real large Project; otherwise

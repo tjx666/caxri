@@ -8,7 +8,7 @@ import { toggleScreencastMode } from '../features/screencast/screencast';
 import {
     beginSessionCreation,
     canNavigateSessionHistory,
-    chooseProjectDirectory,
+    chooseProjectFolder,
     deleteSelectedProject,
     deleteSelectedSession,
     moveTerminalToNewSession,
@@ -116,7 +116,7 @@ const commandContext: CommandContext = {
     },
     project: {
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-        create: () => void chooseProjectDirectory(),
+        create: () => void chooseProjectFolder(),
         customizeIcon: (projectId) => {
             const target =
                 getBootstrap()?.projects.find((project) => project.id === projectId) ??
@@ -131,7 +131,7 @@ const commandContext: CommandContext = {
             const project = selectSelectedProject(getBootstrap());
             if (project) beginSessionCreation(project.id);
             // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-            else void chooseProjectDirectory();
+            else void chooseProjectFolder();
         },
         canNavigateHistory: canNavigateSessionHistory,
         deleteSelected: deleteSelectedSession,

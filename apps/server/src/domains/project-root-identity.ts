@@ -21,9 +21,9 @@ async function selectedRootStats(rootPath: string) {
 }
 
 /**
- * Binds a native directory selection to the same filesystem object until the synchronous database insert. Without this
+ * Binds a native folder selection to the same filesystem object until the synchronous database insert. Without this
  * identity check, replacing the selected path between authorization and `project.create` could persist a Project for a
- * directory the user never selected.
+ * folder the user never selected.
  */
 export async function resolveProjectRoot(
     rootPath: string,

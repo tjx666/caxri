@@ -130,7 +130,7 @@ describe('CaxriDatabaseConnection', () => {
         database.close();
     });
 
-    it('cascades Project removal to Sessions and Terminals without touching the local directory', async () => {
+    it('cascades Project removal to Sessions and Terminals without touching the local folder', async () => {
         const directory = await temporaryDirectory('caxri-db-project-delete-');
         const root = join(directory, 'project');
         await writeFile(root, 'user-owned', 'utf8');

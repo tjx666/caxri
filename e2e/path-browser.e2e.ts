@@ -164,6 +164,7 @@ test('an external folder grant is read-only and closes with the path browser', a
         dialog = running.page.getByRole('dialog');
         input = dialog.getByRole('combobox', { name: 'File path' });
         await input.fill(`${externalRoot}/`);
+        await expect(dialog).toContainText('Press Enter to open this path');
         await input.press('Enter');
         await expect(dialog.getByRole('alert')).toContainText(
             'Selected folder does not contain the requested path',

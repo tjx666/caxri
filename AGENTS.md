@@ -124,7 +124,7 @@ directories.
   explicit authorization with `bun run uninstall:caxri -- --yes`. The command archives known Caxri
   installation state, application paths, and managed development profiles beneath the primary
   checkout's sibling `../caxri-uninstall-archives`, records every original path in `manifest.json`,
-  and never targets Project directories or user files.
+  and never targets Project folders or user files.
 - Contributor issue tracking lives in GitHub issues (`gh issue`). Titles, bodies, and comments use
   Simplified Chinese; technical identifiers remain English. Do not file repository work in Linear.
   The product's Project Status view may still read Linear references from a GitHub PR body.
@@ -183,7 +183,7 @@ directories.
   another linked repository only when its root is covered by an explicitly added Project.
 - A Project owns one local root. Sessions reference the Project by ID and cannot submit a root
   path.
-- Project and Session deletion remove metadata only. They must never remove the Project directory
+- Project and Session deletion remove metadata only. They must never remove the Project folder
   or user files.
 - Diagnostics must exclude source contents, Terminal output and snapshots, Agent transcripts,
   credentials, environment values, and secret-like settings.

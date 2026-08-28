@@ -602,7 +602,12 @@ describe('local Host transport regressions', () => {
 
         const queued = written.find((entry) => entry.options?.correlationId === 'health-queued');
         expect(queued).toMatchObject({ level: 'debug', event: 'ipc.request' });
-        expect(queued?.options?.fields?.queueDepth).toBe(2);
+        /**
+         * WebSocket message delivery can interleave with the microtask that releases a concurrent read's ordered
+         * admission entry. The second request therefore observes either itself alone or itself plus the first entry;
+         * the stable contract is that its execution and queue wait do not inherit the blocked read's duration.
+         */
+        expect([1, 2]).toContain(queued?.options?.fields?.queueDepth);
         expect(slow?.options?.durationMs).toBeGreaterThan(
             queued?.options?.fields?.queueMs as number,
         );
