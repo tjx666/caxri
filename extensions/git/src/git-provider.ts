@@ -587,13 +587,21 @@ export class GitProvider implements SourceControlProvider {
         this.changed.fire({ kind: 'selection', selectedModeId: 'commit' });
     }
 
+    /**
+     * Renderer navigation can start the new snapshot before its matching extension command arrives. A repeated
+     * same-mode command must preserve those in-flight details; clearing them would leave the already-rendered loading
+     * model without another query to replace it. Selecting Last Commit still clears an arbitrary commit selection.
+     */
     setMode(mode: GitSourceControlMode, scopeId?: string): void {
         const state = scopeId ? this.scopes.get(scopeId) : undefined;
         if (state) {
             state.commitOpenSequence += 1;
-            this.clearDetails(state);
-            state.commitSelection = undefined;
-            state.mode = mode;
+            if (state.mode !== mode || state.commitSelection) {
+                this.clearDetails(state);
+                state.commitSelection = undefined;
+                state.mode = mode;
+                this.scheduleContentChange(state);
+            }
         }
         this.changed.fire({ kind: 'selection', selectedModeId: mode });
     }

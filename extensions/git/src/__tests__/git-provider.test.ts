@@ -1,7 +1,14 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { Buffer } from 'node:buffer';
 
-import type { CaxriApi, GitCommitDetails, GitCommitPage, GitSummary, WorkspaceGit } from 'caxri';
+import type {
+    CaxriApi,
+    GitCommitDetails,
+    GitCommitPage,
+    GitPullRequestChanges,
+    GitSummary,
+    WorkspaceGit,
+} from 'caxri';
 import { CancellationTokenSource } from 'caxri';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -187,6 +194,34 @@ describe('GitProvider', () => {
                 label: 'Commit Changes (abcdef0)',
             });
 
+        cancellation.dispose();
+        provider.dispose();
+    });
+
+    it('publishes content when Last Commit clears an arbitrary commit selection', async () => {
+        const selectedSha = 'abcdef0123456789abcdef0123456789abcdef01';
+        const { provider } = createHarness();
+        const cancellation = new CancellationTokenSource();
+        const changes: string[] = [];
+        const subscription = provider.onDidChange((change) => changes.push(change.kind));
+        await provider.provideView({ scopeId, refresh: 0 }, cancellation.token);
+        await provider.openCommit(scopeId, repo.id, selectedSha, cancellation.token);
+        await provider.provideView(
+            { scopeId, preferredModeId: 'commit', refresh: 0 },
+            cancellation.token,
+        );
+        changes.length = 0;
+
+        provider.setMode('commit', scopeId);
+        await vi.waitFor(() => expect(changes).toContain('content'));
+        const view = await provider.provideView(
+            { scopeId, preferredModeId: 'commit', refresh: 0 },
+            cancellation.token,
+        );
+
+        expect(view.modes.find(({ id }) => id === 'commit')?.label).toBe('Last Commit Changes');
+
+        subscription.dispose();
         cancellation.dispose();
         provider.dispose();
     });
@@ -514,6 +549,58 @@ describe('GitProvider', () => {
             label: 'extension.ts',
             description: 'M',
         });
+        subscription.dispose();
+        cancellation.dispose();
+        provider.dispose();
+    });
+
+    it('keeps detail loading alive when the mode command repeats the requested mode', async () => {
+        const pending = Promise.withResolvers<GitPullRequestChanges | null>();
+        const pullRequest: GitPullRequestChanges = {
+            repositoryId: repo.id,
+            number: 42,
+            title: 'Keep the in-flight pull request',
+            url: 'https://github.com/example/caxri/pull/42',
+            baseRefName: 'main',
+            headRefName: 'feature/pull-request',
+            baseOid: 'a'.repeat(40),
+            headOid: 'b'.repeat(40),
+            additions: 5,
+            deletions: 2,
+            files: [
+                {
+                    path: 'src/extension.ts',
+                    index: 'M',
+                    workingTree: ' ',
+                    kind: 'modified',
+                },
+            ],
+        };
+        const { git, provider } = createHarness();
+        vi.mocked(git.pullRequestChanges).mockReturnValueOnce(pending.promise);
+        const cancellation = new CancellationTokenSource();
+        const changes: string[] = [];
+        const subscription = provider.onDidChange((change) => changes.push(change.kind));
+
+        const loading = await provider.provideView(
+            { scopeId, preferredModeId: 'pull-request', refresh: 0 },
+            cancellation.token,
+        );
+        const detailToken = vi.mocked(git.pullRequestChanges).mock.calls[0]?.[2];
+        provider.setMode('pull-request', scopeId);
+        expect(detailToken?.isCancellationRequested).toBe(false);
+        pending.resolve(pullRequest);
+        await vi.waitFor(() => expect(changes).toContain('content'));
+        const ready = await provider.provideView(
+            { scopeId, preferredModeId: 'pull-request', refresh: 0 },
+            cancellation.token,
+        );
+
+        expect(loading.providers[0]?.groups[0]).toMatchObject({
+            emptyMessage: 'Loading pull request changes…',
+        });
+        expect(ready.providers[0]?.groups[0]).toMatchObject({ label: 'PR #42 Changes' });
+
         subscription.dispose();
         cancellation.dispose();
         provider.dispose();
