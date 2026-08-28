@@ -99,7 +99,7 @@ function initializeSchema(database: Database.Database): void {
     database.transaction(() => {
         if (version > 0 && version < PRESERVED_SCHEMA_VERSION) {
             /**
-             * Pre-release metadata can be rebuilt; Project directories and user files are never touched.
+             * Pre-release metadata can be rebuilt; Project folders and user files are never touched.
              */
             database.exec(`
                 DROP TABLE IF EXISTS protocol_changefeed;

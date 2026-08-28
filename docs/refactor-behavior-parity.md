@@ -91,7 +91,7 @@ The initial catalog covers at least:
 | Recovery          | Client reconnect, Renderer reload, stale build replacement, user-visible crash recovery outcome                |
 | Visual            | critical Desktop navigation, restored Session, pane layout, Terminal, Editor, Attention, Process Explorer      |
 
-Native directory dialogs remain a manual boundary. Automated parity stubs their result and compares the
+Native folder dialogs remain a manual boundary. Automated parity stubs their result and compares the
 product state before and after the dialog; the refactor does not authorize driving native system UI.
 
 ## Semantic evidence

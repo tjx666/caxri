@@ -26,10 +26,10 @@ and agent adapters. Acceptance uses the real macOS Electron desktop surface.
 
   Run this as a long-lived process. It creates an isolated temporary user-data
   directory, enables `CAXRI_E2E=1`, makes the supplied root available to the
-  Add Project flow without opening the native directory picker, and writes ownership state to
+  Add Project flow without opening the native folder picker, and writes ownership state to
   `.records/acceptance/runtime.json`.
 
-- **Multiple Projects:** repeat `--test-root PATH` to queue deterministic directory-picker results.
+- **Multiple Projects:** repeat `--test-root PATH` to queue deterministic folder-picker results.
   The final root remains selected after the queue is exhausted, so Acceptance never falls through
   to a native dialog.
 
@@ -106,7 +106,7 @@ lobehub acceptance run list --json
   `.records/acceptance/runtime.json` owns packaged/test logs. Development logs
   may also appear under `logs/`. Copy any cited excerpt into the current round's
   `assets/` directory before stopping the isolated app.
-- **Project fixture:** pass purpose-built fixture directories through one or more `--test-root`
+- **Project fixture:** pass purpose-built fixture folders through one or more `--test-root`
   options; defaulting to the repository root is appropriate only when the acceptance case needs a
   real large Project.
 - **Quick navigation:** no hidden app-state mutation contract exists. Prefer the

@@ -70,7 +70,7 @@ Use the launch helpers instead of the developer's real profile:
   asking the agent to verify a native dialog permits the guarded Acceptance exception.
 - `CAXRI_E2E=1` enables unpackaged test-only boundaries.
 - `CAXRI_USER_DATA_DIR=<tmpdir>` isolates Electron user data.
-- `CAXRI_TEST_ROOT_PATH=<dir>` supplies one deterministic directory-picker root only when
+- `CAXRI_TEST_ROOT_PATH=<dir>` supplies one deterministic folder-picker root only when
   `CAXRI_E2E=1` is active.
 - `CAXRI_TEST_ROOT_PATHS=<JSON array>` queues deterministic roots for multi-Project workflows.
 - Shared helpers default Agent discovery to `blocked` and isolate provider state beneath test user

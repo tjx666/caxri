@@ -80,8 +80,8 @@ describe('trash prompt', () => {
 
 describe('delete prompts', () => {
     it.each([
-        ['Project', deleteProjectPrompt, 'The Project directory'],
-        ['Session', deleteSessionPrompt, 'The selected directory'],
+        ['Project', deleteProjectPrompt, 'The Project folder'],
+        ['Session', deleteSessionPrompt, 'The selected folder'],
     ] as const)('names the %s and states that files survive', (kind, prompt, clause) => {
         const options = prompt('caxri', 0);
         expect(options.title).toBe(`Delete ${kind}`);
