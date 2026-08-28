@@ -50,6 +50,44 @@ afterEach(async () => {
 });
 
 describe('worktree dependency installation', () => {
+    it('prepares the node-pty helper after installing dependencies', async () => {
+        const temporary = await mkdtemp(join(tmpdir(), 'caxri-worktree-node-pty-'));
+        temporaryDirectories.push(temporary);
+        const binaryDirectory = join(temporary, 'bin');
+        const marker = join(temporary, 'node-pty-prepare-runs');
+        await Promise.all([
+            mkdir(binaryDirectory),
+            mkdir(join(temporary, 'scripts'), { recursive: true }),
+            createCompleteElectronArtifacts(temporary),
+        ]);
+        const niPath = join(binaryDirectory, 'ni');
+        const bunPath = join(binaryDirectory, 'bun');
+        await Promise.all([
+            writeFile(niPath, '#!/bin/sh\nexit 0\n', 'utf8'),
+            writeFile(
+                bunPath,
+                '#!/bin/sh\nprintf "%s\\n" "$*" > "$CAXRI_TEST_NODE_PTY_MARKER"\n',
+                'utf8',
+            ),
+            writeFile(join(temporary, 'scripts', 'prepare-node-pty.ts'), '// fixture\n', 'utf8'),
+        ]);
+        await Promise.all([chmod(niPath, 0o755), chmod(bunPath, 0o755)]);
+
+        const previousPath = process.env.PATH;
+        const previousMarker = process.env.CAXRI_TEST_NODE_PTY_MARKER;
+        try {
+            process.env.PATH = `${binaryDirectory}:${previousPath}`;
+            process.env.CAXRI_TEST_NODE_PTY_MARKER = marker;
+            await installWorktreeDependencies(temporary);
+        } finally {
+            process.env.PATH = previousPath;
+            if (previousMarker === undefined) delete process.env.CAXRI_TEST_NODE_PTY_MARKER;
+            else process.env.CAXRI_TEST_NODE_PTY_MARKER = previousMarker;
+        }
+
+        expect(await readFile(marker, 'utf8')).toBe('run scripts/prepare-node-pty.ts\n');
+    });
+
     it('repairs missing Electron binary artifacts exactly once', async () => {
         const temporary = await mkdtemp(join(tmpdir(), 'caxri-worktree-electron-install-'));
         temporaryDirectories.push(temporary);
