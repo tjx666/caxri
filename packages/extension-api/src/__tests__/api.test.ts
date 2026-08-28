@@ -14,10 +14,17 @@ describe('caxri public API runtime', () => {
         const item = new TreeItem('Project', TreeItemCollapsibleState.Collapsed);
         item.iconPath = new ThemeIcon('folder');
         item.variant = 'header';
+        item.tooltip = {
+            kind: 'rich',
+            title: 'preview',
+            badge: { label: 'success', tone: 'success' },
+            rows: [{ label: 'alias', value: 'preview.example.com', url: 'https://example.com' }],
+        };
         expect(item).toMatchObject({
             collapsibleState: TreeItemCollapsibleState.Collapsed,
             iconPath: { id: 'folder' },
             label: 'Project',
+            tooltip: { kind: 'rich', title: 'preview' },
             variant: 'header',
         });
     });

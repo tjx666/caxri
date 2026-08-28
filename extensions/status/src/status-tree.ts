@@ -1,5 +1,6 @@
 import type {
     Command,
+    ProjectStatusDeployment,
     ProjectStatusRepository,
     ProjectStatusState,
     ProjectStatusSummary,
@@ -18,6 +19,14 @@ const stateIcons: Record<ProjectStatusState, string> = {
     pending: 'loading',
     neutral: 'circle-outline',
     unknown: 'circle-dot',
+};
+
+const stateTones: Record<ProjectStatusState, 'danger' | 'neutral' | 'success' | 'warning'> = {
+    success: 'success',
+    failure: 'danger',
+    pending: 'warning',
+    neutral: 'neutral',
+    unknown: 'neutral',
 };
 
 const repoPresentation: Record<
@@ -48,6 +57,7 @@ function item(
         command?: Command;
         description?: string;
         icon?: string;
+        tooltip?: TreeItem['tooltip'];
         url?: string;
         variant?: TreeItemVariant;
     } = {},
@@ -62,7 +72,8 @@ function item(
     treeItem.id = id;
     treeItem.variant = options.variant;
     treeItem.description = options.description;
-    treeItem.tooltip = [label, options.description, options.url].filter(Boolean).join('\n');
+    treeItem.tooltip =
+        options.tooltip ?? [label, options.description, options.url].filter(Boolean).join('\n');
     treeItem.accessibilityInformation = {
         label: [label, options.description].filter(Boolean).join(', '),
     };
@@ -76,6 +87,31 @@ function item(
     }
     if (options.command) treeItem.command = options.command;
     return { item: treeItem, children: options.children };
+}
+
+function deploymentTooltip(
+    title: string,
+    deployment: ProjectStatusDeployment,
+): NonNullable<TreeItem['tooltip']> {
+    return {
+        kind: 'rich',
+        title,
+        badge: { label: deployment.state, tone: stateTones[deployment.state] },
+        rows: [
+            { label: 'alias', value: deployment.hostname, url: deployment.url },
+            ...(deployment.state === 'success' && deployment.inspectorUrl
+                ? [{ label: 'inspect', value: 'logs', url: deployment.inspectorUrl }]
+                : []),
+            ...(deployment.createdAt === undefined
+                ? []
+                : [
+                      {
+                          label: 'created',
+                          value: new Date(deployment.createdAt).toLocaleString(),
+                      },
+                  ]),
+        ],
+    };
 }
 
 function linearState(
@@ -125,8 +161,9 @@ function buildRepoChildren(repo: ProjectStatusRepository): StatusNode[] {
                 icon: 'rocket',
                 children: branchDeployments.map((deployment, index) =>
                     item(`${prefix}:branch-deployment:${index}`, deployment.hostname, {
-                        description: environments.length === 1 ? undefined : deployment.environment,
+                        description: `${deployment.environment} · ${deployment.state}`,
                         icon: stateIcons[deployment.state],
+                        tooltip: deploymentTooltip(deployment.environment, deployment),
                         url: deployment.url,
                     }),
                 ),
@@ -139,8 +176,9 @@ function buildRepoChildren(repo: ProjectStatusRepository): StatusNode[] {
             if (!deployment) continue;
             nodes.push(
                 item(`${prefix}:${deployment.environment}`, label, {
-                    description: deployment.hostname,
+                    description: `${deployment.state} · ${deployment.hostname}`,
                     icon: stateIcons[deployment.state],
+                    tooltip: deploymentTooltip(label, deployment),
                     url: deployment.url,
                 }),
             );

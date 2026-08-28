@@ -198,6 +198,12 @@ introduces a visually separated group of children. The shared Renderer gives it 
 a section divider; providers must opt in explicitly rather than relying on root depth or label
 conventions. Ordinary tree rows remain the default.
 
+`TreeItem.tooltip` accepts either the existing bounded plain string or a bounded `rich` payload with
+a title, optional semantic badge, and up to eight labeled rows. Rich row values are always rendered
+as text; an optional URL must be credential-free HTTP(S), is validated by the Extension Host, and
+still crosses Main's trusted-origin confirmation before the operating system can open it. Arbitrary
+Markdown, HTML, scripts, commands, and `command:` URLs are not part of this contract.
+
 The shared Renderer owns virtualization, ThemeIcon rendering, roving focus, arrow/Home/End
 navigation, expansion, loading/empty/provider-error rows, local Retry, tooltip presentation, and
 ARIA tree semantics. Provider `Expanded` is applied only the first time a logical item appears;
