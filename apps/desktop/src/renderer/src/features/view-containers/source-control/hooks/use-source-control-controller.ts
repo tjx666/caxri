@@ -6,7 +6,7 @@ import type {
     SourceControlViewModel,
     SourceControlViewState,
 } from '@caxri/protocol';
-import { useQuery } from '@tanstack/react-query';
+import { queryOptions, useQuery } from '@tanstack/react-query';
 
 import { useShouldReduceMotion } from '@/hooks/use-should-reduce-motion';
 
@@ -18,6 +18,7 @@ import { openEditorTab } from '../../../editor/document-actions';
 import { useActivePaneTab } from '../../../workbench/pane-actions';
 import { useControlledView, useSourceControlClient } from '../../controlled-view-context';
 import { subscribeViewEvents } from '../../view-event-bridge';
+import type { SourceControlClient } from '../../view-operation-client';
 import { controlledViewQueryKey } from '../../view-operation-client';
 import type { SourceControlViewNavigation } from '../source-control-state';
 import type { SourceControlNavigationScope } from './use-source-control-navigation';
@@ -43,6 +44,7 @@ interface SourceControlViewReadyController {
     activeEditorResource: string | undefined;
     flashedProviderId: string | undefined;
     focusProvider: (targetId: string) => void;
+    isRefreshing: boolean;
     model: SourceControlViewModel;
     navigation: SourceControlViewNavigation;
     runAction: (action: SourceControlAction) => Promise<void>;
@@ -55,6 +57,56 @@ interface SourceControlViewReadyController {
 
 export type SourceControlController =
     SourceControlViewEmptyController | SourceControlViewReadyController;
+
+function requestedModeFromQueryKey(queryKey: readonly unknown[]): string | undefined {
+    const parameters = queryKey[1];
+    if (typeof parameters !== 'object' || parameters === null) return;
+    const arguments_ = (parameters as { arguments?: unknown }).arguments;
+    if (typeof arguments_ !== 'object' || arguments_ === null) return;
+    const preferredModeId = (arguments_ as { preferredModeId?: unknown }).preferredModeId;
+    return typeof preferredModeId === 'string' ? preferredModeId : undefined;
+}
+
+/**
+ * Keeps the last resolved tree visible while a same-requested-mode refresh advances the query generation. Comparing
+ * request keys instead of the provider's selected mode also covers a persisted mode that the provider had to replace
+ * with a fallback. A real mode switch receives no placeholder, so Working Tree, Commit, and Pull Request data are never
+ * presented as each other while the newly selected model loads.
+ *
+ * Session and Workbench Root changes remount `ScopedSourceControlView` with a new scope key, so placeholder data never
+ * crosses those ownership boundaries.
+ */
+export function sourceControlSnapshotQueryOptions({
+    client,
+    configRevision,
+    enabled,
+    queryScope,
+    request,
+    viewId,
+}: {
+    client: Pick<SourceControlClient, 'snapshot'>;
+    configRevision: string;
+    enabled: boolean;
+    queryScope?: string;
+    request: { preferredModeId?: string; refresh: number };
+    viewId: string;
+}) {
+    return queryOptions({
+        queryKey: controlledViewQueryKey(
+            viewId,
+            'source.snapshot',
+            request,
+            queryScope,
+            configRevision,
+        ),
+        queryFn: ({ signal }) => client.snapshot(request, signal),
+        enabled,
+        placeholderData: (previousData, previousQuery) =>
+            requestedModeFromQueryKey(previousQuery?.queryKey ?? []) === request.preferredModeId
+                ? previousData
+                : undefined,
+    });
+}
 
 /**
  * Owns generic provider-model fetching, scoped disclosure state, action effects, and focus sequencing.
@@ -89,17 +141,16 @@ export function useSourceControlController(
             (settings as Readonly<Record<string, unknown>> | undefined)?.[key],
         ]),
     );
-    const snapshot = useQuery({
-        queryKey: controlledViewQueryKey(
-            viewId,
-            'source.snapshot',
-            snapshotRequest,
-            queryScope,
+    const snapshot = useQuery(
+        sourceControlSnapshotQueryOptions({
+            client,
             configRevision,
-        ),
-        queryFn: ({ signal }) => client.snapshot(snapshotRequest, signal),
-        enabled: Boolean(session),
-    });
+            enabled: Boolean(session),
+            queryScope,
+            request: snapshotRequest,
+            viewId,
+        }),
+    );
     useToastOnQueryError(
         snapshot.isError,
         snapshot.error,
@@ -152,7 +203,7 @@ export function useSourceControlController(
     );
     const runAction = useCallback(
         async (action: SourceControlAction): Promise<void> => {
-            if (action.disabled || !snapshot.data) return;
+            if (action.disabled || snapshot.isFetching || !snapshot.data) return;
             const revision = snapshot.data.revision;
             const result = await tryCommand(
                 action.errorMessage ??
@@ -164,7 +215,13 @@ export function useSourceControlController(
             for (const effect of result.effects) applyActionEffect(effect, focusProvider);
             if (result.refresh) setRefresh((value) => value + 1);
         },
-        [client, focusProvider, presentation?.actionErrorMessage, snapshot.data],
+        [
+            client,
+            focusProvider,
+            presentation?.actionErrorMessage,
+            snapshot.data,
+            snapshot.isFetching,
+        ],
     );
     const selectMode = useCallback(
         (mode: SourceControlMode): void => {
@@ -191,6 +248,7 @@ export function useSourceControlController(
         activeEditorResource: activeResource?.kind === 'file' ? activeResource.path : undefined,
         flashedProviderId,
         focusProvider,
+        isRefreshing: snapshot.isFetching,
         model: snapshot.data,
         navigation,
         runAction,
