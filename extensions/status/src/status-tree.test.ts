@@ -57,6 +57,8 @@ describe('Status extension tree', () => {
                         hostname: 'production-branch.vercel.app',
                         state: 'success',
                         url: 'https://production-branch.vercel.app',
+                        inspectorUrl: 'https://vercel.com/tjx666/caxri/production-branch',
+                        createdAt: 1_700_000_000_000,
                     },
                     {
                         environment: 'preview',
@@ -70,6 +72,7 @@ describe('Status extension tree', () => {
                     hostname: 'caxri.app',
                     state: 'success',
                     url: 'https://caxri.app',
+                    inspectorUrl: 'https://vercel.com/tjx666/caxri/production',
                 },
                 preview: {
                     environment: 'preview',
@@ -136,11 +139,38 @@ describe('Status extension tree', () => {
             description: '2 on feature/status',
         });
         expect(children[6].children?.map(({ item }) => item.description)).toEqual([
-            'production',
-            'preview',
+            'production · success',
+            'preview · pending',
         ]);
-        expect(children[7].item.description).toBe('caxri.app');
-        expect(children[8].item.description).toBe('preview.caxri.app');
+        expect(children[6].children?.[0].item.tooltip).toEqual({
+            kind: 'rich',
+            title: 'production',
+            badge: { label: 'success', tone: 'success' },
+            rows: [
+                {
+                    label: 'alias',
+                    value: 'production-branch.vercel.app',
+                    url: 'https://production-branch.vercel.app',
+                },
+                {
+                    label: 'inspect',
+                    value: 'logs',
+                    url: 'https://vercel.com/tjx666/caxri/production-branch',
+                },
+                expect.objectContaining({ label: 'created' }),
+            ],
+        });
+        expect(children[6].children?.[1].item.tooltip).toMatchObject({
+            badge: { label: 'pending', tone: 'warning' },
+            rows: [{ label: 'alias', value: 'preview-branch.vercel.app' }],
+        });
+        expect(children[7].item.description).toBe('success · caxri.app');
+        expect(children[7].item.tooltip).toMatchObject({
+            title: 'Production',
+            badge: { label: 'success', tone: 'success' },
+            rows: [{ label: 'alias' }, { label: 'inspect', value: 'logs' }],
+        });
+        expect(children[8].item.description).toBe('failure · preview.caxri.app');
         expect(children[9].item.collapsibleState).toBe(TreeItemCollapsibleState.Expanded);
         expect(children[9].children?.map(({ item }) => item.label)).toEqual([
             'Test / App',

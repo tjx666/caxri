@@ -212,6 +212,25 @@ export function vcListArguments(
     return arguments_;
 }
 
+/**
+ * `vc ls --format json` omits the inspector URL. READY deployment aliases encode the short hash that Vercel accepts in
+ * its inspector route; non-matching custom aliases deliberately return no logs link. See
+ * https://github.com/tjx666/caxri/issues/413.
+ */
+export function vercelInspectorUrl(
+    team: string,
+    project: string,
+    deploymentUrl: string,
+): string | undefined {
+    const hostname = deploymentUrl.replace(/^https?:\/\//, '').replace(/\.vercel\.app$/, '');
+    const prefix = `${project}-`;
+    const suffix = `-${team}`;
+    if (!hostname.startsWith(prefix) || !hostname.endsWith(suffix)) return undefined;
+    const hash = hostname.slice(prefix.length, hostname.length - suffix.length);
+    if (!hash || hash.includes('.')) return undefined;
+    return `https://vercel.com/${team}/${project}/${hash}`;
+}
+
 export async function runProjectStatusCommand(
     command: ProjectStatusCommand,
     arguments_: readonly string[],

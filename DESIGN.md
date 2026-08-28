@@ -238,6 +238,14 @@ VS Code's PrimarySidebar-vs-Panel split. The Panel is closed at rest, its tabs s
 natural width, and a trailing close button dismisses it. `Command+J` toggles it. A new surface
 picks its region by content shape, not by which region has room left.
 
+**Project Status deployment hover** — deployment rows follow the VS Code reference hierarchy:
+target or environment plus semantic status in the heading, then compact `alias`, successful
+`inspect: logs`, and optional `created` rows. The rich hover uses the shared PreviewCard surface so
+its HTTP(S) links remain reachable by pointer and keyboard; pointer opens capture the initial cursor
+position, keyboard focus falls back to the row anchor, and viewport collision keeps the entire card
+visible. Text values wrap inside the bounded card instead of widening the SecondarySidebar. Plain
+extension tooltips retain the shared compact Tooltip surface and cursor-placement behavior.
+
 **Chrome tabs** — the moving underline is derived from the tab slot, never from the label inside
 it: inset 8px on each side, capped, and centred in the slot. In the SecondarySidebar's evenly
 divided rail every mark is therefore the same size, so it reads as "this region is selected"

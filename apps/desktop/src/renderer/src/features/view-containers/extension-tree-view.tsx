@@ -27,9 +27,10 @@ import { executeCommand } from '../../commands/execute';
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
 import { caxri } from '../../lib/caxri';
+import { openExternalUrl } from '../../lib/external-link';
 import { cn } from '../../lib/utilities';
 import { useSessionState } from '../../stores/selectors';
-import { tryCommand } from '../../stores/toasts';
+import { pushToast, tryCommand } from '../../stores/toasts';
 import { ExtensionTreeHeader } from './extension-tree-header';
 import type { PendingTreeRefresh } from './extension-tree-refresh-state';
 import { reconcilePendingTreeRefresh } from './extension-tree-refresh-state';
@@ -42,6 +43,7 @@ import {
     pointerTreeRowAction,
     toggleTreeItem,
 } from './extension-tree-state';
+import { ExtensionTreeTooltip } from './extension-tree-tooltip';
 import { ROOT_HANDLE, useExtensionTreeChildren } from './use-extension-tree-children';
 import { useExtensionTreeState } from './use-extension-tree-state';
 import { dispatchExtensionViewAction } from './view-container-commands';
@@ -120,7 +122,7 @@ function runTreeCommand(item: TreeItemDto): void {
         if (command.id === 'caxri.openExternal') {
             const [url] = command.arguments ?? [];
             if (typeof url !== 'string') throw new Error('External command requires a URL');
-            await caxri.request('external.open', { url });
+            await openExternalUrl(url, (message) => pushToast('error', message));
             return;
         }
         if (command.id === 'caxri.showLogs') {
@@ -603,9 +605,11 @@ function TreeItemRow({
             )}
         </div>
     );
-    return (
+    return typeof tooltip === 'string' ? (
         <Tooltip anchorMode="cursor" content={tooltip}>
             {treeItem}
         </Tooltip>
+    ) : (
+        <ExtensionTreeTooltip tooltip={tooltip} trigger={treeItem} />
     );
 }
