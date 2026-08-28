@@ -3,7 +3,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { CancellationToken, SourceControlProvider } from 'caxri';
-import { EventEmitter, TreeItem, TreeItemCollapsibleState } from 'caxri';
+import {
+    EventEmitter,
+    ProjectStatusSummaryErrorMessage,
+    TreeItem,
+    TreeItemCollapsibleState,
+} from 'caxri';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
@@ -74,6 +79,14 @@ function registration(
 }
 
 describe('Extension Host API factory', () => {
+    it('binds public runtime values into each extension generation', () => {
+        configureExtensions([registration()]);
+
+        expect(extensionApiBinding('fixture-token-1').runtime).toMatchObject({
+            ProjectStatusSummaryErrorMessage,
+        });
+    });
+
     it('bounds tree RPC values and expires handles with the activation generation', async () => {
         configureExtensions([registration()]);
         extensionApiBinding('fixture-token-1').api.views.registerTreeDataProvider(

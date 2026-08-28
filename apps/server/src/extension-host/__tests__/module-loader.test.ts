@@ -12,11 +12,18 @@ const apiSymbol = Symbol.for('caxri.extension-api');
 
 interface LoadedExtensionApiModule {
     readonly default: unknown;
+    readonly ProjectStatusSummaryErrorMessage: unknown;
     readonly TreeItem: unknown;
 }
 
 function isLoadedExtensionApiModule(value: unknown): value is LoadedExtensionApiModule {
-    return typeof value === 'object' && value !== null && 'default' in value && 'TreeItem' in value;
+    return (
+        typeof value === 'object' &&
+        value !== null &&
+        'default' in value &&
+        'ProjectStatusSummaryErrorMessage' in value &&
+        'TreeItem' in value
+    );
 }
 
 async function loadExtensionApiModule(url: string): Promise<LoadedExtensionApiModule> {
@@ -33,6 +40,10 @@ afterEach(() => {
 describe('extensionApiModuleUrl', () => {
     it('keeps one generation identity stable and fences extension and reload identities', async () => {
         class LoadedTreeItem {}
+        const projectStatusSummaryErrorMessage = {
+            missingGitRepository: 'The Project root is not a Git repository.',
+            missingPrimaryRepository: 'No primary repository found.',
+        };
         const bindings = new Map([
             [
                 'first-token-1',
@@ -42,6 +53,7 @@ describe('extensionApiModuleUrl', () => {
                         Disposable: class {},
                         EventEmitter: class {},
                         CancellationTokenSource: class {},
+                        ProjectStatusSummaryErrorMessage: projectStatusSummaryErrorMessage,
                         ThemeIcon: class {},
                         TreeItem: LoadedTreeItem,
                         TreeItemCollapsibleState: { None: 0, Collapsed: 1, Expanded: 2 },
@@ -56,6 +68,7 @@ describe('extensionApiModuleUrl', () => {
                         Disposable: class {},
                         EventEmitter: class {},
                         CancellationTokenSource: class {},
+                        ProjectStatusSummaryErrorMessage: projectStatusSummaryErrorMessage,
                         ThemeIcon: class {},
                         TreeItem: class {},
                         TreeItemCollapsibleState: { None: 0, Collapsed: 1, Expanded: 2 },
@@ -70,6 +83,7 @@ describe('extensionApiModuleUrl', () => {
                         Disposable: class {},
                         EventEmitter: class {},
                         CancellationTokenSource: class {},
+                        ProjectStatusSummaryErrorMessage: projectStatusSummaryErrorMessage,
                         ThemeIcon: class {},
                         TreeItem: class {},
                         TreeItemCollapsibleState: { None: 0, Collapsed: 1, Expanded: 2 },
@@ -105,7 +119,18 @@ describe('extensionApiModuleUrl', () => {
         const second = await loadExtensionApiModule(secondUrl);
         const reloaded = await loadExtensionApiModule(reloadedUrl);
 
+        expect(Object.keys(first).toSorted((left, right) => left.localeCompare(right))).toEqual([
+            'CancellationTokenSource',
+            'default',
+            'Disposable',
+            'EventEmitter',
+            'ProjectStatusSummaryErrorMessage',
+            'ThemeIcon',
+            'TreeItem',
+            'TreeItemCollapsibleState',
+        ]);
         expect(first.default).toBe(firstAgain.default);
+        expect(first.ProjectStatusSummaryErrorMessage).toBe(projectStatusSummaryErrorMessage);
         expect(first.TreeItem).toBe(LoadedTreeItem);
         expect(first.default).not.toBe(second.default);
         expect(first.default).not.toBe(reloaded.default);

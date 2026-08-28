@@ -1,4 +1,5 @@
 import { CaxriError, isCaxriError } from '@caxri/protocol';
+import { ProjectStatusSummaryErrorMessage } from 'caxri';
 
 export function describeGitFailure(error: unknown): string {
     // Deliberately not `NodeJS.ErrnoException` here: that type inherits `Error`'s required
@@ -20,7 +21,8 @@ export function describeGitFailure(error: unknown): string {
         return 'Git output exceeded the safety limit.';
     }
     const stderr = failure.stderr?.toLowerCase() ?? '';
-    if (stderr.includes('not a git repository')) return 'The Project root is not a Git repository.';
+    if (stderr.includes('not a git repository'))
+        return ProjectStatusSummaryErrorMessage.missingGitRepository;
     // Sync (pull/push) failures the user can act on directly; anything else falls through to the
     // generic wording so raw remote stderr never leaks into the UI.
     if (stderr.includes('no tracking information') || stderr.includes('has no upstream branch'))

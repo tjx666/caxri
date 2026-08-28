@@ -24,6 +24,7 @@ import {
     CancellationTokenSource,
     Disposable,
     EventEmitter,
+    ProjectStatusSummaryErrorMessage,
     ThemeIcon,
     TreeItem,
     TreeItemCollapsibleState,
@@ -64,6 +65,7 @@ interface ApiBinding {
         CancellationTokenSource: typeof CancellationTokenSource;
         Disposable: typeof Disposable;
         EventEmitter: typeof EventEmitter;
+        ProjectStatusSummaryErrorMessage: typeof ProjectStatusSummaryErrorMessage;
         ThemeIcon: typeof ThemeIcon;
         TreeItem: typeof TreeItem;
         TreeItemCollapsibleState: typeof TreeItemCollapsibleState;
@@ -364,6 +366,7 @@ function createBinding(registration: ExtensionHostRegistration): ApiBinding {
             CancellationTokenSource,
             Disposable,
             EventEmitter,
+            ProjectStatusSummaryErrorMessage,
             ThemeIcon,
             TreeItem,
             TreeItemCollapsibleState,
