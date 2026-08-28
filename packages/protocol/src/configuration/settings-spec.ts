@@ -243,6 +243,14 @@ export const settingsSpec = [
         default: ' ()[]{}\',"`─‘’“”|',
     },
     {
+        kind: 'complex',
+        key: 'terminal.referenceLinks',
+        title: 'Reference links',
+        description: 'Open issue markers such as LOBE-123 with a bounded HTTP(S) URL template',
+        category: 'terminal',
+        keywords: ['link', 'issue', 'linear', 'jira', 'prefix', 'autolink'],
+    },
+    {
         kind: 'string',
         key: 'terminal.defaultWorkingDirectory',
         title: 'New Terminal working directory',

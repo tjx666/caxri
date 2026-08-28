@@ -14,6 +14,7 @@ import type {
 import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
+import { parseGitHubRemote } from '@caxri/utils';
 import { ProjectStatusSummaryErrorMessage as statusError } from 'caxri';
 import { z } from 'zod';
 
@@ -26,7 +27,6 @@ import type {
 import {
     extractLinearReferences,
     isNoPullRequest,
-    parseGitHubRemote,
     ProjectStatusCliError,
     projectStatusCliError,
     projectStatusCommandOperation,
@@ -37,7 +37,8 @@ import {
 import { mapProjectStatusDeployment } from './project-status-vercel';
 import { SingleFlight } from './single-flight';
 
-export { extractLinearReferences, parseGitHubRemote } from './project-status-external';
+export { extractLinearReferences } from './project-status-external';
+export { parseGitHubRemote } from '@caxri/utils';
 
 /**
  * Caps the process-lifetime `vercelLinks` cache so long-running sessions can't grow it unbounded.

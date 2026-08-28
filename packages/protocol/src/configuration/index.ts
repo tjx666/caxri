@@ -3,5 +3,6 @@ export * from './configuration-contract.js';
 export * from './settings-schema.js';
 export * from './settings-spec.js';
 export * from './shortcuts.js';
+export * from './terminal-reference-links.js';
 export * from './theme-import.js';
 export * from './trusted-domains.js';

@@ -489,12 +489,14 @@ describe('Extension Host API factory', () => {
         // eslint-disable-next-line unicorn/prefer-event-target -- Verify the public VS Code-compatible provider event.
         const changes = new EventEmitter<undefined>();
         let observedContext: ReturnType<typeof currentViewEventContext>;
+        let observedPublicContext: { scopeId: string } | undefined;
         const binding = extensionApiBinding('fixture-token-1');
         binding.api.workspace.onDidChangeActiveContext(() => changes.fire(undefined));
         binding.api.views.registerTreeDataProvider('publisher.fixture.tree', {
             onDidChangeTreeData: (listener) =>
                 changes.event((element) => {
                     observedContext = currentViewEventContext();
+                    observedPublicContext = binding.api.workspace.getCurrentContext();
                     listener(element);
                 }),
             getChildren: () => [],
@@ -506,6 +508,7 @@ describe('Extension Host API factory', () => {
         await new Promise((resolve) => setTimeout(resolve, 40));
 
         expect(observedContext).toEqual({ kind: 'no-session' });
+        expect(observedPublicContext).toEqual({ scopeId: 'no-session' });
     });
 
     it('bounds serialized payloads and generation-scoped tree depth', async () => {

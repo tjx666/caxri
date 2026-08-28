@@ -7,6 +7,7 @@ export * from './color-contrast.js';
 export * from './compare-tree-nodes.js';
 export * from './css-font-family.js';
 export * from './format-bytes.js';
+export * from './git-remote.js';
 export * from './path-basename.js';
 export * from './redaction.js';
 export * from './relative-time.js';

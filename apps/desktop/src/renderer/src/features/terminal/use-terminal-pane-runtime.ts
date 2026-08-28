@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { ProcessState, TerminalSnapshot, ThemeTokens } from '@caxri/protocol';
+import type {
+    ProcessState,
+    TerminalReferenceContext,
+    TerminalReferenceLinkRule,
+    TerminalSnapshot,
+    ThemeTokens,
+} from '@caxri/protocol';
 import { errorMessage } from '@caxri/protocol';
 import { ClipboardAddon } from '@xterm/addon-clipboard';
 import { FitAddon } from '@xterm/addon-fit';
@@ -70,11 +76,13 @@ interface TerminalPaneRuntimeOptions {
     fontFamily: string;
     fontSize: number;
     gpuAcceleration: TerminalGpuAcceleration;
+    githubRepositories: TerminalReferenceContext['githubRepositories'];
     imagePasteInput?: string;
     isAgent: boolean;
     osc52ClipboardWrite: boolean;
     processState: ProcessState;
     projectRoot: string;
+    referenceLinks: TerminalReferenceLinkRule[];
     scrollback: number;
     /**
      * `--success` token, resolved to hex by the theme store; see `terminalCommandDecorationSucceededColor`.
@@ -96,11 +104,13 @@ export function useTerminalPaneRuntime({
     fontFamily,
     fontSize,
     gpuAcceleration,
+    githubRepositories,
     imagePasteInput,
     isAgent,
     osc52ClipboardWrite,
     processState,
     projectRoot,
+    referenceLinks,
     scrollback,
     successColor,
     terminalCwd,
@@ -132,11 +142,14 @@ export function useTerminalPaneRuntime({
         fontFamily,
         fontSize,
         gpuAcceleration,
+        githubRepositories,
         imagePasteInput,
         isAgent,
         osc52ClipboardWrite,
         processState,
         projectRoot,
+        referenceContext: { githubRepositories, rules: referenceLinks },
+        referenceLinks,
         scrollback,
         successColor,
         terminalCwd,

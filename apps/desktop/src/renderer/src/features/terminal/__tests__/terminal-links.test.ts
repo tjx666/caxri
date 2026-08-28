@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { terminalLinkHintPosition } from '../terminal-link-hint';
 import type { TerminalLinkContext } from '../terminal-links';
 import {
     findTerminalLinks,
@@ -7,7 +8,6 @@ import {
     MAX_TERMINAL_DETECTED_LINKS,
     registerTerminalLinks,
     TERMINAL_DEFAULT_WORD_SEPARATORS,
-    terminalLinkHintPosition,
 } from '../terminal-links';
 import { cellsFor, createTerminal } from './terminal-links-test-helpers';
 
@@ -318,13 +318,16 @@ describe('terminalLinkHintPosition', () => {
 describe('registerTerminalLinks', () => {
     const baseContext = () => {
         const openFile = vi.fn();
+        const openCommit = vi.fn();
         const openUrl = vi.fn();
         const context: TerminalLinkContext = {
+            referenceContext: { githubRepositories: [], rules: [] },
             wordSeparators: TERMINAL_DEFAULT_WORD_SEPARATORS,
+            openCommit,
             openFile,
             openUrl,
         };
-        return { context, openFile, openUrl };
+        return { context, openCommit, openFile, openUrl };
     };
 
     it('maps a link after wide CJK cells to the correct xterm range', async () => {
@@ -677,6 +680,18 @@ describe('registerTerminalLinks', () => {
         const links = await terminal.links();
         links?.[0].activate({} as MouseEvent, links[0].text);
         expect(openUrl).not.toHaveBeenCalled();
+    });
+
+    it('routes a modified click on a commit candidate through the Git resolver callback', async () => {
+        const text = 'f36a02ac';
+        const terminal = createTerminal(text, cellsFor(text));
+        const { context, openCommit } = baseContext();
+        registerTerminalLinks(terminal.terminal, context);
+
+        const links = await terminal.links();
+        links?.[0].activate({ metaKey: true } as MouseEvent, links[0].text);
+
+        expect(openCommit).toHaveBeenCalledWith(text);
     });
 
     it('forwards raw file targets and locations through the shared trusted resolver', async () => {

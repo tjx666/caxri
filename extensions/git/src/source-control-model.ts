@@ -41,6 +41,7 @@ interface BuildSourceControlViewModelOptions {
     pullRequestsByRepository?: ReadonlyMap<string, GitPullRequestChanges | null>;
     registerAction?: RegisterSourceControlAction;
     revision?: string;
+    selectedCommitSha?: string;
     summary: GitSummary;
 }
 
@@ -48,26 +49,30 @@ function themeIcon(id: string) {
     return { kind: 'theme' as const, id };
 }
 
-const modes = [
-    {
-        command: { id: 'caxri.git.workingTree' },
-        icon: themeIcon('diff'),
-        id: 'working',
-        label: 'Working Tree Changes',
-    },
-    {
-        command: { id: 'caxri.git.lastCommit' },
-        icon: themeIcon('git-commit'),
-        id: 'commit',
-        label: 'Last Commit Changes',
-    },
-    {
-        command: { id: 'caxri.git.pullRequest' },
-        icon: themeIcon('git-pull-request'),
-        id: 'pull-request',
-        label: 'Pull Request Changes',
-    },
-] as const;
+function sourceControlModes(selectedCommitSha?: string) {
+    return [
+        {
+            command: { id: 'caxri.git.workingTree' },
+            icon: themeIcon('diff'),
+            id: 'working',
+            label: 'Working Tree Changes',
+        },
+        {
+            command: { id: 'caxri.git.lastCommit' },
+            icon: themeIcon('git-commit'),
+            id: 'commit',
+            label: selectedCommitSha
+                ? `Commit Changes (${selectedCommitSha.slice(0, 7)})`
+                : 'Last Commit Changes',
+        },
+        {
+            command: { id: 'caxri.git.pullRequest' },
+            icon: themeIcon('git-pull-request'),
+            id: 'pull-request',
+            label: 'Pull Request Changes',
+        },
+    ] as const;
+}
 
 function fallbackRegisterAction(action: ActionRegistration): SourceControlAction {
     return { id: action.command.id, ...action };
@@ -150,12 +155,13 @@ function resourcesForRepo(
     repo: GitRepositorySummary,
     repositories: readonly GitRepositorySummary[],
     files: GitFileStatus[],
+    commitSha: string | undefined,
     registerAction: RegisterSourceControlAction,
 ): SourceControlResource[] {
     const submodules = submoduleIdsByPath(repo, repositories);
     return files.map((file) => {
         const submoduleId = submodules.get(file.path);
-        const rawResource = editorResource(mode, repo.id, file.path, repo.head);
+        const rawResource = editorResource(mode, repo.id, file.path, commitSha ?? repo.head);
         const resource = rawResource ? boundedEditorResource(rawResource) : undefined;
         const projection = sourceControlResourceProjection(file.path);
         const commandId = submoduleId ? 'caxri.git.openSubmodule' : 'caxri.git.openChanges';
@@ -219,11 +225,19 @@ function emptyMessageForMode(
     details: GitCommitDetails | undefined,
     hasDetailError: boolean,
     pullRequest: GitPullRequestChanges | null | undefined,
+    selectedCommitSha?: string,
 ): string {
     if (mode === 'working') return 'Working tree clean.';
     if (mode === 'commit') {
         if (!repo.head) return 'No commits yet.';
-        if (hasDetailError) return 'Unable to load the last commit.';
+        if (hasDetailError)
+            return selectedCommitSha
+                ? `Unable to load commit ${selectedCommitSha.slice(0, 7)}.`
+                : 'Unable to load the last commit.';
+        if (selectedCommitSha)
+            return details
+                ? `Commit ${selectedCommitSha.slice(0, 7)} has no file changes.`
+                : `Loading commit ${selectedCommitSha.slice(0, 7)}…`;
         return details ? 'Last commit has no file changes.' : 'Loading last commit…';
     }
     if (hasDetailError) return 'Unable to load pull request changes.';
@@ -253,6 +267,7 @@ export function buildSourceControlViewModel({
     pullRequestsByRepository: pullRequestsByRepo = new Map(),
     registerAction = fallbackRegisterAction,
     revision = '0',
+    selectedCommitSha,
     summary,
 }: BuildSourceControlViewModelOptions): SourceControlViewModel {
     const emptyMessage = !summary.isRepository
@@ -265,7 +280,7 @@ export function buildSourceControlViewModel({
         title: 'Source Control',
         accessibilityLabel: 'Git repositories',
         modeAccessibilityLabel: 'Source control mode',
-        modes: [...modes],
+        modes: [...sourceControlModes(selectedCommitSha)],
         selectedModeId: mode,
         refreshAction: registerAction({
             command: { id: 'caxri.git.refresh' },
@@ -372,6 +387,7 @@ export function buildSourceControlViewModel({
                             details,
                             detailErrorsByRepo.has(repo.id),
                             pullRequest,
+                            selectedCommitSha,
                         ),
                         ...(mode === 'working' &&
                             repo.truncated && {
@@ -387,6 +403,7 @@ export function buildSourceControlViewModel({
                             repo,
                             summary.repositories,
                             files,
+                            details?.commit.sha,
                             registerAction,
                         ),
                     },

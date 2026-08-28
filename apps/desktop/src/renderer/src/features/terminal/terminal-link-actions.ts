@@ -49,7 +49,7 @@ export function openTerminalLinkPicker(terminalId: string): void {
     pickerHandlers.get(terminalId)?.openDetected();
 }
 
-export function openTerminalFileCandidatePicker(
+export function openTerminalLinkCandidatePicker(
     terminalId: string,
     links: TerminalDetectedLink[],
     isTruncated: boolean,

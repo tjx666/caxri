@@ -82,6 +82,115 @@ function createHarness(options: { avatars?: boolean } = {}) {
 }
 
 describe('GitProvider', () => {
+    it('opens an authorized arbitrary commit in the scoped commit mode and survives a stale preferred mode', async () => {
+        const selectedSha = 'abcdef0123456789abcdef0123456789abcdef01';
+        const { git, provider } = createHarness();
+        vi.mocked(git.commitDetails).mockImplementation(({ sha }) =>
+            Promise.resolve({
+                ...commitDetails,
+                commit: { ...commitDetails.commit, sha, shortSha: sha.slice(0, 7) },
+            }),
+        );
+        const changes: unknown[] = [];
+        const subscription = provider.onDidChange((change) => changes.push(change));
+        const cancellation = new CancellationTokenSource();
+        await provider.provideView({ scopeId, refresh: 0 }, cancellation.token);
+
+        await provider.openCommit(scopeId, repo.id, selectedSha, cancellation.token);
+        const loading = await provider.provideView(
+            { scopeId, preferredModeId: 'working', refresh: 0 },
+            cancellation.token,
+        );
+        await vi.waitFor(() =>
+            expect(git.commitDetails).toHaveBeenCalledWith(
+                { repositoryId: repo.id, sha: selectedSha },
+                expect.anything(),
+            ),
+        );
+        const ready = await provider.provideView(
+            { scopeId, preferredModeId: 'working', refresh: 0 },
+            cancellation.token,
+        );
+
+        expect(loading.selectedModeId).toBe('commit');
+        expect(ready.modes.find(({ id }) => id === 'commit')?.label).toBe(
+            'Commit Changes (abcdef0)',
+        );
+        expect(ready.providers[0].description).toContain('abcdef0');
+        expect(changes).toContainEqual({ kind: 'selection', selectedModeId: 'commit' });
+
+        provider.setMode('working', scopeId);
+        await expect(
+            provider.provideView(
+                { scopeId, preferredModeId: 'working', refresh: 0 },
+                cancellation.token,
+            ),
+        ).resolves.toMatchObject({ selectedModeId: 'working' });
+        await expect(
+            provider.openCommit(scopeId, 'missing', selectedSha, cancellation.token),
+        ).rejects.toMatchObject({ code: 'PROJECT_SCOPE_DENIED' });
+
+        subscription.dispose();
+        cancellation.dispose();
+        provider.dispose();
+    });
+
+    it('keeps the newest commit selection when an earlier validation finishes last', async () => {
+        const firstSha = 'abcdef0123456789abcdef0123456789abcdef01';
+        const secondSha = '123456789abcdef0123456789abcdef012345678';
+        const firstSummary = Promise.withResolvers<GitSummary>();
+        const secondSummary = Promise.withResolvers<GitSummary>();
+        const { git, provider } = createHarness();
+        const cancellation = new CancellationTokenSource();
+        await provider.provideView({ scopeId, refresh: 0 }, cancellation.token);
+        vi.mocked(git.summary)
+            .mockImplementationOnce(() => firstSummary.promise)
+            .mockImplementationOnce(() => secondSummary.promise);
+
+        const first = provider.openCommit(scopeId, repo.id, firstSha, cancellation.token);
+        const second = provider.openCommit(scopeId, repo.id, secondSha, cancellation.token);
+        secondSummary.resolve(summary);
+        await second;
+        firstSummary.resolve(summary);
+        await first;
+        const view = await provider.provideView({ scopeId, refresh: 0 }, cancellation.token);
+
+        expect(view.modes.find(({ id }) => id === 'commit')?.label).toBe(
+            'Commit Changes (1234567)',
+        );
+
+        cancellation.dispose();
+        provider.dispose();
+    });
+
+    it('keeps a failed selected commit visible instead of silently showing HEAD', async () => {
+        const selectedSha = 'abcdef0123456789abcdef0123456789abcdef01';
+        const { git, provider } = createHarness();
+        vi.mocked(git.commitDetails).mockRejectedValueOnce(new Error('commit disappeared'));
+        const cancellation = new CancellationTokenSource();
+        await provider.provideView({ scopeId, refresh: 0 }, cancellation.token);
+        await provider.openCommit(scopeId, repo.id, selectedSha, cancellation.token);
+
+        await expect
+            .poll(async () => {
+                const view = await provider.provideView(
+                    { scopeId, preferredModeId: 'commit', refresh: 0 },
+                    cancellation.token,
+                );
+                return {
+                    emptyMessage: view.providers[0]?.groups[0]?.emptyMessage,
+                    label: view.modes.find(({ id }) => id === 'commit')?.label,
+                };
+            })
+            .toEqual({
+                emptyMessage: 'Unable to load commit abcdef0.',
+                label: 'Commit Changes (abcdef0)',
+            });
+
+        cancellation.dispose();
+        provider.dispose();
+    });
+
     it('keeps mode and refresh generations isolated and monotonic per Workbench scope', async () => {
         const { git, provider } = createHarness();
         const cancellation = new CancellationTokenSource();

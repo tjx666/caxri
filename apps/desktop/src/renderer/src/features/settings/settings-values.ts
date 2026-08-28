@@ -44,6 +44,8 @@ export function isRowModified(binding: SettingRowBinding, context: SettingsValue
             );
         case 'trusted-domains':
             return settings['security.trustedDomains'].length > 0;
+        case 'terminal-reference-links':
+            return settings['terminal.referenceLinks'].length > 0;
         case 'files-exclude':
             return !isEqual(settings['files.exclude'], defaultAppSettings['files.exclude']);
         case 'remote-debugging':
@@ -127,6 +129,8 @@ export function rowResetAction(
             };
         case 'trusted-domains':
             return { kind: 'field', key: 'security.trustedDomains', value: [] };
+        case 'terminal-reference-links':
+            return { kind: 'field', key: 'terminal.referenceLinks', value: [] };
         case 'files-exclude':
             return {
                 kind: 'field',

@@ -16,6 +16,7 @@ import {
 } from '../agent/agents.js';
 import type { IntegerSettingSpec, SettingKey, StringSettingSpec } from './settings-spec.js';
 import { settingsSpecByKey } from './settings-spec.js';
+import { terminalReferenceLinksSchema } from './terminal-reference-links.js';
 import {
     MAX_TRUSTED_DOMAIN_LENGTH,
     MAX_TRUSTED_DOMAINS,
@@ -156,6 +157,7 @@ export const appSettingsSchema = z.object({
         .string()
         .max(spec['terminal.wordSeparators'].maxLength)
         .default(spec['terminal.wordSeparators'].default),
+    'terminal.referenceLinks': terminalReferenceLinksSchema,
     'terminal.fontFamily': nullableStringField(spec['terminal.fontFamily']),
     'terminal.fontSize': integerField(spec['terminal.fontSize']),
     'editor.fontFamily': nullableStringField(spec['editor.fontFamily']),

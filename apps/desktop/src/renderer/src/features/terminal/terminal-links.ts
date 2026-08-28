@@ -5,6 +5,8 @@ import {
     parseTerminalFileLocation,
     TERMINAL_FILE_LOCATION_SUFFIX_PATTERN,
 } from './terminal-file-location';
+import type { TerminalLinkHintController } from './terminal-link-hint';
+import { createTerminalLinkHintController } from './terminal-link-hint';
 import type { TerminalLogicalLine } from './terminal-logical-line';
 import { joinTerminalLogicalLines, readSoftWrappedLogicalLine } from './terminal-logical-line';
 import type { VisibleOscLink } from './terminal-osc-link-tracker';
@@ -13,6 +15,8 @@ import {
     MAX_TERMINAL_LINK_ROWS as MAX_LOGICAL_LINE_ROWS,
     registerTerminalOscLinkTracker,
 } from './terminal-osc-link-tracker';
+import type { TerminalLinkReferenceContext } from './terminal-reference-links';
+import { findTerminalReferenceLinks } from './terminal-reference-links';
 
 const CJK_PROSE_BOUNDARIES = new Set(['、', '，', '。', '；', '：', '！', '？']);
 const LEADING_WRAPPERS = new Set(['(', '[', '{', '<', '"', "'", '`']);
@@ -64,8 +68,11 @@ export function appendBoundedDetectedLink(
 }
 
 export interface TerminalLinkMatch {
+    accessibleName?: string;
+    detail?: string;
     endIndex: number;
-    kind: 'file' | 'url';
+    hint?: string;
+    kind: 'commit' | 'file' | 'url';
     startIndex: number;
     target: string;
     text: string;
@@ -82,7 +89,9 @@ export interface TerminalLinkScanMetrics {
 }
 
 export interface TerminalLinkContext {
+    referenceContext: TerminalLinkReferenceContext;
     wordSeparators: string;
+    openCommit(reference: string): void;
     openFile(target: string, location?: EditorNavigationTarget): void;
     openUrl(url: string): void;
 }
@@ -189,6 +198,7 @@ function unsupportedHomeRanges(text: string): Array<{ endIndex: number; startInd
 }
 
 function isLikelyFilePath(path: string): boolean {
+    if (/^[0-9a-f]{7,40}\.\.[0-9a-f]{7,40}$/i.test(path)) return false;
     if (isCurrentUserHomePath(path)) return true;
     if (isUnsupportedHomePath(path)) return false;
     if (/^file:\/\//i.test(path)) return true;
@@ -344,6 +354,7 @@ export function findTerminalLinks(
     wordSeparators: string = TERMINAL_DEFAULT_WORD_SEPARATORS,
     metrics?: TerminalLinkScanMetrics,
     urlPattern: RegExp = PLAIN_TEXT_URL_PATTERN,
+    referenceContext?: TerminalLinkReferenceContext,
 ): TerminalLinkMatch[] {
     const wordFileLinks: TerminalLinkMatch[] = [];
     const urlLinks: TerminalLinkMatch[] = [];
@@ -414,7 +425,34 @@ export function findTerminalLinks(
             text: trimmed.text,
         });
     }
-    return mergeTerminalLinks(urlLinks, mergeTerminalLinks(locationFileLinks, wordFileLinks));
+    const fileLinks = mergeTerminalLinks(locationFileLinks, wordFileLinks);
+    const references = referenceContext
+        ? findTerminalReferenceLinks(text, referenceContext).filter(
+              (reference) =>
+                  urlLinks.every(
+                      (url) =>
+                          !(
+                              reference.startIndex < url.endIndex &&
+                              reference.endIndex > url.startIndex
+                          ),
+                  ) &&
+                  (reference.overridesFile ||
+                      fileLinks.every(
+                          (file) =>
+                              !(
+                                  reference.startIndex < file.endIndex &&
+                                  reference.endIndex > file.startIndex
+                              ),
+                      )),
+          )
+        : [];
+    const unshadowedFiles = fileLinks.filter((file) =>
+        references.every(
+            (reference) =>
+                !(reference.startIndex < file.endIndex && reference.endIndex > file.startIndex),
+        ),
+    );
+    return mergeTerminalLinks(mergeTerminalLinks(urlLinks, references), unshadowedFiles);
 }
 
 /**
@@ -435,6 +473,10 @@ function activateLink(match: TerminalLinkMatch, context: TerminalLinkContext): v
         context.openUrl(match.target);
         return;
     }
+    if (match.kind === 'commit') {
+        context.openCommit(match.target);
+        return;
+    }
     context.openFile(match.target, match.location);
 }
 
@@ -453,8 +495,11 @@ export function createDetectedLink(
     bufferLine: number,
 ): TerminalDetectedLink {
     return {
-        accessibleName: `Open ${match.kind === 'url' ? 'external' : 'file'} link ${match.text}`,
+        accessibleName:
+            match.accessibleName ??
+            `Open ${match.kind === 'url' ? 'external' : 'file'} link ${match.text}`,
         bufferLine,
+        detail: match.detail,
         id,
         kind: match.kind,
         target: match.text,
@@ -537,67 +582,18 @@ export function readLogicalLine(
     return logicalLine;
 }
 
-/**
- * The label shown on hover, spelled out with the platform key so a user does not have to guess which modifier
- * `hasLinkActivationModifier` requires before a bare click will do anything.
- */
-const TERMINAL_LINK_HINT_TEXT = '⌘ click to open';
-
-/**
- * Pure placement math kept separate from the DOM write below so it can be unit tested without a browser environment.
- * Offsets the hint above and to the right of the pointer, matching the `Tooltip` component's `sideOffset`.
- */
-export function terminalLinkHintPosition(event: { clientX: number; clientY: number }): {
-    left: number;
-    top: number;
-} {
-    return { left: event.clientX + 12, top: event.clientY - 28 };
-}
-
-/**
- * Creates the single hover-hint element lazily inside `terminal.element`, per xterm's own `ILinkHandler.hover`
- * guidance: an element with the `xterm-hover` class keeps mouse events from falling through onto neighboring links
- * while the hint is visible.
- */
-function createLinkHintController(terminal: Terminal): {
-    dispose(): void;
-    hide(): void;
-    show(event: MouseEvent): void;
-} {
-    let element: HTMLDivElement | undefined;
-    return {
-        show(event) {
-            const host = terminal.element;
-            if (!host) return;
-            if (!element) {
-                element = document.createElement('div');
-                element.className =
-                    'xterm-hover terminal-link-hint pointer-events-none fixed z-[90] rounded-md bg-elevated px-2.5 py-1.5 text-[12px] text-foreground shadow-[0_0_0_1px_var(--border),0_8px_24px_var(--shadow)]';
-                element.textContent = TERMINAL_LINK_HINT_TEXT;
-                element.setAttribute('role', 'tooltip');
-                host.append(element);
-            }
-            const { left, top } = terminalLinkHintPosition(event);
-            element.style.left = `${left}px`;
-            element.style.top = `${top}px`;
-        },
-        hide() {
-            element?.remove();
-            element = undefined;
-        },
-        dispose() {
-            element?.remove();
-            element = undefined;
-        },
-    };
-}
-
 function linksForLogicalLine(
     logicalLine: TerminalLogicalLine,
     context: TerminalLinkContext,
-    hint: ReturnType<typeof createLinkHintController>,
+    hint: TerminalLinkHintController,
 ): ILink[] {
-    return findTerminalLinks(logicalLine.text, context.wordSeparators).flatMap((match) => {
+    return findTerminalLinks(
+        logicalLine.text,
+        context.wordSeparators,
+        undefined,
+        undefined,
+        context.referenceContext,
+    ).flatMap((match) => {
         // `.at()` (rather than `[index]`) keeps an out-of-range index's `undefined` case in the type, since this
         // project does not enable `noUncheckedIndexedAccess`.
         const start = logicalLine.positions.at(match.startIndex);
@@ -615,7 +611,7 @@ function linksForLogicalLine(
                  * VS Code's terminal makes for its link hover text.
                  */
                 decorations: { pointerCursor: true, underline: true },
-                hover: (event) => hint.show(event),
+                hover: (event) => hint.show(event, match.hint),
                 leave: () => hint.hide(),
                 range: { start, end },
                 text: match.text,
@@ -641,7 +637,13 @@ function viewportPlainTextLinks(
         const logicalLine = readLogicalLine(terminal, line + 1, context.wordSeparators);
         if (!logicalLine || visitedLogicalLines.has(logicalLine.firstBufferLine)) continue;
         visitedLogicalLines.add(logicalLine.firstBufferLine);
-        for (const match of findTerminalLinks(logicalLine.text, context.wordSeparators)) {
+        for (const match of findTerminalLinks(
+            logicalLine.text,
+            context.wordSeparators,
+            undefined,
+            undefined,
+            context.referenceContext,
+        )) {
             const key = `${match.kind}:${match.text}`;
             const result = appendBoundedDetectedLink(budget, key, match.text, () =>
                 createDetectedLink(
@@ -701,7 +703,7 @@ export function registerTerminalLinks(
     terminal: Terminal,
     context: TerminalLinkContext,
 ): TerminalLinkRegistration {
-    const hint = createLinkHintController(terminal);
+    const hint = createTerminalLinkHintController(terminal);
     const disposable = terminal.registerLinkProvider({
         provideLinks(bufferLineNumber, callback) {
             const logicalLine = readLogicalLine(terminal, bufferLineNumber, context.wordSeparators);

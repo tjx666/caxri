@@ -16,15 +16,35 @@ function registerProviderCommand(provider: GitProvider, commandId: string) {
 
 export function activate(context: ExtensionContext): void {
     const provider = new GitProvider();
+    const currentScopeId = (): string | undefined => caxri.workspace.getCurrentContext()?.scopeId;
     context.subscriptions.push(
         provider,
         caxri.views.registerSourceControlProvider('caxri.git.sourceControl', provider),
-        caxri.commands.registerCommand('caxri.git.workingTree', () => provider.setMode('working')),
-        caxri.commands.registerCommand('caxri.git.lastCommit', () => provider.setMode('commit')),
-        caxri.commands.registerCommand('caxri.git.pullRequest', () =>
-            provider.setMode('pull-request'),
+        caxri.commands.registerCommand('caxri.git.workingTree', () =>
+            provider.setMode('working', currentScopeId()),
         ),
-        caxri.commands.registerCommand('caxri.git.refresh', () => provider.refresh()),
+        caxri.commands.registerCommand('caxri.git.lastCommit', () =>
+            provider.setMode('commit', currentScopeId()),
+        ),
+        caxri.commands.registerCommand('caxri.git.pullRequest', () =>
+            provider.setMode('pull-request', currentScopeId()),
+        ),
+        caxri.commands.registerCommand('caxri.git.refresh', () =>
+            provider.refresh(currentScopeId()),
+        ),
+        caxri.commands.registerCommand('caxri.git.openCommit', async (repoId, sha) => {
+            const scopeId = currentScopeId();
+            if (!scopeId || typeof repoId !== 'string' || typeof sha !== 'string')
+                throw Object.assign(new Error('Git commit target is unavailable'), {
+                    code: 'PROJECT_SCOPE_DENIED',
+                });
+            const cancellation = new CancellationTokenSource();
+            try {
+                await provider.openCommit(scopeId, repoId, sha, cancellation.token);
+            } finally {
+                cancellation.dispose();
+            }
+        }),
         ...[
             'caxri.git.sync',
             'caxri.git.discardAll',

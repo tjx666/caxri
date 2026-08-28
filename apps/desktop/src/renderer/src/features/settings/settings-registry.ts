@@ -19,6 +19,7 @@ export type SettingRowBinding =
     | { type: 'provider-actions'; provider: AgentProvider }
     | { type: 'provider-skill-health'; provider: AgentProvider }
     | { type: 'trusted-domains' }
+    | { type: 'terminal-reference-links' }
     | { type: 'files-exclude' }
     | { type: 'archived-sessions' }
     | { type: 'remote-debugging' }
@@ -207,6 +208,10 @@ const rows: SettingRowDescriptor[] = [
     specRow('terminal.copyOnSelect'),
     specRow('terminal.osc52ClipboardWrite'),
     specRow('terminal.wordSeparators'),
+    {
+        ...specRow('terminal.referenceLinks'),
+        binding: { type: 'terminal-reference-links' },
+    },
     specRow('terminal.defaultWorkingDirectory'),
     specRow('editor.fontFamily'),
     {
