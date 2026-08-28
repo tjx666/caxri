@@ -6,8 +6,9 @@
     "description": "A project-first, terminal-native local development workbench for macOS.",
     "type": "module",
     "scripts": {
-        "dev": "bun run build:workspaces && bun run scripts/development.ts",
-        "dev:desktop": "bun run scripts/development.ts",
+        "dev": "bun run build:workspaces && bun run electron:install && bun run scripts/development.ts",
+        "dev:desktop": "bun run electron:install && bun run scripts/development.ts",
+        "electron:install": "install-electron",
         "format": "prettier --write .",
         "format:check": "prettier --check . --cache --cache-strategy content --cache-location .cache/prettier",
         "format:md": "prettier --write \"**/*.md\"",

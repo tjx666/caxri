@@ -108,13 +108,13 @@ async function restoreManifest(path: string, source: Buffer | undefined): Promis
 }
 
 /**
- * Pnpm may reuse a store entry without materializing Electron's package-owned side effects in a new worktree. Repair
- * only an incomplete install so `create` retains its ready-to-run contract without introducing a second package-manager
- * install or repeating a completed postinstall.
+ * Electron 42+ no longer declares a package lifecycle script, so dependency installation alone does not materialize its
+ * binary. Repair only an incomplete install so worktree creation and development startup retain their ready-to-run
+ * contracts without repeating a completed download.
  *
  * @see https://github.com/tjx666/caxri/issues/276
  */
-async function hasElectronPostinstallArtifacts(path: string): Promise<boolean> {
+async function hasElectronBinaryArtifacts(path: string): Promise<boolean> {
     const electronDirectory = join(path, 'node_modules', 'electron');
     try {
         const executableRelativePath = (await readFile(join(electronDirectory, 'path.txt'), 'utf8'))
@@ -153,16 +153,16 @@ async function hasElectronPostinstallArtifacts(path: string): Promise<boolean> {
     }
 }
 
-async function ensureElectronPostinstall(
+async function ensureElectronBinary(
     path: string,
     shouldPipeStdoutToStderr: boolean,
 ): Promise<void> {
     const electronDirectory = join(path, 'node_modules', 'electron');
-    if (await hasElectronPostinstallArtifacts(path)) return;
+    if (await hasElectronBinaryArtifacts(path)) return;
 
     const installScript = join(electronDirectory, 'install.js');
     if (!(await isPathPresent(installScript))) {
-        throw new CommandError(`Electron postinstall script is missing: ${installScript}`);
+        throw new CommandError(`Electron installer is missing: ${installScript}`);
     }
     const exitCode = await runInherited('node', [installScript], {
         cwd: path,
@@ -170,11 +170,11 @@ async function ensureElectronPostinstall(
         stdoutToStderr: shouldPipeStdoutToStderr,
     });
     if (exitCode !== 0) {
-        throw new CommandError(`Electron postinstall failed with exit code ${exitCode}`);
+        throw new CommandError(`Electron binary installation failed with exit code ${exitCode}`);
     }
-    if (!(await hasElectronPostinstallArtifacts(path))) {
+    if (!(await hasElectronBinaryArtifacts(path))) {
         throw new CommandError(
-            `Electron postinstall left incomplete artifacts in ${electronDirectory}`,
+            `Electron binary installation left incomplete artifacts in ${electronDirectory}`,
         );
     }
 }
@@ -224,7 +224,7 @@ export async function installWorktreeDependencies(
         );
     }
     if (exitCode !== 0) throw new CommandError(`ni failed with exit code ${exitCode}`);
-    await ensureElectronPostinstall(path, shouldPipeStdoutToStderr);
+    await ensureElectronBinary(path, shouldPipeStdoutToStderr);
 }
 
 async function dependencyState(path: string): Promise<WorktreeStatus['dependencies']> {
@@ -398,11 +398,11 @@ async function setupManagedWorktree(
     if (existingDependencies === 'symlink') {
         throw new CommandError(`Refusing shared node_modules symlink in ${path}`);
     }
-    if (existingDependencies === 'ready' && (await hasElectronPostinstallArtifacts(path))) return;
+    if (existingDependencies === 'ready' && (await hasElectronBinaryArtifacts(path))) return;
     await install(path);
     if ((await dependencyState(path)) !== 'ready')
         throw new CommandError(`ni did not create ${path}/node_modules`);
-    if (!(await hasElectronPostinstallArtifacts(path)))
+    if (!(await hasElectronBinaryArtifacts(path)))
         throw new CommandError(`ni left incomplete Electron artifacts in ${path}/node_modules`);
 }
 
@@ -416,7 +416,7 @@ async function repairManagedWorktree(
         !status.managed ||
         (status.dependencies === 'ready' &&
             status.profile &&
-            (await hasElectronPostinstallArtifacts(worktree.path)))
+            (await hasElectronBinaryArtifacts(worktree.path)))
     ) {
         return status;
     }
@@ -642,6 +642,7 @@ export async function prepareDevelopmentWorktree(cwd: string): Promise<{
                 : 'node_modules is missing; run ni in this worktree',
         );
     }
+    await ensureElectronBinary(context.root, false);
     const identity = await worktreeIdentity(context.root, true);
     if (!identity) throw new CommandError('Could not establish worktree identity');
     return { context, profile: await ensureProfile(context, identity), worktreeId: identity };
