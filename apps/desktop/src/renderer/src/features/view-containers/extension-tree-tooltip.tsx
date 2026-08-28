@@ -161,8 +161,11 @@ export function ExtensionTreeTooltip({
                     )}
                 </div>
                 <ul className="mt-2 mb-0 list-disc space-y-1 pl-5 text-[12px] leading-5">
-                    {tooltip.rows.map((row, index) => (
-                        <li className="min-w-0" key={`${row.label}:${index}`}>
+                    {tooltip.rows.map((row) => (
+                        <li
+                            className="min-w-0"
+                            key={`${row.label}\0${row.value}\0${row.url ?? ''}`}
+                        >
                             <span className="text-muted">{row.label}: </span>
                             {row.url ? (
                                 <button

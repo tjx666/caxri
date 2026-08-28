@@ -210,11 +210,21 @@ const treeItemTooltipRowSchema = z.object({
     value: z.string().min(1).max(2_048),
     url: treeItemTooltipUrlSchema.optional(),
 });
+const treeItemTooltipRowsSchema = z
+    .array(treeItemTooltipRowSchema)
+    .min(1)
+    .max(8)
+    .refine(
+        (rows) =>
+            new Set(rows.map((row) => `${row.label}\0${row.value}\0${row.url ?? ''}`)).size ===
+            rows.length,
+        'Rich tooltip rows must be unique',
+    );
 export const treeItemRichTooltipSchema = z.object({
     kind: z.literal('rich'),
     title: z.string().min(1).max(1_024),
     badge: treeItemTooltipBadgeSchema.optional(),
-    rows: z.array(treeItemTooltipRowSchema).min(1).max(8),
+    rows: treeItemTooltipRowsSchema,
 });
 
 export const treeItemSchema = z.object({

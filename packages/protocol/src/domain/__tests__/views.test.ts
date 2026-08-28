@@ -64,6 +64,19 @@ describe('extension view contracts', () => {
                 },
             }).success,
         ).toBe(false);
+        expect(
+            treeItemSchema.safeParse({
+                ...baseItem,
+                tooltip: {
+                    kind: 'rich',
+                    title: 'preview',
+                    rows: [
+                        { label: 'alias', value: 'duplicate' },
+                        { label: 'alias', value: 'duplicate' },
+                    ],
+                },
+            }).success,
+        ).toBe(false);
     });
 
     it('bounds stable tree identity and persisted per-view state', () => {
