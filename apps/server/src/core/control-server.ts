@@ -30,7 +30,6 @@ import {
     localServerDesktopCommandSchema,
     localServerDesktopOperationReplySchema,
     localServerDesktopTargetReplySchema,
-    localServerEventSchema,
     localServerLeaseRenewedSchema,
     localServerReplySchema,
     localServerWelcomeSchema,
@@ -68,7 +67,9 @@ import {
     shouldSettleOutsideOrderedLane,
     trackControlRequest,
     untrackControlRequest,
+    writeAgentControlEvent,
     writeControlMessage,
+    writeDesktopControlEvent,
 } from './control-server-support';
 import type { TerminalDetachTransition } from './terminal-stream-lifecycle';
 
@@ -737,38 +738,25 @@ export class ControlServer {
         this.endpoint = listener.endpoint;
         return listener.endpoint;
     }
+
     broadcast(event: ProtocolEventEnvelope | TransientServerEvent): void {
         const projected = typeof event.event === 'string' ? event : event.event;
         if (this.binaryRuntime.deliver(event) || projected.event === 'terminal.output') return;
-        const message = localServerEventSchema.parse({ type: 'event', event });
-        /**
-         * Raw domain payloads are a Desktop-only transport; other principals use projections.
-         */
-        if (this.currentDesktop?.desktopReady)
-            writeControlMessage(this.currentDesktop.socket, message);
+        writeDesktopControlEvent(this.currentDesktop, event);
     }
+
     /**
      * Delivers a transient, body-free receipt only to the exact authenticated Agent generation.
      */
     broadcastAgent(endpoint: AgentEndpointReference, event: TransientServerEvent): void {
-        const message = localServerEventSchema.parse({ type: 'event', event });
-        for (const state of this.clients.values()) {
-            const principal = state.context.principal;
-            if (
-                principal.kind === 'agent' &&
-                principal.endpointId === endpoint.endpointId &&
-                principal.generation === endpoint.generation
-            )
-                writeControlMessage(state.socket, message);
-        }
+        writeAgentControlEvent(this.clients.values(), endpoint, event);
     }
+
     /**
      * Delivers a one-shot Server UI event without placing it in the recoverable event journal.
      */
     broadcastDesktop(event: TransientServerEvent): void {
-        const message = localServerEventSchema.parse({ type: 'event', event });
-        if (this.currentDesktop?.desktopReady)
-            writeControlMessage(this.currentDesktop.socket, message);
+        writeDesktopControlEvent(this.currentDesktop, event);
     }
 
     async close(): Promise<void> {

@@ -52,6 +52,12 @@ Server `structure`, and Renderer `design-contract` tests already used.
 | Desktop/Server/shared system tests live in `__tests__/`, not loose beside production files (Renderer colocated tests stay allowed)                     | `scripts/__tests__/test-placement-contract.test.ts`                                                                                                                                                    |
 | No `*.test.tsx` anywhere (components are not unit-tested; logic gets extracted)                                                                        | `scripts/__tests__/test-placement-contract.test.ts`                                                                                                                                                    |
 
+### After stage 5
+
+| Convention                                                                                          | Enforcement                                                                                            |
+| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Class methods have a blank line on either side; consecutive fields and overload signatures may pack | `eslint.config.ts` `@stylistic/lines-between-class-members` (Prettier never inserts these blank lines) |
+
 Flat ESLint config objects replace, rather than merge, a later matching object's same-named rule
 for a given file. The two `no-restricted-imports` blocks above stay on non-overlapping `files`
 globs (Desktop `src/` subtrees vs. `scripts`/`.agents`/`e2e`/`packages`) instead of one broad glob,
@@ -85,6 +91,9 @@ and negative fixture (fires):
   `use-good-mapped-hook-fixture.ts` / `use-bad-mapped-hook-fixture.ts` — stay silent or fire
   `caxri/filename-export-mapping` depending on whether the file's primary export matches its
   filename mapping.
+- `class-members-packed-methods-fixture.ts` / `class-members-spaced-methods-fixture.ts` — fire or
+  stay silent for `@stylistic/lines-between-class-members` depending on whether adjacent methods
+  have a blank line (packed consecutive fields and overload signatures stay allowed).
 
 The Renderer-only alias ban is asserted through `ESLint#calculateConfigForFile`
 (`effectiveConfigFor` in the same test file) instead of a fixture, mirroring how the pre-existing
