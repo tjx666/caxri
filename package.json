@@ -114,6 +114,8 @@
                     "scripts/fixtures/eslint/re-export-component-fixture.tsx",
                     "scripts/fixtures/eslint/use-wrong-casing-hook-fixture.ts",
                     "scripts/fixtures/eslint/wrong-casing-component-fixture.tsx",
+                    "scripts/fixtures/eslint/class-members-packed-methods-fixture.ts",
+                    "scripts/fixtures/eslint/class-members-spaced-methods-fixture.ts",
                     "scripts/fixtures/eslint/feature-structure/**/*.ts",
                     "scripts/fixtures/eslint/architecture/**/*.ts",
                     "scripts/run-e2e-failure-isolation.ts",
