@@ -6,6 +6,8 @@ export const MAX_VIEW_TREE_DEPTH = 64;
 export const MAX_VIEW_TREE_HANDLES = 10_000;
 export const MAX_VIEW_TREE_PERSISTED_IDS = 1_000;
 export const MAX_EXTENSION_TREE_VIEW_STATES = 64;
+export const MAX_SOURCE_CONTROL_VIEW_STATES = 64;
+export const MAX_SOURCE_CONTROL_VIEW_STATE_ENTRIES = 1_000;
 export const MAX_EXTENSION_COMMAND_ARGUMENTS = 32;
 export const MAX_VIEW_ICON_DATA_URL_LENGTH = 128 * 1024;
 export const MAX_VIEW_CATALOG_CONTAINERS = 256;
@@ -222,6 +224,28 @@ export const extensionTreeViewStatesSchema = z
     .refine(
         (states) => Object.keys(states).length <= MAX_EXTENSION_TREE_VIEW_STATES,
         'Too many persisted extension tree views',
+    );
+
+const sourceControlDisclosureStateSchema = (keySchema: z.ZodString) =>
+    z
+        .record(keySchema, z.boolean())
+        .refine(
+            (state) => Object.keys(state).length <= MAX_SOURCE_CONTROL_VIEW_STATE_ENTRIES,
+            'Too many persisted Source Control disclosure entries',
+        );
+
+export const sourceControlViewStateSchema = z.object({
+    expandedDirectories: sourceControlDisclosureStateSchema(z.string().min(1).max(16_384)),
+    expandedGroups: sourceControlDisclosureStateSchema(treeItemIdSchema),
+    expandedProviders: sourceControlDisclosureStateSchema(treeItemIdSchema),
+    modeId: treeItemIdSchema.optional(),
+});
+
+export const sourceControlViewStatesSchema = z
+    .record(viewIdSchema, sourceControlViewStateSchema)
+    .refine(
+        (states) => Object.keys(states).length <= MAX_SOURCE_CONTROL_VIEW_STATES,
+        'Too many persisted Source Control views',
     );
 
 export const extensionViewChangeSchema = z.discriminatedUnion('kind', [
@@ -571,4 +595,6 @@ export type TreeItemDto = z.infer<typeof treeItemSchema>;
 export type TreeChildrenResult = z.infer<typeof treeChildrenResultSchema>;
 export type ExtensionTreeViewState = z.infer<typeof extensionTreeViewStateSchema>;
 export type ExtensionTreeViewStates = z.infer<typeof extensionTreeViewStatesSchema>;
+export type SourceControlViewState = z.infer<typeof sourceControlViewStateSchema>;
+export type SourceControlViewStates = z.infer<typeof sourceControlViewStatesSchema>;
 export type ExtensionManifest = z.infer<typeof extensionManifestSchema>;

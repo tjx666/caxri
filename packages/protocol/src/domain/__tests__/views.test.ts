@@ -5,6 +5,7 @@ import {
     extensionTreeViewStatesSchema,
     sourceControlActionResultSchema,
     sourceControlViewModelSchema,
+    sourceControlViewStatesSchema,
     treeItemSchema,
     viewCatalogSnapshotSchema,
     viewContainerIdSchema,
@@ -46,6 +47,16 @@ describe('extension view contracts', () => {
                     expandedItemIds: ['repository'],
                     initializedItemIds: ['repository'],
                     focusedItemId: 'repository',
+                },
+            }).success,
+        ).toBe(true);
+        expect(
+            sourceControlViewStatesSchema.safeParse({
+                'caxri.git.sourceControl': {
+                    expandedDirectories: { 'changes:repository:src': false },
+                    expandedGroups: { changes: false },
+                    expandedProviders: { repository: true },
+                    modeId: 'changes',
                 },
             }).success,
         ).toBe(true);
