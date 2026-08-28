@@ -35,6 +35,8 @@ import {
 import { createMainEventRelay } from './event-relay';
 import { launchExternalEditor } from './external-editor';
 import { createGpuDiagnostics } from './gpu-diagnostics';
+import { createGpuRecoveryCoordinator, prepareGpuBoot } from './gpu-recovery';
+import { createGpuSafeModeController } from './gpu-safe-mode';
 import { createElectronIpcCommandAdapter } from './ipc-command-adapter';
 import { resolveLogLevel } from './log-level';
 import { createMainMethodHandler } from './main-methods';
@@ -73,6 +75,7 @@ process.env.CAXRI_GIT_COMMIT = typeof __CAXRI_COMMIT__ === 'string' ? __CAXRI_CO
 if (process.platform === 'darwin' && !app.isPackaged) process.title = 'Caxri Dev';
 // Must settle before Chromium, logging, Server attachment, or the single-instance lock captures launch identity.
 const desktopProfile = configureDesktopProfile(app, process.env);
+const gpuBoot = prepareGpuBoot(app, desktopProfile.userDataPath);
 const ownsProfileInstance = hasProfileSingleInstanceLock(app, desktopProfile);
 if (!ownsProfileInstance) app.quit();
 
@@ -85,6 +88,9 @@ if (ownsProfileInstance) {
     let mainRenderer: WebContents | undefined;
     let supervisor: DesktopServerConnection;
     let mainLogger: StructuredLogger | undefined;
+    const gpuSafeMode = createGpuSafeModeController({
+        userDataPath: desktopProfile.userDataPath,
+    });
     const gpuDiagnostics = createGpuDiagnostics({
         app,
         logger: () => mainLogger,
@@ -138,6 +144,16 @@ if (ownsProfileInstance) {
     function sendEvent(event: ServerEvent): void {
         eventRelay.send(event);
     }
+    const gpuRecovery = createGpuRecoveryCoordinator({
+        app,
+        boot: gpuBoot,
+        diagnostics: gpuDiagnostics,
+        isE2E: process.env.CAXRI_E2E === '1',
+        logger: () => mainLogger,
+        safeMode: gpuSafeMode,
+        sendEvent,
+    });
+    gpuRecovery.install();
     function createWindow(initialState: PersistedWindowState): BrowserWindow {
         const window = new BrowserWindow({
             ...initialState.bounds,
@@ -433,6 +449,7 @@ if (ownsProfileInstance) {
     );
 
     const handleMainMethod = createMainMethodHandler({
+        ...gpuRecovery.mainMethodOptions,
         getProcessExplorer: () => processExplorer,
         getUserDataPath: () => desktopProfile.userDataPath,
         getSupervisor: () => supervisor,
@@ -501,6 +518,7 @@ if (ownsProfileInstance) {
             onRendererDiagnostic: gpuDiagnostics.recordRendererDiagnostic,
             onEventsReady: () => {
                 eventRelay.rendererReady();
+                gpuRecovery.rendererReady();
                 if (mainRenderer) rendererReadiness.ready(mainRenderer);
                 // `onEventsReady` is a synchronous listener; a failed readiness handshake is only
                 // logged, so this is deliberately fire-and-forget rather than awaited.
@@ -595,6 +613,7 @@ if (ownsProfileInstance) {
                     remoteDebuggingTransport: desktopProfile.remoteDebugging.transport,
                 },
             });
+            gpuRecovery.recordBoot();
             // GPU collection is asynchronous and must never delay window startup.
             // eslint-disable-next-line no-void -- snapshot failures write their own bounded diagnostic
             void gpuDiagnostics.captureBaseline();
@@ -715,31 +734,6 @@ if (ownsProfileInstance) {
         })
         // eslint-disable-next-line unicorn/prefer-await -- see comment above
         .catch(() => {});
-    app.on('gpu-info-update', () => {
-        // Electron emits this from a synchronous listener; snapshot failures are logged by the collector.
-        // eslint-disable-next-line no-void -- intentionally asynchronous post-crash evidence collection
-        void gpuDiagnostics.handleGpuInfoUpdate();
-    });
-
-    // GPU/utility-process exits never reach `render-process-gone`; preserve generic utility evidence and route GPU
-    // failures through the correlated collector so Chromium result codes and Renderer state are captured together.
-    app.on('child-process-gone', (_event, details) => {
-        if (details.reason === 'clean-exit') return;
-        if (details.type === 'GPU') {
-            gpuDiagnostics.recordGpuProcessGone(details);
-            return;
-        }
-        mainLogger?.write('error', logEventCatalog.app.childProcessGone, {
-            fields: {
-                code: 'CHILD_PROCESS_GONE',
-                type: details.type,
-                reason: details.reason,
-                exitCode: details.exitCode,
-                ...(details.name && { name: details.name }),
-            },
-        });
-    });
-
     app.on('activate', () => {
         // `activate` is a synchronous listener; a failed reopen is not user-actionable here, so this
         // is deliberately fire-and-forget rather than awaited.
@@ -776,6 +770,7 @@ if (ownsProfileInstance) {
                     // Best-effort persistence; quitting must proceed regardless.
                 }
             }
+            await gpuRecovery.drain();
             try {
                 await supervisor.request('terminal.detachAll');
             } catch {

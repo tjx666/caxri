@@ -11,6 +11,9 @@ type LogFields = NonNullable<LogRecord['fields']>;
 const CORRELATION_WINDOW_MS = 15_000;
 const GPU_INFO_UPDATE_TIMEOUT_MS = 2_000;
 const MAX_GPU_FIELD_LENGTH = 512;
+const MAX_GPU_INCIDENTS = 8;
+const MAX_RENDERER_DIAGNOSTICS = 32;
+const MAX_STARTED_SNAPSHOTS = MAX_GPU_INCIDENTS + 1;
 
 interface GpuDiagnosticsApp {
     commandLine: {
@@ -206,6 +209,9 @@ function rendererDiagnosticFields(diagnostic: RendererDiagnostic): LogFields {
         preference: diagnostic.preference,
         contextLossCount: diagnostic.contextLossCount,
         redrawCount: diagnostic.redrawCount,
+        recoveryResult: diagnostic.recoveryResult,
+        receivedBytes: diagnostic.receivedBytes,
+        droppedBytes: diagnostic.droppedBytes,
         paneActive: diagnostic.paneActive,
         terminalProcessRunning: diagnostic.terminalProcessRunning,
         agentTerminal: diagnostic.agentTerminal,
@@ -262,8 +268,9 @@ export function createGpuDiagnostics(options: GpuDiagnosticsOptions) {
     const now = options.now ?? Date.now;
     const operatingSystemRelease = options.osRelease ?? release();
     const platform = options.platform ?? process.platform;
-    let recentGpuIncident: RecentGpuIncident | undefined;
-    let recentRendererDiagnostic: RecentRendererDiagnostic | undefined;
+    const recentGpuIncidents: RecentGpuIncident[] = [];
+    const recentRendererDiagnostics: RecentRendererDiagnostic[] = [];
+    let previousFeatureFields: LogFields | undefined;
     let isGpuInfoUpdateObserved = false;
     const pendingIncidentTimers = new Map<string, ReturnType<typeof setTimeout>>();
     const startedSnapshots = new Set<string>();
@@ -277,8 +284,15 @@ export function createGpuDiagnostics(options: GpuDiagnosticsOptions) {
         const logger = options.logger();
         if (!logger) return;
         startedSnapshots.add(key);
+        if (startedSnapshots.size > MAX_STARTED_SNAPSHOTS)
+            startedSnapshots.delete(startedSnapshots.values().next().value!);
         try {
             const featureFields = gpuFeatureFields(options.app.getGPUFeatureStatus());
+            const changedFeatureCount = previousFeatureFields
+                ? Object.keys(featureFields).filter(
+                      (field) => featureFields[field] !== previousFeatureFields?.[field],
+                  ).length
+                : 0;
             const hardwareAccelerationEnabled = options.app.isHardwareAccelerationEnabled();
             const gpuInfo = await options.app.getGPUInfo('complete');
             logger.write('info', logEventCatalog.gpu.snapshot, {
@@ -291,11 +305,13 @@ export function createGpuDiagnostics(options: GpuDiagnosticsOptions) {
                     architecture,
                     osRelease: operatingSystemRelease,
                     hardwareAccelerationEnabled,
+                    changedFeatureCount,
                     ...commandLineFields(options.app),
                     ...featureFields,
                     ...gpuInfoFields(gpuInfo),
                 },
             });
+            previousFeatureFields = featureFields;
         } catch (error) {
             logger.write('warn', logEventCatalog.gpu.snapshotFailed, {
                 correlationId: incidentId,
@@ -311,14 +327,14 @@ export function createGpuDiagnostics(options: GpuDiagnosticsOptions) {
 
     function recordRendererDiagnostic(diagnostic: RendererDiagnostic): void {
         const receivedAt = now();
-        recentRendererDiagnostic = { diagnostic, receivedAt };
-        const incident = recentGpuIncident;
-        const correlated =
-            incident &&
-            receivedAt >= incident.occurredAt &&
-            receivedAt - incident.occurredAt <= CORRELATION_WINDOW_MS
-                ? incident
-                : undefined;
+        recentRendererDiagnostics.push({ diagnostic, receivedAt });
+        if (recentRendererDiagnostics.length > MAX_RENDERER_DIAGNOSTICS)
+            recentRendererDiagnostics.shift();
+        const correlated = recentGpuIncidents.findLast(
+            (incident) =>
+                receivedAt >= incident.occurredAt &&
+                receivedAt - incident.occurredAt <= CORRELATION_WINDOW_MS,
+        );
         const isFailure = [
             'webgl-context-loss',
             'webgl-load-failed',
@@ -331,13 +347,33 @@ export function createGpuDiagnostics(options: GpuDiagnosticsOptions) {
                 correlationId: correlated?.id,
                 fields: rendererDiagnosticFields(diagnostic),
             });
+        if (correlated)
+            options.logger()?.write('info', logEventCatalog.gpu.recovery, {
+                correlationId: correlated.id,
+                fields: {
+                    code: 'GPU_RECOVERY',
+                    diagnosticId: diagnostic.diagnosticId,
+                    terminalId: diagnostic.terminalId,
+                    rendererMode: diagnostic.mode,
+                    rendererReason: diagnostic.reason,
+                    rendererTrigger: diagnostic.trigger,
+                    recoveryResult: diagnostic.recoveryResult,
+                    receivedBytes: diagnostic.receivedBytes,
+                    droppedBytes: diagnostic.droppedBytes,
+                    terminalProcessRunning: diagnostic.terminalProcessRunning,
+                    terminalFocused: diagnostic.terminalFocused,
+                },
+            });
     }
 
-    function recordGpuProcessGone(details: GpuProcessGoneDetails): string | undefined {
+    function recordGpuProcessGone(
+        details: GpuProcessGoneDetails,
+    ): { contextLost: boolean; correlationId: string } | undefined {
         if (details.type !== 'GPU' || details.reason === 'clean-exit') return undefined;
         const occurredAt = now();
         const incidentId = createIncidentId();
-        recentGpuIncident = { id: incidentId, occurredAt };
+        recentGpuIncidents.push({ id: incidentId, occurredAt });
+        if (recentGpuIncidents.length > MAX_GPU_INCIDENTS) recentGpuIncidents.shift();
         const result = decodeGpuExitStatus(details.exitCode, platform);
         options.logger()?.write('error', logEventCatalog.gpu.processGone, {
             correlationId: incidentId,
@@ -361,7 +397,7 @@ export function createGpuDiagnostics(options: GpuDiagnosticsOptions) {
                 osRelease: operatingSystemRelease,
                 ...commandLineFields(options.app),
                 ...windowFields(options.window()),
-                ...relatedRendererFields(recentRendererDiagnostic, occurredAt),
+                ...relatedRendererFields(recentRendererDiagnostics.at(-1), occurredAt),
             },
         });
         const timer = setTimeout(() => {
@@ -371,7 +407,7 @@ export function createGpuDiagnostics(options: GpuDiagnosticsOptions) {
             void captureSnapshot(incidentId, false);
         }, GPU_INFO_UPDATE_TIMEOUT_MS);
         pendingIncidentTimers.set(incidentId, timer);
-        return incidentId;
+        return { contextLost: result.contextLost, correlationId: incidentId };
     }
 
     async function handleGpuInfoUpdate(): Promise<void> {

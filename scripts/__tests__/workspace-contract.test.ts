@@ -347,7 +347,9 @@ describe('pnpm workspace contract', () => {
         expect(agentSkillsManifest.scripts?.test).toContain('--project agent-skills');
         expect(clientManifest.scripts?.test).toContain('--project client');
         expect(cliManifest.scripts?.test).toContain('--project cli');
-        expect(desktopManifest.scripts?.test).toContain('--project desktop-parallel');
+        expect(desktopManifest.scripts?.test).toBe(
+            'vitest run --root ../.. --project desktop-parallel apps/desktop/src',
+        );
         expect(serverManifest.scripts?.test).toContain('--project server-parallel');
         expect(systemManifest.scripts?.test).toContain('--project system');
         expect(rootManifest.scripts?.['typecheck:api']).toBe('pnpm --filter caxri run typecheck');

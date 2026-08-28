@@ -6,6 +6,7 @@ import { commandPolicy } from '../transport/method-spec.js';
 import type { AgentActionsSettings } from './agent-action-settings.js';
 import {
     agentActionInvocationSchema,
+    agentActionRecentSettingsSchema,
     MAX_AGENT_ACTION_DESCRIPTION_LENGTH,
     MAX_AGENT_ACTIONS,
 } from './agent-action-settings.js';
@@ -74,7 +75,7 @@ const compareActions = (left: AgentAction, right: AgentAction): number =>
 export function mergeAgentActions(
     provider: AgentProvider,
     discovered: readonly AgentAction[],
-    settings: AgentActionsSettings,
+    settings: Pick<AgentActionsSettings, 'items'>,
 ): AgentAction[] {
     const merged = new Map<string, AgentAction>();
     const defaults = defaultAgentActions[provider];
@@ -136,6 +137,14 @@ export const agentActionMethods = {
         ...commandPolicy('server', 'read'),
         params: z.strictObject({ terminalId: identifierSchema }),
         result: agentActionListResultSchema,
+    },
+    'agentActions.recordRecent': {
+        ...commandPolicy('server', 'write'),
+        params: z.strictObject({
+            terminalId: identifierSchema,
+            invocation: agentActionInvocationSchema,
+        }),
+        result: agentActionRecentSettingsSchema,
     },
 } as const satisfies Record<string, MethodSpec>;
 

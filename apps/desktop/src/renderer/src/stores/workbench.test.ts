@@ -365,12 +365,13 @@ describe('workbench Runtime events', () => {
                 sessionId: 'session-1',
                 kind: 'file',
                 path: '/project/file.ts',
-                location: { line: 12, column: 4 },
+                location: { mode: 'line', startLine: 12, endLine: 14 },
             },
         });
         expect(handlers.onDesktopOpen).toHaveBeenCalledWith('session-1', '/project/file.ts', {
-            line: 12,
-            column: 4,
+            mode: 'line',
+            startLine: 12,
+            endLine: 14,
         });
         unsubscribe();
     });

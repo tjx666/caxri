@@ -1,12 +1,8 @@
 #!/usr/bin/env bun
 
-import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
 import process from 'node:process';
 
-import { z } from 'zod';
-
-import { PROJECT_ROOT, resolveXtermBetaLine } from './xterm-beta-line-core';
+import { readWorkspaceDependencies, resolveXtermBetaLine } from './xterm-beta-line-core';
 
 interface ParsedArguments {
     help: boolean;
@@ -71,13 +67,7 @@ async function main(argv: string[]): Promise<void> {
         console.log(help());
         return;
     }
-    const manifestSource = await readFile(resolve(PROJECT_ROOT, 'package.json'), 'utf8');
-    const manifest = z
-        .object({
-            dependencies: z.record(z.string(), z.string()).default({}),
-            devDependencies: z.record(z.string(), z.string()).default({}),
-        })
-        .parse(JSON.parse(manifestSource));
+    const manifest = await readWorkspaceDependencies();
     const result = await resolveXtermBetaLine({ ...manifest, resolve: options.resolve });
     if (options.json) {
         console.log(JSON.stringify(result, null, 2));

@@ -6,6 +6,7 @@ describe('commandIdSchema', () => {
     it.each([
         'secondarySidebar.showFiles',
         'secondarySidebar.showGit',
+        'secondarySidebar.showStatus',
         'secondarySidebar.toggle',
         'panel.showLogs',
         'panel.showInfo',

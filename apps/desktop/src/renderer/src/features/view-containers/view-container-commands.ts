@@ -35,6 +35,25 @@ export function getCachedViewCatalogCommandAllowedInEditable(
     return findViewCatalogCommand(catalog, commandId)?.allowInEditable ?? false;
 }
 
+/**
+ * Dispatches one extension-contributed view action and keeps its promise observable by an in-place control. Palette and
+ * shortcut entry points intentionally remain fire-and-forget, while a toolbar button needs the completion signal to
+ * suppress repeated activation until its provider refresh starts.
+ */
+export async function dispatchExtensionViewAction(
+    commandId: string,
+    commandTitle: string,
+    arguments_: readonly unknown[] = [],
+): Promise<'executed' | 'failed'> {
+    const result = await tryCommand(`Unable to run ${commandTitle}`, () =>
+        caxri.request('viewContainers.executeCommand', {
+            commandId,
+            arguments: [...arguments_],
+        }),
+    );
+    return result === undefined ? 'failed' : 'executed';
+}
+
 function revealViewContainer(catalog: ViewCatalogSnapshot, containerId: string): void {
     const container = catalog.containers.find(({ id }) => id === containerId);
     if (container?.location === 'secondarySidebar') {
@@ -42,6 +61,23 @@ function revealViewContainer(catalog: ViewCatalogSnapshot, containerId: string):
         useSessionViewStore.getState().setDesiredSecondarySidebarViewContainerId(container.id);
     } else if (container?.location === 'panel')
         useChromeLayoutStore.getState().activatePanelViewContainer(container.id);
+}
+
+/**
+ * Reveals an already rendered container synchronously. Catalog invalidation may leave a Server reload pending, but a
+ * show command only selects local UI that the cached catalog still renders; making that selection wait on IPC causes
+ * unrelated catalog refreshes to swallow otherwise valid keyboard shortcuts. Extension actions continue through the
+ * refreshed catalog path below, so this fast path never executes provider code or relaxes command permissions.
+ */
+function didRevealCachedViewContainerCommand(commandId: string): boolean {
+    const catalog = queryClient.getQueryData<ViewCatalogSnapshot>(
+        caxriQueryKey('viewContainers.catalog', {}),
+    );
+    if (!catalog || !findViewCatalogCommand(catalog, commandId)) return false;
+    const container = catalog.containers.find((candidate) => candidate.commandId === commandId);
+    if (!container) return false;
+    revealViewContainer(catalog, container.id);
+    return true;
 }
 
 /**
@@ -77,14 +113,9 @@ export function didExecuteViewCatalogCommand(
         });
         return true;
     }
-    // Fire-and-forget: tryCommand() owns the shared error path for Renderer command entry points.
+    // Fire-and-forget: dispatchExtensionViewAction() owns the shared error path for Renderer command entry points.
     // eslint-disable-next-line no-void -- the command is dispatched exactly once and reports failures through a toast
-    void tryCommand(`Unable to run ${command.title}`, () =>
-        caxri.request('viewContainers.executeCommand', {
-            commandId,
-            arguments: [...arguments_],
-        }),
-    );
+    void dispatchExtensionViewAction(commandId, command.title, arguments_);
     return true;
 }
 
@@ -96,6 +127,7 @@ export async function executeViewCatalogShortcut(
     commandId: string,
     arguments_: readonly unknown[] = [],
 ): Promise<void> {
+    if (didRevealCachedViewContainerCommand(commandId)) return;
     const catalog = await tryCommand('Unable to load extension commands', () =>
         queryClient.fetchQuery({
             queryKey: caxriQueryKey('viewContainers.catalog', {}),

@@ -4,11 +4,14 @@ import type { TerminalGpuAcceleration, TerminalRendererStatus } from './terminal
 
 interface TerminalRendererDiagnosticInput {
     agentTerminal: boolean;
+    correlationId?: string;
     diagnosticId: string;
     documentFocused: boolean;
     documentVisible: boolean;
+    droppedBytes: number;
     paneActive: boolean;
     preference: TerminalGpuAcceleration;
+    receivedBytes: number;
     status: TerminalRendererStatus;
     terminalFocused: boolean;
     terminalId: string;
@@ -33,6 +36,10 @@ export function createTerminalRendererDiagnostic(
         preference: input.preference,
         contextLossCount: input.status.contextLossCount,
         redrawCount: input.status.redrawCount,
+        recoveryResult: input.status.recoveryResult,
+        receivedBytes: input.receivedBytes,
+        droppedBytes: input.droppedBytes,
+        ...(input.correlationId && { correlationId: input.correlationId }),
         paneActive: input.paneActive,
         terminalProcessRunning: input.terminalProcessRunning,
         agentTerminal: input.agentTerminal,

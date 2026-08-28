@@ -140,8 +140,23 @@ describe('buildViewCatalog', () => {
         expect(
             catalog.views.find(({ id }) => id === 'caxri.project-status.overview'),
         ).toMatchObject({
+            actions: [
+                {
+                    commandId: 'caxri.project-status.refresh',
+                    role: 'resource.refresh',
+                },
+            ],
             source: { kind: 'extension', extensionId: 'caxri.project-status' },
             viewKind: { kind: 'tree' },
+        });
+        expect(catalog.containers.find(({ id }) => id === 'caxri.project-status')).toMatchObject({
+            commandId: 'secondarySidebar.showStatus',
+        });
+        expect(
+            catalog.commands.find(({ id }) => id === 'secondarySidebar.showStatus'),
+        ).toMatchObject({
+            allowInEditable: true,
+            title: 'Show Status',
         });
     });
 

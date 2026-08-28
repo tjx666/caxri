@@ -31,6 +31,11 @@ report artifact; serialize the smallest relevant Renderer subtree by following
 - Every pass, fail, or blocked observation needs the evidence that supports that
   status.
 - Inspect every image, clip, and generated document before citing it.
+- Passing video evidence must survive the report finalizer's duration, frame-count,
+  and visible-variation checks. A short or static frame sequence is not a recording.
+- Never copy media from a blocked or failed round into a passing case. The finalizer
+  compares immutable round history and rejects reused bytes, as well as one video
+  attached to multiple passing cases.
 - Never upload credentials, cookies, tokens, private user data, unrelated host
   windows, notifications, or a developer's resident Caxri state.
 - Native sheets and app-modal windows are manual evidence by default. Do not capture or interact with

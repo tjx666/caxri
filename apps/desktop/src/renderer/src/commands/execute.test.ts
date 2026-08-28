@@ -27,6 +27,7 @@ const mockedIsEditableEventTarget = vi.mocked(isEditableEventTarget);
 const catalogOwnedSharedIds = new Set<CommandId>([
     'secondarySidebar.showFiles',
     'secondarySidebar.showGit',
+    'secondarySidebar.showStatus',
     'secondarySidebar.searchFiles',
 ]);
 
@@ -196,6 +197,7 @@ describe('executeCommand', () => {
             'session.switchMru',
             {
                 shortcut: {
+                    direction: -1,
                     heldModifiers: ['Control', 'Alt'],
                     triggerCode: 'Tab',
                 },
@@ -204,6 +206,7 @@ describe('executeCommand', () => {
         );
 
         expect(switchMru).toHaveBeenCalledWith({
+            direction: -1,
             heldModifiers: ['Control', 'Alt'],
             triggerCode: 'Tab',
         });

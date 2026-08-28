@@ -436,6 +436,80 @@ describe('Acceptance report scaffold', () => {
         ).resolves.toEqual(expect.any(String));
     });
 
+    it('preserves cleaned ready attempts when an isolated case retries with a fresh profile', async () => {
+        const directory = await reportDirectory();
+        await initialize(directory, {
+            plan: [{ ...plan[0], requiredEvidence: ['screenshot'] }],
+        });
+        const firstLaunch = await beginCaseLifecycle(directory, {
+            caseId: 'terminal-layout',
+            profileIdentity: 'first-profile',
+            stateIsolation: { mode: 'isolated' },
+        });
+        await markCaseLifecycleReady(directory, {
+            caseId: 'terminal-layout',
+            launchId: firstLaunch,
+        });
+        await completeCaseLifecycle(directory, {
+            caseId: 'terminal-layout',
+            cleanupCompleted: true,
+            cleanupRequested: true,
+            launchId: firstLaunch,
+        });
+
+        await expect(
+            beginCaseLifecycle(directory, {
+                caseId: 'terminal-layout',
+                profileIdentity: 'first-profile',
+                stateIsolation: { mode: 'isolated' },
+            }),
+        ).rejects.toThrow('fresh profile');
+
+        const replacementLaunch = await beginCaseLifecycle(directory, {
+            caseId: 'terminal-layout',
+            profileIdentity: 'replacement-profile',
+            stateIsolation: { mode: 'isolated' },
+        });
+        await markCaseLifecycleReady(directory, {
+            caseId: 'terminal-layout',
+            launchId: replacementLaunch,
+        });
+        await completeCaseLifecycle(directory, {
+            caseId: 'terminal-layout',
+            cleanupCompleted: true,
+            cleanupRequested: true,
+            launchId: replacementLaunch,
+        });
+
+        const resultPath = join(directory, 'result.json');
+        const result = parseReport(await readFile(resultPath, 'utf8'));
+        result.cases[0] = {
+            category: '终端布局',
+            evidence: ['assets/terminal.png', 'assets/terminal-layout-state-isolation.json'],
+            id: 'terminal-layout',
+            name: '终端内容填满工作区',
+            observation: '第二次隔离启动完成了终端布局观察。',
+            status: 'pass',
+            surface: 'desktop',
+        };
+        await Promise.all([
+            writeFile(resultPath, `${JSON.stringify(result, null, 2)}\n`),
+            writeFile(join(directory, 'assets/terminal.png'), 'image'),
+        ]);
+
+        await expect(finalizeReport({ directory, requirement })).resolves.toMatchObject({
+            summary: { passed: 1, verdict: 'pass' },
+        });
+
+        const lifecycle = JSON.parse(
+            await readFile(join(directory, 'assets/terminal-layout-state-isolation.json'), 'utf8'),
+        ) as { launches: Array<{ profileIdentity: string }> };
+        expect(lifecycle.launches.map(({ profileIdentity }) => profileIdentity)).toEqual([
+            'first-profile',
+            'replacement-profile',
+        ]);
+    });
+
     it('blocks a Terminal fixture verdict without a ready preflight receipt', async () => {
         const directory = await reportDirectory();
         await initialize(directory, {

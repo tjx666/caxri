@@ -43,6 +43,7 @@ export const commandIds = [
     'workbench.moveActiveTerminalToNewSession',
     'secondarySidebar.showFiles',
     'secondarySidebar.showGit',
+    'secondarySidebar.showStatus',
     'secondarySidebar.searchFiles',
     'secondarySidebar.toggle',
     'panel.showLogs',

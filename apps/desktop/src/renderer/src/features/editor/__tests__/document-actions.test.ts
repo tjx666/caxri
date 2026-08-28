@@ -2,15 +2,15 @@ import type { BootstrapState, SessionState } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-    queueEditorRevealLocation: vi.fn(),
+    queueEditorNavigation: vi.fn(),
     request: vi.fn<(...arguments_: unknown[]) => Promise<unknown>>(() => Promise.resolve(null)),
-    revealEditorLocation: vi.fn(),
+    revealEditorNavigation: vi.fn(),
 }));
 
 vi.mock('../../../lib/caxri', () => ({ caxri: { request: mocks.request } }));
 vi.mock('../editor-reveal', () => ({
-    queueEditorRevealLocation: mocks.queueEditorRevealLocation,
-    revealEditorLocation: mocks.revealEditorLocation,
+    queueEditorNavigation: mocks.queueEditorNavigation,
+    revealEditorNavigation: mocks.revealEditorNavigation,
 }));
 
 import { getSessionDocuments, useSessionViewStore } from '../../../stores/session-view';
@@ -398,13 +398,15 @@ describe('session-scoped file mutation completion', () => {
             size: 6,
         });
 
-        await openFile('/project/target.ts', { location: { line: 3, column: 2 } });
+        await openFile('/project/target.ts', {
+            location: { mode: 'caret', line: 3, column: 2 },
+        });
 
-        expect(mocks.queueEditorRevealLocation).toHaveBeenCalledWith(
+        expect(mocks.queueEditorNavigation).toHaveBeenCalledWith(
             expect.stringContaining('/project/target.ts'),
-            { line: 3, column: 2 },
+            { mode: 'caret', line: 3, column: 2 },
         );
-        expect(mocks.revealEditorLocation).not.toHaveBeenCalled();
+        expect(mocks.revealEditorNavigation).not.toHaveBeenCalled();
     });
 
     it('reveals a source location immediately when the target editor is already active', async () => {
@@ -416,13 +418,15 @@ describe('session-scoped file mutation completion', () => {
             size: 6,
         });
 
-        await openFile('/project/target.ts', { location: { line: 3, column: 2 } });
+        await openFile('/project/target.ts', {
+            location: { mode: 'line', startLine: 3, endLine: 4 },
+        });
 
-        expect(mocks.revealEditorLocation).toHaveBeenCalledWith(
+        expect(mocks.revealEditorNavigation).toHaveBeenCalledWith(
             expect.stringContaining('/project/target.ts'),
-            { line: 3, column: 2 },
+            { mode: 'line', startLine: 3, endLine: 4 },
         );
-        expect(mocks.queueEditorRevealLocation).not.toHaveBeenCalled();
+        expect(mocks.queueEditorNavigation).not.toHaveBeenCalled();
     });
 
     it('keeps newer dirty content when a save completes after the file moved', async () => {

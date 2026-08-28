@@ -184,7 +184,13 @@ test('inline images render real pixels, enforce budgets, and restore as content-
         const secondSurface = running.page.locator(
             `.terminal-pane[data-terminal-id="${secondTerminalId}"] .terminal-surface`,
         );
-        await typeTerminal(running.page, `cat '${cachePath}'`);
+        const secondInput = running.page.locator(
+            `.terminal-pane[data-terminal-id="${secondTerminalId}"] .xterm-helper-textarea`,
+        );
+        await secondInput.focus();
+        await expect(secondInput).toBeFocused();
+        await secondInput.pressSequentially(`cat '${cachePath}'`);
+        await secondInput.press('Enter');
         await expect(secondSurface).toHaveAttribute('data-terminal-images-added', '1');
         const globalStorageBeforeClose = Number(
             await surface.getAttribute('data-terminal-image-global-storage-mb'),

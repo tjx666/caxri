@@ -339,7 +339,9 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
             <TerminalLinkPicker
                 isOpen={linkPicker.isOpen}
                 links={linkPicker.links}
+                mode={linkPicker.mode}
                 status={linkPicker.status}
+                isTruncated={linkPicker.isTruncated}
                 onOpenChange={linkPicker.onOpenChange}
                 onSelect={linkPicker.selectLink}
             />

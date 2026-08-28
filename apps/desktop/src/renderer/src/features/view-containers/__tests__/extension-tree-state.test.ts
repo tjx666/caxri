@@ -112,17 +112,31 @@ describe('extension tree interaction gate', () => {
         handle: 'branch',
         id: 'branch',
     });
-
-    it('executes a leaf exactly once across Chromium click-click-doubleClick dispatch', () => {
-        expect(pointerTreeRowAction(leaf, 'click', 1)).toBe('activate');
-        expect(pointerTreeRowAction(leaf, 'click', 2)).toBe('none');
-        expect(pointerTreeRowAction(leaf, 'doubleClick', 2)).toBe('none');
+    const plainBranch = item({
+        collapsibleState: 'collapsed',
+        handle: 'plain-branch',
+        id: 'plain-branch',
     });
 
-    it('toggles then activates a command branch at most once on double click', () => {
-        expect(pointerTreeRowAction(branch, 'click', 1)).toBe('toggle');
-        expect(pointerTreeRowAction(branch, 'click', 2)).toBe('none');
-        expect(pointerTreeRowAction(branch, 'doubleClick', 2)).toBe('activate');
+    it('executes a leaf exactly once across Chromium click-click-doubleClick dispatch', () => {
+        expect(pointerTreeRowAction(leaf, 'body', 'click', 1)).toBe('activate');
+        expect(pointerTreeRowAction(leaf, 'body', 'click', 2)).toBe('none');
+        expect(pointerTreeRowAction(leaf, 'body', 'doubleClick', 2)).toBe('none');
+    });
+
+    it('activates a command branch body exactly once without changing expansion', () => {
+        expect(pointerTreeRowAction(branch, 'body', 'click', 1)).toBe('activate');
+        expect(pointerTreeRowAction(branch, 'body', 'click', 2)).toBe('none');
+        expect(pointerTreeRowAction(branch, 'body', 'doubleClick', 2)).toBe('none');
+        expect(pointerTreeRowAction(branch, 'disclosure', 'click', 1)).toBe('toggle');
+        expect(pointerTreeRowAction(branch, 'disclosure', 'click', 2)).toBe('none');
+    });
+
+    it('keeps a plain branch body as an expansion target', () => {
+        expect(pointerTreeRowAction(plainBranch, 'body', 'click', 1)).toBe('toggle');
+        expect(pointerTreeRowAction(plainBranch, 'body', 'click', 2)).toBe('none');
+        expect(pointerTreeRowAction(plainBranch, 'body', 'doubleClick', 2)).toBe('none');
+        expect(pointerTreeRowAction(plainBranch, 'disclosure', 'click', 1)).toBe('toggle');
     });
 
     it('keeps keyboard activation and expansion as single explicit actions', () => {

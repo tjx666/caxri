@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
     discoverOwnedProcesses,
     errorCode,
+    getProcessCommand,
     getProcessIdentity,
     isAlive,
     isOwnedLauncher,
@@ -55,6 +56,13 @@ describe('Acceptance runtime ownership', () => {
             isOwnedLauncher({ launcherIdentity: 'recycled process', launcherPid: process.pid }),
         ).resolves.toBe(false);
         expect(isAlive(2_147_483_647)).toBe(false);
+    });
+
+    it('fails closed when the process command probe cannot start', async () => {
+        const missingExecutable = join(tmpdir(), 'caxri-missing-process-query');
+        await expect(getProcessCommand(process.pid, missingExecutable)).rejects.toMatchObject({
+            code: 'ENOENT',
+        });
     });
 
     it('keeps an Acceptance runtime owned when its launcher has died but Electron remains live', async () => {
@@ -136,6 +144,22 @@ describe('Acceptance runtime ownership', () => {
                 },
             ),
         ).rejects.toThrow('outside the recorded worktree');
+    });
+
+    it('ignores a stale profile lock when its Server Core process has exited', async () => {
+        await expect(
+            discoverOwnedProcesses(
+                { projectRoot: '/repo', userDataDir: '/tmp/acceptance-profile' },
+                '/repo',
+                {
+                    canonicalPath: vi.fn((path: string) => Promise.resolve(path)),
+                    getProcessCommand: vi.fn().mockResolvedValue(null),
+                    getProcessIdentity: vi.fn().mockResolvedValue(null),
+                    inspectPathOwner: vi.fn().mockResolvedValue(333),
+                    listChildProcesses: vi.fn().mockResolvedValue([]),
+                },
+            ),
+        ).resolves.toEqual([]);
     });
 
     it('removes only explicitly owned Acceptance temp directories', async () => {

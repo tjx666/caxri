@@ -1,11 +1,21 @@
+import { Buffer } from 'node:buffer';
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const electronMock = vi.hoisted(() => ({
-    clipboard: { writeImage: vi.fn() },
+    clipboard: {
+        write: vi.fn<(items: Array<{ items: Record<string, unknown> }>) => Promise<void>>(),
+    },
+    ClipboardItem: vi.fn(
+        class ClipboardItemMock {
+            constructor(readonly items: Record<string, unknown>) {}
+        },
+    ),
     nativeImage: { createFromDataURL: vi.fn() },
 }));
 vi.mock('electron', () => ({
     clipboard: electronMock.clipboard,
+    ClipboardItem: electronMock.ClipboardItem,
     nativeImage: electronMock.nativeImage,
 }));
 
@@ -55,7 +65,9 @@ function requestWith(terminalRecord: unknown, deliver = vi.fn(() => Promise.reso
 }
 
 beforeEach(() => {
-    electronMock.clipboard.writeImage.mockReset();
+    electronMock.clipboard.write.mockReset();
+    electronMock.clipboard.write.mockResolvedValue(undefined);
+    electronMock.ClipboardItem.mockClear();
     electronMock.nativeImage.createFromDataURL.mockReset();
 });
 
@@ -125,7 +137,7 @@ describe('bugReport.send screenshot delivery gating', () => {
             terminalId: 'terminal-1',
         });
         expect(electronMock.nativeImage.createFromDataURL).not.toHaveBeenCalled();
-        expect(electronMock.clipboard.writeImage).not.toHaveBeenCalled();
+        expect(electronMock.clipboard.write).not.toHaveBeenCalled();
     });
 
     it('never touches the clipboard for a provider without clipboard image input', async () => {
@@ -149,7 +161,7 @@ describe('bugReport.send screenshot delivery gating', () => {
             terminalId: 'terminal-1',
         });
         expect(electronMock.nativeImage.createFromDataURL).not.toHaveBeenCalled();
-        expect(electronMock.clipboard.writeImage).not.toHaveBeenCalled();
+        expect(electronMock.clipboard.write).not.toHaveBeenCalled();
     });
 
     it('rejects an invalid captured screenshot before touching the clipboard', async () => {
@@ -169,11 +181,11 @@ describe('bugReport.send screenshot delivery gating', () => {
                 },
             }),
         ).rejects.toMatchObject({ code: 'VALIDATION' });
-        expect(electronMock.clipboard.writeImage).not.toHaveBeenCalled();
+        expect(electronMock.clipboard.write).not.toHaveBeenCalled();
     });
 
     it('writes a valid screenshot to the clipboard and flags the report as a paste image', async () => {
-        const image = { isEmpty: () => false };
+        const image = { isEmpty: () => false, toPNG: () => Buffer.from('png') };
         electronMock.nativeImage.createFromDataURL.mockReturnValueOnce(image);
         const deliver = vi.fn(() => Promise.resolve(null));
         const request = requestWith(terminal({ provider: 'codex' }), deliver);
@@ -189,13 +201,36 @@ describe('bugReport.send screenshot delivery gating', () => {
             },
         });
         expect(electronMock.nativeImage.createFromDataURL).toHaveBeenCalledWith(screenshot.dataUrl);
-        expect(electronMock.clipboard.writeImage).toHaveBeenCalledWith(image);
+        const clipboardPayload = electronMock.ClipboardItem.mock.calls[0]?.[0];
+        expect(clipboardPayload['image/png']).toBeInstanceOf(Blob);
+        expect(electronMock.clipboard.write).toHaveBeenCalledWith([{ items: clipboardPayload }]);
         expect(request).toHaveBeenCalledWith('bugReport.deliver', {
             pasteImage: true,
             report: 'issue',
             sessionId: 'session-1',
             terminalId: 'terminal-1',
         });
+    });
+
+    it('does not deliver the report when Electron rejects the asynchronous clipboard write', async () => {
+        const image = { isEmpty: () => false, toPNG: () => Buffer.from('png') };
+        electronMock.nativeImage.createFromDataURL.mockReturnValueOnce(image);
+        electronMock.clipboard.write.mockRejectedValueOnce(new Error('clipboard denied'));
+        const deliver = vi.fn(() => Promise.resolve(null));
+        const handle = handler(requestWith(terminal({ provider: 'codex' }), deliver));
+
+        await expect(
+            handle({
+                method: 'bugReport.send',
+                params: {
+                    report: 'issue',
+                    screenshot,
+                    sessionId: 'session-1',
+                    terminalId: 'terminal-1',
+                },
+            }),
+        ).rejects.toThrow('clipboard denied');
+        expect(deliver).not.toHaveBeenCalled();
     });
 });
 

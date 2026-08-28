@@ -1,4 +1,5 @@
 import type { ReactElement, ReactNode } from 'react';
+import { useRef, useState } from 'react';
 
 import { Tooltip as TooltipPrimitive } from '@base-ui/react/tooltip';
 import type { CommandId } from '@caxri/protocol';
@@ -7,6 +8,11 @@ import { getCommandDefinition } from '@caxri/protocol';
 import { useCommandShortcut } from '../../lib/keybindings';
 import { cn } from '../../lib/utilities';
 import { ShortcutBadge } from '../shortcut-badge';
+import type { TooltipCursorAnchor } from '../tooltip-positioning';
+import {
+    resolveTooltipCursorAnchor,
+    TOOLTIP_CURSOR_COLLISION_PADDING,
+} from '../tooltip-positioning';
 
 export function TooltipProvider({ children }: { children: ReactNode }) {
     return (
@@ -17,12 +23,17 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
 }
 
 export function Tooltip({
+    anchorMode = 'element',
     children,
     content,
     disabled,
     shortcut,
     triggerId,
 }: {
+    /**
+     * Uses the pointer position captured when the tooltip opens; the default remains element-centered.
+     */
+    anchorMode?: 'cursor' | 'element';
     children: ReactElement;
     content: ReactNode;
     /**
@@ -41,11 +52,67 @@ export function Tooltip({
      */
     triggerId?: string;
 }) {
+    const latestPointer = useRef<{ x: number; y: number }>(undefined);
+    const [cursorAnchor, setCursorAnchor] = useState<TooltipCursorAnchor>();
+    /**
+     * Installs cursor collision middleware before the first popup mount. The hover-open callback establishes the anchor
+     * asynchronously; waiting for that state lets a first right-edge open use Base UI's default flip behavior and
+     * overflow by the cursor offset.
+     */
+    const isCursorMode = anchorMode === 'cursor';
+    const isCursorAnchored = anchorMode === 'cursor' && cursorAnchor !== undefined;
     return (
-        <TooltipPrimitive.Root disabled={disabled}>
-            <TooltipPrimitive.Trigger id={triggerId} render={children} />
+        <TooltipPrimitive.Root
+            disabled={disabled}
+            onOpenChange={
+                anchorMode === 'cursor'
+                    ? (open, details) => {
+                          if (open)
+                              setCursorAnchor(
+                                  resolveTooltipCursorAnchor(
+                                      open,
+                                      details.reason,
+                                      latestPointer.current,
+                                      document.documentElement.clientWidth,
+                                  ),
+                              );
+                      }
+                    : undefined
+            }
+            onOpenChangeComplete={
+                anchorMode === 'cursor'
+                    ? (open) => {
+                          if (!open) setCursorAnchor(undefined);
+                      }
+                    : undefined
+            }
+        >
+            <TooltipPrimitive.Trigger
+                id={triggerId}
+                render={children}
+                onPointerMove={
+                    anchorMode === 'cursor'
+                        ? (event) => {
+                              latestPointer.current = { x: event.clientX, y: event.clientY };
+                          }
+                        : undefined
+                }
+            />
             <TooltipPrimitive.Portal>
-                <TooltipPrimitive.Positioner className="z-[90]" side="bottom" sideOffset={6}>
+                <TooltipPrimitive.Positioner
+                    align={isCursorAnchored ? 'start' : undefined}
+                    anchor={isCursorAnchored ? cursorAnchor : undefined}
+                    className="z-[90]"
+                    collisionAvoidance={
+                        isCursorMode
+                            ? { side: 'flip', align: 'shift', fallbackAxisSide: 'none' }
+                            : undefined
+                    }
+                    collisionPadding={isCursorMode ? TOOLTIP_CURSOR_COLLISION_PADDING : undefined}
+                    positionMethod={isCursorAnchored ? 'fixed' : undefined}
+                    side="bottom"
+                    sideOffset={isCursorAnchored ? 8 : 6}
+                >
                     <TooltipPrimitive.Popup
                         className={cn(
                             // Kept as a plain class (not `data-slot`) because

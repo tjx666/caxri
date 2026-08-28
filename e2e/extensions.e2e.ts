@@ -4,8 +4,15 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import { execFileAsync } from '@caxri/system';
+import type { MessageBoxOptions } from 'electron';
 
+import {
+    verifyBottomEdgeTreeTooltip,
+    verifyColdRightEdgeTreeTooltip,
+    verifyTreeTooltipPositioning,
+} from './support/extension-tooltip.ts';
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
+import type { RunningCaxri } from './support/helpers.ts';
 import {
     createAdditionalShellSession,
     createShellSession,
@@ -18,6 +25,15 @@ import {
 import { stubPackagedProjectDialog } from './support/packaged-project-dialog.ts';
 
 const packagedExecutable = process.env.CAXRI_PACKAGED_EXECUTABLE;
+
+function treeCommandOpenedUrls(running: RunningCaxri): Promise<string[] | undefined> {
+    return running.app.evaluate(() => {
+        const target = globalThis as typeof globalThis & {
+            caxriTreeCommandProbe?: { opened: string[] };
+        };
+        return target.caxriTreeCommandProbe?.opened;
+    });
+}
 
 async function writePersistenceExtension(extensionRoot: string): Promise<void> {
     await mkdir(join(extensionRoot, 'dist'), { recursive: true });
@@ -78,6 +94,8 @@ test('bundled Project Status extension renders and refreshes the current reposit
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
     const bin = join(testDirectory, 'bin');
+    const statusDelayPath = join(testDirectory, 'status-delay.txt');
+    const statusRequestLogPath = join(testDirectory, 'status-requests.txt');
     const statusTitlePath = join(testDirectory, 'status-title.txt');
     await execFileAsync('mkdir', ['-p', root, bin]);
     await execFileAsync('git', ['init', '-b', 'feature/status'], { cwd: root });
@@ -99,10 +117,14 @@ test('bundled Project Status extension renders and refreshes the current reposit
         ['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/feature/status'],
         { cwd: root },
     );
+    await writeFile(statusDelayPath, '0');
+    await writeFile(statusRequestLogPath, '');
     await writeFile(statusTitlePath, 'Status A');
     await writeFile(
         join(bin, 'gh'),
         `#!/bin/sh
+sleep "$(cat ${JSON.stringify(statusDelayPath)})"
+printf 'request\n' >> ${JSON.stringify(statusRequestLogPath)}
 status_title=$(cat ${JSON.stringify(statusTitlePath)})
 printf '{"body":"Related to https://linear.app/lobehub/issue/LOBE-42/project-status","number":42,"title":"%s","url":"https://github.com/tjx666/project/pull/42","statusCheckRollup":[{"workflowName":"Test","name":"App","status":"COMPLETED","conclusion":"FAILURE","startedAt":"2026-08-23T00:00:00.000Z","completedAt":"2026-08-23T00:02:05.000Z"}]}' "$status_title"
 `,
@@ -150,6 +172,14 @@ esac
         await statusTab.click();
         await expect(statusTab.locator('img')).toHaveCount(0);
         await expect(statusTab.locator('svg')).toHaveCount(1);
+        await expect(
+            running.page.locator('.panel-caption-title', { hasText: 'Project Status' }),
+        ).toHaveCount(1);
+        const refreshButton = running.page.getByRole('button', {
+            name: 'Refresh Project Status',
+            exact: true,
+        });
+        await expect(refreshButton).toBeVisible();
 
         const tree = running.page.getByRole('tree', { name: 'Project Status' });
         const repo = tree.getByRole('treeitem', { name: 'project', exact: true });
@@ -181,10 +211,33 @@ esac
             tree.getByRole('treeitem', { name: 'feature/status, default', exact: true }),
         ).toBeVisible();
 
-        await running.page.keyboard.press('Meta+Shift+P');
-        await running.page.getByText('Refresh Project Status', { exact: true }).click();
+        await expect(refreshButton).not.toHaveAttribute('aria-disabled', 'true');
+        await refreshButton.hover();
+        await expect(
+            running.page
+                .locator('.tooltip-popup:visible')
+                .filter({ hasText: 'Refresh Project Status' }),
+        ).toBeVisible();
+        await running.page.mouse.move(0, 0);
         const pullRequestA = tree.getByRole('treeitem', { name: '#42 Status A', exact: true });
+        /**
+         * The first root load intentionally returns local data while its delivery metadata refresh continues in the
+         * background. Wait for that refresh before measuring a manual request, otherwise the Server may correctly
+         * coalesce the click with the in-flight load and the fixture would miscount it as a missing dispatch.
+         */
         await expect(pullRequestA).toBeVisible();
+        await writeFile(statusDelayPath, '0.4');
+        const refreshRequestCount = async (): Promise<number> =>
+            (await readFile(statusRequestLogPath, 'utf8')).split('\n').filter(Boolean).length;
+        const beforeInitialRefresh = await refreshRequestCount();
+        await refreshButton.click();
+        await expect(refreshButton).toHaveAttribute('aria-disabled', 'true');
+        await expect(refreshButton).toHaveAttribute('aria-busy', 'true');
+        await refreshButton.evaluate((element) => (element as HTMLButtonElement).click());
+        await expect.poll(refreshRequestCount).toBe(beforeInitialRefresh + 1);
+        await expect(refreshButton).not.toHaveAttribute('aria-disabled', 'true');
+        await expect(refreshButton).not.toHaveAttribute('aria-busy', 'true');
+        expect(await refreshRequestCount()).toBe(beforeInitialRefresh + 1);
         await expect(pullRequestA).toHaveAttribute('aria-expanded', 'true');
         await expect(pullRequestA.locator('[data-theme-icon="circle-x"]')).toHaveClass(
             /text-danger/,
@@ -192,6 +245,73 @@ esac
         await expect(
             tree.getByRole('treeitem', { name: 'Test / App, 2m 5s', exact: true }),
         ).toBeVisible();
+        await running.app.evaluate(({ dialog, shell }) => {
+            const target = globalThis as typeof globalThis & {
+                caxriTreeCommandProbe?: { confirmations: string[]; opened: string[] };
+            };
+            target.caxriTreeCommandProbe = { confirmations: [], opened: [] };
+            dialog.showMessageBox = (
+                windowOrOptions: unknown,
+                maybeOptions?: MessageBoxOptions,
+            ) => {
+                const options = maybeOptions ?? (windowOrOptions as MessageBoxOptions);
+                target.caxriTreeCommandProbe!.confirmations.push(options.message);
+                return Promise.resolve({
+                    response: 0,
+                    checkboxChecked: false,
+                });
+            };
+            shell.openExternal = (url) => {
+                target.caxriTreeCommandProbe!.opened.push(url);
+                return Promise.resolve();
+            };
+        });
+        await expect(pullRequestA).toHaveCSS('cursor', 'pointer');
+        const collapsePullRequest = pullRequestA.getByRole('button', {
+            name: 'Collapse #42 Status A',
+            exact: true,
+        });
+        await expect(collapsePullRequest).toHaveAttribute('aria-expanded', 'true');
+
+        await pullRequestA.click();
+        await expect
+            .poll(() => treeCommandOpenedUrls(running))
+            .toEqual(['https://github.com/tjx666/project/pull/42']);
+        await expect(pullRequestA).toHaveAttribute('aria-expanded', 'true');
+
+        await collapsePullRequest.click();
+        await expect(pullRequestA).toHaveAttribute('aria-expanded', 'false');
+        await expect(
+            tree.getByRole('treeitem', { name: 'Test / App, 2m 5s', exact: true }),
+        ).toHaveCount(0);
+        await expect.poll(() => treeCommandOpenedUrls(running)).toHaveLength(1);
+        await pullRequestA
+            .getByRole('button', { name: 'Expand #42 Status A', exact: true })
+            .click();
+        await expect(pullRequestA).toHaveAttribute('aria-expanded', 'true');
+        await expect.poll(() => treeCommandOpenedUrls(running)).toHaveLength(1);
+
+        await pullRequestA.focus();
+        const composingEnterWasNotCanceled = await pullRequestA.evaluate((target) =>
+            target.dispatchEvent(
+                new KeyboardEvent('keydown', {
+                    bubbles: true,
+                    cancelable: true,
+                    isComposing: true,
+                    key: 'Enter',
+                }),
+            ),
+        );
+        expect(composingEnterWasNotCanceled).toBe(true);
+        await expect.poll(() => treeCommandOpenedUrls(running)).toHaveLength(1);
+        await running.page.keyboard.press('Enter');
+        await expect.poll(() => treeCommandOpenedUrls(running)).toHaveLength(2);
+        await expect(pullRequestA).toHaveAttribute('aria-expanded', 'true');
+        await running.page.keyboard.press('Space');
+        await expect(pullRequestA).toHaveAttribute('aria-expanded', 'false');
+        await expect.poll(() => treeCommandOpenedUrls(running)).toHaveLength(2);
+        await running.page.keyboard.press('Space');
+        await expect(pullRequestA).toHaveAttribute('aria-expanded', 'true');
         const deployments = tree.getByRole('treeitem', {
             name: 'Deployments, 1 on preview',
             exact: true,
@@ -217,20 +337,8 @@ esac
             'true',
         );
 
-        const keybindings = await pageRequest<{
-            value: Array<{ command: string; key: string }>;
-        }>(running.page, 'keybindings.get');
-        await pageRequest(running.page, 'keybindings.update', {
-            source: JSON.stringify(
-                [
-                    ...keybindings.value,
-                    { command: 'caxri.project-status.refresh', key: 'cmd+alt+r' },
-                ],
-                null,
-                2,
-            ),
-        });
         await writeFile(statusTitlePath, 'Status B');
+        await writeFile(statusDelayPath, '0.4');
         await deployments.click();
         await expect(deployments).toHaveAttribute('aria-expanded', 'true');
         const production = tree.getByRole('treeitem', {
@@ -239,14 +347,20 @@ esac
         });
         await production.focus();
         await expect(production).toHaveAttribute('aria-selected', 'true');
-        await running.page.keyboard.press('Meta+Alt+r');
+        const beforeStatusBRefresh = await refreshRequestCount();
+        await refreshButton.click();
+        await expect(refreshButton).toBeFocused();
+        await expect(refreshButton).toHaveAttribute('aria-disabled', 'true');
+        await expect(refreshButton).toHaveAttribute('aria-busy', 'true');
         await expect(
             tree.getByRole('treeitem', { name: '#42 Status B', exact: true }),
         ).toBeVisible();
         await expect(pullRequestA).toHaveCount(0);
         await expect(deployments).toHaveAttribute('aria-expanded', 'true');
         await expect(production).toHaveAttribute('aria-selected', 'true');
-        await running.page.waitForTimeout(150);
+        await expect(refreshButton).not.toHaveAttribute('aria-disabled', 'true');
+        await expect(refreshButton).toBeFocused();
+        expect(await refreshRequestCount()).toBe(beforeStatusBRefresh + 1);
 
         await running.app.close();
         running = await launchCaxri({
@@ -295,6 +409,35 @@ esac
     }
 });
 
+test('tree tooltip keeps its first cursor open inside the right viewport edge', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-extension-tooltip-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await mkdir(root, { recursive: true });
+    const running = await launchCaxri({
+        executablePath: packagedExecutable,
+        userDataDir: userData,
+        testRootPath: root,
+    });
+    try {
+        await stubPackagedProjectDialog(running, root, packagedExecutable);
+        await createShellSession(running.page);
+        await running.page.getByRole('tab', { name: 'Extension Fixture', exact: true }).click();
+        const tree = running.page.getByRole('tree', { name: 'Fixture Tree' });
+        await expect(
+            tree.getByRole('treeitem', { name: 'Tooltip row', exact: true }),
+        ).toBeVisible();
+        await verifyColdRightEdgeTreeTooltip(running.page, tree);
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
 test('extension fixture lazily activates a bounded virtualized keyboard tree', async () => {
     allowE2EErrors([
         { source: 'desktop', event: 'ipc.request_failed', code: 'INTERNAL', count: 1 },
@@ -333,9 +476,7 @@ test('extension fixture lazily activates a bounded virtualized keyboard tree', a
             tree.getByRole('treeitem', { name: 'Expanded child', exact: true }),
         ).toBeVisible();
 
-        const tooltipRow = tree.getByRole('treeitem', { name: 'Tooltip row', exact: true });
-        await tooltipRow.hover();
-        await expect(running.page.locator('.tooltip-popup')).toContainText('Full fixture tooltip');
+        await verifyTreeTooltipPositioning(running.page, tree, fixtureTab);
 
         await tree.getByRole('treeitem', { name: 'Command count: 0', exact: true }).click();
         await expect(
@@ -369,6 +510,8 @@ test('extension fixture lazily activates a bounded virtualized keyboard tree', a
         await lazy.press('End');
         const last = tree.getByRole('treeitem', { name: 'Virtual row 399', exact: true });
         await expect(last).toBeFocused();
+        await verifyBottomEdgeTreeTooltip(running.page, last);
+        await last.focus();
         await last.press('Home');
         await expect(lazy).toBeFocused();
 

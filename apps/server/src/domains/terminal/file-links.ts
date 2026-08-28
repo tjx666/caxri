@@ -1,13 +1,24 @@
 import { lstat, realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { resolve } from 'node:path';
+import { basename, isAbsolute, relative, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
+import type { ServerOperationResult, TerminalFileLinkCandidate } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
 import type { CaxriDatabase } from '../db';
 import { isSameOrInside } from '../path-security';
 
+const MAX_TERMINAL_FILE_LINK_CANDIDATES = 50;
+const TERMINAL_FILE_LINK_SEARCH_TIMEOUT_MS = 5_000;
+
 interface TerminalFileLinkResolverOptions {
+    searchProjectFileNames?: (
+        sessionId: string,
+        root: string,
+        query: string,
+        signal: AbortSignal,
+    ) => Promise<ServerOperationResult<'files.search'>>;
     userHome?: string;
 }
 
@@ -17,32 +28,25 @@ interface TerminalFileIdentity {
     root: { path: string; device: string; inode: string };
 }
 
-export type TerminalFileLinkResolution =
-    | {
-          status: 'authorization_required';
-          path: string;
-          sourceSessionId: string;
-      }
-    | {
-          status: 'authorized';
-          identity: TerminalFileIdentity;
-          path: string;
-          projectId: string;
-          sourceSessionId: string;
-      }
-    | {
-          status: 'selection_authorized';
-          identity: TerminalFileIdentity;
-          path: string;
-          rootPath: string;
-          sourceSessionId: string;
-      };
+interface ResolvedCandidate {
+    candidate: TerminalFileLinkCandidate;
+    identity: TerminalFileIdentity;
+}
+
+export type TerminalFileLinkResolution = ServerOperationResult<'terminal.fileLink.resolve'>;
 
 function missingFile(error: unknown): never {
-    const code = (error as NodeJS.ErrnoException).code;
-    if (code === 'ENOENT' || code === 'ENOTDIR')
-        throw new CaxriError('NOT_FOUND', 'Terminal link target was not found');
+    if (isMissingFileSystemError(error)) throw new CaxriError('NOT_FOUND', 'File not found');
     throw error;
+}
+
+function isMissingFileSystemError(error: unknown): boolean {
+    const code = (error as NodeJS.ErrnoException).code;
+    return code === 'ENOENT' || code === 'ENOTDIR';
+}
+
+function isNotFound(error: unknown): boolean {
+    return error instanceof CaxriError && error.code === 'NOT_FOUND';
 }
 
 async function lstatExisting(path: string) {
@@ -100,10 +104,209 @@ async function resolveRegularFile(rootPath: string, candidate: string) {
     };
 }
 
+function projectContainingPath(database: CaxriDatabase, path: string) {
+    return database
+        .listProjects()
+        .filter(({ rootPath }) => isSameOrInside(rootPath, path))
+        .toSorted((left, right) => right.rootPath.length - left.rootPath.length)
+        .at(0);
+}
+
+function projectRelativePath(root: string, path: string): string {
+    return relative(root, path).split(sep).join('/');
+}
+
+async function resolveAuthorizedCandidate(
+    database: CaxriDatabase,
+    sourceSessionId: string,
+    candidatePath: string,
+): Promise<TerminalFileLinkResolution | undefined> {
+    const project = projectContainingPath(database, candidatePath);
+    if (!project) return;
+    try {
+        const authorized = await resolveRegularFile(project.rootPath, candidatePath);
+        return {
+            status: 'authorized',
+            identity: authorized.identity,
+            path: authorized.path,
+            projectId: project.id,
+            sourceSessionId,
+        };
+    } catch (error) {
+        if (isNotFound(error)) return;
+        throw error;
+    }
+}
+
+function fileUrlPath(target: string): string {
+    try {
+        const url = new URL(target);
+        if (url.protocol !== 'file:' || (url.hostname && url.hostname !== 'localhost'))
+            throw new CaxriError('VALIDATION', 'Only local file URLs can be opened');
+        return fileURLToPath(url);
+    } catch (error) {
+        if (error instanceof CaxriError) throw error;
+        throw new CaxriError('VALIDATION', 'Terminal file URL is invalid');
+    }
+}
+
+function exactCandidatePaths(target: string, cwd: string, projectRoot: string): string[] {
+    if (/^file:\/\//iu.test(target)) return [fileUrlPath(target)];
+    if (isAbsolute(target)) return [resolve(target)];
+    if (target.startsWith('.../')) return [];
+    if (target.startsWith('./') || target.startsWith('../')) return [resolve(cwd, target)];
+    const candidates = [resolve(projectRoot, target), resolve(cwd, target)];
+    if (/^[ab]\//u.test(target)) candidates.push(resolve(projectRoot, target.slice(2)));
+    return [...new Set(candidates)];
+}
+
+function searchableSuffix(target: string): string | undefined {
+    /**
+     * Only an explicit ellipsis opts into cross-Project guessing. Ordinary relative and Git a/b paths retain their
+     * exact current-Project behavior when missing instead of silently opening a same-named file elsewhere.
+     */
+    if (!target.startsWith('.../')) return;
+    const suffix = target.slice(4);
+    const segments = suffix.split('/');
+    if (segments.some((segment) => !segment || segment === '.' || segment === '..')) return;
+    return segments.join('/');
+}
+
+function isMatchingSuffix(relativePath: string, suffix: string): boolean {
+    const normalizedPath = relativePath.toLowerCase();
+    const normalizedSuffix = suffix.toLowerCase();
+    return normalizedPath === normalizedSuffix || normalizedPath.endsWith(`/${normalizedSuffix}`);
+}
+
+async function hasReachedCandidateLimit(
+    project: ReturnType<CaxriDatabase['listProjects']>[number],
+    matches: ServerOperationResult<'files.search'>['matches'],
+    suffix: string,
+    candidates: ResolvedCandidate[],
+    canonicalPaths: Set<string>,
+): Promise<boolean> {
+    for (const match of matches) {
+        if (!isMatchingSuffix(match.relativePath, suffix)) continue;
+        let authorized: Awaited<ReturnType<typeof resolveRegularFile>>;
+        try {
+            // eslint-disable-next-line no-await-in-loop -- each returned path is revalidated before exposure
+            authorized = await resolveRegularFile(project.rootPath, match.path);
+        } catch (error) {
+            if (isNotFound(error)) continue;
+            throw error;
+        }
+        if (canonicalPaths.has(authorized.path)) continue;
+        canonicalPaths.add(authorized.path);
+        candidates.push({
+            candidate: {
+                path: authorized.path,
+                relativePath: projectRelativePath(authorized.rootPath, authorized.path),
+                projectId: project.id,
+                projectTitle: project.displayTitle,
+            },
+            identity: authorized.identity,
+        });
+        if (candidates.length >= MAX_TERMINAL_FILE_LINK_CANDIDATES) return true;
+    }
+    return false;
+}
+
+async function searchAuthorizedProjects(
+    database: CaxriDatabase,
+    sourceSessionId: string,
+    suffix: string,
+    searchProjectFileNames: NonNullable<TerminalFileLinkResolverOptions['searchProjectFileNames']>,
+): Promise<{ candidates: ResolvedCandidate[]; truncated: boolean; timedOut: boolean }> {
+    const controller = new AbortController();
+    let isTimedOut = false;
+    const timeout = setTimeout(() => {
+        isTimedOut = true;
+        controller.abort();
+    }, TERMINAL_FILE_LINK_SEARCH_TIMEOUT_MS);
+    const sourceProjectId = database.getSession(sourceSessionId)?.workbenchProjectId;
+    const projects = database.listProjects().toSorted((left, right) => {
+        const leftSource = left.id === sourceProjectId ? 0 : 1;
+        const rightSource = right.id === sourceProjectId ? 0 : 1;
+        return leftSource - rightSource || left.displayTitle.localeCompare(right.displayTitle);
+    });
+    const candidates: ResolvedCandidate[] = [];
+    const canonicalPaths = new Set<string>();
+    let isTruncated = false;
+    try {
+        for (const project of projects) {
+            if (controller.signal.aborted) break;
+            let result: ServerOperationResult<'files.search'>;
+            try {
+                // eslint-disable-next-line no-await-in-loop -- one shared deadline and candidate budget bound every Project
+                result = await searchProjectFileNames(
+                    sourceSessionId,
+                    project.rootPath,
+                    basename(suffix),
+                    controller.signal,
+                );
+            } catch (error) {
+                if (isMissingFileSystemError(error)) {
+                    isTruncated = true;
+                    continue;
+                }
+                if (error instanceof CaxriError) throw error;
+                throw new CaxriError('IO', 'Project files could not be searched');
+            }
+            isTruncated ||= result.truncated || result.canceled;
+            // eslint-disable-next-line no-await-in-loop -- one global budget serializes Project results
+            const hasReachedLimit = await hasReachedCandidateLimit(
+                project,
+                result.matches,
+                suffix,
+                candidates,
+                canonicalPaths,
+            );
+            if (hasReachedLimit) {
+                isTruncated = true;
+                controller.abort();
+            }
+        }
+    } finally {
+        clearTimeout(timeout);
+    }
+    return { candidates, truncated: isTruncated || isTimedOut, timedOut: isTimedOut };
+}
+
+async function resolveHomeLink(
+    database: CaxriDatabase,
+    sourceSessionId: string,
+    target: string,
+    selectedRoot: string | undefined,
+    userHomeOverride: string | undefined,
+): Promise<TerminalFileLinkResolution> {
+    const userHome = await realpathExisting(userHomeOverride ?? homedir());
+    const candidate = resolve(userHome, target.slice(2));
+    if (!isSameOrInside(userHome, candidate))
+        throw new CaxriError('PATH_DENIED', 'Terminal link escapes the current user Home');
+    if (selectedRoot) {
+        const selected = await resolveRegularFile(selectedRoot, candidate);
+        return {
+            status: 'selection_authorized',
+            ...selected,
+            sourceSessionId,
+        };
+    }
+    const project = projectContainingPath(database, candidate);
+    if (!project) return { status: 'authorization_required', path: candidate, sourceSessionId };
+    const authorized = await resolveRegularFile(project.rootPath, candidate);
+    return {
+        status: 'authorized',
+        identity: authorized.identity,
+        path: authorized.path,
+        projectId: project.id,
+        sourceSessionId,
+    };
+}
+
 /**
- * Expands a current-user Home link only inside Server and proves the target against an already added Project or a
- * directory the user explicitly selected in Main. The first pass deliberately does not stat paths outside every
- * Project: Terminal output alone cannot acquire filesystem read authority.
+ * Resolves a Terminal path only through durable Project grants. Exact cwd/Project candidates are tried first; an
+ * explicit `.../` suffix then reuses the bounded Files name-search walker, and ambiguous matches return safe display
+ * metadata for the Renderer picker. A selected candidate is revalidated on its next request before Main opens it.
  */
 export async function resolveTerminalFileLink(
     database: CaxriDatabase,
@@ -112,41 +315,74 @@ export async function resolveTerminalFileLink(
 ): Promise<TerminalFileLinkResolution> {
     const terminal = database.getTerminal(parameters.terminalId);
     if (!terminal) throw new CaxriError('NOT_FOUND', 'Terminal not found');
-    if (!/^~\/.+/u.test(parameters.target))
+    const session = database.getSession(terminal.sessionId);
+    if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
+    if (parameters.target.startsWith('~/')) {
+        if (parameters.target === '~/')
+            throw new CaxriError('VALIDATION', 'Home Terminal links require a file path');
+        return resolveHomeLink(
+            database,
+            terminal.sessionId,
+            parameters.target,
+            parameters.selectedRoot,
+            options.userHome,
+        );
+    }
+    if (parameters.target.startsWith('~'))
         throw new CaxriError('VALIDATION', 'Only current-user ~/ Terminal links are supported');
+    if (/^\$(?:HOME|\{HOME\})\//u.test(parameters.target))
+        throw new CaxriError('VALIDATION', 'Shell Home variables are not supported in file links');
+    if (parameters.selectedRoot)
+        throw new CaxriError('VALIDATION', 'A selected root is only valid for a Home link');
 
-    const userHome = await realpathExisting(options.userHome ?? homedir());
-    const candidate = resolve(userHome, parameters.target.slice(2));
-    if (!isSameOrInside(userHome, candidate))
-        throw new CaxriError('PATH_DENIED', 'Terminal link escapes the current user Home');
+    const exactCandidates = exactCandidatePaths(parameters.target, terminal.cwd, session.rootPath);
+    const hasUnauthorizedExactCandidate = exactCandidates.some(
+        (candidate) => !projectContainingPath(database, candidate),
+    );
+    for (const candidate of exactCandidates) {
+        // eslint-disable-next-line no-await-in-loop -- exact candidates are ordered and bounded to three paths
+        const resolved = await resolveAuthorizedCandidate(database, terminal.sessionId, candidate);
+        if (resolved) return resolved;
+    }
+    if (
+        isAbsolute(parameters.target) ||
+        /^file:\/\//iu.test(parameters.target) ||
+        parameters.target.startsWith('./') ||
+        parameters.target.startsWith('../')
+    ) {
+        if (hasUnauthorizedExactCandidate)
+            throw new CaxriError('PATH_DENIED', 'Terminal link target is outside every Project');
+        throw new CaxriError('NOT_FOUND', 'File not found');
+    }
 
-    if (parameters.selectedRoot) {
-        const selected = await resolveRegularFile(parameters.selectedRoot, candidate);
+    const suffix = searchableSuffix(parameters.target);
+    if (!suffix || !options.searchProjectFileNames)
+        throw new CaxriError('NOT_FOUND', 'File not found');
+    const result = await searchAuthorizedProjects(
+        database,
+        terminal.sessionId,
+        suffix,
+        options.searchProjectFileNames,
+    );
+    if (result.candidates.length === 0) {
+        if (result.timedOut)
+            throw new CaxriError('TIMEOUT', 'File search did not finish before its safety limit');
+        throw new CaxriError('NOT_FOUND', 'File not found');
+    }
+    if (result.candidates.length === 1 && !result.truncated) {
+        const [{ candidate, identity }] = result.candidates;
         return {
-            status: 'selection_authorized',
-            ...selected,
+            status: 'authorized',
+            identity,
+            path: candidate.path,
+            projectId: candidate.projectId,
             sourceSessionId: terminal.sessionId,
         };
     }
-
-    const project = database
-        .listProjects()
-        .filter(({ rootPath }) => isSameOrInside(rootPath, candidate))
-        .toSorted((left, right) => right.rootPath.length - left.rootPath.length)
-        .at(0);
-    if (!project)
-        return {
-            status: 'authorization_required',
-            path: candidate,
-            sourceSessionId: terminal.sessionId,
-        };
-
-    const authorized = await resolveRegularFile(project.rootPath, candidate);
     return {
-        status: 'authorized',
-        identity: authorized.identity,
-        path: authorized.path,
-        projectId: project.id,
+        status: 'ambiguous',
+        candidates: result.candidates.map(({ candidate }) => candidate),
         sourceSessionId: terminal.sessionId,
+        truncated: result.truncated,
     };
 }

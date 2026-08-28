@@ -4,6 +4,8 @@ import { mkdir, open, realpath } from 'node:fs/promises';
 import { basename, dirname, join, relative } from 'node:path';
 
 import type {
+    AgentActionRecentSettings,
+    AgentProvider,
     AppSettings,
     Keybinding,
     KeybindingConflict,
@@ -13,10 +15,12 @@ import type {
     ThemeTokens,
 } from '@caxri/protocol';
 import {
+    agentProviderIds,
     appSettingsFileSchema,
     CaxriError,
     configurationSourceSchema as configSourceSchema,
     defaultAppSettings,
+    defaultKeybindingChanges,
     defaultKeybindings,
     errorMessage,
     findKeybindingConflicts,
@@ -25,6 +29,8 @@ import {
     MAX_CONFIGURATION_SOURCE_BYTES,
     MAX_TRUSTED_DOMAINS,
     normalizeTrustedDomainRule,
+    pushRecentAgentAction,
+    reconcileDefaultKeybindings,
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog, parseJsonc, redactLogValue } from '@caxri/system';
@@ -185,10 +191,23 @@ export class ConfigService {
             return;
         }
         try {
-            const prepared = this.prepare(kind, source);
+            const prepared = this.prepare(kind, source, kind === 'keybindings');
             if (prepared.source !== source) {
-                await this.writeConfigSource(path, prepared.source);
-                this.assertOpen();
+                try {
+                    await this.writeConfigSource(path, prepared.source);
+                    this.assertOpen();
+                } catch (error) {
+                    this.assertOpen();
+                    /**
+                     * A default migration is best-effort. A valid user configuration must remain active when its
+                     * reconciled form cannot be persisted, instead of silently falling back to built-in defaults.
+                     */
+                    const original = this.prepare(kind, source);
+                    original.apply();
+                    this.observedSources.set(path, source);
+                    this.recordConfigurationError(kind, error);
+                    return;
+                }
             }
             prepared.apply();
             this.observedSources.set(path, prepared.source);
@@ -231,7 +250,11 @@ export class ConfigService {
         return isRepeated;
     }
 
-    private prepare(kind: ConfigKind, source: string): PreparedConfig {
+    private prepare(
+        kind: ConfigKind,
+        source: string,
+        shouldReconcileDefaults = false,
+    ): PreparedConfig {
         const path = this.pathFor(kind);
         try {
             configSourceSchema.parse(source);
@@ -246,12 +269,50 @@ export class ConfigService {
                 };
             }
             if (kind === 'keybindings') {
-                const keybindings = keybindingsFileSchema.parse(parseJsonc(source));
+                let preparedSource = source;
+                let keybindings = keybindingsFileSchema.parse(parseJsonc(source));
+                if (shouldReconcileDefaults) {
+                    const reconciliation = reconcileDefaultKeybindings(
+                        keybindings,
+                        defaultKeybindingChanges,
+                    );
+                    for (const replacement of reconciliation.replacements) {
+                        for (const property of ['key', 'command', 'when'] as const) {
+                            if (
+                                keybindings[replacement.index]?.[property] !==
+                                replacement.binding[property]
+                            )
+                                preparedSource = applyEdits(
+                                    preparedSource,
+                                    modify(
+                                        preparedSource,
+                                        [replacement.index, property],
+                                        replacement.binding[property],
+                                        { formattingOptions: JSONC_FORMATTING_OPTIONS },
+                                    ),
+                                );
+                        }
+                    }
+                    let bindingCount = keybindings.length;
+                    for (const addition of reconciliation.additions) {
+                        preparedSource = applyEdits(
+                            preparedSource,
+                            modify(preparedSource, [bindingCount], addition, {
+                                formattingOptions: JSONC_FORMATTING_OPTIONS,
+                            }),
+                        );
+                        bindingCount += 1;
+                    }
+                    if (preparedSource !== source) {
+                        configSourceSchema.parse(preparedSource);
+                        keybindings = keybindingsFileSchema.parse(parseJsonc(preparedSource));
+                    }
+                }
                 return {
-                    source,
+                    source: preparedSource,
                     apply: () => {
                         this.keybindings = keybindings;
-                        this.keybindingsSource = source;
+                        this.keybindingsSource = preparedSource;
                     },
                 };
             }
@@ -429,6 +490,39 @@ export class ConfigService {
         );
     }
 
+    /**
+     * The Settings editor persists a debounced full JSONC draft, while action receipts update MRU independently. A
+     * draft prepared before a receipt must not erase that newer product-owned history when its queued write runs later.
+     * External file edits still use the watcher path and can intentionally replace the history.
+     */
+    private preserveRecentAgentActions(source: string): string {
+        this.prepare('settings', source);
+        const candidate = appSettingsFileSchema.parse(parseJsonc(source));
+        let mergedSource = source;
+        for (const provider of agentProviderIds) {
+            const currentRecent = this.settings['agents.providers'][provider].actions.recent;
+            const candidateRecent = candidate['agents.providers'][provider].actions.recent;
+            if (
+                currentRecent.invocations.length === 0 ||
+                (currentRecent.invocations.length === candidateRecent.invocations.length &&
+                    currentRecent.invocations.every(
+                        (invocation, index) => invocation === candidateRecent.invocations[index],
+                    ))
+            )
+                continue;
+            mergedSource = applyEdits(
+                mergedSource,
+                modify(
+                    mergedSource,
+                    ['agents.providers', provider, 'actions', 'recent'],
+                    currentRecent,
+                    { formattingOptions: JSONC_FORMATTING_OPTIONS },
+                ),
+            );
+        }
+        return mergedSource;
+    }
+
     async initialize(): Promise<void> {
         this.assertOpen();
         await mkdir(dirname(this.settingsPath), { recursive: true });
@@ -537,7 +631,41 @@ export class ConfigService {
     }
 
     updateSettings(source: string): Promise<void> {
-        return this.mutateSettings(() => this.update('settings', source));
+        return this.mutateSettings(() =>
+            this.update('settings', this.preserveRecentAgentActions(source)),
+        );
+    }
+
+    /**
+     * Persists only a provider-scoped invocation identity through the serialized Settings mutation path. The caller
+     * derives the provider from the Terminal record, so Renderer input cannot select another provider's history.
+     */
+    recordRecentAgentAction(
+        provider: AgentProvider,
+        invocation: string,
+    ): Promise<AgentActionRecentSettings> {
+        return this.mutateSettings(async () => {
+            const current = this.settings['agents.providers'][provider].actions;
+            const next = pushRecentAgentAction(current, invocation);
+            if (
+                next.recent.invocations.length === current.recent.invocations.length &&
+                next.recent.invocations.every(
+                    (candidate, index) => candidate === current.recent.invocations[index],
+                )
+            )
+                return current.recent;
+            const source = applyEdits(
+                this.settingsSource,
+                modify(
+                    this.settingsSource,
+                    ['agents.providers', provider, 'actions', 'recent'],
+                    next.recent,
+                    { formattingOptions: JSONC_FORMATTING_OPTIONS },
+                ),
+            );
+            await this.update('settings', source);
+            return this.settings['agents.providers'][provider].actions.recent;
+        });
     }
 
     trustDomain(input: string): Promise<void> {

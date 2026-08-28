@@ -73,7 +73,23 @@ describe('serverEventSchema', () => {
                 payload: {
                     sessionId: 'session-1',
                     kind: 'file',
-                    location: { line: 12, column: 4 },
+                    location: { mode: 'line', startLine: 12, endLine: 14 },
+                },
+            }).success,
+        ).toBe(true);
+        expect(
+            serverEventSchema.safeParse({
+                event: 'gpu.recoveryRequested',
+                payload: { correlationId: '3fcf11c1-19de-4fdd-8d6c-17ce43c70aae' },
+            }).success,
+        ).toBe(true);
+        expect(
+            serverEventSchema.safeParse({
+                event: 'gpu.safeModeStatus',
+                payload: {
+                    active: true,
+                    automatic: true,
+                    correlationId: '3fcf11c1-19de-4fdd-8d6c-17ce43c70aae',
                 },
             }).success,
         ).toBe(true);

@@ -52,7 +52,7 @@ function scanPlainTextLineRange(
     step: 1 | -1,
 ): 'exhausted' | 'ok' {
     for (let line = fromLine; step === 1 ? line <= toLine : line >= toLine; line += step) {
-        const logicalLine = readLogicalLine(terminal, line + 1);
+        const logicalLine = readLogicalLine(terminal, line + 1, context.wordSeparators);
         if (!logicalLine || visitedLogicalLines.has(logicalLine.firstBufferLine)) continue;
         visitedLogicalLines.add(logicalLine.firstBufferLine);
         for (const match of findTerminalLinks(logicalLine.text, context.wordSeparators)) {

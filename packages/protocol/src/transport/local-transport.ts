@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { isDesktopServerOperation } from '../desktop/desktop-server-operations.js';
 import { identifierSchema, pathSchema } from '../domain/domain.js';
+import { editorNavigationTargetSchema } from '../domain/editor.js';
 import { protocolEventEnvelopeSchema, transientServerEventSchema } from './event-journal.js';
 import { protocolClientIdentitySchema } from './identity.js';
 import { commandReplyEnvelopeSchema, requestEnvelopeSchema } from './transport.js';
@@ -244,12 +245,7 @@ export const desktopTargetPayloadSchema = z.object({
     kind: z.enum(['file', 'directory']),
     sessionId: identifierSchema,
     path: pathSchema,
-    location: z
-        .object({
-            line: z.number().int().positive(),
-            column: z.number().int().positive(),
-        })
-        .optional(),
+    location: editorNavigationTargetSchema.optional(),
 });
 
 export type DesktopTargetPayload = z.infer<typeof desktopTargetPayloadSchema>;

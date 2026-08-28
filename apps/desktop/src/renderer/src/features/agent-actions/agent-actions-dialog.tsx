@@ -1,8 +1,12 @@
 import type { KeyboardEvent } from 'react';
-import { useId, useMemo, useRef } from 'react';
+import { useId, useMemo, useRef, useState } from 'react';
 
-import type { AgentAction } from '@caxri/protocol';
-import { agentProviderCatalog, mergeAgentActions } from '@caxri/protocol';
+import type { AgentAction, AgentActionRecentSettings, AgentProvider } from '@caxri/protocol';
+import {
+    agentProviderCatalog,
+    mergeAgentActions,
+    resolveRecentAgentActions,
+} from '@caxri/protocol';
 import { Settings2 } from 'lucide-react';
 
 import { ShortcutBadge } from '../../components/shortcut-badge';
@@ -23,7 +27,13 @@ import { setAgentActionsOpen, useDialogStore } from '../../stores/dialogs';
 import { getBootstrap, useSessions, useSettings, useTerminal } from '../../stores/selectors';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { focusTerminalById } from '../terminal/terminal-actions';
-import { agentActionTerminalInput, canExecuteAgentAction } from './agent-action-input';
+import type { AgentActionSubmitMode } from './agent-action-input';
+import {
+    agentActionSubmitModes,
+    agentActionTerminalInput,
+    canExecuteAgentAction,
+} from './agent-action-input';
+import { describeAgentActionTarget, resolveAgentActionTargetTitle } from './agent-action-target';
 
 const sourceLabels: Record<AgentAction['source'], string> = {
     builtIn: 'Built-in',
@@ -35,14 +45,15 @@ const sourceLabels: Record<AgentAction['source'], string> = {
 
 interface AgentActionRowProperties {
     action: AgentAction;
+    location: 'catalog' | 'recent';
     onSelect: (action: AgentAction) => void;
 }
 
-function AgentActionRow({ action, onSelect }: AgentActionRowProperties) {
+function AgentActionRow({ action, location, onSelect }: AgentActionRowProperties) {
     return (
         <CommandItem
             data-agent-action={action.invocation}
-            value={`${action.invocation} ${action.invocation.slice(1)} ${action.description ?? ''}`}
+            value={`${location} ${action.invocation} ${action.invocation.slice(1)} ${action.description ?? ''}`}
             onSelect={() => onSelect(action)}
         >
             <span className="flex min-w-0 flex-col gap-0.5">
@@ -67,7 +78,13 @@ function AgentActionRow({ action, onSelect }: AgentActionRowProperties) {
 
 export function AgentActionsDialog() {
     const targetDescriptionId = useId();
+    const interactionDescriptionId = useId();
     const shouldRestoreTerminalFocusReference = useRef(true);
+    const [search, setSearch] = useState('');
+    const [recentOverride, setRecentOverride] = useState<{
+        provider: AgentProvider;
+        recent: AgentActionRecentSettings;
+    }>();
     const isOpen = useDialogStore((state) => state.agentActionsOpen);
     const terminalId = useDialogStore((state) => state.agentActionsTerminalId);
     const settings = useSettings();
@@ -95,14 +112,26 @@ export function AgentActionsDialog() {
         query.data && !query.isFetching && !query.isError ? query.data.actions : fallbackActions;
     const commands = actions.filter((action) => action.kind === 'command');
     const skills = actions.filter((action) => action.kind === 'skill');
+    const actionSettings = provider ? settings?.['agents.providers'][provider].actions : undefined;
+    const recentActions = actionSettings
+        ? resolveRecentAgentActions(actions, {
+              ...actionSettings,
+              recent:
+                  recentOverride && recentOverride.provider === provider
+                      ? recentOverride.recent
+                      : actionSettings.recent,
+          })
+        : [];
+    const shouldShowRecent = search.trim() === '' && recentActions.length > 0;
 
     const closePicker = (shouldRestoreTerminalFocus = true): void => {
         shouldRestoreTerminalFocusReference.current = shouldRestoreTerminalFocus;
+        setSearch('');
         setAgentActionsOpen(false);
     };
 
-    const submit = (action: AgentAction, shouldExecute: boolean): void => {
-        if (shouldExecute && !canExecuteAgentAction(action)) {
+    const submit = (action: AgentAction, mode: AgentActionSubmitMode): void => {
+        if (mode === 'run' && !canExecuteAgentAction(action)) {
             pushToast('info', `${action.invocation} needs arguments before it can run.`);
             return;
         }
@@ -112,17 +141,29 @@ export function AgentActionsDialog() {
             closePicker();
             return;
         }
+        const currentProvider = current.provider;
         closePicker();
-        // eslint-disable-next-line no-void -- tryCommand owns the asynchronous failure path
-        void tryCommand('Unable to send Agent action', () =>
-            caxri.request('terminal.input', {
-                terminalId: current.id,
-                data: agentActionTerminalInput(action, shouldExecute),
-            }),
-        );
+        // eslint-disable-next-line no-void -- each request owns its user-visible failure path
+        void (async () => {
+            const inputReceipt = await tryCommand('Unable to send Agent command or skill', () =>
+                caxri.request('terminal.input', {
+                    terminalId: current.id,
+                    data: agentActionTerminalInput(action, mode),
+                }),
+            );
+            if (inputReceipt === undefined) return;
+            const recent = await tryCommand('Unable to save recent Agent action', () =>
+                caxri.request('agentActions.recordRecent', {
+                    terminalId: current.id,
+                    invocation: action.invocation,
+                }),
+            );
+            if (recent) setRecentOverride({ provider: currentProvider, recent });
+        })();
     };
 
     const providerName = provider ? agentProviderCatalog[provider].displayName : 'Agent';
+    const targetTitle = resolveAgentActionTargetTitle(session?.displayTitle, terminal?.title);
 
     return (
         <Dialog
@@ -144,21 +185,43 @@ export function AgentActionsDialog() {
                     return false;
                 }}
             >
-                <DialogTitle className="sr-only">Agent Actions</DialogTitle>
+                <DialogTitle className="sr-only">Agent Commands &amp; Skills</DialogTitle>
                 <div
                     id={targetDescriptionId}
+                    aria-label={describeAgentActionTarget(providerName, targetTitle)}
                     className="flex items-center gap-2 border-b border-border px-4 py-2 text-[11px] text-muted"
+                    data-agent-action-target=""
+                    data-target-title-kind={targetTitle.kind}
+                    role="note"
                 >
                     {provider && <AgentIdentityIcon identity={provider} size={14} />}
                     <span className="font-medium text-foreground">{providerName}</span>
                     <span aria-hidden="true">·</span>
-                    <span className="min-w-0 truncate">{session?.displayTitle ?? 'Session'}</span>
-                    <span aria-hidden="true">·</span>
-                    <span className="min-w-0 truncate">{terminal?.title ?? 'Terminal'}</span>
+                    {targetTitle.kind === 'shared' ? (
+                        <span className="min-w-0 truncate" data-agent-action-target-title="shared">
+                            {targetTitle.title}
+                        </span>
+                    ) : (
+                        <>
+                            <span
+                                className="min-w-0 truncate"
+                                data-agent-action-target-title="session"
+                            >
+                                Session: {targetTitle.sessionTitle}
+                            </span>
+                            <span aria-hidden="true">·</span>
+                            <span
+                                className="min-w-0 truncate"
+                                data-agent-action-target-title="terminal"
+                            >
+                                Terminal: {targetTitle.terminalTitle}
+                            </span>
+                        </>
+                    )}
                 </div>
                 <Command
                     className="w-full"
-                    label="Agent Actions"
+                    label="Agent Commands & Skills"
                     onKeyDownCapture={(event: KeyboardEvent<HTMLDivElement>) => {
                         if (
                             !event.metaKey ||
@@ -169,7 +232,7 @@ export function AgentActionsDialog() {
                         )
                             return;
                         /**
-                         * Always consume the explicit run chord before cmdk can reinterpret it as ordinary Enter. A
+                         * Always consume the alternate insert chord before cmdk can reinterpret it as ordinary Enter. A
                          * missing selection is a no-op, never an accidental insertion.
                          */
                         event.preventDefault();
@@ -181,23 +244,42 @@ export function AgentActionsDialog() {
                             (action) => action.invocation === selectedInvocation,
                         );
                         if (!selectedAction) return;
-                        submit(selectedAction, true);
+                        submit(selectedAction, agentActionSubmitModes.alternate);
                     }}
                 >
                     <CommandInput
                         autoFocus
-                        aria-describedby={targetDescriptionId}
+                        aria-describedby={`${targetDescriptionId} ${interactionDescriptionId}`}
                         placeholder="Search skills and slash commands…"
+                        value={search}
+                        onValueChange={setSearch}
                     />
                     <CommandList>
-                        <CommandEmpty>No Agent action found.</CommandEmpty>
+                        <CommandEmpty>No Agent command or skill found.</CommandEmpty>
+                        {shouldShowRecent && (
+                            <CommandGroup data-agent-action-group="recent" heading="Recently Used">
+                                {recentActions.map((action) => (
+                                    <AgentActionRow
+                                        key={action.invocation}
+                                        action={action}
+                                        location="recent"
+                                        onSelect={(selected) =>
+                                            submit(selected, agentActionSubmitModes.primary)
+                                        }
+                                    />
+                                ))}
+                            </CommandGroup>
+                        )}
                         {commands.length > 0 && (
                             <CommandGroup heading="Commands">
                                 {commands.map((action) => (
                                     <AgentActionRow
                                         key={action.invocation}
                                         action={action}
-                                        onSelect={(selected) => submit(selected, false)}
+                                        location="catalog"
+                                        onSelect={(selected) =>
+                                            submit(selected, agentActionSubmitModes.primary)
+                                        }
                                     />
                                 ))}
                             </CommandGroup>
@@ -208,7 +290,10 @@ export function AgentActionsDialog() {
                                     <AgentActionRow
                                         key={action.invocation}
                                         action={action}
-                                        onSelect={(selected) => submit(selected, false)}
+                                        location="catalog"
+                                        onSelect={(selected) =>
+                                            submit(selected, agentActionSubmitModes.primary)
+                                        }
                                     />
                                 ))}
                             </CommandGroup>
@@ -220,13 +305,19 @@ export function AgentActionsDialog() {
                         )}
                         {(query.isError || query.data?.discovery === 'partial') && (
                             <p className="m-0 px-3 py-2 text-[11px] text-warning" role="status">
-                                Some actions were unavailable or exceeded discovery limits.
-                                Available actions are still ready.
+                                Some commands or skills were unavailable or exceeded discovery
+                                limits. Available commands and skills are still ready.
                             </p>
                         )}
                     </CommandList>
                 </Command>
-                <div className="flex min-h-10 items-center justify-between gap-3 border-t border-border px-3 py-1.5">
+                <span id={interactionDescriptionId} className="sr-only">
+                    Enter runs the selected action. Command+Enter inserts it for editing.
+                </span>
+                <div
+                    className="flex min-h-10 items-center justify-between gap-3 border-t border-border px-3 py-1.5"
+                    data-agent-action-footer=""
+                >
                     <Button
                         size="sm"
                         variant="ghost"
@@ -239,11 +330,11 @@ export function AgentActionsDialog() {
                         <Settings2 size={13} /> Manage in Settings…
                     </Button>
                     <div className="flex items-center gap-3 text-[10px] text-muted">
-                        <span className="flex items-center gap-1">
-                            <ShortcutBadge compact shortcut="enter" /> Insert
+                        <span className="flex items-center gap-1" data-agent-action-mode="run">
+                            <ShortcutBadge compact shortcut="enter" /> Run
                         </span>
-                        <span className="flex items-center gap-1">
-                            <ShortcutBadge compact shortcut="cmd+enter" /> Run
+                        <span className="flex items-center gap-1" data-agent-action-mode="insert">
+                            <ShortcutBadge compact shortcut="cmd+enter" /> Insert
                         </span>
                     </div>
                 </div>

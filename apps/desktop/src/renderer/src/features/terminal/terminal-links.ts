@@ -1,6 +1,12 @@
-import type { TerminalOscLinkSnapshot } from '@caxri/protocol';
-import type { IBufferCellPosition, IBufferLine, ILink, Terminal } from '@xterm/xterm';
+import type { EditorNavigationTarget, TerminalOscLinkSnapshot } from '@caxri/protocol';
+import type { ILink, Terminal } from '@xterm/xterm';
 
+import {
+    parseTerminalFileLocation,
+    TERMINAL_FILE_LOCATION_SUFFIX_PATTERN,
+} from './terminal-file-location';
+import type { TerminalLogicalLine } from './terminal-logical-line';
+import { joinTerminalLogicalLines, readSoftWrappedLogicalLine } from './terminal-logical-line';
 import type { VisibleOscLink } from './terminal-osc-link-tracker';
 import {
     MAX_TERMINAL_LINK_LENGTH as MAX_LOGICAL_LINE_LENGTH,
@@ -9,8 +15,12 @@ import {
 } from './terminal-osc-link-tracker';
 
 const CJK_PROSE_BOUNDARIES = new Set(['、', '，', '。', '；', '：', '！', '？']);
-const FILE_LOCATION_SUFFIX_PATTERN = /:\d+(?::\d+)?(?=$|[\s.,;:!?"'`)\]}、，。；：！？])/g;
 const LEADING_WRAPPERS = new Set(['(', '[', '{', '<', '"', "'", '`']);
+const EXPLICIT_TERMINAL_URL_PATTERN = /https?:\/\/[^\s<>"'`]+/giu;
+/**
+ * Plain text needs explicit CJK prose boundaries while OSC 8 targets retain every valid Unicode URL character.
+ */
+const PLAIN_TEXT_URL_PATTERN = /https?:\/\/[^\s<>"'`、，。；：！？）]+/giu;
 const TRAILING_PUNCTUATION = new Set(['.', ',', ';', ':', '!', '?', '"', "'", '`']);
 
 /**
@@ -59,8 +69,7 @@ export interface TerminalLinkMatch {
     startIndex: number;
     target: string;
     text: string;
-    column?: number;
-    line?: number;
+    location?: EditorNavigationTarget;
 }
 
 /**
@@ -73,17 +82,15 @@ export interface TerminalLinkScanMetrics {
 }
 
 export interface TerminalLinkContext {
-    cwd: string;
-    projectRoot: string;
     wordSeparators: string;
-    openFile(path: string, location?: { column: number; line: number }): void;
-    openHomeFile(target: string, location?: { column: number; line: number }): void;
+    openFile(target: string, location?: EditorNavigationTarget): void;
     openUrl(url: string): void;
 }
 
 export interface TerminalDetectedLink {
     accessibleName: string;
     bufferLine: number;
+    detail?: string;
     id: string;
     kind: TerminalLinkMatch['kind'];
     target: string;
@@ -151,20 +158,6 @@ function trimToken(raw: string): { endOffset: number; startOffset: number; text:
         break;
     }
     return { endOffset, startOffset, text: raw.slice(startOffset, endOffset) };
-}
-
-function parseFileLocation(text: string): {
-    column?: number;
-    line?: number;
-    target: string;
-} {
-    const suffix = /^(.*?):(\d+)(?::(\d+))?$/.exec(text);
-    if (!suffix?.[1]) return { target: text };
-    return {
-        target: suffix[1],
-        line: Number(suffix[2]),
-        column: suffix[3] ? Number(suffix[3]) : 1,
-    };
 }
 
 /**
@@ -242,12 +235,13 @@ function findLocationFileLinks(
 ): TerminalLinkMatch[] {
     const links: TerminalLinkMatch[] = [];
     let urlIndex = 0;
-    for (const suffix of text.matchAll(FILE_LOCATION_SUFFIX_PATTERN)) {
+    for (const suffix of text.matchAll(TERMINAL_FILE_LOCATION_SUFFIX_PATTERN)) {
         const endIndex = suffix.index + suffix[0].length;
         const startIndex = locationPathStart(text, suffix.index, wordSeparators);
         const trimmed = trimToken(text.slice(startIndex, endIndex));
-        const location = parseFileLocation(trimmed.text);
-        if (!location.line || !isLikelyFilePath(location.target)) continue;
+        const location = parseTerminalFileLocation(trimmed.text);
+        if (!location.location || location.invalidLocation || !isLikelyFilePath(location.target))
+            continue;
         const matchStart = startIndex + trimmed.startOffset;
         const matchEnd = startIndex + trimmed.endOffset;
         while (urlLinks[urlIndex]?.endIndex <= matchStart) urlIndex += 1;
@@ -335,7 +329,7 @@ function detachPathCandidateFromCjkProse(token: RawToken, wordSeparators: string
             !/^file:\/\//i.test(trimmed.text)
         )
             return token;
-        if (!trimmed.text || !isLikelyFilePath(parseFileLocation(trimmed.text).target))
+        if (!trimmed.text || !isLikelyFilePath(parseTerminalFileLocation(trimmed.text).target))
             return token;
         return { index: token.index + index + 1, text: candidate };
     }
@@ -349,13 +343,14 @@ export function findTerminalLinks(
     text: string,
     wordSeparators: string = TERMINAL_DEFAULT_WORD_SEPARATORS,
     metrics?: TerminalLinkScanMetrics,
+    urlPattern: RegExp = PLAIN_TEXT_URL_PATTERN,
 ): TerminalLinkMatch[] {
     const wordFileLinks: TerminalLinkMatch[] = [];
     const urlLinks: TerminalLinkMatch[] = [];
     const unsupportedHomes = unsupportedHomeRanges(text);
     let urlLinkIndex = 0;
     let unsupportedHomeIndex = 0;
-    for (const url of text.matchAll(/https?:\/\/[^\s<>"'`]+/giu)) {
+    for (const url of text.matchAll(urlPattern)) {
         const raw = url[0];
         const rawStart = url.index;
         const trimmed = trimToken(raw);
@@ -401,8 +396,8 @@ export function findTerminalLinks(
             if (startIndex < unsupportedHome.endIndex && endIndex > unsupportedHome.startIndex)
                 continue;
         }
-        const location = parseFileLocation(trimmed.text);
-        if (!isLikelyFilePath(location.target)) continue;
+        const location = parseTerminalFileLocation(trimmed.text);
+        if (location.invalidLocation || !isLikelyFilePath(location.target)) continue;
         while (locationFileLinks[locationLinkIndex]?.endIndex <= startIndex) locationLinkIndex += 1;
         const locationLink = locationFileLinks.at(locationLinkIndex);
         if (
@@ -420,40 +415,6 @@ export function findTerminalLinks(
         });
     }
     return mergeTerminalLinks(urlLinks, mergeTerminalLinks(locationFileLinks, wordFileLinks));
-}
-
-function normalizeAbsolutePath(path: string): string {
-    const segments: string[] = [];
-    for (const segment of path.split('/')) {
-        if (!segment || segment === '.') continue;
-        if (segment === '..') segments.pop();
-        else segments.push(segment);
-    }
-    return `/${segments.join('/')}`;
-}
-
-function fileUrlPath(target: string): string | undefined {
-    try {
-        const url = new URL(target);
-        if (url.protocol !== 'file:' || (url.hostname && url.hostname !== 'localhost')) return;
-        return decodeURIComponent(url.pathname);
-    } catch {
-        return;
-    }
-}
-
-/**
- * Resolves lexical POSIX paths; Server still owns canonical root and symlink validation.
- */
-export function resolveTerminalFilePath(
-    target: string,
-    { cwd, projectRoot }: Pick<TerminalLinkContext, 'cwd' | 'projectRoot'>,
-): string | undefined {
-    const filePath = /^file:\/\//i.test(target) ? fileUrlPath(target) : target;
-    if (!filePath || isCurrentUserHomePath(filePath) || isUnsupportedHomePath(filePath)) return;
-    if (filePath.startsWith('/')) return normalizeAbsolutePath(filePath);
-    const base = filePath.startsWith('./') || filePath.startsWith('../') ? cwd : projectRoot;
-    return normalizeAbsolutePath(`${base}/${filePath}`);
 }
 
 /**
@@ -474,16 +435,7 @@ function activateLink(match: TerminalLinkMatch, context: TerminalLinkContext): v
         context.openUrl(match.target);
         return;
     }
-    const location = match.line
-        ? { line: Math.max(1, match.line), column: Math.max(1, match.column ?? 1) }
-        : undefined;
-    if (isCurrentUserHomePath(match.target)) {
-        context.openHomeFile(match.target, location);
-        return;
-    }
-    const path = resolveTerminalFilePath(match.target, context);
-    if (!path) return;
-    context.openFile(path, location);
+    context.openFile(match.target, match.location);
 }
 
 function activateLinkFromPointer(
@@ -510,71 +462,79 @@ export function createDetectedLink(
     };
 }
 
-interface LogicalLine {
-    firstBufferLine: number;
-    positions: IBufferCellPosition[];
-    text: string;
+/**
+ * Reconstructs the explicit physical newline emitted by Codex only when both path fragments carry enough syntax to
+ * distinguish them from ordinary adjacent lines. The complete candidate still goes through the existing parser here and
+ * the trusted Project-rooted resolver when activated.
+ */
+export function joinCodexHardWrappedFileLink(
+    firstText: string,
+    continuationText: string,
+    wordSeparators: string = TERMINAL_DEFAULT_WORD_SEPARATORS,
+): { continuationOffset: number; text: string } | undefined {
+    if (firstText.length + continuationText.length > MAX_LOGICAL_LINE_LENGTH) return;
+    const continuation = /^([ \t]{2,8})(\S+)$/u.exec(continuationText);
+    if (!continuation) return;
+    const continuationTarget = continuation[2];
+    if (/^(?:\/|\.\.?\/|~\/|[a-z][a-z\d+.-]*:\/\/)/iu.test(continuationTarget)) return;
+
+    const firstMatch = findTerminalLinks(firstText, wordSeparators).at(-1);
+    if (
+        firstMatch?.kind !== 'file' ||
+        firstMatch.endIndex !== firstText.length ||
+        firstMatch.location
+    )
+        return;
+    const finalSegment = firstMatch.target.slice(firstMatch.target.lastIndexOf('/') + 1);
+    if (/\.[a-z\d][\w-]{0,15}$/iu.test(finalSegment)) return;
+
+    const text = firstText + continuationTarget;
+    const joinedMatch = findTerminalLinks(text, wordSeparators).at(-1);
+    if (
+        joinedMatch?.kind !== 'file' ||
+        joinedMatch.startIndex !== firstMatch.startIndex ||
+        joinedMatch.endIndex !== text.length
+    )
+        return;
+    return { continuationOffset: continuation[1].length, text };
 }
 
 /**
- * Rebuilds one bounded wrapped line and maps UTF-16 offsets back to xterm cells. CJK and emoji before a link occupy a
- * different number of terminal cells than JavaScript code units.
+ * Rebuilds one bounded Terminal link line from xterm soft wraps and conservatively verified Codex hard wraps. Every
+ * call reads current buffer state, so resize/reflow cannot retain stale ranges.
  */
 export function readLogicalLine(
     terminal: Terminal,
     bufferLineNumber: number,
-): LogicalLine | undefined {
+    wordSeparators: string = TERMINAL_DEFAULT_WORD_SEPARATORS,
+): TerminalLogicalLine | undefined {
+    let logicalLine = readSoftWrappedLogicalLine(terminal, bufferLineNumber);
+    if (!logicalLine) return;
+    while (logicalLine.firstBufferLine > 0) {
+        const previous = readSoftWrappedLogicalLine(terminal, logicalLine.firstBufferLine);
+        if (
+            !previous ||
+            logicalLine.lastBufferLine - previous.firstBufferLine + 1 > MAX_LOGICAL_LINE_ROWS
+        )
+            break;
+        const joined = joinCodexHardWrappedFileLink(
+            previous.text,
+            logicalLine.text,
+            wordSeparators,
+        );
+        if (!joined) break;
+        logicalLine = joinTerminalLogicalLines(previous, logicalLine, joined.continuationOffset);
+    }
     const buffer = terminal.buffer.active;
-    const requested = bufferLineNumber - 1;
-    if (requested < 0 || requested >= buffer.length) return;
-    let first = requested;
-    let rowCount = 1;
-    while (first > 0 && buffer.getLine(first)?.isWrapped && rowCount < MAX_LOGICAL_LINE_ROWS) {
-        first -= 1;
-        rowCount += 1;
+    while (logicalLine.lastBufferLine + 1 < buffer.length) {
+        const next = readSoftWrappedLogicalLine(terminal, logicalLine.lastBufferLine + 2);
+        if (!next || next.lastBufferLine - logicalLine.firstBufferLine + 1 > MAX_LOGICAL_LINE_ROWS)
+            break;
+        const joined = joinCodexHardWrappedFileLink(logicalLine.text, next.text, wordSeparators);
+        if (!joined) break;
+        logicalLine = joinTerminalLogicalLines(logicalLine, next, joined.continuationOffset);
     }
-    let last = requested;
-    while (
-        last + 1 < buffer.length &&
-        buffer.getLine(last + 1)?.isWrapped &&
-        last - first + 1 < MAX_LOGICAL_LINE_ROWS
-    )
-        last += 1;
-
-    let text = '';
-    const positions: IBufferCellPosition[] = [];
-    for (let y = first; y <= last && text.length < MAX_LOGICAL_LINE_LENGTH; y += 1) {
-        const line = buffer.getLine(y);
-        if (!line) break;
-        const lineText = line.translateToString(true);
-        appendLineCellPositions(line, y, lineText, terminal.cols, positions);
-        text += lineText.slice(0, Math.min(lineText.length, MAX_LOGICAL_LINE_LENGTH - text.length));
-    }
-    return { firstBufferLine: first, positions, text };
-}
-
-/**
- * Walks one buffer row's cells and pushes one logical-text position per UTF-16 code unit, skipping zero-width cells
- * (the trailing half of a wide glyph). Extracted from `readLogicalLine` so the per-cell skip only needs a `return`, not
- * a `continue` reaching an outer loop.
- */
-function appendLineCellPositions(
-    line: IBufferLine,
-    y: number,
-    lineText: string,
-    columns: number,
-    positions: IBufferCellPosition[],
-): void {
-    let offset = 0;
-    for (let x = 0; x < Math.min(line.length, columns) && offset < lineText.length; x += 1) {
-        const cell = line.getCell(x);
-        if (!cell || cell.getWidth() === 0) continue;
-        const chars = cell.getChars() || ' ';
-        for (let index = 0; index < chars.length && offset < lineText.length; index += 1) {
-            positions.push({ x: x + 1, y: y + 1 });
-            offset += 1;
-        }
-    }
+    return logicalLine;
 }
 
 /**
@@ -633,7 +593,7 @@ function createLinkHintController(terminal: Terminal): {
 }
 
 function linksForLogicalLine(
-    logicalLine: LogicalLine,
+    logicalLine: TerminalLogicalLine,
     context: TerminalLinkContext,
     hint: ReturnType<typeof createLinkHintController>,
 ): ILink[] {
@@ -678,7 +638,7 @@ function viewportPlainTextLinks(
         uniqueTargets: new Set(),
     };
     for (let line = firstVisibleLine; line <= lastVisibleLine; line += 1) {
-        const logicalLine = readLogicalLine(terminal, line + 1);
+        const logicalLine = readLogicalLine(terminal, line + 1, context.wordSeparators);
         if (!logicalLine || visitedLogicalLines.has(logicalLine.firstBufferLine)) continue;
         visitedLogicalLines.add(logicalLine.firstBufferLine);
         for (const match of findTerminalLinks(logicalLine.text, context.wordSeparators)) {
@@ -726,7 +686,7 @@ function exactTerminalLinkTarget(
     target: string,
     wordSeparators: string,
 ): TerminalLinkMatch | undefined {
-    return findTerminalLinks(target, wordSeparators).find(
+    return findTerminalLinks(target, wordSeparators, undefined, EXPLICIT_TERMINAL_URL_PATTERN).find(
         (candidate) =>
             candidate.endIndex === target.length &&
             (candidate.startIndex === 0 ||
@@ -744,7 +704,7 @@ export function registerTerminalLinks(
     const hint = createLinkHintController(terminal);
     const disposable = terminal.registerLinkProvider({
         provideLinks(bufferLineNumber, callback) {
-            const logicalLine = readLogicalLine(terminal, bufferLineNumber);
+            const logicalLine = readLogicalLine(terminal, bufferLineNumber, context.wordSeparators);
             const links = logicalLine ? linksForLogicalLine(logicalLine, context, hint) : [];
             callback(links.length > 0 ? links : undefined);
         },

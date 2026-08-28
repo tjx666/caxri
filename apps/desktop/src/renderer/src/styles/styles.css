@@ -166,6 +166,25 @@
 .terminal-surface .xterm .xterm-viewport {
     background-color: transparent;
 }
+/* Keep xterm's own scrollbar as the scroll owner so FitAddon, wheel input, and scrollback state never pass through an
+   extra container. Xterm writes its default 14px geometry inline, so these two dimensions deliberately override it. */
+.terminal-surface .xterm .xterm-scrollbar.xterm-vertical {
+    width: 8px !important;
+    background: transparent;
+}
+.terminal-surface .xterm .xterm-scrollbar.xterm-vertical > .xterm-slider {
+    width: 8px !important;
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--muted) 45%, transparent);
+    background-clip: padding-box;
+}
+.terminal-surface .xterm .xterm-scrollbar.xterm-vertical > .xterm-slider:hover,
+.terminal-surface .xterm .xterm-scrollbar.xterm-vertical > .xterm-slider.xterm-active,
+.terminal-surface .xterm .xterm-scrollbar.xterm-vertical > .xterm-slider:active {
+    background: color-mix(in srgb, var(--muted) 80%, var(--foreground));
+    background-clip: padding-box;
+}
 .terminal-command-decoration {
     /*
      * Pointer events are enabled only so the element's native `title` attribute can show the command's exit status

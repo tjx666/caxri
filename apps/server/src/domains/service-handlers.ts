@@ -3,7 +3,7 @@ import { CaxriError } from '@caxri/protocol';
 
 import { agentSkillHealthReader } from './agent-skills';
 import type { AgentEnvironment, AgentHookManager, AgentTranscriptWatcher } from './agents';
-import { listAgentActions, readAgentTranscript } from './agents';
+import { listAgentActions, readAgentTranscript, recordRecentAgentAction } from './agents';
 import type { ConfigService } from './config';
 import type { CaxriDatabase } from './db';
 import type { DiagnosticsService } from './diagnostics';
@@ -18,6 +18,7 @@ import { resolveTerminalFileLink } from './terminal';
 
 type ServiceHandlerMethods =
     | 'agentActions.list'
+    | 'agentActions.recordRecent'
     | 'files.list'
     | 'files.browse'
     | 'files.create'
@@ -71,7 +72,12 @@ type ServiceHandlerMethods =
     | 'config.paths'
     | 'diagnostics.exportPath'
     | 'diagnostics.snapshot'
-    | 'logs.query';
+    | 'logs.query'
+    | 'pathBrowser.browse'
+    | 'pathBrowser.close'
+    | 'pathBrowser.navigate'
+    | 'pathBrowser.open'
+    | 'pathBrowser.start';
 
 /**
  * Methods the Renderer may call but that only Electron Main can satisfy.
@@ -124,6 +130,8 @@ export function createServiceHandlers(services: {
                 configuration.getSettings().value,
                 terminalId,
             ),
+        'agentActions.recordRecent': ({ invocation, terminalId }) =>
+            recordRecentAgentAction(database, configuration, terminalId, invocation),
         'files.list': ({ sessionId, directory }, signal) =>
             files.listDirectory(sessionId, directory, signal),
         'files.browse': (parameters) => files.browse(parameters),
@@ -145,11 +153,20 @@ export function createServiceHandlers(services: {
         'files.read': ({ sessionId, path }) => files.read(sessionId, path),
         'files.write': ({ sessionId, path, content }) => files.write(sessionId, path, content),
         'files.search': (parameters, signal) => files.search(parameters, signal),
+        'pathBrowser.start': () => mainOwned('pathBrowser.start'),
+        'pathBrowser.browse': () => mainOwned('pathBrowser.browse'),
+        'pathBrowser.navigate': () => mainOwned('pathBrowser.navigate'),
+        'pathBrowser.open': () => mainOwned('pathBrowser.open'),
+        'pathBrowser.close': () => mainOwned('pathBrowser.close'),
         'terminal.agentTranscript': async ({ terminalId, withContent }) => {
             if (withContent) await transcripts.watch(terminalId);
             return readAgentTranscript(database, terminalId, withContent, agentEnvironment);
         },
-        'terminal.fileLink.resolve': (parameters) => resolveTerminalFileLink(database, parameters),
+        'terminal.fileLink.resolve': (parameters) =>
+            resolveTerminalFileLink(database, parameters, {
+                searchProjectFileNames: (sessionId, root, query, signal) =>
+                    files.searchProjectFileNames(sessionId, root, query, signal),
+            }),
         'project.create': async ({ expectedRootIdentity, rootPath }) => {
             const project = database.createProject(
                 await resolveProjectRoot(rootPath, expectedRootIdentity),

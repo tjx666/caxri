@@ -74,6 +74,7 @@ export function isCaxriMethod(value: string): value is CaxriMethod {
  * paths, arbitrary failure messages, or lifecycle semantics tied to one boot.
  */
 export const effectfulCommandRecovery = {
+    'agentActions.recordRecent': 'none',
     'agent.dispatch.start': 'durable',
     'agent.dispatch.resume': 'durable',
     'agent.control.interrupt': 'durable',
@@ -105,10 +106,16 @@ export const effectfulCommandRecovery = {
     'files.reveal': 'durable',
     'project.openInEditor': 'durable',
     'argv.update': 'memory',
+    'gpu.restartInSafeMode': 'none',
+    'gpu.testInjectContextLoss': 'none',
     'external.open': 'durable',
     'editor.confirmDiscard': 'durable',
     'processExplorer.open': 'durable',
     'dialog.selectDirectory': 'memory',
+    'pathBrowser.start': 'memory',
+    'pathBrowser.navigate': 'memory',
+    'pathBrowser.open': 'memory',
+    'pathBrowser.close': 'memory',
     'diagnostics.export': 'memory',
     'bugReport.captureScreenshot': 'memory',
     'bugReport.send': 'durable',
