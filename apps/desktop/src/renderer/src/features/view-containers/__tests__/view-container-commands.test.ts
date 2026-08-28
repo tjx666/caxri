@@ -258,6 +258,28 @@ describe('didExecuteViewCatalogCommand', () => {
         });
     });
 
+    it('reveals a cached container shortcut before an invalidated catalog reload settles', async () => {
+        const catalogRequest = Promise.withResolvers<unknown>();
+        queryClient.setQueryData(caxriQueryKey('viewContainers.catalog', {}), catalog());
+        await queryClient.invalidateQueries({
+            queryKey: caxriQueryKey('viewContainers.catalog', {}),
+            refetchType: 'none',
+        });
+        mocks.request.mockImplementation((method) =>
+            method === 'viewContainers.catalog' ? catalogRequest.promise : Promise.resolve({}),
+        );
+
+        const dispatch = executeViewCatalogShortcut('viewContainers.show.publisher.fixture');
+        const selectedImmediately =
+            useWorkbenchStore.getState().bootstrap?.sessionStates[0]
+                ?.desiredSecondarySidebarViewContainerId;
+        catalogRequest.resolve(catalog());
+        await dispatch;
+
+        expect(selectedImmediately).toBe('publisher.fixture');
+        expect(mocks.request).not.toHaveBeenCalledWith('viewContainers.catalog', {});
+    });
+
     it('reports a shortcut whose command is absent from the current catalog', async () => {
         mocks.request.mockResolvedValueOnce(catalog());
 
