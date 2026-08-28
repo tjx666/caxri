@@ -27,10 +27,10 @@ import { setAgentActionsOpen, useDialogStore } from '../../stores/dialogs';
 import { getBootstrap, useSessions, useSettings, useTerminal } from '../../stores/selectors';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { focusTerminalById } from '../terminal/terminal-actions';
-import type { AgentActionSubmitMode } from './agent-action-input';
+import type { AgentActionSubmitMode, AgentActionTerminalInputStep } from './agent-action-input';
 import {
     agentActionSubmitModes,
-    agentActionTerminalInput,
+    agentActionTerminalInputSteps,
     canExecuteAgentAction,
 } from './agent-action-input';
 import { searchAgentActions } from './agent-action-search';
@@ -43,6 +43,28 @@ const sourceLabels: Record<AgentAction['source'], string> = {
     legacy: 'Legacy',
     custom: 'Custom',
 };
+
+/**
+ * Input steps are intentionally serialized because the delay before a Codex skill's completion keys is part of the
+ * provider contract. A failed step leaves the append-only draft visible and prevents the action from being recorded.
+ */
+async function didSendAgentActionInputSteps(
+    terminalId: string,
+    steps: readonly AgentActionTerminalInputStep[],
+): Promise<boolean> {
+    for (const step of steps) {
+        if (step.delayBeforeMs) {
+            // eslint-disable-next-line no-await-in-loop -- the provider protocol requires ordered delays and writes
+            await new Promise<void>((resolve) => setTimeout(resolve, step.delayBeforeMs));
+        }
+        // eslint-disable-next-line no-await-in-loop -- the next step must not overtake this PTY write
+        const receipt = await tryCommand('Unable to send Agent command or skill', () =>
+            caxri.request('terminal.input', { terminalId, data: step.data }),
+        );
+        if (receipt === undefined) return false;
+    }
+    return true;
+}
 
 interface AgentActionRowProperties {
     action: AgentAction;
@@ -81,6 +103,7 @@ export function AgentActionsDialog() {
     const targetDescriptionId = useId();
     const interactionDescriptionId = useId();
     const shouldRestoreTerminalFocusReference = useRef(true);
+    const inputSequenceInFlightReference = useRef(false);
     const [search, setSearch] = useState('');
     const [recentOverride, setRecentOverride] = useState<{
         provider: AgentProvider;
@@ -139,6 +162,7 @@ export function AgentActionsDialog() {
     };
 
     const submit = (action: AgentAction, mode: AgentActionSubmitMode): void => {
+        if (inputSequenceInFlightReference.current) return;
         if (mode === 'run' && !canExecuteAgentAction(action)) {
             pushToast('info', `${action.invocation} needs arguments before it can run.`);
             return;
@@ -150,16 +174,20 @@ export function AgentActionsDialog() {
             return;
         }
         const currentProvider = current.provider;
-        closePicker();
+        /**
+         * Keep the modal focused until every provider input step is queued. Restoring xterm focus earlier would let a
+         * user's keystroke interleave with Codex's invocation and completion keys during the settle window.
+         */
+        inputSequenceInFlightReference.current = true;
         // eslint-disable-next-line no-void -- each request owns its user-visible failure path
         void (async () => {
-            const inputReceipt = await tryCommand('Unable to send Agent command or skill', () =>
-                caxri.request('terminal.input', {
-                    terminalId: current.id,
-                    data: agentActionTerminalInput(action, mode),
-                }),
+            const inputSucceeded = await didSendAgentActionInputSteps(
+                current.id,
+                agentActionTerminalInputSteps(currentProvider, action, mode),
             );
-            if (inputReceipt === undefined) return;
+            inputSequenceInFlightReference.current = false;
+            closePicker();
+            if (!inputSucceeded) return;
             const recent = await tryCommand('Unable to save recent Agent action', () =>
                 caxri.request('agentActions.recordRecent', {
                     terminalId: current.id,
@@ -178,7 +206,7 @@ export function AgentActionsDialog() {
             open={isOpen}
             onOpenChange={(open) => {
                 if (open) setAgentActionsOpen(true);
-                else closePicker();
+                else if (!inputSequenceInFlightReference.current) closePicker();
             }}
         >
             <DialogContent
