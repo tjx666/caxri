@@ -37,6 +37,11 @@ test('smoke: launches, creates a shell Session, and runs a Terminal command', as
             expect(await running.app.evaluate(() => process.title)).toBe(
                 packagedExecutable ?? 'Caxri Dev',
             );
+            if (!packagedExecutable) {
+                expect(await running.app.evaluate(({ app }) => app.getName())).toBe(
+                    'Caxri Desktop',
+                );
+            }
         }
         await expect(
             running.page.getByRole('heading', { name: 'Project-first development.' }),
