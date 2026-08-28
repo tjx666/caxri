@@ -35,7 +35,14 @@ interface DomOptions {
     urlContains?: string;
 }
 
-export type CaptureOptions = DomOptions | FrameOptions;
+interface ScreenshotOptions {
+    command: 'screenshot';
+    output: string;
+    port?: number;
+    urlContains?: string;
+}
+
+export type CaptureOptions = DomOptions | FrameOptions | ScreenshotOptions;
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const PROJECT_ROOT = resolve(dirname(SCRIPT_PATH), '../../../..');
@@ -48,6 +55,7 @@ const HELP = `Capture the owned isolated Caxri Renderer through CDP.
 Usage:
   capture-renderer.ts frames --out-dir DIR --fixture-preflight FIXTURE_JSON [--port PORT] [--url-contains TEXT] [--count 40] [--interval-ms 250]
   capture-renderer.ts dom --output FILE --selector SELECTOR [--port PORT] [--url-contains TEXT]
+  capture-renderer.ts screenshot --output FILE [--port PORT] [--url-contains TEXT]
 `;
 
 function requiredValue(arguments_: string[], index: number, option: string): string {
@@ -69,7 +77,7 @@ export function parseCaptureOptions(arguments_: string[]): CaptureOptions | 'hel
         return 'help';
 
     const command = arguments_[0];
-    if (command !== 'dom' && command !== 'frames') {
+    if (command !== 'dom' && command !== 'frames' && command !== 'screenshot') {
         throw new Error(`Unknown command: ${command}`);
     }
 
@@ -77,14 +85,16 @@ export function parseCaptureOptions(arguments_: string[]): CaptureOptions | 'hel
     const allowedOptions =
         command === 'dom'
             ? new Set(['--output', '--port', '--selector', '--url-contains'])
-            : new Set([
-                  '--count',
-                  '--fixture-preflight',
-                  '--interval-ms',
-                  '--out-dir',
-                  '--port',
-                  '--url-contains',
-              ]);
+            : command === 'screenshot'
+              ? new Set(['--output', '--port', '--url-contains'])
+              : new Set([
+                    '--count',
+                    '--fixture-preflight',
+                    '--interval-ms',
+                    '--out-dir',
+                    '--port',
+                    '--url-contains',
+                ]);
     for (let index = 1; index < arguments_.length; index += 2) {
         // `index < arguments_.length` (loop condition) guarantees `option` is in bounds.
         const option = arguments_[index];
@@ -103,6 +113,12 @@ export function parseCaptureOptions(arguments_: string[]): CaptureOptions | 'hel
         const selector = values.get('--selector');
         if (!selector) throw new Error('--selector is required');
         return { command, output: resolve(output), port, selector, urlContains };
+    }
+
+    if (command === 'screenshot') {
+        const output = values.get('--output');
+        if (!output) throw new Error('--output is required');
+        return { command, output: resolve(output), port, urlContains };
     }
 
     const outputDirectory = values.get('--out-dir');
@@ -356,6 +372,24 @@ async function captureDom(options: DomOptions, port: number): Promise<void> {
     console.log(`Captured Renderer DOM snapshot at ${options.output}`);
 }
 
+async function captureScreenshot(options: ScreenshotOptions, port: number): Promise<void> {
+    const client = await connect(port, options.urlContains);
+    try {
+        await client.request('Page.enable');
+        await client.request('Page.bringToFront');
+        const result = await client.request<{ data: string }>('Page.captureScreenshot', {
+            captureBeyondViewport: false,
+            format: 'png',
+            fromSurface: true,
+        });
+        await mkdir(dirname(options.output), { recursive: true });
+        await writeFile(options.output, Buffer.from(result.data, 'base64'));
+    } finally {
+        client.close();
+    }
+    console.log(`Captured Renderer screenshot at ${options.output}`);
+}
+
 async function main(): Promise<void> {
     const options = parseCaptureOptions(process.argv.slice(2));
     if (options === 'help') {
@@ -368,7 +402,8 @@ async function main(): Promise<void> {
     }
     const port = resolveOwnedCapturePort(runtime.port, options.port);
     if (options.command === 'frames') await captureFrames(options, port);
-    else await captureDom(options, port);
+    else if (options.command === 'dom') await captureDom(options, port);
+    else await captureScreenshot(options, port);
 }
 
 if (import.meta.main) {
