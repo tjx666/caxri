@@ -6,8 +6,16 @@ const focusedElement = (): HTMLElement | null => null;
 
 function keyboardFocusedWorkTab(terminalId: string): HTMLElement {
     return {
-        closest: () => ({ dataset: { terminalId } }),
+        closest: (selector: string) =>
+            selector === '.work-tab' ? { dataset: { terminalId } } : null,
         dataset: { preserveTerminalFocus: 'true' },
+    } as unknown as HTMLElement;
+}
+
+function editableFocusedElement(): HTMLElement {
+    return {
+        closest: (selector: string) => (selector.includes('input') ? { dataset: {} } : null),
+        dataset: {},
     } as unknown as HTMLElement;
 }
 
@@ -55,6 +63,31 @@ describe('reconcileTerminalProcessFocus', () => {
         });
 
         expect(focus).toHaveBeenCalledOnce();
+    });
+
+    it('does not reclaim focus from an editable control that wins before the scheduled frame', () => {
+        let scheduled: FrameRequestCallback | undefined;
+        let focusedElement: HTMLElement | null = null;
+        const focus = vi.fn();
+
+        reconcileTerminalProcessFocus({
+            active: true,
+            blur: vi.fn(),
+            focus,
+            getFocusedElement: () => focusedElement,
+            isModalOpen: () => false,
+            isRunning: true,
+            requestFrame: (callback) => {
+                scheduled = callback;
+                return 1;
+            },
+            terminalId: 'terminal-1',
+        });
+
+        focusedElement = editableFocusedElement();
+        scheduled?.(0);
+
+        expect(focus).not.toHaveBeenCalled();
     });
 
     it('blurs an inactive Terminal without scheduling focus', () => {

@@ -188,15 +188,18 @@ async function terminalEdgeGlyphEvidence(
     };
 }
 
+/**
+ * Keep sampling the guest grid while the split layout settles. A one-shot `tput` result can become stale after a late
+ * xterm fit, leaving an otherwise converged Renderer compared with old PTY data.
+ */
 async function waitForStableTerminalGrid(page: Page, terminalId: string): Promise<string> {
     const pane = page.locator(`.terminal-pane[data-terminal-id="${terminalId}"]`);
     const input = pane.locator('.xterm-helper-textarea');
     const rows = pane.locator('.xterm-rows');
+    const gridProbe = String.raw`printf 'CAXRI_PTY_GRID_%sx%s\n' "$(tput cols)" "$(tput lines)"`;
     await input.focus();
     await input.press('Control+L');
-    await input.pressSequentially(
-        String.raw`printf 'CAXRI_PTY_GRID_%sx%s\n' "$(tput cols)" "$(tput lines)"`,
-    );
+    await input.pressSequentially(gridProbe);
     await input.press('Enter');
 
     let candidate: string | undefined;
@@ -264,6 +267,9 @@ async function waitForStableTerminalGrid(page: Page, terminalId: string): Promis
             ) {
                 candidate = undefined;
                 matchingSamples = 0;
+                await input.focus();
+                await input.pressSequentially(gridProbe);
+                await input.press('Enter');
                 return { ...rendererState, ptyGrid, stable: false };
             }
             const rendererGrid = rendererState.rendererGrid;

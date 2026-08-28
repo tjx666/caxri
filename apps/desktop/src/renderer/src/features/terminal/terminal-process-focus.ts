@@ -1,3 +1,5 @@
+import { isEditableEventTarget } from '../../lib/keybindings';
+
 interface TerminalProcessFocusOptions {
     active: boolean;
     blur: () => void;
@@ -28,6 +30,7 @@ export function shouldAutoFocusTerminal({
     terminalId: string;
 }): boolean {
     if (!active || !isRunning || isModalOpen) return false;
+    if (isEditableEventTarget(focusedElement)) return false;
     return !(
         focusedElement?.dataset.preserveTerminalFocus === 'true' &&
         focusedElement.closest<HTMLElement>('.work-tab')?.dataset.terminalId === terminalId
@@ -35,8 +38,8 @@ export function shouldAutoFocusTerminal({
 }
 
 /**
- * A PTY can become running after a modal or keyboard-operated work tab takes focus. Check those owners inside the
- * scheduled frame so the delayed transition cannot steal newer keyboard intent.
+ * A PTY can become running after a modal, editable control, or keyboard-operated work tab takes focus. Check those
+ * owners inside the scheduled frame so the delayed transition cannot steal newer keyboard intent.
  */
 export function reconcileTerminalProcessFocus({
     active,
