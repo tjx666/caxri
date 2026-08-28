@@ -288,8 +288,8 @@ function ActiveTerminalStatus({
 }
 
 /**
- * A healthy backend says nothing: the status bar only speaks up while Caxri is degraded, and it does so in the user's
- * vocabulary rather than naming the Server process.
+ * A healthy status bar says nothing: it only speaks up while Caxri is degraded, in the user's vocabulary rather than
+ * naming Server or Runtime.
  */
 const DEGRADED_STATES: Partial<
     Record<ServerStatus, { label: string; detail: string; className: string }>
@@ -298,14 +298,14 @@ const DEGRADED_STATES: Partial<
      * No imperative "Restart" here: recovery is offered by the native Relaunch dialog, not the chip.
      */
     failed: {
-        label: 'Backend stopped',
-        detail: "Caxri's backend process stopped unexpectedly. Recovery is offered in the native Relaunch dialog.",
+        label: 'Caxri stopped',
+        detail: 'Caxri stopped unexpectedly. Recovery is offered in the native Relaunch dialog.',
         className:
             'statusbar-state-danger bg-[color-mix(in_srgb,var(--danger)_18%,transparent)] text-danger',
     },
     restarting: {
         label: 'Reconnecting…',
-        detail: "Caxri's backend process is restarting; this chip clears once it reconnects.",
+        detail: 'Caxri is reconnecting; this chip clears once it reconnects.',
         className:
             'statusbar-state-warning bg-[color-mix(in_srgb,var(--warning)_18%,transparent)] text-warning',
     },
