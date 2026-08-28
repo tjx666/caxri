@@ -12,6 +12,73 @@ import {
 } from '../views';
 
 describe('extension view contracts', () => {
+    it('accepts bounded rich tree tooltips with HTTP links only', () => {
+        const baseItem = {
+            handle: 'id:deployment',
+            label: 'Deployment',
+            accessibilityLabel: 'Deployment',
+            collapsibleState: 'none' as const,
+        };
+        expect(
+            treeItemSchema.parse({
+                ...baseItem,
+                tooltip: {
+                    kind: 'rich',
+                    title: 'preview',
+                    badge: { label: 'success', tone: 'success' },
+                    rows: [
+                        {
+                            label: 'alias',
+                            value: 'project-abc-team.vercel.app',
+                            url: 'https://project-abc-team.vercel.app',
+                        },
+                        {
+                            label: 'inspect',
+                            value: 'logs',
+                            url: 'https://vercel.com/team/project/abc',
+                        },
+                    ],
+                },
+            }).tooltip,
+        ).toMatchObject({ kind: 'rich', rows: [{ label: 'alias' }, { label: 'inspect' }] });
+        expect(
+            treeItemSchema.safeParse({
+                ...baseItem,
+                tooltip: {
+                    kind: 'rich',
+                    title: 'preview',
+                    rows: [{ label: 'alias', value: 'unsafe', url: 'file:///etc/passwd' }],
+                },
+            }).success,
+        ).toBe(false);
+        expect(
+            treeItemSchema.safeParse({
+                ...baseItem,
+                tooltip: {
+                    kind: 'rich',
+                    title: 'preview',
+                    rows: Array.from({ length: 9 }, (_, index) => ({
+                        label: `row-${index}`,
+                        value: 'value',
+                    })),
+                },
+            }).success,
+        ).toBe(false);
+        expect(
+            treeItemSchema.safeParse({
+                ...baseItem,
+                tooltip: {
+                    kind: 'rich',
+                    title: 'preview',
+                    rows: [
+                        { label: 'alias', value: 'duplicate' },
+                        { label: 'alias', value: 'duplicate' },
+                    ],
+                },
+            }).success,
+        ).toBe(false);
+    });
+
     it('bounds stable tree identity and persisted per-view state', () => {
         expect(
             treeItemSchema.parse({

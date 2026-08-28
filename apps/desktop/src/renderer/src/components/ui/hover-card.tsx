@@ -16,6 +16,7 @@ export function HoverCardContent({
     sideOffset = 6,
     align = 'center',
     alignOffset,
+    anchor,
     collisionAvoidance,
     collisionBoundary,
     collisionPadding,
@@ -26,6 +27,7 @@ export function HoverCardContent({
         PreviewCardPrimitive.Positioner.Props,
         | 'align'
         | 'alignOffset'
+        | 'anchor'
         | 'collisionAvoidance'
         | 'collisionBoundary'
         | 'collisionPadding'
@@ -38,6 +40,7 @@ export function HoverCardContent({
             <PreviewCardPrimitive.Positioner
                 align={align}
                 alignOffset={alignOffset}
+                anchor={anchor}
                 collisionAvoidance={collisionAvoidance}
                 collisionBoundary={collisionBoundary}
                 collisionPadding={collisionPadding}

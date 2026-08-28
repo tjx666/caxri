@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { parseExternalHttpUrl } from '../configuration/trusted-domains.js';
+
 export const MAX_VIEW_TREE_ITEMS = 1_000;
 export const MAX_VIEW_TREE_PAYLOAD_BYTES = 256 * 1024;
 export const MAX_VIEW_TREE_DEPTH = 64;
@@ -194,6 +196,36 @@ export const treeItemCommandSchema = z.object({
 
 export const treeItemIdSchema = z.string().min(1).max(480);
 export const treeItemVariantSchema = z.enum(['header']);
+const treeItemTooltipUrlSchema = z
+    .string()
+    .min(1)
+    .max(16_384)
+    .refine((value) => parseExternalHttpUrl(value).ok, 'Expected a safe HTTP(S) URL');
+const treeItemTooltipBadgeSchema = z.object({
+    label: z.string().min(1).max(64),
+    tone: z.enum(['neutral', 'success', 'warning', 'danger']),
+});
+const treeItemTooltipRowSchema = z.object({
+    label: z.string().min(1).max(64),
+    value: z.string().min(1).max(2_048),
+    url: treeItemTooltipUrlSchema.optional(),
+});
+const treeItemTooltipRowsSchema = z
+    .array(treeItemTooltipRowSchema)
+    .min(1)
+    .max(8)
+    .refine(
+        (rows) =>
+            new Set(rows.map((row) => `${row.label}\0${row.value}\0${row.url ?? ''}`)).size ===
+            rows.length,
+        'Rich tooltip rows must be unique',
+    );
+export const treeItemRichTooltipSchema = z.object({
+    kind: z.literal('rich'),
+    title: z.string().min(1).max(1_024),
+    badge: treeItemTooltipBadgeSchema.optional(),
+    rows: treeItemTooltipRowsSchema,
+});
 
 export const treeItemSchema = z.object({
     handle: z.string().min(1).max(512),
@@ -201,7 +233,7 @@ export const treeItemSchema = z.object({
     variant: treeItemVariantSchema.optional(),
     label: z.string().min(1).max(1_024),
     description: z.string().max(1_024).optional(),
-    tooltip: z.string().max(4_096).optional(),
+    tooltip: z.union([z.string().max(4_096), treeItemRichTooltipSchema]).optional(),
     accessibilityLabel: z.string().min(1).max(1_024),
     collapsibleState: z.enum(['none', 'collapsed', 'expanded']),
     icon: viewIconSchema.optional(),

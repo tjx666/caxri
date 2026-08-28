@@ -3,7 +3,6 @@ import { homedir } from 'node:os';
 import type {
     GitRepositorySummary as GitRepoSummary,
     ProjectStatusCheck,
-    ProjectStatusDeployment,
     ProjectStatusError,
     ProjectStatusLinearIssue,
     ProjectStatusOverview,
@@ -34,6 +33,7 @@ import {
     runProjectStatusCommand,
     vcListArguments,
 } from './project-status-external';
+import { mapProjectStatusDeployment } from './project-status-vercel';
 import { SingleFlight } from './single-flight';
 
 export { extractLinearReferences, parseGitHubRemote } from './project-status-external';
@@ -240,31 +240,6 @@ export function parseGitHubPullRequest(value: string): {
             checks,
             hiddenCheckCount: 0,
         },
-    };
-}
-
-function deploymentState(deployment: VercelDeployment): ProjectStatusState {
-    const state = (deployment.readyState ?? deployment.state ?? '').toUpperCase();
-    if (state === 'READY') return 'success';
-    if (state === 'ERROR') return 'failure';
-    if (['BUILDING', 'QUEUED', 'INITIALIZING'].includes(state)) return 'pending';
-    return state === 'CANCELED' ? 'neutral' : 'unknown';
-}
-
-function mapDeployment(
-    deployment: VercelDeployment,
-    environment: ProjectStatusDeployment['environment'] = deployment.target === 'production'
-        ? 'production'
-        : 'preview',
-): ProjectStatusDeployment | undefined {
-    if (!deployment.url) return undefined;
-    const hostname = deployment.url.replace(/^https?:\/\//, '');
-    return {
-        environment,
-        hostname,
-        state: deploymentState(deployment),
-        url: `https://${hostname}`,
-        createdAt: deployment.created,
     };
 }
 
@@ -636,11 +611,19 @@ export class ProjectStatusService {
             const branchDeployments = parseVercelList(results[0])
                 .slice(0, 10)
                 .flatMap((deployment) => {
-                    const mapped = mapDeployment(deployment);
+                    const mapped = mapProjectStatusDeployment(deployment, undefined, link);
                     return mapped ? [mapped] : [];
                 });
-            const production = mapDeployment(parseVercelList(results[1])[0] ?? {}, 'production');
-            const preview = mapDeployment(parseVercelList(results[2])[0] ?? {}, 'preview');
+            const production = mapProjectStatusDeployment(
+                parseVercelList(results[1])[0] ?? {},
+                'production',
+                link,
+            );
+            const preview = mapProjectStatusDeployment(
+                parseVercelList(results[2])[0] ?? {},
+                'preview',
+                link,
+            );
             return {
                 deployments: {
                     url: `https://vercel.com/${link.team}/${link.project}/deployments?filterBranch=${encodeURIComponent(context.branch)}`,
