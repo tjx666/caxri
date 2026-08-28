@@ -61,11 +61,11 @@
     },
     "lint-staged": {
         "*.{js,jsx,mjs,cjs}": [
-            "eslint --fix",
+            "eslint --fix --no-warn-ignored",
             "prettier --write"
         ],
         "*.{ts,tsx,mts,cts}": [
-            "eslint --fix",
+            "eslint --fix --no-warn-ignored",
             "oxlint -c .oxlintrc.json --type-aware --fix --no-error-on-unmatched-pattern",
             "prettier --write"
         ],
@@ -98,6 +98,7 @@
                     "scripts/fixtures/e2e-census.fixture.ts",
                     "scripts/fixtures/playwright-census.config.ts",
                     "scripts/fixtures/eslint/type-aware-violation.ts",
+                    "scripts/fixtures/eslint/anti-slop-violation.ts",
                     "scripts/fixtures/eslint/no-sync-fixture.ts",
                     "scripts/fixtures/eslint/NotKebabCaseFixture.ts",
                     "scripts/fixtures/eslint/child-process-exec-fixture.ts",
@@ -122,7 +123,8 @@
                     "scripts/run-e2e-pools.ts"
                 ],
                 "ignore": [
-                    ".agents/skills/deep-review/scripts/vitest.config.ts"
+                    ".agents/skills/deep-review/scripts/vitest.config.ts",
+                    "tools/oxlint/anti-slop/**"
                 ],
                 "ignoreDependencies": [
                     "tailwindcss",
@@ -181,6 +183,7 @@
         "@caxri/system": "workspace:*",
         "@caxri/utils": "workspace:*",
         "@electron-toolkit/tsconfig": "2.0.0",
+        "@oxlint/plugins": "1.80.0",
         "@playwright/test": "1.62.1",
         "@rolldown/plugin-babel": "0.2.3",
         "@tailwindcss/vite": "4.3.3",

@@ -62,19 +62,20 @@ const client = {
         mocks.request('files.operation.cancel', { operationId }),
     copy: (path: string, directory: string) =>
         mocks.request('files.copy', { sessionId: 'session-a', path, directory }),
-    create: (options: object) =>
+    create: (options: Parameters<ResourceExplorerClient['create']>[0]) =>
         mocks.request('files.create', { sessionId: 'session-a', ...options }),
     getOperation: (operationId: string) => mocks.request('files.operation.get', { operationId }),
     list: (directory?: string) =>
         mocks.request('files.list', { sessionId: 'session-a', directory }),
     listOperations: () => mocks.request('files.operation.list', {}),
-    move: (options: object) => mocks.request('files.move', { sessionId: 'session-a', ...options }),
-    rename: (options: object) =>
+    move: (options: Parameters<ResourceExplorerClient['move']>[0]) =>
+        mocks.request('files.move', { sessionId: 'session-a', ...options }),
+    rename: (options: Parameters<ResourceExplorerClient['rename']>[0]) =>
         mocks.request('files.rename', { sessionId: 'session-a', ...options }),
     reveal: (path: string) => mocks.request('files.reveal', { sessionId: 'session-a', path }),
-    search: (options: object) =>
+    search: (options: Parameters<ResourceExplorerClient['search']>[0]) =>
         mocks.request('files.search', { sessionId: 'session-a', ...options }),
-    trash: (path: string, options?: object) =>
+    trash: (path: string, options?: Parameters<ResourceExplorerClient['trash']>[1]) =>
         mocks.request('files.trash', { sessionId: 'session-a', path, ...options }),
 } as ResourceExplorerClient;
 
