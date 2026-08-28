@@ -12,11 +12,15 @@ export function SourceControlContent({ controller }: { controller: SourceControl
         );
 
     return (
-        <div className="secondary-sidebar-content git-panel flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div
+            className="secondary-sidebar-content git-panel flex min-h-0 flex-1 flex-col overflow-hidden"
+            aria-busy={controller.isRefreshing || undefined}
+        >
             <SourceControlHeader controller={controller} />
             <div
                 className="git-repositories min-h-0 flex-1 overflow-auto border-b border-border"
                 aria-label={controller.model.accessibilityLabel}
+                inert={controller.isRefreshing}
             >
                 {controller.model.truncationMessage && (
                     <div

@@ -11,6 +11,9 @@ export function SourceControlHeader({
     controller: Extract<SourceControlController, { status: 'ready' }>;
 }) {
     const { model, runAction, selectMode } = controller;
+    const refreshLabel = controller.isRefreshing
+        ? 'Refreshing Source Control'
+        : model.refreshAction.label;
     return (
         <PanelHeader
             className="git-heading"
@@ -33,6 +36,7 @@ export function SourceControlHeader({
                                     )}
                                     aria-label={mode.label}
                                     aria-pressed={model.selectedModeId === mode.id}
+                                    disabled={controller.isRefreshing}
                                     onClick={() => selectMode(mode)}
                                 >
                                     <SourceControlIcon icon={mode.icon} />
@@ -40,18 +44,31 @@ export function SourceControlHeader({
                             </Tooltip>
                         ))}
                     </div>
-                    <Tooltip content={model.refreshAction.label}>
+                    <Tooltip content={refreshLabel}>
                         <Button
                             size="icon"
                             variant="ghost"
-                            aria-label={model.refreshAction.label}
-                            disabled={model.refreshAction.disabled}
+                            aria-label={refreshLabel}
+                            aria-busy={controller.isRefreshing || undefined}
+                            disabled={controller.isRefreshing || model.refreshAction.disabled}
                             onClick={() => {
                                 // eslint-disable-next-line no-void -- the controller owns provider action errors
                                 void runAction(model.refreshAction);
                             }}
                         >
-                            <SourceControlIcon icon={model.refreshAction.icon} />
+                            <SourceControlIcon
+                                className={
+                                    controller.isRefreshing
+                                        ? 'animate-spin motion-reduce:animate-none'
+                                        : undefined
+                                }
+                                icon={model.refreshAction.icon}
+                            />
+                            {controller.isRefreshing && (
+                                <span className="sr-only" role="status" aria-live="polite">
+                                    {refreshLabel}
+                                </span>
+                            )}
                         </Button>
                     </Tooltip>
                 </>
