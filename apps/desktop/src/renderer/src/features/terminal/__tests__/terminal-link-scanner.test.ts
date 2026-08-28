@@ -10,7 +10,9 @@ describe('createTerminalLinkScanner', () => {
         const openFile = vi.fn();
         const openUrl = vi.fn();
         const context: TerminalLinkContext = {
+            referenceContext: { githubRepositories: [], rules: [] },
             wordSeparators: TERMINAL_DEFAULT_WORD_SEPARATORS,
+            openCommit: vi.fn(),
             openFile,
             openUrl,
         };

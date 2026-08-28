@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
+import { execFileAsync } from '@caxri/system';
 import type { MessageBoxOptions } from 'electron';
 
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
@@ -349,6 +350,115 @@ test('Terminal links open Project files and confirm URLs through Main', async ()
             await running.app.close();
         } catch {
             // Ignore close failures during cleanup.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('Terminal references open configured issues and an authorized Git commit', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-references-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await mkdir(root, { recursive: true });
+    await execFileAsync('git', ['init', '-b', 'main'], { cwd: root });
+    await execFileAsync('git', ['config', 'user.email', 'test@example.com'], { cwd: root });
+    await execFileAsync('git', ['config', 'user.name', 'Caxri Test'], { cwd: root });
+    await writeFile(join(root, 'first.txt'), 'first\n', 'utf8');
+    await execFileAsync('git', ['add', 'first.txt'], { cwd: root });
+    await execFileAsync('git', ['commit', '-m', 'first reference commit'], { cwd: root });
+    const sha = (await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: root })).stdout.trim();
+    await writeFile(join(root, 'second.txt'), 'second\n', 'utf8');
+    await execFileAsync('git', ['add', 'second.txt'], { cwd: root });
+    await execFileAsync('git', ['commit', '-m', 'latest commit'], { cwd: root });
+    await execFileAsync('git', ['remote', 'add', 'origin', 'git@github.com:tjx666/caxri.git'], {
+        cwd: root,
+    });
+    let shortShaLength = 7;
+    while (!/[a-f]/.test(sha.slice(0, shortShaLength))) shortShaLength += 1;
+    const shortSha = sha.slice(0, shortShaLength);
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    try {
+        await createShellSession(running.page);
+        await running.page.keyboard.press('Meta+,');
+        const settings = running.page.getByRole('dialog');
+        await settings.getByLabel('Search settings').fill('reference links');
+        const editor = settings.getByRole('region', {
+            name: 'Terminal Reference Links editor',
+        });
+        await editor.getByLabel('Reference title').fill('Linear issue');
+        await editor.getByLabel('Reference prefix').fill('LOBE-');
+        await editor.getByLabel('Reference URL template').fill('javascript:alert(<num>)');
+        await editor.getByRole('button', { name: 'Add', exact: true }).click();
+        await expect(editor.getByRole('alert')).toContainText(
+            'Expected an HTTP(S) URL containing <num> and no credentials',
+        );
+        await editor
+            .getByLabel('Reference URL template')
+            .fill('https://linear.app/lobehub/issue/<num>');
+        await editor.getByRole('button', { name: 'Add', exact: true }).click();
+        await expect(
+            editor.getByRole('list', { name: 'Terminal reference link rules' }),
+        ).toContainText('LOBE-');
+        await expect
+            .poll(async () => {
+                const result = await pageRequest<{
+                    value: { 'terminal.referenceLinks': Array<{ prefix: string }> };
+                }>(running.page, 'settings.get');
+                return result.value['terminal.referenceLinks'].map(({ prefix }) => prefix);
+            })
+            .toEqual(['LOBE-']);
+        await settings.getByRole('button', { name: 'Close' }).click();
+
+        await running.app.evaluate(({ dialog, shell }) => {
+            const target = globalThis as typeof globalThis & {
+                caxriReferenceProbe?: { opened: string[] };
+            };
+            target.caxriReferenceProbe = { opened: [] };
+            dialog.showMessageBox = () => Promise.resolve({ response: 0, checkboxChecked: false });
+            shell.openExternal = (url) => {
+                target.caxriReferenceProbe!.opened.push(url);
+                return Promise.resolve();
+            };
+        });
+
+        const output = `原有 LOBE-13468 也已补了一条范围说明。GitHub #439; commit ${shortSha}`;
+        await typeTerminal(running.page, String.raw`printf '%s\n' '${output}'`);
+        await expect(running.page.locator('.xterm-rows')).toContainText(output);
+
+        await clickTerminalLink(running.page, 'LOBE-13468');
+        await clickTerminalLink(running.page, '#439');
+        await expect
+            .poll(() =>
+                running.app.evaluate(() => {
+                    const target = globalThis as typeof globalThis & {
+                        caxriReferenceProbe?: { opened: string[] };
+                    };
+                    return target.caxriReferenceProbe?.opened;
+                }),
+            )
+            .toEqual([
+                'https://linear.app/lobehub/issue/13468',
+                'https://github.com/tjx666/caxri/issues/439',
+            ]);
+
+        await clickTerminalLink(running.page, shortSha);
+        const gitTab = running.page.getByRole('tab', { name: 'Git', exact: true });
+        await expect(gitTab).toHaveClass(/active/);
+        await expect(
+            running.page.getByRole('button', {
+                name: `Commit Changes (${sha.slice(0, 7)})`,
+            }),
+        ).toHaveAttribute('aria-pressed', 'true');
+        await expect(running.page.locator('.git-repository-section')).toContainText(
+            'first reference commit',
+        );
+        await expect(running.page.locator('.git-repository-section')).toContainText('first.txt');
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures; the assertions above already produced the test result.
         }
         await rm(testDirectory, { recursive: true, force: true });
     }

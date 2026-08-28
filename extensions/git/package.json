@@ -101,6 +101,11 @@
                 "command": "caxri.git.history",
                 "title": "Show Repository History",
                 "palette": false
+            },
+            {
+                "command": "caxri.git.openCommit",
+                "title": "Open Git Commit",
+                "palette": false
             }
         ]
     }

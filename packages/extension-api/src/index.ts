@@ -297,6 +297,11 @@ export interface CaxriApi {
         readonly onDidChangeGit: Event<WorkspaceChangeContext>;
         readonly onDidChangeProjectStatus: Event<WorkspaceChangeContext>;
         readonly git: WorkspaceGit;
+        /**
+         * Returns the opaque scope attached to the current provider callback or command. Outside those callbacks there
+         * is deliberately no ambient authority and this returns `undefined`.
+         */
+        getCurrentContext(): WorkspaceChangeContext | undefined;
         getConfiguration<Value = unknown>(key: string): Promise<Value | undefined>;
         getProjectStatus(options?: ProjectStatusRequestOptions): Promise<ProjectStatusSummary>;
     };
@@ -344,6 +349,7 @@ const caxri: CaxriApi = Object.freeze({
             summary: () => unavailable('workspace.git.summary'),
             sync: () => unavailable('workspace.git.sync'),
         }),
+        getCurrentContext: () => unavailable('workspace.getCurrentContext'),
         getConfiguration: () => unavailable('workspace.getConfiguration'),
         getProjectStatus: () => unavailable('workspace.getProjectStatus'),
     }),

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
     createTerminalLinkScanner,
-    openTerminalFileCandidatePicker,
+    openTerminalLinkCandidatePicker,
     openTerminalLinkPicker,
     registerTerminalLinkPickerHandler,
     registerTerminalLinkScanner,
@@ -58,7 +58,7 @@ describe('Terminal link actions', () => {
         expect(second.openDetected).toHaveBeenCalledOnce();
 
         const candidate = detectedLink('candidate.ts');
-        openTerminalFileCandidatePicker('terminal-1', [candidate], true);
+        openTerminalLinkCandidatePicker('terminal-1', [candidate], true);
         expect(second.openCandidates).toHaveBeenCalledWith([candidate], true);
 
         unregisterSecond();

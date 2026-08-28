@@ -45,7 +45,12 @@ function TerminalLinkGroup({
                         {link.target}
                     </span>
                     <small className="flex-none text-[11px] text-muted">
-                        {link.detail ?? (link.kind === 'url' ? 'External URL' : 'File')}
+                        {link.detail ??
+                            (link.kind === 'url'
+                                ? 'External URL'
+                                : link.kind === 'commit'
+                                  ? 'Git commit'
+                                  : 'File')}
                     </small>
                 </CommandItem>
             ))}
@@ -68,6 +73,8 @@ export function TerminalLinkPicker({
 }: TerminalLinkPickerProperties) {
     const urls = links.filter((link) => link.kind === 'url');
     const files = links.filter((link) => link.kind === 'file');
+    const commits = links.filter((link) => link.kind === 'commit');
+    const isCommitCandidates = mode === 'candidates' && commits.length > 0;
     /**
      * Remounts cmdk when activation replaces the detected-link search with an ambiguous-file chooser. Its input is
      * otherwise uncontrolled and retains the full detected path, filtering every safe display candidate out.
@@ -80,25 +87,39 @@ export function TerminalLinkPicker({
                 showCloseButton={false}
             >
                 <DialogTitle className="sr-only">
-                    {mode === 'candidates' ? 'Choose Terminal File' : 'Open Detected Link'}
+                    {mode === 'candidates'
+                        ? isCommitCandidates
+                            ? 'Choose Git Repository'
+                            : 'Choose Terminal File'
+                        : 'Open Detected Link'}
                 </DialogTitle>
                 <Command
                     key={commandKey}
                     className="w-full"
-                    label={mode === 'candidates' ? 'Choose Terminal File' : 'Open Detected Link'}
+                    label={
+                        mode === 'candidates'
+                            ? isCommitCandidates
+                                ? 'Choose Git Repository'
+                                : 'Choose Terminal File'
+                            : 'Open Detected Link'
+                    }
                 >
                     <CommandInput
                         autoFocus
                         placeholder={
                             mode === 'candidates'
-                                ? 'Search matching files…'
+                                ? isCommitCandidates
+                                    ? 'Search matching repositories…'
+                                    : 'Search matching files…'
                                 : 'Search links in the Terminal…'
                         }
                     />
                     <CommandList>
                         <CommandEmpty>
                             {mode === 'candidates'
-                                ? 'No matching files.'
+                                ? isCommitCandidates
+                                    ? 'No matching repositories.'
+                                    : 'No matching files.'
                                 : 'No links found in the Terminal buffer.'}
                         </CommandEmpty>
                         {mode === 'detected' && (
@@ -109,10 +130,19 @@ export function TerminalLinkPicker({
                             links={files}
                             onSelect={onSelect}
                         />
+                        <TerminalLinkGroup
+                            heading={
+                                mode === 'candidates' ? 'Matching repositories' : 'Git commits'
+                            }
+                            links={commits}
+                            onSelect={onSelect}
+                        />
                         {(status === 'exhausted' || isTruncated) && (
                             <div className="px-2 py-1.5 text-[11px] text-muted">
                                 {mode === 'candidates'
-                                    ? 'File search reached its safety limit; choose from the matches shown.'
+                                    ? isCommitCandidates
+                                        ? 'Commit search reached its safety limit; choose from the matches shown.'
+                                        : 'File search reached its safety limit; choose from the matches shown.'
                                     : `Showing the first ${MAX_TERMINAL_DETECTED_LINKS} links.`}
                             </div>
                         )}

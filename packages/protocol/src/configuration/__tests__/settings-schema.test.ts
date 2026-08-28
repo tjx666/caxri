@@ -27,6 +27,7 @@ describe('settings spec and schema agreement', () => {
         }
         expect(defaultAppSettings['files.exclude']).toEqual(DEFAULT_FILES_EXCLUDE);
         expect(defaultAppSettings['security.trustedDomains']).toEqual([]);
+        expect(defaultAppSettings['terminal.referenceLinks']).toEqual([]);
         expect(defaultAppSettings['agents.providers']).toEqual(defaultAgentProviderSettings);
         // The lenient file parser lands on the same canonical defaults.
         expect(appSettingsFileSchema.parse({})).toEqual(defaultAppSettings);
@@ -221,6 +222,66 @@ describe('wire schema versus file schema', () => {
         expect(
             appSettingsFileSchema.safeParse({ 'security.trustedDomains': ['not a domain'] })
                 .success,
+        ).toBe(false);
+    });
+
+    it('bounds declarative Terminal reference links without granting executable actions', () => {
+        const parsed = appSettingsFileSchema.parse({
+            'terminal.referenceLinks': [
+                {
+                    prefix: 'LOBE-',
+                    title: 'Linear issue',
+                    url: 'https://linear.app/lobehub/issue/<num>',
+                },
+            ],
+        });
+        expect(parsed['terminal.referenceLinks']).toEqual([
+            {
+                alphanumeric: false,
+                ignoreCase: false,
+                prefix: 'LOBE-',
+                title: 'Linear issue',
+                url: 'https://linear.app/lobehub/issue/<num>',
+            },
+        ]);
+
+        for (const invalid of [
+            { prefix: 'LOBE-', url: 'https://linear.app/lobehub/issue/no-placeholder' },
+            { prefix: 'LOBE-', url: 'javascript:alert(<num>)' },
+            { prefix: 'LOBE-', url: 'https://user:secret@example.com/<num>' },
+            { prefix: 'LOBE-', url: 'https://example.com/<num>/<num>' },
+            { prefix: '', url: 'https://example.com/<num>' },
+        ])
+            expect(
+                appSettingsFileSchema.safeParse({ 'terminal.referenceLinks': [invalid] }).success,
+            ).toBe(false);
+
+        expect(
+            appSettingsFileSchema.safeParse({
+                'terminal.referenceLinks': [
+                    { prefix: 'LOBE-', url: 'https://one.example/<num>', ignoreCase: true },
+                    { prefix: 'lobe-', url: 'https://two.example/<num>' },
+                ],
+            }).success,
+        ).toBe(false);
+        expect(
+            appSettingsFileSchema.safeParse({
+                'terminal.referenceLinks': [
+                    { prefix: 'FOO-', url: 'https://one.example/<num>' },
+                    { prefix: 'FOO-1', url: 'https://two.example/<num>' },
+                ],
+            }).success,
+        ).toBe(false);
+        expect(
+            appSettingsFileSchema.safeParse({
+                'terminal.referenceLinks': [
+                    {
+                        prefix: 'LOBE-',
+                        url: 'https://example.com/<num>',
+                        command: 'open-anything',
+                    },
+                ],
+            }).success,
         ).toBe(false);
     });
 });

@@ -136,7 +136,10 @@ test('Trusted Domains persists, bypasses repeat prompts, and can be revoked in S
             'https://example.com',
         );
         await ruleInput.fill('HTTPS://*.Example.ORG.:443');
-        await settings.getByRole('button', { name: 'Add', exact: true }).click();
+        await settings
+            .getByLabel('Trusted Domains editor')
+            .getByRole('button', { name: 'Add', exact: true })
+            .click();
         await expect(settings.getByRole('list', { name: 'Trusted domain rules' })).toContainText(
             'https://*.example.org',
         );

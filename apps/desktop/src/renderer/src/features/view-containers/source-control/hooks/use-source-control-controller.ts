@@ -156,6 +156,11 @@ export function useSourceControlController(
         snapshot.error,
         presentation?.refreshErrorMessage ?? 'Source Control refresh failed',
     );
+    useEffect(() => {
+        const selectedModeId = snapshot.data?.selectedModeId;
+        if (selectedModeId && selectedModeId !== navigation.modeId)
+            updateNavigation({ modeId: selectedModeId });
+    }, [navigation.modeId, snapshot.data?.selectedModeId, updateNavigation]);
     useEffect(
         () =>
             !session

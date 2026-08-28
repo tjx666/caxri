@@ -11,6 +11,8 @@ export * from './pane-layout-reducer.js';
 export * from './project-customization.js';
 export * from './terminal-file-link.js';
 export * from './terminal-link-fingerprint.js';
+export * from './terminal-reference.js';
+export * from './terminal-reference-contract.js';
 export * from './terminal-title.js';
 export * from './views.js';
 export * from './virtual-tabs.js';

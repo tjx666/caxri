@@ -34,6 +34,7 @@ import type { SettingRowDescriptor } from './settings-registry';
 import type { SettingsValueContext } from './settings-values';
 import { isRowModified, isRowResettable, withProviderField } from './settings-values';
 import { StringControl } from './string-control';
+import { TerminalReferenceLinksForm } from './terminal-reference-links-form';
 import { TrustedDomainsForm } from './trusted-domains-form';
 
 interface SettingRowHandlers {
@@ -62,6 +63,7 @@ function isFullWidthRow(row: SettingRowDescriptor): boolean {
         'provider-launch',
         'provider-recovery',
         'provider-skill-health',
+        'terminal-reference-links',
         'trusted-domains',
     ].includes(row.binding.type);
 }
@@ -358,6 +360,15 @@ function rowControl(properties: SettingRowProperties): {
                         focusRequestId={trustedDomainsFocusRequestId}
                         rules={settings['security.trustedDomains']}
                         onChange={(rules) => onFieldChange('security.trustedDomains', rules)}
+                    />
+                ),
+            };
+        case 'terminal-reference-links':
+            return {
+                control: (
+                    <TerminalReferenceLinksForm
+                        rules={settings['terminal.referenceLinks']}
+                        onChange={(rules) => onFieldChange('terminal.referenceLinks', rules)}
                     />
                 ),
             };
