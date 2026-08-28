@@ -82,8 +82,10 @@ pre-existing default-export-ban block on the same directories. See the comments 
 `scripts/__tests__/eslint-toolchain-contract.test.ts` lints small fixtures under
 `scripts/fixtures/eslint/` directly with `ignore: false` (bypassing the `globalIgnores` entry that
 keeps them out of the repository's own `--max-warnings=0` gate) and asserts the exact `ruleId`
-each one is supposed to trip. Every new rule in this stage has a paired positive fixture (silent)
-and negative fixture (fires):
+each one is supposed to trip. A new fixture must also be listed in `package.json`
+`knip.workspaces["."].entry` (exact path or glob); Knip cannot see string-literal fixture paths
+and will fail CI on an unused file. Every new rule in this stage has a paired positive fixture
+(silent) and negative fixture (fires):
 
 - `child-process-exec-fixture.ts` / `spawn-shell-true-fixture.ts` — trip the `exec`/`execSync`
   import ban and the `shell: true` syntax ban.
