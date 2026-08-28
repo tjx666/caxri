@@ -5,7 +5,13 @@ import { logEventCatalog } from '@caxri/system';
 
 import { CoalescedScheduler } from '../coalesced-scheduler';
 import type { CaxriDatabase } from '../db';
+import { SingleFlight } from '../single-flight';
 import type { AgentLifecycleSignal } from './hooks/contract';
+import type { MetadataActivityBaseline } from './metadata-activity-baseline';
+import {
+    isMetadataActivityBaselineMatch,
+    metadataActivityBaseline,
+} from './metadata-activity-baseline';
 import { detectForegroundAgentProvider } from './process-detection';
 import type { AgentService } from './service';
 
@@ -16,9 +22,12 @@ const MAX_SHELL_PROCESS_PROBES = 5;
 const MAX_SHELL_PROMOTION_PROBES = 3;
 const SHELL_PROCESS_PROBE_INTERVAL_MS = 1_000;
 const SHELL_PROMOTION_WINDOW_MS = 30_000;
+const BRACKETED_PASTE_START = '\u{1B}[200~';
+const BRACKETED_PASTE_END = '\u{1B}[201~';
 
 interface ShellInputState {
     command: string;
+    isBracketedPaste: boolean;
     valid: boolean;
 }
 
@@ -89,6 +98,8 @@ export class AgentCoordinator {
         shellPid: number,
     ) => Promise<AgentProvider | undefined>;
     private readonly refreshes: CoalescedScheduler<string>;
+    private readonly probes = new SingleFlight<string, void>();
+    private readonly trailingProbeRequests = new Set<string>();
     private readonly shellInputs = new Map<string, ShellInputState>();
     private readonly shellProcessDetections = new Map<string, ShellPromotionCandidate>();
     private readonly shellPromotionCandidates = new Map<string, ShellPromotionCandidate>();
@@ -96,6 +107,11 @@ export class AgentCoordinator {
     private readonly probeGenerations = new Map<string, number>();
     private readonly launchIdsByTerminal = new Map<string, string>();
     private readonly hookAuthoritativeLaunchIds = new Map<string, string>();
+    /**
+     * A pending baseline keeps identical reconciliation probes from turning persisted provider state into fresh Session
+     * Activity or unread attention. `null` means this PTY generation has since shown a real transition.
+     */
+    private readonly metadataActivityBaselines = new Map<string, MetadataActivityBaseline | null>();
 
     constructor(
         private readonly database: CaxriDatabase,
@@ -223,6 +239,18 @@ export class AgentCoordinator {
     }
 
     private async probe(terminalId: string, shouldRetryClaim = true): Promise<void> {
+        const isJoining = this.probes.has(terminalId);
+        if (isJoining) this.trailingProbeRequests.add(terminalId);
+        await this.probes.run(terminalId, () => this.probeOnce(terminalId, shouldRetryClaim));
+        if (isJoining) return;
+        if (this.trailingProbeRequests.delete(terminalId))
+            await this.probe(terminalId, shouldRetryClaim);
+    }
+
+    /**
+     * Runs one serialized observation. {@link probe} preserves a trailing read requested while this one is in flight.
+     */
+    private async probeOnce(terminalId: string, shouldRetryClaim = true): Promise<void> {
         try {
             const generation = this.probeGenerations.get(terminalId) ?? 0;
             const terminal = this.database.getTerminal(terminalId);
@@ -252,7 +280,7 @@ export class AgentCoordinator {
                 snapshot.sessionId !== terminal.agentSessionId &&
                 this.database.isAgentSessionClaimedByOtherTerminal(terminal.id, snapshot.sessionId)
             ) {
-                if (shouldRetryClaim) await this.probe(terminalId, false);
+                if (shouldRetryClaim) await this.probeOnce(terminalId, false);
                 return;
             }
             const currentSession = this.database.getSession(terminal.sessionId);
@@ -261,14 +289,33 @@ export class AgentCoordinator {
             const isHookAuthoritative =
                 hookLaunchId !== undefined &&
                 hookLaunchId === this.launchIdsByTerminal.get(terminal.id);
+            const hasMetadataBaseline = this.metadataActivityBaselines.has(terminal.id);
+            const activityBaseline = this.metadataActivityBaselines.get(terminal.id);
+            const isBaselineReconciliation =
+                !hasMetadataBaseline ||
+                (activityBaseline !== null &&
+                    activityBaseline !== undefined &&
+                    isMetadataActivityBaselineMatch(activityBaseline, snapshot));
+            if (!hasMetadataBaseline)
+                this.metadataActivityBaselines.set(terminal.id, metadataActivityBaseline(snapshot));
+            else if (!isBaselineReconciliation)
+                this.metadataActivityBaselines.set(terminal.id, null);
             const metadataSnapshot = isHookAuthoritative
                 ? {
                       ...snapshot,
                       attentionKind: undefined,
                       status: currentSession.lastActivityState,
                   }
-                : snapshot;
-            if (this.database.updateAgentMetadata(terminal.id, metadataSnapshot))
+                : isBaselineReconciliation
+                  ? { ...snapshot, attentionKind: undefined }
+                  : snapshot;
+            if (
+                this.database.updateAgentMetadata(
+                    terminal.id,
+                    metadataSnapshot,
+                    !isBaselineReconciliation && !isHookAuthoritative,
+                )
+            )
                 this.emitAgentMetadataChange(terminal.id);
         } catch (error) {
             /**
@@ -381,7 +428,7 @@ export class AgentCoordinator {
             return;
         }
         if (!this.database.promoteShellToAgent(terminal.id, provider, snapshot)) {
-            if (shouldRetryClaim) await this.probe(terminal.id, false);
+            if (shouldRetryClaim) await this.probeOnce(terminal.id, false);
             return;
         }
         this.shellInputs.delete(terminal.id);
@@ -455,23 +502,41 @@ export class AgentCoordinator {
      * sequences disable detection until the next submission. Provider metadata must still confirm the launch before
      * durable Terminal identity changes.
      */
-    observeInput(terminalId: string, data: string): void {
+    observeInput(terminalId: string, data: string): boolean {
         let state = this.shellInputs.get(terminalId);
         if (!state) {
             const terminal = this.database.getTerminal(terminalId);
-            if (!terminal) return;
-            state = { command: '', valid: true };
+            if (!terminal) return false;
+            state = { command: '', isBracketedPaste: false, valid: true };
         }
-        const normalized = data.replaceAll('\u{1B}[200~', '').replaceAll('\u{1B}[201~', '');
-        for (const character of normalized) {
+        let didSubmit = false;
+        for (let index = 0; index < data.length; index += 1) {
+            if (data.startsWith(BRACKETED_PASTE_START, index)) {
+                state.isBracketedPaste = true;
+                index += BRACKETED_PASTE_START.length - 1;
+                continue;
+            }
+            if (data.startsWith(BRACKETED_PASTE_END, index)) {
+                state.isBracketedPaste = false;
+                index += BRACKETED_PASTE_END.length - 1;
+                continue;
+            }
+            const character = data[index];
             if (character === '\r' || character === '\n') {
-                if (state.valid && state.command.trim())
+                if (state.isBracketedPaste) {
+                    state.command += '\n';
+                    state.valid = false;
+                    continue;
+                }
+                const hasContent = Boolean(state.command.trim());
+                didSubmit ||= hasContent;
+                if (hasContent && state.valid)
                     this.openPromotionCandidate(terminalId, state.command);
-                state = { command: '', valid: true };
+                state = { command: '', isBracketedPaste: false, valid: true };
                 continue;
             }
             if (character === '\u{3}' || character === '\u{15}') {
-                state = { command: '', valid: true };
+                state = { command: '', isBracketedPaste: false, valid: true };
                 this.shellPromotionCandidates.delete(terminalId);
                 continue;
             }
@@ -489,6 +554,7 @@ export class AgentCoordinator {
             if (state.command.length > MAX_SHELL_COMMAND_LENGTH) state.valid = false;
         }
         this.shellInputs.set(terminalId, state);
+        return didSubmit;
     }
 
     /**
@@ -577,9 +643,10 @@ export class AgentCoordinator {
          * the operation ended, so clearing here would briefly hide the compaction state before PostCompact arrives.
          */
         else if (signal.phase !== 'sessionIdentified') this.clearAgentOperation(signal.terminalId);
-        if (signal.phase === 'turnStarted')
+        if (signal.phase === 'turnStarted') {
             this.hookAuthoritativeLaunchIds.delete(signal.terminalId);
-        else if (signal.phase === 'attentionRequested' || signal.phase === 'turnFinished')
+            this.metadataActivityBaselines.set(signal.terminalId, null);
+        } else if (signal.phase === 'attentionRequested' || signal.phase === 'turnFinished')
             this.hookAuthoritativeLaunchIds.set(signal.terminalId, signal.launchId);
         /**
          * A signal naming a different provider session proves the user resumed inside the running Terminal (a path no
@@ -642,6 +709,7 @@ export class AgentCoordinator {
         if (terminal.agentSessionId) excluded.add(terminal.agentSessionId);
         this.excludedAgentSessionIdsByTerminal.set(terminalId, excluded);
         this.startedAtByTerminal.set(terminalId, startedAt);
+        this.metadataActivityBaselines.delete(terminalId);
         this.database.resetAgentMetadataForStart(terminalId, startedAt);
     }
 
@@ -653,7 +721,9 @@ export class AgentCoordinator {
         if (!terminal?.provider) return;
         this.probeGenerations.set(terminalId, (this.probeGenerations.get(terminalId) ?? 0) + 1);
         this.refreshes.cancel(terminalId);
+        this.shellInputs.delete(terminalId);
         this.startedAtByTerminal.set(terminalId, Date.now());
+        this.metadataActivityBaselines.delete(terminalId);
     }
 
     /**
@@ -688,6 +758,7 @@ export class AgentCoordinator {
         this.shellPromotionCandidates.delete(terminalId);
         this.shellProcessDetections.delete(terminalId);
         this.startedAtByTerminal.delete(terminalId);
+        this.metadataActivityBaselines.delete(terminalId);
         this.probeGenerations.delete(terminalId);
         this.launchIdsByTerminal.delete(terminalId);
         this.hookAuthoritativeLaunchIds.delete(terminalId);
@@ -702,6 +773,7 @@ export class AgentCoordinator {
             this.shellPromotionCandidates.delete(terminal.id);
             this.shellProcessDetections.delete(terminal.id);
             this.startedAtByTerminal.delete(terminal.id);
+            this.metadataActivityBaselines.delete(terminal.id);
             this.probeGenerations.delete(terminal.id);
             this.launchIdsByTerminal.delete(terminal.id);
             this.hookAuthoritativeLaunchIds.delete(terminal.id);
@@ -716,6 +788,7 @@ export class AgentCoordinator {
         this.probeGenerations.clear();
         this.launchIdsByTerminal.clear();
         this.hookAuthoritativeLaunchIds.clear();
+        this.metadataActivityBaselines.clear();
         for (const timeout of this.agentOperationTimeouts.values()) clearTimeout(timeout);
         this.agentOperationTimeouts.clear();
         this.agentOperations.clear();

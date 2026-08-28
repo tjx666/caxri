@@ -19,6 +19,10 @@ export interface TerminalStateStore {
     markShutdown(reason: ShutdownReason): void;
     saveSnapshot(snapshot: TerminalSnapshot): void;
     setTerminalPtyTitle(id: string, ptyTitle: string): boolean;
+    /**
+     * Persists a real PTY exit and returns the primary Agent Session whose activity advanced.
+     */
+    updateTerminalExitState(id: string, state: 'dead' | 'stopped'): string | undefined;
     updateTerminalState(
         id: string,
         state: ProcessState,

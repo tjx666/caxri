@@ -457,17 +457,24 @@ describe('AgentCoordinator', () => {
         temporaryDirectories.push(directory);
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'claude');
-        let status: 'running' | 'waiting' = 'running';
-        const snapshot = vi.fn<AgentAdapter['snapshot']>(() =>
-            Promise.resolve({
+        const createdActivityAt = created.session.lastSessionActivityAt;
+        let status: 'running' | 'waiting' = 'waiting';
+        const firstSnapshot = Promise.withResolvers<void>();
+        let snapshotGate: PromiseWithResolvers<void> | undefined = firstSnapshot;
+        const snapshot = vi.fn<AgentAdapter['snapshot']>(async () => {
+            const observedStatus = status;
+            const gate = snapshotGate;
+            snapshotGate = undefined;
+            if (gate) await gate.promise;
+            return {
                 provider: 'claude',
-                ...(status === 'waiting' && { attentionKind: 'waiting' as const }),
-                status,
+                ...(observedStatus === 'waiting' && { attentionKind: 'waiting' as const }),
+                status: observedStatus,
                 observedAt: Date.now(),
                 available: true,
                 sessionId: 'claude-session',
-            }),
-        );
+            };
+        });
         const coordinator = new AgentCoordinator(
             database,
             createAgents(snapshot),
@@ -477,26 +484,49 @@ describe('AgentCoordinator', () => {
         );
 
         try {
-            coordinator.observeOutput(created.terminal!.id);
+            coordinator.probeTerminal(created.terminal!.id);
             await expect.poll(() => snapshot.mock.calls.length).toBe(1);
+            coordinator.probeTerminal(created.terminal!.id);
+            firstSnapshot.resolve();
+            await expect.poll(() => snapshot.mock.calls.length).toBe(2);
             expect(database.getSession(created.session.id)).toMatchObject({
                 attentionEpoch: 0,
                 hasUnread: false,
+                lastSessionActivityAt: createdActivityAt,
+                lastSessionActivityReason: 'created',
             });
-
-            status = 'waiting';
+            status = 'running';
             coordinator.observeOutput(created.terminal!.id);
+            await expect
+                .poll(() => database.getSession(created.session.id)?.lastSessionActivityReason)
+                .toBe('agent_started');
+
+            const transitionSnapshot = Promise.withResolvers<void>();
+            snapshotGate = transitionSnapshot;
+            coordinator.observeOutput(created.terminal!.id);
+            await expect.poll(() => snapshot.mock.calls.length).toBe(4);
+            status = 'waiting';
+            coordinator.probeTerminal(created.terminal!.id);
+            transitionSnapshot.resolve();
             await expect
                 .poll(() => database.getSession(created.session.id)?.attentionEpoch)
                 .toBe(1);
             expect(database.getSession(created.session.id)).toMatchObject({
                 lastAttentionKind: 'waiting',
                 hasUnread: true,
+                lastSessionActivityReason: 'agent_waiting',
             });
+            const waitingActivityAt = database.getSession(
+                created.session.id,
+            )!.lastSessionActivityAt;
+            expect(waitingActivityAt).toBeGreaterThan(createdActivityAt);
 
             coordinator.observeOutput(created.terminal!.id);
-            await expect.poll(() => snapshot.mock.calls.length).toBe(3);
+            await expect.poll(() => snapshot.mock.calls.length).toBe(6);
             expect(database.getSession(created.session.id)?.attentionEpoch).toBe(1);
+            expect(database.getSession(created.session.id)?.lastSessionActivityAt).toBe(
+                waitingActivityAt,
+            );
         } finally {
             coordinator.close();
             database.close();

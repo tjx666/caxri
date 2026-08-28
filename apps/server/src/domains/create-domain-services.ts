@@ -17,7 +17,7 @@ import {
     errorMessage,
     visiblePaneTerminalIds,
 } from '@caxri/protocol';
-import { assertE2EAgentInputFromEnvironment, logEventCatalog } from '@caxri/system';
+import { logEventCatalog } from '@caxri/system';
 
 import { AgentDispatchService, createAgentCommandHandlers } from './agent-dispatch';
 import {
@@ -38,7 +38,9 @@ import { createServiceHandlers, mainOwned } from './service-handlers';
 import { SessionSelectionQueue } from './session-selection';
 import type { TerminalWorkingDirectoryIdentity } from './terminal';
 import { ShellIntegrationService, TerminalManager, TerminalRestoreSupervisor } from './terminal';
+import { createTerminalInputHandler } from './terminal-input';
 import { createTerminalMoveHandler } from './terminal-move';
+import { createTerminalRestartHandler } from './terminal-restart';
 import * as provenance from './workbench-provenance';
 import { validateWorkbenchRequestContext } from './workbench-request-context';
 import { createWorkbenchRootHandlers } from './workbench-roots';
@@ -460,7 +462,9 @@ export async function createDomainServices(
         'agent.revoke': () => mainOwned('agent.revoke'),
         ...createAgentCommandHandlers({
             coordinator,
+            database,
             dispatch: dispatchService,
+            emit: send,
             endpoints: dependencies.agentEndpoints,
             mainOwned,
             terminals,
@@ -700,13 +704,7 @@ export async function createDomainServices(
             return terminal;
         },
         'terminal.openFileLink': () => mainOwned('terminal.openFileLink'),
-        'terminal.input': ({ terminalId, data }) => {
-            assertE2EAgentInputFromEnvironment(database.getTerminal(terminalId)?.provider);
-            if (terminals.processId(terminalId) !== undefined)
-                coordinator.observeInput(terminalId, data);
-            terminals.write(terminalId, data);
-            return null;
-        },
+        'terminal.input': createTerminalInputHandler({ coordinator, database, send, terminals }),
         'terminal.resize': ({ terminalId, cols, rows }) => {
             terminals.resize(terminalId, cols, rows);
             return null;
@@ -736,25 +734,13 @@ export async function createDomainServices(
             terminals.detachAllViews();
             return null;
         },
-        'terminal.restart': async ({ mode, terminalId }) => {
-            const current = database.getTerminal(terminalId);
-            if (!current) throw new CaxriError('NOT_FOUND', 'Terminal not found');
-            const expectedWorkingDirectory = await terminalDirectoryIdentity(current.cwd);
-            const isStartsFresh = mode === 'fresh';
-            const resumeAgentSessionId = isStartsFresh ? undefined : current.agentSessionId;
-            if (resumeAgentSessionId) coordinator.prepareTerminalResume(terminalId);
-            else coordinator.prepareTerminalStart(terminalId);
-            const terminal = await terminals.restart(terminalId, {
-                expectedWorkingDirectory,
-                resumeAgentSessionId,
-            });
-            if (terminal.provider) coordinator.probeTerminal(terminal.id);
-            send({
-                event: 'state.changed',
-                payload: { kind: 'records', sessionIds: [], terminalIds: [terminal.id] },
-            });
-            return terminal;
-        },
+        'terminal.restart': createTerminalRestartHandler({
+            coordinator,
+            database,
+            send,
+            terminalDirectoryIdentity,
+            terminals,
+        }),
         'terminal.snapshot': ({ terminalId }) => terminals.snapshot(terminalId),
         'terminal.runningCount': ({ sessionId }) => terminals.runningCount(sessionId),
         'terminal.resources': ({ terminalId }) => terminals.resources(terminalId),

@@ -28,6 +28,8 @@ function session(
         rootPath: `/projects/${projectId}`,
         createdAt: 1,
         lastOpenedAt: 1,
+        lastSessionActivityAt: 1,
+        lastSessionActivityReason: 'created',
         archivedAt,
         primaryAgentTerminalId,
         lastActivityState: 'unknown',

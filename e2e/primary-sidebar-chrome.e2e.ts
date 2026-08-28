@@ -259,10 +259,11 @@ test('Session rows support keyboard selection independently from rename', async 
 
         await running.page.locator('.project-select').focus();
         await running.page.keyboard.press('ArrowDown');
-        await expect(firstCard).toBeFocused();
-        expect(await firstCard.evaluate((element) => getComputedStyle(element).boxShadow)).not.toBe(
-            'none',
-        );
+        const secondCard = sessionCard(running.page, secondSessionId);
+        await expect(secondCard).toBeFocused();
+        expect(
+            await secondCard.evaluate((element) => getComputedStyle(element).boxShadow),
+        ).not.toBe('none');
 
         // The primarySidebar no longer hosts an "Archived Sessions" footer entry (the manager moved to
         // Settings), so the roving row is the tree's only Tab stop.
@@ -278,9 +279,8 @@ test('Session rows support keyboard selection independently from rename', async 
         // Archiving the focused row must not throw focus out of the tree: it lands on a neighbor
         // row. Target the *non-selected* second card so the selection stays put — archiving the
         // selected Session would re-select another one, whose Terminal would then claim focus by
-        // design (same rationale as the Tab assertion above). The second card is the last row, so
-        // focus falls back to its ArrowUp neighbor: the first card.
-        const secondCard = sessionCard(running.page, secondSessionId);
+        // design (same rationale as the Tab assertion above). Session Activity ordering puts the
+        // newer second card first, so focus falls forward to the first-created card below it.
         await secondCard.focus();
         await running.page.keyboard.press('Delete');
         await expect(secondCard).toHaveCount(0);

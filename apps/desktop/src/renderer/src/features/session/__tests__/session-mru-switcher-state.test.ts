@@ -20,6 +20,8 @@ function session(
         rootPath: '/project',
         createdAt: lastOpenedAt,
         lastOpenedAt,
+        lastSessionActivityAt: lastOpenedAt,
+        lastSessionActivityReason: 'created',
         lastActivityState: 'idle',
         attentionEpoch: 0,
         readAttentionEpoch: 0,

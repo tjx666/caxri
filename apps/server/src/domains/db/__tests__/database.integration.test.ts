@@ -383,6 +383,8 @@ describe('CaxriDatabaseConnection', () => {
                 'workbench_project_id',
                 'workbench_root_device',
                 'workbench_root_inode',
+                'last_session_activity_at',
+                'last_session_activity_reason',
             ]),
         );
         expect(upgraded.projects.list()).toEqual([
@@ -397,6 +399,8 @@ describe('CaxriDatabaseConnection', () => {
             ),
         ).toEqual(expect.arrayContaining(['icon_name', 'icon_color']));
         expect(upgraded.sessions.get('session-preserved')).toMatchObject({
+            lastSessionActivityAt: 1,
+            lastSessionActivityReason: 'created',
             attentionEpoch: 0,
             id: 'session-preserved',
             projectId: project.id,

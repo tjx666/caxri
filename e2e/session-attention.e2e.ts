@@ -205,6 +205,13 @@ done
         }>(running.page, 'app.bootstrap');
         const secondSessionId = withSecond.selectedSessionId;
         expect(secondSessionId).not.toBe(firstSession.id);
+        await expect
+            .poll(() =>
+                running.page
+                    .locator('.session-card')
+                    .evaluateAll((rows) => rows.map((row) => row.dataset.sessionId)),
+            )
+            .toEqual([secondSessionId, firstSession.id]);
 
         await writeClaudeMetadata(config, root, startedAt, 'idle', 'First Agent');
         await expect(firstRow.getByRole('img', { name: 'Unread: Waiting for you' })).toBeVisible();
@@ -214,6 +221,13 @@ done
                 exact: true,
             }),
         ).toBeVisible();
+        await expect
+            .poll(() =>
+                running.page
+                    .locator('.session-card')
+                    .evaluateAll((rows) => rows.map((row) => row.dataset.sessionId)),
+            )
+            .toEqual([firstSession.id, secondSessionId]);
         await running.page.locator('.project-select').focus();
         await running.page.keyboard.press('ArrowDown');
         await expect(firstRow).toBeFocused();
@@ -266,6 +280,13 @@ done
                 .locator(`[data-session-id="${firstSession.id}"]`)
                 .getByRole('img', { name: 'Unread: Waiting for you' }),
         ).toBeVisible();
+        await expect
+            .poll(() =>
+                running.page
+                    .locator('.session-card')
+                    .evaluateAll((rows) => rows.map((row) => row.dataset.sessionId)),
+            )
+            .toEqual([firstSession.id, secondSessionId]);
 
         await running.page.evaluate(() => Reflect.deleteProperty(document, 'hasFocus'));
         await running.page.bringToFront();
@@ -282,6 +303,13 @@ done
         ).toHaveCount(0);
 
         await pageRequest(running.page, 'session.select', { sessionId: secondSessionId });
+        await expect
+            .poll(() =>
+                running.page
+                    .locator('.session-card')
+                    .evaluateAll((rows) => rows.map((row) => row.dataset.sessionId)),
+            )
+            .toEqual([firstSession.id, secondSessionId]);
         await writeClaudeMetadata(config, root, startedAt, 'completed', 'First Agent');
         await expect(
             running.page
@@ -296,6 +324,13 @@ done
                 .locator(`[data-session-id="${firstSession.id}"]`)
                 .getByRole('img', { name: 'Unread: Finished' }),
         ).toBeVisible();
+        await expect
+            .poll(() =>
+                running.page
+                    .locator('.session-card')
+                    .evaluateAll((rows) => rows.map((row) => row.dataset.sessionId)),
+            )
+            .toEqual([firstSession.id, secondSessionId]);
     } finally {
         try {
             await running.app.close();

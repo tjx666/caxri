@@ -9,6 +9,8 @@ import {
     createShellSession,
     launchCaxri,
     pageRequest,
+    selectedSessionId,
+    sessionCard,
 } from './support/helpers.ts';
 import { stableWidth } from './support/motion-settle.ts';
 
@@ -176,11 +178,11 @@ test('SecondarySidebar and Settings share accessible moving chrome tabs', async 
         await expect.poll(indicatorWidth).toBe(cappedWidth);
         await running.page.setViewportSize(originalViewport);
 
-        const firstSession = running.page.locator('.session-card').first();
+        const firstSessionId = await selectedSessionId(running.page);
         await createAdditionalShellSession(running.page);
         await expect(filesTab).toHaveAttribute('aria-selected', 'true');
         await expectIndicatorAligned(secondarySidebarTabs, filesTab);
-        await firstSession.click();
+        await sessionCard(running.page, firstSessionId).click();
         await expect(gitTab).toHaveAttribute('aria-selected', 'true');
         await expectIndicatorAligned(secondarySidebarTabs, gitTab);
 

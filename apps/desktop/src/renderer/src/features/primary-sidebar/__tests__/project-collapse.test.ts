@@ -27,6 +27,8 @@ const session = (
     rootPath: `/${projectId}`,
     createdAt: 1,
     lastOpenedAt: 1,
+    lastSessionActivityAt: 1,
+    lastSessionActivityReason: 'created',
     lastActivityState: 'idle',
     attentionEpoch: 0,
     readAttentionEpoch: 0,
