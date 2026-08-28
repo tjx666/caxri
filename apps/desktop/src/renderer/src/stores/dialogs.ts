@@ -16,7 +16,7 @@ interface DialogState {
     bugReportRequestId: number;
     projectIconProjectId?: string;
     /**
-     * Directory granted by the native picker, awaiting the default-Agent choice.
+     * Folder granted by the native picker, awaiting the default-Agent choice.
      */
     pendingRoot?: string;
     /**

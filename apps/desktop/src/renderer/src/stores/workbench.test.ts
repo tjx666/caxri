@@ -321,6 +321,40 @@ describe('workbench Runtime events', () => {
         unsubscribe();
     });
 
+    it('keeps Runtime restarting until the ready snapshot converges Terminal state', async () => {
+        const restarting = {
+            configurationErrors: [],
+            runtime: { status: 'restarting', restartCount: 1 },
+            sessions: [],
+            terminals: [{ id: 'terminal-1', lastProcessState: 'running' }],
+        } as unknown as BootstrapState;
+        const ready = {
+            ...restarting,
+            runtime: { status: 'ready', restartCount: 1 },
+            terminals: [{ id: 'terminal-1', lastProcessState: 'interrupted' }],
+        } as unknown as BootstrapState;
+        const bootstrapRequest = Promise.withResolvers<BootstrapState>();
+        useWorkbenchStore.setState({ bootstrap: restarting });
+        mocks.request.mockImplementation((method: unknown) => {
+            if (method === 'app.bootstrap') return bootstrapRequest.promise;
+            return Promise.reject(new Error(`Unexpected method: ${String(method)}`));
+        });
+        const unsubscribe = subscribeWorkbenchEvents(eventHandlers());
+
+        mocks.emit({
+            event: 'runtime.status',
+            payload: { status: 'ready', restartCount: 1 },
+        });
+
+        expect(useWorkbenchStore.getState().attachEpoch).toBe(1);
+        expect(useWorkbenchStore.getState().bootstrap?.runtime.status).toBe('restarting');
+        await vi.waitFor(() => expect(mocks.request).toHaveBeenCalledWith('app.bootstrap'));
+
+        bootstrapRequest.resolve(ready);
+        await vi.waitFor(() => expect(useWorkbenchStore.getState().bootstrap).toEqual(ready));
+        unsubscribe();
+    });
+
     it('re-attaches Terminal panes and refreshes state after a Server reconnect', async () => {
         const unsubscribe = subscribeWorkbenchEvents(eventHandlers());
         expect(useWorkbenchStore.getState().attachEpoch).toBe(0);

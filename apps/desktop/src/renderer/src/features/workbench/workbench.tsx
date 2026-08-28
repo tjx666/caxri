@@ -2,7 +2,7 @@ import { Code2, Plus } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import { useSelectedSession } from '../../stores/selectors';
-import { chooseProjectDirectory } from '../session/session-actions';
+import { chooseProjectFolder } from '../session/session-actions';
 import { PaneView } from './pane-view';
 
 function Welcome() {
@@ -18,8 +18,8 @@ function Welcome() {
             </p>
             <Button
                 onClick={() => {
-                    // eslint-disable-next-line no-void -- intentional floating-promise discard, chooseProjectDirectory() reports its own errors via tryCommand
-                    void chooseProjectDirectory();
+                    // eslint-disable-next-line no-void -- intentional floating-promise discard, chooseProjectFolder() reports its own errors via tryCommand
+                    void chooseProjectFolder();
                 }}
             >
                 <Plus size={15} /> Add Project

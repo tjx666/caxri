@@ -434,7 +434,7 @@ test('recovers requests, events, and Desktop commands after the Server Core is k
             'dialog.selectDirectory',
         );
         expect(selectedRoot).toBe(root);
-        if (!selectedRoot) throw new Error('Expected the test directory selection to succeed');
+        if (!selectedRoot) throw new Error('Expected the test folder selection to succeed');
         const project = await pageRequest<{ id: string }>(running.page, 'project.create', {
             rootPath: selectedRoot,
         });

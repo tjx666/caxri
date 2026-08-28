@@ -95,7 +95,7 @@ Options:
   --help            Show this help
 
 Archives and an original-path manifest are kept in caxri-uninstall-archives beside the primary
-Caxri checkout. Without --yes the command is a verified dry run. Project directories and user
+Caxri checkout. Without --yes the command is a verified dry run. Project folders and user
 files are never targets.`;
 }
 

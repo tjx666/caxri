@@ -7,7 +7,7 @@ one Electron app.
 
 ## Highlights
 
-- **Projects and Sessions.** A Project is a user-authorized local directory. Sessions are durable
+- **Projects and Sessions.** A Project is a user-authorized folder. Sessions are durable
   units of work beneath it, each owning its Terminals, layout, and workbench state. The shared
   vocabulary lives in [CONTEXT.md](CONTEXT.md).
 - **Real PTYs, no wrappers.** Shell and Agent CLIs (Claude Code, Codex, …) run in genuine
@@ -106,7 +106,7 @@ watching, and architecture guardrails. Bundle budgets live in [docs/bundle-size.
 
 ## Product boundaries
 
-Caxri treats a user-selected directory as a Project and groups durable Sessions beneath it. It is
+Caxri treats a user-selected folder as a Project and groups durable Sessions beneath it. It is
 not an agent wrapper, a VS Code fork, or an orchestration platform. Agent CLIs always run in a
 real PTY. Source Control is an inspection surface: the only Git mutation is switching to an
 existing local branch. The editor intentionally stays narrow.

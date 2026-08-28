@@ -632,10 +632,7 @@ export class WorkbenchRootService {
                 throw new CaxriError('CONFLICT', 'Workbench candidate was not claimed');
             const canonical = await realpath(rootPath);
             if (canonical !== candidate.rootPath)
-                throw new CaxriError(
-                    'PATH_DENIED',
-                    'Selected directory does not match the worktree',
-                );
+                throw new CaxriError('PATH_DENIED', 'Selected folder does not match the worktree');
             const session = this.requireSession(sessionId);
             const owner = this.requireProject(session.projectId);
             const topology = await this.loadTopology(owner.rootPath);
@@ -665,7 +662,7 @@ export class WorkbenchRootService {
         if (topology.worktrees.every((worktree) => worktree.rootPath !== canonical))
             throw new CaxriError(
                 'PATH_DENIED',
-                'Selected directory is not a linked worktree of the owning Project',
+                'Selected folder is not a linked worktree of the owning Project',
             );
         await this.rootIdentity(canonical);
         const project = this.options.database.createProject(canonical);

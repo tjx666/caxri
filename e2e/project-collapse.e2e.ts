@@ -74,7 +74,7 @@ test('auto-collapse protects active, running, unread, and manually expanded Proj
         const projectIds = new Map<string, string>([['active', activeProject.id]]);
 
         for (const [index, name] of ['running', 'unread', 'idle'].entries()) {
-            // Test directory grants are consumed in the same order supplied through CAXRI_TEST_ROOT_PATHS.
+            // Test folder grants are consumed in the same order supplied through CAXRI_TEST_ROOT_PATHS.
             // eslint-disable-next-line no-await-in-loop -- each one-shot grant must precede its Project creation
             const root = await pageRequest<string | null>(running.page, 'dialog.selectDirectory');
             if (root !== roots[index + 1]) throw new Error(`Unexpected ${name} Project root`);

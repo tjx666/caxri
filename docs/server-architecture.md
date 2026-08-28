@@ -270,7 +270,7 @@ one-use short-lived WebSocket tickets. The same ticket authority authenticates c
 binary streams without putting a long-lived credential in a WebSocket URL or subprotocol.
 
 Project authorization always occurs on the Server. A privileged Client may browse the Server filesystem
-through a bounded, scope-protected API and authorize the exact canonical directory selected there. A
+through a bounded, scope-protected API and authorize the exact canonical folder selected there. A
 same-machine Desktop may render a native picker, but the resulting Server path still passes through the
 same authorization command. A remote Client path is never interpreted as a Server path.
 

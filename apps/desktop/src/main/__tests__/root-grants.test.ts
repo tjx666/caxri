@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ProjectRootGrants } from '../root-grants';
 
 describe('ProjectRootGrants', () => {
-    it('consumes a directory grant only after successful Project creation', async () => {
+    it('consumes a folder grant only after successful Project creation', async () => {
         const grants = new ProjectRootGrants();
         grants.grant('/project');
 
@@ -15,7 +15,7 @@ describe('ProjectRootGrants', () => {
         );
     });
 
-    it('restores a directory grant when Project creation fails', async () => {
+    it('restores a folder grant when Project creation fails', async () => {
         const grants = new ProjectRootGrants();
         grants.grant('/project');
         const failure = vi.fn().mockRejectedValueOnce(new Error('Runtime unavailable'));
@@ -39,7 +39,7 @@ describe('ProjectRootGrants', () => {
         await expect(first).resolves.toBe('created');
     });
 
-    it('revokes a directory grant when Project creation is canceled', async () => {
+    it('revokes a folder grant when Project creation is canceled', async () => {
         const grants = new ProjectRootGrants();
         grants.grant('/project');
         grants.revoke('/project');
@@ -49,7 +49,7 @@ describe('ProjectRootGrants', () => {
         );
     });
 
-    it('expires an unused directory grant', async () => {
+    it('expires an unused folder grant', async () => {
         vi.useFakeTimers();
         const grants = new ProjectRootGrants(1_000);
         grants.grant('/project');

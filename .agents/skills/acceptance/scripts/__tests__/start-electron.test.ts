@@ -196,7 +196,7 @@ describe('Acceptance Electron launcher seams', () => {
         ).toThrow('Native dialog automation requires an explicit user request');
     });
 
-    it('can leave directory selection on the explicitly authorized native dialog boundary', () => {
+    it('can leave folder selection on the explicitly authorized native dialog boundary', () => {
         const launch = createElectronLaunchSpec({
             electronPath: '/repo/node_modules/.bin/electron',
             environment: {

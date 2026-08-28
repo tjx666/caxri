@@ -38,7 +38,7 @@ const pathBrowserNavigationResult = z.union([
 ]);
 
 /**
- * Main owns path-browser locations and entry IDs so the Renderer cannot expand an opaque directory grant into raw
+ * Main owns path-browser locations and entry IDs so the Renderer cannot expand an opaque folder grant into raw
  * filesystem access. Only the user's typed path crosses this boundary.
  */
 export const pathBrowserMethods = {

@@ -71,7 +71,7 @@ function deletePrompt(
     kind: 'Project' | 'Session',
     title: string,
     runningTerminals: number,
-    directoryClause: string,
+    folderClause: string,
 ): MessageBoxOptions {
     const plural = runningTerminals === 1 ? '' : 's';
     return {
@@ -81,7 +81,7 @@ function deletePrompt(
             runningTerminals > 0
                 ? `Delete '${title}' and terminate ${runningTerminals} running Terminal${plural}?`
                 : `Delete '${title}'?`,
-        detail: `Only Caxri metadata and snapshots are deleted. ${directoryClause} and its files are never touched.`,
+        detail: `Only Caxri metadata and snapshots are deleted. ${folderClause} and its files are never touched.`,
         buttons: [`Delete ${kind}`, 'Cancel'],
         defaultId: 1,
         cancelId: 1,
@@ -89,11 +89,11 @@ function deletePrompt(
 }
 
 export function deleteProjectPrompt(title: string, runningTerminals: number): MessageBoxOptions {
-    return deletePrompt('Project', title, runningTerminals, 'The Project directory');
+    return deletePrompt('Project', title, runningTerminals, 'The Project folder');
 }
 
 export function deleteSessionPrompt(title: string, runningTerminals: number): MessageBoxOptions {
-    return deletePrompt('Session', title, runningTerminals, 'The selected directory');
+    return deletePrompt('Session', title, runningTerminals, 'The selected folder');
 }
 
 /**
