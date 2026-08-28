@@ -40,6 +40,12 @@ describe('command registry', () => {
                 { key: 'cmd+`', command: 'session.switchMru' },
                 { key: 'cmd+3', command: 'secondarySidebar.showStatus' },
                 { key: 'cmd+t', command: 'terminal.new' },
+                {
+                    key: 'cmd+shift+enter',
+                    command: 'workbench.action.terminal.sendSequence',
+                    when: 'terminalFocus',
+                    args: { text: '\t\n' },
+                },
                 { key: 'cmd+w', command: 'workbench.closeActiveTab' },
             ]),
         );

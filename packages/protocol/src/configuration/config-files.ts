@@ -7,7 +7,9 @@ import { normalizeShortcut } from './shortcuts.js';
 
 export const keybindingsFileSchema = z.array(keybindingSchema).max(MAX_KEYBINDINGS);
 
-export type DefaultKeybinding = Pick<Keybinding, 'command' | 'key' | 'when'>;
+export type DefaultKeybinding = Pick<Keybinding, 'args' | 'command' | 'key' | 'when'>;
+
+type ArgumentFreeDefaultKeybinding = Omit<DefaultKeybinding, 'args'>;
 
 export type DefaultKeybindingChange =
     | {
@@ -16,20 +18,21 @@ export type DefaultKeybindingChange =
       }
     | {
           type: 'replace';
-          current: DefaultKeybinding;
-          previous: DefaultKeybinding;
+          current: ArgumentFreeDefaultKeybinding;
+          previous: ArgumentFreeDefaultKeybinding;
       };
 
 export interface DefaultKeybindingReconciliation {
     additions: DefaultKeybinding[];
-    replacements: Array<{ binding: DefaultKeybinding; index: number }>;
+    replacements: Array<{ binding: ArgumentFreeDefaultKeybinding; index: number }>;
     value: Keybinding[];
 }
 
 /**
  * Reconciles reviewed built-in default changes without treating a user's keybinding file as a generated artifact.
- * Replacements require one exact argument-free old default and a free destination chord. Additions require both a
- * missing command and a free chord. Ambiguous duplicates, custom bindings, and conflicts therefore fail closed.
+ * Replacements require one exact argument-free old default and a free destination chord. Additions may carry command
+ * arguments, but still require both a missing command and a free chord. Ambiguous duplicates, custom bindings, and
+ * conflicts therefore fail closed.
  */
 export function reconcileDefaultKeybindings(
     keybindings: readonly Keybinding[],
@@ -37,7 +40,7 @@ export function reconcileDefaultKeybindings(
 ): DefaultKeybindingReconciliation {
     const value = [...keybindings];
     const additions: DefaultKeybinding[] = [];
-    const replacements: Array<{ binding: DefaultKeybinding; index: number }> = [];
+    const replacements: Array<{ binding: ArgumentFreeDefaultKeybinding; index: number }> = [];
     const isChordOccupied = (key: string): boolean => {
         const chord = normalizeShortcut(key);
         return value.some((binding) => normalizeShortcut(binding.key) === chord);

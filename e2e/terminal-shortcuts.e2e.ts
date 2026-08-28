@@ -283,6 +283,12 @@ test('Codex Terminal maps input shortcuts and restores the clipboard on quit', a
                 when?: 'terminalFocus';
             }>;
         }>(running.page, 'keybindings.get');
+        expect(keybindings.value).toContainEqual({
+            args: { text: '\t\n' },
+            command: 'workbench.action.terminal.sendSequence',
+            key: 'cmd+shift+enter',
+            when: 'terminalFocus',
+        });
         await pageRequest(running.page, 'keybindings.update', {
             source: JSON.stringify(
                 [
@@ -303,9 +309,12 @@ test('Codex Terminal maps input shortcuts and restores the clipboard on quit', a
         await keybindingsDialog.getByRole('tab', { name: 'Keybindings', exact: true }).click();
         await keybindingsDialog.getByLabel('Search keyboard shortcuts').fill('send sequence');
         await expect(keybindingsDialog.locator('[data-shortcut="cmd+enter"]')).toBeVisible();
+        await expect(keybindingsDialog.locator('[data-shortcut="cmd+shift+enter"]')).toBeVisible();
         await running.page.keyboard.press('Escape');
         await input.focus();
 
+        await input.press('Meta+Shift+Enter');
+        await expect(rows).toContainText('INPUT_HEX:090a');
         await input.press('Meta+Enter');
         await expect(rows).toContainText('INPUT_HEX:1b5b313b3342');
 
