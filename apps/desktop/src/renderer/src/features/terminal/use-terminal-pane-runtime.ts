@@ -40,6 +40,7 @@ import {
     OSC52_BLOCK_MESSAGES,
     registerTerminalInputHandlers,
     registerTerminalPaneLinks,
+    xtermThemeWithoutOverviewRulerBorder,
 } from './terminal-pane-support';
 import { reconcileTerminalProcessFocus, shouldAutoFocusTerminal } from './terminal-process-focus';
 import { clearTerminalProgress, updateTerminalProgress } from './terminal-progress';
@@ -184,7 +185,7 @@ export function useTerminalPaneRuntime({
              */
             scrollbar: { width: 8 },
             scrollback: latest.scrollback,
-            theme: latest.terminalTheme,
+            theme: xtermThemeWithoutOverviewRulerBorder(latest.terminalTheme),
             wordSeparator: latest.wordSeparators,
         });
         const fit = new FitAddon();
@@ -673,7 +674,7 @@ export function useTerminalPaneRuntime({
         xterm.options.fontFamily = fontFamily;
         xterm.options.fontSize = fontSize;
         xterm.options.scrollback = scrollback;
-        xterm.options.theme = terminalTheme;
+        xterm.options.theme = xtermThemeWithoutOverviewRulerBorder(terminalTheme);
         xterm.options.wordSeparator = wordSeparators;
     }, [fontFamily, fontSize, scrollback, terminalTheme, wordSeparators]);
 

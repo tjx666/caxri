@@ -436,19 +436,33 @@ test('Terminal scrollbar is flush while the terminal-colored inset keeps text cl
                     .locator('.terminal-pane')
                     .first()
                     .evaluate((pane) => {
-                        const viewport = pane.querySelector('.xterm-scrollable-element');
-                        if (!viewport) return null;
+                        const overviewRuler = pane.querySelector<HTMLCanvasElement>(
+                            '.xterm-decoration-overview-ruler',
+                        );
+                        const scrollable = pane.querySelector('.xterm-scrollable-element');
+                        const overviewRulerContext = overviewRuler?.getContext('2d');
+                        if (!overviewRuler || !overviewRulerContext || !scrollable) return null;
                         return {
                             inset: getComputedStyle(pane).backgroundColor,
-                            viewport: getComputedStyle(viewport).backgroundColor,
+                            overviewRulerBorderAlpha: overviewRulerContext.getImageData(
+                                0,
+                                Math.floor(overviewRuler.height / 2),
+                                1,
+                                1,
+                            ).data[3],
+                            scrollable: getComputedStyle(scrollable).backgroundColor,
                         };
                     }),
-            (colors) => colors.inset === 'rgb(48, 64, 80)' && colors.viewport === 'rgb(48, 64, 80)',
-            { message: 'Terminal inset and viewport colors' },
+            (styles) =>
+                styles.inset === 'rgb(48, 64, 80)' &&
+                styles.overviewRulerBorderAlpha === 0 &&
+                styles.scrollable === 'rgb(48, 64, 80)',
+            { message: 'Terminal inset, overview ruler border, and scrollable element styles' },
         );
         expect(insetColors).toEqual({
             inset: 'rgb(48, 64, 80)',
-            viewport: 'rgb(48, 64, 80)',
+            overviewRulerBorderAlpha: 0,
+            scrollable: 'rgb(48, 64, 80)',
         });
 
         const terminalIds = (
