@@ -93,6 +93,11 @@ test('Codex hard-wrapped file paths open as one trusted Terminal link', async ()
         ).toContainText('target-56');
 
         await running.page.getByRole('tab', { name: 'Shell' }).click();
+        /**
+         * Opening the Editor unmounts xterm. Returning to the Shell creates a new xterm instance whose persisted buffer
+         * arrives asynchronously, so wait for restored content before asking the picker to scan that buffer.
+         */
+        await expect(running.page.locator('.xterm-rows')).toContainText(continuation);
         const terminalInput = running.page.locator('.xterm-helper-textarea');
         await terminalInput.focus();
         await running.page.keyboard.press('Meta+Shift+O');
