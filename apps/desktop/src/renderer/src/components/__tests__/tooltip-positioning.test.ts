@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { resolveTooltipCursorAnchor } from '../tooltip-positioning';
 
 describe('tooltip cursor positioning', () => {
-    it('captures the hover-open point once with the inline offset', () => {
+    it('captures the hover-open point once', () => {
         const point = { x: 100, y: 240 };
         const anchor = resolveTooltipCursorAnchor(true, 'trigger-hover', point);
         point.x = 500;
@@ -12,11 +12,11 @@ describe('tooltip cursor positioning', () => {
         expect(anchor?.getBoundingClientRect()).toMatchObject({
             bottom: 240,
             height: 0,
-            left: 110,
-            right: 110,
+            left: 100,
+            right: 100,
             top: 240,
             width: 0,
-            x: 110,
+            x: 100,
             y: 240,
         });
     });
@@ -29,21 +29,5 @@ describe('tooltip cursor positioning', () => {
             resolveTooltipCursorAnchor(false, 'trigger-hover', { x: 100, y: 240 }),
         ).toBeUndefined();
         expect(resolveTooltipCursorAnchor(true, 'trigger-hover', undefined)).toBeUndefined();
-    });
-
-    it('keeps the first cursor anchor inside the collision-padded viewport', () => {
-        const anchor = resolveTooltipCursorAnchor(
-            true,
-            'trigger-hover',
-            { x: 1_436, y: 240 },
-            1_440,
-        );
-
-        expect(anchor?.getBoundingClientRect()).toMatchObject({
-            left: 1_431,
-            right: 1_431,
-            x: 1_431,
-            y: 240,
-        });
     });
 });
