@@ -112,6 +112,7 @@ describe('E2E pools', () => {
             'e2e/terminal-webgl.e2e.ts',
             'e2e/updates.e2e.ts',
             'e2e/window-mode.e2e.ts',
+            'e2e/workbench-recovery.e2e.ts',
             'e2e/workbench-root.e2e.ts',
         ]) {
             expect(parallelSafeSpecs, path).not.toContain(path);
