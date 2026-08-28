@@ -1,0 +1,129 @@
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import process from 'node:process';
+
+import { afterEach, describe, expect, it } from 'vitest';
+
+import type { MediaCommandRunner } from './media-integrity';
+import { validateReportMediaEvidence, validateVideoEvidence } from './media-integrity';
+
+const roots: string[] = [];
+const recordsRoot = join(process.cwd(), '.records', '__test__');
+
+async function temporaryRoot(): Promise<string> {
+    await mkdir(recordsRoot, { recursive: true });
+    const root = await mkdtemp(join(recordsRoot, 'acceptance-media-'));
+    roots.push(root);
+    return root;
+}
+
+function runnerFor({
+    duration = 10,
+    frameCount = 40,
+    hashes = ['a', 'a', 'b', 'b', 'c', 'c', 'd', 'd'],
+}: {
+    duration?: number;
+    frameCount?: number;
+    hashes?: string[];
+} = {}): MediaCommandRunner {
+    return (command) => {
+        if (command === 'ffprobe') {
+            return Promise.resolve(
+                JSON.stringify({
+                    format: { duration: String(duration) },
+                    streams: [{ avg_frame_rate: '4/1', nb_frames: String(frameCount) }],
+                }),
+            );
+        }
+        return Promise.resolve(
+            hashes.map((hash, index) => `0, ${index}, ${index}, 1, 576, ${hash}`).join('\n'),
+        );
+    };
+}
+
+afterEach(async () => {
+    const directories = [...roots];
+    roots.length = 0;
+    await Promise.all(directories.map((root) => rm(root, { recursive: true })));
+});
+
+describe('Acceptance media integrity', () => {
+    it('rejects the four-frame one-second baseline clip that was mistaken for video evidence', async () => {
+        await expect(
+            validateVideoEvidence('/tmp/baseline.mp4', runnerFor({ duration: 1, frameCount: 4 })),
+        ).rejects.toThrow('at least 3 seconds');
+    });
+
+    it('rejects a long clip whose sampled frames do not show a visible state change', async () => {
+        const hashes = Array.from({ length: 20 }, () => 'same');
+        await expect(
+            validateVideoEvidence('/tmp/static.mp4', runnerFor({ hashes })),
+        ).rejects.toThrow('at least 3 distinct sampled frames');
+    });
+
+    it('accepts a bounded clip with enough frames and visible variation', async () => {
+        await expect(
+            validateVideoEvidence('/tmp/interaction.mp4', runnerFor()),
+        ).resolves.toMatchObject({
+            distinctSampledFrames: 4,
+            durationSeconds: 10,
+            frameCount: 40,
+            sampledFrameCount: 8,
+        });
+    });
+
+    it('rejects media copied from a blocked prior round and relabeled as a pass', async () => {
+        const root = await temporaryRoot();
+        const firstRound = join(root, 'round-1');
+        const secondRound = join(root, 'round-2');
+        await Promise.all([
+            mkdir(join(firstRound, 'assets'), { recursive: true }),
+            mkdir(join(secondRound, 'assets'), { recursive: true }),
+        ]);
+        const evidence = 'assets/interaction.mp4';
+        await Promise.all([
+            writeFile(join(firstRound, evidence), 'same-media'),
+            writeFile(join(secondRound, evidence), 'same-media'),
+            writeFile(
+                join(firstRound, 'result.json'),
+                JSON.stringify({
+                    cases: [{ evidence: [evidence], id: 'interaction', status: 'blocked' }],
+                }),
+            ),
+        ]);
+
+        await expect(
+            validateReportMediaEvidence({
+                cases: [{ evidence: [evidence], id: 'interaction', status: 'pass' }],
+                directory: secondRound,
+                plans: [{ id: 'interaction', requiredEvidence: ['video'] }],
+                runner: runnerFor(),
+            }),
+        ).rejects.toThrow('reuses media from non-passing round-1');
+    });
+
+    it('rejects identical video bytes attached to different passing cases', async () => {
+        const root = await temporaryRoot();
+        const directory = join(root, 'round-1');
+        await mkdir(join(directory, 'assets'), { recursive: true });
+        await Promise.all([
+            writeFile(join(directory, 'assets/first.mp4'), 'duplicate-media'),
+            writeFile(join(directory, 'assets/second.mp4'), 'duplicate-media'),
+        ]);
+
+        await expect(
+            validateReportMediaEvidence({
+                cases: [
+                    { evidence: ['assets/first.mp4'], id: 'first', status: 'pass' },
+                    { evidence: ['assets/second.mp4'], id: 'second', status: 'pass' },
+                ],
+                directory,
+                plans: [
+                    { id: 'first', requiredEvidence: ['video'] },
+                    { id: 'second', requiredEvidence: ['video'] },
+                ],
+                runner: runnerFor(),
+            }),
+        ).rejects.toThrow('duplicates video evidence across cases first and second');
+    });
+});
