@@ -99,7 +99,8 @@ directories.
   components. Native macOS dialogs are stubbed unless the user's current request explicitly asks
   to verify that dialog.
 - Never import Node.js, Electron, or native APIs in Renderer code. Never bypass the structured IPC
-  request contract with arbitrary shell commands.
+  request contract with arbitrary shell commands. Use structured argv arrays for Git and PTY
+  launches; never concatenate an untrusted command string.
 
 ## Dev instances
 
