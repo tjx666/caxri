@@ -21,6 +21,22 @@ afterEach(async () => {
 });
 
 describe('Acceptance Renderer capture', () => {
+    it('parses a single screenshot capture', () => {
+        expect(
+            parseCaptureOptions(['screenshot', '--port', '9222', '--output', './screenshot.png']),
+        ).toMatchObject({ command: 'screenshot', port: 9222 });
+        expect(() => parseCaptureOptions(['screenshot'])).toThrow('--output is required');
+        expect(() =>
+            parseCaptureOptions([
+                'screenshot',
+                '--output',
+                './screenshot.png',
+                '--selector',
+                'main',
+            ]),
+        ).toThrow('Unknown option: --selector');
+    });
+
     it('parses bounded frame capture options', () => {
         expect(
             parseCaptureOptions([

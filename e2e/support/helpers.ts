@@ -35,6 +35,7 @@ import {
     snapshotClipboard,
     writeClipboardFixture,
 } from './clipboard.ts';
+import { closeE2EApp } from './desktop-lease-lifecycle.ts';
 import type { E2EApp } from './electron-app.ts';
 import { registerE2ELaunch } from './error-gate.ts';
 import { stageDevelopmentTestExtension } from './test-extension.ts';
@@ -403,38 +404,36 @@ export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<Runni
         const activeClipboardSnapshot = clipboardSnapshot;
         const electronProcess = app.process();
         const close = app.close.bind(app);
+        let handBackLeasePromise: Promise<void> | undefined;
+        const handBackLease = (): Promise<void> =>
+            (handBackLeasePromise ??= (async () => {
+                if (cleanupPromise) return;
+                lease = await transferDesktopLease(lease, process.pid);
+            })());
         Object.defineProperty(app, 'close', {
             configurable: true,
-            value: async () => {
-                if (electronProcess.exitCode !== null || electronProcess.signalCode !== null) {
-                    await cleanup();
-                    return;
-                }
-                let failure: unknown;
-                try {
-                    if (activeClipboardSnapshot) await restoreClipboard(activeClipboardSnapshot);
-                } catch (error) {
-                    clipboardRestoreFailure =
-                        error instanceof Error
-                            ? error
-                            : new Error('E2E clipboard restoration failed with a non-Error value');
-                    failure = clipboardRestoreFailure;
-                }
-                try {
-                    await close();
-                } catch (error) {
-                    failure ??= error;
-                }
-                try {
-                    await cleanup();
-                } catch (error) {
-                    failure ??= error;
-                }
-                if (failure)
-                    throw failure instanceof Error
-                        ? failure
-                        : new Error('E2E application cleanup failed with a non-Error value');
-            },
+            value: () =>
+                closeE2EApp({
+                    applicationProcess: electronProcess,
+                    cleanup,
+                    close,
+                    handBackLease,
+                    ...(activeClipboardSnapshot && {
+                        restoreBeforeClose: async () => {
+                            try {
+                                await restoreClipboard(activeClipboardSnapshot);
+                            } catch (error) {
+                                clipboardRestoreFailure =
+                                    error instanceof Error
+                                        ? error
+                                        : new Error(
+                                              'E2E clipboard restoration failed with a non-Error value',
+                                          );
+                                throw clipboardRestoreFailure;
+                            }
+                        },
+                    }),
+                }),
         });
         registerE2ELaunch(app, userDataDir, cleanup);
         const electronPid = electronProcess.pid;

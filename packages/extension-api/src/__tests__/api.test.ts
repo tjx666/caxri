@@ -4,6 +4,7 @@ import caxri, {
     CancellationTokenSource,
     Disposable,
     EventEmitter,
+    ProjectStatusSummaryErrorMessage,
     ThemeIcon,
     TreeItem,
     TreeItemCollapsibleState,
@@ -26,6 +27,18 @@ describe('caxri public API runtime', () => {
             label: 'Project',
             tooltip: { kind: 'rich', title: 'preview' },
             variant: 'header',
+        });
+
+        const message = new TreeItem('No Git repository');
+        message.variant = 'message';
+        expect(message).toMatchObject({
+            collapsibleState: TreeItemCollapsibleState.None,
+            label: 'No Git repository',
+            variant: 'message',
+        });
+        expect(ProjectStatusSummaryErrorMessage).toEqual({
+            missingGitRepository: 'The Project root is not a Git repository.',
+            missingPrimaryRepository: 'No primary repository found.',
         });
     });
 
