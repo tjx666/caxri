@@ -12,6 +12,7 @@ import type { TooltipCursorAnchor } from '../tooltip-positioning';
 import {
     resolveTooltipCursorAnchor,
     TOOLTIP_CURSOR_COLLISION_PADDING,
+    TOOLTIP_CURSOR_SIDE_OFFSET,
 } from '../tooltip-positioning';
 
 export function TooltipProvider({ children }: { children: ReactNode }) {
@@ -61,6 +62,11 @@ export function Tooltip({
      */
     const isCursorMode = anchorMode === 'cursor';
     const isCursorAnchored = anchorMode === 'cursor' && cursorAnchor !== undefined;
+    /**
+     * Keeps the popup beside the pointer so its vertical path through adjacent tree rows stays clear. Floating UI flips
+     * the popup to the left near the right edge without moving it across that path.
+     */
+    const side = isCursorAnchored ? 'right' : 'bottom';
     return (
         <TooltipPrimitive.Root
             disabled={disabled}
@@ -73,7 +79,6 @@ export function Tooltip({
                                       open,
                                       details.reason,
                                       latestPointer.current,
-                                      document.documentElement.clientWidth,
                                   ),
                               );
                       }
@@ -102,7 +107,7 @@ export function Tooltip({
                 <TooltipPrimitive.Positioner
                     align={isCursorAnchored ? 'start' : undefined}
                     anchor={isCursorAnchored ? cursorAnchor : undefined}
-                    className="z-[90]"
+                    className="z-[90] max-w-[var(--available-width)]"
                     collisionAvoidance={
                         isCursorMode
                             ? { side: 'flip', align: 'shift', fallbackAxisSide: 'none' }
@@ -110,8 +115,8 @@ export function Tooltip({
                     }
                     collisionPadding={isCursorMode ? TOOLTIP_CURSOR_COLLISION_PADDING : undefined}
                     positionMethod={isCursorAnchored ? 'fixed' : undefined}
-                    side="bottom"
-                    sideOffset={isCursorAnchored ? 8 : 6}
+                    side={side}
+                    sideOffset={isCursorAnchored ? TOOLTIP_CURSOR_SIDE_OFFSET : 6}
                 >
                     <TooltipPrimitive.Popup
                         className={cn(
