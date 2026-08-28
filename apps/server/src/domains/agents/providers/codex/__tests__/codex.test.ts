@@ -107,6 +107,16 @@ describe('Codex provider', () => {
                 0,
             );
         database.close();
+        const turnHistory = new Database(join(state, 'thread_history_1.sqlite'));
+        turnHistory.exec(
+            'CREATE TABLE thread_turns (thread_id TEXT, turn_id TEXT, status TEXT, completed_at INTEGER)',
+        );
+        const insertTurn = turnHistory.prepare('INSERT INTO thread_turns VALUES (?, ?, ?, ?)');
+        insertTurn.run('codex-session-older', 'turn-1', 'completed', Date.now());
+        insertTurn.run('codex-session-older', 'turn-running', 'inProgress', null);
+        insertTurn.run('codex-session-older', 'turn-interrupted', 'interrupted', Date.now());
+        insertTurn.run('codex-session-older', 'turn-failed', 'failed', Date.now());
+        turnHistory.close();
         vi.stubEnv('PATH', bin);
         vi.stubEnv('SHELL', '/usr/bin/false');
         const service = new AgentService(
@@ -181,15 +191,32 @@ describe('Codex provider', () => {
         await expect(
             service.snapshot('codex', {
                 agentSessionId: 'codex-session-older',
+                agentTurnId: 'turn-1',
                 rootPath: root,
-                processState: 'stopped',
+                processState: 'running',
             }),
         ).resolves.toMatchObject({
-            attentionKind: undefined,
+            attentionKind: 'completed',
             sessionId: 'codex-session-older',
             status: 'completed',
             title: '$debug https://github.com/example/project/issues/1',
             usage: [{ label: 'Tokens', value: '42' }],
         });
+
+        const statusSnapshots = await Promise.all(
+            ['turn-running', 'turn-interrupted', 'turn-failed'].map((agentTurnId) =>
+                service.snapshot('codex', {
+                    agentSessionId: 'codex-session-older',
+                    agentTurnId,
+                    rootPath: root,
+                    processState: 'running',
+                }),
+            ),
+        );
+        expect(statusSnapshots.map((snapshot) => snapshot.status)).toEqual([
+            'running',
+            'completed',
+            'failed',
+        ]);
     });
 });

@@ -15,6 +15,7 @@ import { agentLifecyclePhases } from './contract';
 
 const MAX_SIGNAL_BYTES = 4_096;
 const MAX_AGENT_SESSION_ID_LENGTH = 256;
+const MAX_AGENT_TURN_ID_LENGTH = 256;
 /**
  * Bounds the sweep by profile-owned candidates rather than by position in the directory. The previous bound counted
  * every entry in the temp directory and stopped at 4096, which made reclamation depend on where the socket happened to
@@ -41,6 +42,7 @@ interface HookWireSignal extends AgentLifecycleSignal {
 export type AgentHookSignalRejectionReason =
     | 'downstreamRejected'
     | 'invalidAgentSessionId'
+    | 'invalidAgentTurnId'
     | 'invalidJson'
     | 'invalidSignal'
     | 'launchMismatch'
@@ -162,6 +164,14 @@ function parseSignal(
             !isOpaqueAgentSessionId(signal.agentSessionId))
     ) {
         return { reason: 'invalidAgentSessionId' };
+    }
+    if (
+        signal.agentTurnId !== undefined &&
+        (typeof signal.agentTurnId !== 'string' ||
+            signal.agentTurnId.length > MAX_AGENT_TURN_ID_LENGTH ||
+            !isOpaqueAgentSessionId(signal.agentTurnId))
+    ) {
+        return { reason: 'invalidAgentTurnId' };
     }
     return { signal: signal as unknown as HookWireSignal };
 }

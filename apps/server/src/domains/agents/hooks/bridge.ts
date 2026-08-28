@@ -32,21 +32,24 @@ const hasAnyLaunchContext = Boolean(
   process.env.CAXRI_HOOK_RUNTIME || socketPath || signal.terminalId || signal.launchId || signal.token,
 );
 const hasLaunchContext = Boolean(socketPath && signal.terminalId && signal.launchId && signal.token);
-// Providers pipe a JSON payload on stdin. Only the opaque session identifier is extracted so a manual
-// in-terminal resume can rebind the Terminal; prompt and response content never cross this boundary.
-function readSessionId(callback) {
+// Providers pipe a JSON payload on stdin. Only opaque session and turn identifiers are extracted so prompt and
+// response content never cross this boundary.
+function readIdentifiers(callback) {
   let source = '';
   let done = false;
   const finish = () => {
     if (done) return;
     done = true;
     let sessionId;
+    let turnId;
     try {
       const payload = JSON.parse(source);
       const value = payload && (payload.session_id ?? payload.sessionId);
       if (typeof value === 'string' && value.length > 0 && value.length <= 256) sessionId = value;
+      const turnValue = payload && (payload.turn_id ?? payload.turnId);
+      if (typeof turnValue === 'string' && turnValue.length > 0 && turnValue.length <= 256) turnId = turnValue;
     } catch {}
-    callback(sessionId);
+    callback({ sessionId, turnId });
   };
   // Stdin may be an interactive TTY when a human runs the bridge by hand; never wait on it.
   const timer = setTimeout(finish, 250);
@@ -63,8 +66,9 @@ if (!hasAnyLaunchContext) {
   process.exitCode = 0;
 } else if (!hasLaunchContext) {
   process.exitCode = exitCodes.launchContextUnavailable;
-} else readSessionId((sessionId) => {
+} else readIdentifiers(({ sessionId, turnId }) => {
   if (sessionId) signal.agentSessionId = sessionId;
+  if (turnId) signal.agentTurnId = turnId;
   const socket = net.createConnection(socketPath);
   let response = '';
   let settled = false;
@@ -101,7 +105,7 @@ if (!hasAnyLaunchContext) {
 });
 `;
 
-const BRIDGE_VERSION = 7;
+const BRIDGE_VERSION = 8;
 
 const BRIDGE_WRAPPER = String.raw`#!/bin/sh
 bridge_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)

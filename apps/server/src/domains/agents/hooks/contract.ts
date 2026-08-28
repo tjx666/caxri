@@ -21,6 +21,11 @@ export interface AgentLifecycleSignal {
      * Terminal to the session the Agent actually runs.
      */
     agentSessionId?: string;
+    /**
+     * Provider-native turn identifier. It is content-free and lets a delayed reconciliation query distinguish the exact
+     * turn whose completion signal may have been lost.
+     */
+    agentTurnId?: string;
     launchId: string;
     phase: AgentLifecyclePhase;
     provider: AgentProvider;

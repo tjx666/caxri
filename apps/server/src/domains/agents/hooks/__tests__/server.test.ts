@@ -404,6 +404,19 @@ describe('AgentHookServer', () => {
                     agentSessionId: '../outside',
                 }),
             ],
+            [
+                'a path-like agentTurnId',
+                JSON.stringify({
+                    protocolVersion: 1,
+                    schemaVersion: 2,
+                    launchId: 'l',
+                    terminalId: 't',
+                    provider: 'codex',
+                    phase: 'turnStarted',
+                    token: 'tok',
+                    agentTurnId: '../outside',
+                }),
+            ],
         ])('rejects a signal that is %s', async (description, payload) => {
             const { server, socketPath, onDiagnostic, onSignal } = await createTestServer();
             try {
@@ -420,7 +433,9 @@ describe('AgentHookServer', () => {
                             ? 'invalidJson'
                             : description.includes('agentSessionId')
                               ? 'invalidAgentSessionId'
-                              : 'invalidSignal',
+                              : description.includes('agentTurnId')
+                                ? 'invalidAgentTurnId'
+                                : 'invalidSignal',
                 });
             } finally {
                 await server.close();
@@ -453,6 +468,25 @@ describe('AgentHookServer', () => {
                 expect(response).toBe('{"ok":true}\n');
                 expect(onSignal).toHaveBeenCalledWith(
                     expect.objectContaining({ agentSessionId: 'provider-session-9' }),
+                );
+            } finally {
+                await server.close();
+            }
+        });
+
+        it('forwards an optional provider turn identifier to the signal consumer', async () => {
+            const { server, socketPath, onSignal } = await createTestServer();
+            try {
+                const token = server.register('terminal-1', 'launch-1', 'codex');
+
+                const response = await send(
+                    socketPath,
+                    validPayload({ token, agentTurnId: 'provider-turn-9' }),
+                );
+
+                expect(response).toBe('{"ok":true}\n');
+                expect(onSignal).toHaveBeenCalledWith(
+                    expect.objectContaining({ agentTurnId: 'provider-turn-9' }),
                 );
             } finally {
                 await server.close();
