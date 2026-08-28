@@ -33,6 +33,7 @@ import {
     agentActionTerminalInput,
     canExecuteAgentAction,
 } from './agent-action-input';
+import { searchAgentActions } from './agent-action-search';
 import { describeAgentActionTarget, resolveAgentActionTargetTitle } from './agent-action-target';
 
 const sourceLabels: Record<AgentAction['source'], string> = {
@@ -53,7 +54,7 @@ function AgentActionRow({ action, location, onSelect }: AgentActionRowProperties
     return (
         <CommandItem
             data-agent-action={action.invocation}
-            value={`${location} ${action.invocation} ${action.invocation.slice(1)} ${action.description ?? ''}`}
+            value={`${location}:${action.invocation}`}
             onSelect={() => onSelect(action)}
         >
             <span className="flex min-w-0 flex-col gap-0.5">
@@ -110,8 +111,15 @@ export function AgentActionsDialog() {
      */
     const actions =
         query.data && !query.isFetching && !query.isError ? query.data.actions : fallbackActions;
-    const commands = actions.filter((action) => action.kind === 'command');
-    const skills = actions.filter((action) => action.kind === 'skill');
+    const visibleActionGroups = useMemo(() => {
+        const groupedActions = new Map<AgentAction['kind'], AgentAction[]>();
+        for (const action of searchAgentActions(actions, search)) {
+            const group = groupedActions.get(action.kind);
+            if (group) group.push(action);
+            else groupedActions.set(action.kind, [action]);
+        }
+        return [...groupedActions].map(([kind, grouped]) => ({ grouped, kind }));
+    }, [actions, search]);
     const actionSettings = provider ? settings?.['agents.providers'][provider].actions : undefined;
     const recentActions = actionSettings
         ? resolveRecentAgentActions(actions, {
@@ -222,6 +230,7 @@ export function AgentActionsDialog() {
                 <Command
                     className="w-full"
                     label="Agent Commands & Skills"
+                    shouldFilter={false}
                     onKeyDownCapture={(event: KeyboardEvent<HTMLDivElement>) => {
                         if (
                             !event.metaKey ||
@@ -270,9 +279,13 @@ export function AgentActionsDialog() {
                                 ))}
                             </CommandGroup>
                         )}
-                        {commands.length > 0 && (
-                            <CommandGroup heading="Commands">
-                                {commands.map((action) => (
+                        {visibleActionGroups.map(({ grouped, kind }) => (
+                            <CommandGroup
+                                key={kind}
+                                data-agent-action-group={kind}
+                                heading={kind === 'command' ? 'Commands' : 'Skills'}
+                            >
+                                {grouped.map((action) => (
                                     <AgentActionRow
                                         key={action.invocation}
                                         action={action}
@@ -283,21 +296,7 @@ export function AgentActionsDialog() {
                                     />
                                 ))}
                             </CommandGroup>
-                        )}
-                        {skills.length > 0 && (
-                            <CommandGroup heading="Skills">
-                                {skills.map((action) => (
-                                    <AgentActionRow
-                                        key={action.invocation}
-                                        action={action}
-                                        location="catalog"
-                                        onSelect={(selected) =>
-                                            submit(selected, agentActionSubmitModes.primary)
-                                        }
-                                    />
-                                ))}
-                            </CommandGroup>
-                        )}
+                        ))}
                         {query.isFetching && (
                             <p className="m-0 px-3 py-2 text-[11px] text-muted" role="status">
                                 Discovering skills…
