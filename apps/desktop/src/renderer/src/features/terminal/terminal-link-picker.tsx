@@ -68,6 +68,11 @@ export function TerminalLinkPicker({
 }: TerminalLinkPickerProperties) {
     const urls = links.filter((link) => link.kind === 'url');
     const files = links.filter((link) => link.kind === 'file');
+    /**
+     * Remounts cmdk when activation replaces the detected-link search with an ambiguous-file chooser. Its input is
+     * otherwise uncontrolled and retains the full detected path, filtering every safe display candidate out.
+     */
+    const commandKey = mode;
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
             <DialogContent
@@ -78,6 +83,7 @@ export function TerminalLinkPicker({
                     {mode === 'candidates' ? 'Choose Terminal File' : 'Open Detected Link'}
                 </DialogTitle>
                 <Command
+                    key={commandKey}
                     className="w-full"
                     label={mode === 'candidates' ? 'Choose Terminal File' : 'Open Detected Link'}
                 >
