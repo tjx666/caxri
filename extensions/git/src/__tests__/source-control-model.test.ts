@@ -1,4 +1,5 @@
 import type { GitCommitDetails, GitPullRequestChanges, GitSummary } from 'caxri';
+import { ProjectStatusSummaryErrorMessage } from 'caxri';
 import { describe, expect, it } from 'vitest';
 
 import { buildSourceControlViewModel } from '../source-control-model';
@@ -264,7 +265,7 @@ describe('Git source-control view model', () => {
             summary: {
                 isRepository: false,
                 repositories: [],
-                error: 'The Project root is not a Git repository.',
+                error: ProjectStatusSummaryErrorMessage.missingGitRepository,
             },
         });
 

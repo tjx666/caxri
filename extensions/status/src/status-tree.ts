@@ -6,7 +6,12 @@ import type {
     ProjectStatusSummary,
     TreeItemVariant,
 } from 'caxri';
-import { ThemeIcon, TreeItem, TreeItemCollapsibleState } from 'caxri';
+import {
+    ProjectStatusSummaryErrorMessage,
+    ThemeIcon,
+    TreeItem,
+    TreeItemCollapsibleState,
+} from 'caxri';
 
 export interface StatusNode {
     item: TreeItem;
@@ -38,6 +43,11 @@ const repoPresentation: Record<
     nested: { description: 'nested', icon: 'monitor' },
     submodule: { description: 'submodule', icon: 'package' },
 };
+
+const missingGitRepoErrors = new Set<string>([
+    ProjectStatusSummaryErrorMessage.missingGitRepository,
+    ProjectStatusSummaryErrorMessage.missingPrimaryRepository,
+]);
 
 function durationLabel(durationMs: number | undefined): string | undefined {
     if (durationMs === undefined) return undefined;
@@ -240,18 +250,37 @@ export function buildRepoNode(repo: ProjectStatusRepository): StatusNode {
 }
 
 export function buildStatusRootNodes(summary: ProjectStatusSummary): StatusNode[] {
-    if (summary.error)
+    if (summary.error) {
+        const isMissingGitRepo = missingGitRepoErrors.has(summary.error);
         return [
-            item('status:summary:error', summary.error, {
+            item(
+                'status:summary:error',
+                isMissingGitRepo ? 'No Git repository' : 'Project Status unavailable',
+                {
+                    variant: 'message',
+                    description: isMissingGitRepo
+                        ? 'Initialize a Git repository in the Project root, then refresh.'
+                        : summary.error,
+                    icon: isMissingGitRepo ? 'git-branch' : 'circle-x',
+                    command: {
+                        command: 'caxri.project-status.refresh',
+                        title: isMissingGitRepo ? 'Refresh' : 'Retry',
+                    },
+                },
+            ),
+        ];
+    }
+    if (summary.repositories.length === 0)
+        return [
+            item('status:empty', 'No repositories found', {
+                variant: 'message',
+                description: 'Add a Git repository to this Project, then refresh.',
+                icon: 'git-branch',
                 command: {
                     command: 'caxri.project-status.refresh',
-                    title: 'Retry Project Status',
+                    title: 'Refresh',
                 },
-                description: 'Select to retry.',
-                icon: 'circle-x',
             }),
         ];
-    if (summary.repositories.length === 0)
-        return [item('status:empty', 'No repositories found.', { icon: 'circle-outline' })];
     return summary.repositories.map(buildRepoNode);
 }

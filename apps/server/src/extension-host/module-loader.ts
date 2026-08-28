@@ -62,6 +62,7 @@ export function extensionApiModuleUrl(owner: RegisteredExtensionModule): string 
         'export const Disposable = binding.runtime.Disposable;',
         'export const EventEmitter = binding.runtime.EventEmitter;',
         'export const CancellationTokenSource = binding.runtime.CancellationTokenSource;',
+        'export const ProjectStatusSummaryErrorMessage = binding.runtime.ProjectStatusSummaryErrorMessage;',
         'export const ThemeIcon = binding.runtime.ThemeIcon;',
         'export const TreeItem = binding.runtime.TreeItem;',
         'export const TreeItemCollapsibleState = binding.runtime.TreeItemCollapsibleState;',

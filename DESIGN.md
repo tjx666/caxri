@@ -246,6 +246,12 @@ position, keyboard focus falls back to the row anchor, and viewport collision ke
 visible. Text values wrap inside the bounded card instead of widening the SecondarySidebar. Plain
 extension tooltips retain the shared compact Tooltip surface and cursor-placement behavior.
 
+An extension tree whose whole surface is unavailable uses one `message` item: a quiet, full-width
+icon/title/description/action state built from the shared Empty primitive, never a long error forced
+into a single data row. Missing prerequisites use a neutral icon and an action that rechecks the
+state; actual failures use the matching status tone. The complete guidance stays visible without a
+tooltip, and the item remains reachable through the tree's existing keyboard focus path.
+
 **Chrome tabs** — the moving underline is derived from the tab slot, never from the label inside
 it: inset 8px on each side, capped, and centred in the slot. In the SecondarySidebar's evenly
 divided rail every mark is therefore the same size, so it reads as "this region is selected"

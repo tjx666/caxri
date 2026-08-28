@@ -126,7 +126,7 @@ export const TreeItemCollapsibleState = {
 export type TreeItemCollapsibleState =
     (typeof TreeItemCollapsibleState)[keyof typeof TreeItemCollapsibleState];
 
-export type TreeItemVariant = 'header';
+export type TreeItemVariant = 'header' | 'message';
 
 export interface Command {
     command: string;
@@ -159,8 +159,9 @@ export interface TreeItemRichTooltip {
 export class TreeItem {
     id?: string;
     /**
-     * Optional semantic presentation. A header introduces a visually separated group of child rows without coupling the
-     * shared tree Renderer to an extension-specific domain such as repositories.
+     * Optional semantic presentation. A header introduces a visually separated group of child rows. A message is a leaf
+     * that presents complete guidance and an optional action instead of compressing them into a normal data row. Both
+     * keep the shared tree Renderer independent of extension-specific domains such as repositories.
      */
     variant?: TreeItemVariant;
     description?: string;
@@ -255,6 +256,15 @@ export interface ProjectStatusSummary {
     refreshedAt: number;
     error?: string;
 }
+
+/**
+ * Stable top-level Project Status messages shared with product extensions until the summary contract exposes structured
+ * error kinds. Consumers must treat every other error string as an unrelated failure.
+ */
+export const ProjectStatusSummaryErrorMessage = Object.freeze({
+    missingGitRepository: 'The Project root is not a Git repository.',
+    missingPrimaryRepository: 'No primary repository found.',
+} as const);
 
 export interface ProjectStatusRequestOptions {
     /**
