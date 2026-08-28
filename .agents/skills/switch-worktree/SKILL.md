@@ -43,7 +43,7 @@ the user asked for a narrower scope (e.g. implementation or report only).
 ## Create or resolve a checkout
 
 Create a semantic branch from the latest `origin/main`, install independent dependencies with `ni`,
-and initialize an isolated Caxri profile:
+prepare native `node-pty` artifacts, and initialize an isolated Caxri profile:
 
 ```bash
 bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts create feat/example
