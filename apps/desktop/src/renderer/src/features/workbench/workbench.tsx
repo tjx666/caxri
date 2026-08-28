@@ -13,8 +13,8 @@ function Welcome() {
                 Project-first development.
             </h1>
             <p className="m-0 leading-relaxed">
-                Add a local folder as a Project, then keep every Agent and Shell Session together
-                beneath it.
+                Add a folder as a Project, then keep every Agent and Shell Session together beneath
+                it.
             </p>
             <Button
                 onClick={() => {
