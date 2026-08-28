@@ -281,7 +281,16 @@ esac
             name: 'project-8ykp416o7-tjx666.vercel.app, preview · success',
             exact: true,
         });
-        await successfulDeployment.hover();
+        const originalViewport = running.page.viewportSize();
+        await running.page.setViewportSize({ width: 800, height: 720 });
+        const successfulDeploymentBounds = await successfulDeployment.boundingBox();
+        if (!successfulDeploymentBounds)
+            throw new Error('Successful deployment bounds are unavailable');
+        const deploymentPointer = {
+            x: successfulDeploymentBounds.x + successfulDeploymentBounds.width / 2,
+            y: successfulDeploymentBounds.y + successfulDeploymentBounds.height / 2,
+        };
+        await running.page.mouse.move(deploymentPointer.x, deploymentPointer.y);
         const richTooltip = running.page.locator('.tree-item-rich-tooltip:visible');
         await expect(richTooltip).toBeVisible();
         await expect(richTooltip).toContainText('preview');
@@ -311,6 +320,27 @@ esac
                 }),
             )
             .toEqual({ bottom: true, left: true, right: true, top: true });
+        const richTooltipBounds = await richTooltip.boundingBox();
+        if (!richTooltipBounds) throw new Error('Rich deployment tooltip bounds are unavailable');
+        expect(
+            richTooltipBounds.x >= deploymentPointer.x + 8 ||
+                richTooltipBounds.x + richTooltipBounds.width <= deploymentPointer.x - 8,
+        ).toBe(true);
+        const buildingDeployment = tree.getByRole('treeitem', {
+            name: /^project-building-tjx666\.vercel\.app, preview · /,
+        });
+        const buildingDeploymentBounds = await buildingDeployment.boundingBox();
+        if (!buildingDeploymentBounds)
+            throw new Error('Building deployment bounds are unavailable');
+        await running.page.mouse.move(
+            deploymentPointer.x,
+            buildingDeploymentBounds.y + buildingDeploymentBounds.height / 2,
+        );
+        await expect
+            .poll(() => buildingDeployment.evaluate((element) => element.matches(':hover')))
+            .toBe(true);
+        await running.page.mouse.move(deploymentPointer.x, deploymentPointer.y);
+        await expect(richTooltip).toBeVisible();
         await richTooltip
             .getByRole('button', {
                 name: 'Open alias: project-8ykp416o7-tjx666.vercel.app',
@@ -322,6 +352,7 @@ esac
             .toBe('https://project-8ykp416o7-tjx666.vercel.app/');
         await running.page.keyboard.press('Escape');
         await expect(richTooltip).toHaveCount(0);
+        if (originalViewport) await running.page.setViewportSize(originalViewport);
         await running.page.mouse.move(400, 100);
         await refreshButton.focus();
         await successfulDeployment.focus();

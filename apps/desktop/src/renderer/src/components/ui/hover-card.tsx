@@ -47,7 +47,7 @@ export function HoverCardContent({
                 positionMethod={positionMethod}
                 side={side}
                 sideOffset={sideOffset}
-                className="z-[80]"
+                className="z-[80] max-w-[var(--available-width)]"
             >
                 <PreviewCardPrimitive.Popup
                     data-slot="hover-card-content"

@@ -22,7 +22,7 @@ export async function verifyColdRightEdgeTreeTooltip(page: Page, tree: Locator):
     if (!bounds) throw new Error('Cold-open tooltip bounds are unavailable');
     const viewportWidth = await page.evaluate(() => document.documentElement.clientWidth);
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(viewportWidth - 8);
-    expect(bounds.x).toBeLessThan(pointerX);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(pointerX - 8);
     await page.mouse.move(0, 0);
     await expect(tooltip).toHaveCount(0);
 }
@@ -70,7 +70,7 @@ export async function verifyTreeTooltipPositioning(
     const rightBounds = await tooltipBoundsAt(rightPointerX);
     const viewportWidth = await page.evaluate(() => document.documentElement.clientWidth);
     expect(rightBounds.x + rightBounds.width).toBeLessThanOrEqual(viewportWidth - 8);
-    expect(rightBounds.x).toBeLessThan(rightPointerX);
+    expect(rightBounds.x + rightBounds.width).toBeLessThanOrEqual(rightPointerX - 8);
 
     await page.mouse.move(0, 0);
     await expect(tooltip).toHaveCount(0);

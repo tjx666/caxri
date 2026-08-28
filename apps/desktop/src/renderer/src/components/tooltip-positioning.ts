@@ -7,7 +7,7 @@ export interface TooltipCursorAnchor {
     getBoundingClientRect(): DOMRect;
 }
 
-const TOOLTIP_CURSOR_INLINE_OFFSET = 10;
+export const TOOLTIP_CURSOR_SIDE_OFFSET = 10;
 /**
  * Includes a one-pixel guard so fractional popup widths retain at least eight painted CSS pixels of clearance.
  */
@@ -21,21 +21,9 @@ export function resolveTooltipCursorAnchor(
     isOpen: boolean,
     reason: string,
     point: TooltipCursorPoint | undefined,
-    viewportWidth?: number,
 ): TooltipCursorAnchor | undefined {
     if (!isOpen || reason !== 'trigger-hover' || !point) return;
-    /**
-     * A virtual anchor outside the viewport makes Floating UI's initial alignment flip end at that off-screen anchor
-     * before the cursor-specific shift middleware settles. Clamp the zero-width anchor itself so the first painted
-     * frame observes the same collision padding as every later positioning pass.
-     */
-    const maximumX = viewportWidth
-        ? Math.max(
-              TOOLTIP_CURSOR_COLLISION_PADDING,
-              viewportWidth - TOOLTIP_CURSOR_COLLISION_PADDING,
-          )
-        : Infinity;
-    const x = Math.min(point.x + TOOLTIP_CURSOR_INLINE_OFFSET, maximumX);
+    const x = point.x;
     const y = point.y;
     const rectangle: DOMRect = {
         bottom: y,

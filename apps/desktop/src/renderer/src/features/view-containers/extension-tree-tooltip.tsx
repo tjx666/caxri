@@ -7,6 +7,7 @@ import type { TooltipCursorAnchor } from '../../components/tooltip-positioning';
 import {
     resolveTooltipCursorAnchor,
     TOOLTIP_CURSOR_COLLISION_PADDING,
+    TOOLTIP_CURSOR_SIDE_OFFSET,
 } from '../../components/tooltip-positioning';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '../../components/ui/hover-card';
 import { openExternalUrl } from '../../lib/external-link';
@@ -72,6 +73,11 @@ export function ExtensionTreeTooltip({
         onFocus: handleTriggerFocus,
         onKeyDown: handleTriggerKeyDown,
     });
+    /**
+     * A rich popup must stay beside the pointer. Shifting a bottom-placed popup back across the pointer in a narrow
+     * Status panel would cover the following rows and prevent straight downward navigation.
+     */
+    const side = cursorAnchor ? 'right' : 'bottom';
     return (
         <HoverCard
             open={open}
@@ -90,12 +96,7 @@ export function ExtensionTreeTooltip({
                 setOpen(nextOpen);
                 if (!nextOpen) return;
                 setCursorAnchor(
-                    resolveTooltipCursorAnchor(
-                        nextOpen,
-                        details.reason,
-                        latestPointer.current,
-                        document.documentElement.clientWidth,
-                    ),
+                    resolveTooltipCursorAnchor(nextOpen, details.reason, latestPointer.current),
                 );
             }}
             onOpenChangeComplete={(open) => {
@@ -122,8 +123,8 @@ export function ExtensionTreeTooltip({
                 positionMethod="fixed"
                 ref={popupReference}
                 role="dialog"
-                side="bottom"
-                sideOffset={cursorAnchor ? 8 : 6}
+                side={side}
+                sideOffset={cursorAnchor ? TOOLTIP_CURSOR_SIDE_OFFSET : 6}
                 aria-label={`${tooltip.title} details`}
                 onKeyDown={(event) => {
                     if (event.key !== 'Tab' || !event.shiftKey) return;
