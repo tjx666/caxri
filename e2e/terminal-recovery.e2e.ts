@@ -349,6 +349,12 @@ printf '\033[4;5HCURSOR_MARK_界'
             await running.page.setViewportSize({ height: 800, width });
             // eslint-disable-next-line no-await-in-loop -- Session switches are the user action that remounts the stopped xterm
             await firstSession.click();
+            /**
+             * A click only dispatches the selection request. Wait for the persisted selection so the previous switch
+             * cannot finish late and unmount this Terminal while its restored grid is being inspected.
+             */
+            // eslint-disable-next-line no-await-in-loop -- each switch must settle before the replay can be inspected
+            await expect.poll(() => selectedSessionId(running.page)).toBe(firstSessionId);
             // eslint-disable-next-line no-await-in-loop -- the replay transaction publishes its final fitted grid only after xterm.write completes
             await expect
                 .poll(() => renderedTerminalGrid(running.page, terminalId))
@@ -364,6 +370,8 @@ printf '\033[4;5HCURSOR_MARK_界'
             await expect.poll(() => hasPersistedGridFrame(running.page, terminalId)).toBe(true);
             // eslint-disable-next-line no-await-in-loop -- switch away so the next width forces a fresh persisted attachment
             await secondSession.click();
+            // eslint-disable-next-line no-await-in-loop -- prevent this selection request from racing the next iteration
+            await expect.poll(() => selectedSessionId(running.page)).toBe(secondSessionId);
         }
     } finally {
         try {
