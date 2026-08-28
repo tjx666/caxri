@@ -546,19 +546,25 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                 return;
             case 'runtime.status': {
                 const payload = event.payload;
+                if (payload.status === 'ready') {
+                    useWorkbenchStore.setState((current) => ({
+                        attachEpoch: current.attachEpoch + 1,
+                    }));
+                    /**
+                     * Runtime readiness alone does not mean restored PTYs accept input yet. Keep the visible status
+                     * non-ready until one bootstrap snapshot replaces stale pre-restart Terminal records; otherwise a
+                     * pane can still look running and silently discard keystrokes before its replacement PTY exists.
+                     */
+                    // Fire-and-forget: refreshWorkbench() catches its own Server request failures.
+                    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+                    void refreshWorkbench();
+                    return;
+                }
                 useWorkbenchStore.setState((current) =>
                     current.bootstrap
                         ? { bootstrap: { ...current.bootstrap, runtime: payload } }
                         : current,
                 );
-                if (payload.status === 'ready') {
-                    useWorkbenchStore.setState((current) => ({
-                        attachEpoch: current.attachEpoch + 1,
-                    }));
-                    // Fire-and-forget: refreshWorkbench() catches its own Server request failures.
-                    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-                    void refreshWorkbench();
-                }
                 return;
             }
             case 'host.connectionChanged': {
