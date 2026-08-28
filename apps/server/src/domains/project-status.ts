@@ -14,6 +14,7 @@ import type {
 import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
+import { ProjectStatusSummaryErrorMessage as statusError } from 'caxri';
 import { z } from 'zod';
 
 import type { GitService } from './git';
@@ -307,7 +308,7 @@ export class ProjectStatusService {
             return { refreshedAt: this.now(), error: gitSummary.error };
         }
         const repo = gitSummary.repositories.find((candidate) => candidate.kind === 'primary');
-        if (!repo) return { refreshedAt: this.now(), error: 'No primary repository found.' };
+        if (!repo) return { refreshedAt: this.now(), error: statusError.missingPrimaryRepository };
         const remote = await this.optionalGit(repo.rootPath, ['remote', 'get-url', 'origin']);
         const github = parseGitHubRemote(remote);
         const githubUrl = github ? `https://github.com/${github.owner}/${github.repo}` : undefined;

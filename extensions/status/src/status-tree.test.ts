@@ -1,5 +1,5 @@
 import type { ProjectStatusRepository } from 'caxri';
-import { TreeItemCollapsibleState } from 'caxri';
+import { ProjectStatusSummaryErrorMessage, TreeItemCollapsibleState } from 'caxri';
 import { describe, expect, it } from 'vitest';
 
 import { buildRepoNode, buildStatusRootNodes } from './status-tree';
@@ -185,26 +185,49 @@ describe('Status extension tree', () => {
         expect(children[10].item.command).toMatchObject({ command: 'caxri.showLogs' });
     });
 
-    it('distinguishes empty and summary-error states with retry semantics', () => {
+    it('distinguishes empty, non-Git, and summary-error messages', () => {
         const empty = buildStatusRootNodes({ repositories: [], refreshedAt: 1 });
-        const failure = buildStatusRootNodes({
+        const nonGit = buildStatusRootNodes({
             repositories: [],
             refreshedAt: 2,
+            error: ProjectStatusSummaryErrorMessage.missingGitRepository,
+        });
+        const failure = buildStatusRootNodes({
+            repositories: [],
+            refreshedAt: 3,
             error: 'Project Status is unavailable.',
         });
 
         expect(empty[0].item).toMatchObject({
             id: 'status:empty',
-            label: 'No repositories found.',
+            label: 'No repositories found',
+            description: 'Add a Git repository to this Project, then refresh.',
+            variant: 'message',
+        });
+        expect(empty[0].item.command).toMatchObject({
+            command: 'caxri.project-status.refresh',
+            title: 'Refresh',
+        });
+        expect(nonGit[0].item).toMatchObject({
+            id: 'status:summary:error',
+            label: 'No Git repository',
+            description: 'Initialize a Git repository in the Project root, then refresh.',
+            variant: 'message',
+        });
+        expect(iconId(nonGit[0])).toBe('git-branch');
+        expect(nonGit[0].item.command).toMatchObject({
+            command: 'caxri.project-status.refresh',
+            title: 'Refresh',
         });
         expect(failure[0].item).toMatchObject({
             id: 'status:summary:error',
-            label: 'Project Status is unavailable.',
-            description: 'Select to retry.',
+            label: 'Project Status unavailable',
+            description: 'Project Status is unavailable.',
+            variant: 'message',
         });
         expect(failure[0].item.command).toMatchObject({
             command: 'caxri.project-status.refresh',
-            title: 'Retry Project Status',
+            title: 'Retry',
         });
     });
 

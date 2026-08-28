@@ -5,6 +5,7 @@ import process from 'node:process';
 
 import type { ServerEvent } from '@caxri/protocol';
 import { execFileAsync, StructuredLogger } from '@caxri/system';
+import { ProjectStatusSummaryErrorMessage } from 'caxri';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CaxriDatabase } from '../../db/repository';
@@ -654,6 +655,8 @@ describe('describeGitFailure', () => {
         const notARepoError = Object.assign(new Error('exit 128'), {
             stderr: 'fatal: not a git repository',
         });
-        expect(describeGitFailure(notARepoError)).toBe('The Project root is not a Git repository.');
+        expect(describeGitFailure(notARepoError)).toBe(
+            ProjectStatusSummaryErrorMessage.missingGitRepository,
+        );
     });
 });

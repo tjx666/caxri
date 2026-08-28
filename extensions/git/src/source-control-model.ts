@@ -9,6 +9,7 @@ import type {
     SourceControlResource,
     SourceControlViewModel,
 } from 'caxri';
+import { ProjectStatusSummaryErrorMessage } from 'caxri';
 
 import {
     boundedActionLabel,
@@ -235,7 +236,8 @@ function emptyMessageForMode(
 
 function summaryErrorMessage(error: string | undefined): string {
     const known: Readonly<Record<string, string>> = {
-        'The Project root is not a Git repository.': 'This folder is not a Git repository.',
+        [ProjectStatusSummaryErrorMessage.missingGitRepository]:
+            'This folder is not a Git repository.',
         'Git is not installed or is unavailable on PATH.':
             'Git is not installed or is unavailable on PATH.',
         'The Git operation timed out.': 'The Git operation timed out.',

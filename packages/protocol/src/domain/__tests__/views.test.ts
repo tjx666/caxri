@@ -91,6 +91,25 @@ describe('extension view contracts', () => {
             }),
         ).toMatchObject({ id: 'repository', variant: 'header' });
         expect(
+            treeItemSchema.parse({
+                handle: 'id:message',
+                id: 'message',
+                label: 'No Git repository',
+                accessibilityLabel: 'No Git repository',
+                collapsibleState: 'none',
+                variant: 'message',
+            }),
+        ).toMatchObject({ id: 'message', variant: 'message' });
+        expect(
+            treeItemSchema.safeParse({
+                handle: 'id:collapsible-message',
+                label: 'Invalid message',
+                accessibilityLabel: 'Invalid message',
+                collapsibleState: 'collapsed',
+                variant: 'message',
+            }).success,
+        ).toBe(false);
+        expect(
             treeItemSchema.safeParse({
                 handle: 'id:unsupported-variant',
                 label: 'Unsupported variant',

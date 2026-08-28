@@ -27,7 +27,8 @@ the reviewed public API and Server grants; the `desktop` principal bypass is nev
 `packages/extension-api` publishes the physical ESM-only package named `caxri`. Its `exports` map provides
 `types` and `import` only; CommonJS `require('caxri')` is unsupported. The default export is the
 per-extension API object, while named runtime exports include `Disposable`, `EventEmitter`,
-`CancellationTokenSource`, `ThemeIcon`, `TreeItem`, and `TreeItemCollapsibleState`.
+`CancellationTokenSource`, `ProjectStatusSummaryErrorMessage`, `ThemeIcon`, `TreeItem`, and
+`TreeItemCollapsibleState`.
 
 The ordinary package build contains an explicit outside-host stub. Bundled extension builds
 externalize only `caxri`, and the Extension Host's native ESM resolve hook injects a synthetic
@@ -196,7 +197,11 @@ retires its removed descendants before the bounded handle capacity is evaluated.
 `TreeItem.variant = 'header'` is the optional, domain-neutral presentation contract for an item that
 introduces a visually separated group of children. The shared Renderer gives it header emphasis and
 a section divider; providers must opt in explicitly rather than relying on root depth or label
-conventions. Ordinary tree rows remain the default.
+conventions. `TreeItem.variant = 'message'` presents a readable icon, label, description, and optional
+command action for a complete empty, prerequisite, or failure state instead of truncating that guidance
+into an ordinary row. A message must be a leaf; the validated process boundary rejects a collapsible
+message. It keeps the tree's roving focus and Enter command path, suppresses the redundant row Tooltip,
+and disables its visible action while the View refresh is pending. Ordinary tree rows remain the default.
 
 `TreeItem.tooltip` accepts either the existing bounded plain string or a bounded `rich` payload with
 a title, optional semantic badge, and up to eight labeled rows. Rich row values are always rendered

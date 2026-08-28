@@ -195,7 +195,7 @@ export const treeItemCommandSchema = z.object({
 });
 
 export const treeItemIdSchema = z.string().min(1).max(480);
-export const treeItemVariantSchema = z.enum(['header']);
+export const treeItemVariantSchema = z.enum(['header', 'message']);
 const treeItemTooltipUrlSchema = z
     .string()
     .min(1)
@@ -227,18 +227,27 @@ export const treeItemRichTooltipSchema = z.object({
     rows: treeItemTooltipRowsSchema,
 });
 
-export const treeItemSchema = z.object({
-    handle: z.string().min(1).max(512),
-    id: treeItemIdSchema.optional(),
-    variant: treeItemVariantSchema.optional(),
-    label: z.string().min(1).max(1_024),
-    description: z.string().max(1_024).optional(),
-    tooltip: z.union([z.string().max(4_096), treeItemRichTooltipSchema]).optional(),
-    accessibilityLabel: z.string().min(1).max(1_024),
-    collapsibleState: z.enum(['none', 'collapsed', 'expanded']),
-    icon: viewIconSchema.optional(),
-    command: treeItemCommandSchema.optional(),
-});
+export const treeItemSchema = z
+    .object({
+        handle: z.string().min(1).max(512),
+        id: treeItemIdSchema.optional(),
+        variant: treeItemVariantSchema.optional(),
+        label: z.string().min(1).max(1_024),
+        description: z.string().max(1_024).optional(),
+        tooltip: z.union([z.string().max(4_096), treeItemRichTooltipSchema]).optional(),
+        accessibilityLabel: z.string().min(1).max(1_024),
+        collapsibleState: z.enum(['none', 'collapsed', 'expanded']),
+        icon: viewIconSchema.optional(),
+        command: treeItemCommandSchema.optional(),
+    })
+    .superRefine((item, context) => {
+        if (item.variant === 'message' && item.collapsibleState !== 'none')
+            context.addIssue({
+                code: 'custom',
+                message: 'A message TreeItem must be a leaf',
+                path: ['collapsibleState'],
+            });
+    });
 
 export const treeChildrenResultSchema = z.object({
     items: z.array(treeItemSchema).max(MAX_VIEW_TREE_ITEMS),
