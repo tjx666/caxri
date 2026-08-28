@@ -97,6 +97,10 @@ async function repoVersionLocations(): Promise<string[]> {
 }
 
 describe('toolchain contract', () => {
+    it('places the standalone pnpm tool ahead of Node Corepack shims', () => {
+        expect(mise.search(/^pnpm = /mu)).toBeLessThan(mise.search(/^node = /mu));
+    });
+
     it('loads the exact Node.js and pnpm versions from mise.toml without action-local copies', async () => {
         const versionStep = stepByName('Read mise tool versions');
         const nodeSetupStep = setupActionDocument.runs.steps.find((step) =>

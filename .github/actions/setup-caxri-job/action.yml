@@ -162,4 +162,4 @@ runs:
     - name: Install Electron binary
       if: inputs.install-electron == 'true'
       shell: bash
-      run: bun run scripts/ci-metrics.ts --label "Electron download" -- pnpm rebuild electron
+      run: bun run scripts/ci-metrics.ts --label "Electron download" -- bun run electron:install

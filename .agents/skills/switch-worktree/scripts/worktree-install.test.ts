@@ -50,12 +50,12 @@ afterEach(async () => {
 });
 
 describe('worktree dependency installation', () => {
-    it('repairs missing Electron postinstall artifacts exactly once', async () => {
+    it('repairs missing Electron binary artifacts exactly once', async () => {
         const temporary = await mkdtemp(join(tmpdir(), 'caxri-worktree-electron-install-'));
         temporaryDirectories.push(temporary);
         const binaryDirectory = join(temporary, 'bin');
         const electronDirectory = join(temporary, 'node_modules', 'electron');
-        const postinstallMarker = join(temporary, 'electron-postinstall-runs');
+        const installMarker = join(temporary, 'electron-install-runs');
         await mkdir(binaryDirectory);
         await mkdir(electronDirectory, { recursive: true });
         const niPath = join(binaryDirectory, 'ni');
@@ -72,15 +72,15 @@ describe('worktree dependency installation', () => {
                 String.raw`writeFileSync(join(__dirname, 'dist', 'version'), 'v1.0.0\n');`,
                 "writeFileSync(join(__dirname, 'dist', executable), 'binary');",
                 "writeFileSync(join(__dirname, 'path.txt'), executable);",
-                String.raw`appendFileSync(process.env.CAXRI_TEST_ELECTRON_POSTINSTALL_MARKER, 'run\n');`,
+                String.raw`appendFileSync(process.env.CAXRI_TEST_ELECTRON_INSTALL_MARKER, 'run\n');`,
             ].join('\n'),
             'utf8',
         );
         const previousPath = process.env.PATH;
-        const previousMarker = process.env.CAXRI_TEST_ELECTRON_POSTINSTALL_MARKER;
+        const previousMarker = process.env.CAXRI_TEST_ELECTRON_INSTALL_MARKER;
         try {
             process.env.PATH = `${binaryDirectory}:${previousPath}`;
-            process.env.CAXRI_TEST_ELECTRON_POSTINSTALL_MARKER = postinstallMarker;
+            process.env.CAXRI_TEST_ELECTRON_INSTALL_MARKER = installMarker;
             await installWorktreeDependencies(temporary);
             expect(await readFile(join(electronDirectory, 'path.txt'), 'utf8')).toBe(
                 'Electron.app/Contents/MacOS/Electron',
@@ -95,19 +95,18 @@ describe('worktree dependency installation', () => {
             await installWorktreeDependencies(temporary);
         } finally {
             process.env.PATH = previousPath;
-            if (previousMarker === undefined)
-                delete process.env.CAXRI_TEST_ELECTRON_POSTINSTALL_MARKER;
-            else process.env.CAXRI_TEST_ELECTRON_POSTINSTALL_MARKER = previousMarker;
+            if (previousMarker === undefined) delete process.env.CAXRI_TEST_ELECTRON_INSTALL_MARKER;
+            else process.env.CAXRI_TEST_ELECTRON_INSTALL_MARKER = previousMarker;
         }
 
-        expect(await readFile(postinstallMarker, 'utf8')).toBe('run\n');
+        expect(await readFile(installMarker, 'utf8')).toBe('run\n');
     });
 
-    it('retries an existing worktree left incomplete by a failed postinstall', async () => {
+    it('retries an existing worktree left incomplete by a failed Electron install', async () => {
         const fixture = await createRepoFixture();
         const failAfterDependencies = async (path: string): Promise<void> => {
             await mkdir(join(path, 'node_modules'));
-            throw new Error('temporary Electron postinstall failure');
+            throw new Error('temporary Electron install failure');
         };
         await expect(
             createWorktree({
@@ -115,7 +114,7 @@ describe('worktree dependency installation', () => {
                 cwd: fixture.root,
                 install: failAfterDependencies,
             }),
-        ).rejects.toThrow('temporary Electron postinstall failure');
+        ).rejects.toThrow('temporary Electron install failure');
 
         const repaired = await createWorktree({
             branch: 'fix/retry-create-postinstall',

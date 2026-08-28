@@ -23,7 +23,14 @@ may depend on public packages but never on Electron, Server internals, or native
 Day-to-day commands continue through `ni` and `bun run`. `mise.toml` pins Node and pnpm for local
 development, CI provisions those versions explicitly, and the root intentionally omits
 `packageManager` and `devEngines.packageManager` so package-manager selection does not depend on
-Corepack-compatible manifest metadata.
+Corepack-compatible manifest metadata. The standalone pnpm tool precedes Node in `mise.toml` because
+Node installations may contain a Corepack pnpm shim whose last-known-good version differs from the
+repository pin.
+
+Electron 42 and later expose `install-electron` instead of a package lifecycle script. Dependency
+installation therefore does not guarantee that `path.txt` and the Electron distribution exist. The
+root `electron:install` script is the shared explicit download entrypoint for local development and
+CI; the worktree launcher additionally verifies the versioned binary artifacts before starting.
 
 Workspace builds run before Desktop development startup and the production Desktop build. The root
 manifest intentionally has no Electron `main`, so development launches electron-vite with the explicit
