@@ -31,7 +31,7 @@ function incompatibleServerFailureMessage(): { content: string; title: string } 
             'This pre-release build does not migrate unpublished Host protocols. Quit Caxri, preview the reset plan, then apply it:\n\n' +
             'bun run uninstall:caxri\n' +
             'bun run uninstall:caxri -- --yes\n\n' +
-            'The reset removes Caxri application state and running Terminals, but never Project directories or user files.',
+            'The reset removes Caxri application state and running Terminals, but never Project folders or user files.',
     };
 }
 

@@ -8,12 +8,12 @@ Local, direct, and Relay access establish the same public Server protocol. Local
 loopback bootstrap credential. Direct access uses TLS with a pairing-delivered certificate pin,
 revocable Client Grants, one-use short-lived WebSocket tickets, and per-method scopes. Project browsing
 and authorization always execute on the Server behind an operator-grade `projects:authorize` scope;
-a native directory picker is only a same-machine Client optimization and never transfers a Client path
+a native folder picker is only a same-machine Client optimization and never transfers a Client path
 to a remote Server.
 
 The local Desktop path browser follows that boundary explicitly. Project-local directories continue
 through Server Core's Session/Workbench-root resolver. Home, absolute, and parent traversal outside
-added Projects first require Electron Main's native directory selection; Main keeps the canonical root,
+added Projects first require Electron Main's native folder selection; Main keeps the canonical root,
 directory location, and entry paths behind opaque IDs and returns only display labels and bounded entry
 metadata to the Renderer. The temporary browse context is read-only and expires when the dialog closes,
 after one file is opened, or after its short timeout. Opening a file then reuses the existing root-grant

@@ -62,19 +62,19 @@ function authority(options: {
     };
 }
 
-describe('selectProjectDirectory', () => {
+describe('selectProjectFolder', () => {
     it('grants a single-use root from the injected test root without opening a dialog', async () => {
         const grants = new ProjectRootGrants();
         const { instance } = authority({ grants, nextTestRoot: () => '/test/root' });
 
-        await expect(instance.selectProjectDirectory()).resolves.toBe('/test/root');
+        await expect(instance.selectProjectFolder()).resolves.toBe('/test/root');
         expect(electronMock.dialog.showOpenDialog).not.toHaveBeenCalled();
         await expect(grants.use('/test/root', () => Promise.resolve('created'))).resolves.toBe(
             'created',
         );
     });
 
-    it('grants the chosen directory and passes the window to the native dialog', async () => {
+    it('grants the chosen folder and passes the window to the native dialog', async () => {
         const grants = new ProjectRootGrants();
         const window = { id: 'main-window' };
         electronMock.dialog.showOpenDialog.mockResolvedValueOnce({
@@ -83,10 +83,13 @@ describe('selectProjectDirectory', () => {
         });
         const { instance } = authority({ grants, window });
 
-        await expect(instance.selectProjectDirectory()).resolves.toBe('/chosen/root');
+        await expect(instance.selectProjectFolder()).resolves.toBe('/chosen/root');
         expect(electronMock.dialog.showOpenDialog).toHaveBeenCalledWith(
             window,
-            expect.objectContaining({ properties: ['openDirectory', 'createDirectory'] }),
+            expect.objectContaining({
+                title: 'Choose a Project folder',
+                properties: ['openDirectory', 'createDirectory'],
+            }),
         );
         await expect(grants.use('/chosen/root', () => Promise.resolve('created'))).resolves.toBe(
             'created',
@@ -101,7 +104,7 @@ describe('selectProjectDirectory', () => {
         });
         const { instance } = authority({ grants });
 
-        await expect(instance.selectProjectDirectory()).resolves.toBeNull();
+        await expect(instance.selectProjectFolder()).resolves.toBeNull();
         await expect(grants.use('/chosen/root', () => Promise.resolve('created'))).rejects.toThrow(
             'was not selected',
         );
@@ -114,7 +117,7 @@ describe('selectProjectDirectory', () => {
         });
         const { instance } = authority({});
 
-        await instance.selectProjectDirectory();
+        await instance.selectProjectFolder();
         expect(electronMock.dialog.showOpenDialog).toHaveBeenCalledWith(
             expect.objectContaining({ properties: ['openDirectory', 'createDirectory'] }),
         );
@@ -321,7 +324,7 @@ describe('openTerminalFileLink', () => {
         );
     });
 
-    it('cancels before directory selection without creating Project or Session state', async () => {
+    it('cancels before folder selection without creating Project or Session state', async () => {
         electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 1 });
         const request = vi.fn((method: string) => {
             if (method === 'terminal.fileLink.resolve')

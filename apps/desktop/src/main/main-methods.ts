@@ -101,7 +101,7 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                     window: mainWindow,
                 });
             case 'dialog.selectDirectory':
-                return options.workbenchRootAuthority.selectProjectDirectory();
+                return options.workbenchRootAuthority.selectProjectFolder();
             case 'pathBrowser.start':
                 return options.workbenchRootAuthority.pathBrowser.start(request.params);
             case 'pathBrowser.browse':

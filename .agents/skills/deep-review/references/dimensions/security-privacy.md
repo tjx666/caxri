@@ -20,12 +20,12 @@ This dimension is exempt from codebase calibration.
   Project containment, symlink-escape defense, type/size bounds, and the operation-specific race
   protection
 - Save truncates before opening a validated inode with no-follow protection
-- Directory-picker grants are reusable, long-lived, or survive cancellation
+- Folder-picker grants are reusable, long-lived, or survive cancellation
 - PTY/Git/CLI launches concatenate shell strings, accept unvalidated argv, or inherit credential and
   Caxri-internal environment variables
 - The Host's profile lock, private Unix socket, authentication handshake, or generation-bound
   Desktop lease weakens principal/capability checks or admits a second concurrent Desktop authority
-- Project or Session deletion can remove the Project directory or user files
+- Project or Session deletion can remove the Project folder or user files
 - Logs, diagnostics, fixtures, errors, or tests expose source content, terminal output/snapshots,
   shell input, prompts, agent transcripts, credentials, environment values, or presigned URL query
   strings

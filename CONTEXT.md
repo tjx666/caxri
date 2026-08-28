@@ -26,9 +26,9 @@ _Avoid_: Session state, Desktop state
 ## Work
 
 **Project**:
-A directory accessible to and explicitly authorized for a Server. A Project owns exactly one root,
+A folder accessible to and explicitly authorized for a Server. A Project owns exactly one root,
 regardless of whether the connecting Client runs on the same machine.
-_Avoid_: Workspace, repository, local folder
+_Avoid_: Workspace, repository, directory (except for filesystem primitives)
 
 **Session**:
 A durable unit of work within one owning Project that owns Terminals, the shared Workbench Root,

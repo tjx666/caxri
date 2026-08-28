@@ -114,7 +114,7 @@ export const settingsSpec = [
         kind: 'enum',
         key: 'workbench.newWorktreeBehavior',
         title: 'New worktree behavior',
-        description: 'First access to a worktree always requires directory authorization',
+        description: 'First access to a worktree always requires folder authorization',
         category: 'general',
         keywords: ['git', 'branch', 'checkout'],
         options: [

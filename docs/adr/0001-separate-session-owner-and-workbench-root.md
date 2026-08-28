@@ -11,7 +11,7 @@ become the visible work surface without moving or restarting the Agent process t
 
 Workbench state and dirty document identity are scoped by `(sessionId, workbenchProjectId)`. A hook
 is only a content-free timing signal: Runtime attributes a candidate from a unique structured Git
-topology delta, and Main requires an exact canonical native-directory authorization before an
+topology delta, and Main requires an exact canonical native-folder authorization before an
 unknown worktree becomes a Project. Ambiguous concurrent deltas fail closed, and a missing or
 replaced active root falls back to the owning Project. This deliberately rejects the simpler choices
 of mutating Session ownership, moving Terminal cwd, trusting a path reported by an Agent, or sharing

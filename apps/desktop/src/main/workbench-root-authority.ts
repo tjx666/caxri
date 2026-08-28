@@ -49,8 +49,8 @@ async function showMessageBox(
 }
 
 /**
- * Keeps candidate paths and single-use directory grants inside Electron Main. The Renderer sees only opaque candidate
- * IDs and can never nominate a path for automatic authorization.
+ * Keeps candidate paths and single-use folder grants inside Electron Main. The Renderer sees only opaque candidate IDs
+ * and can never nominate a path for automatic authorization.
  */
 export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOptions) {
     async function chooseTargetSession(projectId: string): Promise<string | undefined> {
@@ -140,7 +140,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
             options.grants.grant(selected.rootPath);
             let project: ServerOperationResult<'project.create'>;
             /**
-             * A failed autonomous flow cannot leave a reusable directory grant behind.
+             * A failed autonomous flow cannot leave a reusable folder grant behind.
              */
             try {
                 project = await options.grants.use(selected.rootPath, () =>
@@ -218,14 +218,14 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
     });
 
     return {
-        async selectProjectDirectory() {
+        async selectProjectFolder() {
             const testRoot = options.nextTestRoot();
             if (testRoot) {
                 options.grants.grant(testRoot);
                 return testRoot;
             }
             const result = await chooseDirectory(options.getWindow(), {
-                title: 'Choose a Project directory',
+                title: 'Choose a Project folder',
                 properties: ['openDirectory', 'createDirectory'],
             });
             // `.at(0)` (not `[0]`) keeps the result typed as possibly missing: `filePaths` is empty
@@ -308,7 +308,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
                 if (selectedRoot !== expectedRoot)
                     throw new CaxriError(
                         'PATH_DENIED',
-                        'Selected directory does not match the detected worktree',
+                        'Selected folder does not match the detected worktree',
                     );
                 options.grants.grant(selectedRoot);
                 try {

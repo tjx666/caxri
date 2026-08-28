@@ -108,8 +108,8 @@ export function beginSessionCreation(projectId: string): void {
     } else useDialogStore.getState().askAgentForProject(projectId);
 }
 
-export async function chooseProjectDirectory(): Promise<void> {
-    await tryCommand('Directory selection failed', async () => {
+export async function chooseProjectFolder(): Promise<void> {
+    await tryCommand('Project folder selection failed', async () => {
         const rootPath = await caxri.request('dialog.selectDirectory');
         if (!rootPath) return;
         const defaultAgent = getBootstrap()?.settings['session.defaultAgent'];
@@ -167,13 +167,13 @@ export async function didRenameSession(sessionId: string, displayTitle: string):
 }
 
 /**
- * The directory-picker grant is a single-use Main-process authorization, so abandoning the Agent choice must revoke it
+ * The folder-picker grant is a single-use Main-process authorization, so abandoning the Agent choice must revoke it
  * instead of leaving the root reachable.
  */
 export function cancelPendingSession(): void {
     const pendingRoot = useDialogStore.getState().pendingRoot;
     if (pendingRoot) {
-        // Fire-and-forget: revoking an abandoned directory-picker grant has no UI-visible outcome
+        // Fire-and-forget: revoking an abandoned folder-picker grant has no UI-visible outcome
         // to await, and a failure here has nothing left to affect besides the grant itself.
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void caxri.request('project.cancelCreate', { rootPath: pendingRoot });
