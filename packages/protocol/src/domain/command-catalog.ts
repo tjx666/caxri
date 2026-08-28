@@ -47,7 +47,7 @@ export const commandDefinitions: CommandDefinition[] = [
         id: 'project.create',
         title: 'Add Project',
         category: 'Project',
-        description: 'Add a local folder as a Project',
+        description: 'Add a folder as a Project',
         nativeMenu: { menu: 'project', group: 0, order: 0 },
     },
     {
@@ -444,7 +444,8 @@ export const defaultKeybindings: Keybinding[] = [
     { key: 'cmd+shift+p', command: 'commandPalette.open' },
     { key: 'cmd+shift+a', command: 'agentActions.open' },
     /**
-     * `Cmd+O` matches the macOS/VS Code "Open…" convention: adding a Project is opening a local folder.
+     * `Cmd+O` matches VS Code's "Open Folder…" / "Add Folder to Workspace…" convention. Caxri always adds a Project
+     * rather than replacing the window.
      */
     { key: 'cmd+o', command: 'project.create' },
     { key: 'cmd+t', command: 'terminal.new' },
