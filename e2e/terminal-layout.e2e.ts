@@ -197,6 +197,11 @@ async function waitForStableTerminalGrid(page: Page, terminalId: string): Promis
     const input = pane.locator('.xterm-helper-textarea');
     const rows = pane.locator('.xterm-rows');
     const gridProbe = String.raw`printf 'CAXRI_PTY_GRID_%sx%s\n' "$(tput cols)" "$(tput lines)"`;
+    /**
+     * Moving a newly created Terminal into a split remounts xterm. Its DOM can appear before the asynchronous PTY
+     * attachment and initial replay finish, so keyboard probes must wait for the Renderer-owned readiness boundary.
+     */
+    await expect(pane.locator('.terminal-surface[data-terminal-attached="true"]')).toBeVisible();
     await input.focus();
     await input.press('Control+L');
     await input.pressSequentially(gridProbe);
