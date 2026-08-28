@@ -141,6 +141,11 @@ reason without replacing the frozen lineage. When ingest succeeds but readback
 fails, `resume` points to the persisted pending attempt and the same command
 retries only remote readback.
 
+Do not pass `--round` to the ordinary `state.ts acceptance` status command.
+`acceptance-publish` owns normal round advancement;
+`acceptance-reconcile-round` is only for an explicit, reasoned repair of ledger
+drift.
+
 When the current authenticated principal can read the public frozen Acceptance
 but cannot append to it, first verify the ownership mismatch and that no pending
 publication exists. Restart the active lineage explicitly; the old publication

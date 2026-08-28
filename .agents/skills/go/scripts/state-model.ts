@@ -199,7 +199,6 @@ export interface PullRequestInput {
 export interface AcceptanceInput {
     acceptedHeadSha?: string;
     id?: string;
-    round?: number;
     status?: AcceptanceStatus;
     url?: string;
     waivedHeadSha?: string;
@@ -518,9 +517,6 @@ export function recordWorktree(state: GoState, input: WorktreeInput, createdAt =
 }
 
 export function recordAcceptance(state: GoState, input: AcceptanceInput): GoState {
-    if (input.round !== undefined && (!Number.isSafeInteger(input.round) || input.round < 0)) {
-        throw new Error('Acceptance round must be a non-negative integer');
-    }
     if (input.status === 'waived' && (!input.waivedHeadSha || !input.waiverReason?.trim())) {
         throw new Error('Acceptance waiver requires exact head and explicit reason');
     }
@@ -530,14 +526,11 @@ export function recordAcceptance(state: GoState, input: AcceptanceInput): GoStat
     if (input.url && state.acceptance.url && input.url !== state.acceptance.url) {
         throw new Error('Acceptance URL cannot leave the frozen publication lineage');
     }
-    if (input.round !== undefined && input.round < state.acceptance.round) {
-        throw new Error('Acceptance round cannot move backwards');
-    }
     state.acceptance = {
         acceptedHeadSha: input.acceptedHeadSha ?? state.acceptance.acceptedHeadSha,
         id: input.id ?? state.acceptance.id,
         publication: state.acceptance.publication,
-        round: input.round ?? state.acceptance.round,
+        round: state.acceptance.round,
         status: input.status ?? state.acceptance.status,
         url: input.url ?? state.acceptance.url,
         waivedHeadSha: input.waivedHeadSha ?? state.acceptance.waivedHeadSha,
