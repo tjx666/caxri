@@ -7,6 +7,26 @@ async function waitForTooltipAnimation(tooltip: Locator): Promise<void> {
     });
 }
 
+export async function verifyColdRightEdgeTreeTooltip(page: Page, tree: Locator): Promise<void> {
+    const tooltipRow = tree.getByRole('treeitem', { name: 'Tooltip row', exact: true });
+    const rowBounds = await tooltipRow.boundingBox();
+    if (!rowBounds) throw new Error('Tooltip row bounds are unavailable');
+    const pointerX = rowBounds.x + rowBounds.width - 4;
+    await page.mouse.move(pointerX, rowBounds.y + rowBounds.height / 2);
+    const tooltip = page
+        .locator('.tooltip-popup:visible')
+        .filter({ hasText: 'Full fixture tooltip' });
+    await expect(tooltip).toBeVisible();
+    await waitForTooltipAnimation(tooltip);
+    const bounds = await tooltip.boundingBox();
+    if (!bounds) throw new Error('Cold-open tooltip bounds are unavailable');
+    const viewportWidth = await page.evaluate(() => document.documentElement.clientWidth);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(viewportWidth - 8);
+    expect(bounds.x).toBeLessThan(pointerX);
+    await page.mouse.move(0, 0);
+    await expect(tooltip).toHaveCount(0);
+}
+
 export async function verifyTreeTooltipPositioning(
     page: Page,
     tree: Locator,

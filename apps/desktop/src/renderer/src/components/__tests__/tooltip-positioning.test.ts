@@ -30,4 +30,20 @@ describe('tooltip cursor positioning', () => {
         ).toBeUndefined();
         expect(resolveTooltipCursorAnchor(true, 'trigger-hover', undefined)).toBeUndefined();
     });
+
+    it('keeps the first cursor anchor inside the collision-padded viewport', () => {
+        const anchor = resolveTooltipCursorAnchor(
+            true,
+            'trigger-hover',
+            { x: 1_436, y: 240 },
+            1_440,
+        );
+
+        expect(anchor?.getBoundingClientRect()).toMatchObject({
+            left: 1_431,
+            right: 1_431,
+            x: 1_431,
+            y: 240,
+        });
+    });
 });

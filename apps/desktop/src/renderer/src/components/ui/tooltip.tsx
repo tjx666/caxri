@@ -9,7 +9,10 @@ import { useCommandShortcut } from '../../lib/keybindings';
 import { cn } from '../../lib/utilities';
 import { ShortcutBadge } from '../shortcut-badge';
 import type { TooltipCursorAnchor } from '../tooltip-positioning';
-import { resolveTooltipCursorAnchor } from '../tooltip-positioning';
+import {
+    resolveTooltipCursorAnchor,
+    TOOLTIP_CURSOR_COLLISION_PADDING,
+} from '../tooltip-positioning';
 
 export function TooltipProvider({ children }: { children: ReactNode }) {
     return (
@@ -51,6 +54,12 @@ export function Tooltip({
 }) {
     const latestPointer = useRef<{ x: number; y: number }>(undefined);
     const [cursorAnchor, setCursorAnchor] = useState<TooltipCursorAnchor>();
+    /**
+     * Installs cursor collision middleware before the first popup mount. The hover-open callback establishes the anchor
+     * asynchronously; waiting for that state lets a first right-edge open use Base UI's default flip behavior and
+     * overflow by the cursor offset.
+     */
+    const isCursorMode = anchorMode === 'cursor';
     const isCursorAnchored = anchorMode === 'cursor' && cursorAnchor !== undefined;
     return (
         <TooltipPrimitive.Root
@@ -64,6 +73,7 @@ export function Tooltip({
                                       open,
                                       details.reason,
                                       latestPointer.current,
+                                      document.documentElement.clientWidth,
                                   ),
                               );
                       }
@@ -94,11 +104,11 @@ export function Tooltip({
                     anchor={isCursorAnchored ? cursorAnchor : undefined}
                     className="z-[90]"
                     collisionAvoidance={
-                        isCursorAnchored
+                        isCursorMode
                             ? { side: 'flip', align: 'shift', fallbackAxisSide: 'none' }
                             : undefined
                     }
-                    collisionPadding={isCursorAnchored ? 8 : undefined}
+                    collisionPadding={isCursorMode ? TOOLTIP_CURSOR_COLLISION_PADDING : undefined}
                     positionMethod={isCursorAnchored ? 'fixed' : undefined}
                     side="bottom"
                     sideOffset={isCursorAnchored ? 8 : 6}

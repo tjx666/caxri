@@ -8,6 +8,7 @@ import type { MessageBoxOptions } from 'electron';
 
 import {
     verifyBottomEdgeTreeTooltip,
+    verifyColdRightEdgeTreeTooltip,
     verifyTreeTooltipPositioning,
 } from './support/extension-tooltip.ts';
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
@@ -398,6 +399,35 @@ esac
                 exact: true,
             }),
         ).toHaveAttribute('aria-selected', 'true');
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('tree tooltip keeps its first cursor open inside the right viewport edge', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-extension-tooltip-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await mkdir(root, { recursive: true });
+    const running = await launchCaxri({
+        executablePath: packagedExecutable,
+        userDataDir: userData,
+        testRootPath: root,
+    });
+    try {
+        await stubPackagedProjectDialog(running, root, packagedExecutable);
+        await createShellSession(running.page);
+        await running.page.getByRole('tab', { name: 'Extension Fixture', exact: true }).click();
+        const tree = running.page.getByRole('tree', { name: 'Fixture Tree' });
+        await expect(
+            tree.getByRole('treeitem', { name: 'Tooltip row', exact: true }),
+        ).toBeVisible();
+        await verifyColdRightEdgeTreeTooltip(running.page, tree);
     } finally {
         try {
             await running.app.close();
