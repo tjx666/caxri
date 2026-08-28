@@ -66,13 +66,16 @@ const caxriVersion = typeof __CAXRI_VERSION__ === 'string' ? __CAXRI_VERSION__ :
 process.env.CAXRI_APP_VERSION = caxriVersion;
 process.env.CAXRI_GIT_COMMIT = typeof __CAXRI_COMMIT__ === 'string' ? __CAXRI_COMMIT__ : 'unknown';
 /**
- * Work around macOS deriving the native application-menu name from Electron's development process title.
- * `app.setName()` only changes Electron's internal name, so keep this unsupported behavior limited to unpackaged macOS
- * launches until Electron exposes a development-host naming API.
+ * Electron derives automatic native role labels such as `About` and `Hide` from `app.name`, while macOS derives the
+ * unpackaged process identity from `process.title`. Configure both so development menus expose product names instead of
+ * the workspace package name without making the dev process indistinguishable from the packaged app.
  *
  * @see https://www.electronjs.org/docs/latest/api/app#appsetnamename
  */
-if (process.platform === 'darwin' && !app.isPackaged) process.title = 'Caxri Dev';
+if (process.platform === 'darwin' && !app.isPackaged) {
+    app.setName('Caxri Desktop');
+    process.title = 'Caxri Dev';
+}
 // Must settle before Chromium, logging, Server attachment, or the single-instance lock captures launch identity.
 const desktopProfile = configureDesktopProfile(app, process.env);
 const gpuBoot = prepareGpuBoot(app, desktopProfile.userDataPath);
