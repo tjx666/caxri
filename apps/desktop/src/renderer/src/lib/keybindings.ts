@@ -77,11 +77,17 @@ const EDITABLE_SELECTOR = 'input, textarea, [contenteditable], .monaco-editor, .
 const TERMINAL_SELECTOR = '.xterm';
 const KEYBINDING_RECORDING_SELECTOR = '[data-keybinding-recording="true"]';
 
+interface ClosestEventTarget extends EventTarget {
+    closest(selector: string): unknown;
+}
+
+function hasClosest(target: EventTarget): target is ClosestEventTarget {
+    return 'closest' in target && typeof target.closest === 'function';
+}
+
 function eventTargetClosest(target: EventTarget | null, selector: string): unknown {
-    if (!target) return;
-    const closest = (target as unknown as { closest?: unknown }).closest;
-    if (typeof closest !== 'function') return;
-    return Reflect.apply(closest, target, [selector]);
+    if (!target || !hasClosest(target)) return;
+    return target.closest(selector);
 }
 
 /**

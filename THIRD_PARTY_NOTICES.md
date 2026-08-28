@@ -1,5 +1,11 @@
 # Third-party notices
 
+## anti-slop
+
+Caxri vendors the generic anti-slop Oxlint plugin as contributor tooling. The source was copied from upstream commit [`6d538555`](https://github.com/dmmulroy/anti-slop/commit/6d538555cb151d4121ed51a27db81890eacf8ae9); it is not part of the product runtime.
+
+Copyright (c) 2026 Dillon Mulroy. Licensed under the MIT License. The vendored license text is in `licenses/ANTI_SLOP_LICENSE.txt`; the upstream source is <https://github.com/dmmulroy/anti-slop>.
+
 ## Dracula Theme
 
 Caxri's default semantic color tokens are derived from the official Dracula Theme palette.

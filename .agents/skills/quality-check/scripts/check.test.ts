@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import {
     directImportTestCandidates,
     dirtyLayerReportForFiles,
+    eslintArguments,
     formatCheckSummary,
     hasDirectSourceImport,
     IMPORT_PATH_ALIASES,
@@ -229,8 +230,20 @@ describe('playwrightArguments', () => {
 describe('lintPipelineForFile', () => {
     it('matches the repository lint-staged pipelines', () => {
         expect(lintPipelineForFile('apps/desktop/src/main/index.ts')).toBe('code');
+        expect(lintPipelineForFile('scripts/config.mts')).toBe('code');
+        expect(lintPipelineForFile('scripts/config.cts')).toBe('code');
         expect(lintPipelineForFile('DESIGN.md')).toBe('format');
         expect(lintPipelineForFile('assets/font.woff2')).toBeUndefined();
+    });
+});
+
+describe('eslintArguments', () => {
+    it('silences explicitly named files that the repository intentionally ignores', () => {
+        expect(eslintArguments(['tools/oxlint/anti-slop/index.ts'])).toEqual([
+            '--fix',
+            '--no-warn-ignored',
+            'tools/oxlint/anti-slop/index.ts',
+        ]);
     });
 });
 

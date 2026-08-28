@@ -1,4 +1,4 @@
-# Type-aware linting split: ESLint (syntactic) + oxlint/tsgolint (typed)
+# Linting split: ESLint (syntactic) + oxlint/tsgolint (typed and anti-slop)
 
 Since 2026-08, the JS/TS lint gate is split by capability instead of running one tool for
 everything:
@@ -10,7 +10,8 @@ everything:
   it never builds a TypeScript program.
 - **oxlint + tsgolint** (`bun run lint:type-aware`, `.oxlintrc.json`) runs every rule that needs
   type information, plus `node/no-sync` (whose `eslint-plugin-n` v18 implementation demands typed
-  linting and therefore could not stay on the ESLint side).
+  linting and therefore could not stay on the ESLint side) and a deliberately small set of
+  vendored anti-slop rules.
 
 ## Why
 
@@ -19,6 +20,52 @@ run at ~49 s, dominated by `projectService` type checking; `oxlint --type-aware`
 type-aware rule families in under 2 s cold. The spike's "defer" recommendation applied to a
 wholesale ESLint replacement — this split instead moves only the layer oxlint covers completely,
 keeping ESLint for the local-plugin and AST-selector capabilities oxlint lacks.
+
+## Vendored anti-slop policy
+
+The generic plugin under `tools/oxlint/anti-slop/` comes from
+[`dmmulroy/anti-slop@6d538555`](https://github.com/dmmulroy/anti-slop/commit/6d538555cb151d4121ed51a27db81890eacf8ae9).
+Upstream explicitly recommends vendoring and adapting the rules instead of treating them as a fixed
+package. Caxri therefore pins `oxlint` and `@oxlint/plugins` to the same installed version and keeps
+the plugin out of product runtime and package outputs.
+
+The initial audit ran all 15 generic rules against the full repository. Stock severity produced
+3,030 diagnostics across 590 files, including 1,247 in tests and fixtures. Several high-volume rules
+also report the boundary parsers, type predicates, generic constraints, Zod `.shape` reads, and
+test fixtures they claim should replace the flagged pattern. This matches the public
+[568k-line adoption report](https://github.com/dmmulroy/anti-slop/issues/21) and its upstream
+correctness reports for [type predicates](https://github.com/dmmulroy/anti-slop/issues/15),
+[external member names](https://github.com/dmmulroy/anti-slop/issues/16),
+[generic constraints](https://github.com/dmmulroy/anti-slop/issues/17),
+[closed-key records](https://github.com/dmmulroy/anti-slop/issues/18), and
+[`typeof` existence probes](https://github.com/dmmulroy/anti-slop/issues/19).
+
+Five precise, zero- or low-migration rules block the gate:
+
+- `no-conditional-empty-object-spread`
+- `no-object-parameters`
+- `no-reflect-apply`
+- `no-unknown-type-aliases`
+- `no-widen-then-assert`
+
+The other ten remain explicitly `off`, not hidden behind file baselines or blanket suppressions:
+
+| Rule                                        | Initial findings | Reason to defer                                                                                                    |
+| ------------------------------------------- | ---------------: | ------------------------------------------------------------------------------------------------------------------ |
+| `require-safety-comment-for-type-assertion` |            1,292 | Would add mostly ceremonial comments to existing assertions and double-reports chained assertions.                 |
+| `no-unknown-parameters`                     |              395 | Rejects correct parsers, type predicates, and safe `catch` annotations.                                            |
+| `no-runtime-typeof`                         |              386 | Rejects hand-written boundary decoders, built-in unions, and existence probes.                                     |
+| `no-known-value-widening`                   |              266 | Reports closed-key `Record` contracts and intentional public return types.                                         |
+| `no-chained-type-assertions`                |              183 | High-signal production rule, but most findings are deliberate unit/E2E fixture casts; it needs a scoped migration. |
+| `no-unsafe-dictionary-type`                 |              172 | Rejects generic constraints that cannot name a concrete value contract.                                            |
+| `no-unknown-returns`                        |              137 | Requires separate ownership decisions for extension and transport boundaries.                                      |
+| `no-shape-in-symbol-names`                  |               86 | Reports external APIs such as Zod `.shape` and ordinary geometric terminology.                                     |
+| `no-module-mocking`                         |               57 | A blanket ban conflicts with existing test policy and requires an explicit test-architecture decision.             |
+| `no-reflect-get`                            |               49 | Existing sites intentionally inspect dynamic errors and test seams; shared parsing policy comes first.             |
+
+Disabled rules become blocking only after a focused audit proves that their signal fits Caxri and
+the corresponding cleanup is complete. This keeps the main gate green without pretending a
+directory or file exemption is enforcement.
 
 ## Enabled type-aware rules
 
@@ -59,8 +106,9 @@ the gate as unused directives). Use oxlint's own directive with a justification:
 ## Contract tests
 
 `scripts/__tests__/oxlint-toolchain-contract.test.ts` asserts the split holds: the type-aware
-fixture trips `typescript/no-floating-promises` under oxlint, `no-sync-fixture.ts` trips
-`node/no-sync`, and `.oxlintrc.json` keeps default categories off.
+fixture trips `typescript/no-floating-promises`, `no-sync-fixture.ts` trips `node/no-sync`, the
+anti-slop fixture trips all five active rules, and the exact active/deferred rule sets
+cannot change silently. `.oxlintrc.json` keeps default categories off.
 `scripts/__tests__/eslint-toolchain-contract.test.ts` asserts the inverse: ESLint stays silent on
 the type-aware fixture and configures no type-aware rules.
 
@@ -73,3 +121,5 @@ the type-aware fixture and configures no type-aware rules.
   `.oxlintrc.json` must stay at the repository root.
 - oxlint has no Markdown processor, so fenced code blocks in `*.md` get syntactic ESLint coverage
   only.
+- JavaScript plugins receive Oxlint's syntax tree, not TypeScript type information. A vendored rule
+  must not be promoted merely because its diagnostic text sounds type-aware.

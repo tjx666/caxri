@@ -179,6 +179,24 @@ async function ensureElectronBinary(
     }
 }
 
+/**
+ * A fresh pnpm virtual store can preserve node-pty's macOS helper without its executable bit. Run the canonical
+ * preparation script inside the target checkout so native tests and Server artifact staging work before any task uses
+ * that worktree. Generic repository fixtures omit the script and do not need Caxri-specific native preparation.
+ */
+async function prepareNodePty(path: string, shouldPipeStdoutToStderr: boolean): Promise<void> {
+    const script = join(path, 'scripts', 'prepare-node-pty.ts');
+    if (!(await isPathPresent(script))) return;
+    const exitCode = await runInherited('bun', ['run', 'scripts/prepare-node-pty.ts'], {
+        cwd: path,
+        env: process.env,
+        stdoutToStderr: shouldPipeStdoutToStderr,
+    });
+    if (exitCode !== 0) {
+        throw new CommandError(`node-pty preparation failed with exit code ${exitCode}`);
+    }
+}
+
 export async function installWorktreeDependencies(
     path: string,
     shouldPipeStdoutToStderr = false,
@@ -224,6 +242,7 @@ export async function installWorktreeDependencies(
         );
     }
     if (exitCode !== 0) throw new CommandError(`ni failed with exit code ${exitCode}`);
+    await prepareNodePty(path, shouldPipeStdoutToStderr);
     await ensureElectronBinary(path, shouldPipeStdoutToStderr);
 }
 

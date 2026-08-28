@@ -119,7 +119,7 @@ function commandLineFields(app: GpuDiagnosticsApp): LogFields {
     };
 }
 
-function gpuFeatureFields(status: object): LogFields {
+function gpuFeatureFields(status: unknown): LogFields {
     const source = record(status) ?? {};
     return definedFields(
         Object.fromEntries(
