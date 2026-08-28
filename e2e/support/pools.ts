@@ -81,7 +81,6 @@ export const parallelSafeSpecs = [
     'e2e/terminal-title.e2e.ts',
     'e2e/trusted-domains.e2e.ts',
     'e2e/work-tab-sizing.e2e.ts',
-    'e2e/workbench-recovery.e2e.ts',
 ] as const;
 
 export function createE2EPoolPlan(
