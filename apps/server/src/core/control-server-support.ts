@@ -1,6 +1,7 @@
 import { Buffer } from 'node:buffer';
 
 import type {
+    AgentEndpointRef as AgentEndpointReference,
     CommandDispatcherOptions,
     CommandExecutionContext,
     CommandReplyEnvelope,
@@ -9,10 +10,12 @@ import type {
     LocalClientCommand,
     LocalServerReply,
     LogEventName,
+    ProtocolEventEnvelope,
     ProtocolFeature,
     ServerDesktopCredential,
     ServerManifestIdentity,
     ServerOperationRequest,
+    TransientServerEvent,
 } from '@caxri/protocol';
 import {
     CAXRI_PROTOCOL_VERSION,
@@ -20,6 +23,7 @@ import {
     CONTROL_TRANSPORT_MAX_FRAME_BYTES,
     getMethodSpec,
     localServerDesktopLeaseRevokedSchema,
+    localServerEventSchema,
     toWireError,
 } from '@caxri/protocol';
 import type { LogRecord, LogWriteOptions, ObservationContext } from '@caxri/system';
@@ -450,4 +454,35 @@ export function assertDurableRecoveryIdentity(options: ControlServerOptions): vo
             'INTERNAL',
             'Durable recovery features require a persisted Server identity',
         );
+}
+
+/**
+ * Raw domain payloads are a Desktop-only transport; other principals use projections.
+ */
+export function writeDesktopControlEvent(
+    currentDesktop: ClientState | undefined,
+    event: ProtocolEventEnvelope | TransientServerEvent,
+): void {
+    const message = localServerEventSchema.parse({ type: 'event', event });
+    if (currentDesktop?.desktopReady) writeControlMessage(currentDesktop.socket, message);
+}
+
+/**
+ * Delivers a transient, body-free receipt only to the exact authenticated Agent generation.
+ */
+export function writeAgentControlEvent(
+    clients: Iterable<ClientState>,
+    endpoint: AgentEndpointReference,
+    event: TransientServerEvent,
+): void {
+    const message = localServerEventSchema.parse({ type: 'event', event });
+    for (const state of clients) {
+        const principal = state.context.principal;
+        if (
+            principal.kind === 'agent' &&
+            principal.endpointId === endpoint.endpointId &&
+            principal.generation === endpoint.generation
+        )
+            writeControlMessage(state.socket, message);
+    }
 }
