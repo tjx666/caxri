@@ -79,6 +79,13 @@ directories.
 ## Commands
 
 - Install dependencies: `ni`
+- Prefer current stable releases and mature third-party libraries. Caxri intentionally adopts and
+  upgrades dependencies aggressively; do not hand-roll commodity functionality or retain stale
+  versions merely to minimize dependency churn. Confirm architecture fit, browser/native
+  boundaries, bundle/runtime cost, and supply-chain policy before adoption.
+- `ni` v29+ automatically enters catalog mode in this workspace. For a dependency owned by only one
+  workspace, use `NI_CATALOG=false ni -E <package>@<version> --filter <workspace>` so it remains an
+  exact workspace dependency instead of creating a shared catalog entry.
 - Start the Electron app in the current worktree:
   `bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts dev`.
   `bun run dev` is the first-clone equivalent in this checkout; agent sessions and parallel

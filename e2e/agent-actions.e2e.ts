@@ -34,10 +34,14 @@ test('Agent Commands & Skills stays discoverable, describes its target, and pres
     const root = join(testDirectory, 'project');
     const skillDirectory = join(root, '.agents', 'skills', 'e2e-action');
     const requiredSkillDirectory = join(root, '.agents', 'skills', 'e2e-required');
+    const pullRequestSkillDirectory = join(root, '.agents', 'skills', 'pull-request');
+    const fixCiSkillDirectory = join(root, '.agents', 'skills', 'fix-ci');
     const capture = join(testDirectory, 'agent-input.hex');
     await Promise.all([
         mkdir(skillDirectory, { recursive: true }),
         mkdir(requiredSkillDirectory, { recursive: true }),
+        mkdir(pullRequestSkillDirectory, { recursive: true }),
+        mkdir(fixCiSkillDirectory, { recursive: true }),
         writeFile(capture, ''),
     ]);
     await writeFile(
@@ -47,6 +51,14 @@ test('Agent Commands & Skills stays discoverable, describes its target, and pres
     await writeFile(
         join(requiredSkillDirectory, 'SKILL.md'),
         '---\nname: e2e-required\ndescription: E2E action requiring input\nargument-hint: target\n---\nNever exposed in picker metadata.\n',
+    );
+    await writeFile(
+        join(pullRequestSkillDirectory, 'SKILL.md'),
+        '---\nname: pull-request\ndescription: Publish the current branch\n---\nNever exposed in picker metadata.\n',
+    );
+    await writeFile(
+        join(fixCiSkillDirectory, 'SKILL.md'),
+        '---\nname: fix-ci\ndescription: Make a Cloud or OSS PR mergeable\n---\nNever exposed in picker metadata.\n',
     );
     const agentMode = await createFakeAgentMode({
         userDataDir: userData,
@@ -147,6 +159,18 @@ test('Agent Commands & Skills stays discoverable, describes its target, and pres
         const footer = picker.locator('[data-agent-action-footer]');
         await expect(footer.locator('[data-agent-action-mode="run"]')).toContainText('Run');
         await expect(footer.locator('[data-agent-action-mode="insert"]')).toContainText('Insert');
+        await search.fill('pr');
+        const skillMatches = picker
+            .locator('[data-agent-action-group="skill"]')
+            .locator('[data-agent-action]:visible');
+        await expect(skillMatches.first()).toHaveAttribute('data-agent-action', '$pull-request');
+        await expect(picker.locator('[data-agent-action="$pull-request"]')).toHaveAttribute(
+            'data-selected',
+            'true',
+        );
+        await expect(picker.locator('[data-agent-action="$fix-ci"]')).toBeVisible();
+        await search.fill('zzzz');
+        await expect(picker.getByText('No Agent command or skill found.')).toBeVisible();
         await search.fill('e2e action');
         await expect(picker.locator('[data-agent-action="$e2e-action"]')).toContainText(
             'E2E discovered action',
