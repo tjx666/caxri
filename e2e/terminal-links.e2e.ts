@@ -155,6 +155,7 @@ test('Terminal links open Project files and confirm URLs through Main', async ()
         await detectedLinkSearch.fill(ambiguousLink);
         await detectedLinkSearch.press('Enter');
         await expect(candidateDialog).toBeVisible();
+        await expect(candidateDialog.getByRole('option')).toHaveCount(2);
         await candidateDialog.getByPlaceholder('Search matching files…').fill('packages/alpha');
         await expect(candidateDialog.getByRole('option')).toHaveCount(1);
         await running.page.keyboard.press('Enter');
