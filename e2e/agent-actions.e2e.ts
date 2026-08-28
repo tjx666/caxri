@@ -15,17 +15,20 @@ import {
     waitForNewTerminalId,
 } from './support/helpers.ts';
 
-async function capturedInput(path: string): Promise<string> {
+async function capturedInputChunks(path: string): Promise<string[]> {
     try {
         return (await readFile(path, 'utf8'))
             .trim()
             .split('\n')
             .filter(Boolean)
-            .map((hex) => Buffer.from(hex, 'hex').toString('utf8'))
-            .join('');
+            .map((hex) => Buffer.from(hex, 'hex').toString('utf8'));
     } catch {
-        return '';
+        return [];
     }
+}
+
+async function capturedInput(path: string): Promise<string> {
+    return (await capturedInputChunks(path)).join('');
 }
 
 test('Agent Commands & Skills stays discoverable, describes its target, and preserves Terminal input', async () => {
@@ -178,7 +181,14 @@ test('Agent Commands & Skills stays discoverable, describes its target, and pres
         await search.press('Enter');
         await expect(picker).not.toBeVisible();
         await expect(input).toBeFocused();
-        await expect.poll(() => capturedInput(capture)).toContain('draft-$e2e-action\r');
+        await expect
+            .poll(async () => {
+                const chunks = await capturedInputChunks(capture);
+                const invocationIndex = chunks.lastIndexOf('$e2e-action');
+                return chunks.slice(invocationIndex, invocationIndex + 2);
+            })
+            .toEqual(['$e2e-action', '\t\n']);
+        await expect.poll(() => capturedInput(capture)).toContain('draft-$e2e-action\t\n');
 
         await running.page.keyboard.press('Meta+Shift+A');
         picker = running.page.locator('[data-agent-actions-picker]');

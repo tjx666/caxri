@@ -293,11 +293,11 @@ by moving over it and commit it by clicking.
 **Agent Actions picker** — `Command+Shift+A` opens an independent 560px picker only for a running
 Agent Terminal. Its fixed target line names the provider, Session, and Terminal captured at open;
 results are grouped as Commands and Skills and searchable without typing the `/` or `$` prefix.
-`Enter` appends the exact invocation plus one space to the existing draft without submitting it;
-`Command+Enter` submits an argument-free action directly, while actions with required arguments
-must first be inserted and completed in the Terminal. The footer exposes both key meanings and a
-quiet `Manage in Settings…` route. Selection or `Escape` returns focus to the captured Terminal.
-The picker never reads, clears, or replaces the current Terminal draft.
+`Enter` submits an argument-free action directly; `Command+Enter` appends the exact invocation plus
+one space to the existing draft without submitting it. Actions with required arguments must first
+be inserted and completed in the Terminal. The footer exposes both key meanings and a quiet
+`Manage in Settings…` route. Selection or `Escape` returns focus to the captured Terminal. The
+picker never reads, clears, or replaces the current Terminal draft.
 
 **Inputs** — shared `Input` density is always explicit outside standard forms: `standard` (36px,
 base), `dense` (28px, dense), `compact` (24px, dense), or `palette` (44px, base). `appearance`

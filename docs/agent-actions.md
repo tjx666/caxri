@@ -10,12 +10,15 @@ selection cannot drift to another Terminal.
 - Search matches the exact invocation, its prefix-free name, and its description. Exact, prefix,
   word-initial, and fuzzy name matches rank ahead of description-only matches; `/` and `$` remain
   optional unless the user wants to restrict results to actions using that prefix.
-- `Enter` and mouse selection append `<invocation>\r` to run an argument-free action immediately.
-  Required-argument actions remain open with a prompt to insert and complete them first.
+- `Enter` and mouse selection run an argument-free action immediately. Commands and Claude Code
+  skills append Return in one write. Codex skills append the invocation, wait 150ms for its paste
+  detector to settle, then append Tab and LF so the composer accepts the exact skill completion
+  before submitting it. Required-argument actions remain open with a prompt to insert and complete
+  them first.
 - `Command+Enter` appends `<invocation>` without submitting it, then returns focus to the Terminal
   so the user can add arguments.
-- Both paths perform one structured `terminal.input` write. Caxri never reads, clears, or replaces
-  the current draft.
+- Insert and ordinary run paths perform one structured `terminal.input` write; a Codex skill run
+  performs the two ordered writes above. Caxri never reads, clears, or replaces the current draft.
 - Selection or `Escape` returns keyboard focus to the captured Terminal.
 - `Manage in Settings…` opens the matching provider's Agent Commands & Skills editor. Users can
   hide shipped or discovered items and add an exact `/command` or `$skill` invocation with an
