@@ -23,12 +23,19 @@ interface CodexThreadRow {
     tokens_used?: number;
 }
 
-async function findCodexDatabases(directories: string[]): Promise<string[]> {
+interface CodexTurnRow {
+    status: string;
+}
+
+async function findCodexDatabases(
+    directories: string[],
+    namePattern = /^state_\d+\.sqlite$/,
+): Promise<string[]> {
     const groups = await mapWithConcurrency([...new Set(directories)], 4, async (directory) => {
         try {
             const names = await readdir(directory);
             return names
-                .filter((name) => /^state_\d+\.sqlite$/.test(name))
+                .filter((name) => namePattern.test(name))
                 .toSorted((left, right) => right.localeCompare(left, undefined, { numeric: true }))
                 .map((name) => join(directory, name));
         } catch {
@@ -41,6 +48,44 @@ async function findCodexDatabases(directories: string[]): Promise<string[]> {
     return groups.flat();
 }
 
+async function readCodexTurnStatus(
+    context: AgentSnapshotContext,
+    stateDirectories: string[],
+): Promise<LocalAgentState['status']> {
+    if (!context.agentSessionId || !context.agentTurnId) return undefined;
+    const databasePaths = await findCodexDatabases(
+        stateDirectories,
+        /^thread_history_\d+\.sqlite$/,
+    );
+    for (const path of databasePaths) {
+        let database: Database.Database | undefined;
+        try {
+            database = new Database(path, { fileMustExist: true, readonly: true });
+            const columns = new Set(
+                (database.prepare('PRAGMA table_info(thread_turns)').all() as SqliteColumn[]).map(
+                    (column) => column.name,
+                ),
+            );
+            if (['thread_id', 'turn_id', 'status'].some((column) => !columns.has(column))) continue;
+            const row = database
+                .prepare(
+                    'SELECT status FROM thread_turns WHERE thread_id = ? AND turn_id = ? LIMIT 1',
+                )
+                .get(context.agentSessionId, context.agentTurnId) as CodexTurnRow | undefined;
+            if (row?.status === 'inProgress') return 'running';
+            if (row?.status === 'failed') return 'failed';
+            if (row?.status === 'completed' || row?.status === 'interrupted') return 'completed';
+        } catch {
+            /**
+             * Codex owns this private database schema; missing tables and schema drift degrade to unknown.
+             */
+        } finally {
+            database?.close();
+        }
+    }
+    return undefined;
+}
+
 /**
  * Queries only a capability-detected Codex thread index and never opens rollout transcripts.
  */
@@ -50,6 +95,7 @@ async function readCodexState(
 ): Promise<LocalAgentState | undefined> {
     const requestedRoots = [...new Set([context.rootPath, await canonicalPath(context.rootPath)])];
     const databasePaths = await findCodexDatabases(stateDirectories);
+    let selectedRow: CodexThreadRow | undefined;
     for (const path of databasePaths) {
         let database: Database.Database | undefined;
         try {
@@ -107,14 +153,8 @@ async function readCodexState(
                     ...requestedRoots,
                 ) as CodexThreadRow | undefined;
             if (!row) continue;
-            return {
-                sessionId: row.id,
-                title: row.title.trim() || undefined,
-                usage:
-                    typeof row.tokens_used === 'number' && row.tokens_used > 0
-                        ? [{ label: 'Tokens', value: row.tokens_used.toLocaleString('en-US') }]
-                        : undefined,
-            };
+            selectedRow = row;
+            break;
         } catch {
             /**
              * Private schema drift must degrade to unknown instead of affecting the Server.
@@ -123,7 +163,16 @@ async function readCodexState(
             database?.close();
         }
     }
-    return undefined;
+    if (!selectedRow) return undefined;
+    return {
+        sessionId: selectedRow.id,
+        status: await readCodexTurnStatus(context, stateDirectories),
+        title: selectedRow.title.trim() || undefined,
+        usage:
+            typeof selectedRow.tokens_used === 'number' && selectedRow.tokens_used > 0
+                ? [{ label: 'Tokens', value: selectedRow.tokens_used.toLocaleString('en-US') }]
+                : undefined,
+    };
 }
 
 /**

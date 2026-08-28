@@ -348,7 +348,7 @@ describe('AgentHookManager', () => {
             expect(manager.getHealth().codex.kind).toBe('active');
 
             /**
-             * A provider hook payload on stdin contributes only its opaque session identifier.
+             * A provider hook payload on stdin contributes only its opaque session and turn identifiers.
              */
             const payloadInvocation = execFileAsync(
                 bridge,
@@ -365,12 +365,19 @@ describe('AgentHookManager', () => {
                 { env: { ...process.env, ...environment } },
             );
             payloadInvocation.child.stdin?.end(
-                JSON.stringify({ session_id: 'codex-session-123', prompt: 'never forwarded' }),
+                JSON.stringify({
+                    session_id: 'codex-session-123',
+                    turn_id: 'codex-turn-456',
+                    prompt: 'never forwarded',
+                }),
             );
             await payloadInvocation;
             await vi.waitFor(() => expect(signals).toHaveBeenCalledTimes(2));
             expect(signals).toHaveBeenLastCalledWith(
-                expect.objectContaining({ agentSessionId: 'codex-session-123' }),
+                expect.objectContaining({
+                    agentSessionId: 'codex-session-123',
+                    agentTurnId: 'codex-turn-456',
+                }),
             );
             expect(signals.mock.calls.at(-1)?.[0]).not.toHaveProperty('prompt');
 

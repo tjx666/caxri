@@ -13,6 +13,10 @@ export interface AgentSnapshotContext {
      */
     agentSessionId?: string;
     /**
+     * Restricts a lifecycle reconciliation probe to the exact provider turn reported by a hook.
+     */
+    agentTurnId?: string;
+    /**
      * Keeps concurrent unbound Terminals in one Project from sharing a metadata probe.
      */
     correlationId?: string;
