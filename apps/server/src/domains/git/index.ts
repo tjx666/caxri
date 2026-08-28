@@ -507,22 +507,27 @@ export class GitService {
             await this.git(repo.rootPath, ['switch', '--', parameters.branch]);
         return null;
     }
+
     sync(parameters: ServerOperationParameters<'git.sync'>): Promise<null> {
         return this.workingTreeService.sync(parameters);
     }
+
     discardPreflight(
         parameters: ServerOperationParameters<'git.discard.preflight'>,
     ): ReturnType<GitWorkingTreeService['discardPreflight']> {
         return this.workingTreeService.discardPreflight(parameters);
     }
+
     discardApply(
         parameters: ServerOperationParameters<'git.discard.apply'>,
     ): ReturnType<GitWorkingTreeService['discardApply']> {
         return this.workingTreeService.discardApply(parameters);
     }
+
     pullRequestChanges(parameters: ServerOperationParameters<'git.pullRequestChanges'>) {
         return this.pullRequestService.changes(parameters);
     }
+
     /**
      * Best-effort `origin` remote host for the commit-avatar privacy gate. Reads local Git config only (`remote
      * get-url`, never a network call) and caches the result per repository root so repeated Git panel renders cost zero

@@ -305,4 +305,28 @@ describe('shared ESLint preset toolchain contract', () => {
 
         expect(ruleIds).not.toContain('caxri/filename-export-mapping');
     });
+
+    it('requires a blank line between class methods', async () => {
+        const result = await lint(
+            'scripts/fixtures/eslint/class-members-packed-methods-fixture.ts',
+        );
+        const ruleIds = result.messages.map((message) => message.ruleId);
+
+        expect(ruleIds).toContain('@stylistic/lines-between-class-members');
+    });
+
+    it('keeps packed fields and overload signatures without requiring a blank line', async () => {
+        const result = await lint(
+            'scripts/fixtures/eslint/class-members-spaced-methods-fixture.ts',
+        );
+        const ruleIds = result.messages.map((message) => message.ruleId);
+
+        expect(ruleIds).not.toContain('@stylistic/lines-between-class-members');
+    });
+
+    it('keeps class-member blank lines active on a representative source file', async () => {
+        const config = await effectiveConfigFor('apps/server/src/core/control-server.ts');
+
+        expect(config.rules?.['@stylistic/lines-between-class-members']?.[0]).toBe(2);
+    });
 });
