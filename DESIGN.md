@@ -242,9 +242,11 @@ picks its region by content shape, not by which region has room left.
 target or environment plus semantic status in the heading, then compact `alias`, successful
 `inspect: logs`, and optional `created` rows. The rich hover uses the shared PreviewCard surface so
 its HTTP(S) links remain reachable by pointer and keyboard; pointer opens capture the initial cursor
-position, keyboard focus falls back to the row anchor, and viewport collision keeps the entire card
-visible. Text values wrap inside the bounded card instead of widening the SecondarySidebar. Plain
-extension tooltips retain the shared compact Tooltip surface and cursor-placement behavior.
+position, place the card beside the cursor, and flip it from right to left when necessary so the
+cursor's vertical path through adjacent rows remains clear. Keyboard focus falls back to the row
+anchor, and viewport collision keeps the entire card visible. Text values wrap inside the bounded
+card instead of widening the SecondarySidebar. Plain extension tooltips retain the shared compact
+Tooltip surface and the same cursor-side placement behavior.
 
 An extension tree whose whole surface is unavailable uses one `message` item: a quiet, full-width
 icon/title/description/action state built from the shared Empty primitive, never a long error forced
