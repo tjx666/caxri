@@ -10,8 +10,13 @@ Validate the smallest observable behavior below the Electron desktop boundary.
 1. Put tests with their source domain. Renderer logic stays beside its source; Main, Runtime, CLI,
    shared, and skill code use their domain-local `__tests__/` or `scripts/*.test.ts` convention.
    Placement details live in `source-layout`.
-2. For a reproducible bug, add a behavior-level regression that fails for the bug before the fix.
-   Prefer observable output and integration boundaries over internal call assertions.
+2. New features ship with a behavior-level test for the functionality they add. For a
+   reproducible bug, add a regression that fails for the bug before the fix, in the same commit.
+   Prefer observable output and integration boundaries over internal call assertions. When the
+   fix sits above a testable boundary, extract the logic so the failure mode is testable rather
+   than skipping the test. Existing untested modules are debt, not precedent: touching an
+   untested area does not require backfilling its whole suite, but the behavior you add or change
+   there must be covered.
 3. Do not unit-test React components by default. Extract meaningful state into a hook or pure
    function; route rendering and interaction to `e2e-testing`.
 4. Run the narrowest relevant files:

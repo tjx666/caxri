@@ -29,8 +29,11 @@ Do not create an empty future application. The repository root owns no product `
 executable source of truth for ownership is `scripts/architecture-boundaries.ts`.
 `caxri/architecture-boundaries` rejects application-to-application source imports, package-private
 imports, and platform dependencies in browser-safe packages; `import-x/no-cycle` protects current
-workspaces. Renderer never imports Node.js, Electron, or native APIs. Playwright support stays in
-`e2e/support/`. Contributor skills live at `.agents/skills/<name>/`.
+workspaces. Renderer never imports Node.js, Electron, or native APIs. The `@` and
+`@desktop-shared` path aliases exist only in the Renderer TypeScript project (`tsconfig.web.json`)
+and Vitest; other application code uses relative imports internally and public package exports
+across ownership boundaries. Playwright support stays in `e2e/support/`. Contributor skills live
+at `.agents/skills/<name>/`.
 
 ## 2. Place React components
 
@@ -82,11 +85,11 @@ modules it owns a directory, exposes a thin `index.ts` barrel, and keeps tests i
 `__tests__/` (Renderer feature directories follow the section 3 thresholds instead). Do not invent
 a folder for a one- or two-file cluster.
 
-Locked protocol and CLI domains in `AGENTS.md` stay even when they have only two production
-modules. Do not add or remove one of those domains without updating `AGENTS.md` and
-`scripts/__tests__/workspace-contract.test.ts`. A new Server domain with three or more modules
-needs a barrel; `apps/server/src/domains/__tests__/structure.test.ts` rejects a missing one and
-rejects production imports that reach past another domain's root.
+Locked protocol and CLI domains in the `project-architecture` architecture reference stay even
+when they have only two production modules. Do not add or remove one of those domains without
+updating that reference and `scripts/__tests__/workspace-contract.test.ts`. A new Server domain
+with three or more modules needs a barrel; `apps/server/src/domains/__tests__/structure.test.ts`
+rejects a missing one and rejects production imports that reach past another domain's root.
 
 ## 5. Name files for the job
 

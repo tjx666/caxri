@@ -32,8 +32,10 @@ authority.
 6. Treat queued or failed required checks, unresolved conflicts, and active review findings as real
    readiness blockers. Repair the owning branch and refresh the exact-head state instead of merging
    stale evidence. Watch checks with `bun run scripts/watch-ci.ts [--run <id>]` in a background
-   shell by default rather than ad-hoc polling loops: concurrent sessions (any worktree) share one
-   GitHub poller, job failures notify immediately, and the watch survives offline windows.
+   shell by default rather than ad-hoc polling loops (newest run on the current branch when
+   `--run` is omitted). Concurrent sessions, including other worktrees, share one GitHub poller
+   through `~/.cache/caxri/ci-watch/`. Failed jobs raise an immediate macOS notification. Polling
+   survives offline windows with capped backoff. The command exits 0/1 with the run conclusion.
 7. Merge only when explicitly authorized by the user or an active workflow such as `go`. Verify the
    remote merged state and merge commit before reporting completion.
 8. After a merge initiated from the primary checkout, return that checkout to `main` and

@@ -1,6 +1,6 @@
 ---
 name: quality-check
-description: Run Caxri's compact changed-file validation entry point. Use after editing code or documentation, before committing, when choosing focused lint, Vitest, type, or Playwright E2E checks, or when interpreting `bun run check` output.
+description: Run Caxri's compact changed-file validation entry point. Use after editing code or documentation, before committing, when choosing focused lint, Vitest, type, or Playwright E2E checks, when running format/lint/typecheck/test repository-wide, or when interpreting `bun run check` output.
 ---
 
 # Quality Check
@@ -55,3 +55,12 @@ underlying tool output needed to act.
 or shared-contract changes. CI runs `doctor` through `bun run doctor:changed` (scoped to the diff
 against `origin/main`, full-repo only on an initial push); `doctor` is slower and normally remains
 a CI validator.
+
+## Repository-wide gates
+
+Use these when a focused `check` is the wrong width, not as the default after every edit:
+
+- Format: `bun run format` / `bun run format:check`. Markdown: `bun run format:md` /
+  `bun run format:md:check`.
+- Full local gates: `bun run lint` (syntactic ESLint), `bun run lint:type-aware` (oxlint/tsgolint
+  type-aware rules — see `docs/type-aware-linting.md`), `bun run typecheck`, and `bun run test`.

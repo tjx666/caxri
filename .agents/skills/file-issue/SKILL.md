@@ -103,6 +103,8 @@ to load-bearing ones; broad file inventories go stale.
 - Write the title, section headings, body prose, and follow-up issue comments in Simplified
   Chinese. Keep code, identifiers, paths, commands, enum values, and quoted upstream errors in
   English. This applies to every issue comment, not only comments created during filing.
+  Contributor issue tracking lives in GitHub issues. Do not file repository work in Linear; the
+  product's Project Status view may still read Linear references from a GitHub PR body.
 - Never pass the body inline with `--body` and `\n` escapes — that ships literal `\n` into the
   issue. Write the body to a temp file and use `gh issue create --body-file`, or a real heredoc.
 - For a refactor issue, use `create-refactor-issue.ts`; do not split validation and creation into

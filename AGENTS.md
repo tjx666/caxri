@@ -1,5 +1,8 @@
 # Caxri contributor guide
 
+This file is the always-on standing orders. Task procedures, architecture contracts, and toolchain
+recipes live in `.agents/skills/` — load the owning skill instead of restating it here.
+
 ## Repository layout
 
 | Path          | Purpose                                                                                         |
@@ -19,7 +22,7 @@ Generated or local-only roots such as `out/`, `release.noindex/`, `logs/`, `test
 `.records/`, `competitors/`, and `node_modules/` are gitignored on purpose. They are not source
 directories.
 
-## Agent-native development
+## Operating model
 
 - Caxri is developed exclusively by coding agents, using frontier models and harnesses such as
   Codex, Claude Code, and Grok Build. Optimize the repository for autonomous discovery, execution,
@@ -29,18 +32,12 @@ directories.
   Traditional manual implementation time and hand-written code volume are not the default baseline
   unless the user explicitly asks for them.
 - When completed work reveals a concrete, demonstrated, broadly useful workflow improvement,
-  directly extract or strengthen scripts, guards, tests, `AGENTS.md` guidance, or task-routed
-  skills when the change is safe, reversible, authorized, and in scope. Raise it for discussion
-  only when a real product choice, new authority, or material scope expansion requires the user's
-  decision. Do not invent process for a reuse case you have not demonstrated.
-- When an authorized implementation exposes an obvious, narrow defect in `AGENTS.md` or a
-  repository skill, repair it in the same change. That does not authorize unrelated or remote
-  mutation.
-- Before designing or implementing a substantial new product feature, load the `competitors` skill
-  and research how existing products already solve it — direct competitors, plus the reference
-  implementations that skill lists (VS Code for editor-grade surfaces such as source control,
-  extensions, keybindings, and theming; GitLens for blame, history, and richer Git UX). Do not
-  invent a new interaction pattern first.
+  extract or strengthen scripts, guards, tests, this file, or the owning skill when the change is
+  safe, reversible, authorized, and in scope. Raise it for discussion only when a real product
+  choice, new authority, or material scope expansion requires the user's decision. Do not invent
+  process for a reuse case you have not demonstrated.
+- When an authorized implementation exposes an obvious, narrow defect in this file or a repository
+  skill, repair it in the same change. That does not authorize unrelated or remote mutation.
 - Use `docs/` for durable explanations of shipped behavior, core modules, protocols, architectural
   decisions, and operator knowledge. After a core module or large feature lands, explicitly ask
   whether its lasting design or operational knowledge belongs there.
@@ -77,92 +74,59 @@ directories.
   unfamiliar work. Escalate only when the conflict is a real design disagreement that cannot be
   resolved mechanically.
 
-## Commands
-
-- Install dependencies: `ni`
-- Prefer current stable releases and mature third-party libraries. Caxri intentionally adopts and
-  upgrades dependencies aggressively; do not hand-roll commodity functionality or retain stale
-  versions merely to minimize dependency churn. Confirm architecture fit, browser/native
-  boundaries, bundle/runtime cost, and supply-chain policy before adoption.
-- `ni` v29+ automatically enters catalog mode in this workspace. For a dependency owned by only one
-  workspace, use `NI_CATALOG=false ni -E <package>@<version> --filter <workspace>` so it remains an
-  exact workspace dependency instead of creating a shared catalog entry.
-- Start the Electron app in the current worktree:
-  `bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts dev`.
-  `bun run dev` is the first-clone equivalent in this checkout; agent sessions and parallel
-  worktrees must use the switch-worktree wrapper so profiles and leases stay isolated.
-- Every unpackaged (dev) launch exposes CDP at `127.0.0.1:9223`. Packaged (production) builds
-  expose `127.0.0.1:9224` by default during internal testing. `CAXRI_DEV_CDP_PORT` overrides either.
-  The `debug` skill owns the live-inspection workflow, including the mandatory proxy-variable
-  workaround for `agent-browser connect` and the raw-CDP fallback.
-- Unpackaged (dev) launches default to an isolated `caxri-dev` userData profile (own Server, SQLite,
-  and logs) so they never contend with the installed production app. `CAXRI_USER_DATA_DIR`
-  overrides it (`apps/desktop/src/main/runtime-profile.ts`).
-- Stop every dev instance you started before reporting a request complete, and verify it actually
-  died. One launch leaves five separate processes: the `electron-vite dev` launcher, the Electron
-  window process (whose `ps` command is `Caxri Dev`, not an Electron binary path), and the detached
-  `<worktree>/apps/server/dist/server/bundles/server-core.js` and `extension-host.js`.
-  `pkill -f "Electron.app/Contents/MacOS/Electron"` silently misses the window process, and the
-  launcher can outlive the signal. Never trust `pkill`'s exit code. Confirm with
-  `ps -axo pid,command` plus a CDP probe of `127.0.0.1:9223`, then kill the surviving PIDs
-  directly. Match on the absolute `<worktree>/apps/server/dist/server/` path so a sibling
-  worktree's session and the installed `/Applications/Caxri.app` are never hit.
-- Manage isolated worktrees by explicitly invoking `$switch-worktree`.
-- Format the repository: `bun run format`; verify formatting: `bun run format:check`
-- Format Markdown: `bun run format:md`; verify formatting: `bun run format:md:check`
-- Focused changed-file validation:
-  `bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e]`
-- Repository-wide local gates: `bun run lint` (syntactic ESLint), `bun run lint:type-aware`
-  (oxlint/tsgolint type-aware rules — see `docs/type-aware-linting.md`), `bun run typecheck`, and
-  `bun run test`
-- Watch a GitHub Actions run to completion: `bun run scripts/watch-ci.ts [--run <id>]`
-  (defaults to the newest run on the current branch). Run it in a background shell by default so
-  the session keeps working while the watch reports asynchronously. Sessions watching the same
-  run — including sessions in different worktrees — share one GitHub poller through the user-level
-  `~/.cache/caxri/ci-watch/`. Failed jobs raise an immediate macOS notification. Polling survives
-  offline windows with capped backoff. The command exits 0/1 with the run conclusion.
-- Preview the pre-release local reset/uninstall plan: `bun run uninstall:caxri`. Apply it only after
-  explicit authorization with `bun run uninstall:caxri -- --yes`. The command archives known Caxri
-  installation state, application paths, and managed development profiles beneath the primary
-  checkout's sibling `../caxri-uninstall-archives`, records every original path in `manifest.json`,
-  and never targets Project folders or user files.
-- Contributor issue tracking lives in GitHub issues (`gh issue`). Titles, bodies, and comments use
-  Simplified Chinese; technical identifiers remain English. Do not file repository work in Linear.
-  The product's Project Status view may still read Linear references from a GitHub PR body.
-
-## Forbidden
+## Standing orders
 
 - Do not push, close issues, merge pull requests, or otherwise mutate remote state unless the user
   or an explicitly active workflow authorizes that exact scope. After any authorized mutation,
   refresh remote state before the final report.
 - Install or update local dependencies only with `ni`. `pnpm-lock.yaml` is the only lockfile. Never
-  run `bun install`, `npm install`, or `yarn`, and never commit a second lockfile. Direct
-  `pnpm install --frozen-lockfile` is reserved for the documented CI/frozen-install verification.
-- Never change the `typescript` / `@typescript/native` dependency aliases or run
-  `npm i typescript@latest`. The repository pins TS6 for typescript-eslint while compiling with
-  TS7.
-- The `@` and `@desktop-shared` path aliases exist only in the Renderer TypeScript project
-  (`tsconfig.web.json`) and Vitest. Other application code uses relative imports internally and
-  public package exports across ownership boundaries.
-- Never import Node.js, Electron, or native APIs in Renderer code.
-- Never bypass the structured IPC request contract with arbitrary shell commands.
-- Do not edit `pnpm-lock.yaml` by hand. Do not add `packageManager` or
-  `devEngines.packageManager`. `mise.toml` and the explicit GitHub Actions setup own tool versions.
-- Keep `packages/protocol` browser-safe. Keep Electron, SQLite, PTY, watcher, and other Desktop
-  native dependencies out of `apps/cli`'s production dependency graph.
-- Keep `packages/system` free of product domain state and native dependencies. It owns reusable
-  process, filesystem, observability, build, and test-harness primitives for non-browser consumers.
-- Keep `packages/utils` browser-safe and free of runtime dependencies. It holds pure functions
-  only. Domain types, protocol schemas, and React code never move there.
-- Keep `packages/protocol/src` grouped by its `agent`, `configuration`, `desktop`, `domain`,
-  `registry`, and `transport` boundaries. External consumers use the package root.
-- Keep `apps/cli/src/commands` as the CLI's only domain directory. The package root remains the
-  composition root (`application`, `environment`, `output`, `selectors`) and the only public
-  package entrypoint. The command barrel stays thin; tests live in the nearest `__tests__/`
-  directory.
+  run `bun install`, `npm install`, or `yarn`, never commit a second lockfile, and do not edit
+  `pnpm-lock.yaml` by hand. Direct `pnpm install --frozen-lockfile` is reserved for the documented
+  CI/frozen-install verification. Do not add `packageManager` or `devEngines.packageManager`;
+  `mise.toml` and the explicit GitHub Actions setup own tool versions.
+- UI strings, code, comments, docs, PR content, and commit messages use English. GitHub issue
+  titles, bodies, and comments use Simplified Chinese; keep their code, identifiers, paths, and
+  commands in English. Contributor issue tracking lives in GitHub issues (`gh issue`); do not file
+  repository work in Linear.
+- Prefer JSDoc for non-obvious lifecycle or security behavior, and document why a workaround
+  exists.
+- Coding agents reproduce the dominant precedent they see in neighboring code, so exemplar hygiene
+  is a maintenance duty. When a shared implementation replaces local copies, migrate every call
+  site in the same change. Never leave two coexisting ways of doing the same thing.
+- Reproduce a reported bug before changing code. Demonstrate the failure against the current build
+  so the fix targets the verified cause rather than the first plausible suspect.
+- New behavior ships with a test at the narrowest owning surface. Do not unit-test `.tsx`
+  components. Native macOS dialogs are stubbed unless the user's current request explicitly asks
+  to verify that dialog.
+- Never import Node.js, Electron, or native APIs in Renderer code. Never bypass the structured IPC
+  request contract with arbitrary shell commands.
 
-## Compatibility policy
+## Dev instances
 
+- Start the Electron app in the current worktree with
+  `bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts dev`. `bun run dev` is the
+  first-clone equivalent in this checkout; agent sessions and parallel worktrees must use the
+  wrapper so profiles and leases stay isolated. Manage isolated worktrees with `$switch-worktree`.
+- Stop every dev instance you started before reporting a request complete, and verify it actually
+  died. Never `pkill -f "Electron.app/Contents/MacOS/Electron"`: it misses the `Caxri Dev` window
+  process, the launcher can outlive the signal, and a sibling worktree or `/Applications/Caxri.app`
+  must never be hit. Confirm with `ps` plus a CDP probe, then kill surviving PIDs that match this
+  worktree's absolute `apps/server/dist/server/` path. Procedure: `debug`.
+- A user-visible Renderer/UI change is not done until it has been verified visually in the running
+  dev app over CDP. Passing unit or e2e gates alone does not count. Procedure: `debug`.
+- Before using a live instance to verify or disprove a Server change, confirm Server Core and
+  Extension Host process start times postdate the change. Procedure: `debug`.
+
+## Product invariants
+
+- Validate filesystem paths against the selected Session's authorized Project root. Git may access
+  another linked repository only when its root is covered by an explicitly added Project.
+- A Project owns one local root. Sessions reference the Project by ID and cannot submit a root
+  path.
+- Project and Session deletion remove metadata only. They must never remove the Project folder or
+  user files.
+- Diagnostics must exclude source contents, Terminal output and snapshots, Agent transcripts,
+  credentials, environment values, and secret-like settings.
 - Until Caxri has a public release, optimize for the current architecture instead of preserving
   compatibility with previous local builds. Do not add protocol adapters, legacy Host controls,
   dual-read/write paths, or migration UI only to keep an unpublished build running. Fail clearly
@@ -171,93 +135,26 @@ directories.
   can evolve safely and upgrade behavior stays exercised. Do not treat schema migrations as a
   reason to preserve unrelated runtime, Host protocol, CLI, or UI compatibility layers.
 - Before the public compatibility commitment, the owner may declare an explicit clean-install
-  cutoff: squash or remove pre-release schema migrations and legacy compatibility code, verify the
-  destructive reset/uninstall tooling, and require a reinstall. Never infer this cutoff or delete
-  local data without explicit user authorization.
+  cutoff. Never infer this cutoff or delete local data without explicit user authorization.
 - After a public release, backward compatibility becomes a product contract. Removing migrations
   or compatibility paths then requires an explicit release policy, a supported upgrade path, and
   validation against already released versions.
 
-## Architecture guardrails
+## Skill routing
 
-- Validate filesystem paths against the selected Session's authorized Project root. Git may access
-  another linked repository only when its root is covered by an explicitly added Project.
-- A Project owns one local root. Sessions reference the Project by ID and cannot submit a root
-  path.
-- Project and Session deletion remove metadata only. They must never remove the Project folder
-  or user files.
-- Diagnostics must exclude source contents, Terminal output and snapshots, Agent transcripts,
-  credentials, environment values, and secret-like settings.
-
-## Verification before reporting done
-
-- A user-visible Renderer/UI change is not done until it has been verified visually in the running
-  dev app. Drive the real application over CDP (the `debug` skill owns the workflow), capture a
-  screenshot of the affected surface, and check it before reporting completion. Passing unit or
-  e2e gates alone does not count for visual changes.
-- The dev Server Core and Extension Host are long-lived background processes that survive window
-  restarts. The Desktop replaces a Server whose build fingerprint differs from its own on connect,
-  but that only triggers when a window reconnects — a headless Server can still serve stale code
-  between launches. Before using a live instance to verify or disprove a Server change, confirm
-  the `apps/server/dist/server/bundles/server-core.js` and `extension-host.js` process start times
-  postdate the change (`ps -axo pid,lstart,command`), and restart them when they do not.
-- Reproduce a reported bug before changing code. Demonstrate the failure against the current build
-  (a failing test, or the live app plus its on-disk state) so the fix targets the verified cause
-  rather than the first plausible suspect.
-
-## Testing requirements
-
-- macOS native dialogs are manual verification boundaries by default. Automated tests and
-  Acceptance must stub Electron Main's dialog result or use deterministic fixtures, then assert
-  the product state on either side. Agents must not trigger, inspect, click, capture, or retry
-  native system UI unless the user's current request explicitly asks the agent to verify that
-  dialog.
-- New features ship with behavior-level tests for the functionality they add, at the narrowest
-  owning surface: Vitest unit/integration coverage (`unit-testing`) for logic below the desktop
-  boundary, Playwright workflows (`e2e-testing`) only for user-visible Electron behavior. The
-  `e2e-testing` skill owns the criteria for when a behavior earns an Electron workflow.
-- Bug fixes land with a regression test that reproduces the defect and fails without the fix, in
-  the same commit. When the fix sits above a testable boundary, extract the logic so the failure
-  mode is testable rather than skipping the test.
-- React UI rendering is not unit-tested: no render/snapshot tests against `.tsx` components.
-  Extract the logic worth testing into hooks or plain modules and test those. Rendering and
-  interaction are validated only through the `e2e-testing` Playwright workflows.
-- Existing untested modules are debt, not precedent. Touching an untested area does not require
-  backfilling its whole suite, but the behavior you add or change there must be covered.
-
-## Code conventions
-
-- UI strings, code, comments, docs, PR content, and commit messages use English. GitHub issue
-  titles, bodies, and comments use Simplified Chinese; keep their code, identifiers, paths, and
-  commands in English.
-- Prefer named exports. React components under `src/` must not use default exports. Keep default
-  exports only where a framework or module contract requires them.
-- All JavaScript/TypeScript files use kebab-case basenames, components and hooks included. The
-  primary export keeps its semantic casing (e.g. `file-tree-panel.tsx` exports `FileTreePanel`).
-  `.agents/skills/source-layout/SKILL.md` is the authority for details.
-- Prefer asynchronous Node.js APIs (`node:fs/promises`, promisified `child_process`) over `*Sync`
-  variants in Main, Runtime, and tooling code; test code is exempt. A deliberately synchronous
-  production boundary needs a comment justifying it.
-- Prefer JSDoc for non-obvious lifecycle or security behavior, and document why a workaround
-  exists.
-- Derive generic Agent provider consumers from `agentProviderCatalog`, `agentProviderIds`, or
-  catalog capabilities. Provider-specific safety arguments, minimum versions, messaging support,
-  CLI skill integration, Runtime launch/resume behavior, assets, and other reviewed decisions must
-  use exhaustive typed maps or descriptors keyed by `AgentProvider`. Never add a provider-name
-  fallback that silently inherits another provider's policy.
-- Generic helpers come from `es-toolkit` first; never hand-roll a function it already ships. What
-  it lacks goes to the shared layers instead of a feature-local copy: browser-safe, dependency-free
-  pure functions in `@caxri/utils` (`packages/utils`), cross-feature React hooks in
-  `apps/desktop/src/renderer/src/hooks` (`@/hooks`). Feature directories hold feature-specific
-  logic only.
-- Coding agents reproduce the dominant precedent they see in neighboring code, so exemplar hygiene
-  is a maintenance duty. When a shared implementation replaces local copies, migrate every call
-  site in the same change. Never leave two coexisting ways of doing the same thing — the old
-  pattern keeps propagating for as long as it remains visible.
-- Style the Renderer with Tailwind v4 utilities backed by semantic runtime theme tokens. Color
-  utilities must reference tokens only (`bg-surface`, `text-muted`). The default palette is
-  unregistered, and literal color utilities are forbidden. See `DESIGN.md`.
-- Use structured argv arrays for Git and PTY launches. Never concatenate an untrusted command
-  string.
-- Keep every JavaScript and TypeScript code file at or below 800 physical lines. Split cohesive
-  modules before they exceed the ESLint `max-lines` gate.
+| Work                                                      | Load                   |
+| --------------------------------------------------------- | ---------------------- |
+| Substantial new product feature; competing approaches     | `competitors`          |
+| Process, IPC, package, persistence, or toolchain contract | `project-architecture` |
+| File placement, naming, splits, test location             | `source-layout`        |
+| React composition, hooks, shared helpers                  | `react`                |
+| Renderer styling tokens                                   | `DESIGN.md`            |
+| Focused lint / type / test / knip; formatting             | `quality-check`        |
+| Vitest unit/integration regressions                       | `unit-testing`         |
+| Playwright Electron workflows                             | `e2e-testing`          |
+| Live inspection, CDP, stopping owned processes            | `debug`                |
+| Isolated worktrees and desktop lease                      | `$switch-worktree`     |
+| GitHub issues                                             | `file-issue`           |
+| Commits                                                   | `commit`               |
+| Pull requests and CI watch                                | `pull-request`         |
+| Packaging, GitHub Release, local uninstall                | `$release`             |
