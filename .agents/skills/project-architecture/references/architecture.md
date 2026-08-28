@@ -103,7 +103,15 @@ supported commands, so callers can query support without inferring it from error
 imports consume the owning `packages/protocol` public export; no other tree may define a second method
 or schema table. Protocol source is grouped behind six domain barrels:
 `agent`, `configuration`, `desktop`, `domain`, `registry`, and `transport`; the package root is the
-only public package entrypoint.
+only public package entrypoint. Do not add or remove one of those domains without updating this
+reference and `scripts/__tests__/workspace-contract.test.ts`.
+
+`packages/system` stays free of product domain state and native Desktop dependencies. It owns
+reusable process, filesystem, observability, build, and test-harness primitives for non-browser
+consumers.
+
+`packages/utils` is browser-safe and free of runtime dependencies. It holds pure functions only.
+Domain types, protocol schemas, and React code never move there.
 
 The shared dispatcher validates protocol version, command, parameters, principal, capabilities,
 owner availability, and results before it returns `{ protocolVersion, ok, result | error }`. Read
@@ -113,9 +121,13 @@ requesting WebContents before invoking that dispatcher. Internal Server methods 
 public command registry.
 
 `apps/cli` is the command-line adapter for the same registry and authenticated Server transport.
-Source keeps `commands` as its only domain barrel; the package root remains the composition root and
-the only public package entrypoint. The command barrel stays thin, and tests live in the nearest
-`__tests__/` directory. The offline `capabilities` response serializes the
+Source keeps `commands` as its only domain barrel; the package root remains the composition root
+(`application`, `environment`, `output`, `selectors`) and the only public package entrypoint. The
+command barrel stays thin, and tests live in the nearest `__tests__/` directory. Do not add or
+remove that domain without updating this reference and
+`scripts/__tests__/workspace-contract.test.ts`. Keep Electron, SQLite, PTY, watcher, and other
+Desktop native dependencies out of its production dependency graph.
+The offline `capabilities` response serializes the
 registry's Zod parameter and result schemas together with owner, effect, capability, and
 idempotency metadata. Human TTY, JSON, and ID-only output modes share closed error codes;
 Agent and CI contexts default to JSON and never prompt. A mutation requires

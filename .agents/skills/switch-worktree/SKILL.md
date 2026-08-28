@@ -75,14 +75,17 @@ and the repository-wide desktop lease.
 
 ## Start development
 
-Run Caxri through the wrapper so every worktree receives a stable, independent `userData` path:
+Run Caxri through the wrapper so every worktree receives a stable, independent `userData` path.
+Unpackaged launches default to an isolated `caxri-dev` profile so they never contend with
+`/Applications/Caxri.app`; `CAXRI_USER_DATA_DIR` overrides it.
 
 ```bash
 bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts dev
 ```
 
 Do not link `node_modules` across worktrees. Each checkout runs `ni`; native Electron dependencies
-and build outputs remain local. Vite owns Renderer port selection.
+and build outputs remain local. Vite owns Renderer port selection. Stop an owned launch through
+the `debug` skill; never `pkill` `Electron.app`.
 
 ## Serialize desktop work
 

@@ -79,9 +79,9 @@
     },
     "overrides": [
         {
-            // AGENTS.md "Code conventions": prefer asynchronous Node.js APIs over `*Sync` variants
-            // in Main, Runtime, and tooling code; test code is exempt. Owned by oxlint because
-            // eslint-plugin-n v18's no-sync requires typed linting (see the file header comment).
+            // Prefer asynchronous Node.js APIs over `*Sync` variants in Main, Server, and tooling
+            // code; test code is exempt. Owned by oxlint because eslint-plugin-n v18's no-sync
+            // requires typed linting (see the file header comment).
             "files": [
                 "apps/desktop/src/main/**/*.ts",
                 "apps/server/src/**/*.ts",

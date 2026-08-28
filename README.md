@@ -19,8 +19,8 @@ one Electron app.
 - **A scriptable CLI.** The standalone `caxri` CLI drives the same authenticated, profile-scoped
   Server that the desktop app uses — see [docs/cli.md](docs/cli.md).
 - **An agent-native repository.** Caxri is developed exclusively by coding agents.
-  [AGENTS.md](AGENTS.md) is the contributor guide and the source of truth for workflows and
-  guardrails.
+  [AGENTS.md](AGENTS.md) is the contributor standing orders; task-routed skills under
+  `.agents/skills/` own the workflows.
 
 ## Requirements
 
@@ -87,8 +87,9 @@ install); pre-commit runs `lint-staged`. Startup performance is gated by
 Server Core, Terminal, file tree, and Git to become usable within three seconds. Native
 compatibility probes: `bun run spike:native`, `spike:pty`, `spike:agents`.
 
-[AGENTS.md](AGENTS.md) documents the complete contributor workflow: isolated worktrees, CI
-watching, and architecture guardrails. Bundle budgets live in [docs/bundle-size.md](docs/bundle-size.md).
+[AGENTS.md](AGENTS.md) is the always-on standing orders. Isolated worktrees, CI watching, and
+architecture contracts live in the owning `.agents/skills/` entries. Bundle budgets live in
+[docs/bundle-size.md](docs/bundle-size.md).
 
 ## Documentation
 
@@ -96,7 +97,7 @@ watching, and architecture guardrails. Bundle budgets live in [docs/bundle-size.
 | -------------------------------------------------------------------------------------- | ------------------------------------------------------ |
 | [CONTEXT.md](CONTEXT.md)                                                               | Product language: Projects, Sessions, Attention        |
 | [DESIGN.md](DESIGN.md)                                                                 | Authoritative UI and interaction spec                  |
-| [AGENTS.md](AGENTS.md)                                                                 | Contributor guide for coding agents                    |
+| [AGENTS.md](AGENTS.md)                                                                 | Contributor standing orders for coding agents          |
 | [docs/cli.md](docs/cli.md)                                                             | The `caxri` CLI manual                                 |
 | [docs/agent-command-authority.md](docs/agent-command-authority.md)                     | Agent capability and audit boundaries                  |
 | [docs/agent-actions.md](docs/agent-actions.md)                                         | Unified Agent skills and slash-command picker          |

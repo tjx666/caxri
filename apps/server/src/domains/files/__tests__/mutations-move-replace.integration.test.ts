@@ -10,9 +10,10 @@ import { FileService } from '../service';
 
 /**
  * `replace` mode's own file: `mutations.integration.test.ts` already sits at the repository's 800-line file gate
- * (AGENTS.md), and these cases only need the same minimal fixture the other file also builds locally (there is no
- * shared fixture module across `__tests__/mutations-*` files in this domain), so duplicating the small helper here
- * keeps both files under the limit instead of introducing a new cross-file dependency for four tests.
+ * (source-layout / ESLint `max-lines`), and these cases only need the same minimal fixture the other file also builds
+ * locally (there is no shared fixture module across `__tests__/mutations-*` files in this domain), so duplicating the
+ * small helper here keeps both files under the limit instead of introducing a new cross-file dependency for four
+ * tests.
  */
 interface Fixture {
     database: CaxriDatabase;

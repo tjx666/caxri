@@ -6,6 +6,19 @@
 
 Only official project documentation, official repositories, and the npm registry were used. Package numbers are intentionally not duplicated here because `package.json` is the version source of truth.
 
+Prefer current stable releases and mature third-party libraries. Caxri adopts and upgrades
+dependencies aggressively; do not hand-roll commodity functionality or retain stale versions merely
+to minimize dependency churn. Confirm architecture fit, browser/native boundaries, bundle/runtime
+cost, and supply-chain policy before adoption.
+
+`ni` v29+ automatically enters catalog mode in this workspace. For a dependency owned by only one
+workspace, use `NI_CATALOG=false ni -E <package>@<version> --filter <workspace>` so it remains an
+exact workspace dependency instead of creating a shared catalog entry.
+
+Never change the `typescript` / `@typescript/native` dependency aliases or run
+`npm i typescript@latest`. The repository pins TypeScript 6 for typescript-eslint while compiling
+with TypeScript 7; see [electron-toolchain.md](electron-toolchain.md).
+
 | Package / area          | Official source                                                                                                 | Compatibility and selection notes                                                                                                                                                                                                                                                                                                         |
 | ----------------------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Electron                | <https://www.electronjs.org/docs/latest/>                                                                       | `utilityProcess.fork` is available after app ready. Renderers use context isolation, sandboxing, and no Node integration. Native Node modules must target Electron's ABI.                                                                                                                                                                 |

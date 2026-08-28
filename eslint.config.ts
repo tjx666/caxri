@@ -146,7 +146,7 @@ export default defineConfig(
                 {
                     case: 'kebabCase',
                     /**
-                     * `__tests__` is a directory-role convention documented in AGENTS.md, not a naming violation.
+                     * `__tests__` is a directory-role convention documented in source-layout, not a naming violation.
                      */
                     ignore: [/^__tests__$/],
                 },
@@ -272,7 +272,8 @@ export default defineConfig(
         rules: {
             /**
              * The renderer must never reach Node.js, Electron, PTY, Git, or filesystem APIs directly; it may only use
-             * the typed `window.caxri` bridge exposed by preload. See AGENTS.md "Architecture guardrails".
+             * the typed `window.caxri` bridge exposed by preload. See AGENTS.md product invariants and the
+             * project-architecture skill.
              */
             'no-restricted-imports': [
                 'error',
@@ -347,7 +348,7 @@ export default defineConfig(
              * Server, extensions, and system code must use public package imports or relative imports so they keep
              * resolving under their process module loaders. This also bans `child_process`'s shell-string
              * `exec`/`execSync` (arbitrary command strings) everywhere they are imported from; structured argv
-             * `spawn`/`execFile` (see AGENTS.md "Forbidden") stays allowed.
+             * `spawn`/`execFile` (see project-architecture) stays allowed.
              */
             'no-restricted-imports': [
                 'error',

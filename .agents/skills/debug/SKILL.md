@@ -1,12 +1,13 @@
 ---
 name: debug
-description: Diagnose Caxri failures across Desktop Main, Server Core, Terminal Host, Extension Host, secure Preload, React Renderer, PTY, SQLite, file watcher, Git, and packaging boundaries. Use for crashes, blank windows, IPC failures, stale state, terminal lifecycle bugs, packaged-only failures, or live CDP inspection of a running dev or production app in this repository.
+description: Diagnose Caxri failures across Desktop Main, Server Core, Terminal Host, Extension Host, secure Preload, React Renderer, PTY, SQLite, file watcher, Git, and packaging boundaries. Use for crashes, blank windows, IPC failures, stale state, terminal lifecycle bugs, packaged-only failures, stopping a launched unpackaged instance, verifying Server freshness, visual UI confirmation, or live CDP inspection of a running dev or production app in this repository.
 ---
 
 # Debug Caxri
 
 1. Reproduce with the narrowest real process path. Use `bun run dev` in this checkout, or
-   `switch-worktree.ts dev` for an isolated worktree, for interactive Electron behavior.
+   `bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts dev` for an isolated
+   worktree, for interactive Electron behavior.
 2. Identify the owner from the `project-architecture` skill's architecture reference: Desktop Main
    for windows, dialogs, the Desktop lease, and the runtime profile; Server Core for Projects,
    Sessions, SQLite, settings, and the public command surface; Terminal Host for PTYs; Extension
@@ -25,6 +26,34 @@ description: Diagnose Caxri failures across Desktop Main, Server Core, Terminal 
    boundary is part of the failure.
 7. Call the Skill tool with "quality-check" with the changed source and regression test before any
    broader suite.
+
+## Runtime profile, shutdown, and visual proof
+
+Unpackaged (dev) launches default to an isolated `caxri-dev` userData profile (own Server, SQLite,
+and logs) so they never contend with the installed production app. `CAXRI_USER_DATA_DIR` overrides
+it (`apps/desktop/src/main/desktop-profile.ts`).
+
+Stop every dev instance you started before reporting a request complete, and verify it actually
+died. One launch leaves five separate processes: the `electron-vite dev` launcher, the Electron
+window process (whose `ps` command is `Caxri Dev`, not an Electron binary path), and the detached
+`<worktree>/apps/server/dist/server/bundles/server-core.js` and `extension-host.js`.
+`pkill -f "Electron.app/Contents/MacOS/Electron"` silently misses the window process, and the
+launcher can outlive the signal. Never trust `pkill`'s exit code. Confirm with
+`ps -axo pid,command` plus a CDP probe of `127.0.0.1:9223`, then kill the surviving PIDs
+directly. Match on the absolute `<worktree>/apps/server/dist/server/` path so a sibling
+worktree's session and the installed `/Applications/Caxri.app` are never hit.
+
+The dev Server Core and Extension Host are long-lived background processes that survive window
+restarts. The Desktop replaces a Server whose build fingerprint differs from its own on connect,
+but that only triggers when a window reconnects — a headless Server can still serve stale code
+between launches. Before using a live instance to verify or disprove a Server change, confirm
+the `apps/server/dist/server/bundles/server-core.js` and `extension-host.js` process start times
+postdate the change (`ps -axo pid,lstart,command`), and restart them when they do not.
+
+A user-visible Renderer/UI change is not done until it has been verified visually in the running
+dev app. Drive the real application over CDP, capture a screenshot of the affected surface, and
+check it before reporting completion. Passing unit or e2e gates alone does not count for visual
+changes.
 
 For native load failures, run `bun run spike:native` and `bun run spike:pty`, then verify the
 packaged app rather than assuming the development ABI matches.
@@ -48,7 +77,7 @@ instance can run and be inspected concurrently. A production-build issue can usu
 by connecting to the running installed app on 9224 directly; whether that suffices or a dev
 relaunch is still needed depends on the problem. The `remoteDebugging` field in the Main-owned boot
 config `<userData>/config/argv.jsonc` (Settings → "Remote debugging") turns the endpoint off on
-the next launch (`apps/desktop/src/main/runtime-profile.ts`).
+the next launch (`apps/desktop/src/main/desktop-profile.ts`).
 
 Connect with `agent-browser`, always stripping proxy environment variables:
 

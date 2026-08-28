@@ -1,6 +1,6 @@
 ---
 name: release
-description: Prepare Caxri releases and optional local unsigned macOS artifacts. Use when creating a development package, performing a release-readiness check, or publishing and verifying a GitHub Release.
+description: Prepare Caxri releases and optional local unsigned macOS artifacts. Use when creating a development package, performing a release-readiness check, publishing and verifying a GitHub Release, or previewing/applying the local uninstall/reset plan.
 disable-model-invocation: true
 ---
 
@@ -55,3 +55,11 @@ beyond the packaged application itself.
 - After the GitHub Release publishes successfully, install it locally by default with
   `bun run install:caxri` (standing owner preference) and report the installed version. Skip only
   when the user asked not to install or the release itself failed.
+
+## Local uninstall
+
+Preview the pre-release local reset/uninstall plan with `bun run uninstall:caxri`. Apply it only
+after explicit authorization with `bun run uninstall:caxri -- --yes`. The command archives known
+Caxri installation state, application paths, and managed development profiles beneath the primary
+checkout's sibling `../caxri-uninstall-archives`, records every original path in `manifest.json`,
+and never targets Project folders or user files.
