@@ -87,18 +87,6 @@ export function createEmptyIssueExpectationDrift(): IssueExpectationDrift {
     return { assessedAt: null, assessmentHeadSha: null, records: [], status: 'none' };
 }
 
-/**
- * Missing drift state predates the public-decision gate and remains resumable.
- */
-export function createImportedIssueExpectationDrift(): IssueExpectationDrift {
-    return {
-        assessedAt: 'legacy-unavailable',
-        assessmentHeadSha: null,
-        records: [],
-        status: 'none',
-    };
-}
-
 export function isMaterialExpectationDrift(
     kind: z.infer<typeof driftKindSchema>,
 ): kind is z.infer<typeof materialDriftKindSchema> {
