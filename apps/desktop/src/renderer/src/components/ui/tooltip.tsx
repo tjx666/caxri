@@ -1,4 +1,4 @@
-import type { ReactElement, ReactNode } from 'react';
+import type { PointerEvent as ReactPointerEvent, ReactElement, ReactNode } from 'react';
 import { useRef, useState } from 'react';
 
 import { Tooltip as TooltipPrimitive } from '@base-ui/react/tooltip';
@@ -63,6 +63,15 @@ export function Tooltip({
     const isCursorMode = anchorMode === 'cursor';
     const isCursorAnchored = anchorMode === 'cursor' && cursorAnchor !== undefined;
     /**
+     * Base UI can open a sibling tooltip in its instant phase before that trigger's first pointer-move handler runs.
+     * Capturing pointer-enter as well prevents the open from falling back to the row's bottom edge.
+     */
+    const capturePointer = isCursorMode
+        ? (event: ReactPointerEvent) => {
+              latestPointer.current = { x: event.clientX, y: event.clientY };
+          }
+        : undefined;
+    /**
      * Keeps the popup beside the pointer so its vertical path through adjacent tree rows stays clear. Floating UI flips
      * the popup to the left near the right edge without moving it across that path.
      */
@@ -73,7 +82,7 @@ export function Tooltip({
             onOpenChange={
                 anchorMode === 'cursor'
                     ? (open, details) => {
-                          if (open)
+                          if (open) {
                               setCursorAnchor(
                                   resolveTooltipCursorAnchor(
                                       open,
@@ -81,6 +90,7 @@ export function Tooltip({
                                       latestPointer.current,
                                   ),
                               );
+                          }
                       }
                     : undefined
             }
@@ -95,13 +105,8 @@ export function Tooltip({
             <TooltipPrimitive.Trigger
                 id={triggerId}
                 render={children}
-                onPointerMove={
-                    anchorMode === 'cursor'
-                        ? (event) => {
-                              latestPointer.current = { x: event.clientX, y: event.clientY };
-                          }
-                        : undefined
-                }
+                onPointerEnter={capturePointer}
+                onPointerMove={capturePointer}
             />
             <TooltipPrimitive.Portal>
                 <TooltipPrimitive.Positioner
@@ -146,7 +151,7 @@ export function Tooltip({
                             // waiting a frame.
                         )}
                     >
-                        <span>{content}</span>
+                        <span className="min-w-0 wrap-anywhere whitespace-pre-line">{content}</span>
                         {shortcut && (
                             <ShortcutBadge className="ml-auto" compact shortcut={shortcut} />
                         )}
