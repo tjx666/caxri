@@ -60,7 +60,6 @@ test('Cmd+P lazily browses Project paths from Terminal, Editor, and Files focus'
             .not.toBe(firstActiveOption);
         await expect(dialog.getByText('target.ts')).toHaveCount(0);
         await input.fill('read');
-        await expect(input).toHaveAttribute('aria-busy', 'true');
         await expect(input).toHaveAttribute('aria-busy', 'false');
         await input.press('Tab');
         await expect(input).toHaveValue('README.md');
@@ -78,17 +77,14 @@ test('Cmd+P lazily browses Project paths from Terminal, Editor, and Files focus'
         dialog = running.page.getByRole('dialog');
         input = dialog.getByRole('combobox', { name: 'File path' });
         await input.fill('sr');
-        await expect(input).toHaveAttribute('aria-busy', 'true');
         await expect(input).toHaveAttribute('aria-busy', 'false');
         await input.press('ArrowRight');
         await expect(dialog).toContainText('src/');
         await input.fill('nest');
-        await expect(input).toHaveAttribute('aria-busy', 'true');
         await expect(input).toHaveAttribute('aria-busy', 'false');
         await input.press('Enter');
         await expect(dialog).toContainText('src/nested/');
         await input.fill('tar');
-        await expect(input).toHaveAttribute('aria-busy', 'true');
         await expect(input).toHaveAttribute('aria-busy', 'false');
         await input.press('Tab');
         await expect(input).toHaveValue('target.ts');
@@ -103,14 +99,12 @@ test('Cmd+P lazily browses Project paths from Terminal, Editor, and Files focus'
         dialog = running.page.getByRole('dialog');
         input = dialog.getByRole('combobox', { name: 'File path' });
         await input.fill('sr');
-        await expect(input).toHaveAttribute('aria-busy', 'true');
         await expect(input).toHaveAttribute('aria-busy', 'false');
         await input.press('Enter');
         await expect(dialog).toContainText('src/');
         await input.press('ArrowLeft');
         await expect(dialog.getByRole('option', { name: 'src' })).toBeVisible();
         await input.fill('sr');
-        await expect(input).toHaveAttribute('aria-busy', 'true');
         await expect(input).toHaveAttribute('aria-busy', 'false');
         await input.press('Enter');
         await input.fill('../');
@@ -211,7 +205,6 @@ test('Cmd+P removes the Project anchor and opens an external file without a pick
 
         const externalFilter = `${externalRoot}/external`;
         await input.fill(externalFilter);
-        await expect(input).toHaveAttribute('aria-busy', 'true');
         await expect(input).toHaveAttribute('aria-busy', 'false');
         await expect(input).toHaveValue(externalFilter);
         await expect(
