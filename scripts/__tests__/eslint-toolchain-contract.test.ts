@@ -351,4 +351,18 @@ describe('shared ESLint preset toolchain contract', () => {
 
         expect(unregistered).toEqual([]);
     });
+
+    it('keeps generated design prototype assets out of Knip file analysis', async () => {
+        const manifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')) as {
+            knip: {
+                workspaces: {
+                    '.': { entry: string[]; ignoreFiles: string[] };
+                };
+            };
+        };
+        const rootWorkspace = manifest.knip.workspaces['.'];
+
+        expect(rootWorkspace.entry).toContain('.agents/skills/design-prototype/assets/entry.mjs');
+        expect(rootWorkspace.ignoreFiles).toContain('.agents/skills/design-prototype/assets/*.js');
+    });
 });

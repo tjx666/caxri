@@ -127,6 +127,9 @@
                     ".agents/skills/deep-review/scripts/vitest.config.ts",
                     "tools/oxlint/anti-slop/**"
                 ],
+                "ignoreFiles": [
+                    ".agents/skills/design-prototype/assets/*.js"
+                ],
                 "ignoreDependencies": [
                     "tailwindcss",
                     "tw-animate-css",
