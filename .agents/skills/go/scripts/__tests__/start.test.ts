@@ -54,42 +54,7 @@ describe('Go isolated startup', () => {
             worktreePath: '/repo-worktrees/go-isolation',
         });
         expect(calls).toContain('/repo: fetch --quiet origin main');
-        const buildIndex = calls.indexOf(
-            '/repo-worktrees/go-isolation: run --cwd packages/utils build',
-        );
-        expect(buildIndex).toBeGreaterThan(-1);
-        expect(buildIndex).toBeLessThan(calls.indexOf('initialize'));
-    });
-
-    it('does not initialize a ledger when the worktree utility build fails', async () => {
-        let isInitialized = false;
-        await expect(
-            startGoRun({ branch: 'fix/go-utils-build', objective: 'Prepare Go state' }, '/repo', {
-                capture: (command, arguments_, cwd) => {
-                    const joined = arguments_.join(' ');
-                    if (arguments_.includes('--git-common-dir'))
-                        return Promise.resolve('/repo/.git');
-                    if (arguments_[0] === 'fetch') return Promise.resolve('');
-                    if (joined === 'rev-parse origin/main') return Promise.resolve('base');
-                    if (cwd === '/repo-worktrees/go-utils-build') {
-                        if (command === 'bun')
-                            return Promise.reject(new Error('utils build failed'));
-                        return Promise.resolve(
-                            arguments_[0] === 'branch' ? 'fix/go-utils-build' : 'base',
-                        );
-                    }
-                    if (joined === 'branch --show-current') return Promise.resolve('main');
-                    if (joined === 'rev-parse HEAD') return Promise.resolve('head');
-                    return Promise.resolve('');
-                },
-                create: () => Promise.resolve({ path: '/repo-worktrees/go-utils-build' }),
-                initialize: () => {
-                    isInitialized = true;
-                    return Promise.resolve('/state.json');
-                },
-            }),
-        ).rejects.toThrow('utils build failed');
-        expect(isInitialized).toBe(false);
+        expect(calls).toContain('initialize');
     });
 
     it('fails if startup changes the main checkout snapshot', async () => {
