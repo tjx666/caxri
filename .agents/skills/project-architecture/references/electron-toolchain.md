@@ -59,10 +59,11 @@ Server artifact without importing `apps/server` source.
 Repository scripts run through Bun and resolve private workspace package exports directly to their
 TypeScript sources through the `bun` export condition. This keeps fresh worktrees runnable without ignored
 `dist` directories and prevents contributor checks from loading stale build output. The public `caxri`
-Extension API remains `dist`-only because its published package does not include `src`. The `bun` condition
-must precede the platform `import` condition because conditional export order is significant; Node,
-Electron, and production bundles continue to consume `dist` through `import`.
-See [Bun's module resolution documentation](https://bun.sh/docs/runtime/module-resolution#package-resolution).
+Extension API remains `dist`-only because its published package does not include `src`; repository Node and
+Extension typechecks map that specifier to the current source through their local `paths` settings. Extension
+bundles keep the specifier external for the Extension Host, so this mapping does not change emitted or
+packaged runtime imports. See [Bun's module resolution documentation](https://bun.sh/docs/runtime/module-resolution#package-resolution)
+and [TypeScript's paths documentation](https://www.typescriptlang.org/tsconfig/paths.html).
 
 Packaged Main processes treat `ELECTRON_RENDERER_URL` as a development-only override: application
 logs always resolve beneath Electron `userData`, never relative to the packaged application bundle.
