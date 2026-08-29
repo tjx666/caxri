@@ -108,7 +108,7 @@ directories.
 - Start the Electron app in the current worktree with
   `bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts dev`. `bun run dev` is the
   first-clone equivalent in this checkout; agent sessions and parallel worktrees must use the
-  wrapper so profiles and leases stay isolated. Manage isolated worktrees with `$switch-worktree`.
+  wrapper so profiles and leases stay isolated. Manage isolated worktrees with `switch-worktree`.
 - Stop every dev instance you started before reporting a request complete, and verify it actually
   died. Never `pkill -f "Electron.app/Contents/MacOS/Electron"`: it misses the `Caxri Dev` window
   process, the launcher can outlive the signal, and a sibling worktree or `/Applications/Caxri.app`
@@ -155,7 +155,7 @@ directories.
 | Vitest unit/integration regressions                       | `unit-testing`         |
 | Playwright Electron workflows                             | `e2e-testing`          |
 | Live inspection, CDP, stopping owned processes            | `debug`                |
-| Isolated worktrees and desktop lease                      | `$switch-worktree`     |
+| Isolated worktrees and desktop lease                      | `switch-worktree`      |
 | GitHub issues                                             | `file-issue`           |
 | Commits                                                   | `commit`               |
 | Pull requests and CI watch                                | `pull-request`         |
