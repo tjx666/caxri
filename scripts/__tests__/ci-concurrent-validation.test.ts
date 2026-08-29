@@ -264,6 +264,7 @@ describe('concurrent CI validation', () => {
         });
 
         expect(checks.map(({ label }) => label)).toEqual([
+            'node-pty spawn helper',
             'ESLint',
             'oxlint type-aware',
             'markdownlint',
@@ -274,6 +275,11 @@ describe('concurrent CI validation', () => {
             'unit and integration tests',
             'bundle budget',
         ]);
+        expect(checks[0]).toEqual({
+            arguments: ['run', 'scripts/prepare-node-pty.ts'],
+            command: 'bun',
+            label: 'node-pty spawn helper',
+        });
         expect(checks.at(-1)?.arguments).toContain('scripts/ci-bundle-budget.ts');
     });
 
