@@ -184,7 +184,8 @@ process.stdout.write('Compaction Agent ready\r\n');
         await expect(running.page.locator('.statusbar-terminal-progress')).toHaveAccessibleName(
             'Terminal progress: 42 percent',
         );
-        await expect(sessionStatus).toHaveAccessibleName('Working. The Agent is running.');
+        await expect(sessionStatus).toHaveAttribute('data-session-status', 'default');
+        await expect(sessionStatus).toHaveAttribute('aria-hidden', 'true');
         const finishedState = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
         expect(
             finishedState.terminals.find((terminal) => terminal.sessionId === sessionId)
