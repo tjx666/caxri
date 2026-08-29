@@ -12,7 +12,7 @@ export type NativeModuleProbe = (path: string) => boolean;
  * Mirrors node-pty 1.1.0's native load order so local preparation and packaged staging select the same layout.
  * https://github.com/microsoft/node-pty/blob/1.1.0/src/utils.ts
  */
-export function nodePtyNativeCandidateDirectories(options: NodePtyNativeLayoutOptions): string[] {
+function nodePtyNativeCandidateDirectories(options: NodePtyNativeLayoutOptions): string[] {
     return [
         join(options.packageRoot, 'build', 'Release'),
         join(options.packageRoot, 'build', 'Debug'),
