@@ -56,6 +56,13 @@ The Desktop build consumes `@caxri/client` and `@caxri/protocol` through public 
 leaving workspace links out of the packaged application. Main discovers and supervises the embedded
 Server artifact without importing `apps/server` source.
 
+Repository scripts run through Bun and resolve every public workspace package export directly to its
+TypeScript source through the `bun` export condition. This keeps fresh worktrees runnable without ignored
+`dist` directories and prevents contributor checks from loading stale build output. The `bun` condition
+must precede the platform `import` condition because conditional export order is significant; Node,
+Electron, and production bundles continue to consume `dist` through `import`.
+See [Bun's module resolution documentation](https://bun.sh/docs/runtime/module-resolution#package-resolution).
+
 Packaged Main processes treat `ELECTRON_RENDERER_URL` as a development-only override: application
 logs always resolve beneath Electron `userData`, never relative to the packaged application bundle.
 
