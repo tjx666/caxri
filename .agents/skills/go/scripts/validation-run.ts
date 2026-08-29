@@ -73,7 +73,7 @@ interface RunValidationDependencies {
  * Formal validation inherits only deterministic toolchain context. In particular, repository and GitHub credentials are
  * never copied into commands whose stdout and stderr become durable logs.
  */
-export function safeValidationEnvironment(
+function safeValidationEnvironment(
     source: NodeJS.ProcessEnv = process.env,
 ): Record<string, string> {
     const environment: Record<string, string> = {};
@@ -119,7 +119,7 @@ function displayArgument(argument: string): string {
     return /^[\w./:=@+-]+$/u.test(argument) ? argument : JSON.stringify(argument);
 }
 
-export function formatValidationCommand(executable: string, arguments_: string[]): string {
+function formatValidationCommand(executable: string, arguments_: string[]): string {
     return [executable, ...arguments_].map(displayArgument).join(' ');
 }
 

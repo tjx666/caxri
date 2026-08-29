@@ -15,7 +15,7 @@ export interface ValidationLogReceipt {
     sha256: string;
 }
 
-export interface ValidationLogMetadata {
+interface ValidationLogMetadata {
     ctimeMs: number;
     device: number;
     inode: number;

@@ -16,7 +16,7 @@ const validationLogPathSchema = z
     );
 
 export const validationKindSchema = z.enum(['ci', 'evidence', 'fixture', 'gates', 'remote_state']);
-export const validationTerminationSchema = z.enum([
+const validationTerminationSchema = z.enum([
     'caller_interrupt',
     'exit',
     'legacy',
