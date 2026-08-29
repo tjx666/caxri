@@ -285,18 +285,11 @@ describe('CI workflow contract', () => {
 
         expect(checksJob).toContain("needs.retry-policy.outputs.e2e_profile != 'optimized'");
         expect(e2eJob).toContain('ref: ${{ github.event.pull_request.head.sha || github.sha }}');
-        expect(e2eJob).toContain(
-            'CAXRI_CHECKS_REVISION: ${{ github.event.pull_request.merge_commit_sha }}',
-        );
-        expect(e2eJob).toContain(
-            'CAXRI_CHECKS_FETCH_REF: ${{ github.event.pull_request.merge_commit_sha }}',
-        );
-        expect(e2eJob).toContain('CAXRI_CHECKS_NON_PR_REVISION: ${{ github.sha }}');
-        expect(e2eJob).toContain(
-            'The pull_request event is missing its immutable merge commit SHA',
-        );
-        expect(e2eJob).toContain('export CAXRI_CHECKS_REVISION="$CAXRI_CHECKS_NON_PR_REVISION"');
-        expect(e2eJob).not.toContain('pull_request.merge_commit_sha || github.sha');
+        expect(e2eJob).toContain('CAXRI_CHECKS_REVISION: ${{ github.sha }}');
+        expect(e2eJob).toContain('CAXRI_CHECKS_FETCH_REF: ${{ github.sha }}');
+        expect(e2eJob).toContain('The workflow event is missing its immutable revision SHA');
+        expect(e2eJob).not.toContain('github.event.pull_request.merge_commit_sha');
+        expect(e2eJob).not.toContain('CAXRI_CHECKS_NON_PR_REVISION');
         expect(e2eJob).not.toContain(
             "format('refs/pull/{0}/merge', github.event.pull_request.number)",
         );

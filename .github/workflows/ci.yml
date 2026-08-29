@@ -246,10 +246,9 @@ jobs:
           && 'trusted owner main push'
           || 'unreachable untrusted event' }}
       CAXRI_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-      # Runtime PR refs and github.sha can be regenerated after the event snapshot. Keep checks bound
-      # to the merge commit that GitHub recorded with the event's immutable base and head revisions.
-      CAXRI_CHECKS_NON_PR_REVISION: ${{ github.sha }}
-      CAXRI_CHECKS_REVISION: ${{ github.event.pull_request.merge_commit_sha }}
+      # For pull_request workflows, GitHub defines github.sha as the synthetic merge commit captured
+      # for this event. Fetch that immutable SHA directly instead of the moving refs/pull/*/merge ref.
+      CAXRI_CHECKS_REVISION: ${{ github.sha }}
       CAXRI_RUNNER_AGENT_DISCOVERY: blocked
       CAXRI_RUNNER_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-e2e
     steps:
@@ -322,7 +321,7 @@ jobs:
               || github.event_name == 'push'
               && github.event.before
               || '' }}
-          CAXRI_CHECKS_FETCH_REF: ${{ github.event.pull_request.merge_commit_sha }}
+          CAXRI_CHECKS_FETCH_REF: ${{ github.sha }}
           CAXRI_CHECKS_HEAD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
           CAXRI_CHECKS_REQUIRE_MERGE: ${{ github.event_name == 'pull_request' }}
           CAXRI_GITHUB_TOKEN: ${{ github.token }}
@@ -330,14 +329,9 @@ jobs:
           CAXRI_VITEST_PARTITION: ${{ inputs.vitest_partition || 'optimized' }}
           ESLINT_CONCURRENCY: ${{ inputs.eslint_concurrency || 'off' }}
         run: |
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            if [ -z "$CAXRI_CHECKS_REVISION" ] || [ -z "$CAXRI_CHECKS_FETCH_REF" ]; then
-              echo "The pull_request event is missing its immutable merge commit SHA" >&2
-              exit 1
-            fi
-          else
-            export CAXRI_CHECKS_REVISION="$CAXRI_CHECKS_NON_PR_REVISION"
-            export CAXRI_CHECKS_FETCH_REF="$CAXRI_CHECKS_NON_PR_REVISION"
+          if [ -z "$CAXRI_CHECKS_REVISION" ] || [ -z "$CAXRI_CHECKS_FETCH_REF" ]; then
+            echo "The workflow event is missing its immutable revision SHA" >&2
+            exit 1
           fi
           bun run scripts/ci-concurrent-validation.ts run
       - id: full-checks-receipt
