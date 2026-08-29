@@ -134,8 +134,9 @@ creates a Project or Session or enters durable Session state.
 
 **Status bar** — `--surface` background, top hairline, `meta` text in `--muted`. The left side
 shows Project and Git context. The right side follows the active tab: a normal file shows
-current-line blame, selection, cursor position, and language; a Terminal shows its transient Agent
-operation, process-tree memory, and child count. Diff tabs show neither file nor Terminal details.
+current-line blame, selection, cursor position, and language; a Terminal shows Terminal progress,
+process-tree memory, and child count. Transient Agent operations stay with the owning work tab
+instead of being duplicated here. Diff tabs show neither file nor Terminal details.
 Caxri status appears ONLY when degraded (`Reconnecting…` / `Caxri stopped`) as a
 `--warning`/`--danger` chip; healthy state shows nothing. The chip is informational — recovery
 lives in the native Relaunch dialog, so the chip never fakes an action it cannot perform.
@@ -184,10 +185,12 @@ Both return as soon as a second tab exists anywhere in the window. A clean previ
 transient, Session-scoped motion identity: replacing its path updates the same DOM tab instantly,
 pinning preserves that identity, and only the next real tab receives the existing enter animation.
 Session bootstrap and switching still mount without structural motion; actual close keeps the exit
-animation. Transient Agent operations may temporarily use the existing text accessory before the
-Terminal's process-state tail; that tab accessory stays neutral, replaces generic progress text
-while active, and never animates. This does not govern the Session list's right-edge running
-spinner.
+animation. Transient Agent operations may temporarily use the existing text accessory after the
+Terminal title and replace generic progress text while active. `Compacting` is the single
+exception: it uses `--foreground` and a slow opacity pulse so long-running context compression
+remains noticeable without animating the Agent icon or Session title. Work tabs carry no separate
+process-state dot; process liveness remains available through diagnostics rather than duplicate
+chrome. This does not govern the Session list's right-edge running spinner.
 
 **Motion** — motion explains structure; it never decorates state. Motion is a layered stack. Pick
 the least-powerful layer that covers the scenario, and one element is only ever driven by one
@@ -220,7 +223,8 @@ disclosures expand `--motion-expand` (180ms, `--motion-ease-emphasized`
 enter `--motion-tab-enter` (140ms, ease-out) and exit `--motion-tab-exit` (110ms, ease-in); the
 shared chrome tab indicator moves with `--motion-chrome-switch` (160ms,
 `--motion-ease-emphasized`); overlays enter `--motion-overlay-enter` (150ms) and exit
-`--motion-overlay-exit` (100ms). JS resolves tokens through `lib/motion.ts` (`motionDurationMs`);
+`--motion-overlay-exit` (100ms); `Compacting` pulses on `--motion-compaction-pulse` (1800ms,
+ease-in-out). JS resolves tokens through `lib/motion.ts` (`motionDurationMs`);
 settlement fallbacks are token plus a safety margin (`motionSettleTimeoutMs`), never an independent
 literal.
 
@@ -234,11 +238,15 @@ The Session status icon is the narrow state-motion exception: unread attention p
 actionable event is noticeable, running spins, and acknowledged waiting stays static. The motion
 belongs inside the icon; swapping among the three list projections remains instant.
 
+The work-tab `Compacting` accessory is the other state-motion exception: only that word pulses,
+while the Agent icon, Session title, focus accent, and neighboring tabs remain still.
+
 `prefers-reduced-motion: reduce` completes every layer instantly — overlay keyframes are gated
 behind `motion-safe:` variants (the library ships no media query of its own, and a
 `motion-reduce:animate-none` override would lose the specificity fight against the `data-open:`
 attribute variant), disclosure CSS zeroes its durations, Session status icons keep their base shape
-but stop moving, and Motion durations come from the shared `useShouldReduceMotion` hook
+but stop moving, the `Compacting` word stays high-contrast and static, and Motion durations come
+from the shared `useShouldReduceMotion` hook
 (`hooks/use-should-reduce-motion.ts`, the only sanctioned way to read the preference in JS) —
 without changing focus, selection, command, query, or lifecycle behavior.
 

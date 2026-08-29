@@ -24,3 +24,25 @@ export function isMetadataActivityBaselineMatch(
 ): boolean {
     return baseline.status === snapshot.status && baseline.attentionKind === snapshot.attentionKind;
 }
+
+/**
+ * A process-only `unknown` baseline may update identity, title, and usage, but it cannot replace durable settled or
+ * attention state. Uncorroborated `running` is cleared because interactive Agent CLIs stay alive at their prompt and
+ * older builds persisted process liveness as false turn evidence.
+ */
+export function reconcileMetadataActivityBaseline(
+    snapshot: AgentSnapshot,
+    currentStatus: AgentActivityState,
+): AgentSnapshot {
+    const reconciledStatus =
+        snapshot.status === 'unknown'
+            ? currentStatus === 'running'
+                ? 'unknown'
+                : currentStatus
+            : snapshot.status;
+    return {
+        ...snapshot,
+        attentionKind: undefined,
+        status: reconciledStatus,
+    };
+}

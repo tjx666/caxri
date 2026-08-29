@@ -26,7 +26,10 @@ not. Concurrent metadata observations for one Terminal are serialized, with
 one trailing observation preserved when a refresh arrives during an in-flight read. The first
 observation of a process generation establishes a complete reconciliation baseline; repeated
 identical observations remain reconciliation, while later Primary Agent state transitions may
-advance the clock. Selection, attention acknowledgement, rename, archive/restore, Session
+advance the clock. An interactive Agent PTY remaining alive at its prompt is not a running turn:
+process lifecycle updates do not change Agent Activity, and a process-only metadata fallback is
+`unknown`. An initial process-only reconciliation also clears an uncorroborated historical
+`running` value while preserving settled and attention states. Selection, attention acknowledgement, rename, archive/restore, Session
 View persistence, Terminal structure, output chunks, title-only probes, compaction, empty submit,
 and bracketed-paste editing do not.
 

@@ -147,7 +147,9 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         // selected Session without a manual Restart click (GitHub issue #18). The mounted xterm is
         // replaced from the durable snapshot, so output that existed only in the dead
         // Renderer/Core generation cannot linger on screen (GitHub issue #67).
-        await expect(running.page.locator('.process-running').first()).toBeVisible();
+        await expect(
+            running.page.locator('.terminal-surface[data-terminal-attached="true"]'),
+        ).toBeVisible();
         await expect(running.page.locator('.xterm-rows').first()).not.toContainText(
             'STALE_RENDERER_ONLY',
         );
@@ -175,7 +177,9 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
             .toMatchObject({ width: 960, height: 640 });
         // An orderly app quit also leaves running Terminals interrupted; the relaunched Runtime
         // restores the selected Session's Terminals on startup without user action.
-        await expect(running.page.locator('.process-running').first()).toBeVisible();
+        await expect(
+            running.page.locator('.terminal-surface[data-terminal-attached="true"]'),
+        ).toBeVisible();
 
         await running.app.evaluate(({ dialog }) => {
             dialog.showMessageBox = () => Promise.resolve({ response: 2, checkboxChecked: false });

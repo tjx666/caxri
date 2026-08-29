@@ -268,7 +268,6 @@ test('normal exit stays neutral and restart preserves one durable Terminal', asy
         await restart.focus();
         await running.page.keyboard.press('Enter');
         await expect(stopped).toHaveCount(0);
-        await expect(running.page.locator('.process-running')).toBeVisible();
         await expect(running.page.locator('.work-tab[data-terminal-id]')).toHaveCount(tabCount);
         await expect(pane).toHaveAttribute('data-terminal-id', terminalId);
         await expect.poll(() => pageRequest<number>(running.page, 'terminal.runningCount')).toBe(1);
@@ -280,8 +279,8 @@ test('normal exit stays neutral and restart preserves one durable Terminal', asy
 
         await running.page.keyboard.press('Meta+Shift+R');
         await expect(dead).toHaveCount(0);
-        await expect(running.page.locator('.process-running')).toBeVisible();
         await expect(pane).toHaveAttribute('data-terminal-id', terminalId);
+        await expect.poll(() => pageRequest<number>(running.page, 'terminal.runningCount')).toBe(1);
     } finally {
         try {
             await running.app.close();
@@ -494,7 +493,9 @@ render();
         let running = await launchCaxri(launchOptions);
         try {
             await createProjectSession(running.page, agent.kind);
-            await expect(running.page.locator('.process-running')).toBeVisible();
+            await expect
+                .poll(() => pageRequest<number>(running.page, 'terminal.runningCount'))
+                .toBe(1);
             await running.app.evaluate(({ BrowserWindow }) =>
                 BrowserWindow.getAllWindows()[0]?.setBounds({ width: 1200, height: 800 }),
             );
@@ -507,7 +508,9 @@ render();
 
             await running.app.close();
             running = await launchCaxri(launchOptions);
-            await expect(running.page.locator('.process-running')).toBeVisible();
+            await expect
+                .poll(() => pageRequest<number>(running.page, 'terminal.runningCount'))
+                .toBe(1);
             await expect.poll(() => firstAgentGrid(gridLog, 2)).toBe(expectedGrid);
             expect(await waitForStableAgentGrid(running.page, gridLog, 2)).toBe(expectedGrid);
         } finally {

@@ -23,10 +23,6 @@ import { useChromeLayoutStore } from '../../stores/chrome-layout';
 import { useSelectedSession, useSessionState, useTerminal } from '../../stores/selectors';
 import { sessionViewScope, useSessionViewStore } from '../../stores/session-view';
 import { closeDocumentTabs, pinDocumentTab } from '../editor/document-actions';
-import {
-    sessionActivityPresentation,
-    sessionToneBackgroundClassName,
-} from '../primary-sidebar/session-activity';
 import { moveTerminalToNewSession } from '../session/session-actions';
 import { WorkTab } from '../tabs/work-tab';
 import type { WorkTabNavigationKey } from '../tabs/work-tab-accessibility';
@@ -42,22 +38,6 @@ import { PANE_TAB_DRAG_TYPE } from './pane-drop-zone';
 import { PaneTabMenu } from './pane-tab-menu';
 import { useScrollEdges } from './tab-scroll-edges';
 import { usePaneTabDrag } from './use-pane-tab-drag';
-
-/**
- * Agent activity for the Terminal that owns the selected Session's title, or `undefined` for a Shell and for a
- * secondary Agent Terminal whose activity the Session read model does not track.
- */
-function useAgentTabActivity(
-    terminalId: string,
-): { className: string; description: string } | undefined {
-    const session = useSelectedSession();
-    if (session?.primaryAgentTerminalId !== terminalId) return undefined;
-    const activity = sessionActivityPresentation(session.lastActivityState);
-    return {
-        className: sessionToneBackgroundClassName(activity.tone),
-        description: activity.ariaLabel,
-    };
-}
 
 interface PaneTabProperties {
     active: boolean;
@@ -84,7 +64,6 @@ function TerminalPaneTab({
     const isCompacting = terminal.agentOperation === 'compacting';
     const ProgressIcon =
         progress?.kind === 'error' ? CircleAlert : progress?.kind === 'paused' ? Pause : undefined;
-    const activity = useAgentTabActivity(terminal.id);
     const displayTitle = terminalDisplayTitle(terminal);
     return (
         <WorkTab
@@ -96,7 +75,7 @@ function TerminalPaneTab({
                         <span
                             aria-label="Compacting context"
                             aria-live="polite"
-                            className="terminal-agent-operation inline-flex flex-none items-center text-muted"
+                            className="terminal-agent-operation inline-flex flex-none items-center text-foreground"
                             data-agent-operation="compacting"
                             role="status"
                         >
@@ -134,8 +113,6 @@ function TerminalPaneTab({
             label={terminalTabLabel(displayTitle)}
             labelTooltip={displayTitle}
             showActiveAccent={showActiveAccent}
-            status={terminal.lastProcessState}
-            statusActivity={activity}
             tabId={workTabId(tab.id)}
             paneTabId={tab.id}
             terminalId={terminal.id}

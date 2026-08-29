@@ -15,7 +15,8 @@ interface TerminalRestartHandlerOptions {
 }
 
 /**
- * Records an explicit Agent restart as work beginning only after the PTY restart succeeds.
+ * Records an explicit Agent restart only after the PTY restart succeeds. Restarting the interactive process updates
+ * recency, but a validated lifecycle signal still owns whether the Agent is executing a turn.
  */
 export function createTerminalRestartHandler(
     options: TerminalRestartHandlerOptions,

@@ -41,7 +41,15 @@ test('OSC 9;4 progress is coalesced, isolated, ephemeral, and independent from p
         await expect(running.page.locator('.statusbar-terminal-progress')).toHaveAccessibleName(
             'Terminal progress: 100 percent',
         );
-        await expect(firstTab.locator('.process-running')).toBeVisible();
+        await expect
+            .poll(async () => {
+                const state = await pageRequest<{
+                    terminals: Array<{ id: string; lastProcessState: string }>;
+                }>(running.page, 'app.bootstrap');
+                return state.terminals.find((terminal) => terminal.id === firstTerminalId)
+                    ?.lastProcessState;
+            })
+            .toBe('running');
 
         await typeTerminal(running.page, oscProgress(1, 'invalid'));
         await expect(firstTab.getByLabel('Terminal progress: 100 percent')).toBeVisible();
@@ -96,7 +104,15 @@ test('OSC 9;4 progress is coalesced, isolated, ephemeral, and independent from p
         await typeTerminal(running.page, oscProgress(1, 65));
         await expect(secondTab.getByLabel('Terminal progress: 65 percent')).toBeVisible();
         await expect(firstInactiveTab.getByLabel('Terminal progress: 33 percent')).toBeVisible();
-        await expect(secondTab.locator('.process-running')).toBeVisible();
+        await expect
+            .poll(async () => {
+                const state = await pageRequest<{
+                    terminals: Array<{ id: string; lastProcessState: string }>;
+                }>(running.page, 'app.bootstrap');
+                return state.terminals.find((terminal) => terminal.id === secondTerminalId)
+                    ?.lastProcessState;
+            })
+            .toBe('running');
 
         await typeTerminal(running.page, 'exit');
         await expect(running.page.locator('[data-terminal-exit-state="stopped"]')).toBeVisible();
