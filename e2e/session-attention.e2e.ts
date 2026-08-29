@@ -111,11 +111,29 @@ done
             BrowserWindow.getAllWindows()[0]?.setBounds({ width: 960, height: 640 }),
         );
         const firstRow = running.page.locator(`[data-session-id="${firstSession.id}"]`);
+        const firstStatus = firstRow.locator('.session-status');
+        await expect(firstStatus).toHaveAttribute('data-session-status', 'running');
+        await expect(firstStatus).toHaveAccessibleName('Working. The Agent is running.');
+        expect(
+            await firstStatus
+                .locator('[data-slot="spinner"]')
+                .evaluate((element) => element.getAnimations().length),
+        ).toBeGreaterThan(0);
+        const [rowBox, statusBox] = await Promise.all([
+            firstRow.boundingBox(),
+            firstStatus.boundingBox(),
+        ]);
+        if (!rowBox || !statusBox) throw new Error('Session status layout is unavailable');
+        expect(rowBox.x + rowBox.width - (statusBox.x + statusBox.width)).toBeLessThanOrEqual(10);
         const selectedBeforeHover = await pageRequest<{ selectedSessionId?: string }>(
             running.page,
             'app.bootstrap',
         );
         await firstRow.hover();
+        const archiveButton = running.page.getByRole('button', { name: `Archive ${longTitle}` });
+        await expect(archiveButton).toHaveCSS('opacity', '1');
+        await expect(archiveButton).toHaveCSS('pointer-events', 'auto');
+        await expect(firstStatus).toHaveCSS('opacity', '0');
         const activityCard = running.page.locator('.session-activity-card');
         await expect(activityCard).toBeVisible();
         await expect(activityCard.locator('h3')).toHaveText(longTitle);
@@ -156,6 +174,11 @@ done
         await expect(activityCard).toBeHidden();
         await running.page.mouse.move(900, 600);
         await running.page.emulateMedia({ reducedMotion: 'reduce' });
+        expect(
+            await firstStatus
+                .locator('[data-slot="spinner"]')
+                .evaluate((element) => element.getAnimations().length),
+        ).toBe(0);
         await firstRow.evaluate((element) => {
             Object.assign(element.style, {
                 bottom: '8px',
@@ -197,6 +220,7 @@ done
         await expect(activityCard).toBeHidden();
         await firstRow.evaluate((element) => element.removeAttribute('style'));
         await running.page.mouse.move(900, 600);
+        await running.page.emulateMedia({ reducedMotion: 'no-preference' });
 
         await createAdditionalShellSession(running.page);
         const withSecond = await pageRequest<{
@@ -214,13 +238,26 @@ done
             .toEqual([secondSessionId, firstSession.id]);
 
         await writeClaudeMetadata(config, root, startedAt, 'idle', 'First Agent');
-        await expect(firstRow.getByRole('img', { name: 'Unread: Waiting for you' })).toBeVisible();
-        await expect(
-            firstRow.getByRole('img', {
-                name: 'Waiting for you. The Agent is waiting for input or confirmation.',
-                exact: true,
-            }),
-        ).toBeVisible();
+        await expect(firstStatus).toHaveAttribute('data-session-status', 'attention');
+        await expect(firstStatus).toHaveAttribute('data-attention-emphasis', 'unread');
+        await expect(firstStatus).toHaveAccessibleName(
+            'Needs attention: Waiting for you. The Agent is waiting for input or confirmation.',
+        );
+        expect(
+            await firstStatus
+                .locator('[data-session-status-ripple]')
+                .evaluate((element) => element.getAnimations().length),
+        ).toBeGreaterThan(0);
+        const secondRow = running.page.locator(`[data-session-id="${secondSessionId}"]`);
+        expect(
+            await firstRow
+                .locator('strong')
+                .evaluate((element) => getComputedStyle(element).fontWeight),
+        ).toBe(
+            await secondRow
+                .locator('strong')
+                .evaluate((element) => getComputedStyle(element).fontWeight),
+        );
         await expect
             .poll(() =>
                 running.page
@@ -231,6 +268,9 @@ done
         await running.page.locator('.project-select').focus();
         await running.page.keyboard.press('ArrowDown');
         await expect(firstRow).toBeFocused();
+        await expect(firstStatus).toBeVisible();
+        await expect(archiveButton).toHaveCSS('opacity', '0');
+        await expect(archiveButton).toHaveCSS('pointer-events', 'none');
         await expect(activityCard).toBeVisible({ timeout: 200 });
         await expect(activityCard).toContainText('Waiting for you');
         await expect(activityCard).toContainText('The Agent is waiting for input or confirmation.');
@@ -254,7 +294,7 @@ done
         await expect(
             running.page
                 .locator(`[data-session-id="${firstSession.id}"]`)
-                .getByRole('img', { name: 'Unread: Waiting for you' }),
+                .locator('.session-status[data-attention-emphasis="unread"]'),
         ).toBeVisible();
 
         await running.page
@@ -278,7 +318,7 @@ done
         await expect(
             running.page
                 .locator(`[data-session-id="${firstSession.id}"]`)
-                .getByRole('img', { name: 'Unread: Waiting for you' }),
+                .locator('.session-status[data-attention-emphasis="unread"]'),
         ).toBeVisible();
         await expect
             .poll(() =>
@@ -298,9 +338,11 @@ done
                 ),
             )
             .toBe(true);
-        await expect(
-            running.page.locator(`[data-session-id="${firstSession.id}"] .session-unread`),
-        ).toHaveCount(0);
+        const selectedStatus = running.page.locator(
+            `[data-session-id="${firstSession.id}"] .session-status`,
+        );
+        await expect(selectedStatus).toHaveAttribute('data-session-status', 'attention');
+        await expect(selectedStatus).toHaveAttribute('data-attention-emphasis', 'persistent');
 
         await pageRequest(running.page, 'session.select', { sessionId: secondSessionId });
         await expect
@@ -314,7 +356,7 @@ done
         await expect(
             running.page
                 .locator(`[data-session-id="${firstSession.id}"]`)
-                .getByRole('img', { name: 'Unread: Finished' }),
+                .locator('.session-status[data-attention-emphasis="unread"]'),
         ).toBeVisible();
 
         await running.app.close();
@@ -322,7 +364,7 @@ done
         await expect(
             running.page
                 .locator(`[data-session-id="${firstSession.id}"]`)
-                .getByRole('img', { name: 'Unread: Finished' }),
+                .locator('.session-status[data-attention-emphasis="unread"]'),
         ).toBeVisible();
         await expect
             .poll(() =>

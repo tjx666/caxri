@@ -20,11 +20,8 @@ import {
 } from './session-activity';
 
 /**
- * Reuses the same tone table as the activity dot and the PrimarySidebar ring, per the single source of truth.
- *
- * The chip keeps the exact attention kind in its label but takes its tone from `sessionUnreadTone`, so the card matches
- * the ring that opened it — an unread Session must not read as a warning in the PrimarySidebar and as inert grey in its
- * own hover card.
+ * The detail card keeps the exact attention kind and its explanatory tone even though the list's compact status slot
+ * deliberately collapses every attention kind into one warning-colored "needs attention" signal.
  */
 function unreadAttentionPresentation(
     session: SessionRecord,

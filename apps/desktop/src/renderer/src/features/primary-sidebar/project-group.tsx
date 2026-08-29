@@ -15,8 +15,7 @@ import { ProjectIcon } from './project-icon';
 import type { ProjectDropTarget } from './project-order';
 import { hasProjectDragType, resolveProjectHeadingClick } from './project-order';
 import { SessionActivityCard } from './session-activity-card';
-import { SessionActivityDot } from './session-activity-dot';
-import { SessionUnreadIndicator } from './session-unread-indicator';
+import { SessionStatusIndicator } from './session-status-indicator';
 
 const sessionCardClassName =
     'session-card flex w-full h-7 items-center gap-2 px-2 border-0 rounded-md bg-transparent text-foreground text-left cursor-pointer hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)]';
@@ -75,7 +74,6 @@ function ActiveSessionRow({
             data-session-id={session.id}
             className={cn(
                 sessionCardClassName,
-                'pr-8',
                 'focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none',
                 selected && 'active bg-elevated',
                 renaming && 'cursor-text',
@@ -100,10 +98,6 @@ function ActiveSessionRow({
                 }
             }}
         >
-            <SessionActivityDot
-                agentOperation={terminal?.agentOperation}
-                state={session.lastActivityState}
-            />
             <AgentIdentityIcon identity={terminal?.kind ?? 'shell'} size={14} />
             {renaming ? (
                 <>
@@ -142,17 +136,14 @@ function ActiveSessionRow({
                 </>
             ) : (
                 <span className="session-copy min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
-                    {/*
-                     * Bolder weight is a non-color, no-hover unread cue: the ring's tone explains
-                     * *what* the attention was, but a sighted user should not need to hover the ring
-                     * or open the preview card just to notice *that* a row is unread.
-                     */}
-                    <strong className={session.hasUnread ? 'font-semibold' : 'font-medium'}>
-                        {session.displayTitle}
-                    </strong>
+                    <strong className="font-medium">{session.displayTitle}</strong>
                 </span>
             )}
-            <SessionUnreadIndicator session={session} />
+            <SessionStatusIndicator
+                agentOperation={terminal?.agentOperation}
+                className="transition-opacity group-hover/session-row:opacity-0"
+                session={session}
+            />
         </div>
     );
     return (
@@ -175,7 +166,7 @@ function ActiveSessionRow({
             <Tooltip content="Archive Session">
                 <button
                     type="button"
-                    className="pointer-events-none absolute top-1/2 right-1 grid size-5 -translate-y-1/2 cursor-pointer place-items-center rounded border-0 bg-elevated p-0 text-muted opacity-0 group-focus-within/session-row:pointer-events-auto group-focus-within/session-row:opacity-100 group-hover/session-row:pointer-events-auto group-hover/session-row:opacity-100 hover:text-foreground"
+                    className="pointer-events-none absolute top-1/2 right-1 grid size-5 -translate-y-1/2 cursor-pointer place-items-center rounded border-0 bg-elevated p-0 text-muted opacity-0 transition-opacity group-hover/session-row:pointer-events-auto group-hover/session-row:opacity-100 hover:text-foreground"
                     aria-label={`Archive ${session.displayTitle}`}
                     aria-keyshortcuts="Delete"
                     tabIndex={-1}

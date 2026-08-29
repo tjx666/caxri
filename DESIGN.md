@@ -134,13 +134,16 @@ accessible names and hover tooltips.
 **PrimarySidebar** — flatten the double-box nesting: project groups are a disclosure row
 (Folder/FolderOpen icon + name + count, no border, no card); sessions are flat rows indented 16px.
 Selection is an `--elevated` fill (radius 6), no border and no accent — the primarySidebar stays
-entirely neutral so the focused pane keeps the screen's one accent. Activity dots and the Session
-hover/focus card share one color, short-label, explanation, and `aria-label` mapping. Unread
-attention is the one deliberate exception to that shared color: the unread ring and the card's
-unread chip collapse every attention kind but `failed` to `--warning`, because a `--muted` unread
-marker reads as inert chrome at glance distance. The activity dot on the same row still carries the
-full state, and both surfaces keep the exact kind in their label. The Portal card opens to the
-PrimarySidebar's right after a short hover delay (or immediately on keyboard focus),
+entirely neutral so the focused pane keeps the screen's one accent. Every Session row reserves one
+fixed status slot on the right. Unacknowledged attention wins and uses a warning ring/dot with a
+ping; acknowledged `waiting` keeps the same ring/dot still; active work (including compaction) uses
+a muted spinner; settled, idle, unknown, failed, and exited Sessions leave the slot blank. Thus a
+failed process is not a persistent list alert, while reliable unread attention remains visible
+regardless of its exact kind. Motion and shape carry the glance signal without changing title
+weight, and the accessible label plus the Session hover/focus card preserve exact lifecycle and
+attention details. On pointer hover, the Archive action replaces the status in the same slot;
+keyboard focus keeps the status visible because Delete already owns the keyboard action. The Portal
+card opens to the PrimarySidebar's right after a short hover delay (or immediately on keyboard focus),
 collision-shifts within the viewport, and shows only the full title, Project, primary Agent,
 activity explanation, `Last opened`, and unread-attention metadata. All non-archived Project and
 Session names and navigation icons use `--foreground`, including inactive rows; the `--elevated`
@@ -171,8 +174,9 @@ transient, Session-scoped motion identity: replacing its path updates the same D
 pinning preserves that identity, and only the next real tab receives the existing enter animation.
 Session bootstrap and switching still mount without structural motion; actual close keeps the exit
 animation. Transient Agent operations may temporarily use the existing text accessory before the
-Terminal's process-state tail; they stay neutral, replace generic progress text while active, and
-never animate.
+Terminal's process-state tail; that tab accessory stays neutral, replaces generic progress text
+while active, and never animates. This does not govern the Session list's right-edge running
+spinner.
 
 **Motion** — motion explains structure; it never decorates state. Motion is a layered stack. Pick
 the least-powerful layer that covers the scenario, and one element is only ever driven by one
@@ -210,17 +214,22 @@ settlement fallbacks are token plus a safety margin (`motionSettleTimeoutMs`), n
 literal.
 
 Intentionally instant: initial bootstrap/restore, Session switches, tab-panel activation, Agent
-activity, Project drag settlement, folder glyph changes, Terminal panes/output, data refreshes, and
+state transitions, Project drag settlement, folder glyph changes, Terminal panes/output, data refreshes, and
 asynchronously lazy-loaded expansion (the Files directory tree fetches children on expand — with
 no content there is no spatial continuity to explain). Do not stagger rows or neighboring tabs.
 The Process Explorer window is out of scope (separate style layer, read-only diagnostics).
 
+The Session status icon is the narrow state-motion exception: unread attention pings so a newly
+actionable event is noticeable, running spins, and acknowledged waiting stays static. The motion
+belongs inside the icon; swapping among the three list projections remains instant.
+
 `prefers-reduced-motion: reduce` completes every layer instantly — overlay keyframes are gated
 behind `motion-safe:` variants (the library ships no media query of its own, and a
 `motion-reduce:animate-none` override would lose the specificity fight against the `data-open:`
-attribute variant), disclosure CSS zeroes its durations, Motion durations come from the shared
-`usePrefersReducedMotion` hook (`lib/motion.ts`, the only sanctioned way to read the preference in
-JS) — without changing focus, selection, command, query, or lifecycle behavior.
+attribute variant), disclosure CSS zeroes its durations, Session status icons keep their base shape
+but stop moving, and Motion durations come from the shared `useShouldReduceMotion` hook
+(`hooks/use-should-reduce-motion.ts`, the only sanctioned way to read the preference in JS) —
+without changing focus, selection, command, query, or lifecycle behavior.
 
 **Panel captions** — every SecondarySidebar panel wears the same caption row: 34px tall, bottom
 hairline, and a small bold uppercase title with `tracking-[0.04em]` in `--foreground` (VS Code's
@@ -297,9 +306,9 @@ keybindings, `badge` size, `--elevated` chips). Group headings stay. Width 560px
 **Session switcher** — the hold-to-cycle MRU overlay (`Recently used Sessions`) is a modal moment
 that ends on key release, so it wears the Dialog scrim (`--overlay` + `blur(2px)`) and the
 palette's 560px width, centred. It reads top to bottom as caption / list / hint: a panel-caption
-title with the live position on the right, Session rows (activity dot, Agent identity icon, title
-over Project, relative `Last opened`, unread ring — the same indicator components the
-PrimarySidebar renders), and a footer of live `kbd` chips for cycle, reverse, cancel, and
+title with the live position on the right, Session rows (Agent identity icon, title over Project,
+relative `Last opened`, then the same right-edge status indicator the PrimarySidebar renders), and
+a footer of live `kbd` chips for cycle, reverse, cancel, and
 release-to-commit. The highlighted row is the one place a list selection may carry `--accent` (an
 inset ring over the `--elevated` fill): the surface exists only while its chord is held and its
 whole purpose is to show where the pending jump lands, which is the transient action-scoped
