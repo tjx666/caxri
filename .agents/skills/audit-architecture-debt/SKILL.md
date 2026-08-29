@@ -1,7 +1,6 @@
 ---
 name: audit-architecture-debt
 description: Audit Caxri's current implementation for technical debt, architecture drift, layering and directory-taxonomy problems, weak extension points, lifecycle or concurrency hazards, stale practices, and AI-coding friction. Coordinate context-isolated subagent discovery, independent falsification, and root-agent synthesis for broad audits when collaboration tools are available. Use for repository-wide architecture reviews, "find similar problems" sweeps, modernization scans, module-organization reviews, technical-debt prioritization, or before a large refactor; also use to decide whether a suspicious pattern is intentional, already fixed, or real debt.
-disable-model-invocation: true
 ---
 
 # Audit Caxri Architecture Debt

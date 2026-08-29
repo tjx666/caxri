@@ -166,7 +166,7 @@ describe('pnpm workspace contract', () => {
             'semver': '^7.8.5',
             'sonda': '^0.14.0',
             'ws': '^8.21.3',
-            'zod': '4.4.3',
+            'zod': '4.5.2',
         });
         expect(workspace.allowBuilds).toEqual({
             '@parcel/watcher': false,
@@ -177,7 +177,7 @@ describe('pnpm workspace contract', () => {
             'node-pty': true,
             'unrs-resolver': true,
         });
-        expect(workspace.overrides).toEqual({ dompurify: '3.4.13' });
+        expect(workspace.overrides).toEqual({ dompurify: '3.4.14' });
         expect(`^${rootManifest.devDependencies?.['@oxlint/plugins']}`).toBe(
             workspace.catalog?.oxlint,
         );
@@ -505,7 +505,7 @@ const requiredProtocol = require('@caxri/protocol');
             to: 'server',
         });
         expect(rootManifest.devDependencies).toMatchObject({
-            'better-sqlite3': '13.0.2',
+            'better-sqlite3': '13.0.3',
             'node-pty': '1.1.0',
             'ws': 'catalog:',
         });

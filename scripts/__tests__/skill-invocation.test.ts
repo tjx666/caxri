@@ -9,16 +9,7 @@ const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const SKILLS_ROOT = join(PROJECT_ROOT, '.agents', 'skills');
 const INVOCATION_CONTRACT = join(PROJECT_ROOT, '.agents', 'invocation.md');
 
-const EXPLICIT_ONLY_SKILLS = [
-    'audit-architecture-debt',
-    'audit-ux',
-    'go',
-    'grill-me',
-    'grill-with-docs',
-    'release',
-    'switch-worktree',
-    'wait-what',
-] as const;
+const EXPLICIT_ONLY_SKILLS = ['go', 'grill-me', 'grill-with-docs'] as const;
 
 interface SkillDocument {
     body: string;
