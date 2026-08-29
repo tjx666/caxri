@@ -77,23 +77,32 @@ bun run .agents/skills/go/scripts/state.ts review \
   --reviewed-range "abc1234..def5678" --freeze
 ```
 
-Record validation independently from review. `log-path` stays below
-`validation/` or `ci-artifacts/`.
+Record validation independently from review through the runner. Tokens after `--` are passed as one executable and
+its argument vector; they are never interpreted as a shell command.
 
 ```bash
-bun run .agents/skills/go/scripts/state.ts validation-start \
+bun run .agents/skills/go/scripts/state.ts validation-run \
   --state "$STATE" --kind gates --lineage-id typecheck-repair \
-  --head-sha def5678 --command "bun run typecheck" \
-  --session-id shell-123 --log-path validation/typecheck.log
-
-bun run .agents/skills/go/scripts/state.ts validation-complete \
-  --state "$STATE" --id validation-001 --exit-code 0
+  --head-sha def5678 --session-id codex-typecheck -- \
+  bun run typecheck
 ```
 
-`validation-start` resolves `HEAD` and a clean source fingerprint from the ledger's recorded
-worktree. `--head-sha` is an optional expected-head assertion, never the source of truth. Completion
-rechecks HEAD and the fingerprint; ignored artifacts do not invalidate the receipt, but commits,
-tracked edits, and non-ignored untracked files produce a failed receipt.
+`validation-run` resolves `HEAD` and a clean source fingerprint from the ledger's recorded worktree.
+`--head-sha` is an optional expected-head assertion, never the source of truth. The runner records pending under a
+short state lock, releases the lock while the process runs, mirrors stdout/stderr to the terminal, and writes a private
+`validation/validation-NNN.log`. Completion rechecks HEAD and the fingerprint, then records duration, exit code or
+signal, log byte length, immutable file metadata, and SHA-256. The command receives only an explicit allowlist of
+toolchain and locale environment variables; GitHub tokens and other ambient credentials are excluded before launch.
+Ignored artifacts do not invalidate the receipt, but commits, tracked edits, and
+non-ignored untracked files produce a failed receipt. The wrapper exits with the child exit code when one exists.
+
+SIGINT and SIGTERM are forwarded to the complete child process group before the failed receipt is finalized. If the
+runner is killed without a catchable signal, the next `validation-run` confirms that the recorded runner PID is dead,
+terminates any surviving recorded child group, marks the old receipt `runner_lost`, and only then starts a new attempt.
+The supervisor remains inert until its process-group ID is durably recorded, so even SIGKILL cannot strand a command
+in the launch window. Ordinary ledger reads check direct-file identity, timestamps, and size without scanning old log
+contents; `state.ts validate` recomputes every SHA-256. A missing, truncated, replaced, or digest-mismatched log cannot
+remain passed.
 
 Wrap every repair mutation batch in the durable single-writer lease:
 
@@ -198,13 +207,13 @@ bun run .agents/skills/go/scripts/state.ts validate --state "$STATE"
 Use command-level help instead of guessing option order or enum values:
 
 ```bash
-bun run .agents/skills/go/scripts/state.ts help validation-start
+bun run .agents/skills/go/scripts/state.ts help validation-run
 bun run .agents/skills/go/scripts/state.ts phase --help
 ```
 
-- Update state only through the script. Every command acquires an atomic per-run lock directory and
-  fails closed when another process owns it. If a process is forcibly killed, remove `state.lock`
-  only after verifying that no state command for that exact run is alive; then retry. State and
+- Update state only through the script. Every command acquires an atomic per-run lock owner receipt and
+  fails closed when another live process owns it. If an owner is forcibly killed, the next command verifies
+  that its PID is dead and safely reclaims the stale receipt; malformed or legacy locks still fail closed. State and
   history artifacts use exclusive unpredictable temporary files, ownership/no-follow checks, and
   atomic replacement.
 - Do not call raw `lobehub acceptance run ingest` inside Go. A `pending`
@@ -213,7 +222,8 @@ bun run .agents/skills/go/scripts/state.ts phase --help
 - Treat GitHub and LobeHub as authoritative and refresh at delivery boundaries.
 - Recording a changed PR head invalidates fallback evidence, report/finalization
   receipts, and any freeze that does not already bind the replacement head.
-- Recover pending validations from their recorded session/log before retrying.
+- Start formal validations only through `validation-run`. It automatically recovers a dead managed runner; an active
+  runner or an imported legacy pending record remains blocked for explicit investigation.
 - Do not rerun a passed exact-head validation without invalidation.
 - Preserve original zero-step infrastructure evidence and keep Actions CI externally blocked when
   the guarded fallback passes.

@@ -27,20 +27,33 @@ function reportState(runId: string) {
     state.status = 'active';
     for (const [index, command] of PLATFORM_NEUTRAL_CI_COMMANDS.entries()) {
         state.validations.push({
+            arguments: [],
+            artifactVersion: 0,
             attempt: 1,
+            childPid: null,
             command,
             completedAt: state.createdAt,
+            durationMs: null,
+            executable: null,
             exitCode: 0,
             headSha: 'head-1',
             id: `gate-${index}`,
             integrityError: null,
             kind: 'gates',
             lineageId: `gate-${index}`,
+            logByteLength: null,
+            logError: null,
+            logIntegrityError: null,
+            logMetadata: null,
             logPath: `validation/gate-${index}.log`,
+            logSha256: null,
             result: 'passed',
+            runnerPid: null,
             sessionId: `gate-${index}`,
+            signal: null,
             sourceFingerprint: 'fixture-fingerprint',
             startedAt: state.createdAt,
+            termination: 'legacy',
         });
     }
     recordReviewDecision(state, {

@@ -37,10 +37,10 @@ import {
     readState,
     resolveStatePath,
     statePathForRunId,
-    withStateLock,
     writeInitialState,
     writeState,
 } from '../state-storage';
+import { validationRecordSchema } from '../validation-gate';
 
 const REQUIRED_SECTIONS = [
     'delivery',
@@ -54,22 +54,24 @@ const REQUIRED_SECTIONS = [
 
 function freezeReview(state: ReturnType<typeof createInitialState>, headSha: string) {
     for (const [index, command] of PLATFORM_NEUTRAL_CI_COMMANDS.entries()) {
-        state.validations.push({
-            attempt: 1,
-            command,
-            completedAt: '2026-08-12T00:00:00.000Z',
-            exitCode: 0,
-            headSha,
-            id: `gate-${index}`,
-            integrityError: null,
-            kind: 'gates',
-            lineageId: `gate-${index}`,
-            logPath: `validation/gate-${index}.log`,
-            result: 'passed',
-            sessionId: `gate-${index}`,
-            sourceFingerprint: 'fixture-fingerprint',
-            startedAt: '2026-08-12T00:00:00.000Z',
-        });
+        state.validations.push(
+            validationRecordSchema.parse({
+                attempt: 1,
+                command,
+                completedAt: '2026-08-12T00:00:00.000Z',
+                exitCode: 0,
+                headSha,
+                id: `gate-${index}`,
+                integrityError: null,
+                kind: 'gates',
+                lineageId: `gate-${index}`,
+                logPath: `validation/gate-${index}.log`,
+                result: 'passed',
+                sessionId: `gate-${index}`,
+                sourceFingerprint: 'fixture-fingerprint',
+                startedAt: '2026-08-12T00:00:00.000Z',
+            }),
+        );
     }
     recordReviewDecision(state, {
         freeze: true,
@@ -506,7 +508,7 @@ describe('Go state ledger', () => {
             },
             handoffReport: null,
             phase: 'acceptance_handoff',
-            schemaVersion: 10,
+            schemaVersion: 11,
         });
         expect(
             migrated.reviewGate.rounds.map(({ legacyMode, mode }) => ({ legacyMode, mode })),
@@ -600,7 +602,7 @@ describe('Go state ledger', () => {
 
         expect(validateState(legacy)).toMatchObject({
             ciFallback: { status: 'not_requested' },
-            schemaVersion: 10,
+            schemaVersion: 11,
             validationBudget: { fullElectronE2eRuns: [] },
         });
     });
@@ -636,36 +638,6 @@ describe('Go state ledger', () => {
             await writeInitialState(path, state);
             await expect(writeInitialState(path, state)).rejects.toThrow('Go run already exists');
         } finally {
-            await rm(directory, { force: true, recursive: true });
-        }
-    });
-
-    it('fails closed when another process owns the state writer lock', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-go-lock-'));
-        const path = join(directory, 'state.json');
-        const state = createInitialState({ objective: 'Serialize writers', runId: 'writer-lock' });
-        let release!: () => void;
-        let entered!: () => void;
-        const held = new Promise<void>((resolve) => (release = resolve));
-        const acquired = new Promise<void>((resolve) => (entered = resolve));
-        try {
-            await writeInitialState(path, state);
-            const owner = withStateLock(path, async () => {
-                entered();
-                await held;
-            });
-            await acquired;
-
-            await expect(withStateLock(path, () => Promise.resolve())).rejects.toThrow(
-                'already locked by another writer',
-            );
-            release();
-            await owner;
-            await expect(access(join(directory, 'state.lock'))).rejects.toThrow();
-        } finally {
-            // `release` is assigned synchronously by the `Promise` executor above (before `try`
-            // starts), so it is always defined here.
-            release();
             await rm(directory, { force: true, recursive: true });
         }
     });

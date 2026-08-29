@@ -4,9 +4,9 @@ import { stateCliHelp } from '../state-cli';
 
 describe('Go state CLI help', () => {
     it('shows command-level parameters and accepted typed values', () => {
-        expect(stateCliHelp('validation-start')).toContain(
-            'ci|evidence|fixture|gates|remote_state',
-        );
+        expect(stateCliHelp('validation-run')).toContain('ci|evidence|fixture|gates|remote_state');
+        expect(stateCliHelp('validation-run')).toContain('-- EXECUTABLE [ARG ...]');
+        expect(stateCliHelp()).not.toContain('validation-start');
         expect(stateCliHelp('phase')).toContain('acceptance_handoff');
         expect(stateCliHelp('acceptance-restart-lineage')).toContain(
             '--acceptance-id ID --reason TEXT',

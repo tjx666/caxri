@@ -41,20 +41,33 @@ function blockedDelivery() {
     transitionState(state, 'deep_review');
     for (const [index, command] of PLATFORM_NEUTRAL_CI_COMMANDS.entries()) {
         state.validations.push({
+            arguments: [],
+            artifactVersion: 0,
             attempt: 1,
+            childPid: null,
             command,
             completedAt: '2026-08-10T00:00:00.000Z',
+            durationMs: null,
+            executable: null,
             exitCode: 0,
             headSha,
             id: `gate-${index}`,
             integrityError: null,
             kind: 'gates',
             lineageId: `gate-${index}`,
+            logByteLength: null,
+            logError: null,
+            logIntegrityError: null,
+            logMetadata: null,
             logPath: `validation/gate-${index}.log`,
+            logSha256: null,
             result: 'passed',
+            runnerPid: null,
             sessionId: `gate-${index}`,
+            signal: null,
             sourceFingerprint: 'fixture-fingerprint',
             startedAt: '2026-08-10T00:00:00.000Z',
+            termination: 'legacy',
         });
     }
     recordReviewDecision(state, {
