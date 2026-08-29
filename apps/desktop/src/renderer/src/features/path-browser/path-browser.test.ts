@@ -181,7 +181,8 @@ describe('path browser keyboard intent', () => {
         expect(keyIntent({ key: 'ArrowRight', selectedKind: 'file' })).toBeUndefined();
     });
 
-    it('maps list movement, completion, and acceptance to explicit commands', () => {
+    it('maps close, list movement, completion, and acceptance to explicit commands', () => {
+        expect(keyIntent({ key: 'Escape' })).toEqual({ kind: 'close' });
         expect(keyIntent({ key: 'ArrowDown' })).toEqual({ delta: 1, kind: 'move-selection' });
         expect(keyIntent({ key: 'ArrowUp' })).toEqual({ delta: -1, kind: 'move-selection' });
         expect(keyIntent({ key: 'Tab' })).toEqual({ kind: 'complete' });

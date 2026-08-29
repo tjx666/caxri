@@ -352,6 +352,10 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
         if (!intent) return;
         event.preventDefault();
         switch (intent.kind) {
+            case 'close': {
+                closePathBrowser();
+                return;
+            }
             case 'move-selection': {
                 setSelectedIndex(
                     (current) => (current + intent.delta + matches.length) % matches.length,

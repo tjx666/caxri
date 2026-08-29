@@ -115,6 +115,7 @@ export function pathBrowserCreateCandidate(
 
 export type PathBrowserKeyIntent =
     | { kind: 'accept' }
+    | { kind: 'close' }
     | { kind: 'complete' }
     | { kind: 'detach-project' }
     | { kind: 'enter-directory' }
@@ -146,6 +147,7 @@ export function pathBrowserKeyIntent({
     selectionStart,
 }: PathBrowserKeyContext): PathBrowserKeyIntent | undefined {
     if (isComposing) return;
+    if (key === 'Escape') return { kind: 'close' };
     const isCollapsed = selectionStart !== null && selectionStart === selectionEnd;
     if (
         mode === 'project' &&
