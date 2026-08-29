@@ -67,17 +67,15 @@ describe('workspace package manifests', () => {
         };
 
         expect(manifest.exports['.']).toEqual({
-            bun: './src/index.ts',
             import: './dist/index.js',
             types: './src/index.ts',
         });
     });
 
-    it('runs workspace packages from source in Bun while preserving Node build exports', async () => {
+    it('runs private workspace packages from source in Bun while preserving Node build exports', async () => {
         const manifestPaths = [
             'packages/agent-skills/package.json',
             'packages/client/package.json',
-            'packages/extension-api/package.json',
             'packages/protocol/package.json',
             'packages/system/package.json',
             'packages/utils/package.json',
@@ -119,8 +117,9 @@ describe('workspace package manifests', () => {
             resolutionGroups.map(async (group) => {
                 const specifiers = group.exports.map(({ specifier }) => specifier);
                 const resolver = `process.stdout.write(JSON.stringify(${JSON.stringify(specifiers)}.map((specifier) => import.meta.resolve(specifier))))`;
+                const bunRuntimeProbe = `await Promise.all(${JSON.stringify(specifiers)}.map((specifier) => import(specifier))); ${resolver}`;
                 const [{ stdout: bunOutput }, { stdout: nodeOutput }] = await Promise.all([
-                    execFileAsync('bun', ['--no-env-file', '--eval', resolver], {
+                    execFileAsync('bun', ['--no-env-file', '--eval', bunRuntimeProbe], {
                         cwd: group.cwd,
                     }),
                     execFileAsync('node', ['--input-type=module', '--eval', resolver], {
