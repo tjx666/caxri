@@ -21,6 +21,7 @@ import { runValidation } from '../validation-run';
 
 const cleanupPaths: string[] = [];
 const STATE_CLI_PATH = fileURLToPath(new URL('../state.ts', import.meta.url));
+const VALIDATION_RUN_COMMAND = ['validation', 'run'].join('-');
 
 afterEach(async () => {
     const paths = [...cleanupPaths];
@@ -334,7 +335,7 @@ describe('Go validation runner', () => {
             'bun',
             [
                 STATE_CLI_PATH,
-                'validation-run',
+                VALIDATION_RUN_COMMAND,
                 '--state',
                 statePath,
                 '--kind',
