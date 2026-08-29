@@ -93,12 +93,17 @@ short state lock, releases the lock while the process runs, mirrors stdout/stder
 `validation/validation-NNN.log`. Completion rechecks HEAD and the fingerprint, then records duration, exit code or
 signal, log byte length, immutable file metadata, and SHA-256. The command receives only an explicit allowlist of
 toolchain and locale environment variables; GitHub tokens and other ambient credentials are excluded before launch.
+Raw arguments stay in process memory only; persisted state and log headers retain a SHA-256 command identity,
+argument count, and either the canonical public gate command or a bounded secret-free display label. Child output is
+limited to 64 MiB with stream backpressure, and a validation that exceeds that limit or the 30-minute wall-clock
+deadline is terminated with a complete failed receipt.
 Ignored artifacts do not invalidate the receipt, but commits, tracked edits, and
 non-ignored untracked files produce a failed receipt. The wrapper exits with the child exit code when one exists.
 
 SIGINT and SIGTERM are forwarded to the complete child process group before the failed receipt is finalized. If the
-runner is killed without a catchable signal, the next `validation-run` confirms that the recorded runner PID is dead,
-terminates any surviving recorded child group, marks the old receipt `runner_lost`, and only then starts a new attempt.
+runner is killed without a catchable signal, the next `validation-run` revalidates the recorded runner and process-group
+identities, terminates only a group whose ownership is still provable, marks the old receipt `runner_lost`, and only
+then starts a new attempt. A recycled PID is never treated as authority to signal an unrelated process.
 The supervisor remains inert until its process-group ID is durably recorded, so even SIGKILL cannot strand a command
 in the launch window. Ordinary ledger reads check direct-file identity, timestamps, and size without scanning old log
 contents; `state.ts validate` recomputes every SHA-256. A missing, truncated, replaced, or digest-mismatched log cannot

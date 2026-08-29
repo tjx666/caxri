@@ -15,6 +15,16 @@ export interface ValidationLogReceipt {
     sha256: string;
 }
 
+export interface ValidationLogWriterOptions {
+    finishTimeoutMs?: number;
+    highWatermarkBytes?: number;
+    maxOutputBytes?: number;
+}
+
+export const DEFAULT_VALIDATION_LOG_FINISH_TIMEOUT_MS = 60_000;
+export const DEFAULT_VALIDATION_LOG_HIGH_WATERMARK_BYTES = 8 * 1024 * 1024;
+export const DEFAULT_VALIDATION_LOG_MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
+
 interface ValidationLogMetadata {
     ctimeMs: number;
     device: number;
@@ -100,28 +110,112 @@ export class ValidationLogWriter {
     readonly #hash = createHash('sha256');
     #byteLength = 0;
     #closed = false;
+    #droppedOutputBytes = 0;
+    readonly #finishTimeoutMs: number;
+    readonly #highWatermarkBytes: number;
+    readonly #maxOutputBytes: number;
+    #outputByteLength = 0;
+    #outputLimitExceeded = false;
+    #pendingByteLength = 0;
     #writeChain = Promise.resolve();
+    #writeError: Error | null = null;
 
-    constructor(handle: FileHandle) {
+    constructor(handle: FileHandle, options: ValidationLogWriterOptions = {}) {
         this.#handle = handle;
+        this.#finishTimeoutMs = options.finishTimeoutMs ?? DEFAULT_VALIDATION_LOG_FINISH_TIMEOUT_MS;
+        this.#highWatermarkBytes =
+            options.highWatermarkBytes ?? DEFAULT_VALIDATION_LOG_HIGH_WATERMARK_BYTES;
+        this.#maxOutputBytes = options.maxOutputBytes ?? DEFAULT_VALIDATION_LOG_MAX_OUTPUT_BYTES;
+        if (this.#finishTimeoutMs <= 0 || this.#highWatermarkBytes <= 0) {
+            throw new Error('Validation log timeouts and watermarks must be positive');
+        }
+        if (this.#maxOutputBytes < 0) {
+            throw new Error('Validation log output limit must be non-negative');
+        }
+    }
+
+    #enqueue(buffer: Buffer): void {
+        this.#pendingByteLength += buffer.byteLength;
+        this.#writeChain = this.#appendAfterPendingWrites(this.#writeChain, buffer);
+    }
+
+    async #appendAfterPendingWrites(pending: Promise<void>, buffer: Buffer): Promise<void> {
+        try {
+            await pending;
+            if (this.#writeError) return;
+            await this.#handle.write(buffer);
+            this.#hash.update(buffer);
+            this.#byteLength += buffer.byteLength;
+        } catch (error: unknown) {
+            this.#writeError ??= error instanceof Error ? error : new Error(String(error));
+        } finally {
+            this.#pendingByteLength -= buffer.byteLength;
+        }
+    }
+
+    get droppedOutputBytes(): number {
+        return this.#droppedOutputBytes;
+    }
+
+    get needsBackpressure(): boolean {
+        return this.#pendingByteLength >= this.#highWatermarkBytes;
+    }
+
+    get outputLimitExceeded(): boolean {
+        return this.#outputLimitExceeded;
+    }
+
+    get pendingByteLength(): number {
+        return this.#pendingByteLength;
     }
 
     write(chunk: Uint8Array | string): void {
         if (this.#closed) throw new Error('Validation log is already closed');
         const buffer = typeof chunk === 'string' ? Buffer.from(chunk) : Buffer.from(chunk);
-        // eslint-disable-next-line unicorn/prefer-await -- the promise chain serializes interleaved stdout/stderr writes
-        this.#writeChain = this.#writeChain.then(async () => {
-            await this.#handle.write(buffer);
-            this.#hash.update(buffer);
-            this.#byteLength += buffer.byteLength;
-        });
+        this.#enqueue(buffer);
+    }
+
+    /**
+     * Enqueues child output while keeping control records outside the payload quota. Once the quota is reached, later
+     * payload is counted but omitted so a bounded truncation record and final receipt can still be written.
+     */
+    writeOutput(chunk: Uint8Array): boolean {
+        if (this.#closed) throw new Error('Validation log is already closed');
+        const buffer = Buffer.from(chunk);
+        if (
+            this.#outputLimitExceeded ||
+            this.#outputByteLength + buffer.byteLength > this.#maxOutputBytes
+        ) {
+            this.#outputLimitExceeded = true;
+            this.#droppedOutputBytes += buffer.byteLength;
+            return false;
+        }
+        this.#outputByteLength += buffer.byteLength;
+        this.#enqueue(buffer);
+        return true;
+    }
+
+    async drain(): Promise<void> {
+        await this.#writeChain;
+        if (this.#writeError) throw this.#writeError;
     }
 
     async finish(): Promise<ValidationLogReceipt> {
         if (this.#closed) throw new Error('Validation log is already closed');
         this.#closed = true;
+        let timeout: NodeJS.Timeout | undefined;
         try {
-            await this.#writeChain;
+            await Promise.race([
+                this.#writeChain,
+                new Promise<never>((_resolve, reject) => {
+                    timeout = setTimeout(
+                        () => reject(new Error('Validation log finalization timed out')),
+                        this.#finishTimeoutMs,
+                    );
+                    timeout.unref();
+                }),
+            ]);
+            if (this.#writeError) throw this.#writeError;
             await this.#handle.sync();
             const metadata = await this.#handle.stat();
             if (metadata.size !== this.#byteLength) {
@@ -133,6 +227,7 @@ export class ValidationLogWriter {
                 sha256: this.#hash.digest('hex'),
             };
         } finally {
+            if (timeout) clearTimeout(timeout);
             await this.#handle.close();
         }
     }
@@ -144,6 +239,7 @@ export class ValidationLogWriter {
 export async function createValidationLog(
     runDirectory: string,
     logPath: string,
+    options: ValidationLogWriterOptions = {},
 ): Promise<ValidationLogWriter> {
     const absolutePath = await resolveValidationLogPath(runDirectory, logPath);
     const handle = await open(
@@ -157,7 +253,7 @@ export async function createValidationLog(
         throw new Error('Validation log must be a regular file');
     }
     assertOwned(metadata.uid);
-    return new ValidationLogWriter(handle);
+    return new ValidationLogWriter(handle, options);
 }
 
 export async function inspectValidationLog(

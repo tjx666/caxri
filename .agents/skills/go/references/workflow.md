@@ -90,10 +90,11 @@ code-changing gates → one aggregate baseline → repair P0/P1 → light delta 
 
 Use `state.ts review` only for review decisions. CI, fixtures, evidence, gates,
 and remote-state checks use `validation-run`, with the executable and argument vector after `--`.
-Each validation automatically stores the exact head, command tokens, session id, private log path,
+Each validation automatically stores the exact head, secret-free command identity, argument count, session id, private log path,
 failure lineage, attempt, duration, final exit code or signal, log size and SHA-256, and effective
 result. The runner streams output while it executes outside the short ledger locks, launches with a
-credential-free environment allowlist, and records the supervised process group before the command can start. It
+credential-free environment allowlist, applies bounded log backpressure and a wall-clock deadline, and records the
+supervised process identity before the command can start. It
 recovers a dead managed runner before retrying and never repeats a passed exact-head command. Caller interruption
 and runner loss do not consume the repair budget; a real failure lineage gets at most the configured
 repair attempts.

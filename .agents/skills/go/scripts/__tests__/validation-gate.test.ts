@@ -132,9 +132,10 @@ describe('Go validation gate', () => {
     it('requires a complete managed log receipt before passing', () => {
         const state = validationState();
         const validation = startValidation(state, {
-            arguments: ['run', 'typecheck'],
+            argumentCount: 2,
             artifactVersion: 1,
             command: 'bun run typecheck',
+            commandDigest: 'a'.repeat(64),
             executable: 'bun',
             headSha: 'head-1',
             kind: 'gates',
@@ -171,9 +172,10 @@ describe('Go validation gate', () => {
             ['caller_interrupt', 'runner_lost'] as const
         ).entries()) {
             const validation = startValidation(state, {
-                arguments: ['run', 'typecheck'],
+                argumentCount: 2,
                 artifactVersion: 1,
                 command: 'bun run typecheck',
+                commandDigest: 'a'.repeat(64),
                 executable: 'bun',
                 headSha: `head-${index + 1}`,
                 kind: 'gates',

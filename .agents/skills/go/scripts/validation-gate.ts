@@ -20,19 +20,32 @@ const validationTerminationSchema = z.enum([
     'caller_interrupt',
     'exit',
     'legacy',
+    'output_limit',
     'runner_error',
     'runner_lost',
     'signal',
     'spawn_error',
+    'timeout',
 ]);
 const validationResultSchema = z.enum(['pending', 'passed', 'failed']);
 
 export const validationRecordSchema = z.object({
-    arguments: z.array(z.string()).default([]),
+    argumentCount: z.number().int().nonnegative().default(0),
+    arguments: z.array(z.string()).max(0).default([]),
     artifactVersion: z.union([z.literal(0), z.literal(1)]).default(0),
     attempt: z.number().int().positive(),
     childPid: z.number().int().positive().nullable().default(null),
+    childIdentity: z
+        .string()
+        .regex(/^[0-9a-f]{64}$/u)
+        .nullable()
+        .default(null),
     command: z.string().min(1),
+    commandDigest: z
+        .string()
+        .regex(/^[0-9a-f]{64}$/u)
+        .nullable()
+        .default(null),
     completedAt: z.string().nullable(),
     durationMs: z.number().int().nonnegative().nullable().default(null),
     executable: z.string().min(1).nullable().default(null),
@@ -62,6 +75,11 @@ export const validationRecordSchema = z.object({
         .default(null),
     result: validationResultSchema,
     runnerPid: z.number().int().positive().nullable().default(null),
+    runnerIdentity: z
+        .string()
+        .regex(/^[0-9a-f]{64}$/u)
+        .nullable()
+        .default(null),
     sessionId: z.string().min(1),
     signal: z.string().min(1).nullable().default(null),
     sourceFingerprint: z.string().min(1).default('legacy-unavailable'),
@@ -84,15 +102,17 @@ interface ValidationContext {
 }
 
 interface StartValidationInput {
-    arguments?: string[];
+    argumentCount?: number;
     artifactVersion?: 0 | 1;
     command: string;
+    commandDigest?: string;
     executable?: string;
     headSha: string;
     kind: z.infer<typeof validationKindSchema>;
     lineageId: string;
     logPath?: string;
     runnerPid?: number;
+    runnerIdentity?: string;
     sessionId?: string;
     sourceFingerprint: string;
 }
@@ -112,15 +132,8 @@ interface CompleteValidationInput {
     termination?: ValidationTermination;
 }
 
-function commandIdentity(record: {
-    arguments?: string[];
-    artifactVersion?: number;
-    command: string;
-    executable?: string | null;
-}): string {
-    return record.artifactVersion === 1 && record.executable
-        ? JSON.stringify([record.executable, ...(record.arguments ?? [])])
-        : record.command;
+function commandIdentity(record: { command: string; commandDigest?: string | null }): string {
+    return record.commandDigest ?? record.command;
 }
 
 function isRepairAttemptConsumed(record: ValidationRecord): boolean {
@@ -180,10 +193,12 @@ export function startValidation(
     const id = `validation-${String(state.validations.length + 1).padStart(3, '0')}`;
     const record = validationRecordSchema.parse({
         ...input,
-        arguments: input.arguments ?? [],
+        argumentCount: input.argumentCount ?? 0,
+        arguments: [],
         artifactVersion: input.artifactVersion ?? 0,
         attempt,
         childPid: null,
+        childIdentity: null,
         completedAt: null,
         durationMs: null,
         executable: input.executable ?? null,
@@ -198,6 +213,7 @@ export function startValidation(
         logSha256: null,
         result: 'pending',
         runnerPid: input.runnerPid ?? null,
+        runnerIdentity: input.runnerIdentity ?? null,
         sessionId: input.sessionId ?? `${id}-pid-${input.runnerPid ?? 'legacy'}`,
         signal: null,
         startedAt,
@@ -213,6 +229,7 @@ export function recordValidationChildPid(
     id: string,
     runnerPid: number,
     childPid: number,
+    childIdentity?: string,
 ): ValidationRecord {
     const record = state.validations.find((validation) => validation.id === id);
     if (record?.result !== 'pending') throw new Error(`Unknown pending validation: ${id}`);
@@ -222,6 +239,7 @@ export function recordValidationChildPid(
         throw new Error(`Validation ${id} does not own the worktree mutation lease`);
     }
     record.childPid = childPid;
+    record.childIdentity = childIdentity ?? null;
     return record;
 }
 

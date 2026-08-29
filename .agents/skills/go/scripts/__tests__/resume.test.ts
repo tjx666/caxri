@@ -32,11 +32,14 @@ describe('Go resume checkpoint', () => {
             kind: 'repair',
         };
         state.validations.push({
+            argumentCount: 0,
             arguments: [],
             artifactVersion: 0,
             attempt: 1,
             childPid: null,
+            childIdentity: null,
             command: 'bun run test',
+            commandDigest: null,
             completedAt: null,
             durationMs: null,
             executable: null,
@@ -54,6 +57,7 @@ describe('Go resume checkpoint', () => {
             logSha256: null,
             result: 'pending',
             runnerPid: null,
+            runnerIdentity: null,
             sessionId: 'session-1',
             signal: null,
             sourceFingerprint: 'fixture-fingerprint',

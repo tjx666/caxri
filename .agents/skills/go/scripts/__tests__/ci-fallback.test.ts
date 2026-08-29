@@ -41,11 +41,14 @@ function blockedDelivery() {
     transitionState(state, 'deep_review');
     for (const [index, command] of PLATFORM_NEUTRAL_CI_COMMANDS.entries()) {
         state.validations.push({
+            argumentCount: 0,
             arguments: [],
             artifactVersion: 0,
             attempt: 1,
             childPid: null,
+            childIdentity: null,
             command,
+            commandDigest: null,
             completedAt: '2026-08-10T00:00:00.000Z',
             durationMs: null,
             executable: null,
@@ -63,6 +66,7 @@ function blockedDelivery() {
             logSha256: null,
             result: 'passed',
             runnerPid: null,
+            runnerIdentity: null,
             sessionId: `gate-${index}`,
             signal: null,
             sourceFingerprint: 'fixture-fingerprint',
