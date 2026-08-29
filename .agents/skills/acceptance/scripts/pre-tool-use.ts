@@ -95,6 +95,41 @@ const SHELL_OPTION_VALUE_NAMES = new Set([
     '-u',
 ]);
 
+const SHELL_CONTROL_PREFIXES = new Set([
+    '!',
+    '{',
+    'do',
+    'elif',
+    'else',
+    'if',
+    'then',
+    'until',
+    'while',
+]);
+const EXEC_OPTIONS_WITH_VALUE = new Set(['-a']);
+const TIME_OPTIONS_WITH_VALUE = new Set(['--format', '--output', '-f', '-o']);
+const XARGS_OPTIONS_WITH_VALUE = new Set([
+    '--arg-file',
+    '--delimiter',
+    '--eof',
+    '--max-args',
+    '--max-chars',
+    '--max-lines',
+    '--max-procs',
+    '--replace',
+    '-E',
+    '-I',
+    '-J',
+    '-L',
+    '-P',
+    '-R',
+    '-S',
+    '-a',
+    '-d',
+    '-n',
+    '-s',
+]);
+
 const findHereDocuments = (line: string): HereDocument[] => {
     const documents: HereDocument[] = [];
     let quote: '"' | "'" | null = null;
@@ -225,6 +260,8 @@ const shellCommandSegments = (command: string): ShellToken[][] => {
 
 const isEnvironmentAssignment = (token: string): boolean => /^[A-Za-z_]\w*=/u.test(token);
 
+const executableBasename = (word: string | undefined): string => word?.split('/').at(-1) ?? '';
+
 const withoutRedirections = (tokens: ShellToken[]): string[] => {
     const words: string[] = [];
     for (let index = 0; index < tokens.length; index += 1) {
@@ -237,37 +274,85 @@ const withoutRedirections = (tokens: ShellToken[]): string[] => {
     return words;
 };
 
+const wrappedExecutableIndexAfterOptions = (
+    words: string[],
+    startIndex: number,
+    optionsWithValue: ReadonlySet<string>,
+): number => {
+    let executableIndex = startIndex;
+    while (words[executableIndex]?.startsWith('-')) {
+        const option = words[executableIndex];
+        executableIndex += 1;
+        if (option === '--') return executableIndex;
+        if (!option.includes('=') && optionsWithValue.has(option)) executableIndex += 1;
+    }
+    return executableIndex;
+};
+
+const environmentWrappedExecutableIndex = (words: string[], startIndex: number): number | null => {
+    let executableIndex = startIndex;
+    while (
+        isEnvironmentAssignment(words[executableIndex] ?? '') ||
+        words[executableIndex]?.startsWith('-')
+    ) {
+        if (isEnvironmentAssignment(words[executableIndex] ?? '')) {
+            executableIndex += 1;
+            continue;
+        }
+        const option = words[executableIndex];
+        executableIndex += 1;
+        const optionName = option.split('=', 1)[0];
+        if (optionName === '-S' || optionName === '--split-string') return null;
+        if (option === '--') return executableIndex;
+        if (!option.includes('=') && SHELL_OPTION_VALUE_NAMES.has(optionName)) executableIndex += 1;
+    }
+    return executableIndex;
+};
+
+/**
+ * Unwrap shell constructs that execute the following argv directly. `env -S` is excluded here because it reparses a
+ * command string and therefore must re-enter the lexer through `shellScriptFor`.
+ */
 const commandExecutableIndex = (words: string[]): number | null => {
     let executableIndex = 0;
-    while (isEnvironmentAssignment(words[executableIndex] ?? '')) executableIndex += 1;
-    if (words[executableIndex] === 'env') {
-        executableIndex += 1;
+    while (true) {
         while (
             isEnvironmentAssignment(words[executableIndex] ?? '') ||
-            words[executableIndex]?.startsWith('-')
+            SHELL_CONTROL_PREFIXES.has(words[executableIndex] ?? '')
         ) {
-            const option = words[executableIndex];
             executableIndex += 1;
-            const optionName = option.split('=', 1)[0];
-            if (!option.includes('=') && SHELL_OPTION_VALUE_NAMES.has(optionName)) {
-                executableIndex += 1;
-            }
         }
-    }
-    if (words[executableIndex] === 'command') {
-        executableIndex += 1;
-        if (words[executableIndex] === '--') executableIndex += 1;
-        else if (words[executableIndex]?.startsWith('-')) return null;
-    } else if (words[executableIndex] === 'exec') {
-        executableIndex += 1;
-        while (words[executableIndex]?.startsWith('-')) {
-            const option = words[executableIndex];
+        const executable = executableBasename(words[executableIndex]);
+        if (executable === 'env') {
+            const wrappedIndex = environmentWrappedExecutableIndex(words, executableIndex + 1);
+            if (wrappedIndex === null) return null;
+            executableIndex = wrappedIndex;
+            continue;
+        }
+        if (executable === 'time') {
+            executableIndex = wrappedExecutableIndexAfterOptions(
+                words,
+                executableIndex + 1,
+                TIME_OPTIONS_WITH_VALUE,
+            );
+            continue;
+        }
+        if (executable === 'command') {
             executableIndex += 1;
-            if (option === '-a') executableIndex += 1;
-            else if (option === '--') break;
+            if (words[executableIndex] === '--') executableIndex += 1;
+            else if (words[executableIndex]?.startsWith('-')) return null;
+            continue;
         }
+        if (executable === 'exec') {
+            executableIndex = wrappedExecutableIndexAfterOptions(
+                words,
+                executableIndex + 1,
+                EXEC_OPTIONS_WITH_VALUE,
+            );
+            continue;
+        }
+        return words[executableIndex] ? executableIndex : null;
     }
-    return words[executableIndex] ? executableIndex : null;
 };
 
 const parseAgentBrowserInvocation = (tokens: ShellToken[]): AgentBrowserInvocation | null => {
@@ -301,23 +386,63 @@ const parseAgentBrowserInvocation = (tokens: ShellToken[]): AgentBrowserInvocati
         const isOptionConsumesNext =
             !argument.includes('=') &&
             (AGENT_BROWSER_OPTIONS_WITH_VALUE.has(optionName) ||
-                (optionName === '--restore' && arguments_[index + 1] !== 'screenshot') ||
+                (optionName === '--restore' &&
+                    !arguments_[index + 1]?.startsWith('-') &&
+                    arguments_[index + 1] !== 'screenshot') ||
                 /^(?:true|false)$/u.test(arguments_[index + 1] ?? ''));
         if (isOptionConsumesNext) index += 1;
     }
     return { hasCdp, hasPinTab, subcommand };
 };
 
+/**
+ * Extract commands reparsed by a shell-style wrapper so screenshot detection applies recursively without treating
+ * ordinary argument text as executable input.
+ */
 const shellScriptFor = (tokens: ShellToken[]): string | null => {
     const words = withoutRedirections(tokens);
+
+    let wrapperIndex = 0;
+    while (
+        isEnvironmentAssignment(words[wrapperIndex] ?? '') ||
+        SHELL_CONTROL_PREFIXES.has(words[wrapperIndex] ?? '')
+    ) {
+        wrapperIndex += 1;
+    }
+    if (executableBasename(words[wrapperIndex]) === 'env') {
+        for (let index = wrapperIndex + 1; index < words.length; index += 1) {
+            const option = words[index];
+            const optionName = option.split('=', 1)[0];
+            if (optionName !== '-S' && optionName !== '--split-string') continue;
+            const splitString = option.includes('=')
+                ? option.slice(option.indexOf('=') + 1)
+                : words[index + 1];
+            const remainingIndex = index + (option.includes('=') ? 1 : 2);
+            return splitString ? [splitString, ...words.slice(remainingIndex)].join(' ') : null;
+        }
+    }
+
     const executableIndex = commandExecutableIndex(words);
     if (executableIndex === null) return null;
-    const executable = words[executableIndex].split('/').at(-1);
-    if (!['bash', 'dash', 'sh', 'zsh'].includes(executable ?? '')) return null;
-    const commandOptionIndex = words.findIndex(
-        (word, index) => index > executableIndex && /^-[^-]*c/u.test(word),
-    );
-    return commandOptionIndex !== -1 ? (words[commandOptionIndex + 1] ?? null) : null;
+    const executable = executableBasename(words[executableIndex]);
+    if (['bash', 'dash', 'sh', 'zsh'].includes(executable)) {
+        const commandOptionIndex = words.findIndex(
+            (word, index) => index > executableIndex && /^-[^-]*c/u.test(word),
+        );
+        return commandOptionIndex !== -1 ? (words[commandOptionIndex + 1] ?? null) : null;
+    }
+    if (executable === 'eval') return words.slice(executableIndex + 1).join(' ') || null;
+    if (executable !== 'xargs') return null;
+
+    let commandIndex = executableIndex + 1;
+    while (words[commandIndex]?.startsWith('-')) {
+        const option = words[commandIndex];
+        commandIndex += 1;
+        if (option === '--') break;
+        const optionName = option.split('=', 1)[0];
+        if (!option.includes('=') && XARGS_OPTIONS_WITH_VALUE.has(optionName)) commandIndex += 1;
+    }
+    return words.slice(commandIndex).join(' ') || null;
 };
 
 const matchingCommandSubstitutionEnd = (command: string, start: number): number => {
