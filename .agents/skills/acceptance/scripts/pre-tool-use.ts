@@ -107,7 +107,53 @@ const SHELL_CONTROL_PREFIXES = new Set([
     'while',
 ]);
 const EXEC_OPTIONS_WITH_VALUE = new Set(['-a']);
+const NICE_OPTIONS_WITH_VALUE = new Set(['--adjustment', '-n']);
+const NO_OPTIONS_WITH_VALUE = new Set<string>();
+const SETSID_EXECUTING_FLAGS = new Set(['--ctty', '--fork', '--wait', '-c', '-f', '-w']);
+const SIMPLE_EXECUTION_WRAPPERS = new Set(['nohup', 'parallel']);
+const SUDO_EXECUTING_FLAGS = new Set([
+    '--askpass',
+    '--background',
+    '--login',
+    '--non-interactive',
+    '--preserve-env',
+    '--preserve-groups',
+    '--set-home',
+    '--shell',
+    '--stdin',
+    '-A',
+    '-b',
+    '-E',
+    '-H',
+    '-i',
+    '-n',
+    '-P',
+    '-s',
+    '-S',
+]);
+const SUDO_OPTIONS_WITH_VALUE = new Set([
+    '--chdir',
+    '--chroot',
+    '--close-from',
+    '--group',
+    '--host',
+    '--other-user',
+    '--prompt',
+    '--role',
+    '--type',
+    '--user',
+    '-C',
+    '-D',
+    '-g',
+    '-h',
+    '-p',
+    '-R',
+    '-r',
+    '-t',
+    '-u',
+]);
 const TIME_OPTIONS_WITH_VALUE = new Set(['--format', '--output', '-f', '-o']);
+const TIMEOUT_OPTIONS_WITH_VALUE = new Set(['--kill-after', '--signal', '-k', '-s']);
 const XARGS_OPTIONS_WITH_VALUE = new Set([
     '--arg-file',
     '--delimiter',
@@ -289,6 +335,25 @@ const wrappedExecutableIndexAfterOptions = (
     return executableIndex;
 };
 
+const wrappedExecutableIndexAfterKnownOptions = (
+    words: string[],
+    startIndex: number,
+    flags: ReadonlySet<string>,
+    optionsWithValue: ReadonlySet<string>,
+): number | null => {
+    let executableIndex = startIndex;
+    while (words[executableIndex]?.startsWith('-')) {
+        const option = words[executableIndex];
+        executableIndex += 1;
+        if (option === '--') return executableIndex;
+        const optionName = option.split('=', 1)[0];
+        if (flags.has(optionName)) continue;
+        if (!optionsWithValue.has(optionName)) return null;
+        if (!option.includes('=')) executableIndex += 1;
+    }
+    return executableIndex;
+};
+
 const environmentWrappedExecutableIndex = (words: string[], startIndex: number): number | null => {
     let executableIndex = startIndex;
     while (
@@ -339,6 +404,7 @@ const commandExecutableIndex = (words: string[]): number | null => {
         }
         if (executable === 'command') {
             executableIndex += 1;
+            while (words[executableIndex] === '-p') executableIndex += 1;
             if (words[executableIndex] === '--') executableIndex += 1;
             else if (words[executableIndex]?.startsWith('-')) return null;
             continue;
@@ -349,6 +415,53 @@ const commandExecutableIndex = (words: string[]): number | null => {
                 executableIndex + 1,
                 EXEC_OPTIONS_WITH_VALUE,
             );
+            continue;
+        }
+        if (executable === 'nice') {
+            if (['--help', '--version'].includes(words[executableIndex + 1] ?? '')) return null;
+            executableIndex = wrappedExecutableIndexAfterOptions(
+                words,
+                executableIndex + 1,
+                NICE_OPTIONS_WITH_VALUE,
+            );
+            continue;
+        }
+        if (executable === 'timeout' || executable === 'gtimeout') {
+            if (['--help', '--version'].includes(words[executableIndex + 1] ?? '')) return null;
+            executableIndex =
+                wrappedExecutableIndexAfterOptions(
+                    words,
+                    executableIndex + 1,
+                    TIMEOUT_OPTIONS_WITH_VALUE,
+                ) + 1;
+            continue;
+        }
+        if (executable === 'setsid') {
+            const wrappedIndex = wrappedExecutableIndexAfterKnownOptions(
+                words,
+                executableIndex + 1,
+                SETSID_EXECUTING_FLAGS,
+                NO_OPTIONS_WITH_VALUE,
+            );
+            if (wrappedIndex === null) return null;
+            executableIndex = wrappedIndex;
+            continue;
+        }
+        if (executable === 'sudo') {
+            const wrappedIndex = wrappedExecutableIndexAfterKnownOptions(
+                words,
+                executableIndex + 1,
+                SUDO_EXECUTING_FLAGS,
+                SUDO_OPTIONS_WITH_VALUE,
+            );
+            if (wrappedIndex === null) return null;
+            executableIndex = wrappedIndex;
+            continue;
+        }
+        if (SIMPLE_EXECUTION_WRAPPERS.has(executable)) {
+            executableIndex += 1;
+            if (words[executableIndex] === '--') executableIndex += 1;
+            else if (words[executableIndex]?.startsWith('-')) return null;
             continue;
         }
         return words[executableIndex] ? executableIndex : null;
@@ -402,6 +515,11 @@ const parseAgentBrowserInvocation = (tokens: ShellToken[]): AgentBrowserInvocati
 const shellScriptFor = (tokens: ShellToken[]): string | null => {
     const words = withoutRedirections(tokens);
 
+    if (executableBasename(words[0]) === 'coproc') {
+        const commandIndex = words[2] === '{' ? 3 : words[1] === '{' ? 2 : 1;
+        return words.slice(commandIndex).join(' ') || null;
+    }
+
     let wrapperIndex = 0;
     while (
         isEnvironmentAssignment(words[wrapperIndex] ?? '') ||
@@ -432,6 +550,18 @@ const shellScriptFor = (tokens: ShellToken[]): string | null => {
         return commandOptionIndex !== -1 ? (words[commandOptionIndex + 1] ?? null) : null;
     }
     if (executable === 'eval') return words.slice(executableIndex + 1).join(' ') || null;
+    if (executable === 'find') {
+        const commands: string[] = [];
+        for (let index = executableIndex + 1; index < words.length; index += 1) {
+            if (words[index] !== '-exec' && words[index] !== '-execdir') continue;
+            const endIndex = words.findIndex(
+                (word, wordIndex) => wordIndex > index && (word === ';' || word === '+'),
+            );
+            commands.push(words.slice(index + 1, endIndex === -1 ? undefined : endIndex).join(' '));
+            if (endIndex !== -1) index = endIndex;
+        }
+        return commands.filter(Boolean).join('; ') || null;
+    }
     if (executable !== 'xargs') return null;
 
     let commandIndex = executableIndex + 1;
