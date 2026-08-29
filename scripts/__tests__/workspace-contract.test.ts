@@ -376,8 +376,11 @@ describe('pnpm workspace contract', () => {
         expect(rootManifest.scripts?.['test:workspaces']).toBe(
             "pnpm --recursive --filter './apps/*' --filter './packages/*' run test",
         );
+        expect(rootManifest.scripts?.['build:workspace-dependencies']).toBe(
+            "pnpm --recursive --filter './apps/*' --filter './packages/*' --filter './extensions/*' --filter '!@caxri/desktop' --filter '!@caxri/server' --if-present run build",
+        );
         expect(rootManifest.scripts?.['build:workspaces']).toBe(
-            "pnpm --recursive --filter './apps/*' --filter './packages/*' --filter './extensions/*' --filter '!@caxri/desktop' --filter '!@caxri/server' --if-present run build && pnpm --filter @caxri/server run build",
+            'bun run build:workspace-dependencies && pnpm --filter @caxri/server run build',
         );
         expect(rootManifest.scripts?.['link:cli']).toBe(
             'bun run build:cli && bun run apps/cli/scripts/link-global.ts',
@@ -385,15 +388,18 @@ describe('pnpm workspace contract', () => {
         expect(rootManifest.scripts?.['unlink:cli']).toBe('pnpm remove --global @caxri/cli');
     });
 
-    it('builds workspace distributions before Desktop development and production builds', () => {
+    it('builds workspace dependencies before Desktop development and full artifacts for production', () => {
         expect(rootManifest.name).toBe('@caxri/workspace');
         expect(rootManifest.main).toBeUndefined();
         expect(rootManifest.scripts?.['electron:install']).toBe('install-electron');
         expect(rootManifest.scripts?.dev).toBe(
-            'bun run build:workspaces && bun run electron:install && bun run scripts/development.ts',
+            'bun run build:workspace-dependencies && bun run electron:install && bun run scripts/development.ts',
         );
         expect(rootManifest.scripts?.['dev:desktop']).toBe(
             'bun run electron:install && bun run scripts/development.ts',
+        );
+        expect(desktopManifest.scripts?.dev).toBe(
+            'bun run --cwd ../.. build:workspace-dependencies && bun run --cwd ../.. dev:desktop',
         );
         expect(rootManifest.scripts?.build).toBe(
             'bun run build:workspaces && bun run build:desktop',

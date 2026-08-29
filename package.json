@@ -6,7 +6,7 @@
     "description": "A project-first, terminal-native local development workbench for macOS.",
     "type": "module",
     "scripts": {
-        "dev": "bun run build:workspaces && bun run electron:install && bun run scripts/development.ts",
+        "dev": "bun run build:workspace-dependencies && bun run electron:install && bun run scripts/development.ts",
         "dev:desktop": "bun run electron:install && bun run scripts/development.ts",
         "electron:install": "install-electron",
         "format": "prettier --write .",
@@ -41,7 +41,8 @@
         "benchmark:startup": "bun run build && playwright test e2e/startup.performance.e2e.ts --reporter=line",
         "benchmark:editor": "bun run build && playwright test e2e/editor.performance.e2e.ts --reporter=line",
         "build": "bun run build:workspaces && bun run build:desktop",
-        "build:workspaces": "pnpm --recursive --filter './apps/*' --filter './packages/*' --filter './extensions/*' --filter '!@caxri/desktop' --filter '!@caxri/server' --if-present run build && pnpm --filter @caxri/server run build",
+        "build:workspace-dependencies": "pnpm --recursive --filter './apps/*' --filter './packages/*' --filter './extensions/*' --filter '!@caxri/desktop' --filter '!@caxri/server' --if-present run build",
+        "build:workspaces": "bun run build:workspace-dependencies && pnpm --filter @caxri/server run build",
         "build:api": "pnpm --filter caxri run build",
         "build:protocol": "pnpm --filter @caxri/protocol run build",
         "build:cli": "pnpm --filter @caxri/cli run build",

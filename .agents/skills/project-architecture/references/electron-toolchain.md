@@ -32,8 +32,10 @@ installation therefore does not guarantee that `path.txt` and the Electron distr
 root `electron:install` script is the shared explicit download entrypoint for local development and
 CI; the worktree launcher additionally verifies the versioned binary artifacts before starting.
 
-Workspace builds run before Desktop development startup and the production Desktop build. The root
-manifest intentionally has no Electron `main`, so development launches electron-vite with the explicit
+Non-Desktop, non-Server workspace dependency builds run before Desktop development startup. The Server
+watcher owns the first development Server build and verified standalone artifact; production Desktop
+builds still run the full workspace build, including Server artifact assembly. The root manifest
+intentionally has no Electron `main`, so development launches electron-vite with the explicit
 `out/main/index.js` entry. Server development has its own Vite watcher, which refreshes the standalone
 directory artifact after bundle changes; Desktop waits for that watcher's first verified artifact and
 fails clearly after five minutes if readiness is never published. `CAXRI_SERVER_WATCH_READY_TIMEOUT_MS`
