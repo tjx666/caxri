@@ -434,14 +434,25 @@ describe('concurrent CI validation', () => {
             await expect(
                 verifyRevisionProvenance(mergeRevision, baseRevision, headRevision, true, shallow),
             ).resolves.toBeUndefined();
+
+            await writeFile(join(source, 'live-ref.txt'), 'advanced\n', 'utf8');
+            await execFileAsync('git', ['add', 'live-ref.txt'], { cwd: source });
+            await execFileAsync('git', ['commit', '-m', 'advance live merge ref'], { cwd: source });
+            const { stdout: advancedMergeOutput } = await execFileAsync(
+                'git',
+                ['rev-parse', 'refs/heads/integration'],
+                { cwd: source },
+            );
+            expect(advancedMergeOutput.trim()).not.toBe(mergeRevision);
+
             const checkoutProcesses = new ConcurrentValidationProcesses();
             await createFetchedCheckout(
                 disposable,
                 {
-                    baseFetchReference: 'refs/heads/base-ref',
+                    baseFetchReference: baseRevision,
                     expectedBaseRevision: baseRevision,
                     expectedRevision: mergeRevision,
-                    fetchReference: 'refs/heads/integration',
+                    fetchReference: mergeRevision,
                     headRevision,
                     isMergeRequired: true,
                     remoteUrl: `file://${source}`,
