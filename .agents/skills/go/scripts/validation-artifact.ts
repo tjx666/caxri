@@ -21,9 +21,9 @@ export interface ValidationLogWriterOptions {
     maxOutputBytes?: number;
 }
 
-export const DEFAULT_VALIDATION_LOG_FINISH_TIMEOUT_MS = 60_000;
-export const DEFAULT_VALIDATION_LOG_HIGH_WATERMARK_BYTES = 8 * 1024 * 1024;
-export const DEFAULT_VALIDATION_LOG_MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
+const DEFAULT_VALIDATION_LOG_FINISH_TIMEOUT_MS = 60_000;
+const DEFAULT_VALIDATION_LOG_HIGH_WATERMARK_BYTES = 8 * 1024 * 1024;
+const DEFAULT_VALIDATION_LOG_MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
 
 interface ValidationLogMetadata {
     ctimeMs: number;
