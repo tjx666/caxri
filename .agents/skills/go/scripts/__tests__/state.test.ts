@@ -398,8 +398,14 @@ describe('Go state ledger', () => {
         expect(() => transitionState(state, 'acceptance_handoff')).toThrow('without a comment');
     });
 
-    it('cannot complete without delivered handoff and finalization receipts', () => {
+    it('cannot complete without delivered handoff, finalization, and resource cleanup receipts', () => {
         const state = readyDelivery();
+        state.worktree = {
+            baseSha: 'base-1',
+            createdAt: '2026-08-12T00:00:00.000Z',
+            mainCheckoutPath: '/repo/caxri',
+            path: '/repo/caxri-worktrees/state-test',
+        };
         recordAcceptance(state, {
             status: 'waived',
             waivedHeadSha: 'head-1',
@@ -423,211 +429,66 @@ describe('Go state ledger', () => {
             pullRequestNumber: 120,
             verifiedAt: '2026-08-12T01:59:00.000Z',
         };
+        expect(() => transitionState(state, 'complete')).toThrow('resource cleanup audit');
+        state.resourceCleanup = {
+            auditedAt: '2026-08-12T02:01:00.000Z',
+            recovered: [],
+            runId: state.runId,
+            status: 'clean',
+            worktreePath: state.worktree.path,
+        };
         expect(() => transitionState(state, 'complete')).not.toThrow();
     });
 
-    it('migrates pre-v6 review and Acceptance lineage without losing evidence', () => {
-        const current = createInitialState({ objective: 'Migrate ledger', runId: 'legacy-v5' });
-        const legacy = {
-            ...current,
-            acceptance: {
-                acceptedHeadSha: null,
-                id: 'acc-legacy',
-                round: 1,
-                status: 'pending',
-                url: 'https://app.lobehub.com/acceptance/acc-legacy',
-            },
-            phase: 'waiting_acceptance',
-            pullRequest: {
-                headSha: 'legacy-repair',
-                number: 109,
-                status: 'ready',
-                url: 'https://github.com/tjx666/caxri/pull/109',
-            },
-            reviewGate: {
-                frozenHeadSha: 'legacy-repair',
-                rounds: [
-                    {
-                        completedAt: '2026-08-11T00:00:00.000Z',
-                        headSha: 'legacy-base',
-                        mode: 'full',
-                        phase: 'deep_review',
-                        productP0: 0,
-                        productP1: 0,
-                        scope: 'Legacy Goal review',
-                    },
-                    {
-                        completedAt: '2026-08-11T00:10:00.000Z',
-                        headSha: 'legacy-repair',
-                        mode: 'targeted',
-                        phase: 'delivery',
-                        productP0: 0,
-                        productP1: 0,
-                        scope: 'Legacy repair',
-                    },
-                    {
-                        completedAt: '2026-08-11T00:20:00.000Z',
-                        headSha: 'legacy-repair',
-                        mode: 'verification',
-                        phase: 'delivery',
-                        productP0: 0,
-                        productP1: 0,
-                        scope: 'Legacy evidence check',
-                    },
-                ],
-            },
-            schemaVersion: 5,
-            status: 'waiting_acceptance',
-        } as Record<string, unknown>;
-        for (const key of [
-            'finalization',
-            'handoffReport',
-            'reviewPolicy',
-            'runBudget',
-            'validations',
-            'worktree',
-        ]) {
-            Reflect.deleteProperty(legacy, key);
-        }
+    it('rejects older Go ledger schemas instead of migrating them', () => {
+        const state = createInitialState({ objective: 'Reject old ledger', runId: 'old-schema' });
 
-        const migrated = validateState(legacy);
-        expect(migrated).toMatchObject({
-            acceptance: {
-                id: 'acc-legacy',
-                publication: {
-                    history: [
-                        {
-                            acceptanceId: 'acc-legacy',
-                            headSha: 'legacy-repair',
-                            roundIndex: 1,
-                            verifyRunId: 'legacy-unavailable',
-                        },
-                    ],
-                },
-                waivedHeadSha: null,
-            },
-            handoffReport: null,
-            phase: 'acceptance_handoff',
-            schemaVersion: 12,
-        });
-        expect(
-            migrated.reviewGate.rounds.map(({ legacyMode, mode }) => ({ legacyMode, mode })),
-        ).toEqual([
-            { legacyMode: null, mode: 'full' },
-            { legacyMode: 'targeted', mode: 'light' },
-        ]);
-        expect(migrated.validations).toHaveLength(1);
-        expect(createResumeCheckpoint(migrated).nextAction).toBe(
-            'Generate the exact-head handoff report',
+        expect(state.schemaVersion).toBe(1);
+        expect(() => validateState({ ...state, schemaVersion: 13 })).toThrow(
+            'Unsupported Go state schema 13; start a new Go run',
         );
     });
 
-    it('normalizes additional historical full reviews into an auditable light lineage', () => {
-        const current = createInitialState({ objective: 'Migrate reviews', runId: 'legacy-fulls' });
-        const legacy = {
-            ...current,
-            reviewGate: {
-                frozenHeadSha: 'legacy-repair',
-                rounds: [
-                    {
-                        completedAt: '2026-08-11T00:00:00.000Z',
-                        headSha: 'legacy-base',
-                        mode: 'full',
-                        phase: 'deep_review',
-                        productP0: 0,
-                        productP1: 0,
-                        scope: 'First legacy full review',
-                    },
-                    {
-                        completedAt: '2026-08-11T00:10:00.000Z',
-                        headSha: 'legacy-repair',
-                        mode: 'full',
-                        phase: 'delivery',
-                        productP0: 0,
-                        productP1: 0,
-                        scope: 'Second legacy full review',
-                    },
-                ],
-            },
-            schemaVersion: 5,
-        } as Record<string, unknown>;
-        for (const key of [
-            'finalization',
-            'handoffReport',
-            'reviewPolicy',
-            'runBudget',
-            'validations',
-            'worktree',
-        ]) {
-            Reflect.deleteProperty(legacy, key);
-        }
-
-        const migrated = validateState(legacy);
-        expect(
-            migrated.reviewGate.rounds.map(({ legacyMode, mode, reviewedRange }) => ({
-                legacyMode,
-                mode,
-                reviewedRange,
-            })),
-        ).toEqual([
-            {
-                legacyMode: null,
-                mode: 'full',
-                reviewedRange: 'legacy:First legacy full review',
-            },
-            {
-                legacyMode: 'full',
-                mode: 'light',
-                reviewedRange: 'legacy-base..legacy-repair',
-            },
-        ]);
-    });
-
-    it('migrates schema version 2 ledgers through the current schema', () => {
-        const current = createInitialState({ objective: 'Resume old ledger', runId: 'legacy-v2' });
-        const legacy = { ...current, schemaVersion: 2 } as Record<string, unknown>;
-        for (const key of [
-            'ciFallback',
-            'finalization',
-            'handoffReport',
-            'reviewGate',
-            'reviewPolicy',
-            'runBudget',
-            'validationBudget',
-            'validations',
-            'worktree',
-        ]) {
-            Reflect.deleteProperty(legacy, key);
-        }
-
-        expect(validateState(legacy)).toMatchObject({
-            ciFallback: { status: 'not_requested' },
-            schemaVersion: 12,
-            validationBudget: { fullElectronE2eRuns: [] },
+    it('rejects a managed result that contradicts its process receipt', () => {
+        const state = createInitialState({
+            objective: 'Reject forged result',
+            runId: 'result-v1',
         });
-    });
-
-    it('requires resumed v6 work to assess drift while preserving completed history', () => {
-        const current = createInitialState({ objective: 'Resume v6 ledger', runId: 'legacy-v6' });
-        upsertIssue(current, { number: 113, status: 'progressing', title: 'Track drift' });
-        upsertIssue(current, { number: 112, status: 'progressing', title: 'Preserve history' });
-        current.issues[1].commits.push('legacy-head');
-        current.issues[1].status = 'complete';
-        const legacy = { ...current, schemaVersion: 6 } as Record<string, unknown>;
-        legacy.issues = current.issues.map((issue) => {
-            const legacyIssue: Record<string, unknown> = { ...issue };
-            delete legacyIssue.expectationDrift;
-            return legacyIssue;
+        state.validations.push({
+            argumentCount: 2,
+            arguments: [],
+            artifactVersion: 1,
+            attempt: 1,
+            childPid: 101,
+            childIdentity: null,
+            command: 'bun run typecheck',
+            commandDigest: null,
+            completedAt: state.createdAt,
+            durationMs: 12,
+            executable: 'bun',
+            exitCode: 9,
+            headSha: 'head-1',
+            id: 'validation-001',
+            integrityError: null,
+            kind: 'gates',
+            lineageId: 'forged-result',
+            logByteLength: 10,
+            logError: null,
+            logIntegrityError: null,
+            logMetadata: { ctimeMs: 1, device: 1, inode: 1, mtimeMs: 1 },
+            logPath: 'validation/validation-001.log',
+            logSha256: 'a'.repeat(64),
+            result: 'passed',
+            runnerPid: 100,
+            runnerIdentity: null,
+            sessionId: 'fixture',
+            signal: null,
+            sourceFingerprint: 'fingerprint',
+            startedAt: state.createdAt,
+            termination: 'exit',
         });
 
-        const resumed = validateState(legacy);
-        expect(resumed.issues[0].expectationDrift).toEqual({
-            assessedAt: null,
-            assessmentHeadSha: null,
-            records: [],
-            status: 'none',
-        });
-        expect(resumed.issues[1].expectationDrift.assessedAt).toBe('legacy-unavailable');
+        expect(() => validateState(state)).toThrow('result contradicts its receipt');
     });
 
     it('does not overwrite an existing run ledger', async () => {

@@ -58,11 +58,15 @@ After human acceptance or an exact-head waiver:
 4. Deliver a short final receipt using the generated command output. Include
    both `Workflow 改进` and `自动化候选`, including their explicit none entries.
    Reuse the handoff report; do not regenerate the expensive audit.
-5. Record both delivery timestamps, validate persisted checksums/JSON, and only
-   then transition to `complete`.
+5. Record both delivery timestamps, then run `state.ts resource-audit`. Reclaim only candidates
+   whose PID/process identity and exact worktree or run path prove current-Go ownership. Rerun the
+   audit with the recovered categories until it records `clean` or `recovered`; an unverified
+   candidate remains fail-closed.
+6. Validate persisted checksums/JSON and the resource-cleanup receipt, then transition directly to
+   `complete`. Any intervening mutating command invalidates the resource audit.
 
 The final response highlights the merged PR, merge SHA, closed issues, whether
 Acceptance was accepted or explicitly waived, the persisted Workflow
-improvements, automation candidates, and any remaining boundary. It must not
+improvements, automation candidates, resource cleanup result, and any remaining boundary. It must not
 expose local artifact paths, internal session ids, presigned URLs, or raw remote
 responses.
