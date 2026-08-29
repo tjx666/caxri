@@ -39,9 +39,16 @@ function projectIdArgument(arguments_: unknown): string | undefined {
     return typeof arguments_.projectId === 'string' ? arguments_.projectId : undefined;
 }
 
+/**
+ * Matches VS Code's `sendText` contract: configured newlines mean Return, while the lower-level `terminal.input` path
+ * remains byte-preserving for Ctrl+J and multiline input.
+ * https://github.com/microsoft/vscode/blob/cd429513258458bcbe37b17fe714874197fe2adf/src/vs/workbench/contrib/terminal/browser/terminalInstance.ts#L1396-L1412
+ */
 function terminalSequenceArgument(arguments_: unknown): string | undefined {
     if (!arguments_ || typeof arguments_ !== 'object' || !('text' in arguments_)) return;
-    return typeof arguments_.text === 'string' ? arguments_.text : undefined;
+    return typeof arguments_.text === 'string'
+        ? arguments_.text.replaceAll(/\r?\n/g, '\r')
+        : undefined;
 }
 
 /**

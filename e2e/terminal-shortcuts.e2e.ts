@@ -314,7 +314,7 @@ test('Codex Terminal maps input shortcuts and restores the clipboard on quit', a
         await input.focus();
 
         await input.press('Meta+Shift+Enter');
-        await expect(rows).toContainText('INPUT_HEX:090a');
+        await expect(rows).toContainText('INPUT_HEX:090d');
         await input.press('Meta+Enter');
         await expect(rows).toContainText('INPUT_HEX:1b5b313b3342');
 
