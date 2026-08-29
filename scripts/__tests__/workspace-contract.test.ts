@@ -465,6 +465,7 @@ describe('pnpm workspace contract', () => {
     it('emits shared pure utilities for system and standalone artifact consumers', () => {
         expect(utilitiesManifest.files).toEqual(['dist']);
         expect(utilitiesManifest.exports?.['.']).toEqual({
+            bun: './src/index.ts',
             types: './src/index.ts',
             import: './dist/index.js',
         });
