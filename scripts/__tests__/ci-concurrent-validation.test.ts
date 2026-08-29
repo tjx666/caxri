@@ -275,12 +275,34 @@ describe('concurrent CI validation', () => {
             'unit and integration tests',
             'bundle budget',
         ]);
+        expect(checks.slice(1).map(({ id }) => id)).toEqual([
+            'eslint',
+            'oxlint-type-aware',
+            'markdownlint',
+            'knip',
+            'react-doctor',
+            'typescript',
+            'format',
+            'vitest',
+            'bundle-budget',
+        ]);
         expect(checks[0]).toEqual({
             arguments: ['run', 'scripts/prepare-node-pty.ts'],
             command: 'bun',
+            id: 'node-pty-preparation',
             label: 'node-pty spawn helper',
         });
         expect(checks.at(-1)?.arguments).toContain('scripts/ci-bundle-budget.ts');
+        expect(
+            platformCheckCommands(
+                {
+                    CAXRI_VITEST_MAX_WORKERS: '2',
+                    CAXRI_VITEST_PARTITION: 'optimized',
+                    ESLINT_CONCURRENCY: 'off',
+                },
+                { includeNodePtyPreparation: false },
+            ).some(({ id }) => id === 'node-pty-preparation'),
+        ).toBe(false);
     });
 
     it('fails each independently receipted validation surface closed', () => {

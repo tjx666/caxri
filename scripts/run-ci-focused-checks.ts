@@ -12,7 +12,10 @@ const projectRoot = resolve(import.meta.dirname, '..');
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/run-ci-focused-checks.test.ts
 export function focusedCheckArguments(
     paths: readonly string[],
-    scope: Extract<CIChecksScope, 'focused-docs' | 'focused-skills' | 'focused-source'>,
+    scope: Extract<
+        CIChecksScope,
+        'focused-docs' | 'focused-harness' | 'focused-skills' | 'focused-source'
+    >,
 ): string[] {
     return [
         'run',
@@ -21,7 +24,7 @@ export function focusedCheckArguments(
         ...paths,
         '--lint',
         '--test',
-        ...(scope === 'focused-docs' ? [] : ['--type']),
+        ...(scope === 'focused-docs' || scope === 'focused-harness' ? [] : ['--type']),
     ];
 }
 
@@ -33,6 +36,48 @@ export function focusedDiffArguments(paths: readonly string[]): string[] {
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/run-ci-focused-checks.test.ts
 export function shouldRunSkillRegressions(scope: CIChecksScope): boolean {
     return scope === 'focused-skills';
+}
+
+const SKILL_INVOCATION_CONTRACT_TEST = 'scripts/__tests__/skill-invocation.test.ts';
+const PROJECT_HOOK_CONTRACT_TEST = '.agents/skills/acceptance/scripts/project-hook.test.ts';
+const SKILL_CONTRACT_ROOT_PATHS = new Set([
+    'AGENTS.md',
+    'CLAUDE.md',
+    '.agents/invocation.md',
+    '.claude/skills',
+]);
+
+const isSkillContractPath = (path: string): boolean =>
+    SKILL_CONTRACT_ROOT_PATHS.has(path) ||
+    /^(?:\.agents|\.claude)\/skills\/[^/]+\/SKILL\.md$/u.test(path) ||
+    /^(?:\.agents|\.claude)\/skills\/[^/]+\/agents\/[^/]+\.ya?ml$/u.test(path);
+
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/run-ci-focused-checks.test.ts
+export function focusedRegressionPaths(
+    scope: CIChecksScope,
+    changedFiles: readonly string[],
+    currentFiles: readonly string[] = [],
+): string[] {
+    const paths = new Set<string>();
+    const currentFileSet = new Set(currentFiles);
+    const deletedFiles = changedFiles.filter((path) => !currentFileSet.has(path));
+    if (shouldRunSkillRegressions(scope)) {
+        paths.add('.agents/skills');
+    }
+    if (deletedFiles.some(isSkillContractPath)) {
+        paths.add(SKILL_INVOCATION_CONTRACT_TEST);
+    }
+    if (
+        deletedFiles.some(
+            (path) =>
+                path === '.claude/settings.json' ||
+                path === '.codex/hooks.json' ||
+                path.startsWith('.agents/acceptance/'),
+        )
+    ) {
+        paths.add(PROJECT_HOOK_CONTRACT_TEST);
+    }
+    return [...paths];
 }
 
 function validatePath(path: string): string {
@@ -55,7 +100,12 @@ async function run(command: string, arguments_: string[]): Promise<number> {
 
 async function main(): Promise<void> {
     const scope = process.env.CI_CHECKS_SCOPE;
-    if (scope !== 'focused-docs' && scope !== 'focused-skills' && scope !== 'focused-source') {
+    if (
+        scope !== 'focused-docs' &&
+        scope !== 'focused-harness' &&
+        scope !== 'focused-skills' &&
+        scope !== 'focused-source'
+    ) {
         throw new Error(`Unsupported focused checks scope: ${scope ?? 'missing'}`);
     }
     const value: unknown = JSON.parse(process.env.CI_CHANGED_FILES ?? '[]');
@@ -75,16 +125,18 @@ async function main(): Promise<void> {
             }),
         )
     ).filter((path): path is string => path !== undefined);
+    const regressionPaths = focusedRegressionPaths(scope, changedFiles, currentFiles);
 
     if (currentFiles.length === 0) {
-        const typeResult = scope === 'focused-docs' ? 0 : await run('bun', ['run', 'typecheck']);
+        const isTypecheckRequired = scope !== 'focused-docs' && scope !== 'focused-harness';
+        const typeResult = isTypecheckRequired ? await run('bun', ['run', 'typecheck']) : 0;
         if (typeResult !== 0) process.exitCode = typeResult;
-        else if (shouldRunSkillRegressions(scope)) {
+        else if (regressionPaths.length > 0) {
             process.exitCode = await run('bunx', [
                 'vitest',
                 'run',
                 '--silent=passed-only',
-                '.agents/skills',
+                ...regressionPaths,
             ]);
         }
         return;
@@ -95,7 +147,7 @@ async function main(): Promise<void> {
         return;
     }
     const diffResult = await run('git', focusedDiffArguments(currentFiles));
-    if (diffResult !== 0 || !shouldRunSkillRegressions(scope)) {
+    if (diffResult !== 0 || regressionPaths.length === 0) {
         process.exitCode = diffResult;
         return;
     }
@@ -106,7 +158,7 @@ async function main(): Promise<void> {
         'vitest',
         'run',
         '--silent=passed-only',
-        '.agents/skills',
+        ...regressionPaths,
     ]);
 }
 

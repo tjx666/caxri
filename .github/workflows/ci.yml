@@ -166,39 +166,14 @@ jobs:
           CI_CHANGED_FILES: ${{ needs.retry-policy.outputs.changed_files }}
           CI_CHECKS_SCOPE: ${{ needs.retry-policy.outputs.checks_scope }}
         run: bun run scripts/run-ci-focused-checks.ts
-      - name: Run ESLint
+      - name: Run full platform checks
         if: needs.retry-policy.outputs.checks_scope == 'full'
         env:
           ESLINT_CONCURRENCY: ${{ inputs.eslint_concurrency || 'off' }}
-        run: bun run scripts/ci-metrics.ts --label "ESLint concurrency=${ESLINT_CONCURRENCY}" -- bun run lint --concurrency "$ESLINT_CONCURRENCY"
-      - name: Run oxlint (type-aware)
-        if: needs.retry-policy.outputs.checks_scope == 'full'
-        run: bun run scripts/ci-metrics.ts --label "oxlint type-aware" -- bun run lint:type-aware
-      - name: Run markdownlint
-        if: needs.retry-policy.outputs.checks_scope == 'full'
-        run: bun run lint:markdown
-      - if: needs.retry-policy.outputs.checks_scope == 'full'
-        run: bun run knip
-      - if: needs.retry-policy.outputs.checks_scope == 'full'
-        run: bun run doctor:changed
-        env:
           CAXRI_REACT_DOCTOR_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
-      - if: needs.retry-policy.outputs.checks_scope == 'full'
-        run: bun run typecheck
-      - if: needs.retry-policy.outputs.checks_scope == 'full'
-        run: bun run format:check
-      - name: Run unit and integration tests
-        if: needs.retry-policy.outputs.checks_scope == 'full'
-        env:
           CAXRI_VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '2' }}
           CAXRI_VITEST_PARTITION: ${{ inputs.vitest_partition || 'optimized' }}
-        run: >-
-          bun run scripts/ci-metrics.ts
-          --label "Vitest full suite partition=${CAXRI_VITEST_PARTITION} workers=${CAXRI_VITEST_MAX_WORKERS}" --
-          bun run test
-      - name: Build, package, and enforce bundle budgets
-        if: needs.retry-policy.outputs.checks_scope == 'full'
-        run: bun run scripts/ci-metrics.ts --label "Bundle budget gate" -- bun run scripts/ci-bundle-budget.ts
+        run: bun run scripts/ci-platform-checks.ts --skip-node-pty-preparation
       - name: Clean self-hosted runner boundary
         if: always()
         run: bun run scripts/self-hosted-runner.ts cleanup
@@ -538,7 +513,7 @@ jobs:
             elif test "$CHECKS_SCOPE" = skipped; then
               test "$CHECKS_RESULT" = skipped
             else
-              test "$CHECKS_SCOPE" = full || test "$CHECKS_SCOPE" = focused-docs || test "$CHECKS_SCOPE" = focused-skills || test "$CHECKS_SCOPE" = focused-source
+              test "$CHECKS_SCOPE" = full || test "$CHECKS_SCOPE" = focused-docs || test "$CHECKS_SCOPE" = focused-harness || test "$CHECKS_SCOPE" = focused-skills || test "$CHECKS_SCOPE" = focused-source
               test "$CHECKS_RESULT" = success
             fi
           else

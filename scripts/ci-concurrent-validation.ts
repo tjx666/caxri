@@ -471,11 +471,16 @@ async function execute(): Promise<void> {
                 runChildProcess: (command, arguments_, options) =>
                     processes.run(command, arguments_, options ?? {}),
             });
-            return await run(processes, 'bun', ['run', 'scripts/ci-platform-checks.ts'], {
-                cwd: worktree,
-                environment: { ...safeEnvironment, CAXRI_REACT_DOCTOR_BASE: baseRevision },
-                label: 'Full platform checks',
-            });
+            return await run(
+                processes,
+                'bun',
+                ['run', 'scripts/ci-platform-checks.ts', '--skip-node-pty-preparation'],
+                {
+                    cwd: worktree,
+                    environment: { ...safeEnvironment, CAXRI_REACT_DOCTOR_BASE: baseRevision },
+                    label: 'Full platform checks',
+                },
+            );
         } catch (error) {
             console.error('Full platform checks could not prepare:', error);
             processes.abort('full platform checks could not prepare');

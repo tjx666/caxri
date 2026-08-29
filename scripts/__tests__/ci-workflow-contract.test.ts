@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 
+import { PLATFORM_NEUTRAL_CI_COMMANDS as GO_PLATFORM_NEUTRAL_CI_COMMANDS } from '../../.agents/skills/go/scripts/platform-neutral-gates';
+import { PLATFORM_NEUTRAL_CI_COMMANDS, PLATFORM_NEUTRAL_CI_GATES } from '../ci-platform-gates';
 import { execFileAsync } from '../exec';
 
 const workflow = await readFile(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
@@ -112,17 +114,23 @@ describe('CI workflow contract', () => {
         expect(workflow).toContain(
             "CAXRI_E2E_PARALLEL_WORKERS: ${{ inputs.e2e_parallel_workers || '3' }}",
         );
-        expect(workflow).toContain(
-            'Vitest full suite partition=${CAXRI_VITEST_PARTITION} workers=${CAXRI_VITEST_MAX_WORKERS}',
-        );
+        expect(
+            PLATFORM_NEUTRAL_CI_COMMANDS.some((command) =>
+                command.includes(
+                    'Vitest full suite partition=${CAXRI_VITEST_PARTITION} workers=${CAXRI_VITEST_MAX_WORKERS}',
+                ),
+            ),
+        ).toBe(true);
         expect(workflow).toContain('CAXRI_VALIDATION_ENV');
         expect(workflow).toContain('NODE_VERSION="$(node --version)"');
         expect(workflow).toContain('node: process.env.NODE_VERSION');
         expect(workflow).toContain('lockfileSha256: process.env.LOCKFILE_SHA256');
         expect(workflow.match(/--label "Electron Vite build" -- bun run build/gu)).toHaveLength(1);
         expect(
-            workflow.match(
-                /--label "Bundle budget gate" -- bun run scripts\/ci-bundle-budget\.ts/gu,
+            PLATFORM_NEUTRAL_CI_COMMANDS.filter((command) =>
+                command.includes(
+                    '--label "Bundle budget gate" -- bun run scripts/ci-bundle-budget.ts',
+                ),
             ),
         ).toHaveLength(1);
         expect(packageManifest.scripts.rebuild).toBeUndefined();
@@ -218,8 +226,13 @@ describe('CI workflow contract', () => {
         );
         expect(workflow).toContain("needs.retry-policy.outputs.checks_scope == 'full'");
         expect(workflow).toContain('focused-skills');
+        expect(workflow).toContain('focused-harness');
         expect(workflow).toContain('run: bun run scripts/run-ci-focused-checks.ts');
-        expect(workflow).toContain('- name: Run ESLint');
+        expect(workflow).toContain('- name: Run full platform checks');
+        expect(workflow).toContain(
+            'run: bun run scripts/ci-platform-checks.ts --skip-node-pty-preparation',
+        );
+        expect(workflow).not.toContain('- name: Run ESLint');
         expect(workflow).toContain("needs.retry-policy.outputs.run_e2e == 'true'");
         const interruptionIndex = workflow.indexOf('Desktop worker interruption recovery');
         const censusIndex = workflow.indexOf('Prove bounded E2E failure census');
@@ -321,23 +334,27 @@ describe('CI workflow contract', () => {
         expect(checksWorktree.match(/execFileAsync\(/gu)).toHaveLength(1);
         expect(checksWorktree).not.toContain("command === 'create'");
         expect(concurrentValidation).toContain('prepareChecksWorktree');
+        expect(concurrentValidation).toContain("'--skip-node-pty-preparation'");
         expect(concurrentValidation).toContain('processes.capture(command, arguments_, options)');
         expect(concurrentValidation).toContain('runE2E(safeEnvironment, processes)');
         expect(concurrentValidation).toContain('concurrent validation exceeded 25 minutes');
         expect(concurrentValidation).toContain('await Promise.all([checksPromise, e2ePromise])');
-        for (const gate of [
-            "'lint'",
-            "'lint:type-aware'",
-            "'lint:markdown'",
-            "'knip'",
-            "'doctor:changed'",
-            "'typecheck'",
-            "'format:check'",
-            "'test'",
-            "'scripts/ci-bundle-budget.ts'",
-        ]) {
-            expect(platformChecks, gate).toContain(gate);
-        }
+        expect(PLATFORM_NEUTRAL_CI_GATES.map(({ id }) => id)).toEqual([
+            'eslint',
+            'oxlint-type-aware',
+            'markdownlint',
+            'knip',
+            'react-doctor',
+            'typescript',
+            'format',
+            'vitest',
+            'bundle-budget',
+        ]);
+        expect(new Set(PLATFORM_NEUTRAL_CI_GATES.map(({ id }) => id)).size).toBe(
+            PLATFORM_NEUTRAL_CI_GATES.length,
+        );
+        expect(GO_PLATFORM_NEUTRAL_CI_COMMANDS).toBe(PLATFORM_NEUTRAL_CI_COMMANDS);
+        expect(platformChecks).toContain("from './ci-platform-gates'");
         expect(workflow).toContain(
             'FULL_CHECKS_RESULT: ${{ needs.e2e.outputs.full_checks_result }}',
         );

@@ -178,7 +178,7 @@ describe('CI retry policy', () => {
                     {
                         conclusion: 'success',
                         name: 'checks',
-                        steps: [{ conclusion: 'success', name: 'Run ESLint' }],
+                        steps: [{ conclusion: 'success', name: 'Run full platform checks' }],
                     },
                     { conclusion: 'success', name: 'e2e / parallel-safe' },
                     { conclusion: 'success', name: 'e2e / desktop-exclusive' },
@@ -305,6 +305,7 @@ describe('CI retry policy', () => {
             'scripts/ci-green-reuse.ts',
             'scripts/ci-metrics.ts',
             'scripts/ci-platform-checks.ts',
+            'scripts/ci-platform-gates.ts',
             'scripts/ci-retry-policy.ts',
             'scripts/report-e2e-manifest.ts',
             'scripts/reporters/e2e-receipt-reporter.ts',

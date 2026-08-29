@@ -130,7 +130,7 @@ function reviewDeliveryDelta(
 }
 
 describe('Go local CI fallback', () => {
-    it('matches every executable step in the self-hosted checks job', async () => {
+    it('routes the self-hosted checks job through the shared executor and manifest', async () => {
         const workflow = await readFile(resolve(projectRoot, '.github/workflows/ci.yml'), 'utf8');
         const steps = parse(workflow) as ActionsWorkflow;
         const checkSteps = steps.jobs?.checks?.steps ?? [];
@@ -141,17 +141,17 @@ describe('Go local CI fallback', () => {
         );
         const commands = checkSteps
             .filter((step) => step.if === fullChecksCondition && step.run)
-            .map((step) =>
-                step.run!.includes('-- bun run lint --concurrency') ? 'bun run lint' : step.run!,
-            );
+            .map((step) => step.run!);
 
         expect(nonCommandActions).toEqual([
             'actions/checkout',
             './.github/actions/verify-trust-boundary',
             './.github/actions/setup-caxri-job',
         ]);
-        expect(commands).toEqual(PLATFORM_NEUTRAL_CI_COMMANDS);
-        expect(commands).toContain('bun run doctor:changed');
+        expect(commands).toEqual([
+            'bun run scripts/ci-platform-checks.ts --skip-node-pty-preparation',
+        ]);
+        expect(PLATFORM_NEUTRAL_CI_COMMANDS).toContain('bun run doctor:changed');
         expect(workflow).toContain(
             "CAXRI_REACT_DOCTOR_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}",
         );
