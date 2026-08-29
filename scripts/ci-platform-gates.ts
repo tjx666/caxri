@@ -1,4 +1,4 @@
-export type PlatformNeutralCIGateId =
+type PlatformNeutralCIGateId =
     | 'bundle-budget'
     | 'eslint'
     | 'format'
