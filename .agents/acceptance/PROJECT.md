@@ -76,8 +76,27 @@ Caxri itself has no account login. LobeHub publication uses the operator's
 authenticated CLI session and must be checked separately with:
 
 ```bash
-lobehub acceptance run list --json
+lobehub whoami --json
 ```
+
+### Project hook trust
+
+Codex loads `.codex/hooks.json` only from a trusted project, and each exact hook definition must be
+reviewed separately. On a new clone, or after this hook configuration changes, open `/hooks`, review
+the project hook, and trust its current definition. Codex records trust against the definition hash,
+so an edited hook remains disabled until it is reviewed again. See the
+[official Codex Hooks guide](https://learn.chatgpt.com/docs/hooks#review-and-trust-hooks).
+
+After trusting the hook, run this harmless probe from the repository:
+
+```bash
+caxri-acceptance-hook-self-test
+```
+
+The hook must deny the command with rule `caxri-acceptance-hook-self-test`. A shell
+`command not found` response means the project hook did not run; inspect `/hooks` before Acceptance.
+Claude Code loads the same repository hook through `.claude/settings.json`; after accepting the
+project settings, use the same self-test and treat `command not found` as a missing hook there too.
 
 ## 4. Surface
 

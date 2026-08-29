@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     focusedCheckArguments,
     focusedDiffArguments,
+    focusedRegressionPaths,
     shouldRunSkillRegressions,
 } from '../run-ci-focused-checks';
 
@@ -13,6 +14,14 @@ describe('focused CI checks', () => {
             '--silent',
             'check',
             'docs/testing.md',
+            '--lint',
+            '--test',
+        ]);
+        expect(focusedCheckArguments(['.claude/settings.json'], 'focused-harness')).toEqual([
+            'run',
+            '--silent',
+            'check',
+            '.claude/settings.json',
             '--lint',
             '--test',
         ]);
@@ -64,5 +73,45 @@ describe('focused CI checks', () => {
     it('keeps skill regressions required even when every changed skill file was deleted', () => {
         expect(shouldRunSkillRegressions('focused-skills')).toBe(true);
         expect(shouldRunSkillRegressions('focused-docs')).toBe(false);
+    });
+
+    it('runs repository harness contracts for deleted bridge paths', () => {
+        expect(focusedRegressionPaths('focused-harness', ['.agents/invocation.md'])).toEqual([
+            'scripts/__tests__/skill-invocation.test.ts',
+        ]);
+        expect(focusedRegressionPaths('focused-harness', ['.claude/skills'])).toEqual([
+            'scripts/__tests__/skill-invocation.test.ts',
+        ]);
+        expect(focusedRegressionPaths('focused-harness', ['.claude/settings.json'])).toEqual([
+            '.agents/skills/acceptance/scripts/project-hook.test.ts',
+        ]);
+        expect(focusedRegressionPaths('focused-skills', ['.agents/skills/debug/SKILL.md'])).toEqual(
+            ['.agents/skills', 'scripts/__tests__/skill-invocation.test.ts'],
+        );
+        expect(focusedRegressionPaths('focused-docs', ['docs/testing.md'])).toEqual([]);
+    });
+
+    it('does not repeat contracts already selected by the changed-file check', () => {
+        expect(
+            focusedRegressionPaths(
+                'focused-harness',
+                ['.agents/invocation.md'],
+                ['.agents/invocation.md'],
+            ),
+        ).toEqual([]);
+        expect(
+            focusedRegressionPaths(
+                'focused-harness',
+                ['.claude/settings.json'],
+                ['.claude/settings.json'],
+            ),
+        ).toEqual([]);
+        expect(
+            focusedRegressionPaths(
+                'focused-skills',
+                ['.agents/skills/debug/SKILL.md'],
+                ['.agents/skills/debug/SKILL.md'],
+            ),
+        ).toEqual(['.agents/skills']);
     });
 });

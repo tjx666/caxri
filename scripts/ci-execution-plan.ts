@@ -1,7 +1,7 @@
 import { isReusableGreenDeltaPath, isReusableGreenSkillPath } from './ci-green-reuse';
 
 export type CIChecksScope =
-    'focused-docs' | 'focused-skills' | 'focused-source' | 'full' | 'skipped';
+    'focused-docs' | 'focused-harness' | 'focused-skills' | 'focused-source' | 'full' | 'skipped';
 type CIE2EProfile = 'control' | 'optimized';
 
 export interface CIExecutionPlanInput {
@@ -33,6 +33,19 @@ function isDocumentationPath(path: string): boolean {
 
 function isRepoSkillPath(path: string): boolean {
     return path.startsWith('.agents/skills/') || path.startsWith('.claude/skills/');
+}
+
+function isRepoHarnessPath(path: string): boolean {
+    return (
+        isRepoSkillPath(path) ||
+        path === 'AGENTS.md' ||
+        path === 'CLAUDE.md' ||
+        path === '.agents/invocation.md' ||
+        path === '.claude/skills' ||
+        path === '.claude/settings.json' ||
+        path === '.codex/hooks.json' ||
+        (path.startsWith('.agents/acceptance/') && isDocumentationPath(path))
+    );
 }
 
 function areAllPathsMatching(
@@ -76,24 +89,35 @@ export function evaluateCIExecutionPlan(input: CIExecutionPlanInput): CIExecutio
             areAllPathsMatching(reusable.changedFiles, isReusableGreenDeltaPath)
         ) {
             const isSkillDelta = reusable.changedFiles.some(isReusableGreenSkillPath);
+            const isHarnessDelta = reusable.changedFiles.some(isRepoHarnessPath);
+            const deltaKind = isSkillDelta
+                ? 'repository-skill'
+                : isHarnessDelta
+                  ? 'repository-harness'
+                  : 'documentation';
             return {
-                checksScope: isSkillDelta ? 'focused-skills' : 'focused-docs',
+                checksScope: isSkillDelta
+                    ? 'focused-skills'
+                    : isHarnessDelta
+                      ? 'focused-harness'
+                      : 'focused-docs',
                 e2eProfile: 'control',
-                reason: `ancestor full-green run ${reusable.runId}; ${isSkillDelta ? 'repository-skill' : 'documentation'} delta`,
+                reason: `ancestor full-green run ${reusable.runId}; ${deltaKind} delta`,
                 runE2E: false,
             };
         }
         if (
-            input.changedFiles.some(isRepoSkillPath) &&
+            input.changedFiles.some(isRepoHarnessPath) &&
             areAllPathsMatching(
                 input.changedFiles,
-                (path) => isDocumentationPath(path) || isRepoSkillPath(path),
+                (path) => isDocumentationPath(path) || isRepoHarnessPath(path),
             )
         ) {
+            const isSkillDelta = input.changedFiles.some(isRepoSkillPath);
             return {
-                checksScope: 'focused-skills',
+                checksScope: isSkillDelta ? 'focused-skills' : 'focused-harness',
                 e2eProfile: 'control',
-                reason: 'repository-skill only pull request',
+                reason: 'repository-harness only pull request',
                 runE2E: false,
             };
         }
@@ -138,7 +162,7 @@ export function evaluateCIExecutionPlan(input: CIExecutionPlanInput): CIExecutio
          */
         const isDocumentationOnlyPush = areAllPathsMatching(
             input.changedFiles,
-            (path) => isDocumentationPath(path) || isRepoSkillPath(path),
+            (path) => isDocumentationPath(path) || isRepoHarnessPath(path),
         );
         return {
             checksScope: 'full',

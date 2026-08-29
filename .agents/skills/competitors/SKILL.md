@@ -1,6 +1,15 @@
 ---
 name: competitors
-description: Survey competing agent-workbench terminals, the agent CLIs Caxri hosts, and the editor-grade reference implementations (VS Code, GitLens). Use before designing a feature another product already solved (session persistence, agent-state detection, theming, worktree isolation), when implementing an editor-adjacent surface that should follow VS Code precedent (Git/source control UX, extensions/plugins, keybindings, themes, settings, command palette) or GitLens precedent (blame, history, richer Git UX), when working on the Status panel (reference: vscode-fe-helper's sidebar), when comparing Caxri against a named competitor (Orca, cmux, Muxy, Kero, Termany, Herdr, Mux, Kooky, Warp, Otty, Conductor, Superset, Paseo, T3 Code, Synara, Jean, Omnara, Trevize), or when updating competitive research notes.
+description: >-
+  Survey competing agent-workbench terminals, the agent CLIs Caxri hosts, and the editor-grade
+  reference implementations (VS Code, GitLens). Use before designing a feature another product
+  already solved (session persistence, agent-state detection, theming, worktree isolation), when
+  implementing an editor-adjacent surface that should follow VS Code precedent (Git/source control
+  UX, extensions/plugins, keybindings, themes, settings, command palette) or GitLens precedent
+  (blame, history, richer Git UX), when working on the Status panel (reference: vscode-fe-helper's
+  sidebar), when comparing Caxri against a named competitor (Orca, cmux, Muxy, Kero, Termany, Herdr,
+  Mux, Kooky, Warp, Otty, Conductor, Superset, Paseo, T3 Code, Synara, Jean, Omnara, Trevize), or when
+  updating competitive research notes.
 ---
 
 # Competitors

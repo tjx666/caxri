@@ -36,6 +36,23 @@ describe('CI execution plan', () => {
         ).toMatchObject({ checksScope: 'focused-skills', runE2E: false });
     });
 
+    it('routes repository harness configuration and bridge changes through focused regressions', () => {
+        for (const changedFiles of [
+            ['.claude/settings.json', '.codex/hooks.json'],
+            ['.agents/invocation.md'],
+            ['CLAUDE.md'],
+            ['.claude/skills'],
+        ]) {
+            expect(
+                evaluateCIExecutionPlan({
+                    changedFiles,
+                    eventName: 'pull_request',
+                    pullRequestDraft: false,
+                }),
+            ).toMatchObject({ checksScope: 'focused-harness', runE2E: false });
+        }
+    });
+
     it('uses focused source checks for drafts and full gates for ready source pull requests', () => {
         const input = {
             changedFiles: ['apps/server/src/domains/index.ts'],
@@ -50,6 +67,20 @@ describe('CI execution plan', () => {
             checksScope: 'full',
             e2eProfile: 'optimized',
             runE2E: true,
+        });
+    });
+
+    it('does not let future Acceptance source files bypass the type boundary', () => {
+        const input = {
+            changedFiles: ['.agents/acceptance/helper.ts'],
+            eventName: 'pull_request',
+        };
+
+        expect(evaluateCIExecutionPlan({ ...input, pullRequestDraft: true })).toMatchObject({
+            checksScope: 'focused-source',
+        });
+        expect(evaluateCIExecutionPlan({ ...input, pullRequestDraft: false })).toMatchObject({
+            checksScope: 'full',
         });
     });
 
@@ -72,6 +103,23 @@ describe('CI execution plan', () => {
             checksScope: 'focused-skills',
             e2eProfile: 'control',
             reason: 'ancestor full-green run 123; repository-skill delta',
+            runE2E: false,
+        });
+
+        expect(
+            evaluateCIExecutionPlan({
+                changedFiles: ['apps/server/src/domains/index.ts', '.agents/invocation.md'],
+                eventName: 'pull_request',
+                pullRequestDraft: false,
+                reusableGreenRun: {
+                    changedFiles: ['.agents/invocation.md'],
+                    headSha: 'a'.repeat(40),
+                    runId: 124,
+                },
+            }),
+        ).toMatchObject({
+            checksScope: 'focused-harness',
+            reason: 'ancestor full-green run 124; repository-harness delta',
             runE2E: false,
         });
     });

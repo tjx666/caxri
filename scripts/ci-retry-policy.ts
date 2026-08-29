@@ -89,7 +89,7 @@ const protectedPathPatterns = [
     /^(?:mise\.toml|pnpm-lock\.yaml|pnpm-workspace\.yaml)$/,
     /^(?:electron\.vite|eslint|knip|playwright|tsconfig|vite|vitest)(?:\.[^/]+)?$/,
     /^scripts\/(?:doctor-changed|native-spike)\.ts$/,
-    /^scripts\/(?:ci-bundle-budget|ci-checks-worktree|ci-concurrent-validation|ci-execution-plan|ci-green-reuse|ci-metrics|ci-platform-checks|ci-retry-policy|report-e2e-manifest|run-ci-focused-checks|run-ci-parity|self-hosted-runner)\.ts$/,
+    /^scripts\/(?:ci-bundle-budget|ci-checks-worktree|ci-concurrent-validation|ci-execution-plan|ci-green-reuse|ci-metrics|ci-platform-checks|ci-platform-gates|ci-retry-policy|report-e2e-manifest|run-ci-focused-checks|run-ci-parity|self-hosted-runner)\.ts$/,
     // Every `run-e2e-*` runner and everything under `scripts/fixtures/` participates in E2E job
     // steps (census fixture included), so protect them by prefix instead of enumerating each file
     // and re-creating the omission that let census infrastructure bypass full validation.
@@ -350,8 +350,9 @@ function resolveChecksEvidence(jobs: WorkflowJobRecord[] | undefined): {
     if (checks?.conclusion && checks.conclusion !== 'skipped') {
         return {
             checksConclusion: checks.conclusion,
-            fullChecksConclusion: checks.steps?.find(({ name }) => name === 'Run ESLint')
-                ?.conclusion,
+            fullChecksConclusion: checks.steps?.find(
+                ({ name }) => name === 'Run full platform checks',
+            )?.conclusion,
         };
     }
     const concurrentChecks = jobs
