@@ -66,26 +66,12 @@ function presentation(
  * `bg-danger`/`bg-warning`/`bg-danger/10`/etc. are literal keys here (not built from a template string) so Tailwind's
  * static class scanner can find and generate them.
  */
-const TONE_BACKGROUND_CLASSNAME: Record<SessionActivityPresentation['tone'], string> = {
-    danger: 'bg-danger',
-    neutral: 'bg-muted',
-    success: 'bg-success',
-    warning: 'bg-warning',
-};
-
 const TONE_CALLOUT_CLASSNAME: Record<SessionActivityPresentation['tone'], string> = {
     danger: 'bg-danger/10 text-danger',
     neutral: 'bg-muted/10 text-muted',
     success: 'bg-success/10 text-success',
     warning: 'bg-warning/10 text-warning',
 };
-
-/**
- * `bg-*` utility for a tone-colored dot/fill.
- */
-export function sessionToneBackgroundClassName(tone: SessionActivityPresentation['tone']): string {
-    return TONE_BACKGROUND_CLASSNAME[tone];
-}
 
 /**
  * Tone for the hover card's unread explanation, which is deliberately coarser than {@link sessionActivityPresentation}.

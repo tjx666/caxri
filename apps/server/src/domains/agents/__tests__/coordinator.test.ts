@@ -43,7 +43,7 @@ describe('AgentCoordinator', () => {
         const snapshot = vi.fn<AgentAdapter['snapshot']>(() =>
             Promise.resolve({
                 provider: 'codex',
-                status: 'running',
+                status: 'unknown',
                 observedAt: Date.now(),
                 available: true,
             }),

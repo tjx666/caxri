@@ -131,6 +131,7 @@ describe('Agent dispatch Runtime integration', () => {
             )!;
             expect(dispatchedSession.lastSessionActivityAt).toBeGreaterThan(createdActivityAt);
             expect(dispatchedSession.lastSessionActivityReason).toBe('agent_started');
+            expect(dispatchedSession.lastActivityState).toBe('idle');
 
             const stale = { ...first.endpoint!, generation: first.endpoint!.generation + 1 };
             expect(() =>

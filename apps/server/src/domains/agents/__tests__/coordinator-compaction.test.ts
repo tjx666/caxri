@@ -122,4 +122,58 @@ describe('AgentCoordinator compaction', () => {
             database.close();
         }
     });
+
+    it('clears compaction only for a standalone Escape input payload', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-compaction-escape-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'codex');
+        const events: ServerEvent[] = [];
+        const coordinator = new AgentCoordinator(
+            database,
+            createAgents(() => Promise.reject(new Error('not used'))),
+            (event) => events.push(event),
+            new StructuredLogger(join(directory, 'logs')),
+        );
+        const startCompaction = () => {
+            coordinator.observeLifecycleSignal({
+                launchId: 'launch-1',
+                phase: 'compactionStarted',
+                provider: 'codex',
+                terminalId: created.terminal!.id,
+            });
+            events.length = 0;
+        };
+
+        try {
+            coordinator.beginTerminalLaunch(created.terminal!.id, 'launch-1');
+            startCompaction();
+
+            coordinator.observeInput(created.terminal!.id, '\u{1B}');
+
+            expect(coordinator.agentOperation(created.terminal!.id)).toBeUndefined();
+            expect(events).toEqual([
+                {
+                    event: 'state.changed',
+                    payload: {
+                        kind: 'records',
+                        sessionIds: [created.session.id],
+                        terminalIds: [created.terminal!.id],
+                    },
+                },
+            ]);
+
+            startCompaction();
+            coordinator.observeInput(created.terminal!.id, '\u{1B}\r');
+            expect(coordinator.agentOperation(created.terminal!.id)).toBe('compacting');
+            expect(events).toEqual([]);
+
+            coordinator.observeInput(created.terminal!.id, '\u{1B}[A');
+            expect(coordinator.agentOperation(created.terminal!.id)).toBe('compacting');
+            expect(events).toEqual([]);
+        } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
 });

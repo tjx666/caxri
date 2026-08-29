@@ -34,12 +34,13 @@ export function defaultTerminalTitle(kind: TerminalKind): string {
 }
 
 /**
- * Maps a Terminal process lifecycle state onto the coarser Agent activity state shown in the UI.
+ * Maps a real Primary Agent child-process exit onto the coarser Agent activity state shown in the UI. Live PTY state is
+ * deliberately excluded because an interactive Agent process also stays alive while idle at its prompt.
  */
-export function processActivityState(state: ProcessState): AgentActivityState {
-    if (state === 'running' || state === 'starting') return 'running';
-    if (state === 'stopped') return 'completed';
-    return 'failed';
+export function processExitActivityState(
+    state: Extract<ProcessState, 'dead' | 'stopped'>,
+): Extract<AgentActivityState, 'completed' | 'failed'> {
+    return state === 'stopped' ? 'completed' : 'failed';
 }
 
 /**
@@ -157,7 +158,7 @@ export function choosePrimaryAgentSuccessor(
     return {
         primaryAgentTerminalId: nextAgent?.id ?? null,
         displayTitle: session.displayTitle,
-        lastActivityState: nextAgent ? processActivityState(nextAgent.lastProcessState) : 'idle',
+        lastActivityState: nextAgent ? 'unknown' : 'idle',
     };
 }
 

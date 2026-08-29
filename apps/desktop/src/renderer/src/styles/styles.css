@@ -22,10 +22,23 @@
     --motion-chrome-switch: 160ms;
     --motion-overlay-enter: 150ms;
     --motion-overlay-exit: 100ms;
+    --motion-compaction-pulse: 1800ms;
     /* Decelerating "settle" curve for spatial reveals; standard ease-out/in elsewhere. */
     --motion-ease-emphasized: cubic-bezier(0.25, 1, 0.5, 1);
     --motion-ease-enter: ease-out;
     --motion-ease-exit: ease-in;
+}
+
+@keyframes compaction-pulse {
+    50% {
+        opacity: 0.55;
+    }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .terminal-agent-operation {
+        animation: compaction-pulse var(--motion-compaction-pulse) ease-in-out infinite;
+    }
 }
 
 /**

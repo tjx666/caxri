@@ -16,6 +16,22 @@ afterEach(async () => {
 });
 
 describe('Session Activity persistence', () => {
+    it('tracks a live primary Agent process without fabricating Session activity', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-db-agent-process-state-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'codex');
+
+        database.updateTerminalState(created.terminal!.id, 'running');
+
+        expect(database.getTerminal(created.terminal!.id)?.lastProcessState).toBe('running');
+        expect(database.getSession(created.session.id)).toMatchObject({
+            lastActivityState: 'idle',
+            lastSessionActivityReason: 'created',
+        });
+        database.close();
+    });
+
     it('stays independent from visits and uses globally monotonic timestamps', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-db-session-activity-'));
         temporaryDirectories.push(directory);

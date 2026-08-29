@@ -175,7 +175,7 @@ describe('Claude Code provider', () => {
         ).resolves.toMatchObject({
             attentionKind: undefined,
             sessionId: 'claude-session-1',
-            status: 'running',
+            status: 'unknown',
             title: 'Repair terminal lifecycle',
         });
     });

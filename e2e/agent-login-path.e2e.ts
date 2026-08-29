@@ -95,7 +95,9 @@ printf '\n__CAXRI_LOGIN_PATH__${bin}:/usr/bin:/bin\n'
         await running.page.getByRole('dialog').getByRole('button', { name: 'Codex' }).click();
 
         await expect(running.page.getByRole('tab', { name: 'Codex' })).toBeVisible();
-        await expect(running.page.locator('.process-running')).toBeVisible();
+        await expect(
+            running.page.locator('.terminal-surface[data-terminal-attached="true"]'),
+        ).toBeVisible();
         await expect(running.page.locator('.xterm-rows')).toContainText('Codex login PATH ready');
         await expect.poll(() => pageRequest<number>(running.page, 'terminal.runningCount')).toBe(1);
         await expect

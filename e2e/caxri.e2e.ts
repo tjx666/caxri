@@ -15,6 +15,7 @@ import {
     openAddProjectDialog,
     openPanelView,
     pageReply,
+    pageRequest,
     pressNewTerminal,
     selectedSessionId,
     sessionCard,
@@ -137,7 +138,7 @@ test('Terminal tabs reveal an accessible close action on hover and focus', async
         await close.click();
 
         await expect(terminalTabs).toHaveCount(1);
-        await expect(running.page.locator('.process-running')).toHaveCount(1);
+        await expect.poll(() => pageRequest<number>(running.page, 'terminal.runningCount')).toBe(1);
     } finally {
         try {
             await running.app.close();
@@ -584,7 +585,9 @@ test('Keep Running detaches the closed window and reattaches the live Terminal',
         await running.app.evaluate(({ app }) => app.emit('activate'));
         const reopened = await reopenedPromise;
         await waitForRuntimeReady(reopened);
-        await expect(reopened.locator('.process-running').first()).toBeVisible();
+        await expect(
+            reopened.locator('.terminal-surface[data-terminal-attached="true"]'),
+        ).toBeVisible();
         await typeTerminal(reopened, String.raw`printf 'KEEP_RUNNING_OK\n'`);
         await expect(reopened.locator('.xterm-rows')).toContainText('KEEP_RUNNING_OK');
     } finally {

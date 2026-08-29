@@ -135,7 +135,7 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
         const terminalReady = (async () => {
             await Promise.all([
                 page.locator('.terminal-surface .xterm-rows').waitFor(),
-                page.locator('.process-running').waitFor(),
+                page.locator('.terminal-surface[data-terminal-attached="true"]').waitFor(),
             ]);
             return performance.now() - sessionStartedAt;
         })();
@@ -175,7 +175,9 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
             return performance.now() - restoredAt;
         })();
         const restoredTerminalReady = (async () => {
-            await restoredPage.locator('.process-running').waitFor();
+            await restoredPage
+                .locator('.terminal-surface[data-terminal-attached="true"]')
+                .waitFor();
             return performance.now() - restoredAt;
         })();
         const restoredGit = (async () => {
