@@ -62,7 +62,7 @@ describe('Session activity presentation', () => {
         ['unknown', 'warning'],
         ['running', 'warning'],
         ['failed', 'danger'],
-    ])('resolves the %s unread ring to a non-neutral tone', (kind, tone) => {
+    ])('resolves the %s unread detail to a non-neutral tone', (kind, tone) => {
         expect(sessionUnreadTone(kind)).toBe(tone);
     });
 

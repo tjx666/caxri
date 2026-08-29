@@ -62,17 +62,10 @@ function presentation(
 
 /**
  * `--accent` is DESIGN.md's single per-screen focus color (the focused pane/tab); the PrimarySidebar stays entirely
- * neutral otherwise, so unread-attention chrome borrows the same success/warning/danger/ neutral tone as the activity
- * dot instead. `border-danger`/`border-warning`/`bg-danger/10`/etc. are literal keys here (not built from a template
- * string) so Tailwind's static class scanner can find and generate them.
+ * neutral otherwise, so detailed activity chrome borrows the same success/warning/danger/neutral tones instead.
+ * `bg-danger`/`bg-warning`/`bg-danger/10`/etc. are literal keys here (not built from a template string) so Tailwind's
+ * static class scanner can find and generate them.
  */
-const TONE_BORDER_CLASSNAME: Record<SessionActivityPresentation['tone'], string> = {
-    danger: 'border-danger',
-    neutral: 'border-muted',
-    success: 'border-success',
-    warning: 'border-warning',
-};
-
 const TONE_BACKGROUND_CLASSNAME: Record<SessionActivityPresentation['tone'], string> = {
     danger: 'bg-danger',
     neutral: 'bg-muted',
@@ -88,28 +81,19 @@ const TONE_CALLOUT_CLASSNAME: Record<SessionActivityPresentation['tone'], string
 };
 
 /**
- * `border-*` utility for a tone-colored ring (e.g. the unread-attention indicator).
- */
-export function sessionToneBorderClassName(tone: SessionActivityPresentation['tone']): string {
-    return TONE_BORDER_CLASSNAME[tone];
-}
-
-/**
- * `bg-*` utility for a tone-colored dot/fill, matching {@link sessionToneBorderClassName}'s tone.
+ * `bg-*` utility for a tone-colored dot/fill.
  */
 export function sessionToneBackgroundClassName(tone: SessionActivityPresentation['tone']): string {
     return TONE_BACKGROUND_CLASSNAME[tone];
 }
 
 /**
- * Tone for the PrimarySidebar unread indicator, which is deliberately coarser than {@link sessionActivityPresentation}.
+ * Tone for the hover card's unread explanation, which is deliberately coarser than {@link sessionActivityPresentation}.
  *
- * Every unread kind except an outright failure collapses to `warning`. The ring's job is "this row wants you", and a
- * `--muted` (or even `--foreground`) dot reads as inert chrome at primary-sidebar-glance distance — which is exactly
- * what the most common attention kinds (`completed`/`idle`/`unknown`) used to resolve to. Collapsing the tone costs
- * nothing: the activity dot on the row's left edge still carries the full success/warning/danger/neutral state, and the
- * hover card names the attention kind outright. `danger` stays distinct because "the Agent failed" and "the Agent has
- * something for you" warrant different urgency at a glance.
+ * Every unread kind except an outright failure collapses to `warning`. A `--muted` detail chip reads as inert chrome,
+ * which is exactly what the most common attention kinds (`completed`/`idle`/`unknown`) resolve to. The hover card names
+ * the attention kind outright, while `danger` stays distinct in that detail surface because a failed turn warrants
+ * different explanatory emphasis.
  */
 export function sessionUnreadTone(kind: AgentActivityState): SessionActivityPresentation['tone'] {
     return PRESENTATIONS[kind].tone === 'danger' ? 'danger' : 'warning';

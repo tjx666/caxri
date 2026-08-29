@@ -102,13 +102,11 @@ process.stdout.write('Watchdog Agent ready\r\n');
         const sessionRow = running.page.locator(`[data-session-id="${caxriSessionId}"]`);
 
         await terminalInput.press('s');
-        await expect(sessionRow.locator('.activity')).toHaveAccessibleName(
-            'Working. The Agent is running.',
-        );
+        const sessionStatus = sessionRow.locator('.session-status');
+        await expect(sessionStatus).toHaveAttribute('data-session-status', 'running');
+        await expect(sessionStatus).toHaveAccessibleName('Working. The Agent is running.');
         await terminalInput.press('f');
-        await expect(sessionRow.locator('.activity')).toHaveAccessibleName(
-            'Finished. The Agent finished its latest turn.',
-        );
+        await expect(sessionStatus).toHaveAttribute('data-session-status', 'default');
         const bootstrap = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
         expect(bootstrap.sessions.find((session) => session.id === caxriSessionId)).toMatchObject({
             attentionEpoch: 1,

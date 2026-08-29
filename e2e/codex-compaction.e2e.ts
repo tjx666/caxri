@@ -101,10 +101,16 @@ process.stdout.write('Compaction Agent ready\r\n');
         await expect(statusOperation).toHaveAttribute('aria-live', 'polite');
         await expect(statusOperation).toHaveAttribute('role', 'status');
         await expect(running.page.locator('.statusbar-terminal-progress')).toHaveCount(0);
-        await expect(sessionRow.locator('.activity')).toHaveAccessibleName(
+        const sessionStatus = sessionRow.locator('.session-status');
+        await expect(sessionStatus).toHaveAttribute('data-session-status', 'running');
+        await expect(sessionStatus).toHaveAccessibleName(
             'Compacting. Codex is summarizing earlier context before continuing.',
         );
-        await expect(sessionRow.locator('.session-unread')).toHaveCount(0);
+        expect(
+            await sessionStatus
+                .locator('[data-slot="spinner"]')
+                .evaluate((element) => element.getAnimations().length),
+        ).toBe(0);
 
         expect(await tabOperation.evaluate((element) => element.getAnimations().length)).toBe(0);
 
@@ -137,9 +143,7 @@ process.stdout.write('Compaction Agent ready\r\n');
         await expect(running.page.locator('.statusbar-terminal-progress')).toHaveAccessibleName(
             'Terminal progress: 42 percent',
         );
-        await expect(sessionRow.locator('.activity')).toHaveAccessibleName(
-            'Working. The Agent is running.',
-        );
+        await expect(sessionStatus).toHaveAccessibleName('Working. The Agent is running.');
         const finishedState = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
         expect(
             finishedState.terminals.find((terminal) => terminal.sessionId === sessionId)
@@ -148,9 +152,9 @@ process.stdout.write('Compaction Agent ready\r\n');
 
         /**
          * A Session has to read the same way wherever its row is drawn, and the MRU switcher shares the
-         * PrimarySidebar's activity dot. Compaction is restarted here, at the end, because the switcher only lists the
-         * Sessions the user is not on: reaching it needs a second Session and a switch, which discards the ephemeral
-         * Terminal progress the workflow above asserts.
+         * PrimarySidebar's status indicator. Compaction is restarted here, at the end, because the switcher only lists
+         * the Sessions the user is not on: reaching it needs a second Session and a switch, which discards the
+         * ephemeral Terminal progress the workflow above asserts.
          */
         await running.page.locator('.xterm-helper-textarea').press('c');
         await expect(tabOperation).toHaveText('Compacting');
@@ -159,7 +163,8 @@ process.stdout.write('Compaction Agent ready\r\n');
         await running.page.keyboard.press('Backquote');
         const switcherRow = running.page
             .getByRole('listbox', { name: 'Recently used Sessions' })
-            .locator(`[data-session-id="${sessionId}"] .activity`);
+            .locator(`[data-session-id="${sessionId}"] .session-status`);
+        await expect(switcherRow).toHaveAttribute('data-session-status', 'running');
         await expect(switcherRow).toHaveAttribute('data-agent-operation', 'compacting');
         await expect(switcherRow).toHaveAccessibleName(
             'Compacting. Codex is summarizing earlier context before continuing.',

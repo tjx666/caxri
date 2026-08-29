@@ -14,8 +14,7 @@ import { cn } from '../../lib/utilities';
 import { useProjects, useSessions, useTerminals } from '../../stores/selectors';
 import { ProjectIcon } from '../primary-sidebar/project-icon';
 import { formatSessionRelativeTime } from '../primary-sidebar/session-activity';
-import { SessionActivityDot } from '../primary-sidebar/session-activity-dot';
-import { SessionUnreadIndicator } from '../primary-sidebar/session-unread-indicator';
+import { SessionStatusIndicator } from '../primary-sidebar/session-status-indicator';
 import { commitMruSession } from './session-actions';
 import { resolveSessionMruView, useSessionMruSwitcherStore } from './session-mru-switcher-state';
 
@@ -107,10 +106,6 @@ function SessionMruRow({
              */
             onMouseMove={() => useSessionMruSwitcherStore.getState().select(index)}
         >
-            <SessionActivityDot
-                agentOperation={terminal?.agentOperation}
-                state={session.lastActivityState}
-            />
             <AgentIdentityIcon identity={terminal?.kind ?? 'shell'} size={16} />
             <span className="min-w-0 flex-1">
                 <strong
@@ -129,7 +124,7 @@ function SessionMruRow({
             <span className="flex-none text-[11px] text-muted tabular-nums">
                 {formatSessionRelativeTime(session.lastOpenedAt, now)}
             </span>
-            <SessionUnreadIndicator session={session} />
+            <SessionStatusIndicator agentOperation={terminal?.agentOperation} session={session} />
         </div>
     );
 }
