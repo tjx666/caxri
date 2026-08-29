@@ -49,7 +49,7 @@ describe('Go schema v9 migration', () => {
         const migrated = validateState(legacy);
         expect(migrated).toMatchObject({
             mutationLease: { holderId: 'validation-001', kind: 'validation' },
-            schemaVersion: 11,
+            schemaVersion: 12,
         });
         expect(migrated.runBudget.checkpoints[0]).toMatchObject({
             elapsedSeconds: 0,

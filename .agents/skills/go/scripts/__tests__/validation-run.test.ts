@@ -1,4 +1,4 @@
-import type { Buffer } from 'node:buffer';
+import { Buffer } from 'node:buffer';
 import { execFileSync, spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { appendFile, mkdtemp, readFile, rm, stat, truncate, writeFile } from 'node:fs/promises';
@@ -16,8 +16,11 @@ import {
     readState,
     statePathForRunId,
     writeInitialState,
+    writeState,
 } from '../state-storage';
+import { recordValidationChildPid, startValidation } from '../validation-gate';
 import { runValidation } from '../validation-run';
+import { inspectWorktreeIntegrity } from '../worktree-integrity';
 
 const cleanupPaths: string[] = [];
 const STATE_CLI_PATH = fileURLToPath(new URL('../state.ts', import.meta.url));
@@ -133,7 +136,9 @@ describe('Go validation runner', () => {
 
         const state = await readState(statePath);
         const validation = state.validations[0];
-        expect(validation.arguments).toHaveLength(2);
+        expect(validation.arguments).toHaveLength(0);
+        expect(validation.argumentCount).toBe(2);
+        expect(validation.commandDigest).toMatch(/^[0-9a-f]{64}$/u);
         expect(validation.durationMs).toBeTypeOf('number');
         expect(validation.logByteLength).toBeTypeOf('number');
         expect(validation.logSha256).toMatch(/^[0-9a-f]{64}$/u);
@@ -187,6 +192,76 @@ describe('Go validation runner', () => {
         expect(terminal).toEqual({ stderr: 'err\n', stdout: 'out\n' });
         expect(log).toContain('out\n');
         expect(log).toContain('err\n');
+        expect(state.mutationLease).toBeNull();
+    });
+
+    it('never persists secret-bearing validation arguments', async () => {
+        const { statePath } = await fixture();
+        const secret = `github_pat_${'a'.repeat(20)}`;
+        await expect(
+            runValidation(statePath, {
+                arguments: ['-e', 'process.exit(0)', '--', '--token', secret],
+                executable: process.execPath,
+                kind: 'fixture',
+                lineageId: 'secret-argument',
+            }),
+        ).resolves.toBe(0);
+
+        const stateSource = await readFile(statePath, 'utf8');
+        const state = await readState(statePath);
+        const log = await readFile(join(dirname(statePath), state.validations[0].logPath), 'utf8');
+        expect(stateSource).not.toContain(secret);
+        expect(log).not.toContain(secret);
+        expect(state.validations[0]).toMatchObject({ argumentCount: 5, arguments: [] });
+    });
+
+    it('terminates output floods with a complete bounded failure receipt', async () => {
+        const { statePath } = await fixture();
+        await expect(
+            runValidation(
+                statePath,
+                {
+                    arguments: [
+                        '-e',
+                        "process.stdout.write('x'.repeat(4096)); setInterval(() => {}, 1000)",
+                    ],
+                    executable: process.execPath,
+                    kind: 'fixture',
+                    lineageId: 'output-limit',
+                },
+                { validationLogOptions: { highWatermarkBytes: 16, maxOutputBytes: 64 } },
+            ),
+        ).resolves.toBe(1);
+
+        const state = await readState(statePath);
+        const validation = state.validations[0];
+        const log = await readFile(join(dirname(statePath), validation.logPath), 'utf8');
+        expect(validation).toMatchObject({ result: 'failed', termination: 'output_limit' });
+        expect(validation.logByteLength).toBeTypeOf('number');
+        expect(validation.logSha256).toMatch(/^[0-9a-f]{64}$/u);
+        expect(log).toContain('CAXRI_VALIDATION_TRUNCATED');
+        expect(log).toContain('CAXRI_VALIDATION_RESULT');
+        expect(Buffer.byteLength(log)).toBeLessThan(4096);
+        expect(state.mutationLease).toBeNull();
+    });
+
+    it('times out a hung validation and releases its lease', async () => {
+        const { statePath } = await fixture();
+        await expect(
+            runValidation(
+                statePath,
+                {
+                    arguments: ['-e', 'setInterval(() => {}, 1000)'],
+                    executable: process.execPath,
+                    kind: 'fixture',
+                    lineageId: 'timeout',
+                },
+                { timeoutMs: 50 },
+            ),
+        ).resolves.toBe(1);
+
+        const state = await readState(statePath);
+        expect(state.validations[0]).toMatchObject({ result: 'failed', termination: 'timeout' });
         expect(state.mutationLease).toBeNull();
     });
 
@@ -420,6 +495,60 @@ describe('Go validation runner', () => {
         await waitForProcessExit(descendants.leaderPid);
         await waitForProcessExit(descendants.grandchildPid);
         expect(state.mutationLease).toBeNull();
+    });
+
+    it('releases an abandoned receipt without signaling a recycled process group', async () => {
+        const { headSha, statePath, worktree } = await fixture();
+        const decoy = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+            detached: process.platform !== 'win32',
+            stdio: 'ignore',
+        });
+        const decoyPid = decoy.pid;
+        if (!decoyPid) throw new Error('Decoy process fixture did not start');
+        await new Promise<void>((resolve, reject) => {
+            decoy.once('error', reject);
+            decoy.once('spawn', resolve);
+        });
+        try {
+            const state = await readState(statePath);
+            const integrity = await inspectWorktreeIntegrity(worktree);
+            const lost = startValidation(state, {
+                argumentCount: 0,
+                artifactVersion: 1,
+                command: 'lost validation',
+                commandDigest: 'a'.repeat(64),
+                executable: process.execPath,
+                headSha,
+                kind: 'fixture',
+                lineageId: 'pid-reuse',
+                runnerIdentity: 'b'.repeat(64),
+                runnerPid: 2_147_483_647,
+                sourceFingerprint: integrity.sourceFingerprint,
+            });
+            recordValidationChildPid(state, lost.id, lost.runnerPid!, decoyPid, 'c'.repeat(64));
+            await writeState(statePath, state);
+
+            await expect(
+                runValidation(statePath, {
+                    arguments: ['-e', String.raw`process.stdout.write('safe recovery\n')`],
+                    executable: process.execPath,
+                    kind: 'fixture',
+                    lineageId: 'pid-reuse',
+                }),
+            ).resolves.toBe(0);
+
+            const recovered = await readState(statePath);
+            expect(recovered.validations[0]).toMatchObject({
+                result: 'failed',
+                termination: 'runner_lost',
+            });
+            expect(recovered.validations[0].logError).toContain('Refusing to signal unowned');
+            expect(isProcessAlive(decoyPid)).toBe(true);
+            expect(recovered.mutationLease).toBeNull();
+        } finally {
+            if (isProcessAlive(decoyPid)) decoy.kill('SIGTERM');
+            await waitForProcessExit(decoyPid);
+        }
     });
 
     it.each(['deleted', 'digest-changed', 'truncated', 'tampered'] as const)(

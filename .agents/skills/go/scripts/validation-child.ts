@@ -52,6 +52,14 @@ function parseRequest(source: string): ValidationChildRequest {
 const lifecycle = { isCommandStarted: false, requestBuffer: '' };
 
 /**
+ * Keep the process-group leader alive while its command drains a forwarded signal. Recovery can then revalidate this
+ * stable leader identity before signaling the group, and the child close callback remains the normal exit owner.
+ */
+const keepSupervisorAlive = (): undefined => undefined;
+process.on('SIGINT', keepSupervisorAlive);
+process.on('SIGTERM', keepSupervisorAlive);
+
+/**
  * The parent leaves stdin open for the whole validation. If it is killed before registration, this inert supervisor
  * exits without launching the command; after launch, closing stdin terminates the entire detached process group instead
  * of leaving validation descendants behind.

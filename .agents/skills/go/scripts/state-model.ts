@@ -43,7 +43,7 @@ import {
 import { migrateState } from './state-migration';
 import { refreshValidationResult, validationsSchema } from './validation-gate';
 
-const SCHEMA_VERSION = 11;
+const SCHEMA_VERSION = 12;
 
 const PHASES = [
     'intake',

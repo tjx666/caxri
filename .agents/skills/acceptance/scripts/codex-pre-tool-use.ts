@@ -34,6 +34,10 @@ const compact = (value: unknown): string =>
 const isAgentBrowserCommand = (command: string): boolean =>
     /(?:^|[;&|()\s])agent-browser(?:\s|$)/u.test(command);
 
+const requiresAcceptanceRuntimeOwnership = (command: string): boolean =>
+    isAgentBrowserCommand(command) &&
+    (/(?:^|\s)--pin-tab(?:=|\s|$)/u.test(command) || /\bscreenshot\b/u.test(command));
+
 const isWithinProject = (cwd: string, projectRoot: string): boolean => {
     const relative = path.relative(projectRoot, path.resolve(cwd));
     return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..');
@@ -118,8 +122,12 @@ export const isOwnedAcceptanceRuntime = async (
         const parsed = runtimeStateSchema.safeParse(raw);
         return parsed.success ? await isOwnedRuntime(parsed.data) : false;
     } catch (error: unknown) {
-        if (error instanceof SyntaxError || errorCode(error) === 'ENOENT') return false;
-        throw error;
+        const isMissingOrMalformed = error instanceof SyntaxError || errorCode(error) === 'ENOENT';
+        /**
+         * A validated runtime receipt whose process identity cannot be probed is not evidence that the runtime ended.
+         * Treat unknown ownership as active so the narrow unsafe-command guards fail closed.
+         */
+        return !isMissingOrMalformed;
     }
 };
 
@@ -134,10 +142,26 @@ export const runPreToolUse = async (
     const toolInput = toolInputFor(payload);
     const command = compact(toolInput.command ?? toolInput.cmd);
     if (!command) return '';
-    const action = evaluateCaxriAcceptanceCommand({
-        acceptanceRuntimeExists: await hasOwnedAcceptanceRuntime(),
+    const cwd = resolveCommandCwd(payload);
+    const unconditionalAction = evaluateCaxriAcceptanceCommand({
+        acceptanceRuntimeExists: false,
         command,
-        cwd: resolveCommandCwd(payload),
+        cwd,
+    });
+    if (unconditionalAction) return serializeDeny(unconditionalAction);
+    if (!isWithinProject(cwd, PROJECT_ROOT) || !requiresAcceptanceRuntimeOwnership(command)) {
+        return '';
+    }
+    let hasAcceptanceRuntime = true;
+    try {
+        hasAcceptanceRuntime = await hasOwnedAcceptanceRuntime();
+    } catch {
+        // The guarded command must not become allowed merely because the ownership probe failed.
+    }
+    const action = evaluateCaxriAcceptanceCommand({
+        acceptanceRuntimeExists: hasAcceptanceRuntime,
+        command,
+        cwd,
     });
     return action ? serializeDeny(action) : '';
 };
@@ -147,6 +171,7 @@ if (import.meta.main) {
         const input = await readStdin();
         if (input.trim()) process.stdout.write(await runPreToolUse(JSON.parse(input) as unknown));
     } catch (error: unknown) {
+        process.exitCode = 1;
         process.stderr.write(
             `Caxri PreToolUse hook failed: ${error instanceof Error ? error.message : String(error)}\n`,
         );

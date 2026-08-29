@@ -27,11 +27,14 @@ function reportState(runId: string) {
     state.status = 'active';
     for (const [index, command] of PLATFORM_NEUTRAL_CI_COMMANDS.entries()) {
         state.validations.push({
+            argumentCount: 0,
             arguments: [],
             artifactVersion: 0,
             attempt: 1,
             childPid: null,
+            childIdentity: null,
             command,
+            commandDigest: null,
             completedAt: state.createdAt,
             durationMs: null,
             executable: null,
@@ -49,6 +52,7 @@ function reportState(runId: string) {
             logSha256: null,
             result: 'passed',
             runnerPid: null,
+            runnerIdentity: null,
             sessionId: `gate-${index}`,
             signal: null,
             sourceFingerprint: 'fixture-fingerprint',

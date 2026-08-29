@@ -1,13 +1,22 @@
 import type { Buffer } from 'node:buffer';
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { constants as osConstants } from 'node:os';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
+import { redactSecretText } from '@caxri/utils';
+
+import { getProcessIdentity } from '../../switch-worktree/scripts/process';
+import { PLATFORM_NEUTRAL_CI_COMMANDS } from './platform-neutral-gates';
 import type { GoState } from './state-model';
 import { addEvent } from './state-model';
 import { readState, runDirectoryForStatePath, withStateLock, writeState } from './state-storage';
-import type { ValidationLogReceipt, ValidationLogWriter } from './validation-artifact';
+import type {
+    ValidationLogReceipt,
+    ValidationLogWriter,
+    ValidationLogWriterOptions,
+} from './validation-artifact';
 import { createValidationLog, inspectValidationLog } from './validation-artifact';
 import type { ValidationKind, ValidationRecord, ValidationTermination } from './validation-gate';
 import { completeValidation, recordValidationChildPid, startValidation } from './validation-gate';
@@ -15,6 +24,7 @@ import { assertCleanValidationStart, inspectWorktreeIntegrity } from './worktree
 
 const PROCESS_GROUP_KILL_GRACE_MS = 2_000;
 const STATE_LOCK_RETRY_LIMIT = 100;
+const VALIDATION_TIMEOUT_MS = 30 * 60 * 1_000;
 const VALIDATION_CHILD_PATH = fileURLToPath(new URL('validation-child.ts', import.meta.url));
 
 const VALIDATION_ENVIRONMENT_KEYS = [
@@ -63,8 +73,11 @@ interface SignalSource {
 
 interface RunValidationDependencies {
     environment?: NodeJS.ProcessEnv;
+    getProcessIdentity?: (pid: number) => Promise<string | undefined>;
     runnerPid?: number;
     signalSource?: SignalSource;
+    timeoutMs?: number;
+    validationLogOptions?: ValidationLogWriterOptions;
     writeStderr?: (chunk: Uint8Array) => void;
     writeStdout?: (chunk: Uint8Array) => void;
 }
@@ -103,10 +116,12 @@ interface ProcessOutcome {
 }
 
 interface PendingSnapshot {
+    childIdentity: string | null;
     childPid: number | null;
     id: string;
     logPath: string;
     runnerPid: number | null;
+    runnerIdentity: string | null;
     startedAt: string;
 }
 
@@ -121,6 +136,26 @@ function displayArgument(argument: string): string {
 
 function formatValidationCommand(executable: string, arguments_: string[]): string {
     return [executable, ...arguments_].map(displayArgument).join(' ');
+}
+
+function validationCommandDigest(executable: string, arguments_: string[]): string {
+    return createHash('sha256')
+        .update(JSON.stringify([executable, ...arguments_]))
+        .digest('hex');
+}
+
+function validationReceiptCommand(
+    input: Pick<RunValidationInput, 'arguments' | 'executable' | 'kind'>,
+    digest: string,
+): string {
+    const command = formatValidationCommand(input.executable, input.arguments);
+    if (
+        input.kind === 'gates' &&
+        (PLATFORM_NEUTRAL_CI_COMMANDS as readonly string[]).includes(command)
+    ) {
+        return command;
+    }
+    return `${redactSecretText(input.executable)} (${input.arguments.length} args; sha256:${digest.slice(0, 12)})`;
 }
 
 function writeTerminal(writer: (chunk: Uint8Array) => void, chunk: Uint8Array): void {
@@ -185,10 +220,40 @@ async function hasProcessGroupExited(pid: number, timeoutMs: number): Promise<bo
     return !isProcessGroupAlive(pid);
 }
 
-async function terminateProcessGroup(pid: number): Promise<void> {
+async function isRecordedProcessGroupOwned(
+    pid: number,
+    identity: string | null,
+    probe: (pid: number) => Promise<string | undefined>,
+): Promise<boolean> {
+    if (!isProcessGroupAlive(pid)) return false;
+    /**
+     * POSIX keeps a process-group id allocated while any member remains. If the original leader has exited but the
+     * group still exists, that numeric id cannot have been recycled for a foreign group.
+     */
+    if (!isProcessAlive(pid)) return true;
+    return identity !== null && (await probe(pid)) === identity;
+}
+
+async function terminateProcessGroup(
+    pid: number,
+    expectedIdentity?: string | null,
+    probe: (pid: number) => Promise<string | undefined> = getProcessIdentity,
+): Promise<void> {
     if (!isProcessGroupAlive(pid)) return;
+    if (
+        expectedIdentity !== undefined &&
+        !(await isRecordedProcessGroupOwned(pid, expectedIdentity, probe))
+    ) {
+        throw new Error(`Refusing to signal unowned validation process group ${pid}`);
+    }
     signalProcessGroup(pid, 'SIGTERM');
     if (await hasProcessGroupExited(pid, PROCESS_GROUP_KILL_GRACE_MS)) return;
+    if (
+        expectedIdentity !== undefined &&
+        !(await isRecordedProcessGroupOwned(pid, expectedIdentity, probe))
+    ) {
+        throw new Error(`Refusing to force-kill unowned validation process group ${pid}`);
+    }
     signalProcessGroup(pid, 'SIGKILL');
     if (!(await hasProcessGroupExited(pid, PROCESS_GROUP_KILL_GRACE_MS))) {
         throw new Error(`Validation child process group ${pid} did not exit`);
@@ -220,43 +285,70 @@ async function updateState<T>(
     throw new Error('Validation state lock retry budget exhausted');
 }
 
-async function recoverAbandonedValidation(statePath: string): Promise<void> {
+async function recoverAbandonedValidation(
+    statePath: string,
+    probe: (pid: number) => Promise<string | undefined>,
+): Promise<void> {
     const pending = await withStateLock(statePath, async (): Promise<PendingSnapshot | null> => {
         const state = await readState(statePath);
         const record = state.validations.find(({ result }) => result === 'pending');
         if (!record) return null;
-        if (record.artifactVersion !== 1 || record.runnerPid === null) {
+        if (
+            record.artifactVersion !== 1 ||
+            record.runnerPid === null ||
+            record.runnerIdentity === null
+        ) {
             throw new Error(
                 `Validation ${record.id} predates validation-run and cannot be recovered automatically`,
             );
         }
-        if (isProcessAlive(record.runnerPid)) {
+        if ((await probe(record.runnerPid)) === record.runnerIdentity) {
             throw new Error(`Validation ${record.id} runner ${record.runnerPid} is still alive`);
         }
         return {
+            childIdentity: record.childIdentity,
             childPid: record.childPid,
             id: record.id,
             logPath: record.logPath,
             runnerPid: record.runnerPid,
+            runnerIdentity: record.runnerIdentity,
             startedAt: record.startedAt,
         };
     });
     if (!pending) return;
-    if (pending.childPid !== null) await terminateProcessGroup(pending.childPid);
+    let recoverySignalError: string | null = null;
+    if (pending.childPid !== null) {
+        try {
+            await terminateProcessGroup(pending.childPid, pending.childIdentity, probe);
+        } catch (error: unknown) {
+            recoverySignalError =
+                error instanceof Error
+                    ? error.message
+                    : 'Validation recovery refused to signal an unowned process group';
+        }
+    }
 
     let logReceipt: ValidationLogReceipt | null = null;
-    let logError = 'Validation runner ended before writing the completion footer';
+    let logError = recoverySignalError
+        ? `Validation runner was lost; ${recoverySignalError}`
+        : 'Validation runner ended before writing the completion footer';
     try {
         logReceipt = await inspectValidationLog(
             runDirectoryForStatePath(statePath),
             pending.logPath,
         );
     } catch {
-        logError = 'Validation runner ended before creating a complete log';
+        logError = recoverySignalError
+            ? `Validation runner was lost before creating a complete log; ${recoverySignalError}`
+            : 'Validation runner ended before creating a complete log';
     }
     await updateState(statePath, async (state) => {
         const record = state.validations.find(({ id }) => id === pending.id);
-        if (record?.result !== 'pending' || record.runnerPid !== pending.runnerPid) {
+        if (
+            record?.result !== 'pending' ||
+            record.runnerPid !== pending.runnerPid ||
+            record.runnerIdentity !== pending.runnerIdentity
+        ) {
             throw new Error(`Validation ${pending.id} changed during recovery`);
         }
         if (!state.worktree) throw new Error('Validation requires a recorded Go worktree');
@@ -284,9 +376,10 @@ async function recordChildProcess(
     validationId: string,
     runnerPid: number,
     childPid: number,
+    childIdentity: string,
 ): Promise<void> {
     await updateState(statePath, (state) => {
-        recordValidationChildPid(state, validationId, runnerPid, childPid);
+        recordValidationChildPid(state, validationId, runnerPid, childPid, childIdentity);
     });
 }
 
@@ -305,8 +398,9 @@ async function executeLoggedCommand(
     const signalSource = dependencies.signalSource ?? process;
     const writeStdout = dependencies.writeStdout ?? ((chunk) => process.stdout.write(chunk));
     const writeStderr = dependencies.writeStderr ?? ((chunk) => process.stderr.write(chunk));
+    const commandDigest = validationCommandDigest(input.executable, input.arguments);
     log.write(
-        `CAXRI_VALIDATION_START ${JSON.stringify({ arguments: input.arguments, executable: input.executable })}\n`,
+        `CAXRI_VALIDATION_START ${JSON.stringify({ argumentCount: input.arguments.length, commandDigest, executable: redactSecretText(input.executable) })}\n`,
     );
 
     const lifecycle: {
@@ -315,19 +409,20 @@ async function executeLoggedCommand(
         forceKillTimer: NodeJS.Timeout | null;
         interruptedSignal: NodeJS.Signals | null;
         isLaunchError: boolean;
+        isOutputLimit: boolean;
         isRunnerError: boolean;
+        isTimedOut: boolean;
     } = {
         childPid: null,
         commandResult: null,
         forceKillTimer: null,
         interruptedSignal: null,
         isLaunchError: false,
+        isOutputLimit: false,
         isRunnerError: false,
+        isTimedOut: false,
     };
-    let childRegistration = Promise.resolve();
-
-    const forwardSignal = (signal: NodeJS.Signals): void => {
-        lifecycle.interruptedSignal ??= signal;
+    const stopProcessGroup = (signal: NodeJS.Signals): void => {
         const childPid = lifecycle.childPid;
         if (!childPid) return;
         signalProcessGroup(childPid, signal);
@@ -337,10 +432,25 @@ async function executeLoggedCommand(
         );
         lifecycle.forceKillTimer.unref();
     };
+    const forwardSignal = (signal: NodeJS.Signals): void => {
+        lifecycle.interruptedSignal ??= signal;
+        stopProcessGroup(signal);
+    };
     const onInterrupt = () => forwardSignal('SIGINT');
     const onTerminate = () => forwardSignal('SIGTERM');
+    const timeoutMs = dependencies.timeoutMs ?? VALIDATION_TIMEOUT_MS;
+    if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) {
+        throw new Error('Validation timeout must be a positive integer');
+    }
+    let childRegistration = Promise.resolve();
+    let drainInFlight: Promise<void> | null = null;
     signalSource.on('SIGINT', onInterrupt);
     signalSource.on('SIGTERM', onTerminate);
+    const timeout = setTimeout(() => {
+        lifecycle.isTimedOut = true;
+        stopProcessGroup('SIGTERM');
+    }, timeoutMs);
+    timeout.unref();
 
     const close = await new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
         (resolve) => {
@@ -351,14 +461,41 @@ async function executeLoggedCommand(
                     env: safeValidationEnvironment(dependencies.environment),
                     stdio: ['pipe', 'pipe', 'pipe', 'pipe'],
                 });
-                spawned.stdout.on('data', (chunk: Buffer) => {
-                    writeTerminal(writeStdout, chunk);
-                    log.write(chunk);
-                });
-                spawned.stderr.on('data', (chunk: Buffer) => {
-                    writeTerminal(writeStderr, chunk);
-                    log.write(chunk);
-                });
+                const pauseForBackpressure = (): void => {
+                    if (drainInFlight) return;
+                    spawned.stdout.pause();
+                    spawned.stderr.pause();
+                    drainInFlight = (async () => {
+                        try {
+                            await log.drain();
+                            if (!lifecycle.isOutputLimit && !lifecycle.isRunnerError) {
+                                spawned.stdout.resume();
+                                spawned.stderr.resume();
+                            }
+                        } catch (error: unknown) {
+                            lifecycle.isRunnerError = true;
+                            stopProcessGroup('SIGTERM');
+                            log.write(
+                                `CAXRI_VALIDATION_RUNNER_ERROR ${error instanceof Error ? error.message : String(error)}\n`,
+                            );
+                        } finally {
+                            drainInFlight = null;
+                        }
+                    })();
+                };
+                const recordOutput = (writer: (chunk: Uint8Array) => void, chunk: Buffer): void => {
+                    if (!log.writeOutput(chunk)) {
+                        lifecycle.isOutputLimit = true;
+                        spawned.stdout.pause();
+                        spawned.stderr.pause();
+                        stopProcessGroup('SIGTERM');
+                        return;
+                    }
+                    writeTerminal(writer, chunk);
+                    if (log.needsBackpressure) pauseForBackpressure();
+                };
+                spawned.stdout.on('data', (chunk: Buffer) => recordOutput(writeStdout, chunk));
+                spawned.stderr.on('data', (chunk: Buffer) => recordOutput(writeStderr, chunk));
                 spawned.stdin.on('error', (error) => {
                     if (errorCode(error) === 'EPIPE') return;
                     lifecycle.isRunnerError = true;
@@ -408,6 +545,10 @@ async function executeLoggedCommand(
                                 forwardSignal(lifecycle.interruptedSignal);
                                 return;
                             }
+                            if (lifecycle.isOutputLimit || lifecycle.isTimedOut) {
+                                stopProcessGroup('SIGTERM');
+                                return;
+                            }
                             spawned.stdin.write(
                                 `${JSON.stringify({
                                     arguments: input.arguments,
@@ -451,6 +592,7 @@ async function executeLoggedCommand(
 
     signalSource.off('SIGINT', onInterrupt);
     signalSource.off('SIGTERM', onTerminate);
+    clearTimeout(timeout);
     if (lifecycle.forceKillTimer) clearTimeout(lifecycle.forceKillTimer);
     await childRegistration;
     const childPid = lifecycle.childPid;
@@ -464,7 +606,13 @@ async function executeLoggedCommand(
             );
         }
     }
-    if (!lifecycle.commandResult && !lifecycle.interruptedSignal && !lifecycle.isLaunchError) {
+    if (
+        !lifecycle.commandResult &&
+        !lifecycle.interruptedSignal &&
+        !lifecycle.isLaunchError &&
+        !lifecycle.isOutputLimit &&
+        !lifecycle.isTimedOut
+    ) {
         lifecycle.isRunnerError = true;
         log.write(
             `CAXRI_VALIDATION_RUNNER_ERROR Supervisor exited without a command result (${String(close.code)}, ${String(close.signal)})\n`,
@@ -472,15 +620,24 @@ async function executeLoggedCommand(
     }
     const termination: ValidationTermination = lifecycle.interruptedSignal
         ? 'caller_interrupt'
-        : lifecycle.isRunnerError
-          ? 'runner_error'
-          : lifecycle.isLaunchError
-            ? 'spawn_error'
-            : lifecycle.commandResult?.signal
-              ? 'signal'
-              : 'exit';
+        : lifecycle.isOutputLimit
+          ? 'output_limit'
+          : lifecycle.isTimedOut
+            ? 'timeout'
+            : lifecycle.isRunnerError
+              ? 'runner_error'
+              : lifecycle.isLaunchError
+                ? 'spawn_error'
+                : lifecycle.commandResult?.signal
+                  ? 'signal'
+                  : 'exit';
     const signal = lifecycle.interruptedSignal ?? lifecycle.commandResult?.signal ?? null;
     const exitCode = termination === 'exit' ? (lifecycle.commandResult?.code ?? null) : null;
+    if (log.outputLimitExceeded) {
+        log.write(
+            `CAXRI_VALIDATION_TRUNCATED ${JSON.stringify({ droppedBytes: log.droppedOutputBytes })}\n`,
+        );
+    }
     log.write(processFooter({ exitCode, signal, termination }));
 
     let logReceipt: ValidationLogReceipt | null = null;
@@ -521,21 +678,27 @@ export async function runValidation(
     dependencies: RunValidationDependencies = {},
 ): Promise<number> {
     if (!input.executable.trim()) throw new Error('Validation executable is required');
-    await recoverAbandonedValidation(statePath);
+    const processIdentityProbe = dependencies.getProcessIdentity ?? getProcessIdentity;
+    await recoverAbandonedValidation(statePath, processIdentityProbe);
     const runnerPid = dependencies.runnerPid ?? process.pid;
+    const runnerIdentity = await processIdentityProbe(runnerPid);
+    if (!runnerIdentity) throw new Error('Validation runner process identity is unavailable');
+    const commandDigest = validationCommandDigest(input.executable, input.arguments);
     const started = await updateState(statePath, async (state) => {
         if (!state.worktree) throw new Error('Validation requires a recorded Go worktree');
         const integrity = await inspectWorktreeIntegrity(state.worktree.path);
         assertCleanValidationStart(integrity, input.expectedHeadSha);
         const validation = startValidation(state, {
-            arguments: input.arguments,
+            argumentCount: input.arguments.length,
             artifactVersion: 1,
-            command: formatValidationCommand(input.executable, input.arguments),
-            executable: input.executable,
+            command: validationReceiptCommand(input, commandDigest),
+            commandDigest,
+            executable: redactSecretText(input.executable),
             headSha: integrity.headSha,
             kind: input.kind,
             lineageId: input.lineageId,
             runnerPid,
+            runnerIdentity,
             sessionId: input.sessionId,
             sourceFingerprint: integrity.sourceFingerprint,
         });
@@ -549,7 +712,11 @@ export async function runValidation(
 
     let log: ValidationLogWriter;
     try {
-        log = await createValidationLog(runDirectoryForStatePath(statePath), started.logPath);
+        log = await createValidationLog(
+            runDirectoryForStatePath(statePath),
+            started.logPath,
+            dependencies.validationLogOptions,
+        );
     } catch (error: unknown) {
         const outcome: ProcessOutcome = {
             durationMs: 0,
@@ -568,7 +735,13 @@ export async function runValidation(
         input,
         started.worktreePath,
         log,
-        (childPid) => recordChildProcess(statePath, started.id, runnerPid, childPid),
+        async (childPid) => {
+            const childIdentity = await processIdentityProbe(childPid);
+            if (!childIdentity) {
+                throw new Error('Validation child process identity is unavailable');
+            }
+            await recordChildProcess(statePath, started.id, runnerPid, childPid, childIdentity);
+        },
         dependencies,
     );
     await finalizeValidation(statePath, started.id, outcome);

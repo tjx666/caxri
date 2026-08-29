@@ -30,7 +30,7 @@ describe('Go schema v10 migration', () => {
 
         const migrated = validateState(legacy);
 
-        expect(migrated.schemaVersion).toBe(11);
+        expect(migrated.schemaVersion).toBe(12);
         expect(migrated.validations[0]).toMatchObject({
             arguments: [],
             artifactVersion: 0,
@@ -41,6 +41,7 @@ describe('Go schema v10 migration', () => {
             result: 'passed',
             termination: 'legacy',
         });
+        expect(migrated.validations[0].commandDigest).toMatch(/^[0-9a-f]{64}$/u);
     });
 
     it('rejects a managed result that contradicts its process receipt', () => {
@@ -49,11 +50,14 @@ describe('Go schema v10 migration', () => {
             runId: 'result-v11',
         });
         state.validations.push({
-            arguments: ['run', 'typecheck'],
+            argumentCount: 2,
+            arguments: [],
             artifactVersion: 1,
             attempt: 1,
             childPid: 101,
+            childIdentity: null,
             command: 'bun run typecheck',
+            commandDigest: null,
             completedAt: state.createdAt,
             durationMs: 12,
             executable: 'bun',
@@ -71,6 +75,7 @@ describe('Go schema v10 migration', () => {
             logSha256: 'a'.repeat(64),
             result: 'passed',
             runnerPid: 100,
+            runnerIdentity: null,
             sessionId: 'fixture',
             signal: null,
             sourceFingerprint: 'fingerprint',

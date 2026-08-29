@@ -1,9 +1,10 @@
+import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 
 import {
     evaluateCaxriAcceptanceCommand,
@@ -128,6 +129,50 @@ describe('Caxri Acceptance project hook', () => {
                 permissionDecision: 'deny',
             },
         });
+    });
+
+    test('does not probe unrelated commands and denies guarded commands when ownership is unknown', async () => {
+        const unavailableProbe = vi.fn(() =>
+            Promise.reject(new Error('process probe unavailable')),
+        );
+        await expect(
+            runPreToolUse(
+                {
+                    cwd: path.resolve(import.meta.dirname, '../../../..'),
+                    hook_event_name: 'PreToolUse',
+                    tool_input: { command: 'git status --short' },
+                },
+                unavailableProbe,
+            ),
+        ).resolves.toBe('');
+        expect(unavailableProbe).not.toHaveBeenCalled();
+
+        const denied = await runPreToolUse(
+            {
+                cwd: path.resolve(import.meta.dirname, '../../../..'),
+                hook_event_name: 'PreToolUse',
+                tool_input: { command: 'agent-browser --cdp 9326 --pin-tab get url' },
+            },
+            unavailableProbe,
+        );
+        expect(unavailableProbe).toHaveBeenCalledOnce();
+        expect(JSON.parse(denied)).toMatchObject({
+            hookSpecificOutput: {
+                permissionDecision: 'deny',
+            },
+        });
+        expect(denied).toContain('caxri-acceptance-pin-tab');
+    });
+
+    test('fails the hook process when its input cannot be evaluated', () => {
+        const hookPath = path.resolve(import.meta.dirname, 'codex-pre-tool-use.ts');
+        const result = spawnSync('bun', ['run', hookPath], {
+            encoding: 'utf8',
+            input: '{invalid json',
+        });
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toContain('Caxri PreToolUse hook failed');
     });
 
     test('does not apply the Caxri project policy outside the repository', () => {

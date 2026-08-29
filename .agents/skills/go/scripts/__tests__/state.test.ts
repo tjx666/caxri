@@ -508,7 +508,7 @@ describe('Go state ledger', () => {
             },
             handoffReport: null,
             phase: 'acceptance_handoff',
-            schemaVersion: 11,
+            schemaVersion: 12,
         });
         expect(
             migrated.reviewGate.rounds.map(({ legacyMode, mode }) => ({ legacyMode, mode })),
@@ -602,7 +602,7 @@ describe('Go state ledger', () => {
 
         expect(validateState(legacy)).toMatchObject({
             ciFallback: { status: 'not_requested' },
-            schemaVersion: 11,
+            schemaVersion: 12,
             validationBudget: { fullElectronE2eRuns: [] },
         });
     });
