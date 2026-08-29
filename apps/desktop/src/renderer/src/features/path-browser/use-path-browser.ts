@@ -8,14 +8,17 @@ import { useDebouncedValue } from '@/hooks/use-debounced-value';
 
 import { caxri } from '../../lib/caxri';
 import { setPathBrowserOpen } from '../../stores/dialogs';
+import { openExternalEditorDocument } from '../editor/external-editor-documents';
 import { createItem } from '../view-containers/resource-explorer/file-actions';
 import { activeResourceExplorerClient } from '../view-containers/resource-explorer-catalog-client';
+import type { PathBrowserInputState } from './path-browser';
 import {
     completePathQuery,
-    filterPathEntries,
     parsePathBrowserInput,
     pathBrowserCreateCandidate,
     pathBrowserEmptyMessage,
+    pathBrowserKeyIntent,
+    projectDirectoryPath,
 } from './path-browser';
 
 const PATH_BROWSER_QUERY_DEBOUNCE_MS = 120;
@@ -42,41 +45,31 @@ export function runPathBrowserDetached(operation: Promise<unknown>): void {
     void settleDetached(operation);
 }
 
-function currentProjectDirectory(root: string, directoryLabel: string): string {
-    const relativeDirectory = directoryLabel.replace(/\/$/u, '');
-    if (!relativeDirectory) return root;
-    return root === '/' ? `/${relativeDirectory}` : `${root}/${relativeDirectory}`;
-}
-
-function queryForBrowse(value: string): string | undefined {
-    const input = parsePathBrowserInput(value);
-    if (input.kind === 'filter') return value;
-    if (input.kind === 'relative' && /^[^/]+\/$/u.test(value)) return value.slice(0, -1);
-    return undefined;
-}
-
 function isSnapshot(result: PathBrowserNavigationResult): result is PathBrowserSnapshot {
     return 'browserId' in result;
 }
 
-export function usePathBrowser(projectRoot: string, sessionId: string) {
+export function usePathBrowser(projectRoot: string, sessionId: string, workbenchProjectId: string) {
     const [snapshot, setSnapshot] = useState<PathBrowserSnapshot>();
-    const [loadedQuery, setLoadedQuery] = useState('');
-    const [query, setQuery] = useState('');
+    const [inputState, setInputState] = useState<PathBrowserInputState>({
+        input: '',
+        mode: 'project',
+    });
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [error, setError] = useState<Error>();
     const [isNavigating, setIsNavigating] = useState(false);
     const [isStarting, setIsStarting] = useState(true);
     const [isFetching, setIsFetching] = useState(false);
-    const debouncedQuery = useDebouncedValue(query, PATH_BROWSER_QUERY_DEBOUNCE_MS);
+    const debouncedInputState = useDebouncedValue(inputState, PATH_BROWSER_QUERY_DEBOUNCE_MS);
     const inputReference = useRef<HTMLInputElement>(null);
+    const inputRevision = useRef(0);
     const requestGeneration = useRef(0);
+    const completedInputWithoutBrowse = useRef<string | null>(null);
     const listboxId = useId();
 
-    let browseQuery: string | undefined;
     let syntaxError: Error | undefined;
     try {
-        browseQuery = queryForBrowse(query);
+        parsePathBrowserInput(inputState.input);
     } catch (error_) {
         syntaxError = error_ instanceof Error ? error_ : new Error('Invalid path');
     }
@@ -93,7 +86,7 @@ export function usePathBrowser(projectRoot: string, sessionId: string) {
                     return;
                 }
                 setSnapshot(result);
-                setLoadedQuery('');
+                setInputState({ input: result.input, mode: result.mode });
                 setError(undefined);
             } catch (error_) {
                 if (!isDisposed)
@@ -113,15 +106,21 @@ export function usePathBrowser(projectRoot: string, sessionId: string) {
         };
     }, [sessionId]);
 
+    const hasSyntaxError = syntaxError !== undefined;
     useEffect(() => {
         const browserId = snapshot?.browserId;
-        let nextQuery: string | undefined;
-        try {
-            nextQuery = queryForBrowse(debouncedQuery);
-        } catch {
-            return;
+        const completedInput = completedInputWithoutBrowse.current;
+        if (completedInput !== null) {
+            if (debouncedInputState.input !== completedInput) return;
+            completedInputWithoutBrowse.current = null;
         }
-        if (!browserId || nextQuery === undefined || nextQuery === loadedQuery || isNavigating)
+        if (
+            !browserId ||
+            hasSyntaxError ||
+            isNavigating ||
+            (snapshot.mode === debouncedInputState.mode &&
+                snapshot.input === debouncedInputState.input)
+        )
             return;
         const generation = ++requestGeneration.current;
         queueMicrotask(() => {
@@ -131,11 +130,11 @@ export function usePathBrowser(projectRoot: string, sessionId: string) {
             try {
                 const result = await caxri.request('pathBrowser.browse', {
                     browserId,
-                    query: nextQuery,
+                    input: debouncedInputState.input,
+                    mode: debouncedInputState.mode,
                 });
                 if (requestGeneration.current !== generation) return;
                 setSnapshot(result);
-                setLoadedQuery(nextQuery);
                 setError(undefined);
             } catch (error_) {
                 if (requestGeneration.current !== generation) return;
@@ -145,35 +144,47 @@ export function usePathBrowser(projectRoot: string, sessionId: string) {
             }
         };
         runPathBrowserDetached(browse());
-    }, [debouncedQuery, isNavigating, loadedQuery, snapshot?.browserId]);
+    }, [
+        debouncedInputState.input,
+        debouncedInputState.mode,
+        hasSyntaxError,
+        isNavigating,
+        snapshot?.browserId,
+        snapshot?.input,
+        snapshot?.mode,
+    ]);
 
     const entries = snapshot?.entries ?? EMPTY_ENTRIES;
     const isTruncated = snapshot?.truncated ?? false;
-    const matches = useMemo(
-        () => (browseQuery === undefined ? EMPTY_ENTRIES : filterPathEntries(entries, browseQuery)),
-        [browseQuery, entries],
-    );
+    const isSnapshotCurrent =
+        snapshot?.mode === inputState.mode && snapshot.input === inputState.input;
     const isResultsReady =
-        !isStarting &&
-        !isNavigating &&
-        (browseQuery === undefined || loadedQuery === browseQuery) &&
-        !isFetching;
+        !isStarting && !isNavigating && !isFetching && isSnapshotCurrent && !syntaxError;
+    const matches = isResultsReady ? entries : EMPTY_ENTRIES;
     const emptyMessage = pathBrowserEmptyMessage(matches.length, isTruncated);
-    const isListboxRendered = isResultsReady && !error && browseQuery !== undefined;
+    const isListboxRendered = isResultsReady && !error;
     const effectiveSelectedIndex = clamp(selectedIndex, Math.max(matches.length - 1, 0));
-    const selected = isResultsReady ? matches[effectiveSelectedIndex] : undefined;
+    const selected = matches.at(effectiveSelectedIndex);
     const activeOptionId = selected ? `${listboxId}-option-${effectiveSelectedIndex}` : undefined;
-    const parsedInput = syntaxError ? undefined : parsePathBrowserInput(query);
-    const isCreatableQuery =
-        snapshot?.canCreate === true &&
-        browseQuery !== undefined &&
-        (parsedInput?.kind === 'filter' || /^[^/]+\/$/u.test(query));
     const candidateToCreate = useMemo(
         () =>
-            isCreatableQuery
-                ? pathBrowserCreateCandidate(query, matches.length, isTruncated, isResultsReady)
+            snapshot?.canCreate === true
+                ? pathBrowserCreateCandidate(
+                      inputState.mode,
+                      inputState.input,
+                      matches.length,
+                      isTruncated,
+                      isResultsReady,
+                  )
                 : undefined,
-        [isCreatableQuery, isResultsReady, isTruncated, matches.length, query],
+        [
+            inputState.input,
+            inputState.mode,
+            isResultsReady,
+            isTruncated,
+            matches.length,
+            snapshot?.canCreate,
+        ],
     );
 
     useEffect(() => {
@@ -184,29 +195,37 @@ export function usePathBrowser(projectRoot: string, sessionId: string) {
     }, [activeOptionId]);
     useEffect(() => inputReference.current?.focus(), []);
 
-    const updateQuery = (value: string): void => {
-        setQuery(value);
+    const updateInput = (input: string): void => {
+        completedInputWithoutBrowse.current = null;
+        inputRevision.current += 1;
+        setError(undefined);
+        setInputState((current) => ({ ...current, input }));
         setSelectedIndex(0);
     };
 
-    const applyNavigation = async (
-        operation: Promise<PathBrowserNavigationResult>,
+    const acceptSnapshot = (result: PathBrowserSnapshot): void => {
+        setSnapshot(result);
+        setInputState({ input: result.input, mode: result.mode });
+        setSelectedIndex(0);
+        setError(undefined);
+    };
+
+    const applySnapshotOperation = async (
+        operation: Promise<PathBrowserNavigationResult | PathBrowserSnapshot>,
     ): Promise<void> => {
+        const startingInputRevision = inputRevision.current;
         requestGeneration.current += 1;
         setIsNavigating(true);
         setIsFetching(false);
         try {
             const result = await operation;
-            if ('opened' in result) {
-                closePathBrowser();
-                return;
-            }
-            if ('canceled' in result) return;
             if (isSnapshot(result)) {
-                setSnapshot(result);
-                setLoadedQuery('');
-                setError(undefined);
-                updateQuery('');
+                if (inputRevision.current === startingInputRevision) acceptSnapshot(result);
+                else {
+                    setSnapshot(result);
+                    setSelectedIndex(0);
+                    setError(undefined);
+                }
             }
         } catch (error_) {
             setError(error_ instanceof Error ? error_ : new Error('Unable to open path'));
@@ -215,13 +234,13 @@ export function usePathBrowser(projectRoot: string, sessionId: string) {
         }
     };
 
-    const navigateInput = (value: string): void => {
-        if (!snapshot) return;
+    const detachProject = (): void => {
+        if (!snapshot || inputState.mode !== 'project') return;
         runPathBrowserDetached(
-            applyNavigation(
+            applySnapshotOperation(
                 caxri.request('pathBrowser.navigate', {
                     browserId: snapshot.browserId,
-                    target: { kind: 'input', value },
+                    target: { kind: 'detachProject' },
                 }),
             ),
         );
@@ -230,7 +249,7 @@ export function usePathBrowser(projectRoot: string, sessionId: string) {
     const goToParent = (): void => {
         if (!snapshot?.canGoParent) return;
         runPathBrowserDetached(
-            applyNavigation(
+            applySnapshotOperation(
                 caxri.request('pathBrowser.navigate', {
                     browserId: snapshot.browserId,
                     target: { kind: 'parent' },
@@ -239,37 +258,57 @@ export function usePathBrowser(projectRoot: string, sessionId: string) {
         );
     };
 
+    const openEntry = async (entry: PathBrowserEntry): Promise<void> => {
+        if (!snapshot || entry.kind === 'symlink') return;
+        requestGeneration.current += 1;
+        setIsNavigating(true);
+        setIsFetching(false);
+        try {
+            const result = await caxri.request('pathBrowser.open', {
+                browserId: snapshot.browserId,
+                entryId: entry.id,
+            });
+            if (result.kind === 'external') {
+                const opened = openExternalEditorDocument({
+                    document: result.document,
+                    sessionId,
+                    workbenchProjectId,
+                });
+                if (!opened) throw new Error('Unable to open external file in this Session');
+            }
+            closePathBrowser();
+        } catch (error_) {
+            setError(error_ instanceof Error ? error_ : new Error('Unable to open path'));
+        } finally {
+            setIsNavigating(false);
+        }
+    };
+
     const choose = (entry: PathBrowserEntry | undefined): void => {
         if (!snapshot || !entry || entry.kind === 'symlink') return;
         if (entry.kind === 'directory') {
             runPathBrowserDetached(
-                applyNavigation(
+                applySnapshotOperation(
                     caxri.request('pathBrowser.navigate', {
                         browserId: snapshot.browserId,
-                        target: { kind: 'entry', entryId: entry.id },
+                        target: { entryId: entry.id, kind: 'entry' },
                     }),
                 ),
             );
             return;
         }
-        runPathBrowserDetached(
-            applyNavigation(
-                caxri.request('pathBrowser.open', {
-                    browserId: snapshot.browserId,
-                    entryId: entry.id,
-                }),
-            ),
-        );
+        runPathBrowserDetached(openEntry(entry));
     };
 
     /**
-     * Project-local creation still goes through the Files mutation journal. Temporary browse contexts never expose a
-     * writable directory and set `canCreate` false in Main, so an opaque external grant cannot reach this action.
+     * Project-local creation continues through the Files mutation journal; free-path browsing never reaches this
+     * action.
      */
     const createFromQuery = async (): Promise<void> => {
-        if (!candidateToCreate || !snapshot?.canCreate) return;
+        if (!candidateToCreate || !snapshot?.canCreate || inputState.mode !== 'project') return;
         const client = await activeResourceExplorerClient();
-        const directory = currentProjectDirectory(projectRoot, snapshot.directoryLabel);
+        const path = projectDirectoryPath(projectRoot, snapshot.directoryLabel);
+        const directory = path === '/' ? path : path.slice(0, -1);
         const created = await createItem(
             client,
             sessionId,
@@ -279,57 +318,91 @@ export function usePathBrowser(projectRoot: string, sessionId: string) {
         );
         if (!created) return;
         if (candidateToCreate.kind === 'directory') {
-            navigateInput(`${candidateToCreate.name}/`);
+            const listed = await caxri.request('pathBrowser.browse', {
+                browserId: snapshot.browserId,
+                input: candidateToCreate.name,
+                mode: 'project',
+            });
+            const directory = listed.entries.find(
+                (entry) => entry.kind === 'directory' && entry.name === candidateToCreate.name,
+            );
+            if (!directory) throw new Error('Created folder could not be reopened');
+            await applySnapshotOperation(
+                caxri.request('pathBrowser.navigate', {
+                    browserId: snapshot.browserId,
+                    target: { entryId: directory.id, kind: 'entry' },
+                }),
+            );
             return;
         }
         closePathBrowser();
     };
 
     const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
-        if (event.nativeEvent.isComposing) return;
-        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-            event.preventDefault();
-            if (matches.length === 0) return;
-            const delta = event.key === 'ArrowDown' ? 1 : -1;
-            setSelectedIndex((current) => (current + delta + matches.length) % matches.length);
-            return;
-        }
-        if (event.key === 'Tab') {
-            event.preventDefault();
-            if (query.endsWith('/') && selected?.kind === 'directory') {
+        const intent = pathBrowserKeyIntent({
+            entryCount: matches.length,
+            input: inputState.input,
+            isComposing: event.nativeEvent.isComposing,
+            key: event.key,
+            mode: inputState.mode,
+            selectedKind: selected?.kind,
+            selectionEnd: event.currentTarget.selectionEnd,
+            selectionStart: event.currentTarget.selectionStart,
+        });
+        if (!intent) return;
+        event.preventDefault();
+        switch (intent.kind) {
+            case 'close': {
+                closePathBrowser();
+                return;
+            }
+            case 'move-selection': {
+                setSelectedIndex(
+                    (current) => (current + intent.delta + matches.length) % matches.length,
+                );
+                return;
+            }
+            case 'complete': {
+                if (syntaxError) return;
+                const completion = completePathQuery(matches, inputState.input, isTruncated);
+                if (completion) {
+                    completedInputWithoutBrowse.current = completion;
+                    inputRevision.current += 1;
+                    setInputState((current) => ({ ...current, input: completion }));
+                    setSelectedIndex(0);
+                    /**
+                     * Completion is offered only for one authoritative, non-truncated candidate. Keep that opaque
+                     * candidate actionable immediately so a fast Tab → Enter sequence does not become a no-op while the
+                     * debounced identical filter catches up.
+                     */
+                    setSnapshot((current) =>
+                        current?.mode === inputState.mode
+                            ? { ...current, input: completion }
+                            : current,
+                    );
+                }
+                return;
+            }
+            case 'enter-directory': {
                 choose(selected);
                 return;
             }
-            if (browseQuery === undefined) {
-                if (!syntaxError) navigateInput(query);
+            case 'parent': {
+                goToParent();
                 return;
             }
-            const completion = completePathQuery(entries, browseQuery, isTruncated);
-            if (completion) updateQuery(completion);
-            return;
-        }
-        if (event.key === 'ArrowRight') {
-            event.preventDefault();
-            if (selected?.kind === 'directory') choose(selected);
-            return;
-        }
-        if (event.key === 'Enter') {
-            event.preventDefault();
-            if (syntaxError) {
-                setError(syntaxError);
+            case 'detach-project': {
+                detachProject();
                 return;
             }
-            if (selected) choose(selected);
-            else if (candidateToCreate) runPathBrowserDetached(createFromQuery());
-            else if (query) navigateInput(query);
-            return;
-        }
-        if (
-            event.key === 'ArrowLeft' &&
-            (query === '' || (event.currentTarget.selectionStart ?? 1) === 0)
-        ) {
-            event.preventDefault();
-            goToParent();
+            case 'accept': {
+                if (syntaxError) {
+                    setError(syntaxError);
+                    return;
+                }
+                if (selected) choose(selected);
+                else if (candidateToCreate) runPathBrowserDetached(createFromQuery());
+            }
         }
     };
 
@@ -341,9 +414,9 @@ export function usePathBrowser(projectRoot: string, sessionId: string) {
         displayedError: syntaxError ?? error,
         effectiveSelectedIndex,
         emptyMessage,
-        entries,
         goToParent,
         handleKeyDown,
+        input: inputState.input,
         inputReference,
         isListboxRendered,
         isNavigating,
@@ -352,11 +425,9 @@ export function usePathBrowser(projectRoot: string, sessionId: string) {
         isTruncated,
         listboxId,
         matches,
-        navigateInput,
-        pathPrompt: browseQuery === undefined && query && !syntaxError,
-        query,
+        mode: inputState.mode,
         selectIndex: setSelectedIndex,
         snapshot,
-        updateQuery,
+        updateInput,
     };
 }

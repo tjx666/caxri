@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { useState } from 'react';
 
 import type { BootstrapState, CaxriMethod, CommandId } from '@caxri/protocol';
-import { parseGitDiffTab } from '@caxri/protocol';
+import { isExternalEditorTabPath, parseGitDiffTab } from '@caxri/protocol';
 import { relativeTime } from '@caxri/utils';
 import { useQueryClient } from '@tanstack/react-query';
 import type { LucideIcon } from 'lucide-react';
@@ -749,6 +749,7 @@ export function StatusBar() {
                 <ScreencastModeChip />
                 {sessionId &&
                     activeResource?.kind === 'file' &&
+                    !isExternalEditorTabPath(activeResource.path) &&
                     !parseGitDiffTab(activeResource.path) && (
                         <ActiveFileStatus
                             sessionId={sessionId}
