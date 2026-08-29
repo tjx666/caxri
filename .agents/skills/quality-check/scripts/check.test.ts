@@ -289,6 +289,30 @@ describe('testCandidatesForFile', () => {
         expect(testCandidatesForFile('README.md')).toEqual([]);
     });
 
+    it('selects repository harness contracts for instruction, skill, and hook changes', () => {
+        expect(testCandidatesForFile('.agents/invocation.md')).toContain(
+            'scripts/__tests__/skill-invocation.test.ts',
+        );
+        expect(testCandidatesForFile('CLAUDE.md')).toContain(
+            'scripts/__tests__/skill-invocation.test.ts',
+        );
+        expect(testCandidatesForFile('.agents/skills/competitors/SKILL.md')).toContain(
+            'scripts/__tests__/skill-invocation.test.ts',
+        );
+        expect(testCandidatesForFile('.agents/skills/debug/agents/openai.yaml')).toContain(
+            'scripts/__tests__/skill-invocation.test.ts',
+        );
+        expect(testCandidatesForFile('.claude/settings.json')).toContain(
+            '.agents/skills/acceptance/scripts/project-hook.test.ts',
+        );
+        expect(testCandidatesForFile('.codex/hooks.json')).toContain(
+            '.agents/skills/acceptance/scripts/project-hook.test.ts',
+        );
+        expect(testCandidatesForFile('.agents/skills/go/scripts/state.ts')).not.toContain(
+            'scripts/__tests__/skill-invocation.test.ts',
+        );
+    });
+
     it('discovers domain integration suites from nested index entries', () => {
         expect(testCandidatesForFile('apps/server/src/domains/git/index.ts')).toContain(
             'apps/server/src/domains/git/__tests__/git.integration.test.ts',

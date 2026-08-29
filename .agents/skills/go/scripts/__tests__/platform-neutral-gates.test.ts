@@ -3,9 +3,30 @@ import { describe, expect, it } from 'vitest';
 import {
     assertCanonicalPlatformNeutralGate,
     PLATFORM_NEUTRAL_CI_COMMANDS,
+    PLATFORM_NEUTRAL_CI_GATES,
 } from '../platform-neutral-gates';
 
 describe('canonical platform-neutral gates', () => {
+    it('keeps stable unique IDs paired with every exact fallback command', () => {
+        expect(PLATFORM_NEUTRAL_CI_GATES.map(({ id }) => id)).toEqual([
+            'eslint',
+            'oxlint-type-aware',
+            'markdownlint',
+            'knip',
+            'react-doctor',
+            'typescript',
+            'format',
+            'vitest',
+            'bundle-budget',
+        ]);
+        expect(new Set(PLATFORM_NEUTRAL_CI_GATES.map(({ id }) => id)).size).toBe(
+            PLATFORM_NEUTRAL_CI_GATES.length,
+        );
+        expect(PLATFORM_NEUTRAL_CI_GATES.map(({ receiptCommand }) => receiptCommand)).toEqual(
+            PLATFORM_NEUTRAL_CI_COMMANDS,
+        );
+    });
+
     it('accepts one passed receipt per canonical command on the exact head', () => {
         expect(() =>
             assertCanonicalPlatformNeutralGate(

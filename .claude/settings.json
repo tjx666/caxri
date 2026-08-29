@@ -10,9 +10,28 @@
             "Bash(bun run test)",
             "Bash(bun run test:smoke)",
             "Bash(bun run check *)",
+            "Bash(bun run --silent check *)",
+            "Bash(bun run doctor:changed)",
+            "Bash(bun run lint:type-aware)",
+            "Bash(bun run lint:markdown)",
             "Bash(bunx vitest run *)",
             "mcp__exa__web_search_exa",
             "mcp__exa__web_fetch_exa"
+        ]
+    },
+    "hooks": {
+        "PreToolUse": [
+            {
+                "matcher": "^Bash$",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "bun run \"${CLAUDE_PROJECT_DIR}/.agents/skills/acceptance/scripts/pre-tool-use.ts\"",
+                        "statusMessage": "Checking Caxri command usage",
+                        "timeout": 5
+                    }
+                ]
+            }
         ]
     }
 }

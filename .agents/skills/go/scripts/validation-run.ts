@@ -149,10 +149,7 @@ function validationReceiptCommand(
     digest: string,
 ): string {
     const command = formatValidationCommand(input.executable, input.arguments);
-    if (
-        input.kind === 'gates' &&
-        (PLATFORM_NEUTRAL_CI_COMMANDS as readonly string[]).includes(command)
-    ) {
+    if (input.kind === 'gates' && PLATFORM_NEUTRAL_CI_COMMANDS.includes(command)) {
         return command;
     }
     return `${redactSecretText(input.executable)} (${input.arguments.length} args; sha256:${digest.slice(0, 12)})`;

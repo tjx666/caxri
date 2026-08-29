@@ -1,14 +1,9 @@
-export const PLATFORM_NEUTRAL_CI_COMMANDS = [
-    'bun run lint',
-    'bun run scripts/ci-metrics.ts --label "oxlint type-aware" -- bun run lint:type-aware',
-    'bun run lint:markdown',
-    'bun run knip',
-    'bun run doctor:changed',
-    'bun run typecheck',
-    'bun run format:check',
-    'bun run scripts/ci-metrics.ts --label "Vitest full suite partition=${CAXRI_VITEST_PARTITION} workers=${CAXRI_VITEST_MAX_WORKERS}" -- bun run test',
-    'bun run scripts/ci-metrics.ts --label "Bundle budget gate" -- bun run scripts/ci-bundle-budget.ts',
-] as const;
+import { PLATFORM_NEUTRAL_CI_COMMANDS } from '../../../../scripts/ci-platform-gates';
+
+export {
+    PLATFORM_NEUTRAL_CI_COMMANDS,
+    PLATFORM_NEUTRAL_CI_GATES,
+} from '../../../../scripts/ci-platform-gates';
 
 interface PlatformNeutralGateContext {
     validations: Array<{ command: string; headSha: string; kind: string; result: string }>;
