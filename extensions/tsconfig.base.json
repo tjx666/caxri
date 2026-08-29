@@ -4,6 +4,9 @@
         "module": "ESNext",
         "moduleResolution": "Bundler",
         "noEmit": true,
+        "paths": {
+            "caxri": ["../packages/extension-api/src/index.ts"]
+        },
         "strict": true,
         "target": "ES2023",
         "types": ["node"]

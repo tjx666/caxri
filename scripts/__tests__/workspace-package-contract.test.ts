@@ -1,6 +1,16 @@
 import { execFile } from 'node:child_process';
-import { access, readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import {
+    access,
+    copyFile,
+    mkdir,
+    mkdtemp,
+    readdir,
+    readFile,
+    rm,
+    writeFile,
+} from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import process from 'node:process';
 import { promisify } from 'node:util';
 
@@ -59,7 +69,7 @@ describe('workspace package manifests', () => {
         expect(apiManifest.version).toBe(appManifest.version);
     });
 
-    it('exposes caxri source types before build artifacts exist', async () => {
+    it('exposes the public caxri types from its published build', async () => {
         const manifestPath = join(workspaceRoot, 'packages/extension-api/package.json');
         const manifestText = await readFile(manifestPath, 'utf8');
         const manifest = JSON.parse(manifestText) as {
@@ -68,9 +78,131 @@ describe('workspace package manifests', () => {
 
         expect(manifest.exports['.']).toEqual({
             import: './dist/index.js',
-            types: './src/index.ts',
+            types: './dist/index.d.ts',
         });
     });
+
+    it('resolves workspace caxri typechecks from current source', async () => {
+        const mappings = [
+            {
+                configPath: 'tsconfig.node.json',
+                sourcePath: './packages/extension-api/src/index.ts',
+            },
+            {
+                configPath: 'extensions/tsconfig.base.json',
+                sourcePath: '../packages/extension-api/src/index.ts',
+            },
+        ];
+
+        const configs = await Promise.all(
+            mappings.map(async ({ configPath, sourcePath }) => {
+                const configText = await readFile(join(workspaceRoot, configPath), 'utf8');
+                const config = JSON.parse(configText) as {
+                    compilerOptions: { paths: Record<string, string[]> };
+                };
+                const sourceFile = join(workspaceRoot, dirname(configPath), sourcePath);
+                await access(sourceFile);
+                return { config, sourcePath };
+            }),
+        );
+        for (const { config, sourcePath } of configs) {
+            expect(config.compilerOptions.paths.caxri).toEqual([sourcePath]);
+        }
+
+        const serverConfigText = await readFile(
+            join(workspaceRoot, 'apps/server/tsconfig.json'),
+            'utf8',
+        );
+        const serverConfig = JSON.parse(serverConfigText) as {
+            exclude: string[];
+            include: string[];
+        };
+        expect(serverConfig.include).toContain('../../packages/extension-api/src/**/*.ts');
+        expect(serverConfig.exclude).toContain('../../packages/extension-api/src/**/*.test.ts');
+    });
+
+    it('ships a caxri tarball that an external TypeScript project can consume', async () => {
+        const temporaryRoot = await mkdtemp(join(tmpdir(), 'caxri-extension-api-package-'));
+        try {
+            const apiRoot = join(workspaceRoot, 'packages/extension-api');
+            const packageRoot = join(temporaryRoot, 'package-source');
+            const tarballRoot = join(temporaryRoot, 'tarballs');
+            const consumerRoot = join(temporaryRoot, 'consumer');
+            await Promise.all([
+                mkdir(packageRoot, { recursive: true }),
+                mkdir(tarballRoot, { recursive: true }),
+                mkdir(consumerRoot, { recursive: true }),
+            ]);
+            await copyFile(join(apiRoot, 'package.json'), join(packageRoot, 'package.json'));
+            await execFileAsync(
+                join(workspaceRoot, 'node_modules/.bin/tsc'),
+                [
+                    '-p',
+                    join(apiRoot, 'tsconfig.build.json'),
+                    '--outDir',
+                    join(packageRoot, 'dist'),
+                    '--rootDir',
+                    join(apiRoot, 'src'),
+                ],
+                { cwd: workspaceRoot },
+            );
+            await execFileAsync('pnpm', ['pack', '--pack-destination', tarballRoot], {
+                cwd: packageRoot,
+            });
+            const tarballs = (await readdir(tarballRoot)).filter((name) => name.endsWith('.tgz'));
+            expect(tarballs).toHaveLength(1);
+
+            await writeFile(
+                join(consumerRoot, 'package.json'),
+                '{"private":true,"type":"module"}\n',
+            );
+            await execFileAsync('pnpm', ['add', `caxri@file:${join(tarballRoot, tarballs[0])}`], {
+                cwd: consumerRoot,
+            });
+            const installedPackageRoot = join(consumerRoot, 'node_modules/caxri');
+
+            await expect(
+                access(join(installedPackageRoot, 'dist/index.d.ts')),
+            ).resolves.toBeUndefined();
+            await expect(
+                access(join(installedPackageRoot, 'dist/__tests__/api.test.d.ts')),
+            ).rejects.toMatchObject({ code: 'ENOENT' });
+
+            await writeFile(
+                join(consumerRoot, 'index.ts'),
+                "import type { DisposableLike } from 'caxri';\nconst disposable: DisposableLike = { dispose() {} };\ndisposable.dispose();\n",
+            );
+            await execFileAsync(
+                join(workspaceRoot, 'node_modules/.bin/tsc'),
+                [
+                    '--noEmit',
+                    '--module',
+                    'NodeNext',
+                    '--moduleResolution',
+                    'NodeNext',
+                    '--strict',
+                    '--target',
+                    'ES2023',
+                    'index.ts',
+                ],
+                { cwd: consumerRoot },
+            );
+            const { stdout: runtimeOutput } = await execFileAsync(
+                'node',
+                [
+                    '--input-type=module',
+                    '--eval',
+                    "const resolved = import.meta.resolve('caxri'); const api = await import('caxri'); process.stdout.write(JSON.stringify({ disposable: typeof api.Disposable, resolved }));",
+                ],
+                { cwd: consumerRoot },
+            );
+            const runtime = JSON.parse(runtimeOutput) as { disposable: string; resolved: string };
+            expect(runtime.disposable).toBe('function');
+            expect(runtime.resolved.endsWith('/dist/index.js')).toBe(true);
+        } finally {
+            await rm(temporaryRoot, { force: true, recursive: true });
+        }
+    }, 30_000);
 
     it('runs private workspace packages from source in Bun while preserving Node build exports', async () => {
         const manifestPaths = [

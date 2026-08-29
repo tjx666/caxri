@@ -29,6 +29,9 @@
         "esModuleInterop": true,
         "noEmit": true,
         "noImplicitAny": true,
+        "paths": {
+            "caxri": ["./packages/extension-api/src/index.ts"]
+        },
         "strict": true,
         "types": ["node", "electron"]
     }
