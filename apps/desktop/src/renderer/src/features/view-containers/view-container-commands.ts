@@ -131,7 +131,7 @@ export function didExecuteViewCatalogCommand(
 }
 
 /**
- * Resolves the Server catalog at shortcut time. `fetchQuery` reuses a fresh cache, reloads a missing/stale/invalidated
+ * Resolves the Server catalog at shortcut time. `query` reuses a fresh cache, reloads a missing/stale/invalidated
  * catalog, and therefore never turns an accepted extension keybinding into a cache-dependent silent no-op.
  */
 export async function executeViewCatalogShortcut(
@@ -140,7 +140,7 @@ export async function executeViewCatalogShortcut(
 ): Promise<void> {
     if (didRevealCachedViewContainerCommand(commandId)) return;
     const catalog = await tryCommand('Unable to load extension commands', () =>
-        queryClient.fetchQuery({
+        queryClient.query({
             queryKey: caxriQueryKey('viewContainers.catalog', {}),
             queryFn: () => caxri.request('viewContainers.catalog', {}),
         }),
@@ -159,7 +159,7 @@ export async function executeEditableViewCatalogShortcut(
     arguments_: readonly unknown[] = [],
 ): Promise<void> {
     const catalog = await tryCommand('Unable to load extension commands', () =>
-        queryClient.fetchQuery({
+        queryClient.query({
             queryKey: caxriQueryKey('viewContainers.catalog', {}),
             queryFn: () => caxri.request('viewContainers.catalog', {}),
         }),
