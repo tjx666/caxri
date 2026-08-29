@@ -1,16 +1,23 @@
-import { mkdir, mkdtemp, rename, rm, symlink, writeFile } from 'node:fs/promises';
+import { Buffer } from 'node:buffer';
+import {
+    link,
+    lstat,
+    mkdir,
+    mkdtemp,
+    realpath,
+    rename,
+    rm,
+    symlink,
+    writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { MAX_CONFIGURABLE_FILE_BYTES, MAX_FILE_BROWSE_ENTRIES } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-const electronMock = vi.hoisted(() => ({
-    dialog: { showOpenDialog: vi.fn() },
-}));
-vi.mock('electron', () => ({ dialog: electronMock.dialog }));
-
 import type { PathBrowserOpenTarget } from '../path-browser-authority';
-import { createPathBrowserAuthority } from '../path-browser-authority';
+import { createPathBrowserAuthority, readBoundedExternalContent } from '../path-browser-authority';
 import type { DesktopServerConnection } from '../server-connection';
 
 const temporaryDirectories: string[] = [];
@@ -22,7 +29,6 @@ async function temporaryDirectory(prefix: string): Promise<string> {
 }
 
 afterEach(async () => {
-    electronMock.dialog.showOpenDialog.mockReset();
     const directoriesToRemove = [...temporaryDirectories];
     temporaryDirectories.length = 0;
     await Promise.all(
@@ -52,400 +58,407 @@ function bootstrap(ownerRoot: string, workbenchRoot: string) {
     };
 }
 
+function authorityOptions(
+    ownerRoot: string,
+    workbenchRoot: string,
+    options: {
+        openFile?: (
+            target: PathBrowserOpenTarget,
+        ) => Promise<{ canceled: true } | { opened: true }>;
+        request?: (method: string, parameters?: unknown) => Promise<unknown>;
+        userHome?: string;
+    } = {},
+) {
+    const request = vi.fn(
+        options.request ??
+            ((method: string) => {
+                if (method === 'app.bootstrap')
+                    return Promise.resolve(bootstrap(ownerRoot, workbenchRoot));
+                if (method === 'files.browse')
+                    return Promise.resolve({ entries: [], truncated: false });
+                return Promise.reject(new Error(`Unexpected method: ${method}`));
+            }),
+    );
+    const openFile = vi.fn(options.openFile ?? (() => Promise.resolve({ opened: true as const })));
+    return {
+        authority: createPathBrowserAuthority({
+            getServer: () => server(request),
+            openFile,
+            ...(options.userHome && { userHome: options.userHome }),
+        }),
+        openFile,
+        request,
+    };
+}
+
 describe('path browser authority', () => {
-    it('starts from the selected Session Workbench Project without using its owner root', async () => {
+    it('starts from the Workbench Project and detaches to its absolute directory without a picker', async () => {
         const ownerRoot = await temporaryDirectory('caxri-path-owner-');
         const workbenchRoot = await temporaryDirectory('caxri-path-worktree-');
-        const request = vi.fn((method: string, parameters?: unknown) => {
-            if (method === 'app.bootstrap')
-                return Promise.resolve(bootstrap(ownerRoot, workbenchRoot));
-            if (method === 'files.browse') {
-                const browseParameters = parameters as {
-                    directory: string;
-                    query: string;
-                    sessionId: string;
-                };
-                expect(browseParameters).toMatchObject({
-                    query: '',
-                    sessionId: 'session-1',
-                });
-                expect(browseParameters.directory).toContain('caxri-path-worktree-');
-                expect(browseParameters.directory).not.toBe(ownerRoot);
-                return Promise.resolve({
-                    entries: [
-                        {
-                            kind: 'file',
-                            name: 'worktree.ts',
-                            path: join(workbenchRoot, 'worktree.ts'),
-                        },
-                    ],
-                    truncated: false,
-                });
-            }
-            return Promise.reject(new Error(`Unexpected method: ${method}`));
-        });
-        const authority = createPathBrowserAuthority({
-            getServer: () => server(request),
-            getWindow: () => {},
-            nextTestRoot: () => {},
-            openFile: vi.fn(),
-        });
+        const canonicalWorkbenchRoot = await realpath(workbenchRoot);
+        const { authority } = authorityOptions(ownerRoot, workbenchRoot);
 
-        await expect(authority.start({ sessionId: 'session-1' })).resolves.toMatchObject({
+        const initial = await authority.start({ sessionId: 'session-1' });
+        expect(initial).toMatchObject({
             canCreate: true,
             directoryLabel: '',
-            entries: [{ kind: 'file', name: 'worktree.ts' }],
+            input: '',
+            mode: 'project',
             rootLabel: 'Worktree',
         });
-    });
 
-    it('does not enumerate Home until a native grant, then exposes only opaque entries', async () => {
-        const ownerRoot = await temporaryDirectory('caxri-path-owner-');
-        const workbenchRoot = await temporaryDirectory('caxri-path-worktree-');
-        const userHome = await temporaryDirectory('caxri-path-home-');
-        const externalRoot = join(userHome, 'outside');
-        await mkdir(externalRoot);
-        await writeFile(join(externalRoot, 'external.ts'), 'export const external = true;\n');
-        const state = bootstrap(ownerRoot, workbenchRoot);
-        const request = vi.fn((method: string) => {
-            if (method === 'app.bootstrap') return Promise.resolve(state);
-            if (method === 'files.browse')
-                return Promise.resolve({ entries: [], truncated: false });
-            return Promise.reject(new Error(`Unexpected method: ${method}`));
-        });
-        const authority = createPathBrowserAuthority({
-            getServer: () => server(request),
-            getWindow: () => {},
-            nextTestRoot: () => externalRoot,
-            openFile: vi.fn(),
-            userHome,
-        });
-        const initial = await authority.start({ sessionId: 'session-1' });
-        const result = await authority.navigate({
+        const detached = await authority.navigate({
             browserId: initial.browserId,
-            target: { kind: 'input', value: '~/outside/' },
+            target: { kind: 'detachProject' },
         });
-
-        expect(result).toMatchObject({
+        expect(detached).toMatchObject({
             browserId: initial.browserId,
             canCreate: false,
-            entries: [{ kind: 'file', name: 'external.ts' }],
+            input: `${canonicalWorkbenchRoot}/`,
+            mode: 'free',
         });
-        expect(JSON.stringify(result)).not.toContain(externalRoot);
-        expect(request.mock.calls.map(([method]) => method)).toEqual([
-            'app.bootstrap',
-            'files.browse',
-            'app.bootstrap',
-        ]);
-        expect(electronMock.dialog.showOpenDialog).not.toHaveBeenCalled();
-
-        authority.close({ browserId: initial.browserId });
-        await expect(
-            authority.browse({ browserId: initial.browserId, query: '' }),
-        ).rejects.toMatchObject({ code: 'PATH_DENIED' });
+        expect(detached).not.toHaveProperty('rootLabel');
     });
 
-    it('consumes an external grant after opening and rejects a symlink escape', async () => {
+    it('keeps the current Project directory chrome stable while browsing nested input', async () => {
         const ownerRoot = await temporaryDirectory('caxri-path-owner-');
         const workbenchRoot = await temporaryDirectory('caxri-path-worktree-');
-        const userHome = await temporaryDirectory('caxri-path-home-');
-        const externalRoot = join(userHome, 'outside');
-        const outsideRoot = await temporaryDirectory('caxri-path-escape-');
-        await mkdir(externalRoot);
-        await writeFile(join(externalRoot, 'external.ts'), 'export const external = true;\n');
-        await writeFile(join(outsideRoot, 'secret.ts'), 'secret\n');
-        await symlink(join(outsideRoot, 'secret.ts'), join(externalRoot, 'escape.ts'));
-        const state = bootstrap(ownerRoot, workbenchRoot);
-        const request = vi.fn((method: string) => {
-            if (method === 'app.bootstrap') return Promise.resolve(state);
-            if (method === 'files.browse')
-                return Promise.resolve({ entries: [], truncated: false });
-            return Promise.reject(new Error(`Unexpected method: ${method}`));
-        });
-        const openFile = vi.fn<(target: PathBrowserOpenTarget) => Promise<{ opened: true }>>();
-        openFile.mockResolvedValue({ opened: true });
-        const authority = createPathBrowserAuthority({
-            getServer: () => server(request),
-            getWindow: () => {},
-            nextTestRoot: () => externalRoot,
-            openFile,
-            userHome,
-        });
+        const sourceDirectory = join(workbenchRoot, 'src');
+        await mkdir(sourceDirectory);
+        const canonicalSourceDirectory = await realpath(sourceDirectory);
+        const { authority, request } = authorityOptions(ownerRoot, workbenchRoot);
         const initial = await authority.start({ sessionId: 'session-1' });
-        const result = await authority.navigate({
-            browserId: initial.browserId,
-            target: { kind: 'input', value: '~/outside/' },
-        });
-        if (!('entries' in result)) throw new Error('Expected a path browser snapshot');
-        const external = result.entries.find((entry) => entry.name === 'external.ts');
-        const escape = result.entries.find((entry) => entry.name === 'escape.ts');
-        expect(external).toBeDefined();
-        expect(escape?.kind).toBe('symlink');
 
-        await expect(
-            authority.open({ browserId: initial.browserId, entryId: escape!.id }),
-        ).rejects.toMatchObject({ code: 'PATH_DENIED' });
-        await expect(
-            authority.open({ browserId: initial.browserId, entryId: external!.id }),
-        ).resolves.toEqual({ opened: true });
-        const [target] = openFile.mock.calls[0];
-        expect(target.projectId).toBeUndefined();
-        expect(typeof target.grantRoot?.path).toBe('string');
-        expect(typeof target.path).toBe('string');
-        await expect(
-            authority.open({ browserId: initial.browserId, entryId: external!.id }),
-        ).rejects.toMatchObject({ code: 'PATH_DENIED' });
+        const nested = await authority.browse({
+            browserId: initial.browserId,
+            mode: 'project',
+            input: 'src/rea',
+        });
+
+        expect(nested).toMatchObject({ directoryLabel: '', input: 'src/rea', mode: 'project' });
+        expect(request).toHaveBeenLastCalledWith('files.browse', {
+            sessionId: 'session-1',
+            directory: canonicalSourceDirectory,
+            query: 'rea',
+        });
     });
 
-    it('expires a temporary browse grant without revealing or retaining its root', async () => {
+    it('keeps the Project-local trailing-slash create-folder gesture', async () => {
         const ownerRoot = await temporaryDirectory('caxri-path-owner-');
         const workbenchRoot = await temporaryDirectory('caxri-path-worktree-');
-        const userHome = await temporaryDirectory('caxri-path-home-');
-        const externalRoot = join(userHome, 'outside');
-        await mkdir(externalRoot);
-        let now = 1_000;
-        const request = vi.fn((method: string) => {
-            if (method === 'app.bootstrap')
-                return Promise.resolve(bootstrap(ownerRoot, workbenchRoot));
-            if (method === 'files.browse')
-                return Promise.resolve({ entries: [], truncated: false });
-            return Promise.reject(new Error(`Unexpected method: ${method}`));
+        const canonicalWorkbenchRoot = await realpath(workbenchRoot);
+        const { authority, request } = authorityOptions(ownerRoot, workbenchRoot);
+        const initial = await authority.start({ sessionId: 'session-1' });
+
+        const missingFolder = await authority.browse({
+            browserId: initial.browserId,
+            mode: 'project',
+            input: 'drafts/',
         });
-        const authority = createPathBrowserAuthority({
-            getServer: () => server(request),
-            getWindow: () => {},
-            grantTtlMs: 50,
-            nextTestRoot: () => externalRoot,
-            now: () => now,
-            openFile: vi.fn(),
-            userHome,
+
+        expect(missingFolder).toMatchObject({
+            canCreate: true,
+            directoryLabel: '',
+            entries: [],
+            input: 'drafts/',
         });
+        expect(request).toHaveBeenLastCalledWith('files.browse', {
+            sessionId: 'session-1',
+            directory: canonicalWorkbenchRoot,
+            query: 'drafts',
+        });
+    });
+
+    it('live-lists Home, parent, relative, and absolute free paths with opaque entries', async () => {
+        const container = await temporaryDirectory('caxri-path-free-');
+        const ownerRoot = join(container, 'owner');
+        const workbenchRoot = join(container, 'project');
+        const externalRoot = join(container, 'external');
+        const userHome = join(container, 'home');
+        await Promise.all([
+            mkdir(ownerRoot),
+            mkdir(workbenchRoot),
+            mkdir(externalRoot),
+            mkdir(userHome),
+        ]);
+        await Promise.all([
+            writeFile(join(externalRoot, 'external.ts'), 'external\n'),
+            writeFile(join(userHome, 'home.ts'), 'home\n'),
+        ]);
+        const { authority } = authorityOptions(ownerRoot, workbenchRoot, { userHome });
         const initial = await authority.start({ sessionId: 'session-1' });
         await authority.navigate({
             browserId: initial.browserId,
-            target: { kind: 'input', value: '~/outside/' },
+            target: { kind: 'detachProject' },
         });
-        now += 51;
+
+        for (const input of ['~', '~/', '~/ho']) {
+            // eslint-disable-next-line no-await-in-loop -- each request verifies another supported input form
+            const result = await authority.browse({
+                browserId: initial.browserId,
+                mode: 'free',
+                input,
+            });
+            expect(result.entries.map((entry) => entry.name)).toContain('home.ts');
+        }
+        for (const input of [`${externalRoot}/`, '../external/']) {
+            // eslint-disable-next-line no-await-in-loop -- each request verifies another supported input form
+            const result = await authority.browse({
+                browserId: initial.browserId,
+                mode: 'free',
+                input,
+            });
+            expect(result.entries).toEqual([
+                expect.objectContaining({ kind: 'file', name: 'external.ts' }),
+            ]);
+            expect(JSON.stringify(result.entries)).not.toContain(externalRoot);
+        }
+        const parent = await authority.browse({
+            browserId: initial.browserId,
+            mode: 'free',
+            input: '..',
+        });
+        expect(parent.entries.map((entry) => entry.name)).toEqual(
+            expect.arrayContaining(['external', 'project']),
+        );
+    });
+
+    it('opens a free file as one bounded read-only document without Project or Session routing', async () => {
+        const ownerRoot = await temporaryDirectory('caxri-path-owner-');
+        const workbenchRoot = await temporaryDirectory('caxri-path-worktree-');
+        const externalRoot = await temporaryDirectory('caxri-path-external-');
+        const externalPath = join(externalRoot, 'external.ts');
+        await writeFile(externalPath, 'export const external = true;\n');
+        const canonicalExternalPath = await realpath(externalPath);
+        const { authority, openFile, request } = authorityOptions(ownerRoot, workbenchRoot);
+        const initial = await authority.start({ sessionId: 'session-1' });
+        const listed = await authority.browse({
+            browserId: initial.browserId,
+            mode: 'free',
+            input: `${externalRoot}/`,
+        });
+        const external = listed.entries.find((entry) => entry.name === 'external.ts');
 
         await expect(
-            authority.browse({ browserId: initial.browserId, query: '' }),
+            authority.open({ browserId: initial.browserId, entryId: external!.id }),
+        ).resolves.toMatchObject({
+            opened: true,
+            kind: 'external',
+            document: {
+                name: 'external.ts',
+                displayPath: canonicalExternalPath,
+                content: 'export const external = true;\n',
+                readOnly: true,
+            },
+        });
+        expect(openFile).not.toHaveBeenCalled();
+        expect(request.mock.calls.map(([method]) => method)).not.toContain('project.create');
+        expect(request.mock.calls.map(([method]) => method)).not.toContain('session.create');
+        await expect(
+            authority.open({ browserId: initial.browserId, entryId: external!.id }),
         ).rejects.toMatchObject({ code: 'PATH_DENIED' });
     });
 
-    it('opens a pasted absolute file after one parent-folder grant', async () => {
+    it('keeps Project files on the Server authorization and Desktop open chain', async () => {
         const ownerRoot = await temporaryDirectory('caxri-path-owner-');
         const workbenchRoot = await temporaryDirectory('caxri-path-worktree-');
-        const externalRoot = await temporaryDirectory('caxri-path-absolute-');
-        const file = join(externalRoot, 'absolute.ts');
-        await writeFile(file, 'export const absolute = true;\n');
-        const request = vi.fn((method: string) => {
-            if (method === 'app.bootstrap')
-                return Promise.resolve(bootstrap(ownerRoot, workbenchRoot));
-            if (method === 'files.browse')
-                return Promise.resolve({ entries: [], truncated: false });
-            return Promise.reject(new Error(`Unexpected method: ${method}`));
-        });
-        const openFile = vi.fn<(target: PathBrowserOpenTarget) => Promise<{ opened: true }>>();
-        openFile.mockResolvedValue({ opened: true });
-        const authority = createPathBrowserAuthority({
-            getServer: () => server(request),
-            getWindow: () => {},
-            nextTestRoot: () => externalRoot,
-            openFile,
+        const targetPath = join(workbenchRoot, 'project.ts');
+        await writeFile(targetPath, 'project\n');
+        const [rootStats, fileStats] = await Promise.all([
+            lstat(workbenchRoot, { bigint: true }),
+            lstat(targetPath, { bigint: true }),
+        ]);
+        const { authority, openFile } = authorityOptions(ownerRoot, workbenchRoot, {
+            request: (method) => {
+                if (method === 'app.bootstrap')
+                    return Promise.resolve(bootstrap(ownerRoot, workbenchRoot));
+                if (method === 'files.browse')
+                    return Promise.resolve({
+                        entries: [{ kind: 'file', name: 'project.ts', path: targetPath }],
+                        truncated: false,
+                    });
+                if (method === 'files.authorizeOpen')
+                    return Promise.resolve({
+                        kind: 'file',
+                        name: 'project.ts',
+                        path: targetPath,
+                        device: fileStats.dev.toString(),
+                        inode: fileStats.ino.toString(),
+                        root: {
+                            path: workbenchRoot,
+                            device: rootStats.dev.toString(),
+                            inode: rootStats.ino.toString(),
+                        },
+                    });
+                return Promise.reject(new Error(`Unexpected method: ${method}`));
+            },
         });
         const initial = await authority.start({ sessionId: 'session-1' });
+        const projectFile = initial.entries.find((entry) => entry.name === 'project.ts');
 
         await expect(
-            authority.navigate({
-                browserId: initial.browserId,
-                target: { kind: 'input', value: file },
-            }),
-        ).resolves.toEqual({ opened: true });
-        expect(openFile).toHaveBeenCalledOnce();
-        expect(openFile.mock.calls[0][0].path).toContain('absolute.ts');
+            authority.open({ browserId: initial.browserId, entryId: projectFile!.id }),
+        ).resolves.toEqual({ opened: true, kind: 'project' });
+        expect(openFile).toHaveBeenCalledWith(
+            expect.objectContaining({ path: targetPath, sessionId: 'session-1' }),
+        );
     });
 
-    it('returns a stable content-free error for a missing absolute path', async () => {
+    it('keeps a current-Project file editable after the Project anchor is detached', async () => {
         const ownerRoot = await temporaryDirectory('caxri-path-owner-');
         const workbenchRoot = await temporaryDirectory('caxri-path-worktree-');
-        const externalRoot = await temporaryDirectory('caxri-path-missing-');
-        const missingFile = join(externalRoot, 'private-missing.ts');
-        const request = vi.fn((method: string) => {
-            if (method === 'app.bootstrap')
-                return Promise.resolve(bootstrap(ownerRoot, workbenchRoot));
-            if (method === 'files.browse')
-                return Promise.resolve({ entries: [], truncated: false });
-            return Promise.reject(new Error(`Unexpected method: ${method}`));
-        });
-        const authority = createPathBrowserAuthority({
-            getServer: () => server(request),
-            getWindow: () => {},
-            nextTestRoot: () => externalRoot,
-            openFile: vi.fn(),
+        const targetPath = join(workbenchRoot, 'project.ts');
+        await writeFile(targetPath, 'project\n');
+        const canonicalTargetPath = await realpath(targetPath);
+        const [rootStats, fileStats] = await Promise.all([
+            lstat(workbenchRoot, { bigint: true }),
+            lstat(targetPath, { bigint: true }),
+        ]);
+        const { authority, openFile, request } = authorityOptions(ownerRoot, workbenchRoot, {
+            request: (method) => {
+                if (method === 'app.bootstrap')
+                    return Promise.resolve(bootstrap(ownerRoot, workbenchRoot));
+                if (method === 'files.browse')
+                    return Promise.resolve({ entries: [], truncated: false });
+                if (method === 'files.authorizeOpen')
+                    return Promise.resolve({
+                        kind: 'file',
+                        name: 'project.ts',
+                        path: canonicalTargetPath,
+                        device: fileStats.dev.toString(),
+                        inode: fileStats.ino.toString(),
+                        root: {
+                            path: workbenchRoot,
+                            device: rootStats.dev.toString(),
+                            inode: rootStats.ino.toString(),
+                        },
+                    });
+                return Promise.reject(new Error(`Unexpected method: ${method}`));
+            },
         });
         const initial = await authority.start({ sessionId: 'session-1' });
+        const detached = await authority.navigate({
+            browserId: initial.browserId,
+            target: { kind: 'detachProject' },
+        });
+        if (!('browserId' in detached)) throw new Error('Expected a detached browser snapshot');
+        const projectFile = detached.entries.find((entry) => entry.name === 'project.ts');
 
+        await expect(
+            authority.open({ browserId: initial.browserId, entryId: projectFile!.id }),
+        ).resolves.toEqual({ opened: true, kind: 'project' });
+        expect(request).toHaveBeenCalledWith('files.authorizeOpen', {
+            sessionId: 'session-1',
+            path: canonicalTargetPath,
+        });
+        expect(openFile).toHaveBeenCalledWith(
+            expect.objectContaining({ path: canonicalTargetPath, sessionId: 'session-1' }),
+        );
+    });
+
+    it('rejects symlinks, hard links, and files replaced after listing', async () => {
+        const ownerRoot = await temporaryDirectory('caxri-path-owner-');
+        const workbenchRoot = await temporaryDirectory('caxri-path-worktree-');
+        const externalRoot = await temporaryDirectory('caxri-path-unsafe-');
+        const original = join(externalRoot, 'original.ts');
+        const hardLink = join(externalRoot, 'hard.ts');
+        const symbolicLink = join(externalRoot, 'symbolic.ts');
+        const replaceable = join(externalRoot, 'replaceable.ts');
+        await Promise.all([writeFile(original, 'original\n'), writeFile(replaceable, 'before\n')]);
+        await Promise.all([link(original, hardLink), symlink(original, symbolicLink)]);
+        const { authority } = authorityOptions(ownerRoot, workbenchRoot);
+        const initial = await authority.start({ sessionId: 'session-1' });
+        const listed = await authority.browse({
+            browserId: initial.browserId,
+            mode: 'free',
+            input: `${externalRoot}/`,
+        });
+        const byName = new Map(listed.entries.map((entry) => [entry.name, entry]));
+        expect(byName.get('symbolic.ts')?.kind).toBe('symlink');
+
+        await expect(
+            authority.open({
+                browserId: initial.browserId,
+                entryId: byName.get('symbolic.ts')!.id,
+            }),
+        ).rejects.toMatchObject({ code: 'PATH_DENIED' });
+        await expect(
+            authority.open({ browserId: initial.browserId, entryId: byName.get('hard.ts')!.id }),
+        ).rejects.toMatchObject({ code: 'PATH_DENIED' });
+
+        await rename(replaceable, join(externalRoot, 'previous.ts'));
+        await writeFile(replaceable, 'replacement\n');
+        await expect(
+            authority.open({
+                browserId: initial.browserId,
+                entryId: byName.get('replaceable.ts')!.id,
+            }),
+        ).rejects.toMatchObject({ code: 'CONFLICT' });
+    });
+
+    it('bounds a file that grows during reading and detects binary bytes beyond the prefix', async () => {
+        await expect(
+            readBoundedExternalContent({
+                read: (_buffer, _offset, length) => {
+                    expect(length).toBe(MAX_CONFIGURABLE_FILE_BYTES + 1);
+                    return Promise.resolve({ bytesRead: length });
+                },
+            }),
+        ).rejects.toMatchObject({ code: 'CAPACITY' });
+
+        const ownerRoot = await temporaryDirectory('caxri-path-owner-');
+        const workbenchRoot = await temporaryDirectory('caxri-path-worktree-');
+        const externalRoot = await temporaryDirectory('caxri-path-binary-');
+        const binaryPath = join(externalRoot, 'binary.dat');
+        await writeFile(binaryPath, Buffer.concat([Buffer.alloc(9_000, 65), Buffer.from([0])]));
+        const { authority } = authorityOptions(ownerRoot, workbenchRoot);
+        const initial = await authority.start({ sessionId: 'session-1' });
+        const listed = await authority.browse({
+            browserId: initial.browserId,
+            mode: 'free',
+            input: `${externalRoot}/`,
+        });
+        const binary = listed.entries.find((entry) => entry.name === 'binary.dat');
+
+        await expect(
+            authority.open({ browserId: initial.browserId, entryId: binary!.id }),
+        ).rejects.toMatchObject({
+            code: 'IO',
+            message: 'Binary files cannot be opened in the editor',
+        });
+    });
+
+    it('bounds a free directory scan and returns content-free filesystem errors', async () => {
+        const ownerRoot = await temporaryDirectory('caxri-path-owner-');
+        const workbenchRoot = await temporaryDirectory('caxri-path-worktree-');
+        const externalRoot = await temporaryDirectory('caxri-path-bounded-');
+        await Promise.all(
+            Array.from({ length: MAX_FILE_BROWSE_ENTRIES + 5 }, (_, index) =>
+                writeFile(join(externalRoot, `file-${index}.txt`), 'x'),
+            ),
+        );
+        const { authority } = authorityOptions(ownerRoot, workbenchRoot);
+        const initial = await authority.start({ sessionId: 'session-1' });
+        const listed = await authority.browse({
+            browserId: initial.browserId,
+            mode: 'free',
+            input: `${externalRoot}/`,
+        });
+        expect(listed.entries).toHaveLength(MAX_FILE_BROWSE_ENTRIES);
+        expect(listed.truncated).toBe(true);
+
+        const missing = `${join(externalRoot, 'private-missing')}/`;
         let error: unknown;
         try {
-            await authority.navigate({
+            await authority.browse({
                 browserId: initial.browserId,
-                target: { kind: 'input', value: missingFile },
+                mode: 'free',
+                input: missing,
             });
         } catch (error_) {
             error = error_;
         }
         expect(error).toMatchObject({ code: 'NOT_FOUND', message: 'File not found' });
-        expect(JSON.stringify(error)).not.toContain(missingFile);
-    });
-
-    it('keeps the existing browser context when folder authorization is canceled', async () => {
-        const ownerRoot = await temporaryDirectory('caxri-path-owner-');
-        const workbenchRoot = await temporaryDirectory('caxri-path-worktree-');
-        const request = vi.fn((method: string) => {
-            if (method === 'app.bootstrap')
-                return Promise.resolve(bootstrap(ownerRoot, workbenchRoot));
-            if (method === 'files.browse')
-                return Promise.resolve({ entries: [], truncated: false });
-            return Promise.reject(new Error(`Unexpected method: ${method}`));
-        });
-        electronMock.dialog.showOpenDialog.mockResolvedValueOnce({ canceled: true, filePaths: [] });
-        const authority = createPathBrowserAuthority({
-            getServer: () => server(request),
-            getWindow: () => {},
-            nextTestRoot: () => {},
-            openFile: vi.fn(),
-        });
-        const initial = await authority.start({ sessionId: 'session-1' });
-
-        await expect(
-            authority.navigate({
-                browserId: initial.browserId,
-                target: { kind: 'input', value: '/outside/file.ts' },
-            }),
-        ).resolves.toEqual({ canceled: true });
-        await expect(
-            authority.browse({ browserId: initial.browserId, query: '' }),
-        ).resolves.toMatchObject({ browserId: initial.browserId, rootLabel: 'Worktree' });
-    });
-
-    it('rejects a replaced grant root before opening a listed file', async () => {
-        const ownerRoot = await temporaryDirectory('caxri-path-owner-');
-        const workbenchRoot = await temporaryDirectory('caxri-path-worktree-');
-        const externalRoot = await temporaryDirectory('caxri-path-replaced-');
-        await writeFile(join(externalRoot, 'target.ts'), 'first\n');
-        const request = vi.fn((method: string) => {
-            if (method === 'app.bootstrap')
-                return Promise.resolve(bootstrap(ownerRoot, workbenchRoot));
-            if (method === 'files.browse')
-                return Promise.resolve({ entries: [], truncated: false });
-            return Promise.reject(new Error(`Unexpected method: ${method}`));
-        });
-        const authority = createPathBrowserAuthority({
-            getServer: () => server(request),
-            getWindow: () => {},
-            nextTestRoot: () => externalRoot,
-            openFile: vi.fn(),
-        });
-        const initial = await authority.start({ sessionId: 'session-1' });
-        const listed = await authority.navigate({
-            browserId: initial.browserId,
-            target: { kind: 'input', value: `${externalRoot}/` },
-        });
-        if (!('entries' in listed)) throw new Error('Expected a path browser snapshot');
-        const target = listed.entries.find((entry) => entry.name === 'target.ts');
-        const movedRoot = `${externalRoot}-old`;
-        temporaryDirectories.push(movedRoot);
-        await rename(externalRoot, movedRoot);
-        await mkdir(externalRoot);
-        await writeFile(join(externalRoot, 'target.ts'), 'replacement\n');
-
-        await expect(
-            authority.open({ browserId: initial.browserId, entryId: target!.id }),
-        ).rejects.toMatchObject({ code: 'CONFLICT' });
-    });
-
-    it('rejects a file replaced after the external directory was listed', async () => {
-        const ownerRoot = await temporaryDirectory('caxri-path-owner-');
-        const workbenchRoot = await temporaryDirectory('caxri-path-worktree-');
-        const externalRoot = await temporaryDirectory('caxri-path-target-replaced-');
-        const targetPath = join(externalRoot, 'target.ts');
-        const previousPath = join(externalRoot, 'target.previous.ts');
-        await writeFile(targetPath, 'first\n');
-        const request = vi.fn((method: string) => {
-            if (method === 'app.bootstrap')
-                return Promise.resolve(bootstrap(ownerRoot, workbenchRoot));
-            if (method === 'files.browse')
-                return Promise.resolve({ entries: [], truncated: false });
-            return Promise.reject(new Error(`Unexpected method: ${method}`));
-        });
-        const authority = createPathBrowserAuthority({
-            getServer: () => server(request),
-            getWindow: () => {},
-            nextTestRoot: () => externalRoot,
-            openFile: vi.fn(),
-        });
-        const initial = await authority.start({ sessionId: 'session-1' });
-        const listed = await authority.navigate({
-            browserId: initial.browserId,
-            target: { kind: 'input', value: `${externalRoot}/` },
-        });
-        if (!('entries' in listed)) throw new Error('Expected a path browser snapshot');
-        const target = listed.entries.find((entry) => entry.name === 'target.ts');
-        await rename(targetPath, previousPath);
-        await writeFile(targetPath, 'replacement\n');
-
-        await expect(
-            authority.open({ browserId: initial.browserId, entryId: target!.id }),
-        ).rejects.toMatchObject({ code: 'CONFLICT' });
-    });
-
-    it('serializes Project browsing so a stale response cannot replace current entry IDs', async () => {
-        const ownerRoot = await temporaryDirectory('caxri-path-owner-');
-        const workbenchRoot = await temporaryDirectory('caxri-path-worktree-');
-        let resolveFirstBrowse: ((value: unknown) => void) | undefined;
-        let resolveSecondBrowse: ((value: unknown) => void) | undefined;
-        const request = vi.fn((method: string, parameters?: unknown) => {
-            if (method === 'app.bootstrap')
-                return Promise.resolve(bootstrap(ownerRoot, workbenchRoot));
-            if (method === 'files.browse') {
-                const query = (parameters as { query: string }).query;
-                if (!query) return Promise.resolve({ entries: [], truncated: false });
-                return new Promise((resolve) => {
-                    if (query === 'first') resolveFirstBrowse = resolve;
-                    else resolveSecondBrowse = resolve;
-                });
-            }
-            return Promise.reject(new Error(`Unexpected method: ${method}`));
-        });
-        const authority = createPathBrowserAuthority({
-            getServer: () => server(request),
-            getWindow: () => {},
-            nextTestRoot: () => {},
-            openFile: vi.fn(),
-        });
-        const initial = await authority.start({ sessionId: 'session-1' });
-
-        const first = authority.browse({ browserId: initial.browserId, query: 'first' });
-        const second = authority.browse({ browserId: initial.browserId, query: 'second' });
-        await vi.waitFor(() => {
-            expect(resolveFirstBrowse).toBeTypeOf('function');
-        });
-        expect(resolveSecondBrowse).toBeUndefined();
-
-        resolveFirstBrowse!({
-            entries: [{ kind: 'file', name: 'first.ts', path: join(workbenchRoot, 'first.ts') }],
-            truncated: false,
-        });
-        await first;
-        await vi.waitFor(() => {
-            expect(resolveSecondBrowse).toBeTypeOf('function');
-        });
-        resolveSecondBrowse!({
-            entries: [{ kind: 'file', name: 'second.ts', path: join(workbenchRoot, 'second.ts') }],
-            truncated: false,
-        });
-        await expect(second).resolves.toMatchObject({
-            entries: [{ kind: 'file', name: 'second.ts' }],
-        });
+        expect(JSON.stringify(error)).not.toContain(missing);
     });
 });

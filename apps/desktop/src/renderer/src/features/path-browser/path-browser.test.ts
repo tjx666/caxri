@@ -8,6 +8,8 @@ import {
     parsePathBrowserInput,
     pathBrowserCreateCandidate,
     pathBrowserEmptyMessage,
+    pathBrowserKeyIntent,
+    projectDirectoryPath,
 } from './path-browser';
 
 const entries: FileEntry[] = [
@@ -18,20 +20,23 @@ const entries: FileEntry[] = [
 ];
 
 describe('path browser navigation', () => {
-    it('classifies Home, absolute, parent, and relative navigation without expanding paths', () => {
-        expect(parsePathBrowserInput('~/')).toEqual({ kind: 'home', value: '~/' });
-        expect(parsePathBrowserInput('~/src/')).toEqual({ kind: 'home', value: '~/src/' });
-        expect(parsePathBrowserInput('/Users/example/file.ts')).toEqual({
-            kind: 'absolute',
-            value: '/Users/example/file.ts',
-        });
-        expect(parsePathBrowserInput('../')).toEqual({ kind: 'parent', value: '../' });
-        expect(parsePathBrowserInput('src/')).toEqual({ kind: 'relative', value: 'src/' });
-        expect(parsePathBrowserInput('README.md')).toEqual({
-            kind: 'filter',
-            value: 'README.md',
-        });
-    });
+    it.each([
+        ['~', 'home', '~/', ''],
+        ['~/', 'home', '~/', ''],
+        ['~/Documents/re', 'home', '~/Documents/', 're'],
+        ['/', 'absolute', '/', ''],
+        ['/Users/example/file.ts', 'absolute', '/Users/example/', 'file.ts'],
+        ['..', 'parent', '../', ''],
+        ['../', 'parent', '../', ''],
+        ['../src/target.ts', 'parent', '../src/', 'target.ts'],
+        ['src/nested/', 'relative', 'src/nested/', ''],
+        ['README.md', 'filter', '', 'README.md'],
+    ] as const)(
+        'splits %s into a browsable directory and final filter',
+        (value, kind, directoryPart, filter) => {
+            expect(parsePathBrowserInput(value)).toMatchObject({ directoryPart, filter, kind });
+        },
+    );
 
     it('rejects unsupported shell expansion forms', () => {
         expect(() => parsePathBrowserInput('$HOME/file.ts')).toThrow(
@@ -48,10 +53,17 @@ describe('path browser navigation', () => {
         expect(filterPathEntries(entries, '')).toEqual(entries);
     });
 
-    it('completes only a unique candidate', () => {
-        expect(completePathQuery(entries, 'read')).toBe('README.md');
+    it('completes the final segment while preserving relative, Home, and absolute directories', () => {
+        expect(completePathQuery([{ kind: 'file', name: 'README.md' }], 'src/re')).toBe(
+            'src/README.md',
+        );
+        expect(completePathQuery([{ kind: 'directory', name: 'Documents' }], '~/Do')).toBe(
+            '~/Documents/',
+        );
+        expect(completePathQuery([{ kind: 'directory', name: 'code' }], '/Users/tj/co')).toBe(
+            '/Users/tj/code/',
+        );
         expect(completePathQuery(entries, 's')).toBeUndefined();
-        expect(completePathQuery(entries, 'missing')).toBeUndefined();
         expect(completePathQuery([entries[2]], 'read', true)).toBeUndefined();
     });
 
@@ -72,34 +84,108 @@ describe('path browser navigation', () => {
         expect(parentDirectoryWithinRoot('/', '/project')).toBe('/');
     });
 
-    it('offers to create a file for a plain name once nothing matches', () => {
-        expect(pathBrowserCreateCandidate('notes.md', 0, false, true)).toEqual({
+    it('renders the current Project directory as a trailing-slash absolute path', () => {
+        expect(projectDirectoryPath('/project', '')).toBe('/project/');
+        expect(projectDirectoryPath('/project', 'src/nested/')).toBe('/project/src/nested/');
+        expect(projectDirectoryPath('/', '')).toBe('/');
+        expect(projectDirectoryPath('/', 'Users/tj/')).toBe('/Users/tj/');
+    });
+
+    it('offers Project-local file and folder creation only', () => {
+        expect(pathBrowserCreateCandidate('project', 'notes.md', 0, false, true)).toEqual({
             kind: 'file',
             name: 'notes.md',
         });
-    });
-
-    it('offers to create a folder when the name ends with a trailing slash', () => {
-        expect(pathBrowserCreateCandidate('drafts/', 0, false, true)).toEqual({
+        expect(pathBrowserCreateCandidate('project', 'drafts/', 0, false, true)).toEqual({
             kind: 'directory',
             name: 'drafts',
         });
+        expect(pathBrowserCreateCandidate('free', 'notes.md', 0, false, true)).toBeUndefined();
     });
 
-    it('never offers to create while an existing match is still possible', () => {
-        expect(pathBrowserCreateCandidate('README.md', 1, false, true)).toBeUndefined();
-        expect(pathBrowserCreateCandidate('missing', 0, true, true)).toBeUndefined();
-        expect(pathBrowserCreateCandidate('', 0, false, true)).toBeUndefined();
+    it('never offers to create while results may still contain an existing entry', () => {
+        expect(pathBrowserCreateCandidate('project', 'README.md', 1, false, true)).toBeUndefined();
+        expect(pathBrowserCreateCandidate('project', 'missing', 0, true, true)).toBeUndefined();
+        expect(pathBrowserCreateCandidate('project', '', 0, false, true)).toBeUndefined();
+        expect(pathBrowserCreateCandidate('project', 'README.md', 0, false, false)).toBeUndefined();
     });
 
-    it('never offers to create before the current query result is authoritative', () => {
-        expect(pathBrowserCreateCandidate('README.md', 0, false, false)).toBeUndefined();
+    it('rejects creation names that are not one Project-local segment', () => {
+        expect(pathBrowserCreateCandidate('project', '.', 0, false, true)).toBeUndefined();
+        expect(pathBrowserCreateCandidate('project', '..', 0, false, true)).toBeUndefined();
+        expect(
+            pathBrowserCreateCandidate('project', 'nested/name', 0, false, true),
+        ).toBeUndefined();
+        expect(pathBrowserCreateCandidate('project', '/', 0, false, true)).toBeUndefined();
+    });
+});
+
+describe('path browser keyboard intent', () => {
+    const keyIntent = (
+        overrides: Partial<Parameters<typeof pathBrowserKeyIntent>[0]>,
+    ): ReturnType<typeof pathBrowserKeyIntent> =>
+        pathBrowserKeyIntent({
+            entryCount: 1,
+            input: '',
+            isComposing: false,
+            key: 'Enter',
+            mode: 'project',
+            selectedKind: 'directory',
+            selectionEnd: 0,
+            selectionStart: 0,
+            ...overrides,
+        });
+
+    it.each(['Backspace', 'Delete'])('%s detaches an empty Project anchor at the start', (key) => {
+        expect(keyIntent({ key })).toEqual({ kind: 'detach-project' });
     });
 
-    it('rejects names that are not a single path segment', () => {
-        expect(pathBrowserCreateCandidate('.', 0, false, true)).toBeUndefined();
-        expect(pathBrowserCreateCandidate('..', 0, false, true)).toBeUndefined();
-        expect(pathBrowserCreateCandidate('nested/name', 0, false, true)).toBeUndefined();
-        expect(pathBrowserCreateCandidate('/', 0, false, true)).toBeUndefined();
+    it('does not detach free mode, non-empty input, a selection, or composing input', () => {
+        expect(keyIntent({ key: 'Backspace', mode: 'free' })).toBeUndefined();
+        expect(
+            keyIntent({ input: 'src', key: 'Backspace', selectionEnd: 3, selectionStart: 3 }),
+        ).toBeUndefined();
+        expect(keyIntent({ key: 'Backspace', selectionEnd: 1 })).toBeUndefined();
+        expect(keyIntent({ isComposing: true, key: 'Backspace' })).toBeUndefined();
+    });
+
+    it('keeps Left and Right as caret movement inside text', () => {
+        expect(
+            keyIntent({
+                input: '/Users/tj',
+                key: 'ArrowLeft',
+                selectionEnd: 5,
+                selectionStart: 5,
+            }),
+        ).toBeUndefined();
+        expect(
+            keyIntent({
+                input: '/Users/tj',
+                key: 'ArrowRight',
+                selectionEnd: 5,
+                selectionStart: 5,
+            }),
+        ).toBeUndefined();
+    });
+
+    it('uses boundary arrows for directory navigation', () => {
+        expect(keyIntent({ key: 'ArrowLeft' })).toEqual({ kind: 'parent' });
+        expect(
+            keyIntent({
+                input: 'src',
+                key: 'ArrowRight',
+                selectionEnd: 3,
+                selectionStart: 3,
+            }),
+        ).toEqual({ kind: 'enter-directory' });
+        expect(keyIntent({ key: 'ArrowRight', selectedKind: 'file' })).toBeUndefined();
+    });
+
+    it('maps list movement, completion, and acceptance to explicit commands', () => {
+        expect(keyIntent({ key: 'ArrowDown' })).toEqual({ delta: 1, kind: 'move-selection' });
+        expect(keyIntent({ key: 'ArrowUp' })).toEqual({ delta: -1, kind: 'move-selection' });
+        expect(keyIntent({ key: 'Tab' })).toEqual({ kind: 'complete' });
+        expect(keyIntent({ key: 'Enter' })).toEqual({ kind: 'accept' });
+        expect(keyIntent({ entryCount: 0, key: 'ArrowDown' })).toBeUndefined();
     });
 });

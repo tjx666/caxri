@@ -1,6 +1,6 @@
 # Remote access and Project authorization
 
-- Status: accepted (target; implementation pending)
+- Status: accepted
 - Date: 2026-08-25
 - Implementation plan: [Server architecture refactor plan](../server-refactor-plan.md)
 
@@ -11,15 +11,23 @@ and authorization always execute on the Server behind an operator-grade `project
 a native folder picker is only a same-machine Client optimization and never transfers a Client path
 to a remote Server.
 
-The local Desktop path browser follows that boundary explicitly. Project-local directories continue
-through Server Core's Session/Workbench-root resolver. Home, absolute, and parent traversal outside
-added Projects first require Electron Main's native folder selection; Main keeps the canonical root,
-directory location, and entry paths behind opaque IDs and returns only display labels and bounded entry
-metadata to the Renderer. The temporary browse context is read-only and expires when the dialog closes,
-after one file is opened, or after its short timeout. Opening a file then reuses the existing root-grant
-handoff to create or reuse a Project, select or create a no-Agent Session, and issue an identity-bound
-`desktop.openFile` target. Remote Clients do not inherit this same-machine browse grant or gain a way to
-submit a local Client path to Server Core.
+The local Desktop `Cmd+P` browser is a deliberately narrow same-machine exception for explicit paths.
+It starts behind a removable Project anchor, where directories continue through Server Core's
+Session/Workbench-root resolver. Removing the anchor enables a read-only path field that accepts the
+current user's `~`, parent and relative paths, and `/`-rooted absolute paths. Main lists matching folders
+and files directly; it never opens the native folder picker for this flow. Only the user's typed path
+crosses from Renderer to Main. Main owns canonical locations and candidates behind opaque browser and
+entry IDs, bounds enumeration concurrency and result count, rejects symbolic-link traversal, and
+revalidates directory and file identity before returning one size-bounded regular-text-file snapshot.
+
+Selecting a file inside the current Project still uses its existing authorized editable Editor path.
+An external file opens as a read-only virtual Editor tab in the current Session. Its display path and
+content live only in Renderer memory for that Renderer lifetime, and the tab is stripped from every
+Session persistence write. The external flow neither creates nor reuses a Project for the file and never
+creates another Session. It grants no Files, Search, Git, Terminal cwd, save, or Project authority. Remote
+Clients do not inherit this same-machine capability or gain a way to submit a local Client path to
+Server Core. Add Project, Workbench-root selection, Agent folder selection, and other durable-root
+workflows continue to use native selection and single-use Main grants.
 
 A future Relay is a separately deployed access service reached outbound by the Server. It stores no
 Caxri domain state and cannot read relayed payloads; end-to-end encryption keeps it outside the Server's

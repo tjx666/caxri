@@ -1,9 +1,15 @@
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
-import { createShellSession, launchCaxri } from './support/helpers.ts';
+import {
+    createShellSession,
+    launchCaxri,
+    pageRequest,
+    waitForRuntimeReady,
+} from './support/helpers.ts';
 
 test('Cmd+P lazily browses Project paths from Terminal, Editor, and Files focus', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-path-browser-e2e-'));
@@ -45,7 +51,8 @@ test('Cmd+P lazily browses Project paths from Terminal, Editor, and Files focus'
             isComposing: true,
             key: 'Enter',
         });
-        await expect(dialog.getByRole('button', { name: 'Parent directory' })).toBeEnabled();
+        await expect(dialog.getByRole('button', { name: 'Parent directory' })).toBeDisabled();
+        await expect(rootDirectoryOption).toBeVisible();
         const firstActiveOption = await input.getAttribute('aria-activedescendant');
         await input.press('ArrowDown');
         await expect
@@ -125,87 +132,154 @@ test('Cmd+P lazily browses Project paths from Terminal, Editor, and Files focus'
     }
 });
 
-test('an external folder grant is read-only and closes with the path browser', async () => {
+test('Cmd+P removes the Project anchor and opens an external file without a picker or workspace mutation', async () => {
     allowE2EErrors([
-        { source: 'desktop', event: 'ipc.request_failed', code: 'PATH_DENIED', count: 1 },
+        { source: 'desktop', event: 'ipc.request_failed', code: 'NOT_FOUND', count: 1 },
     ]);
-    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-path-browser-grant-e2e-'));
-    const root = join(testDirectory, 'project');
-    const externalRoot = join(testDirectory, 'external');
-    const wrongRoot = join(testDirectory, 'wrong');
-    const userData = join(testDirectory, 'user-data');
-    await Promise.all([
-        mkdir(root, { recursive: true }),
-        mkdir(externalRoot, { recursive: true }),
-        mkdir(wrongRoot, { recursive: true }),
-    ]);
-    await writeFile(join(externalRoot, 'external.ts'), 'export const external = true;\n');
-
-    const running = await launchCaxri({
-        userDataDir: userData,
-        testRootPath: root,
-        env: { CAXRI_TEST_ROOT_PATHS: JSON.stringify([root, externalRoot, wrongRoot]) },
-    });
-    try {
-        await createShellSession(running.page);
-        await running.page.locator('.xterm-helper-textarea').focus();
-        await running.page.keyboard.press('Meta+P');
-        let dialog = running.page.getByRole('dialog');
-        let input = dialog.getByRole('combobox', { name: 'File path' });
-        await input.fill('~/');
-        await expect(dialog).toContainText('Press Enter to open this path');
-        await input.press('Enter');
-        await expect(dialog.getByRole('option', { name: 'external.ts' })).toBeVisible();
-        await expect(dialog.locator('.path-browser-create')).toHaveCount(0);
-        await expect(dialog.getByRole('button', { name: 'Parent directory' })).toBeDisabled();
-
-        await input.press('Escape');
-        await running.page.keyboard.press('Meta+P');
-        dialog = running.page.getByRole('dialog');
-        input = dialog.getByRole('combobox', { name: 'File path' });
-        await input.fill(`${externalRoot}/`);
-        await expect(dialog).toContainText('Press Enter to open this path');
-        await input.press('Enter');
-        await expect(dialog.getByRole('alert')).toContainText(
-            'Selected folder does not contain the requested path',
-        );
-    } finally {
-        try {
-            await running.app.close();
-        } catch {
-            // Ignore close failures; the assertions above already produced the test result.
-        }
-        await rm(testDirectory, { recursive: true, force: true });
-    }
-});
-
-test('a pasted absolute file opens after one deterministic folder authorization', async () => {
-    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-path-browser-absolute-e2e-'));
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-path-browser-external-e2e-'));
     const root = join(testDirectory, 'project');
     const externalRoot = join(testDirectory, 'external');
     const userData = join(testDirectory, 'user-data');
-    const externalFile = join(externalRoot, 'absolute.ts');
     await Promise.all([mkdir(root, { recursive: true }), mkdir(externalRoot, { recursive: true })]);
-    await writeFile(externalFile, 'export const absolute = true;\n');
+    await Promise.all([
+        writeFile(join(root, 'project-only.ts'), 'export const projectOnly = true;\n'),
+        writeFile(
+            join(externalRoot, 'external-only.ts'),
+            'export const externalOnly = "external path browser E2E";\n',
+        ),
+    ]);
 
-    const running = await launchCaxri({
-        userDataDir: userData,
-        testRootPath: root,
-        env: { CAXRI_TEST_ROOT_PATHS: JSON.stringify([root, externalRoot]) },
-    });
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createShellSession(running.page);
+        const before = await pageRequest<{
+            projects: Array<{ id: string; rootPath: string }>;
+            selectedSessionId?: string;
+            sessions: Array<{ id: string }>;
+        }>(running.page, 'app.bootstrap');
+        const workspaceIdentity = {
+            projectIds: before.projects.map(({ id }) => id),
+            selectedSessionId: before.selectedSessionId,
+            sessionIds: before.sessions.map(({ id }) => id),
+        };
+        expect(workspaceIdentity.selectedSessionId).toBeTruthy();
+        expect(before.projects).toHaveLength(1);
+        const projectRoot = before.projects[0].rootPath;
+
+        /**
+         * Project creation has already consumed the deterministic picker fixture. Remove that seam and replace the real
+         * Main dialog with a counter so an accidental path-browser picker call cannot open macOS UI or hide behind the
+         * E2E root fallback.
+         */
+        await running.app.evaluate(({ dialog }) => {
+            const probe = globalThis as typeof globalThis & {
+                __caxriPathBrowserOpenDialogCalls?: number;
+            };
+            delete process.env.CAXRI_TEST_ROOT_PATH;
+            delete process.env.CAXRI_TEST_ROOT_PATHS;
+            probe.__caxriPathBrowserOpenDialogCalls = 0;
+            dialog.showOpenDialog = () => {
+                probe.__caxriPathBrowserOpenDialogCalls =
+                    (probe.__caxriPathBrowserOpenDialogCalls ?? 0) + 1;
+                return Promise.resolve({ canceled: true, filePaths: [] });
+            };
+        });
+
         await running.page.locator('.xterm-helper-textarea').focus();
         await running.page.keyboard.press('Meta+P');
         const dialog = running.page.getByRole('dialog');
         const input = dialog.getByRole('combobox', { name: 'File path' });
-        await input.fill(externalFile);
-        await expect(dialog).toContainText('Press Enter to open this path');
-        await input.press('Enter');
+        await expect(input).toBeFocused();
+        await expect(input).toHaveAttribute('aria-describedby', 'path-browser-project-anchor-help');
+        await expect(dialog.getByText('project/', { exact: true })).toBeVisible();
 
+        await input.press('Backspace');
+        await expect(input).not.toHaveAttribute('aria-describedby', /.+/u);
+        await expect(input).toHaveValue(projectRoot === '/' ? '/' : `${projectRoot}/`);
+        await expect(dialog.getByText('project/', { exact: true })).toHaveCount(0);
+
+        const missingDirectory = `${join(testDirectory, 'missing')}/`;
+        await input.fill(missingDirectory);
+        await expect(dialog.getByRole('alert')).toContainText('File not found');
+        const projectFilter = `${projectRoot}/project`;
+        await input.fill(projectFilter);
+        await expect(input).toHaveAttribute('aria-busy', 'false');
+        await expect(
+            dialog.getByRole('option', { name: 'project-only.ts', exact: true }),
+        ).toBeVisible();
+        await expect(dialog.getByRole('alert')).toHaveCount(0);
+
+        const externalFilter = `${externalRoot}/external`;
+        await input.fill(externalFilter);
+        await expect(input).toHaveAttribute('aria-busy', 'true');
+        await expect(input).toHaveAttribute('aria-busy', 'false');
+        await expect(input).toHaveValue(externalFilter);
+        await expect(
+            dialog.getByRole('option', { name: 'external-only.ts', exact: true }),
+        ).toBeVisible();
+        await expect(dialog.locator('.path-browser-create')).toHaveCount(0);
+
+        await input.press('Enter');
         await expect(dialog).toHaveCount(0);
-        await expect(running.page.locator('.work-tab', { hasText: 'absolute.ts' })).toBeVisible();
-        await expect(running.page.locator('.xterm-helper-textarea')).toHaveCount(0);
+        const externalTab = running.page.getByRole('tab', {
+            name: 'external-only.ts',
+            exact: true,
+        });
+        await expect(externalTab).toBeVisible();
+        await expect(externalTab).toHaveAttribute('aria-selected', 'true');
+        const editor = running.page.locator('.monaco-editor').first();
+        await expect(editor).toContainText('external path browser E2E');
+        await editor.getByRole('textbox', { name: 'Editor content' }).focus();
+        await running.page.keyboard.type('external-mutation-must-not-appear');
+        await expect(editor).not.toContainText('external-mutation-must-not-appear');
+        await expect(editor).toContainText('external path browser E2E');
+
+        const after = await pageRequest<{
+            projects: Array<{ id: string }>;
+            selectedSessionId?: string;
+            sessions: Array<{ id: string }>;
+        }>(running.page, 'app.bootstrap');
+        expect({
+            projectIds: after.projects.map(({ id }) => id),
+            selectedSessionId: after.selectedSessionId,
+            sessionIds: after.sessions.map(({ id }) => id),
+        }).toEqual(workspaceIdentity);
+        expect(
+            await running.app.evaluate(
+                () =>
+                    (
+                        globalThis as typeof globalThis & {
+                            __caxriPathBrowserOpenDialogCalls?: number;
+                        }
+                    ).__caxriPathBrowserOpenDialogCalls,
+            ),
+        ).toBe(0);
+
+        await running.page.reload();
+        await waitForRuntimeReady(running.page);
+        await expect(
+            running.page.getByRole('tab', { name: 'external-only.ts', exact: true }),
+        ).toHaveCount(0);
+        const reloaded = await pageRequest<{
+            projects: Array<{ id: string }>;
+            selectedSessionId?: string;
+            sessions: Array<{ id: string }>;
+        }>(running.page, 'app.bootstrap');
+        expect({
+            projectIds: reloaded.projects.map(({ id }) => id),
+            selectedSessionId: reloaded.selectedSessionId,
+            sessionIds: reloaded.sessions.map(({ id }) => id),
+        }).toEqual(workspaceIdentity);
+        expect(
+            await running.app.evaluate(
+                () =>
+                    (
+                        globalThis as typeof globalThis & {
+                            __caxriPathBrowserOpenDialogCalls?: number;
+                        }
+                    ).__caxriPathBrowserOpenDialogCalls,
+            ),
+        ).toBe(0);
     } finally {
         try {
             await running.app.close();

@@ -432,28 +432,16 @@ describe('openTerminalFileLink', () => {
 });
 
 describe('pathBrowser', () => {
-    it('reuses the root grant, Project creation, Session routing, and Desktop target chain', async () => {
+    it('returns an external document without creating a Project or Session', async () => {
         const projectRoot = await temporaryDirectory('caxri-path-project-');
         const externalRoot = await temporaryDirectory('caxri-path-external-');
         const externalFile = `${externalRoot}/external.ts`;
         await writeFile(externalFile, 'export const external = true;\n');
-        let isExternalProjectCreated = false;
         const request = vi.fn<(method: string, parameters?: unknown) => Promise<unknown>>();
         request.mockImplementation((method) => {
             if (method === 'app.bootstrap')
                 return Promise.resolve({
-                    projects: [
-                        { id: 'project-1', displayTitle: 'Project', rootPath: projectRoot },
-                        ...(isExternalProjectCreated
-                            ? [
-                                  {
-                                      id: 'project-external',
-                                      displayTitle: 'External',
-                                      rootPath: externalRoot,
-                                  },
-                              ]
-                            : []),
-                    ],
+                    projects: [{ id: 'project-1', displayTitle: 'Project', rootPath: projectRoot }],
                     sessions: [
                         {
                             id: 'session-1',
@@ -466,40 +454,31 @@ describe('pathBrowser', () => {
                 });
             if (method === 'files.browse')
                 return Promise.resolve({ entries: [], truncated: false });
-            if (method === 'project.create') {
-                isExternalProjectCreated = true;
-                return Promise.resolve({ id: 'project-external' });
-            }
-            if (method === 'session.create')
-                return Promise.resolve({ session: { id: 'session-external' } });
-            if (method === 'desktop.openFile') return Promise.resolve({ state: 'requested' });
             return Promise.reject(new Error(`Unexpected method: ${method}`));
         });
-        const { instance } = authority({
-            getServer: server(request),
-            nextTestRoot: () => externalRoot,
-        });
+        const { instance } = authority({ getServer: server(request) });
         const initial = await instance.pathBrowser.start({ sessionId: 'session-1' });
-        const listed = await instance.pathBrowser.navigate({
+        const listed = await instance.pathBrowser.browse({
             browserId: initial.browserId,
-            target: { kind: 'input', value: `${externalRoot}/` },
+            mode: 'free',
+            input: `${externalRoot}/external`,
         });
-        if (!('entries' in listed)) throw new Error('Expected a path browser snapshot');
         const file = listed.entries.find((entry) => entry.name === 'external.ts');
 
         await expect(
             instance.pathBrowser.open({ browserId: initial.browserId, entryId: file!.id }),
-        ).resolves.toEqual({ opened: true });
-        const projectCreate = request.mock.calls.find(([method]) => method === 'project.create');
-        expect((projectCreate?.[1] as { rootPath: string }).rootPath).toContain(
-            'caxri-path-external-',
-        );
-        expect(request).toHaveBeenCalledWith('session.create', {
-            projectId: 'project-external',
-            defaultAgent: null,
+        ).resolves.toMatchObject({
+            opened: true,
+            kind: 'external',
+            document: {
+                displayPath: externalFile,
+                content: 'export const external = true;\n',
+                readOnly: true,
+            },
         });
-        const desktopOpen = request.mock.calls.find(([method]) => method === 'desktop.openFile');
-        expect((desktopOpen?.[1] as { path: string }).path).toContain('external.ts');
+        expect(request).not.toHaveBeenCalledWith('project.create', expect.anything());
+        expect(request).not.toHaveBeenCalledWith('session.create', expect.anything());
+        expect(request).not.toHaveBeenCalledWith('desktop.openFile', expect.anything());
     });
 });
 

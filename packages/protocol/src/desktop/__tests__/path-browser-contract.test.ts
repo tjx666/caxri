@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { MAX_CONFIGURABLE_FILE_BYTES } from '../../configuration/settings-spec';
 import { pathBrowserMethods } from '../path-browser-contract';
 
 describe('path browser contract', () => {
@@ -27,6 +28,8 @@ describe('path browser contract', () => {
                     path: '/private/authorized/example.ts',
                 },
             ],
+            input: '',
+            mode: 'project',
             rootLabel: 'Authorized Folder',
             truncated: false,
         });
@@ -38,5 +41,64 @@ describe('path browser contract', () => {
                 name: 'example.ts',
             },
         ]);
+    });
+
+    it('accepts a bounded full browse input and requires its explicit mode', () => {
+        const schema = pathBrowserMethods['pathBrowser.browse'].params;
+        const base = {
+            browserId: 'a142df47-520c-496d-bafb-645c95da6501',
+            mode: 'free' as const,
+        };
+
+        expect(schema.safeParse({ ...base, input: 'x'.repeat(4_096) }).success).toBe(true);
+        expect(schema.safeParse({ ...base, input: 'x'.repeat(4_097) }).success).toBe(false);
+        expect(schema.safeParse({ browserId: base.browserId, input: '~/' }).success).toBe(false);
+    });
+
+    it('models leaving the Project anchor as navigation, not a raw path target', () => {
+        const schema = pathBrowserMethods['pathBrowser.navigate'].params;
+        const browserId = 'a142df47-520c-496d-bafb-645c95da6501';
+
+        expect(schema.safeParse({ browserId, target: { kind: 'detachProject' } }).success).toBe(
+            true,
+        );
+        expect(
+            schema.safeParse({ browserId, target: { kind: 'input', value: '/private' } }).success,
+        ).toBe(false);
+    });
+
+    it('returns either a Project open or one bounded read-only external document', () => {
+        const schema = pathBrowserMethods['pathBrowser.open'].result;
+        expect(schema.safeParse({ opened: true, kind: 'project' }).success).toBe(true);
+        expect(
+            schema.safeParse({
+                opened: true,
+                kind: 'external',
+                document: {
+                    id: '0ceead35-aa64-43c0-9e32-4cc16ec5342b',
+                    name: 'example.ts',
+                    displayPath: '/private/example.ts',
+                    content: 'export {};',
+                    mtimeMs: 1,
+                    size: 10,
+                    readOnly: true,
+                },
+            }).success,
+        ).toBe(true);
+        expect(
+            schema.safeParse({
+                opened: true,
+                kind: 'external',
+                document: {
+                    id: '0ceead35-aa64-43c0-9e32-4cc16ec5342b',
+                    name: 'example.ts',
+                    displayPath: '/private/example.ts',
+                    content: 'x'.repeat(MAX_CONFIGURABLE_FILE_BYTES + 1),
+                    mtimeMs: 1,
+                    size: MAX_CONFIGURABLE_FILE_BYTES + 1,
+                    readOnly: true,
+                },
+            }).success,
+        ).toBe(false);
     });
 });

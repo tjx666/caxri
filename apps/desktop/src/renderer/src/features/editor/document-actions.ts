@@ -109,7 +109,7 @@ function isDocumentDirty(sessionId: string, path: string, workbenchProjectId?: s
 /**
  * Opens a Renderer-owned editor surface whose content has already been loaded or is virtual.
  */
-function openEditorTabForSession(
+export function didOpenEditorTabForSession(
     sessionId: string,
     path: string,
     options: {
@@ -117,9 +117,9 @@ function openEditorTabForSession(
         paneId?: string;
         preview?: boolean;
     } = {},
-): void {
+): boolean {
     const current = sessionStateOf(sessionId);
-    if (!current) return;
+    if (!current) return false;
     const workbenchProjectId = current.workbenchProjectId;
     const view = useSessionViewStore.getState();
     const existing = findResourceTabs(current.paneLayout, { kind: 'file', path });
@@ -130,6 +130,8 @@ function openEditorTabForSession(
         { kind: 'file', path },
         { paneId: options.paneId, preview: options.preview === true },
     );
+    const didOpen = wasOpen || opened !== current.paneLayout;
+    if (!didOpen) return false;
     /**
      * Opening into a preview slot replaces whatever preview was there. Its buffer is released in the same update, but
      * only once no other pane still shows that document.
@@ -150,13 +152,14 @@ function openEditorTabForSession(
     for (const replaced of replacedPaths)
         view.evictDocument(sessionId, replaced, workbenchProjectId);
     view.touchDocument(sessionId, path, workbenchProjectId);
-    if (opened === current.paneLayout) return;
+    if (opened === current.paneLayout) return true;
     patchSessionState({ ...current, paneLayout: opened }, undefined, () => {
         const currentView = useSessionViewStore.getState();
         if (!wasOpen) currentView.evictDocument(sessionId, path, workbenchProjectId);
         for (const document of replacedDocuments)
             currentView.cacheDocument(sessionId, document, workbenchProjectId);
     });
+    return true;
 }
 
 /**
@@ -165,13 +168,14 @@ function openEditorTabForSession(
 export function openEditorTab(path: string, options: { preview?: boolean } = {}): void {
     const session = getSelectedSession();
     if (!session) return;
-    openEditorTabForSession(session.id, path, options);
+    didOpenEditorTabForSession(session.id, path, options);
 }
 
 /**
  * Reads a file into the Session document cache without opening a tab for it.
  */
 export async function cacheDocument(sessionId: string, path: string): Promise<void> {
+    if (isVirtualEditorTabPath(path)) return;
     const operation = trackDocumentOperation(sessionId, path);
     try {
         await tryCommand('Unable to restore file', async () => {
@@ -209,6 +213,7 @@ export async function openFileForSession(
     path: string,
     options: { location?: EditorNavigationTarget; preview?: boolean } = {},
 ): Promise<string | false> {
+    if (isVirtualEditorTabPath(path)) return false;
     const session = getBootstrap()?.sessions.find((candidate) => candidate.id === sessionId);
     if (!session) return false;
     fileOpenIntentState.current += 1;
@@ -237,7 +242,7 @@ export async function openFileForSession(
                 },
                 operation.workbenchProjectId,
             );
-            openEditorTabForSession(session.id, currentPath, options);
+            didOpenEditorTabForSession(session.id, currentPath, options);
             return currentPath;
         });
         return opened ?? false;
@@ -249,6 +254,8 @@ export async function openFileForSession(
 export function changeDocument(path: string, content: string): void {
     const session = getSelectedSession();
     if (!session) return;
+    const document = getSessionDocuments(session.id, session.workbenchProjectId)?.[path];
+    if (document?.readOnly) return;
     useSessionViewStore.getState().updateDocumentContent(session.id, path, content);
     /**
      * An edit pins the preview it was typed into. Only the edited occurrence is pinned: the same document previewed in

@@ -64,6 +64,82 @@ describe('Session document cache', () => {
         expect(cachedPaths('session-1')).toContain('/unsaved.ts');
     });
 
+    it('rejects ephemeral documents that exceed the count or protected byte budgets', () => {
+        const store = useSessionViewStore.getState();
+        expect(
+            store.cacheDocument('session-1', {
+                ...document('caxri-external-file://oversized/outside.ts'),
+                ephemeral: true,
+                readOnly: true,
+                size: MAX_CACHED_DOCUMENT_BYTES_GLOBAL + 1,
+            }),
+        ).toBe(false);
+        expect(cachedPaths('session-1')).toEqual([]);
+
+        for (let index = 0; index < MAX_CACHED_DOCUMENTS_PER_SESSION; index += 1)
+            expect(
+                store.cacheDocument('session-1', {
+                    ...document(`caxri-external-file://external-${index}/outside.ts`),
+                    ephemeral: true,
+                    readOnly: true,
+                }),
+            ).toBe(true);
+        expect(
+            store.cacheDocument('session-1', {
+                ...document('caxri-external-file://overflow/outside.ts'),
+                ephemeral: true,
+                readOnly: true,
+            }),
+        ).toBe(false);
+    });
+
+    it('keeps admitted ephemeral documents cached while respecting the global budget', () => {
+        const store = useSessionViewStore.getState();
+        const large = MAX_CACHED_DOCUMENT_BYTES_GLOBAL / 2 + 1;
+        expect(
+            store.cacheDocument('session-1', {
+                ...document('caxri-external-file://external-1/outside.ts'),
+                ephemeral: true,
+                readOnly: true,
+                size: large,
+            }),
+        ).toBe(true);
+        expect(
+            store.cacheDocument('session-2', {
+                ...document('caxri-external-file://external-2/outside.ts'),
+                ephemeral: true,
+                readOnly: true,
+                size: large,
+            }),
+        ).toBe(false);
+        for (let index = 0; index < MAX_CACHED_DOCUMENTS_PER_SESSION + 3; index += 1)
+            store.cacheDocument('session-1', document(`/file-${index}.ts`));
+
+        expect(cachedPaths('session-1')).toContain('caxri-external-file://external-1/outside.ts');
+        expect(cachedPaths('session-2')).toEqual([]);
+    });
+
+    it('does not mutate a read-only document', () => {
+        const store = useSessionViewStore.getState();
+        store.cacheDocument('session-1', {
+            ...document('caxri-external-file://external-1/outside.ts'),
+            content: 'original',
+            readOnly: true,
+        });
+
+        store.updateDocumentContent(
+            'session-1',
+            'caxri-external-file://external-1/outside.ts',
+            'changed',
+        );
+
+        expect(
+            useSessionViewStore.getState().documents['session-1'][
+                'caxri-external-file://external-1/outside.ts'
+            ],
+        ).toMatchObject({ content: 'original', dirty: false });
+    });
+
     it('bounds retained clean document bytes across Sessions', () => {
         const store = useSessionViewStore.getState();
         const large = MAX_CACHED_DOCUMENT_BYTES_GLOBAL / 2 + 1;

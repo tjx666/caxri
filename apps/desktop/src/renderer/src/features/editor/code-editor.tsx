@@ -18,6 +18,7 @@ export interface CodeEditorProperties {
     statusKey?: string;
     value: string;
     theme: ThemeTokens;
+    readOnly?: boolean;
     onChange: (content: string | undefined) => void;
 }
 
@@ -38,7 +39,14 @@ function publishEditorStatus(editor: MonacoCodeEditor, statusKey: string | undef
     });
 }
 
-export function CodeEditor({ path, statusKey, value, theme, onChange }: CodeEditorProperties) {
+export function CodeEditor({
+    path,
+    statusKey,
+    value,
+    theme,
+    readOnly,
+    onChange,
+}: CodeEditorProperties) {
     const editorReference = useRef<Parameters<OnMount>[0] | null>(null);
     const registrationReference = useRef<(() => void) | undefined>(undefined);
     const cursorSubscriptionReference = useRef<{ dispose(): void } | undefined>(undefined);
@@ -115,6 +123,8 @@ export function CodeEditor({ path, statusKey, value, theme, onChange }: CodeEdit
                 fontSize: 13,
                 wordWrap: 'off',
                 scrollBeyondLastLine: false,
+                readOnly: readOnly === true,
+                domReadOnly: readOnly === true,
                 find: { addExtraSpaceOnTop: false },
             }}
         />

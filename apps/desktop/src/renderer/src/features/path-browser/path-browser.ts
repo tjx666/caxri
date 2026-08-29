@@ -1,24 +1,53 @@
 import { isPathAtOrBelow } from '../../lib/file-path';
 
-export interface PathBrowserInput {
+export type PathBrowserMode = 'free' | 'project';
+
+export interface PathBrowserInputState {
+    input: string;
+    mode: PathBrowserMode;
+}
+
+export interface ParsedPathBrowserInput {
+    directoryPart: string;
+    filter: string;
+    hasTrailingSlash: boolean;
     kind: 'absolute' | 'filter' | 'home' | 'parent' | 'relative';
     value: string;
 }
 
 /**
- * Classifies path syntax without expanding it in the sandboxed Renderer. Electron Main repeats this validation before
- * resolving Home or touching the filesystem; this helper only decides whether Enter means filter/open or navigation.
+ * Splits the user's POSIX-style path into a directory request and its final filter segment without resolving either in
+ * the sandboxed Renderer. Electron Main repeats validation and owns canonical filesystem resolution.
  */
-export function parsePathBrowserInput(value: string): PathBrowserInput {
+export function parsePathBrowserInput(value: string): ParsedPathBrowserInput {
     if (/^\$(?:HOME|\{HOME\})(?:\/|$)/u.test(value))
         throw new Error('Shell path expansion is not supported');
-    if (value.startsWith('~') && !value.startsWith('~/'))
+    if (value !== '~' && value.startsWith('~') && !value.startsWith('~/'))
         throw new Error('Only current-user ~/ paths are supported');
-    if (value.startsWith('~/')) return { kind: 'home', value };
-    if (value.startsWith('/')) return { kind: 'absolute', value };
-    if (value === '..' || value.startsWith('../')) return { kind: 'parent', value };
-    if (value.includes('/')) return { kind: 'relative', value };
-    return { kind: 'filter', value };
+
+    const hasTrailingSlash = value.endsWith('/');
+    let kind: ParsedPathBrowserInput['kind'];
+    if (value === '~' || value.startsWith('~/')) kind = 'home';
+    else if (value.startsWith('/')) kind = 'absolute';
+    else if (value === '..' || value.startsWith('../')) kind = 'parent';
+    else if (value.includes('/')) kind = 'relative';
+    else kind = 'filter';
+
+    if (value === '~')
+        return { directoryPart: '~/', filter: '', hasTrailingSlash: false, kind, value };
+    if (value === '..')
+        return { directoryPart: '../', filter: '', hasTrailingSlash: false, kind, value };
+
+    const separator = value.lastIndexOf('/');
+    if (separator === -1)
+        return { directoryPart: '', filter: value, hasTrailingSlash, kind, value };
+    return {
+        directoryPart: value.slice(0, separator + 1),
+        filter: value.slice(separator + 1),
+        hasTrailingSlash,
+        kind,
+        value,
+    };
 }
 
 /**
@@ -34,16 +63,17 @@ export function filterPathEntries<T extends { name: string }>(
 }
 
 /**
- * Tab completion is deliberately deterministic: ambiguous matches leave the user's text intact.
+ * Completes only an authoritative unique result and preserves every path segment before the final filter.
  */
 export function completePathQuery(
-    entries: ReadonlyArray<{ name: string }>,
-    query: string,
+    entries: ReadonlyArray<{ kind?: string; name: string }>,
+    input: string,
     isTruncated = false,
 ): string | undefined {
-    if (isTruncated) return undefined;
-    const matches = filterPathEntries(entries, query);
-    return matches.length === 1 ? matches[0].name : undefined;
+    if (isTruncated || entries.length !== 1) return undefined;
+    const parsed = parsePathBrowserInput(input);
+    const [entry] = entries;
+    return `${parsed.directoryPart}${entry.name}${entry.kind === 'directory' ? '/' : ''}`;
 }
 
 /**
@@ -65,23 +95,92 @@ export interface PathBrowserCreateCandidate {
 }
 
 /**
- * The `bodil/vscode-file-browser` signature affordance: once filtering proves nothing in the current directory matches,
- * typing a name offers to create it — a trailing `/` is the folder signal (matching Tab-completion's own
- * directory-suffix convention). Only offered on an authoritative empty result: a truncated scan might still contain a
- * match Caxri never fetched, and a debounced query can temporarily expose zero matches before its result is ready.
- * Offering to create in either state could shadow an existing file instead of genuinely making a new one.
+ * Creation stays an explicitly Project-local capability. A free-path result may point anywhere readable by the current
+ * macOS user, so it must never expose a write action even when its text happens to resolve inside a Project.
  */
 export function pathBrowserCreateCandidate(
+    mode: PathBrowserMode,
     query: string,
     matchCount: number,
     isTruncated: boolean,
     isResultsReady: boolean,
 ): PathBrowserCreateCandidate | undefined {
-    if (!isResultsReady || isTruncated || !query || matchCount > 0) return undefined;
+    if (mode !== 'project' || !isResultsReady || isTruncated || !query || matchCount > 0)
+        return undefined;
     const kind: PathBrowserCreateCandidate['kind'] = query.endsWith('/') ? 'directory' : 'file';
     const name = kind === 'directory' ? query.slice(0, -1) : query;
     if (!name || name === '.' || name === '..' || name.includes('/')) return undefined;
     return { kind, name };
+}
+
+export type PathBrowserKeyIntent =
+    | { kind: 'accept' }
+    | { kind: 'complete' }
+    | { kind: 'detach-project' }
+    | { kind: 'enter-directory' }
+    | { delta: -1 | 1; kind: 'move-selection' }
+    | { kind: 'parent' };
+
+interface PathBrowserKeyContext {
+    entryCount: number;
+    input: string;
+    isComposing: boolean;
+    key: string;
+    mode: PathBrowserMode;
+    selectedKind?: 'directory' | 'file' | 'symlink';
+    selectionEnd: number | null;
+    selectionStart: number | null;
+}
+
+/**
+ * Maps input keys to browser commands while preserving ordinary caret movement whenever the cursor is inside text.
+ */
+export function pathBrowserKeyIntent({
+    entryCount,
+    input,
+    isComposing,
+    key,
+    mode,
+    selectedKind,
+    selectionEnd,
+    selectionStart,
+}: PathBrowserKeyContext): PathBrowserKeyIntent | undefined {
+    if (isComposing) return;
+    const isCollapsed = selectionStart !== null && selectionStart === selectionEnd;
+    if (
+        mode === 'project' &&
+        input === '' &&
+        isCollapsed &&
+        selectionStart === 0 &&
+        (key === 'Backspace' || key === 'Delete')
+    )
+        return { kind: 'detach-project' };
+    if ((key === 'ArrowDown' || key === 'ArrowUp') && entryCount > 0)
+        return { delta: key === 'ArrowDown' ? 1 : -1, kind: 'move-selection' };
+    if (key === 'Tab') return { kind: 'complete' };
+    if (
+        key === 'ArrowRight' &&
+        selectedKind === 'directory' &&
+        isCollapsed &&
+        selectionEnd === input.length
+    )
+        return { kind: 'enter-directory' };
+    if (key === 'ArrowLeft' && isCollapsed && selectionStart === 0) return { kind: 'parent' };
+    if (key === 'Enter') return { kind: 'accept' };
+    return;
+}
+
+/**
+ * Returns the absolute directory represented by Project chrome so detaching the anchor preserves the visible location.
+ */
+export function projectDirectoryPath(root: string, directoryLabel: string): string {
+    const relativeDirectory = directoryLabel.replaceAll(/^\/+|\/+$/gu, '');
+    const directory = relativeDirectory
+        ? root === '/'
+            ? `/${relativeDirectory}`
+            : `${root}/${relativeDirectory}`
+        : root;
+    return directory === '/' ? '/' : `${directory}/`;
 }
 
 /**

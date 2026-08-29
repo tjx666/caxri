@@ -1,9 +1,10 @@
 import type { BootstrapState, SessionState } from '@caxri/protocol';
+import { externalEditorTabPath } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
     onEvent: vi.fn(() => () => {}),
-    request: vi.fn<(method?: unknown) => Promise<unknown>>(() =>
+    request: vi.fn<(...arguments_: unknown[]) => Promise<unknown>>(() =>
         Promise.resolve({ configurationErrors: [] }),
     ),
 }));
@@ -12,6 +13,7 @@ vi.mock('../lib/caxri', () => ({
     caxri: { onEvent: mocks.onEvent, request: mocks.request },
 }));
 
+import { resetExternalEditorStateForTests } from '../features/editor/external-editor-state';
 import { useSessionViewStore } from './session-view';
 import { patchSessionState, refreshWorkbench, useWorkbenchStore } from './workbench';
 
@@ -36,9 +38,113 @@ afterEach(() => {
     mocks.request.mockClear();
     useWorkbenchStore.setState({ bootstrap: undefined, attachEpoch: 0, isFullScreen: false });
     useSessionViewStore.setState({ documents: {}, recentDocuments: {} });
+    resetExternalEditorStateForTests();
 });
 
 describe('workbench Session state', () => {
+    it('keeps external tabs local and restores them across in-process snapshots', async () => {
+        const durableState: SessionState = {
+            sessionId: 'session-1',
+            workbenchProjectId: 'project-1',
+            desiredSecondarySidebarViewContainerId: 'caxri.files',
+            paneLayout: paneLayout('/project/kept.ts'),
+        };
+        const bootstrap = {
+            configurationErrors: [],
+            sessions: [],
+            terminals: [],
+            sessionStates: [durableState],
+        } as unknown as BootstrapState;
+        useWorkbenchStore.setState({ bootstrap });
+        const externalPath = externalEditorTabPath('external-1', 'outside.ts');
+        const visibleState = {
+            ...durableState,
+            paneLayout: paneLayout('/project/kept.ts', externalPath),
+        };
+
+        await useWorkbenchStore.getState().patchSessionState(visibleState);
+        expect(mocks.request).not.toHaveBeenCalled();
+
+        mocks.request.mockImplementation((method: unknown) =>
+            method === 'app.bootstrap'
+                ? Promise.resolve(bootstrap)
+                : Promise.reject(new Error(`Unexpected method: ${String(method)}`)),
+        );
+        await refreshWorkbench();
+        expect(useWorkbenchStore.getState().bootstrap?.sessionStates[0].paneLayout).toEqual(
+            visibleState.paneLayout,
+        );
+        expect(mocks.request).toHaveBeenCalledWith('app.bootstrap');
+    });
+
+    it('does not restore an external tab after the Renderer-only overlay is cleared', async () => {
+        const durableState: SessionState = {
+            sessionId: 'session-1',
+            workbenchProjectId: 'project-1',
+            desiredSecondarySidebarViewContainerId: 'caxri.files',
+            paneLayout: paneLayout('/project/kept.ts'),
+        };
+        const bootstrap = {
+            configurationErrors: [],
+            sessions: [],
+            terminals: [],
+            sessionStates: [durableState],
+        } as unknown as BootstrapState;
+        useWorkbenchStore.setState({ bootstrap });
+        const externalPath = externalEditorTabPath('external-1', 'outside.ts');
+        await useWorkbenchStore.getState().patchSessionState({
+            ...durableState,
+            paneLayout: paneLayout('/project/kept.ts', externalPath),
+        });
+
+        resetExternalEditorStateForTests();
+        mocks.request.mockResolvedValue(bootstrap);
+        await refreshWorkbench();
+
+        expect(useWorkbenchStore.getState().bootstrap?.sessionStates[0]).toEqual(durableState);
+    });
+
+    it('strips external tabs when another Session field needs persistence', async () => {
+        const durableState: SessionState = {
+            sessionId: 'session-1',
+            workbenchProjectId: 'project-1',
+            desiredSecondarySidebarViewContainerId: 'caxri.files',
+            paneLayout: paneLayout('/project/kept.ts'),
+        };
+        useWorkbenchStore.setState({
+            bootstrap: {
+                configurationErrors: [],
+                sessions: [],
+                terminals: [],
+                sessionStates: [durableState],
+            } as unknown as BootstrapState,
+        });
+        const externalPath = externalEditorTabPath('external-1', 'outside.ts');
+        const visibleState = {
+            ...durableState,
+            paneLayout: paneLayout('/project/kept.ts', externalPath),
+        };
+        await useWorkbenchStore.getState().patchSessionState(visibleState);
+        mocks.request.mockImplementation((method: unknown, state: unknown) =>
+            method === 'session.updateState'
+                ? Promise.resolve(state)
+                : Promise.reject(new Error(`Unexpected method: ${String(method)}`)),
+        );
+
+        await useWorkbenchStore.getState().patchSessionState({
+            ...visibleState,
+            desiredSecondarySidebarViewContainerId: 'caxri.project-status',
+        });
+
+        expect(mocks.request).toHaveBeenCalledExactlyOnceWith('session.updateState', {
+            ...durableState,
+            desiredSecondarySidebarViewContainerId: 'caxri.project-status',
+        });
+        expect(useWorkbenchStore.getState().bootstrap?.sessionStates[0].paneLayout).toEqual(
+            visibleState.paneLayout,
+        );
+    });
+
     it('keeps an optimistic change when an older bootstrap request resolves', async () => {
         const filesState: SessionState = {
             sessionId: 'session-1',

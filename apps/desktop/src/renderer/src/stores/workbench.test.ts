@@ -48,6 +48,7 @@ describe('workbench Runtime events', () => {
             bootstrap: {
                 configurationErrors: [],
                 sessions: [],
+                sessionStates: [],
                 terminals: [running],
             } as unknown as BootstrapState,
         });
@@ -89,6 +90,7 @@ describe('workbench Runtime events', () => {
         const staleBootstrap = {
             configurationErrors: [],
             sessions: [],
+            sessionStates: [],
             terminals: [running],
         } as unknown as BootstrapState;
         useWorkbenchStore.setState({ bootstrap: staleBootstrap });
@@ -131,6 +133,7 @@ describe('workbench Runtime events', () => {
             bootstrap: {
                 configurationErrors: [],
                 sessions: [],
+                sessionStates: [],
                 terminals: [running],
             } as unknown as BootstrapState,
         });
@@ -160,6 +163,7 @@ describe('workbench Runtime events', () => {
         bootstrapRequest.resolve({
             configurationErrors: [],
             sessions: [],
+            sessionStates: [],
             terminals: [restarted],
         } as unknown as BootstrapState);
         await newerRefresh;
@@ -176,6 +180,7 @@ describe('workbench Runtime events', () => {
         const staleBootstrap = {
             configurationErrors: [],
             sessions: [],
+            sessionStates: [],
             terminals: [running],
         } as unknown as BootstrapState;
         useWorkbenchStore.setState({ bootstrap: staleBootstrap });
@@ -206,6 +211,7 @@ describe('workbench Runtime events', () => {
         mocks.request.mockResolvedValueOnce({
             configurationErrors: [],
             sessions: [],
+            sessionStates: [],
             terminals: [recreated],
         });
         await refreshWorkbench();
@@ -221,6 +227,7 @@ describe('workbench Runtime events', () => {
             bootstrap: {
                 configurationErrors: [],
                 sessions: [],
+                sessionStates: [],
                 terminals: [running],
             } as unknown as BootstrapState,
         });
@@ -233,6 +240,7 @@ describe('workbench Runtime events', () => {
             return Promise.resolve({
                 configurationErrors: [],
                 sessions: [],
+                sessionStates: [],
                 terminals: [dead],
             });
         });
@@ -269,6 +277,7 @@ describe('workbench Runtime events', () => {
             bootstrap: {
                 configurationErrors: [],
                 sessions: [session],
+                sessionStates: [],
                 terminals: [terminal],
             } as unknown as BootstrapState,
         });
@@ -326,6 +335,7 @@ describe('workbench Runtime events', () => {
             configurationErrors: [],
             runtime: { status: 'restarting', restartCount: 1 },
             sessions: [],
+            sessionStates: [],
             terminals: [{ id: 'terminal-1', lastProcessState: 'running' }],
         } as unknown as BootstrapState;
         const ready = {
