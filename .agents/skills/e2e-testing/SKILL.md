@@ -52,8 +52,9 @@ extracted below the boundary and tested there; if yes, extract it instead.
    [human-focus boundary](../switch-worktree/SKILL.md#serialize-desktop-work): prepare the exact
    action before choosing visible mode and launching, then stop the owned launch before diagnosing
    an unexpected result.
-5. Ordinary launches use blocked Agent discovery. Agent specs explicitly choose a shared fake mode
-   or the manual Codex-only real smoke; never inherit host Agent state by accident.
+5. Ordinary launches use blocked Agent discovery. Agent specs explicitly choose a shared fake mode;
+   policy tests named `real` may still use a synthetic executable and do not authorize host provider
+   discovery. Only the manual Codex-only real smoke below invokes the installed Codex CLI.
 6. A deliberate error must consume one exact `allowE2EErrors(...)` tuple. Wildcards, message
    matching, duplicate allowances, or unused allowances fail the spec.
 7. Make visual regressions observable rather than asserting only that an element exists. For
@@ -81,6 +82,9 @@ Use the launch helpers instead of the developer's real profile:
 The manual real-Agent smoke is Codex-only: `bun run test:e2e:real-agent`. It requires an
 authenticated Codex CLI, sends one bounded read-only natural-language prompt in a temporary
 Project, disables screenshots and traces, and never falls back to another provider.
+It never runs through the ordinary focused checker, full suite, CI, or Acceptance. Provider-owned
+input protocols may also use the `debug` skill's controlled real-Codex probe; that remains diagnostic
+evidence rather than automated test or Acceptance evidence.
 
 ## Readiness and failure-isolation contracts
 

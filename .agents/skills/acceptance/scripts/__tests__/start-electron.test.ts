@@ -154,7 +154,15 @@ describe('Acceptance Electron launcher seams', () => {
     it('builds a structured Electron launch with the isolated Acceptance environment', () => {
         const launch = createElectronLaunchSpec({
             electronPath: '/repo/node_modules/.bin/electron',
-            environment: { PATH: '/usr/bin', CAXRI_E2E: 'old' },
+            environment: {
+                PATH: '/usr/bin',
+                CAXRI_E2E: 'old',
+                CAXRI_E2E_AGENT_HOOKS: '1',
+                CAXRI_E2E_AGENT_MODE: 'real',
+                CAXRI_E2E_AGENT_PROVIDER: 'codex',
+                CAXRI_REAL_AGENT_E2E: '1',
+                CAXRI_REAL_AGENT_OK: '1',
+            },
             port: 9333,
             projectRoot: '/repo',
             testRootPath: '/project-one',
@@ -171,6 +179,7 @@ describe('Acceptance Electron launcher seams', () => {
                     PATH: '/usr/bin',
                     CAXRI_ACCEPTANCE: '1',
                     CAXRI_E2E: '1',
+                    CAXRI_E2E_AGENT_MODE: 'blocked',
                     CAXRI_E2E_WINDOW_MODE: 'visible',
                     CAXRI_TEST_ROOT_PATH: '/project-one',
                     CAXRI_TEST_ROOT_PATHS: '["/project-one","/project-two"]',
@@ -249,6 +258,7 @@ describe('Acceptance Electron launcher seams', () => {
                     PATH: '/usr/bin',
                     CAXRI_ACCEPTANCE: '1',
                     CAXRI_E2E: '1',
+                    CAXRI_E2E_AGENT_MODE: 'blocked',
                     CAXRI_E2E_WINDOW_MODE: 'visible',
                     CAXRI_TEST_ROOT_PATH: '/project-one',
                     CAXRI_TEST_ROOT_PATHS: '["/project-one"]',

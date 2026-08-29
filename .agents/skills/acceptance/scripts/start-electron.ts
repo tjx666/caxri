@@ -225,15 +225,28 @@ export function createElectronLaunchSpec({
     userDataDir,
 }: ElectronLaunchSpecInput) {
     if (!useTestRootFixture) assertNativeDialogAuthorization(environment);
+    /**
+     * Acceptance is never allowed to inherit an opt-in real provider or user-global hook policy.
+     */
+    const isolatedEnvironment = { ...environment };
+    for (const key of [
+        'CAXRI_E2E_AGENT_HOOKS',
+        'CAXRI_E2E_AGENT_MODE',
+        'CAXRI_E2E_AGENT_PROVIDER',
+        'CAXRI_REAL_AGENT_E2E',
+        'CAXRI_REAL_AGENT_OK',
+    ])
+        delete isolatedEnvironment[key];
     return {
         args: ['apps/desktop', `--remote-debugging-port=${port}`],
         command: electronPath,
         options: {
             cwd: projectRoot,
             env: {
-                ...environment,
+                ...isolatedEnvironment,
                 CAXRI_ACCEPTANCE: '1',
                 CAXRI_E2E: '1',
+                CAXRI_E2E_AGENT_MODE: 'blocked',
                 CAXRI_E2E_WINDOW_MODE: 'visible',
                 ...(useTestRootFixture && {
                     CAXRI_TEST_ROOT_PATH: testRootPath,

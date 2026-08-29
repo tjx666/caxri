@@ -20,6 +20,10 @@ user-visible.
 
 - Exercise Caxri in an isolated Electron instance. Never drive the developer's resident app or real
   user-data directory.
+- Acceptance forces Agent discovery to `blocked` and uses deterministic fake fixtures for
+  Agent-facing UI. It never invokes a host Agent provider or captures real Agent Terminal output or
+  transcripts. The manual real-Agent smoke and the `debug` skill's controlled probe are supporting
+  workflows, not Acceptance evidence.
 - A resident Caxri dev app is normal and must remain usable. `start-electron.ts` gives each
   Acceptance launch its own temporary macOS app bundle identity; never ask the developer to stop
   their app or fall back to global app-name, frontmost-window, or coordinate targeting.
