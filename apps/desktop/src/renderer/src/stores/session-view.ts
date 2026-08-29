@@ -4,6 +4,7 @@ import { setSessionDocument } from '@desktop-shared/editor-state';
 import { omit, omitBy } from 'es-toolkit';
 import { create } from 'zustand';
 
+import { dropExternalEditorSessions } from '../features/editor/external-editor-state';
 import { isPathAtOrBelow, remapPath } from '../lib/file-path';
 import { getBootstrap, getSessionState } from './selectors';
 import { patchSessionState } from './workbench';
@@ -27,7 +28,11 @@ interface SessionViewState {
      * buffer ahead of the eviction line.
      */
     touchDocument(sessionId: string, path: string, workbenchProjectId?: string): void;
-    cacheDocument(sessionId: string, document: EditorDocument, workbenchProjectId?: string): void;
+    cacheDocument(
+        sessionId: string,
+        document: EditorDocument,
+        workbenchProjectId?: string,
+    ): boolean;
     cacheDocuments(
         sessionId: string,
         documents: readonly EditorDocument[],
@@ -74,9 +79,9 @@ function readScopedDocuments(
 }
 
 /**
- * Drops the least recently used clean documents once a Session exceeds the cache cap. A dirty buffer is never evicted
- * implicitly: unlike the external-change rule, which replaces a dirty buffer with a newer disk state the user can see,
- * silent eviction would simply lose unsaved edits.
+ * Drops the least recently used reloadable documents once a Session exceeds the cache cap. Dirty buffers cannot be
+ * discarded without data loss, while ephemeral external documents cannot be re-read after Main closes their one-shot
+ * authority. Admission checks below bound those non-evictable exceptions instead.
  */
 function evictExcess(
     documents: Record<string, EditorDocument>,
@@ -92,7 +97,7 @@ function evictExcess(
     const kept: string[] = [];
     let excess = cached.length - MAX_CACHED_DOCUMENTS_PER_SESSION;
     for (const path of cached) {
-        if (excess > 0 && !documents[path].dirty) {
+        if (excess > 0 && !documents[path].dirty && !documents[path].ephemeral) {
             dropped.push(path);
             excess -= 1;
             continue;
@@ -106,10 +111,33 @@ function retainedBytes(document: EditorDocument): number {
     return Math.max(document.size, document.content.length * 2);
 }
 
+function canRetainEphemeralDocument(
+    documents: SessionDocuments,
+    scope: string,
+    document: EditorDocument,
+): boolean {
+    const scopedDocuments = readScopedDocuments(documents, scope);
+    const existing = scopedDocuments?.[document.path];
+    const existingEphemeralCount = Object.values(scopedDocuments ?? {}).filter(
+        (candidate) => candidate.ephemeral,
+    ).length;
+    if (existing?.ephemeral !== true && existingEphemeralCount >= MAX_CACHED_DOCUMENTS_PER_SESSION)
+        return false;
+    let protectedBytes = 0;
+    for (const [sessionId, sessionDocuments] of Object.entries(documents))
+        for (const [path, candidate] of Object.entries(sessionDocuments))
+            if (
+                (candidate.dirty || candidate.ephemeral) &&
+                !(sessionId === scope && path === document.path)
+            )
+                protectedBytes += retainedBytes(candidate);
+    return protectedBytes + retainedBytes(document) <= MAX_CACHED_DOCUMENT_BYTES_GLOBAL;
+}
+
 /**
- * Applies one process-wide content budget after the per-Session count cap. Dirty buffers are the only exception because
- * reclaiming them would destroy unsaved work; they still displace every eligible clean buffer before the cache is
- * allowed to exceed the budget.
+ * Applies one process-wide content budget after the per-Session count cap. Dirty buffers may exceed it because
+ * reclaiming them would destroy unsaved work. Ephemeral external documents are admitted only while the protected total
+ * remains within the budget, then displace every eligible reloadable buffer here.
  */
 function evictToGlobalBudget(
     documents: SessionDocuments,
@@ -128,7 +156,8 @@ function evictToGlobalBudget(
             const document = sessionDocuments[path];
             const bytes = retainedBytes(document);
             total += bytes;
-            if (!document.dirty) cleanCandidates.push({ sessionId, path, bytes });
+            if (!document.dirty && !document.ephemeral)
+                cleanCandidates.push({ sessionId, path, bytes });
         }
     }
     if (total <= MAX_CACHED_DOCUMENT_BYTES_GLOBAL) return { documents, recentDocuments };
@@ -177,14 +206,19 @@ export const useSessionViewStore = create<SessionViewState>((set, get) => ({
 
     cacheDocument(sessionId, document, workbenchProjectId) {
         const scope = sessionViewScope(sessionId, workbenchProjectId);
-        set((state) =>
-            withDocuments(
+        let didCache = false;
+        set((state) => {
+            if (document.ephemeral && !canRetainEphemeralDocument(state.documents, scope, document))
+                return state;
+            didCache = true;
+            return withDocuments(
                 state,
                 scope,
                 setSessionDocument(state.documents, scope, document)[scope],
                 touch(state.recentDocuments[scope], document.path),
-            ),
-        );
+            );
+        });
+        return didCache;
     },
 
     cacheDocuments(sessionId, documents, workbenchProjectId) {
@@ -205,7 +239,7 @@ export const useSessionViewStore = create<SessionViewState>((set, get) => ({
 
     updateDocumentContent(sessionId, path, content) {
         const existing = getSessionDocuments(sessionId)?.[path];
-        if (!existing) return;
+        if (!existing || existing.readOnly) return;
         get().cacheDocument(sessionId, { ...existing, content, dirty: true });
     },
 
@@ -282,6 +316,7 @@ export const useSessionViewStore = create<SessionViewState>((set, get) => ({
     dropSessions(sessionIds) {
         const removed = new Set(sessionIds);
         if (removed.size === 0) return;
+        dropExternalEditorSessions(sessionIds);
         /**
          * `omitBy`'s type signature returns `Partial<T>` even though it only ever removes keys and never introduces
          * `undefined` values, so the result is safe to narrow back to `Record<string, T>`.

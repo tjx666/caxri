@@ -20,6 +20,7 @@ export function PathBrowserDialog() {
                     key={`${session.id}:${project.id}`}
                     projectRoot={project.rootPath}
                     sessionId={session.id}
+                    workbenchProjectId={project.id}
                 />
             )}
         </Dialog>
@@ -29,9 +30,11 @@ export function PathBrowserDialog() {
 function PathBrowserContent({
     projectRoot,
     sessionId,
+    workbenchProjectId,
 }: {
     projectRoot: string;
     sessionId: string;
+    workbenchProjectId: string;
 }) {
     const {
         activeOptionId,
@@ -51,13 +54,12 @@ function PathBrowserContent({
         isTruncated,
         listboxId,
         matches,
-        navigateInput,
-        pathPrompt,
-        query,
+        input,
+        mode,
         selectIndex,
         snapshot,
-        updateQuery,
-    } = usePathBrowser(projectRoot, sessionId);
+        updateInput,
+    } = usePathBrowser(projectRoot, sessionId, workbenchProjectId);
 
     return (
         <DialogContent
@@ -75,33 +77,47 @@ function PathBrowserContent({
                 >
                     <ChevronLeft aria-hidden="true" size={16} />
                 </button>
-                <span className="flex-none text-[12px] text-muted">
-                    {snapshot?.rootLabel ?? 'Project'}/
-                </span>
-                <span className="min-w-0 flex-none truncate text-[12px] text-muted">
-                    {snapshot?.directoryLabel ?? ''}
-                </span>
+                {mode === 'project' && (
+                    <>
+                        <span className="flex-none text-[12px] text-muted">
+                            {snapshot?.rootLabel ?? 'Project'}/
+                        </span>
+                        <span className="min-w-0 flex-none truncate text-[12px] text-muted">
+                            {snapshot?.directoryLabel ?? ''}
+                        </span>
+                    </>
+                )}
                 <Input
                     ref={inputReference}
                     aria-activedescendant={activeOptionId}
                     aria-autocomplete="list"
                     aria-busy={!isResultsReady}
                     aria-controls={isListboxRendered ? listboxId : undefined}
+                    aria-describedby={
+                        mode === 'project' ? 'path-browser-project-anchor-help' : undefined
+                    }
                     aria-expanded={isListboxRendered}
                     aria-label="File path"
                     appearance="embedded"
                     className="min-w-[80px] flex-1 px-1 text-foreground"
-                    placeholder="Filter or enter ~/ or /path…"
+                    placeholder={
+                        mode === 'project'
+                            ? 'Filter or enter a relative path…'
+                            : 'Enter ~/…, ../…, or /absolute/path…'
+                    }
                     role="combobox"
                     size="palette"
-                    value={query}
-                    onChange={(event) => {
-                        const value = event.target.value;
-                        if (value === '../') navigateInput(value);
-                        else updateQuery(value);
-                    }}
+                    value={input}
+                    onChange={(event) => updateInput(event.target.value)}
                     onKeyDown={handleKeyDown}
                 />
+                <span className="sr-only" id="path-browser-project-anchor-help">
+                    At the start of an empty field, press Backspace or Delete to remove the Project
+                    root and browse any path.
+                </span>
+                <span aria-live="polite" className="sr-only">
+                    {mode === 'free' ? 'Project root removed. Enter any path.' : ''}
+                </span>
             </InputGroup>
             <div className="max-h-[360px] min-h-[180px] overflow-auto p-1">
                 {(isStarting || isNavigating) && (
@@ -115,19 +131,9 @@ function PathBrowserContent({
                 {!isStarting && !isNavigating && !displayedError && !isResultsReady && (
                     <p className="p-6 text-center text-muted">Searching…</p>
                 )}
-                {pathPrompt && isResultsReady && !displayedError && (
-                    <p className="p-6 text-center text-muted">
-                        Press Enter to open this path. A folder outside added Projects requires
-                        authorization.
-                    </p>
+                {isResultsReady && !displayedError && emptyMessage && !candidateToCreate && (
+                    <p className="p-6 text-center text-muted">{emptyMessage}</p>
                 )}
-                {isResultsReady &&
-                    !displayedError &&
-                    !pathPrompt &&
-                    emptyMessage &&
-                    !candidateToCreate && (
-                        <p className="p-6 text-center text-muted">{emptyMessage}</p>
-                    )}
                 {isResultsReady && !displayedError && candidateToCreate && (
                     <button
                         type="button"
@@ -187,7 +193,8 @@ function PathBrowserContent({
                 <span>↑↓ Select</span>
                 <span>Tab Complete</span>
                 <span>{candidateToCreate ? 'Enter Create' : '→/Enter Open'}</span>
-                <span>← Parent</span>
+                <span>← at start Parent</span>
+                {mode === 'project' && <span>⌫ at start Browse anywhere</span>}
                 <span>Esc Close</span>
             </div>
         </DialogContent>

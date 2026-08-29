@@ -12,6 +12,11 @@ import { isEqual } from 'es-toolkit';
 import { create } from 'zustand';
 
 import {
+    mergeExternalEditorTabs,
+    recordExternalEditorState,
+    stripExternalEditorTabs,
+} from '../features/editor/external-editor-state';
+import {
     showAutomaticGpuSafeModeToast,
     showGpuRecoveryToast,
 } from '../features/gpu/gpu-recovery-notifications';
@@ -131,16 +136,10 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
          * must reject.
          */
         if (!previous) return false;
-        sessionPatchRevision.current += 1;
-        const revision = sessionPatchRevision.current;
         const patchKey = sessionPatchKey(next);
-        /**
-         * Stamped now, at send time, so a bootstrap read issued after this line — even one that resolves before this
-         * request does — is correctly recognized as observing (or postdating) this write once it lands.
-         */
-        sessionStateWrites.sent += 1;
-        const sendStamp = sessionStateWrites.sent;
-        pendingSessionPatches.set(patchKey, { revision, sendStamp, state: next });
+        recordExternalEditorState(next);
+        const durableNext = stripExternalEditorTabs(next);
+        const durablePrevious = stripExternalEditorTabs(previous);
         set({
             bootstrap: {
                 ...bootstrap,
@@ -152,6 +151,26 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
                 ),
             },
         });
+        /**
+         * External editor tabs are a Renderer overlay. Selection, opening, and closing therefore finish locally when
+         * the durable state is unchanged, without issuing an update that could write their opaque resources to SQLite.
+         */
+        if (isEqual(durableNext, durablePrevious) && !isEqual(next, previous)) {
+            const pending = pendingSessionPatches.get(patchKey);
+            if (pending) pending.state = next;
+            const persisted = persistedSessionPatches.get(patchKey);
+            if (persisted) persisted.state = next;
+            return true;
+        }
+        sessionPatchRevision.current += 1;
+        const revision = sessionPatchRevision.current;
+        /**
+         * Stamped now, at send time, so a bootstrap read issued after this line — even one that resolves before this
+         * request does — is correctly recognized as observing (or postdating) this write once it lands.
+         */
+        sessionStateWrites.sent += 1;
+        const sendStamp = sessionStateWrites.sent;
+        pendingSessionPatches.set(patchKey, { revision, sendStamp, state: next });
         const finish = (): void => {
             if (pendingSessionPatches.get(patchKey)?.revision === revision)
                 pendingSessionPatches.delete(patchKey);
@@ -159,7 +178,7 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
         try {
             const settled = settledSessionState(
                 next,
-                await caxri.request('session.updateState', next),
+                await caxri.request('session.updateState', durableNext),
             );
             if (pendingSessionPatches.get(patchKey)?.revision === revision) {
                 persistedSessionPatches.set(patchKey, { sendStamp, state: settled });
@@ -189,6 +208,7 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
             const isRootIsStillVisible =
                 visibleState?.workbenchProjectId === next.workbenchProjectId;
             if (!isRetainLatest && isLatestRevision && isRootIsStillVisible) {
+                recordExternalEditorState(previous);
                 set((current) => {
                     if (!current.bootstrap) return current;
                     return {
@@ -229,7 +249,8 @@ function settledSessionState(sent: SessionState, answer: unknown): SessionState 
         stored.workbenchProjectId !== sent.workbenchProjectId
     )
         return sent;
-    return isEqual(stored.paneLayout, sent.paneLayout) ? sent : stored;
+    const visible = mergeExternalEditorTabs(stored);
+    return isEqual(visible.paneLayout, sent.paneLayout) ? sent : visible;
 }
 
 /**
@@ -301,7 +322,11 @@ function applySnapshot(
     sessionReadStamp: number,
     terminalReadSequence: number,
 ): void {
-    const current = applyPendingSessionPatches(state, sessionReadStamp);
+    const patched = applyPendingSessionPatches(state, sessionReadStamp);
+    const current = {
+        ...patched,
+        sessionStates: patched.sessionStates.map(mergeExternalEditorTabs),
+    };
     useWorkbenchStore.setState((previous) => {
         const terminals = applyFullTerminalSnapshot(
             previous.bootstrap?.terminals ?? [],

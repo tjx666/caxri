@@ -1,6 +1,6 @@
 import { createElement, lazy, Suspense, useEffect, useSyncExternalStore } from 'react';
 
-import { parseAgentTranscriptTab, parseGitDiffTab } from '@caxri/protocol';
+import { isExternalEditorTabPath, parseAgentTranscriptTab, parseGitDiffTab } from '@caxri/protocol';
 import { editorModelPath } from '@desktop-shared/editor-state';
 
 import { useSelectedSession, useTheme } from '../../stores/selectors';
@@ -61,26 +61,33 @@ function FileEditorSurface({ path }: { path: string }) {
     const scope = session ? sessionViewScope(session.id, session.workbenchProjectId) : undefined;
     const theme = useTheme();
     const document = useDocument(sessionId, path, session?.workbenchProjectId);
+    const isExternal = isExternalEditorTabPath(path);
 
     useEffect(() => {
-        if (!sessionId || document) return;
+        if (!sessionId || document || isExternal) return;
         // Fire-and-forget: `cacheDocument` funnels its own failures into a toast via `tryCommand`,
         // so there is nothing left for this effect to await or react to.
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void cacheDocument(sessionId, path);
-    }, [document, path, sessionId]);
+    }, [document, isExternal, path, sessionId]);
 
     if (!sessionId || !scope || !theme) return null;
-    if (!document) return <div className={emptyWorkClassName}>Loading file…</div>;
+    if (!document)
+        return (
+            <div className={emptyWorkClassName}>
+                {isExternal ? 'External file is no longer available.' : 'Loading file…'}
+            </div>
+        );
     return (
         <div className="flex h-full min-h-0 flex-col">
-            <EditorHeadBlame path={path} sessionId={sessionId} />
+            {!isExternal && <EditorHeadBlame path={path} sessionId={sessionId} />}
             <div className="min-h-0 flex-1">
                 <LoadedCodeEditor
                     path={editorModelPath(scope, path)}
                     statusKey={editorStatusKey(scope, path)}
                     value={document.content}
                     theme={theme}
+                    readOnly={document.readOnly}
                     onChange={(content) => changeDocument(path, content ?? '')}
                 />
             </div>
