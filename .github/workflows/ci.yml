@@ -246,7 +246,9 @@ jobs:
           && 'trusted owner main push'
           || 'unreachable untrusted event' }}
       CAXRI_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-      CAXRI_CHECKS_REVISION: ${{ github.sha }}
+      # Runtime PR refs and github.sha can be regenerated after the event snapshot. Keep checks bound
+      # to the merge commit that GitHub recorded with the event's immutable base and head revisions.
+      CAXRI_CHECKS_REVISION: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
       CAXRI_RUNNER_AGENT_DISCOVERY: blocked
       CAXRI_RUNNER_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-e2e
     steps:
@@ -319,10 +321,7 @@ jobs:
               || github.event_name == 'push'
               && github.event.before
               || '' }}
-          CAXRI_CHECKS_FETCH_REF: >-
-            ${{ github.event_name == 'pull_request'
-              && format('refs/pull/{0}/merge', github.event.pull_request.number)
-              || github.sha }}
+          CAXRI_CHECKS_FETCH_REF: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
           CAXRI_CHECKS_HEAD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
           CAXRI_CHECKS_REQUIRE_MERGE: ${{ github.event_name == 'pull_request' }}
           CAXRI_GITHUB_TOKEN: ${{ github.token }}
