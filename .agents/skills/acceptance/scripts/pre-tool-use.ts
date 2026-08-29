@@ -29,15 +29,375 @@ const HOOK_SELF_TEST_COMMAND = 'caxri-acceptance-hook-self-test';
 const asRecord = (value: unknown): UnknownRecord =>
     typeof value === 'object' && value !== null ? (value as UnknownRecord) : {};
 
-const compact = (value: unknown): string =>
-    typeof value === 'string' ? value.replaceAll(/\s+/gu, ' ').trim() : '';
+const commandText = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
 
-const isAgentBrowserCommand = (command: string): boolean =>
-    /(?:^|[;&|()\s])agent-browser(?:\s|$)/u.test(command);
+interface AgentBrowserInvocation {
+    hasCdp: boolean;
+    hasPinTab: boolean;
+    subcommand: string | null;
+}
+
+interface HereDocument {
+    delimiter: string;
+    stripTabs: boolean;
+}
+
+interface ShellToken {
+    kind: 'redirect' | 'word';
+    value: string;
+}
+
+const AGENT_BROWSER_OPTIONS_WITH_VALUE = new Set([
+    '--action-policy',
+    '--allowed-domains',
+    '--args',
+    '--ca-cert',
+    '--cdp',
+    '--color-scheme',
+    '--config',
+    '--confirm-actions',
+    '--device',
+    '--download-path',
+    '--enable',
+    '--engine',
+    '--executable-path',
+    '--extension',
+    '--headers',
+    '--idle-timeout',
+    '--init-script',
+    '--max-output',
+    '--model',
+    '--namespace',
+    '--profile',
+    '--provider',
+    '--proxy',
+    '--proxy-bypass',
+    '--restore-check-fn',
+    '--restore-check-text',
+    '--restore-check-url',
+    '--restore-save',
+    '--screenshot-dir',
+    '--screenshot-format',
+    '--screenshot-quality',
+    '--session',
+    '--session-name',
+    '--state',
+    '--user-agent',
+    '-p',
+]);
+
+const SHELL_OPTION_VALUE_NAMES = new Set([
+    '--chdir',
+    '--split-string',
+    '--unset',
+    '-C',
+    '-S',
+    '-u',
+]);
+
+const findHereDocuments = (line: string): HereDocument[] => {
+    const documents: HereDocument[] = [];
+    let quote: '"' | "'" | null = null;
+    for (let index = 0; index < line.length - 1; index += 1) {
+        const character = line[index];
+        if (character === '\\' && quote !== "'") {
+            index += 1;
+            continue;
+        }
+        if (quote) {
+            if (character === quote) quote = null;
+            continue;
+        }
+        if (character === '"' || character === "'") {
+            quote = character;
+            continue;
+        }
+        if (character !== '<' || line[index + 1] !== '<' || line[index + 2] === '<') continue;
+
+        index += 2;
+        const isStripTabs = line[index] === '-';
+        if (isStripTabs) index += 1;
+        while (/\s/u.test(line[index] ?? '')) index += 1;
+        const delimiterQuote = line[index] === '"' || line[index] === "'" ? line[index] : null;
+        if (delimiterQuote) index += 1;
+        const start = index;
+        while (
+            index < line.length &&
+            (delimiterQuote ? line[index] !== delimiterQuote : !/[;&|()<>\s]/u.test(line[index]))
+        ) {
+            index += 1;
+        }
+        const delimiter = line.slice(start, index);
+        if (delimiter) documents.push({ delimiter, stripTabs: isStripTabs });
+    }
+    return documents;
+};
+
+/**
+ * Remove here-document bodies because they are data, even when they contain command-like text.
+ */
+const withoutHereDocumentBodies = (command: string): string => {
+    const pending: HereDocument[] = [];
+    return command
+        .split(/(?<=\n)/u)
+        .map((line) => {
+            if (pending.length > 0) {
+                const document = pending[0];
+                const content = line.replace(/\r?\n$/u, '');
+                const candidate = document.stripTabs ? content.replace(/^\t+/u, '') : content;
+                if (candidate === document.delimiter) pending.shift();
+                return line.endsWith('\n') ? '\n' : '';
+            }
+            pending.push(...findHereDocuments(line));
+            return line;
+        })
+        .join('');
+};
+
+/**
+ * Split compound shell input without treating quoted arguments or later pipeline commands as part of an agent-browser
+ * invocation. This is intentionally a small lexer, not a shell evaluator.
+ */
+const shellCommandSegments = (command: string): ShellToken[][] => {
+    const segments: ShellToken[][] = [];
+    let tokens: ShellToken[] = [];
+    let token = '';
+    let quote: '"' | "'" | null = null;
+
+    const finishToken = () => {
+        if (token) tokens.push({ kind: 'word', value: token });
+        token = '';
+    };
+    const finishSegment = () => {
+        finishToken();
+        if (tokens.length > 0) segments.push(tokens);
+        tokens = [];
+    };
+
+    for (let index = 0; index < command.length; index += 1) {
+        const character = command[index];
+        if (quote) {
+            if (character === quote) quote = null;
+            else if (character === '\\' && quote === '"' && index + 1 < command.length) {
+                if (command[index + 1] !== '\n') token += command[index + 1];
+                index += 1;
+            } else token += character;
+            continue;
+        }
+        if (character === '"' || character === "'") {
+            quote = character;
+        } else if (character === '\\' && index + 1 < command.length) {
+            if (command[index + 1] !== '\n') token += command[index + 1];
+            index += 1;
+        } else if (character === '#' && token === '') {
+            while (index < command.length && command[index] !== '\n') index += 1;
+            finishSegment();
+        } else if (/\s/u.test(character)) {
+            finishToken();
+            if (character === '\n' || character === '\r') finishSegment();
+        } else if (
+            character === '<' ||
+            character === '>' ||
+            (character === '&' && command[index + 1] === '>')
+        ) {
+            if (/^\d+$/u.test(token)) token = '';
+            else finishToken();
+            let redirect = character;
+            if (character === '&') {
+                redirect += command[index + 1];
+                index += 1;
+            } else {
+                while (command[index + 1] === character || command[index + 1] === '&') {
+                    redirect += command[index + 1];
+                    index += 1;
+                }
+            }
+            tokens.push({ kind: 'redirect', value: redirect });
+        } else if (/[;&|()]/u.test(character)) {
+            finishSegment();
+        } else {
+            token += character;
+        }
+    }
+    finishSegment();
+    return segments;
+};
+
+const isEnvironmentAssignment = (token: string): boolean => /^[A-Za-z_]\w*=/u.test(token);
+
+const withoutRedirections = (tokens: ShellToken[]): string[] => {
+    const words: string[] = [];
+    for (let index = 0; index < tokens.length; index += 1) {
+        if (tokens[index].kind === 'redirect') {
+            if (tokens[index + 1]?.kind === 'word') index += 1;
+        } else {
+            words.push(tokens[index].value);
+        }
+    }
+    return words;
+};
+
+const commandExecutableIndex = (words: string[]): number | null => {
+    let executableIndex = 0;
+    while (isEnvironmentAssignment(words[executableIndex] ?? '')) executableIndex += 1;
+    if (words[executableIndex] === 'env') {
+        executableIndex += 1;
+        while (
+            isEnvironmentAssignment(words[executableIndex] ?? '') ||
+            words[executableIndex]?.startsWith('-')
+        ) {
+            const option = words[executableIndex];
+            executableIndex += 1;
+            const optionName = option.split('=', 1)[0];
+            if (!option.includes('=') && SHELL_OPTION_VALUE_NAMES.has(optionName)) {
+                executableIndex += 1;
+            }
+        }
+    }
+    if (words[executableIndex] === 'command') {
+        executableIndex += 1;
+        if (words[executableIndex] === '--') executableIndex += 1;
+        else if (words[executableIndex]?.startsWith('-')) return null;
+    } else if (words[executableIndex] === 'exec') {
+        executableIndex += 1;
+        while (words[executableIndex]?.startsWith('-')) {
+            const option = words[executableIndex];
+            executableIndex += 1;
+            if (option === '-a') executableIndex += 1;
+            else if (option === '--') break;
+        }
+    }
+    return words[executableIndex] ? executableIndex : null;
+};
+
+const parseAgentBrowserInvocation = (tokens: ShellToken[]): AgentBrowserInvocation | null => {
+    const words = withoutRedirections(tokens);
+    const executableIndex = commandExecutableIndex(words);
+    if (executableIndex === null) return null;
+    const executable = words[executableIndex];
+    if (!executable || (executable !== 'agent-browser' && !executable.endsWith('/agent-browser'))) {
+        return null;
+    }
+
+    const arguments_ = words.slice(executableIndex + 1);
+    const hasCdp = arguments_.some(
+        (argument) => argument === '--cdp' || argument.startsWith('--cdp='),
+    );
+    const hasPinTab = arguments_.some(
+        (argument) => argument === '--pin-tab' || argument.startsWith('--pin-tab='),
+    );
+    let subcommand: string | null = null;
+    for (let index = 0; index < arguments_.length; index += 1) {
+        const argument = arguments_[index];
+        if (argument === '--') {
+            subcommand = arguments_[index + 1] ?? null;
+            break;
+        }
+        if (!argument.startsWith('-')) {
+            subcommand = argument;
+            break;
+        }
+        const optionName = argument.split('=', 1)[0];
+        const isOptionConsumesNext =
+            !argument.includes('=') &&
+            (AGENT_BROWSER_OPTIONS_WITH_VALUE.has(optionName) ||
+                (optionName === '--restore' && arguments_[index + 1] !== 'screenshot') ||
+                /^(?:true|false)$/u.test(arguments_[index + 1] ?? ''));
+        if (isOptionConsumesNext) index += 1;
+    }
+    return { hasCdp, hasPinTab, subcommand };
+};
+
+const shellScriptFor = (tokens: ShellToken[]): string | null => {
+    const words = withoutRedirections(tokens);
+    const executableIndex = commandExecutableIndex(words);
+    if (executableIndex === null) return null;
+    const executable = words[executableIndex].split('/').at(-1);
+    if (!['bash', 'dash', 'sh', 'zsh'].includes(executable ?? '')) return null;
+    const commandOptionIndex = words.findIndex(
+        (word, index) => index > executableIndex && /^-[^-]*c/u.test(word),
+    );
+    return commandOptionIndex !== -1 ? (words[commandOptionIndex + 1] ?? null) : null;
+};
+
+const matchingCommandSubstitutionEnd = (command: string, start: number): number => {
+    let depth = 1;
+    let quote: '"' | "'" | null = null;
+    for (let index = start; index < command.length; index += 1) {
+        const character = command[index];
+        if (character === '\\' && quote !== "'") {
+            index += 1;
+            continue;
+        }
+        if (quote) {
+            if (character === quote) quote = null;
+            continue;
+        }
+        if (character === '"' || character === "'") quote = character;
+        else if (character === '(') depth += 1;
+        else if (character === ')' && --depth === 0) return index;
+    }
+    return -1;
+};
+
+const embeddedShellCommands = (command: string): string[] => {
+    const embedded: string[] = [];
+    let quote: '"' | "'" | null = null;
+    for (let index = 0; index < command.length; index += 1) {
+        const character = command[index];
+        if (character === '\\' && quote !== "'") {
+            index += 1;
+            continue;
+        }
+        if (character === "'") {
+            if (quote === "'") quote = null;
+            else quote ??= "'";
+            continue;
+        }
+        if (character === '"') {
+            if (quote === '"') quote = null;
+            else quote ??= '"';
+            continue;
+        }
+        if (quote === "'") continue;
+        if (character === '$' && command[index + 1] === '(') {
+            const end = matchingCommandSubstitutionEnd(command, index + 2);
+            if (end >= 0) {
+                embedded.push(command.slice(index + 2, end));
+                index = end;
+            }
+        } else if (character === '`') {
+            const end = command.indexOf('`', index + 1);
+            if (end !== -1) {
+                embedded.push(command.slice(index + 1, end));
+                index = end;
+            }
+        }
+    }
+    return embedded;
+};
+
+const agentBrowserInvocations = (command: string, depth = 0): AgentBrowserInvocation[] => {
+    if (depth > 8) return [];
+    const executableCommand = withoutHereDocumentBodies(command);
+    const segments = shellCommandSegments(executableCommand);
+    const invocations = segments
+        .map(parseAgentBrowserInvocation)
+        .filter((invocation): invocation is AgentBrowserInvocation => invocation !== null);
+    const nestedCommands = [
+        ...segments.map(shellScriptFor).filter((script): script is string => script !== null),
+        ...embeddedShellCommands(executableCommand),
+    ];
+    return [
+        ...invocations,
+        ...nestedCommands.flatMap((nested) => agentBrowserInvocations(nested, depth + 1)),
+    ];
+};
 
 const requiresAcceptanceRuntimeOwnership = (command: string): boolean =>
-    isAgentBrowserCommand(command) &&
-    (/(?:^|\s)--pin-tab(?:=|\s|$)/u.test(command) || /\bscreenshot\b/u.test(command));
+    agentBrowserInvocations(command).some(
+        ({ hasPinTab, subcommand }) => hasPinTab || subcommand === 'screenshot',
+    );
 
 const isWithinProject = (cwd: string, projectRoot: string): boolean => {
     const relative = path.relative(projectRoot, path.resolve(cwd));
@@ -66,6 +426,7 @@ export const evaluateCaxriAcceptanceCommand = ({
     projectRoot = PROJECT_ROOT,
 }: CommandEvaluationInput): GuardAction | null => {
     if (!isWithinProject(cwd, projectRoot)) return null;
+    const browserInvocations = agentBrowserInvocations(command);
 
     if (command === HOOK_SELF_TEST_COMMAND) {
         return {
@@ -76,9 +437,7 @@ export const evaluateCaxriAcceptanceCommand = ({
 
     if (
         acceptanceRuntimeExists &&
-        isAgentBrowserCommand(command) &&
-        /(?:^|\s)--cdp(?:=|\s)/u.test(command) &&
-        /(?:^|\s)--pin-tab(?:=|\s|$)/u.test(command)
+        browserInvocations.some(({ hasCdp, hasPinTab }) => hasCdp && hasPinTab)
     ) {
         return {
             ruleId: 'caxri-acceptance-pin-tab',
@@ -88,8 +447,7 @@ export const evaluateCaxriAcceptanceCommand = ({
 
     if (
         acceptanceRuntimeExists &&
-        isAgentBrowserCommand(command) &&
-        /\bscreenshot\b/u.test(command)
+        browserInvocations.some(({ subcommand }) => subcommand === 'screenshot')
     ) {
         return {
             ruleId: 'caxri-acceptance-raw-screenshot',
@@ -148,7 +506,7 @@ export const runPreToolUse = async (
     const eventName = payload.hook_event_name ?? payload.hookEventName;
     if (eventName !== 'PreToolUse') return '';
     const toolInput = toolInputFor(payload);
-    const command = compact(toolInput.command ?? toolInput.cmd);
+    const command = commandText(toolInput.command ?? toolInput.cmd);
     if (!command) return '';
     const cwd = resolveCommandCwd(payload);
     const unconditionalAction = evaluateCaxriAcceptanceCommand({
