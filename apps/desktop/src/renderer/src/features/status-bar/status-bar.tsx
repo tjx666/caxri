@@ -42,11 +42,7 @@ import { caxri } from '../../lib/caxri';
 import { openExternalUrl } from '../../lib/external-link';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery, useToastOnQueryError } from '../../queries/client';
-import {
-    useSelectedSession,
-    useSelectedWorkbenchProject,
-    useTerminal,
-} from '../../stores/selectors';
+import { useSelectedSession, useSelectedWorkbenchProject } from '../../stores/selectors';
 import { sessionViewScope } from '../../stores/session-view';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { useWorkbenchStore } from '../../stores/workbench';
@@ -202,15 +198,13 @@ function ActiveTerminalStatus({
     showMemory: boolean;
     terminalId: string;
 }) {
-    const terminal = useTerminal(terminalId);
-    const isCompacting = terminal?.agentOperation === 'compacting';
     const progress = useTerminalProgress(terminalId);
     const usage = usePolledQuery(
         'terminal.resources',
         { terminalId },
         { label: 'terminal.resources', intervalMs: 2_000, staleTime: 1_000, retry: false },
     ).data;
-    if (!usage && !progress && !isCompacting) return null;
+    if (!usage && !progress) return null;
     const childLabel = usage
         ? `${usage.childProcessCount} ${usage.childProcessCount === 1 ? 'child process' : 'child processes'}`
         : undefined;
@@ -224,17 +218,7 @@ function ActiveTerminalStatus({
                 : Gauge;
     return (
         <>
-            {isCompacting && (
-                <StatusInfo
-                    announce
-                    ariaLabel="Codex is compacting context"
-                    className="statusbar-agent-operation text-muted"
-                    title="Codex is summarizing earlier context before continuing."
-                >
-                    Compacting
-                </StatusInfo>
-            )}
-            {progress && !isCompacting && (
+            {progress && (
                 <StatusInfo
                     ariaLabel={terminalProgressAriaLabel(progress)}
                     className={cn(
@@ -735,8 +719,8 @@ export function StatusBar() {
              * priority resolution above (`chip-priority.ts`) now hides the lowest-value chips first
              * as the footer narrows, so information stays reachable without a scrollbar for every
              * ordinary window width; `overflow-x-auto` stays only as the last-resort fallback for
-             * the pathological case where even the never-hide chips (degraded/runtime state,
-             * active Agent operation) don't fit.
+             * the pathological case where even the never-hide chips (degraded/runtime state and
+             * Terminal progress) don't fit.
              */}
             <div className="statusbar-actions flex min-w-0 shrink items-center gap-2 overflow-x-auto">
                 {degraded && (

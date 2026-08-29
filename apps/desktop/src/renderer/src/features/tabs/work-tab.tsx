@@ -7,7 +7,6 @@ import type {
 } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
-import type { ProcessState } from '@caxri/protocol';
 import { X } from 'lucide-react';
 import { useIsPresent } from 'motion/react';
 import * as m from 'motion/react-m';
@@ -22,10 +21,6 @@ import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { FileTypeIcon } from '../../icons/files/file-type-icon';
 import { motionDurationMs } from '../../lib/motion';
 import { cn } from '../../lib/utilities';
-import { processStateDescription } from './work-tab-accessibility';
-
-const processIndicatorClassName =
-    'process-indicator w-1.5 h-1.5 flex-none m-0 rounded-full bg-muted';
 
 /**
  * Wraps the tab in the shared `Tooltip` only when there is an untruncated title to reveal, so an Editor tab keeps its
@@ -53,11 +48,6 @@ function MaybeTooltip({
             {children}
         </Tooltip>
     );
-}
-
-function statusToneClassName(status: ProcessState): string | false {
-    if (status === 'running') return 'bg-success';
-    return ['dead', 'failed', 'interrupted'].includes(status) && 'bg-danger';
 }
 
 interface WorkTabProperties {
@@ -91,13 +81,6 @@ interface WorkTabProperties {
      */
     showActiveAccent?: boolean;
     preview?: boolean;
-    status?: ProcessState;
-    /**
-     * Agent activity for the Terminal that owns its Session's title, replacing raw process state on the status dot.
-     * "The PTY is alive" and "the Agent is waiting for you" are different questions, and only the second one is worth
-     * interrupting for; see `agentStatusDot`.
-     */
-    statusActivity?: { className: string; description: string };
     tabId: string;
     /**
      * Raw pane-tab occurrence id, distinct from {@link tabId} (its DOM-safe, prefixed form): read back off
@@ -149,8 +132,6 @@ export function WorkTab({
     motionIdentity,
     showActiveAccent = true,
     preview = false,
-    status,
-    statusActivity,
     tabId,
     paneTabId,
     terminalId,
@@ -175,11 +156,6 @@ export function WorkTab({
     // out pointer/keyboard interaction while the exit animation plays out.
     const isVisuallyActive = active && isPresent;
     const dirtyDescriptionId = `${tabId}-dirty`;
-    const statusDescriptionId = `${tabId}-status`;
-    const descriptions = [
-        ...(isPresent && dirty ? [dirtyDescriptionId] : []),
-        ...(isPresent && status ? [statusDescriptionId] : []),
-    ];
     /**
      * `terminalTabLabel` compresses a PTY title to fit the tab, and CSS truncates whatever still overflows. Both losses
      * are visual only: the untouched title stays the tab's accessible name (below) and its tooltip, so a keyboard user
@@ -289,7 +265,7 @@ export function WorkTab({
                     type="button"
                     role="tab"
                     aria-controls={isVisuallyActive ? `${tabId}-panel` : undefined}
-                    aria-describedby={descriptions.length > 0 ? descriptions.join(' ') : undefined}
+                    aria-describedby={isPresent && dirty ? dirtyDescriptionId : undefined}
                     aria-selected={isVisuallyActive}
                     tabIndex={isVisuallyActive ? 0 : -1}
                     className="tab-select flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent px-2 text-left text-[11px] text-inherit focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-2 focus-visible:outline-foreground"
@@ -323,26 +299,6 @@ export function WorkTab({
                 <span id={dirtyDescriptionId} className="sr-only">
                     Unsaved changes.
                 </span>
-            )}
-            {isPresent && status && (
-                <span id={statusDescriptionId} className="sr-only">
-                    {statusActivity?.description ?? processStateDescription(status)}
-                </span>
-            )}
-            {/* An evenly divided tab has room a natural-width one never had, so process state stops trading places with
-                the close button: pointing at a Terminal to close it is exactly when hiding its state is least
-                helpful. */}
-            {status && (
-                <i
-                    aria-hidden="true"
-                    title={statusActivity?.description}
-                    className={cn(
-                        processIndicatorClassName,
-                        'mr-0.5',
-                        `process-${status}`,
-                        statusActivity?.className ?? statusToneClassName(status),
-                    )}
-                />
             )}
             <span className="tab-tail relative h-6 w-6 flex-none">
                 {dirty && (

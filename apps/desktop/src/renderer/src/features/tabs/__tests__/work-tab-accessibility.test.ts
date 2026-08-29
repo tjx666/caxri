@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-    processStateDescription,
-    workPanelId,
-    workTabId,
-    workTabNavigationTarget,
-} from '../work-tab-accessibility';
+import { workPanelId, workTabId, workTabNavigationTarget } from '../work-tab-accessibility';
 
 describe('work tab accessibility', () => {
     const tabIds = ['tab-1', 'tab-2', 'tab-3'];
@@ -27,16 +22,5 @@ describe('work tab accessibility', () => {
         expect(workTabNavigationTarget(tabIds, 'missing', 'ArrowRight')).toBe(tabIds[0]);
         expect(workTabNavigationTarget(tabIds, 'missing', 'ArrowLeft')).toBe(tabIds[2]);
         expect(workTabNavigationTarget([], undefined, 'Home')).toBeUndefined();
-    });
-
-    it.each([
-        ['starting', 'Terminal is starting'],
-        ['running', 'Terminal is running'],
-        ['stopped', 'Terminal is stopped'],
-        ['dead', 'Terminal has stopped unexpectedly'],
-        ['failed', 'Terminal failed'],
-        ['interrupted', 'Terminal was interrupted'],
-    ] as const)('describes %s terminal state', (state, description) => {
-        expect(processStateDescription(state)).toBe(description);
     });
 });

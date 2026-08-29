@@ -1,7 +1,8 @@
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { AgentProvider } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import type { spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -11,6 +12,26 @@ import { CaxriDatabase } from '../db/repository';
 import { createFakePty, createPendingAgentAdapters } from './create-test-domain-services';
 
 const temporaryDirectories: string[] = [];
+
+/**
+ * Seeds the bound Terminal before Runtime opens the database. A second live connection would run startup recovery and
+ * turn the fixture's active Agent state into `failed`, hiding what the restart handler itself changed.
+ */
+function seedStoppedAgentSession(
+    userDataPath: string,
+    projectRoot: string,
+    provider: AgentProvider,
+    agentSessionId: string,
+) {
+    const database = new CaxriDatabase(join(userDataPath, 'caxri.db'));
+    const created = database.createSession(database.createProject(projectRoot).id, provider);
+    database.database
+        .prepare('UPDATE terminals SET agent_session_id = ? WHERE id = ?')
+        .run(agentSessionId, created.terminal!.id);
+    database.updateTerminalState(created.terminal!.id, 'stopped');
+    database.close();
+    return created;
+}
 
 afterEach(async () => {
     const pendingDirectories = temporaryDirectories.slice();
@@ -37,7 +58,15 @@ describe('Agent Terminal restart', () => {
             temporaryDirectories.push(directory);
             const userDataPath = join(directory, 'user-data');
             const projectRoot = join(directory, 'project');
-            await mkdir(projectRoot);
+            await Promise.all([mkdir(projectRoot), mkdir(userDataPath)]);
+            const canonicalProjectRoot = await realpath(projectRoot);
+            const created = seedStoppedAgentSession(
+                userDataPath,
+                canonicalProjectRoot,
+                provider,
+                sessionId,
+            );
+            const createdActivityAt = created.session.lastSessionActivityAt;
             const spawn = vi.fn<typeof spawnPty>(() => createFakePty());
             const runtime = await createTestDomainServices({
                 userDataPath,
@@ -51,32 +80,19 @@ describe('Agent Terminal restart', () => {
             });
 
             try {
-                const project = await runtime.handlers['project.create']({
-                    rootPath: projectRoot,
-                });
-                const created = await runtime.handlers['session.create']({
-                    projectId: project.id,
-                    defaultAgent: provider,
-                });
-                const createdActivityAt = created.session.lastSessionActivityAt;
-                const direct = new CaxriDatabase(join(userDataPath, 'caxri.db'));
-                direct.database
-                    .prepare('UPDATE terminals SET agent_session_id = ? WHERE id = ?')
-                    .run(sessionId, created.terminal!.id);
-                direct.close();
-
                 await runtime.handlers['terminal.restart']({
                     terminalId: created.terminal!.id,
                     mode: 'resume',
                 });
 
-                expect(spawn.mock.calls[1]?.[1]).toEqual(resumeArguments);
+                expect(spawn.mock.calls[0]?.[1]).toEqual(resumeArguments);
                 const bootstrap = await runtime.handlers['app.bootstrap']({});
                 const restartedSession = bootstrap.sessions.find(
                     (session) => session.id === created.session.id,
                 )!;
                 expect(restartedSession.lastSessionActivityAt).toBeGreaterThan(createdActivityAt);
                 expect(restartedSession.lastSessionActivityReason).toBe('agent_started');
+                expect(restartedSession.lastActivityState).toBe('idle');
                 expect(
                     bootstrap.terminals.find((terminal) => terminal.id === created.terminal!.id)
                         ?.agentSessionId,
@@ -92,7 +108,14 @@ describe('Agent Terminal restart', () => {
         temporaryDirectories.push(directory);
         const userDataPath = join(directory, 'user-data');
         const projectRoot = join(directory, 'project');
-        await mkdir(projectRoot);
+        await Promise.all([mkdir(projectRoot), mkdir(userDataPath)]);
+        const canonicalProjectRoot = await realpath(projectRoot);
+        const created = seedStoppedAgentSession(
+            userDataPath,
+            canonicalProjectRoot,
+            'codex',
+            'codex-session-old',
+        );
         const spawn = vi.fn<typeof spawnPty>(() => createFakePty());
         const runtime = await createTestDomainServices({
             userDataPath,
@@ -106,23 +129,12 @@ describe('Agent Terminal restart', () => {
         });
 
         try {
-            const project = await runtime.handlers['project.create']({ rootPath: projectRoot });
-            const created = await runtime.handlers['session.create']({
-                projectId: project.id,
-                defaultAgent: 'codex',
-            });
-            const direct = new CaxriDatabase(join(userDataPath, 'caxri.db'));
-            direct.database
-                .prepare('UPDATE terminals SET agent_session_id = ? WHERE id = ?')
-                .run('codex-session-old', created.terminal!.id);
-            direct.close();
-
             await runtime.handlers['terminal.restart']({
                 terminalId: created.terminal!.id,
                 mode: 'fresh',
             });
 
-            expect(spawn.mock.calls[1]?.[1]).toEqual([]);
+            expect(spawn.mock.calls[0]?.[1]).toEqual([]);
             const bootstrap = await runtime.handlers['app.bootstrap']({});
             expect(
                 bootstrap.terminals.find((terminal) => terminal.id === created.terminal!.id)

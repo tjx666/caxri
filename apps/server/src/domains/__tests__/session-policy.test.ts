@@ -13,7 +13,7 @@ import {
     decideAgentMetadataUpdate,
     DEFAULT_SESSION_TITLE,
     defaultTerminalTitle,
-    processActivityState,
+    processExitActivityState,
     selectFallbackAfterDeletion,
     sessionActivityReasonForAgentState,
     shutdownOutcome,
@@ -73,13 +73,10 @@ describe('defaultTerminalTitle', () => {
     });
 });
 
-describe('processActivityState', () => {
-    it('maps process lifecycle states onto Agent activity states', () => {
-        expect(processActivityState('starting')).toBe('running');
-        expect(processActivityState('running')).toBe('running');
-        expect(processActivityState('stopped')).toBe('completed');
-        expect(processActivityState('dead')).toBe('failed');
-        expect(processActivityState('failed')).toBe('failed');
+describe('processExitActivityState', () => {
+    it('maps real child-process exits onto Agent activity states', () => {
+        expect(processExitActivityState('stopped')).toBe('completed');
+        expect(processExitActivityState('dead')).toBe('failed');
     });
 });
 
@@ -182,7 +179,7 @@ describe('choosePrimaryAgentSuccessor', () => {
         ).toEqual({
             primaryAgentTerminalId: 'claude-1',
             displayTitle: 'Existing',
-            lastActivityState: 'running',
+            lastActivityState: 'unknown',
         });
     });
 

@@ -157,7 +157,11 @@ export function isOpaqueAgentSessionId(value: string): boolean {
 }
 
 export function processStateToAgentActivity(state?: ProcessState): AgentActivityState {
-    if (state === 'running' || state === 'starting') return 'running';
+    /**
+     * A live interactive CLI may be idle at its prompt, so only settled process outcomes can stand in for Agent
+     * activity when provider-owned turn state is unavailable.
+     */
+    if (state === 'running' || state === 'starting') return 'unknown';
     if (state === 'failed' || state === 'dead') return 'failed';
     if (state === 'stopped') return 'completed';
     return 'unknown';

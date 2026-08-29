@@ -12,6 +12,7 @@ import type { MetadataActivityBaseline } from './metadata-activity-baseline';
 import {
     isMetadataActivityBaselineMatch,
     metadataActivityBaseline,
+    reconcileMetadataActivityBaseline,
 } from './metadata-activity-baseline';
 import { detectForegroundAgentProvider } from './process-detection';
 import type { AgentService } from './service';
@@ -297,7 +298,7 @@ export class AgentCoordinator {
                       status: currentSession.lastActivityState,
                   }
                 : isBaselineReconciliation
-                  ? { ...snapshot, attentionKind: undefined }
+                  ? reconcileMetadataActivityBaseline(snapshot, currentSession.lastActivityState)
                   : snapshot;
             if (
                 this.database.updateAgentMetadata(
@@ -499,6 +500,7 @@ export class AgentCoordinator {
             if (!terminal) return false;
             state = { command: '', isBracketedPaste: false, valid: true };
         }
+        this.lifecycleWatchdogs.observeInput(terminalId, data);
         let didSubmit = false;
         for (let index = 0; index < data.length; index += 1) {
             if (data.startsWith(BRACKETED_PASTE_START, index)) {

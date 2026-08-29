@@ -135,7 +135,7 @@ describe('Codex provider', () => {
             service.snapshot('codex', { rootPath: root, processState: 'running', startedAt }),
         ).resolves.toMatchObject({
             available: true,
-            status: 'running',
+            status: 'unknown',
             sessionId: undefined,
             title: undefined,
         });
@@ -172,7 +172,7 @@ describe('Codex provider', () => {
         ).resolves.toMatchObject({
             available: true,
             sessionId: 'codex-session-1',
-            status: 'running',
+            status: 'unknown',
             title: 'Finish Phase 1',
             usage: [{ label: 'Tokens', value: '12,345' }],
             version: 'codex 1.0',

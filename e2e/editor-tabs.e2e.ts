@@ -279,7 +279,7 @@ test('editor previews pin and expose the standard close actions', async () => {
     }
 });
 
-test('Open Work tabs provide roving keyboard navigation and accessible state', async () => {
+test('Open Work tabs provide roving keyboard navigation and dirty editor state', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-work-tabs-a11y-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -293,7 +293,6 @@ test('Open Work tabs provide roving keyboard navigation and accessible state', a
         const tabs = strip.getByRole('tab');
         await pressNewTerminal(running.page);
         await expect(tabs).toHaveCount(2);
-        await expect(strip.locator('.process-running')).toHaveCount(2);
         await running.page.getByRole('treeitem', { name: 'accessible.ts', exact: true }).click();
         await expect(tabs).toHaveCount(3);
 
@@ -310,11 +309,6 @@ test('Open Work tabs provide roving keyboard navigation and accessible state', a
         expect(editorDescriptionId).toBeTruthy();
         await expect(running.page.locator(`[id="${editorDescriptionId}"]`)).toHaveText(
             'Unsaved changes.',
-        );
-        const terminalDescriptionId = await firstTerminal.getAttribute('aria-describedby');
-        expect(terminalDescriptionId).toBeTruthy();
-        await expect(running.page.locator(`[id="${terminalDescriptionId}"]`)).toHaveText(
-            'Terminal is running',
         );
         await expectTabControlsWorkSurface(running.page, editor);
 
