@@ -40,7 +40,7 @@ describe('agent action input', () => {
 
         expect(agentActionTerminalInputSteps('codex', skill, 'run')).toEqual([
             { data: '$review' },
-            { data: '\t\n', delayBeforeMs: 150 },
+            { data: '\t\r', delayBeforeMs: 150 },
         ]);
         expect(agentActionTerminalInputSteps('claude', skill, 'run')).toEqual([
             { data: '$review\r' },

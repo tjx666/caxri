@@ -254,6 +254,20 @@ describe('executeCommand', () => {
         expect(sendSequence).toHaveBeenCalledWith('\u{1B}[1;3B');
     });
 
+    it('normalizes configured newlines to Return before sending a Terminal sequence', () => {
+        const { context } = recordingContext();
+        const sendSequence = vi.fn();
+        context.terminal.sendSequence = sendSequence;
+
+        executeCommand(
+            'workbench.action.terminal.sendSequence',
+            { text: '\t\nfirst\r\nsecond' },
+            context,
+        );
+
+        expect(sendSequence).toHaveBeenCalledWith('\t\rfirst\rsecond');
+    });
+
     it('maps each split command to the side its new pane takes', () => {
         const { calls, context } = recordingContext();
         executeCommand('workbench.splitLeft', undefined, context);

@@ -433,8 +433,9 @@ export function getNativeMenuCommandGroups(menu: NativeMenuId): CommandDefinitio
 }
 
 /**
- * Tab accepts the active Terminal completion and LF submits it. `sendSequence` preserves both bytes unchanged, matching
- * the VS Code keybinding pattern without adding the more general `runCommands` command solely for one sequence.
+ * Tab accepts the active Terminal completion and the VS Code-compatible `sendSequence` command normalizes LF to Return
+ * before submission. This keeps copied VS Code keybindings compatible without adding the more general `runCommands`
+ * command solely for one sequence.
  */
 const terminalCompleteAndSubmitKeybinding = {
     key: 'cmd+shift+enter',

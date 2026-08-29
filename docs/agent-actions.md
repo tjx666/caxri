@@ -12,7 +12,7 @@ selection cannot drift to another Terminal.
   optional unless the user wants to restrict results to actions using that prefix.
 - `Enter` and mouse selection run an argument-free action immediately. Commands and Claude Code
   skills append Return in one write. Codex skills append the invocation, wait 150ms for its paste
-  detector to settle, then append Tab and LF so the composer accepts the exact skill completion
+  detector to settle, then append Tab and Return so the composer accepts the exact skill completion
   before submitting it. Required-argument actions remain open with a prompt to insert and complete
   them first.
 - `Command+Enter` appends `<invocation>` without submitting it, then returns focus to the Terminal

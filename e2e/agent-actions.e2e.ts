@@ -187,8 +187,8 @@ test('Agent Commands & Skills stays discoverable, describes its target, and pres
                 const invocationIndex = chunks.lastIndexOf('$e2e-action');
                 return chunks.slice(invocationIndex, invocationIndex + 2);
             })
-            .toEqual(['$e2e-action', '\t\n']);
-        await expect.poll(() => capturedInput(capture)).toContain('draft-$e2e-action\t\n');
+            .toEqual(['$e2e-action', '\t\r']);
+        await expect.poll(() => capturedInput(capture)).toContain('draft-$e2e-action\t\r');
 
         await running.page.keyboard.press('Meta+Shift+A');
         picker = running.page.locator('[data-agent-actions-picker]');

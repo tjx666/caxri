@@ -23,9 +23,10 @@ const CODEX_SKILL_PASTE_BURST_SETTLE_MS = 150;
 /**
  * Codex classifies rapidly streamed characters as a paste and turns Enter into a newline for 120ms. Its skill flow
  * therefore needs one write for the invocation, a deliberate settle window, then Tab to accept the exact completion and
- * LF to submit it. Commands and Claude Code actions execute with Return in one write. See
+ * Return to submit it. Raw LF is Ctrl+J in Codex's terminal mode and only inserts a newline. See
  * https://github.com/openai/codex/blob/9a8730f3/codex-rs/tui/src/bottom_pane/paste_burst.rs and
- * https://github.com/tjx666/caxri/issues/398.
+ * https://github.com/openai-oss-forks/crossterm/blob/45fecb9508105988f42fe6ff0441783ed3717f92/src/event/sys/unix/parse.rs#L143-L160
+ * and https://github.com/tjx666/caxri/issues/398.
  */
 const agentActionRunSuffixSteps: Record<
     AgentProvider,
@@ -39,7 +40,7 @@ const agentActionRunSuffixSteps: Record<
         command: [{ suffix: '\r' }],
         skill: [
             { suffix: '' },
-            { delayBeforeMs: CODEX_SKILL_PASTE_BURST_SETTLE_MS, suffix: '\t\n' },
+            { delayBeforeMs: CODEX_SKILL_PASTE_BURST_SETTLE_MS, suffix: '\t\r' },
         ],
     },
 };
