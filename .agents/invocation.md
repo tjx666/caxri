@@ -7,14 +7,9 @@ starts, and model-invoked disciplines that another skill or ordinary coding task
 
 <!-- explicit-only-skills:start -->
 
-- `audit-architecture-debt`
-- `audit-ux`
 - `go`
 - `grill-me`
 - `grill-with-docs`
-- `release`
-- `switch-worktree`
-- `wait-what`
 
 <!-- explicit-only-skills:end -->
 
