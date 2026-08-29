@@ -68,12 +68,9 @@ import {
     writeInitialState,
     writeState,
 } from './state-storage';
-import { completeValidation, startValidation, validationKindSchema } from './validation-gate';
-import {
-    assertCleanValidationStart,
-    inspectWorktreeDelta,
-    inspectWorktreeIntegrity,
-} from './worktree-integrity';
+import { validationKindSchema } from './validation-gate';
+import { runValidation } from './validation-run';
+import { inspectWorktreeDelta } from './worktree-integrity';
 
 type OptionScalar = string | true;
 type OptionValue = OptionScalar | OptionScalar[];
@@ -98,11 +95,16 @@ function defaultRunId(objective: string): string {
     return `${timestamp}-${slugify(objective) || 'goal'}`;
 }
 
-function parseOptions(argv: string[]): { command: string | undefined; options: Options } {
+function parseOptions(argv: string[]): {
+    command: string | undefined;
+    options: Options;
+    passthrough: string[];
+} {
     const [command, ...tokens] = argv;
     const options: Options = {};
     for (let index = 0; index < tokens.length; index += 1) {
         const token = tokens[index];
+        if (token === '--') return { command, options, passthrough: tokens.slice(index + 1) };
         if (!token.startsWith('--')) throw new Error(`Expected an option, received: ${token}`);
         const key = token.slice(2);
         const next = tokens[index + 1];
@@ -112,7 +114,7 @@ function parseOptions(argv: string[]): { command: string | undefined; options: O
         else if (Array.isArray(current)) current.push(value);
         else options[key] = [current, value];
     }
-    return { command, options };
+    return { command, options, passthrough: [] };
 }
 
 function one(options: Options, key: string, isRequired = false): string | undefined {
@@ -189,9 +191,8 @@ const COMMAND_USAGE: Record<string, string> = {
     'scope-admit': 'scope-admit --state PATH --title TEXT [--blocking]',
     'show': 'show --state PATH',
     'validate': 'validate --state PATH',
-    'validation-complete': 'validation-complete --state PATH --id ID --exit-code N',
-    'validation-start':
-        'validation-start --state PATH --kind KIND --lineage-id ID [--head-sha EXPECTED_SHA] --command COMMAND --session-id ID --log-path PATH',
+    'validation-run':
+        'validation-run --state PATH --kind KIND --lineage-id ID [--head-sha EXPECTED_SHA] [--session-id ID] -- EXECUTABLE [ARG ...]',
     'worktree':
         'worktree --state PATH --worktree-path PATH --main-checkout-path PATH --base-sha SHA [--branch NAME]',
 };
@@ -210,7 +211,7 @@ const COMMAND_VALUES: Partial<Record<string, string[]>> = {
     'pr': [`status: ${pullRequestStatusSchema.options.join('|')}`],
     'review': [`mode: ${reviewModeSchema.options.join('|')}`],
     'review-policy': [`mode: ${reviewPolicyModeSchema.options.join('|')}`],
-    'validation-start': [`kind: ${validationKindSchema.options.join('|')}`],
+    'validation-run': [`kind: ${validationKindSchema.options.join('|')}`],
 };
 
 export function stateCliHelp(command?: string): string {
@@ -281,13 +282,13 @@ function parseFinalIssues(values: string[]) {
     });
 }
 
-export async function runStateCli(argv: string[]): Promise<void> {
+export async function runStateCli(argv: string[]): Promise<number | void> {
     if (argv[0] === 'help') {
         if (argv.length > 2) throw new Error('Usage: state.ts help <command>');
         console.log(stateCliHelp(argv[1]));
         return;
     }
-    const { command, options } = parseOptions(argv);
+    const { command, options, passthrough } = parseOptions(argv);
     if (!command || command === '--help' || options.help) {
         console.log(stateCliHelp(command === '--help' ? undefined : command));
         return;
@@ -295,8 +296,23 @@ export async function runStateCli(argv: string[]): Promise<void> {
     if (command === 'init') return initialize(options);
     const supplied = one(options, 'state', true)!;
     const path = await resolveStatePath(supplied);
+    if (command === 'validation-run') {
+        const [executable, ...arguments_] = passthrough;
+        if (!executable) throw new Error('validation-run requires -- EXECUTABLE [ARG ...]');
+        return runValidation(path, {
+            arguments: arguments_,
+            executable,
+            expectedHeadSha: one(options, 'head-sha'),
+            kind: validationKindSchema.parse(one(options, 'kind', true)),
+            lineageId: one(options, 'lineage-id', true)!,
+            sessionId: one(options, 'session-id'),
+        });
+    }
+    if (passthrough.length > 0) throw new Error(`${command} does not accept arguments after --`);
     return withStateLock(path, async () => {
-        const state = await readState(path);
+        const state = await readState(path, {
+            validationArtifacts: command === 'validate' ? 'full' : 'metadata',
+        });
         if (command === 'resume') {
             const checkpoint = createResumeCheckpoint(state);
             console.log(
@@ -326,6 +342,14 @@ export async function runStateCli(argv: string[]): Promise<void> {
             return;
         }
         if (command === 'validate') {
+            const invalidArtifact = state.validations.find(
+                ({ logIntegrityError }) => logIntegrityError !== null,
+            );
+            if (invalidArtifact) {
+                throw new Error(
+                    `Validation ${invalidArtifact.id} artifact is invalid: ${invalidArtifact.logIntegrityError}`,
+                );
+            }
             console.log('Go state is valid');
             return;
         }
@@ -461,41 +485,10 @@ export async function runStateCli(argv: string[]): Promise<void> {
 
                 break;
             }
-            case 'validation-start': {
-                if (!state.worktree) throw new Error('Validation requires a recorded Go worktree');
-                const integrity = await inspectWorktreeIntegrity(state.worktree.path);
-                assertCleanValidationStart(integrity, one(options, 'head-sha'));
-                const validation = startValidation(state, {
-                    command: one(options, 'command', true)!,
-                    headSha: integrity.headSha,
-                    kind: validationKindSchema.parse(one(options, 'kind', true)),
-                    lineageId: one(options, 'lineage-id', true)!,
-                    logPath: one(options, 'log-path', true)!,
-                    sessionId: one(options, 'session-id', true)!,
-                    sourceFingerprint: integrity.sourceFingerprint,
-                });
-                addEvent(state, 'validation', `${validation.id} -> pending`);
-
-                break;
-            }
-            case 'validation-complete': {
-                if (!state.worktree) throw new Error('Validation requires a recorded Go worktree');
-                const integrity = await inspectWorktreeIntegrity(state.worktree.path);
-                const validation = completeValidation(state, {
-                    clean: integrity.clean,
-                    exitCode: integer(options, 'exit-code', true)!,
-                    headSha: integrity.headSha,
-                    id: one(options, 'id', true)!,
-                    sourceFingerprint: integrity.sourceFingerprint,
-                });
-                addEvent(state, 'validation', `${validation.id} -> ${validation.result}`);
-
-                break;
-            }
             case 'mutation-acquire': {
                 const kind = mutationLeaseKindSchema.parse(one(options, 'kind', true));
                 if (kind !== 'repair') {
-                    throw new Error('Validation leases are acquired only by validation-start');
+                    throw new Error('Validation leases are acquired only by validation-run');
                 }
                 const lease = acquireMutationLease(state, {
                     holderId: one(options, 'holder-id', true)!,
@@ -508,7 +501,7 @@ export async function runStateCli(argv: string[]): Promise<void> {
             case 'mutation-release': {
                 const kind = mutationLeaseKindSchema.parse(one(options, 'kind', true));
                 if (kind !== 'repair') {
-                    throw new Error('Validation leases are released only by validation-complete');
+                    throw new Error('Validation leases are released only by validation-run');
                 }
                 const holderId = one(options, 'holder-id', true)!;
                 releaseMutationLease(state, { holderId, kind });

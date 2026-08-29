@@ -1,6 +1,7 @@
+import { randomUUID } from 'node:crypto';
 import type { Stats } from 'node:fs';
 import { constants } from 'node:fs';
-import { lstat, mkdir, open, realpath, rm, rmdir } from 'node:fs/promises';
+import { link, lstat, mkdir, open, realpath, rm, unlink } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import process from 'node:process';
 
@@ -11,6 +12,7 @@ import { applyLedgerRetention, verifyLedgerRetention } from './ledger-retention'
 import { PROJECT_ROOT, RECORDS_ROOT } from './paths';
 import type { GoState } from './state-model';
 import { now, validateState } from './state-model';
+import { reconcileValidationArtifacts } from './validation-artifact';
 
 export { PROJECT_ROOT };
 const STATE_ROOT = join(RECORDS_ROOT, 'go');
@@ -34,6 +36,11 @@ interface DirectFileSnapshot {
     parent: DirectDirectorySnapshot;
 }
 
+interface StateLockReceipt {
+    acquiredAt: string;
+    pid: number;
+}
+
 function errorCode(error: unknown): string | undefined {
     if (typeof error !== 'object' || error === null || !('code' in error)) return undefined;
     return typeof error.code === 'string' ? error.code : undefined;
@@ -51,6 +58,15 @@ function assertOwned(metadata: Stats, label: string): void {
 
 function hasSameIdentity(left: { dev: number; ino: number }, right: { dev: number; ino: number }) {
     return left.dev === right.dev && left.ino === right.ino;
+}
+
+function isProcessAlive(pid: number): boolean {
+    try {
+        process.kill(pid, 0);
+        return true;
+    } catch (error: unknown) {
+        return errorCode(error) !== 'ESRCH';
+    }
 }
 
 async function inspectDirectDirectory(path: string): Promise<DirectDirectorySnapshot> {
@@ -205,13 +221,21 @@ export async function resolveStatePath(supplied: string): Promise<string> {
     return path;
 }
 
-export async function readState(path: string): Promise<GoState> {
+export async function readState(
+    path: string,
+    options: { validationArtifacts?: 'full' | 'metadata' } = {},
+): Promise<GoState> {
     const snapshot = await inspectDirectFile(path);
     const raw: unknown = JSON.parse(await readDirectFile(path, snapshot));
     const state = validateState(raw);
     await verifyLedgerRetention(path, state, snapshot.parent.canonicalPath);
     const runDirectory = dirname(path);
     await verifyHandoffReportArtifact(state, runDirectory);
+    await reconcileValidationArtifacts(
+        state,
+        runDirectory,
+        options.validationArtifacts ?? 'metadata',
+    );
     const isRecoveredFinalizationDelivery = await wasFinalizationArtifactRecovered(
         state,
         runDirectory,
@@ -267,18 +291,90 @@ export async function writeInitialState(path: string, state: GoState): Promise<v
     }
 }
 
+async function didRecoverStaleStateLock(
+    lockPath: string,
+    expectedParent: DirectDirectorySnapshot,
+): Promise<boolean> {
+    let lock: DirectFileSnapshot;
+    try {
+        lock = await inspectDirectFile(lockPath);
+    } catch (error: unknown) {
+        if (errorCode(error) === 'ENOENT') return true;
+        throw new Error('Go state lock is not a valid owner receipt', { cause: error });
+    }
+    assertSameDirectory(lock.parent, expectedParent);
+    let receipt: StateLockReceipt;
+    try {
+        const value: unknown = JSON.parse(await readDirectFile(lockPath, lock));
+        if (
+            typeof value !== 'object' ||
+            value === null ||
+            !('pid' in value) ||
+            !Number.isSafeInteger(value.pid) ||
+            Number(value.pid) <= 0 ||
+            !('acquiredAt' in value) ||
+            typeof value.acquiredAt !== 'string'
+        ) {
+            throw new Error('Owner receipt fields are invalid');
+        }
+        receipt = value as StateLockReceipt;
+    } catch (error: unknown) {
+        throw new Error('Go state lock owner receipt could not be read', {
+            cause: error,
+        });
+    }
+    if (isProcessAlive(receipt.pid)) return false;
+    let current: DirectFileSnapshot;
+    try {
+        current = await inspectDirectFile(lockPath);
+    } catch (error: unknown) {
+        if (errorCode(error) === 'ENOENT') return true;
+        throw error;
+    }
+    assertSameFile(current, lock);
+    try {
+        await unlink(lockPath);
+    } catch (error: unknown) {
+        if (errorCode(error) !== 'ENOENT') throw error;
+    }
+    return true;
+}
+
+async function acquireStateLock(
+    lockPath: string,
+    expectedParent: DirectDirectorySnapshot,
+): Promise<DirectFileSnapshot> {
+    const temporaryPath = join(
+        dirname(lockPath),
+        `.state-lock-${String(process.pid)}-${randomUUID()}.tmp`,
+    );
+    const temporary = await writeExclusiveFile(
+        temporaryPath,
+        `${JSON.stringify({ acquiredAt: now(), pid: process.pid } satisfies StateLockReceipt)}\n`,
+    );
+    assertSameDirectory(temporary.parent, expectedParent);
+    try {
+        await link(temporaryPath, lockPath);
+        const lock = await inspectDirectFile(lockPath);
+        if (!hasSameIdentity(lock, temporary)) {
+            throw new Error('Go state writer lock changed during acquisition');
+        }
+        await unlink(temporaryPath);
+        return lock;
+    } catch (error: unknown) {
+        await rm(temporaryPath, { force: true });
+        if (errorCode(error) !== 'EEXIST') throw asError(error);
+        if (await didRecoverStaleStateLock(lockPath, expectedParent)) {
+            return acquireStateLock(lockPath, expectedParent);
+        }
+        throw new Error('Go state is already locked by another writer', { cause: error });
+    }
+}
+
 export async function withStateLock<T>(path: string, action: () => Promise<T>): Promise<T> {
     const target = await inspectDirectFile(path);
     const lockPath = join(dirname(path), 'state.lock');
-    try {
-        await mkdir(lockPath, { mode: 0o700 });
-    } catch (error: unknown) {
-        if (errorCode(error) === 'EEXIST')
-            throw new Error('Go state is already locked by another writer', { cause: error });
-        throw asError(error);
-    }
-    const lock = await inspectDirectDirectory(lockPath);
-    assertSameDirectory(await inspectDirectDirectory(dirname(lockPath)), target.parent);
+    const lock = await acquireStateLock(lockPath, target.parent);
     let result: T | undefined;
     let actionError: unknown;
     try {
@@ -290,11 +386,11 @@ export async function withStateLock<T>(path: string, action: () => Promise<T>): 
     try {
         const currentParent = await inspectDirectDirectory(dirname(path));
         assertSameDirectory(currentParent, target.parent);
-        const currentLock = await inspectDirectDirectory(lockPath);
+        const currentLock = await inspectDirectFile(lockPath);
         if (!hasSameIdentity(currentLock, lock)) {
             throw new Error('Go state writer lock ownership changed before release');
         }
-        await rmdir(lockPath);
+        await unlink(lockPath);
     } catch (error: unknown) {
         releaseError = error;
     }

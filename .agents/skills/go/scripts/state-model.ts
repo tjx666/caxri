@@ -41,9 +41,9 @@ import {
     runBudgetSchema,
 } from './run-budget';
 import { migrateState } from './state-migration';
-import { validationsSchema } from './validation-gate';
+import { refreshValidationResult, validationsSchema } from './validation-gate';
 
-const SCHEMA_VERSION = 10;
+const SCHEMA_VERSION = 11;
 
 const PHASES = [
     'intake',
@@ -566,6 +566,13 @@ export function validateState(state: unknown): GoState {
         throw new Error('Invalid Go state: worktree paths must be absolute');
     }
     const pendingValidations = parsed.validations.filter(({ result }) => result === 'pending');
+    for (const validation of parsed.validations) {
+        const recordedResult = validation.result;
+        const derivedResult = refreshValidationResult({ ...validation });
+        if (recordedResult !== derivedResult) {
+            throw new Error(`Invalid Go state: ${validation.id} result contradicts its receipt`);
+        }
+    }
     if (pendingValidations.length > 1) {
         throw new Error('Invalid Go state: only one validation may be pending');
     }
