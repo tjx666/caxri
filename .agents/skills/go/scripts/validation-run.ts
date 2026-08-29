@@ -302,8 +302,14 @@ async function recoverAbandonedValidation(
                 `Validation ${record.id} predates validation-run and cannot be recovered automatically`,
             );
         }
-        if ((await probe(record.runnerPid)) === record.runnerIdentity) {
+        const observedRunnerIdentity = await probe(record.runnerPid);
+        if (observedRunnerIdentity === record.runnerIdentity) {
             throw new Error(`Validation ${record.id} runner ${record.runnerPid} is still alive`);
+        }
+        if (observedRunnerIdentity === undefined && isProcessAlive(record.runnerPid)) {
+            throw new Error(
+                `Validation ${record.id} runner ${record.runnerPid} identity could not be verified`,
+            );
         }
         return {
             childIdentity: record.childIdentity,
@@ -518,7 +524,7 @@ async function executeLoggedCommand(
                             if (message.type === 'spawn_error') {
                                 lifecycle.isLaunchError = true;
                                 log.write(
-                                    `CAXRI_VALIDATION_LAUNCH_ERROR ${message.message ?? 'Unknown launch error'}\n`,
+                                    `CAXRI_VALIDATION_LAUNCH_ERROR ${redactSecretText(message.message ?? 'Unknown launch error')}\n`,
                                 );
                             } else {
                                 lifecycle.commandResult = {

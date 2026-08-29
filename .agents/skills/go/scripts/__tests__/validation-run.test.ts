@@ -215,6 +215,26 @@ describe('Go validation runner', () => {
         expect(state.validations[0]).toMatchObject({ argumentCount: 5, arguments: [] });
     });
 
+    it('redacts a secret-bearing executable from launch failures', async () => {
+        const { statePath } = await fixture();
+        const secret = `github_pat_${'b'.repeat(20)}`;
+        await expect(
+            runValidation(statePath, {
+                arguments: [],
+                executable: `/tmp/${secret}`,
+                kind: 'fixture',
+                lineageId: 'secret-executable',
+            }),
+        ).resolves.toBe(1);
+
+        const stateSource = await readFile(statePath, 'utf8');
+        const state = await readState(statePath);
+        const log = await readFile(join(dirname(statePath), state.validations[0].logPath), 'utf8');
+        expect(stateSource).not.toContain(secret);
+        expect(log).not.toContain(secret);
+        expect(log).toContain('[REDACTED]');
+    });
+
     it('terminates output floods with a complete bounded failure receipt', async () => {
         const { statePath } = await fixture();
         await expect(
@@ -549,6 +569,51 @@ describe('Go validation runner', () => {
             if (isProcessAlive(decoyPid)) decoy.kill('SIGTERM');
             await waitForProcessExit(decoyPid);
         }
+    });
+
+    it('keeps a live pending runner when its identity probe is unavailable', async () => {
+        const { headSha, statePath, worktree } = await fixture();
+        const state = await readState(statePath);
+        const integrity = await inspectWorktreeIntegrity(worktree);
+        const pending = startValidation(state, {
+            argumentCount: 0,
+            artifactVersion: 1,
+            command: 'pending validation',
+            commandDigest: 'd'.repeat(64),
+            executable: process.execPath,
+            headSha,
+            kind: 'fixture',
+            lineageId: 'runner-probe-failure',
+            runnerIdentity: 'e'.repeat(64),
+            runnerPid: process.pid,
+            sourceFingerprint: integrity.sourceFingerprint,
+        });
+        await writeState(statePath, state);
+
+        await expect(
+            runValidation(
+                statePath,
+                {
+                    arguments: [],
+                    executable: process.execPath,
+                    kind: 'fixture',
+                    lineageId: 'runner-probe-failure',
+                },
+                {
+                    getProcessIdentity: async (pid) => {
+                        await Promise.resolve();
+                        return ['identity'].at(pid);
+                    },
+                },
+            ),
+        ).rejects.toThrow('identity could not be verified');
+
+        const preserved = await readState(statePath);
+        expect(preserved.validations[0]).toMatchObject({ id: pending.id, result: 'pending' });
+        expect(preserved.mutationLease).toMatchObject({
+            holderId: pending.id,
+            kind: 'validation',
+        });
     });
 
     it.each(['deleted', 'digest-changed', 'truncated', 'tampered'] as const)(
