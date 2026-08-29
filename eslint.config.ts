@@ -97,6 +97,11 @@ export default defineConfig(
          */
         '.claude/**',
         /**
+         * The design-prototype runtime manifest resolves its `@/` imports through esbuild `--alias` flags in
+         * `build-runtime.ts`, not tsconfig paths. This mirrors the type-aware lint exclusion in `.oxlintrc.json`.
+         */
+        '.agents/skills/design-prototype/assets/entry.mjs',
+        /**
          * Gitignored design-prototype runtime artifacts: the bundled/vendored minified `.js` files that
          * `build-runtime.ts` writes and caches beside the tracked `entry.mjs` source.
          */
