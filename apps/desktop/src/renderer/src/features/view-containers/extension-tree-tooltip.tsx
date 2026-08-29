@@ -1,4 +1,9 @@
-import type { FocusEventHandler, KeyboardEventHandler, ReactElement } from 'react';
+import type {
+    FocusEventHandler,
+    KeyboardEventHandler,
+    PointerEvent as ReactPointerEvent,
+    ReactElement,
+} from 'react';
 import { cloneElement, useCallback, useId, useRef, useState } from 'react';
 
 import type { TreeItemDto } from '@caxri/protocol';
@@ -66,6 +71,12 @@ export function ExtensionTreeTooltip({
         [tooltipId, triggerKeyDown],
     );
     /**
+     * Seeds the pointer before Base UI's mouse-enter open path, then keeps it current during the cold-open delay.
+     */
+    const capturePointer = useCallback((event: ReactPointerEvent) => {
+        latestPointer.current = { x: event.clientX, y: event.clientY };
+    }, []);
+    /**
      * Base UI gives the rendered element's props precedence over Trigger props. Compose focus opening and the Tab
      * bridge into the tree row so its roving-focus handlers remain active and keyboard users can enter the links.
      */
@@ -108,9 +119,8 @@ export function ExtensionTreeTooltip({
                 delay={500}
                 ref={triggerReference}
                 render={keyboardTrigger}
-                onPointerMove={(event) => {
-                    latestPointer.current = { x: event.clientX, y: event.clientY };
-                }}
+                onPointerEnter={capturePointer}
+                onPointerMove={capturePointer}
             />
             <HoverCardContent
                 align="start"

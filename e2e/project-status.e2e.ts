@@ -30,6 +30,7 @@ test('bundled Project Status extension renders and refreshes the current reposit
     const statusDelayPath = join(testDirectory, 'status-delay.txt');
     const statusRequestLogPath = join(testDirectory, 'status-requests.txt');
     const statusTitlePath = join(testDirectory, 'status-title.txt');
+    const longCheckUrl = `https://github.com/tjx666/project/actions/runs/42/job/${'a'.repeat(180)}`;
     await execFileAsync('mkdir', ['-p', root, bin]);
     await execFileAsync('git', ['init', '-b', 'feature/status'], { cwd: root });
     await execFileAsync('git', ['config', 'user.email', 'fixture@caxri.test'], { cwd: root });
@@ -59,7 +60,7 @@ test('bundled Project Status extension renders and refreshes the current reposit
 sleep "$(cat ${JSON.stringify(statusDelayPath)})"
 printf 'request\n' >> ${JSON.stringify(statusRequestLogPath)}
 status_title=$(cat ${JSON.stringify(statusTitlePath)})
-printf '{"body":"Related to https://linear.app/lobehub/issue/LOBE-42/project-status","number":42,"title":"%s","url":"https://github.com/tjx666/project/pull/42","statusCheckRollup":[{"workflowName":"Test","name":"App","status":"COMPLETED","conclusion":"FAILURE","startedAt":"2026-08-23T00:00:00.000Z","completedAt":"2026-08-23T00:02:05.000Z"}]}' "$status_title"
+printf '{"body":"Related to https://linear.app/lobehub/issue/LOBE-42/project-status","number":42,"title":"%s","url":"https://github.com/tjx666/project/pull/42","statusCheckRollup":[{"workflowName":"Test","name":"App","status":"COMPLETED","conclusion":"FAILURE","startedAt":"2026-08-23T00:00:00.000Z","completedAt":"2026-08-23T00:02:05.000Z"},{"workflowName":"Test","name":"Packages","status":"COMPLETED","conclusion":"SUCCESS","startedAt":"2026-08-23T00:00:00.000Z","completedAt":"2026-08-23T00:01:00.000Z","detailsUrl":${JSON.stringify(longCheckUrl)}}]}' "$status_title"
 `,
         'utf8',
     );
@@ -175,9 +176,61 @@ esac
         await expect(pullRequestA.locator('[data-theme-icon="circle-x"]')).toHaveClass(
             /text-danger/,
         );
+        const appCheck = tree.getByRole('treeitem', { name: 'Test / App, 2m 5s', exact: true });
+        const packagesCheck = tree.getByRole('treeitem', {
+            name: 'Test / Packages, 1m',
+            exact: true,
+        });
+        await expect(appCheck).toBeVisible();
+        await expect(packagesCheck).toBeVisible();
+        const appCheckBounds = await appCheck.boundingBox();
+        const packagesCheckBounds = await packagesCheck.boundingBox();
+        if (!appCheckBounds || !packagesCheckBounds)
+            throw new Error('Project Status check bounds are unavailable');
+        await running.page.mouse.move(
+            appCheckBounds.x + appCheckBounds.width / 2,
+            appCheckBounds.y + appCheckBounds.height / 2,
+        );
         await expect(
-            tree.getByRole('treeitem', { name: 'Test / App, 2m 5s', exact: true }),
+            running.page.locator('.tooltip-popup:visible').filter({ hasText: 'Test / App' }),
         ).toBeVisible();
+        const pointer = {
+            x: packagesCheckBounds.x + packagesCheckBounds.width / 2,
+            y: packagesCheckBounds.y + packagesCheckBounds.height / 2,
+        };
+        await running.page.mouse.move(pointer.x, pointer.y);
+        const packagesTooltip = running.page
+            .locator('.tooltip-popup:visible')
+            .filter({ hasText: 'Test / Packages' });
+        await expect(packagesTooltip).toBeVisible();
+        await packagesTooltip.evaluate(async (element) => {
+            await Promise.allSettled(
+                element.getAnimations().map((animation) => animation.finished),
+            );
+        });
+        const tooltipLayout = await packagesTooltip.evaluate((element, currentPointer) => {
+            const popupBounds = element.getBoundingClientRect();
+            const content = element.querySelector('span');
+            if (!content) throw new Error('Tooltip content is unavailable');
+            const contentRange = document.createRange();
+            contentRange.selectNodeContents(content);
+            const textBounds = Array.from(contentRange.getClientRects());
+            return {
+                besidePointer:
+                    popupBounds.right <= currentPointer.x - 8 ||
+                    popupBounds.left >= currentPointer.x + 8,
+                contentInsidePopup: textBounds.every(
+                    (bounds) =>
+                        bounds.left >= popupBounds.left - 0.5 &&
+                        bounds.right <= popupBounds.right + 0.5,
+                ),
+                lineCount: new Set(textBounds.map((bounds) => Math.round(bounds.top))).size,
+            };
+        }, pointer);
+        expect(tooltipLayout.besidePointer).toBe(true);
+        expect(tooltipLayout.contentInsidePopup).toBe(true);
+        expect(tooltipLayout.lineCount).toBeGreaterThanOrEqual(3);
+        await running.page.mouse.move(0, 0);
         await running.app.evaluate(({ dialog, shell }) => {
             const target = globalThis as typeof globalThis & {
                 caxriTreeCommandProbe?: { confirmations: string[]; opened: string[] };
