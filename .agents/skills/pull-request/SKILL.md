@@ -38,7 +38,9 @@ authority.
    survives offline windows with capped backoff. The command exits 0/1 with the run conclusion.
 7. Merge only when explicitly authorized by the user or an active workflow such as `go`. Verify the
    remote merged state and merge commit before reporting completion.
-8. After a merge initiated from the primary checkout, return that checkout to `main` and
-   fast-forward it to `origin/main`. Do this only when the working tree is clean and the update is
-   fast-forward; otherwise preserve the checkout and report the exact dirty-state or divergence
-   blocker.
+8. After the current task's PR is merged, inspect whether the task is running in the primary
+   checkout or a linked worktree. In the primary checkout, normally switch back to `main` and
+   fast-forward it to `origin/main`. In a linked worktree, leave its branch and checkout in place;
+   do not switch it to `main`. Switch or update the primary checkout only when its working tree is
+   clean and the update is fast-forward; otherwise preserve it and report the exact dirty-state or
+   divergence blocker.
