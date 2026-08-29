@@ -103,7 +103,7 @@ export function createResumeCheckpoint(state: GoState) {
             ? ['Exact-head handoff report is missing']
             : []),
         ...(state.validations.some(({ result }) => result === 'pending')
-            ? ['A validation command has no final exit code']
+            ? ['A validation command has no final process result']
             : []),
         ...(state.mutationLease?.kind === 'repair'
             ? [`Repair mutation lease is active: ${state.mutationLease.holderId}`]
@@ -230,8 +230,8 @@ export function formatResumeCheckpoint(
     if (pendingValidations.length > 0) {
         lines.push(
             ...pendingValidations.map(
-                ({ command, id, logPath, sessionId }) =>
-                    `pending-validation: ${id} session=${sessionId} log=${logPath} command=${command}`,
+                ({ childPid, command, id, logPath, runnerPid, sessionId }) =>
+                    `pending-validation: ${id} session=${sessionId} runner=${runnerPid ?? 'unknown'} child=${childPid ?? 'unknown'} log=${logPath} command=${command}`,
             ),
         );
     }

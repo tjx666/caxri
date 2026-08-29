@@ -86,7 +86,9 @@ After a passing round:
 1. Store the acceptance id, URL, round index, and `pending` state in the ledger.
    Inside Go, publish only through `state.ts acceptance-publish`; it forces
    `--acceptance` after round one and reads the remote round back before updating
-   the ledger. Record accidental standalone history with `acceptance-orphan`.
+   the ledger. The ordinary `state.ts acceptance` status command never accepts
+   `--round`; use `acceptance-reconcile-round` only for an explicitly documented
+   ledger repair. Record accidental standalone history with `acceptance-orphan`.
    If the authenticated principal can read a public frozen Acceptance but cannot
    append to it, confirm the ownership mismatch and absence of a pending attempt,
    then use `acceptance-restart-lineage` with the active id and an explicit reason.

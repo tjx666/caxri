@@ -1,3 +1,7 @@
+import { createHash } from 'node:crypto';
+
+import { redactSecretText } from '@caxri/utils';
+
 import { createEmptyAcceptancePublication } from './acceptance-publication';
 import { createEmptyCiFallback, createEmptyValidationBudget } from './ci-fallback';
 import {
@@ -6,6 +10,7 @@ import {
 } from './issue-drift';
 import { createEmptyLedgerRetention } from './ledger-retention';
 import { sanitizeLedgerDetail, sanitizeNoteText } from './note-safety';
+import { PLATFORM_NEUTRAL_CI_COMMANDS } from './platform-neutral-gates';
 import { createEmptyReviewGate, createReviewPolicy } from './review-gate';
 import { createRunBudget } from './run-budget';
 
@@ -293,6 +298,65 @@ function migrateV9(state: Record<string, unknown>): Record<string, unknown> {
     };
 }
 
+function migrateV10(state: Record<string, unknown>): Record<string, unknown> {
+    const legacyValidations: unknown[] = Array.isArray(state.validations) ? state.validations : [];
+    const validations = legacyValidations.map((validation) => {
+        if (!isRecord(validation)) return validation;
+        return {
+            ...validation,
+            arguments: [],
+            artifactVersion: 0,
+            childPid: null,
+            durationMs: null,
+            executable: null,
+            logByteLength: null,
+            logError: null,
+            logIntegrityError: null,
+            logMetadata: null,
+            logSha256: null,
+            runnerPid: null,
+            signal: null,
+            termination: validation.result === 'pending' ? null : 'legacy',
+        };
+    });
+    return { ...state, schemaVersion: 11, validations };
+}
+
+function migrateV11(state: Record<string, unknown>): Record<string, unknown> {
+    const legacyValidations: unknown[] = Array.isArray(state.validations) ? state.validations : [];
+    const canonicalGates = new Set<string>(PLATFORM_NEUTRAL_CI_COMMANDS);
+    const validations = legacyValidations.map((validation) => {
+        if (!isRecord(validation)) return validation;
+        const arguments_ = Array.isArray(validation.arguments)
+            ? validation.arguments.filter((value): value is string => typeof value === 'string')
+            : [];
+        const executable = typeof validation.executable === 'string' ? validation.executable : null;
+        const legacyCommand =
+            typeof validation.command === 'string' ? validation.command : 'legacy validation';
+        const identitySource =
+            executable && validation.artifactVersion === 1
+                ? JSON.stringify([executable, ...arguments_])
+                : legacyCommand;
+        const commandDigest = createHash('sha256').update(identitySource).digest('hex');
+        const isCanonicalGate = validation.kind === 'gates' && canonicalGates.has(legacyCommand);
+        return {
+            ...validation,
+            argumentCount: arguments_.length,
+            arguments: [],
+            childIdentity: null,
+            command: isCanonicalGate
+                ? legacyCommand
+                : executable
+                  ? `${redactSecretText(executable)} (${arguments_.length} args; sha256:${commandDigest.slice(0, 12)})`
+                  : sanitizeLedgerDetail(legacyCommand),
+            commandDigest,
+            executable: executable ? redactSecretText(executable) : null,
+            runnerIdentity: null,
+        };
+    });
+    return { ...state, schemaVersion: 12, validations };
+}
+
 export function migrateState(state: unknown, schemaVersion: number): unknown {
     if (!isRecord(state)) return state;
     let migrated = state;
@@ -345,5 +409,7 @@ export function migrateState(state: unknown, schemaVersion: number): unknown {
     if (migrated.schemaVersion === 7 && schemaVersion >= 8) migrated = migrateV7(migrated);
     if (migrated.schemaVersion === 8 && schemaVersion >= 9) migrated = migrateV8(migrated);
     if (migrated.schemaVersion === 9 && schemaVersion >= 10) migrated = migrateV9(migrated);
+    if (migrated.schemaVersion === 10 && schemaVersion >= 11) migrated = migrateV10(migrated);
+    if (migrated.schemaVersion === 11 && schemaVersion >= 12) migrated = migrateV11(migrated);
     return migrated;
 }

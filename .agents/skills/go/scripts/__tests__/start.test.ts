@@ -10,7 +10,7 @@ describe('Go isolated startup', () => {
             { branch: 'feat/go-isolation', objective: 'Deliver safely', runId: 'go-test' },
             '/repo',
             {
-                capture: (_command, arguments_, cwd) => {
+                capture: (command, arguments_, cwd) => {
                     calls.push(`${cwd}: ${arguments_.join(' ')}`);
                     if (arguments_.includes('--git-common-dir'))
                         return Promise.resolve('/repo/.git');
@@ -18,6 +18,7 @@ describe('Go isolated startup', () => {
                     if (arguments_.join(' ') === 'rev-parse origin/main')
                         return Promise.resolve('base');
                     if (cwd === '/repo-worktrees/go-isolation') {
+                        if (command === 'bun') return Promise.resolve('');
                         return Promise.resolve(
                             arguments_[0] === 'branch' ? 'feat/go-isolation' : 'base',
                         );
@@ -33,6 +34,7 @@ describe('Go isolated startup', () => {
                     return Promise.resolve({ path: '/repo-worktrees/go-isolation' });
                 },
                 initialize: (worktreePath, input, metadata) => {
+                    calls.push('initialize');
                     expect({ input, metadata, worktreePath }).toMatchObject({
                         input: { runId: 'go-test' },
                         metadata: { baseSha: 'base', mainCheckoutPath: '/repo' },
@@ -52,6 +54,7 @@ describe('Go isolated startup', () => {
             worktreePath: '/repo-worktrees/go-isolation',
         });
         expect(calls).toContain('/repo: fetch --quiet origin main');
+        expect(calls).toContain('initialize');
     });
 
     it('fails if startup changes the main checkout snapshot', async () => {

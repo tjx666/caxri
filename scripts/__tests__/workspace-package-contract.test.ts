@@ -1,6 +1,8 @@
+import { execFile } from 'node:child_process';
 import { access, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import process from 'node:process';
+import { promisify } from 'node:util';
 
 import { satisfies } from 'semver';
 import { describe, expect, it } from 'vitest';
@@ -11,6 +13,18 @@ interface ReleaseManifest {
 }
 
 const workspaceRoot = process.cwd();
+const execFileAsync = promisify(execFile);
+
+interface RuntimeExportConditions {
+    bun: string;
+    import: string;
+    types: string;
+}
+
+interface RuntimePackageManifest {
+    exports: Record<string, RuntimeExportConditions>;
+    name: string;
+}
 
 async function readPackageManifest(...segments: string[]): Promise<ReleaseManifest> {
     const manifest = await readFile(join(workspaceRoot, ...segments), 'utf8');
@@ -56,6 +70,78 @@ describe('workspace package manifests', () => {
             import: './dist/index.js',
             types: './src/index.ts',
         });
+    });
+
+    it('runs private workspace packages from source in Bun while preserving Node build exports', async () => {
+        const manifestPaths = [
+            'packages/agent-skills/package.json',
+            'packages/client/package.json',
+            'packages/protocol/package.json',
+            'packages/system/package.json',
+            'packages/utils/package.json',
+        ];
+        const manifests = await Promise.all(
+            manifestPaths.map(async (path) => {
+                const contents = await readFile(join(workspaceRoot, path), 'utf8');
+                return JSON.parse(contents) as RuntimePackageManifest;
+            }),
+        );
+        const exports = manifests.flatMap((manifest) =>
+            Object.entries(manifest.exports).map(([subpath, conditions]) => ({
+                conditions,
+                specifier: subpath === '.' ? manifest.name : `${manifest.name}${subpath.slice(1)}`,
+            })),
+        );
+
+        for (const { conditions } of exports) {
+            expect(conditions.bun).toBe(conditions.types);
+            expect(conditions.bun).toMatch(/^\.\/src\/.+\.ts$/u);
+            expect(conditions.import).toMatch(/^\.\/dist\/.+\.js$/u);
+        }
+
+        const resolutionGroups = [
+            {
+                cwd: workspaceRoot,
+                exports: exports.filter(
+                    ({ specifier }) => !specifier.startsWith('@caxri/agent-skills'),
+                ),
+            },
+            {
+                cwd: join(workspaceRoot, 'apps/cli'),
+                exports: exports.filter(({ specifier }) =>
+                    specifier.startsWith('@caxri/agent-skills'),
+                ),
+            },
+        ];
+        const resolutionResults = await Promise.all(
+            resolutionGroups.map(async (group) => {
+                const specifiers = group.exports.map(({ specifier }) => specifier);
+                const resolver = `process.stdout.write(JSON.stringify(${JSON.stringify(specifiers)}.map((specifier) => import.meta.resolve(specifier))))`;
+                const bunRuntimeProbe = `await Promise.all(${JSON.stringify(specifiers)}.map((specifier) => import(specifier))); ${resolver}`;
+                const [{ stdout: bunOutput }, { stdout: nodeOutput }] = await Promise.all([
+                    execFileAsync('bun', ['--no-env-file', '--eval', bunRuntimeProbe], {
+                        cwd: group.cwd,
+                    }),
+                    execFileAsync('node', ['--input-type=module', '--eval', resolver], {
+                        cwd: group.cwd,
+                    }),
+                ]);
+                return {
+                    bunPaths: JSON.parse(bunOutput) as string[],
+                    exports: group.exports,
+                    nodePaths: JSON.parse(nodeOutput) as string[],
+                };
+            }),
+        );
+
+        for (const { bunPaths, exports: groupExports, nodePaths } of resolutionResults) {
+            expect(bunPaths).toHaveLength(groupExports.length);
+            expect(nodePaths).toHaveLength(groupExports.length);
+            for (const [index, { conditions }] of groupExports.entries()) {
+                expect(bunPaths[index]?.endsWith(conditions.bun.slice(1))).toBe(true);
+                expect(nodePaths[index]?.endsWith(conditions.import.slice(1))).toBe(true);
+            }
+        }
     });
 
     it.each(['fixture', 'git', 'status'])(

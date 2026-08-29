@@ -17,6 +17,11 @@ export function platformCheckCommands(environment: NodeJS.ProcessEnv): PlatformC
     const vitestWorkers = environment.CAXRI_VITEST_MAX_WORKERS ?? '2';
     return [
         {
+            arguments: ['run', 'scripts/prepare-node-pty.ts'],
+            command: 'bun',
+            label: 'node-pty spawn helper',
+        },
+        {
             arguments: [
                 'run',
                 'scripts/ci-metrics.ts',

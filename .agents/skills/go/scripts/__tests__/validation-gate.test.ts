@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { createRunBudget } from '../run-budget';
-import { completeValidation, startValidation } from '../validation-gate';
+import { completeValidation, recordValidationChildPid, startValidation } from '../validation-gate';
 
 function validationState() {
     return { mutationLease: null, runBudget: createRunBudget(), validations: [] };
@@ -127,5 +127,74 @@ describe('Go validation gate', () => {
         expect(state.runBudget.repairStops).toEqual([
             expect.objectContaining({ lineageId: 'typecheck-failure' }),
         ]);
+    });
+
+    it('requires a complete managed log receipt before passing', () => {
+        const state = validationState();
+        const validation = startValidation(state, {
+            argumentCount: 2,
+            artifactVersion: 1,
+            command: 'bun run typecheck',
+            commandDigest: 'a'.repeat(64),
+            executable: 'bun',
+            headSha: 'head-1',
+            kind: 'gates',
+            lineageId: 'managed-typecheck',
+            runnerPid: 100,
+            sourceFingerprint: 'fingerprint-head-1',
+        });
+        recordValidationChildPid(state, validation.id, 100, 101);
+
+        const completed = completeValidation(state, {
+            clean: true,
+            durationMs: 25,
+            exitCode: 0,
+            headSha: validation.headSha,
+            id: validation.id,
+            logByteLength: 42,
+            logMetadata: { ctimeMs: 1, device: 1, inode: 1, mtimeMs: 1 },
+            logSha256: 'a'.repeat(64),
+            sourceFingerprint: validation.sourceFingerprint,
+            termination: 'exit',
+        });
+
+        expect(completed).toMatchObject({
+            childPid: 101,
+            durationMs: 25,
+            result: 'passed',
+            termination: 'exit',
+        });
+    });
+
+    it('does not charge caller interruption or runner loss against the repair budget', () => {
+        const state = validationState();
+        for (const [index, termination] of (
+            ['caller_interrupt', 'runner_lost'] as const
+        ).entries()) {
+            const validation = startValidation(state, {
+                argumentCount: 2,
+                artifactVersion: 1,
+                command: 'bun run typecheck',
+                commandDigest: 'a'.repeat(64),
+                executable: 'bun',
+                headSha: `head-${index + 1}`,
+                kind: 'gates',
+                lineageId: 'interrupted-typecheck',
+                runnerPid: 100 + index,
+                sourceFingerprint: `fingerprint-head-${index + 1}`,
+            });
+            expect(validation.attempt).toBe(1);
+            completeValidation(state, {
+                clean: true,
+                exitCode: null,
+                headSha: validation.headSha,
+                id: validation.id,
+                logError: 'fixture interruption',
+                signal: termination === 'caller_interrupt' ? 'SIGINT' : null,
+                sourceFingerprint: validation.sourceFingerprint,
+                termination,
+            });
+        }
+        expect(state.runBudget.repairStops).toEqual([]);
     });
 });

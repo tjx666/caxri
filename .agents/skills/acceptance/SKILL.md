@@ -35,9 +35,10 @@ user-visible.
   app. A deliberate frontmost interval contains one pre-authored native interaction, its capture or
   readback, and immediate dismissal. On the first observation that does not match the pre-authored
   expectation, close the owned native UI and stop the owned launch before investigating.
-- Use CDP and `agent-browser` for renderer interaction, DOM inspection, and screenshots. Use OS
-  capture only when the criterion is specifically about Electron or macOS chrome that CDP cannot
-  see.
+- Use CDP and `agent-browser` for Renderer interaction and live inspection. Capture settled
+  Acceptance screenshots with `capture-renderer.ts screenshot --output <path>` so the owned
+  runtime, exact target, and output argument are validated. Use OS capture only when the criterion
+  is specifically about Electron or macOS chrome that CDP cannot see.
 - Bootstrap every isolated Project with the default `CAXRI_TEST_ROOT_PATH` fixture. Native macOS
   dialogs are manual Acceptance boundaries by default: do not trigger, inspect, click, record, or
   retry one. Stub Main's dialog result for automated coverage and hand dialog-specific checks to

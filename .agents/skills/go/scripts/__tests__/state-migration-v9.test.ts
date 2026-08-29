@@ -49,7 +49,7 @@ describe('Go schema v9 migration', () => {
         const migrated = validateState(legacy);
         expect(migrated).toMatchObject({
             mutationLease: { holderId: 'validation-001', kind: 'validation' },
-            schemaVersion: 10,
+            schemaVersion: 12,
         });
         expect(migrated.runBudget.checkpoints[0]).toMatchObject({
             elapsedSeconds: 0,
@@ -57,8 +57,10 @@ describe('Go schema v9 migration', () => {
             validationAttemptCount: 1,
         });
         expect(migrated.validations[0]).toMatchObject({
+            artifactVersion: 0,
             integrityError: null,
             sourceFingerprint: 'legacy-unavailable',
+            termination: null,
         });
     });
 });
