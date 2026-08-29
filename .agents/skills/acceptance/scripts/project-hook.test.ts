@@ -113,6 +113,27 @@ describe('Caxri Acceptance project hook', () => {
             ruleId: 'caxri-acceptance-raw-screenshot',
         });
         expect(
+            evaluate('agent-browser --cdp 9326 screenshot /tmp/debug.png | grep saved'),
+        ).toMatchObject({ ruleId: 'caxri-acceptance-raw-screenshot' });
+        expect(
+            evaluate('echo ready && agent-browser --cdp 9326 screenshot /tmp/debug.png'),
+        ).toMatchObject({ ruleId: 'caxri-acceptance-raw-screenshot' });
+        for (const command of [
+            'echo "$(agent-browser --cdp 9326 screenshot /tmp/debug.png)"',
+            'echo `agent-browser --cdp 9326 screenshot /tmp/debug.png`',
+            'command agent-browser --cdp 9326 screenshot /tmp/debug.png',
+            'exec agent-browser --cdp 9326 screenshot /tmp/debug.png',
+            "bash -c 'agent-browser --cdp 9326 screenshot /tmp/debug.png'",
+            'agent-browser --cdp 9326 >/tmp/agent-browser.log screenshot /tmp/debug.png',
+            'agent-browser --cdp 9326 screenshot>/tmp/debug.png',
+            'agent-browser --cdp 9326 \\\n screenshot /tmp/debug.png',
+            'agent-browser --restore acceptance --cdp 9326 screenshot /tmp/debug.png',
+        ]) {
+            expect(evaluate(command), command).toMatchObject({
+                ruleId: 'caxri-acceptance-raw-screenshot',
+            });
+        }
+        expect(
             evaluate('agent-browser --cdp 9223 screenshot /tmp/debug.png', {
                 acceptanceRuntimeExists: false,
             }),
@@ -120,6 +141,23 @@ describe('Caxri Acceptance project hook', () => {
         expect(
             evaluate(
                 'bun run .agents/skills/acceptance/scripts/capture-renderer.ts screenshot --output .records/go/run/acceptance/round-1/assets/result.png',
+            ),
+        ).toBeNull();
+    });
+
+    test('allows screenshot text outside the agent-browser subcommand', () => {
+        expect(evaluate('agent-browser --cdp 9326 get text screenshot')).toBeNull();
+        expect(evaluate('agent-browser --cdp 9326 click "screenshot"')).toBeNull();
+        expect(evaluate('agent-browser --cdp 9326 open https://example.com/screenshot')).toBeNull();
+        expect(evaluate('agent-browser get text body | grep screenshot')).toBeNull();
+        expect(evaluate('echo "agent-browser screenshot"')).toBeNull();
+        expect(evaluate('agent-browser --session screenshot --cdp 9326 get url')).toBeNull();
+        expect(
+            evaluate("agent-browser --cdp 9326 eval --stdin <<'EOF'\nscreenshot\nEOF"),
+        ).toBeNull();
+        expect(
+            evaluate(
+                "agent-browser --cdp 9326 eval --stdin <<'EOF'\nagent-browser screenshot\nEOF",
             ),
         ).toBeNull();
     });
@@ -189,6 +227,18 @@ describe('Caxri Acceptance project hook', () => {
                     cwd: path.resolve(import.meta.dirname, '../../../..'),
                     hook_event_name: 'PreToolUse',
                     tool_input: { command: 'git status --short' },
+                },
+                unavailableProbe,
+            ),
+        ).resolves.toBe('');
+        expect(unavailableProbe).not.toHaveBeenCalled();
+
+        await expect(
+            runPreToolUse(
+                {
+                    cwd: path.resolve(import.meta.dirname, '../../../..'),
+                    hook_event_name: 'PreToolUse',
+                    tool_input: { command: 'agent-browser get text body | grep screenshot' },
                 },
                 unavailableProbe,
             ),
