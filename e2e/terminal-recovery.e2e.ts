@@ -404,11 +404,14 @@ test('startup failure uses a compact danger status without covering output', asy
         env: { PATH: '/caxri-e2e-missing', SHELL: '/usr/bin/false' },
     });
     try {
-        await createProjectSession(running.page, 'codex');
+        const sessionId = await createProjectSession(running.page, 'codex');
         const failed = running.page.locator('[data-terminal-exit-state="failed"]');
         await expect(failed).toContainText('Agent CLI executable was not found');
         await expect(failed).toHaveClass(/terminal-recovery-danger/);
         await expect(failed.getByRole('button', { name: 'Restart Terminal' })).toBeVisible();
+        await expect(
+            running.page.locator(`[data-session-id="${sessionId}"] .session-status`),
+        ).toHaveAttribute('data-session-status', 'default');
 
         const [surfaceBox, recoveryBox] = await Promise.all([
             running.page.locator('.terminal-surface').boundingBox(),
