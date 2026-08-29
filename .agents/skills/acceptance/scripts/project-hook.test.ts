@@ -140,6 +140,21 @@ describe('Caxri Acceptance project hook', () => {
             'time agent-browser --cdp 9326 screenshot /tmp/debug.png',
             "eval 'agent-browser --cdp 9326 screenshot /tmp/debug.png'",
             'printf ready | xargs agent-browser --cdp 9326 screenshot /tmp/debug.png',
+            'coproc agent-browser --cdp 9326 screenshot /tmp/debug.png',
+            'coproc capture { agent-browser --cdp 9326 screenshot /tmp/debug.png; }',
+            'command -p agent-browser --cdp 9326 screenshot /tmp/debug.png',
+            'nohup agent-browser --cdp 9326 screenshot /tmp/debug.png',
+            'nice agent-browser --cdp 9326 screenshot /tmp/debug.png',
+            'nice -n 5 agent-browser --cdp 9326 screenshot /tmp/debug.png',
+            'timeout 1 agent-browser --cdp 9326 screenshot /tmp/debug.png',
+            'timeout -s TERM 1 agent-browser --cdp 9326 screenshot /tmp/debug.png',
+            'setsid agent-browser --cdp 9326 screenshot /tmp/debug.png',
+            'setsid -f agent-browser --cdp 9326 screenshot /tmp/debug.png',
+            'sudo agent-browser --cdp 9326 screenshot /tmp/debug.png',
+            'sudo -u root agent-browser --cdp 9326 screenshot /tmp/debug.png',
+            'parallel agent-browser --cdp 9326 screenshot /tmp/debug.png',
+            String.raw`find . -exec agent-browser --cdp 9326 screenshot /tmp/debug.png \;`,
+            String.raw`find . -execdir agent-browser --cdp 9326 screenshot /tmp/debug.png \;`,
         ]) {
             expect(evaluate(command), command).toMatchObject({
                 ruleId: 'caxri-acceptance-raw-screenshot',
@@ -168,6 +183,11 @@ describe('Caxri Acceptance project hook', () => {
         expect(evaluate("eval 'echo agent-browser screenshot'")).toBeNull();
         expect(evaluate('printf agent-browser | xargs echo screenshot')).toBeNull();
         expect(evaluate('time echo agent-browser screenshot')).toBeNull();
+        expect(evaluate('command -v agent-browser screenshot')).toBeNull();
+        expect(evaluate('nohup --help agent-browser screenshot')).toBeNull();
+        expect(evaluate('setsid --help agent-browser screenshot')).toBeNull();
+        expect(evaluate('sudo --version agent-browser screenshot')).toBeNull();
+        expect(evaluate(String.raw`find . -exec echo agent-browser screenshot \;`)).toBeNull();
         expect(
             evaluate("agent-browser --cdp 9326 eval --stdin <<'EOF'\nscreenshot\nEOF"),
         ).toBeNull();
