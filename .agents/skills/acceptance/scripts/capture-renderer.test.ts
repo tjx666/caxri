@@ -1,10 +1,14 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { Buffer } from 'node:buffer';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
+    captureFrames,
+    captureScreenshot,
     parseCaptureOptions,
     requireCapturePreflight,
     resolveOwnedCapturePort,
@@ -24,8 +28,18 @@ describe('Acceptance Renderer capture', () => {
     it('parses a single screenshot capture', () => {
         expect(
             parseCaptureOptions(['screenshot', '--port', '9222', '--output', './screenshot.png']),
-        ).toMatchObject({ command: 'screenshot', port: 9222 });
+        ).toMatchObject({
+            command: 'screenshot',
+            output: join(process.cwd(), 'screenshot.png'),
+            port: 9222,
+        });
         expect(() => parseCaptureOptions(['screenshot'])).toThrow('--output is required');
+        expect(() => parseCaptureOptions(['screenshot', './screenshot.png'])).toThrow(
+            'pass the screenshot path with --output <file>',
+        );
+        expect(() => parseCaptureOptions(['screenshot', '--output', './screenshot.jpg'])).toThrow(
+            '--output must use a .png extension',
+        );
         expect(() =>
             parseCaptureOptions([
                 'screenshot',
@@ -35,6 +49,91 @@ describe('Acceptance Renderer capture', () => {
                 'main',
             ]),
         ).toThrow('Unknown option: --selector');
+    });
+
+    it('captures a screenshot without changing Renderer focus', async () => {
+        const options = parseCaptureOptions(['screenshot', '--output', './settled.png']);
+        if (options === 'help' || options.command !== 'screenshot') {
+            throw new Error('Expected screenshot options');
+        }
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-screenshot-'));
+        temporaryDirectories.push(directory);
+        const output = join(directory, 'settled.png');
+        const methods: string[] = [];
+        let isClosed = false;
+
+        await captureScreenshot({ ...options, output }, 9222, () =>
+            Promise.resolve({
+                close: () => {
+                    isClosed = true;
+                },
+                request: <T>(method: string): Promise<T> => {
+                    methods.push(method);
+                    return Promise.resolve(
+                        (method === 'Page.captureScreenshot'
+                            ? { data: Buffer.from('png-data').toString('base64') }
+                            : {}) as T,
+                    );
+                },
+            }),
+        );
+
+        expect(methods).toEqual(['Page.enable', 'Page.captureScreenshot']);
+        expect(await readFile(output, 'utf8')).toBe('png-data');
+        expect(isClosed).toBe(true);
+    });
+
+    it('captures frame evidence without changing Renderer focus', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-frame-capture-'));
+        temporaryDirectories.push(directory);
+        const fixturePreflight = join(directory, 'fixture.json');
+        const outDirectory = join(directory, 'frames');
+        await writeFile(
+            fixturePreflight,
+            JSON.stringify(
+                createTerminalFixturePreflightReceipt(
+                    {
+                        columns: 8,
+                        domRowCount: 3,
+                        firstGridMarker: { columns: 8, generation: 'fixture-1', rows: 3 },
+                        generation: 'fixture-1',
+                        lines: ['│12345 │', '│A中🙂 │', '│e\u{301}     │'],
+                        rows: 3,
+                    },
+                    'terminal-layout',
+                ),
+            ),
+        );
+        const options = parseCaptureOptions([
+            'frames',
+            '--out-dir',
+            outDirectory,
+            '--fixture-preflight',
+            fixturePreflight,
+            '--count',
+            '1',
+        ]);
+        if (options === 'help' || options.command !== 'frames') {
+            throw new Error('Expected frame options');
+        }
+        const methods: string[] = [];
+
+        await captureFrames(options, 9222, () =>
+            Promise.resolve({
+                close: () => {},
+                request: <T>(method: string): Promise<T> => {
+                    methods.push(method);
+                    return Promise.resolve(
+                        (method === 'Page.captureScreenshot'
+                            ? { data: Buffer.from('frame-data').toString('base64') }
+                            : {}) as T,
+                    );
+                },
+            }),
+        );
+
+        expect(methods).toEqual(['Page.enable', 'Page.captureScreenshot']);
+        expect(await readFile(join(outDirectory, 'frame_000000.png'), 'utf8')).toBe('frame-data');
     });
 
     it('parses bounded frame capture options', () => {

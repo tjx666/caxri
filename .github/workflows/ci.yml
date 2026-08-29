@@ -246,6 +246,8 @@ jobs:
           && 'trusted owner main push'
           || 'unreachable untrusted event' }}
       CAXRI_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      # For pull_request workflows, GitHub defines github.sha as the synthetic merge commit captured
+      # for this event. Fetch that immutable SHA directly instead of the moving refs/pull/*/merge ref.
       CAXRI_CHECKS_REVISION: ${{ github.sha }}
       CAXRI_RUNNER_AGENT_DISCOVERY: blocked
       CAXRI_RUNNER_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-e2e
@@ -319,17 +321,19 @@ jobs:
               || github.event_name == 'push'
               && github.event.before
               || '' }}
-          CAXRI_CHECKS_FETCH_REF: >-
-            ${{ github.event_name == 'pull_request'
-              && format('refs/pull/{0}/merge', github.event.pull_request.number)
-              || github.sha }}
+          CAXRI_CHECKS_FETCH_REF: ${{ github.sha }}
           CAXRI_CHECKS_HEAD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
           CAXRI_CHECKS_REQUIRE_MERGE: ${{ github.event_name == 'pull_request' }}
           CAXRI_GITHUB_TOKEN: ${{ github.token }}
           CAXRI_VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '1' }}
           CAXRI_VITEST_PARTITION: ${{ inputs.vitest_partition || 'optimized' }}
           ESLINT_CONCURRENCY: ${{ inputs.eslint_concurrency || 'off' }}
-        run: bun run scripts/ci-concurrent-validation.ts run
+        run: |
+          if [ -z "$CAXRI_CHECKS_REVISION" ] || [ -z "$CAXRI_CHECKS_FETCH_REF" ]; then
+            echo "The workflow event is missing its immutable revision SHA" >&2
+            exit 1
+          fi
+          bun run scripts/ci-concurrent-validation.ts run
       - id: full-checks-receipt
         name: Verify full platform checks
         if: >-

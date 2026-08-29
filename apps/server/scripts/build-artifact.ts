@@ -3,12 +3,13 @@
 import { execFile } from 'node:child_process';
 import { chmod, cp, mkdir, readFile, rm } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import process from 'node:process';
 import { promisify } from 'node:util';
 
 import { CAXRI_PROTOCOL_VERSION } from '@caxri/protocol';
 
+import { selectNodePtyNativeDirectory } from '../../../scripts/node-pty-layout';
 import { assembleServerArtifact, verifyServerArtifact } from './artifact';
 
 const execFileAsync = promisify(execFile);
@@ -44,16 +45,33 @@ async function copyRuntimePackage(
     source: string,
     destination: string,
 ): Promise<void> {
+    const nodePtyNativeDirectory =
+        name === 'node-pty'
+            ? selectNodePtyNativeDirectory(
+                  { arch: process.arch, packageRoot: source, platform: process.platform },
+                  (path) => {
+                      try {
+                          require(path);
+                          return true;
+                      } catch {
+                          return false;
+                      }
+                  },
+              )
+            : undefined;
+    if (name === 'node-pty' && !nodePtyNativeDirectory) {
+        throw new Error('No loadable node-pty native layout is available for Server staging');
+    }
+    const nodePtyNativeEntry = nodePtyNativeDirectory
+        ? relative(source, nodePtyNativeDirectory)
+        : '';
     const selectedEntries = new Map<string, readonly string[]>([
         ['@parcel/watcher', ['LICENSE', 'index.js', 'package.json', 'wrapper.js']],
         [
             'better-sqlite3',
             ['LICENSE', 'lib', 'package.json', `prebuilds/${betterSqlitePrebuildName()}`],
         ],
-        [
-            'node-pty',
-            ['LICENSE', 'lib', 'package.json', `prebuilds/${process.platform}-${process.arch}`],
-        ],
+        ['node-pty', ['LICENSE', 'lib', 'package.json', nodePtyNativeEntry]],
     ]);
     const entries = selectedEntries.get(name);
     if (!entries) {
@@ -68,10 +86,7 @@ async function copyRuntimePackage(
         }),
     );
     if (name === 'node-pty' && process.platform !== 'win32') {
-        await chmod(
-            join(destination, 'prebuilds', `${process.platform}-${process.arch}`, 'spawn-helper'),
-            0o755,
-        );
+        await chmod(join(destination, nodePtyNativeEntry, 'spawn-helper'), 0o755);
     }
 }
 

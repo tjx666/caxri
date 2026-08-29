@@ -77,23 +77,37 @@ bun run .agents/skills/go/scripts/state.ts review \
   --reviewed-range "abc1234..def5678" --freeze
 ```
 
-Record validation independently from review. `log-path` stays below
-`validation/` or `ci-artifacts/`.
+Record validation independently from review through the runner. Tokens after `--` are passed as one executable and
+its argument vector; they are never interpreted as a shell command.
 
 ```bash
-bun run .agents/skills/go/scripts/state.ts validation-start \
+bun run .agents/skills/go/scripts/state.ts validation-run \
   --state "$STATE" --kind gates --lineage-id typecheck-repair \
-  --head-sha def5678 --command "bun run typecheck" \
-  --session-id shell-123 --log-path validation/typecheck.log
-
-bun run .agents/skills/go/scripts/state.ts validation-complete \
-  --state "$STATE" --id validation-001 --exit-code 0
+  --head-sha def5678 --session-id codex-typecheck -- \
+  bun run typecheck
 ```
 
-`validation-start` resolves `HEAD` and a clean source fingerprint from the ledger's recorded
-worktree. `--head-sha` is an optional expected-head assertion, never the source of truth. Completion
-rechecks HEAD and the fingerprint; ignored artifacts do not invalidate the receipt, but commits,
-tracked edits, and non-ignored untracked files produce a failed receipt.
+`validation-run` resolves `HEAD` and a clean source fingerprint from the ledger's recorded worktree.
+`--head-sha` is an optional expected-head assertion, never the source of truth. The runner records pending under a
+short state lock, releases the lock while the process runs, mirrors stdout/stderr to the terminal, and writes a private
+`validation/validation-NNN.log`. Completion rechecks HEAD and the fingerprint, then records duration, exit code or
+signal, log byte length, immutable file metadata, and SHA-256. The command receives only an explicit allowlist of
+toolchain and locale environment variables; GitHub tokens and other ambient credentials are excluded before launch.
+Raw arguments stay in process memory only; persisted state and log headers retain a SHA-256 command identity,
+argument count, and either the canonical public gate command or a bounded secret-free display label. Child output is
+limited to 64 MiB with stream backpressure, and a validation that exceeds that limit or the 30-minute wall-clock
+deadline is terminated with a complete failed receipt.
+Ignored artifacts do not invalidate the receipt, but commits, tracked edits, and
+non-ignored untracked files produce a failed receipt. The wrapper exits with the child exit code when one exists.
+
+SIGINT and SIGTERM are forwarded to the complete child process group before the failed receipt is finalized. If the
+runner is killed without a catchable signal, the next `validation-run` revalidates the recorded runner and process-group
+identities, terminates only a group whose ownership is still provable, marks the old receipt `runner_lost`, and only
+then starts a new attempt. A recycled PID is never treated as authority to signal an unrelated process.
+The supervisor remains inert until its process-group ID is durably recorded, so even SIGKILL cannot strand a command
+in the launch window. Ordinary ledger reads check direct-file identity, timestamps, and size without scanning old log
+contents; `state.ts validate` recomputes every SHA-256. A missing, truncated, replaced, or digest-mismatched log cannot
+remain passed.
 
 Wrap every repair mutation batch in the durable single-writer lease:
 
@@ -140,6 +154,11 @@ accidental standalone, use `acceptance-orphan` to retain its id, run id, and
 reason without replacing the frozen lineage. When ingest succeeds but readback
 fails, `resume` points to the persisted pending attempt and the same command
 retries only remote readback.
+
+Do not pass `--round` to the ordinary `state.ts acceptance` status command.
+`acceptance-publish` owns normal round advancement;
+`acceptance-reconcile-round` is only for an explicit, reasoned repair of ledger
+drift.
 
 When the current authenticated principal can read the public frozen Acceptance
 but cannot append to it, first verify the ownership mismatch and that no pending
@@ -193,13 +212,13 @@ bun run .agents/skills/go/scripts/state.ts validate --state "$STATE"
 Use command-level help instead of guessing option order or enum values:
 
 ```bash
-bun run .agents/skills/go/scripts/state.ts help validation-start
+bun run .agents/skills/go/scripts/state.ts help validation-run
 bun run .agents/skills/go/scripts/state.ts phase --help
 ```
 
-- Update state only through the script. Every command acquires an atomic per-run lock directory and
-  fails closed when another process owns it. If a process is forcibly killed, remove `state.lock`
-  only after verifying that no state command for that exact run is alive; then retry. State and
+- Update state only through the script. Every command acquires an atomic per-run lock owner receipt and
+  fails closed when another live process owns it. If an owner is forcibly killed, the next command verifies
+  that its PID is dead and safely reclaims the stale receipt; malformed or legacy locks still fail closed. State and
   history artifacts use exclusive unpredictable temporary files, ownership/no-follow checks, and
   atomic replacement.
 - Do not call raw `lobehub acceptance run ingest` inside Go. A `pending`
@@ -208,7 +227,8 @@ bun run .agents/skills/go/scripts/state.ts phase --help
 - Treat GitHub and LobeHub as authoritative and refresh at delivery boundaries.
 - Recording a changed PR head invalidates fallback evidence, report/finalization
   receipts, and any freeze that does not already bind the replacement head.
-- Recover pending validations from their recorded session/log before retrying.
+- Start formal validations only through `validation-run`. It automatically recovers a dead managed runner; an active
+  runner or an imported legacy pending record remains blocked for explicit investigation.
 - Do not rerun a passed exact-head validation without invalidation.
 - Preserve original zero-step infrastructure evidence and keep Actions CI externally blocked when
   the guarded fallback passes.

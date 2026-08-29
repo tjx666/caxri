@@ -10,18 +10,22 @@
     ],
     "exports": {
         ".": {
+            "bun": "./src/index.ts",
             "types": "./src/index.ts",
             "import": "./dist/index.js"
         },
         "./connection": {
+            "bun": "./src/connection/index.ts",
             "types": "./src/connection/index.ts",
             "import": "./dist/connection/index.js"
         },
         "./state": {
+            "bun": "./src/state/index.ts",
             "types": "./src/state/index.ts",
             "import": "./dist/state/index.js"
         },
         "./supervise": {
+            "bun": "./src/supervise/index.ts",
             "types": "./src/supervise/index.ts",
             "import": "./dist/supervise/index.js"
         }

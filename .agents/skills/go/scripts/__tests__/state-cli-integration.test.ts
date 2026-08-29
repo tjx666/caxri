@@ -1,12 +1,12 @@
 import { execFileSync } from 'node:child_process';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import process from 'node:process';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { runStateCli } from '../state-cli';
+import { runStateCli, stateCliHelp } from '../state-cli';
 import { createInitialState } from '../state-model';
 import {
     prepareRunDirectory,
@@ -57,58 +57,81 @@ async function fixture() {
     return { headSha, statePath, worktree };
 }
 
-function validationStart(statePath: string, command: string, expectedHead?: string) {
+function validationRun(
+    statePath: string,
+    lineageId: string,
+    script: string,
+    expectedHead?: string,
+) {
     return runStateCli([
-        'validation-start',
+        'validation-run',
         '--state',
         statePath,
         '--kind',
         'gates',
         '--lineage-id',
-        command,
+        lineageId,
         ...(expectedHead ? ['--head-sha', expectedHead] : []),
-        '--command',
-        command,
         '--session-id',
-        command,
-        '--log-path',
-        `validation/${command}.log`,
+        lineageId,
+        '--',
+        process.execPath,
+        '-e',
+        script,
     ]);
 }
 
 describe('Go state CLI exact-head receipts', () => {
+    it('reserves round changes for publication or explicit reconciliation', () => {
+        expect(stateCliHelp('acceptance')).not.toContain('--round');
+        expect(stateCliHelp('acceptance-reconcile-round')).toContain('--round');
+    });
+
+    it('rejects manual Acceptance round advancement before mutating the ledger', async () => {
+        const { statePath } = await fixture();
+
+        await expect(
+            runStateCli([
+                'acceptance',
+                '--state',
+                statePath,
+                '--status',
+                'running',
+                '--round',
+                '1',
+            ]),
+        ).rejects.toThrow('acceptance-publish owns round advancement');
+
+        expect((await readState(statePath)).acceptance).toMatchObject({
+            round: 0,
+            status: 'not_started',
+        });
+    });
+
     it('self-resolves HEAD, ignores ignored output, and fails closed on source mutation', async () => {
-        const { headSha, statePath, worktree } = await fixture();
-        await expect(validationStart(statePath, 'forged', 'not-the-head')).rejects.toThrow(
+        const { headSha, statePath } = await fixture();
+        await expect(validationRun(statePath, 'forged', '', 'not-the-head')).rejects.toThrow(
             'recorded worktree is',
         );
         expect((await readState(statePath)).validations).toHaveLength(0);
 
-        await validationStart(statePath, 'clean', headSha);
-        await mkdir(join(worktree, 'ignored'));
-        await writeFile(join(worktree, 'ignored', 'build.log'), 'generated\n', 'utf8');
-        await runStateCli([
-            'validation-complete',
-            '--state',
-            statePath,
-            '--id',
-            'validation-001',
-            '--exit-code',
-            '0',
-        ]);
+        await expect(
+            validationRun(
+                statePath,
+                'clean',
+                String.raw`require('node:fs').mkdirSync('ignored', { recursive: true }); require('node:fs').writeFileSync('ignored/build.log', 'generated\n')`,
+                headSha,
+            ),
+        ).resolves.toBe(0);
         expect((await readState(statePath)).validations[0].result).toBe('passed');
 
-        await validationStart(statePath, 'mutated');
-        await writeFile(join(worktree, 'source.ts'), 'export const value = 2;\n', 'utf8');
-        await runStateCli([
-            'validation-complete',
-            '--state',
-            statePath,
-            '--id',
-            'validation-002',
-            '--exit-code',
-            '0',
-        ]);
+        await expect(
+            validationRun(
+                statePath,
+                'mutated',
+                String.raw`require('node:fs').writeFileSync('source.ts', 'export const value = 2;\n')`,
+            ),
+        ).resolves.toBe(0);
         const failed = (await readState(statePath)).validations[1];
         expect(failed.integrityError).toContain('fingerprint changed');
         expect(failed.result).toBe('failed');
