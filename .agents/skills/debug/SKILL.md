@@ -28,6 +28,24 @@ description: Diagnose Caxri failures across Desktop Main, Server Core, Terminal 
 7. Call the Skill tool with "quality-check" with the changed source and regression test before any
    broader suite.
 
+## Controlled real-Agent debugging
+
+When a fake Agent cannot reproduce a provider-owned PTY or input-protocol behavior, debugging may
+launch one explicitly selected real Codex process. This is a diagnostic exception, not permission for
+ordinary E2E, CI, or Acceptance to discover or invoke a host provider.
+
+- Use an isolated profile or an already authorized Project, the narrowest read-only sandbox
+  available, no approval prompts, and one predeclared bounded input. Do not automate or persist a
+  provider trust decision merely to create a temporary Project; fence an existing Project with
+  before/after session identities instead. Never fall back to another provider.
+- Do not read, screenshot, record, print, or persist Terminal output, prompts, responses, or Agent
+  transcripts. Observe only content-free signals such as exact input bytes, process lifecycle,
+  provider turn state, structured status events, and exit status.
+- Stop every process started by the probe, interrupt any submitted turn, and remove exact diagnostic
+  sessions or temporary state without touching unrelated user sessions.
+- Treat the result as debugging evidence. Automated coverage still uses deterministic fake fixtures;
+  Acceptance still proves the product surface without invoking a host provider.
+
 ## Runtime profile, shutdown, and visual proof
 
 Unpackaged (dev) launches default to an isolated `caxri-dev` userData profile (own Server, SQLite,

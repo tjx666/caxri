@@ -96,6 +96,9 @@ directories.
   site in the same change. Never leave two coexisting ways of doing the same thing.
 - Reproduce a reported bug before changing code. Demonstrate the failure against the current build
   so the fix targets the verified cause rather than the first plausible suspect.
+- Controlled provider or PTY debugging may deliberately launch one explicitly selected real Agent
+  CLI only through the `debug` skill's fail-closed procedure. This does not authorize ordinary E2E,
+  CI, or Acceptance to discover or invoke a host provider.
 - New behavior ships with a test at the narrowest owning surface. Do not unit-test `.tsx`
   components. Native macOS dialogs are stubbed unless the user's current request explicitly asks
   to verify that dialog.
@@ -127,8 +130,8 @@ directories.
   path.
 - Project and Session deletion remove metadata only. They must never remove the Project folder or
   user files.
-- Diagnostics must exclude source contents, Terminal output and snapshots, Agent transcripts,
-  credentials, environment values, and secret-like settings.
+- Diagnostic logs, artifacts, and reports must exclude source contents, Terminal output and
+  snapshots, Agent transcripts, credentials, environment values, and secret-like settings.
 - Until Caxri has a public release, optimize for the current architecture instead of preserving
   compatibility with previous local builds. Do not add protocol adapters, legacy Host controls,
   dual-read/write paths, or migration UI only to keep an unpublished build running. Fail clearly
