@@ -234,7 +234,7 @@ describe('path browser routing', () => {
         await handle({ method: 'pathBrowser.start', params: { sessionId: 'session-1' } });
         await handle({
             method: 'pathBrowser.browse',
-            params: { browserId: 'browser-1', query: 'src' },
+            params: { browserId: 'browser-1', mode: 'project', input: 'src' },
         });
         await handle({
             method: 'pathBrowser.navigate',
@@ -247,7 +247,11 @@ describe('path browser routing', () => {
         await handle({ method: 'pathBrowser.close', params: { browserId: 'browser-1' } });
 
         expect(pathBrowser.start).toHaveBeenCalledWith({ sessionId: 'session-1' });
-        expect(pathBrowser.browse).toHaveBeenCalledWith({ browserId: 'browser-1', query: 'src' });
+        expect(pathBrowser.browse).toHaveBeenCalledWith({
+            browserId: 'browser-1',
+            mode: 'project',
+            input: 'src',
+        });
         expect(pathBrowser.navigate).toHaveBeenCalledWith({
             browserId: 'browser-1',
             target: { kind: 'parent' },

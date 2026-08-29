@@ -5,6 +5,7 @@ import {
     agentTranscriptTabLabel,
     gitDiffTabLabel,
     parseAgentTranscriptTab,
+    parseExternalEditorTab,
     parseGitDiffTab,
     terminalDisplayTitle,
     terminalTabLabel,
@@ -195,20 +196,20 @@ function DocumentPaneTab({
     const paneLayout = useSessionState()?.paneLayout;
     const gitDiffTab = parseGitDiffTab(path);
     const transcriptTab = parseAgentTranscriptTab(path);
+    const externalTab = parseExternalEditorTab(path);
     // Tab identity is the terminal ID alone; the label follows its stable semantic title, never a PTY window title.
     const transcriptTerminal = useTerminal(transcriptTab?.terminalId ?? '');
-    const isDirty = useSessionViewStore((state) =>
+    const document = useSessionViewStore((state) =>
         session
             ? state.documents[sessionViewScope(session.id, session.workbenchProjectId)]?.[path]
-                  ?.dirty
-            : false,
+            : undefined,
     );
     return (
         <WorkTab
             active={active}
             fill={false}
             closeLabel="Close Editor"
-            dirty={isDirty}
+            dirty={document?.dirty}
             fileIconName={
                 gitDiffTab?.kind === 'file'
                     ? pathBasename(gitDiffTab.path)
@@ -216,7 +217,7 @@ function DocumentPaneTab({
                       ? 'changes.diff'
                       : transcriptTab
                         ? 'transcript.jsonl'
-                        : pathBasename(path)
+                        : (externalTab?.name ?? pathBasename(path))
             }
             icon="file"
             label={
@@ -224,7 +225,7 @@ function DocumentPaneTab({
                     ? gitDiffTabLabel(gitDiffTab)
                     : transcriptTab
                       ? agentTranscriptTabLabel(transcriptTerminal?.title)
-                      : pathBasename(path)
+                      : (externalTab?.name ?? pathBasename(path))
             }
             // Document tabs cap at 160px (see ADR 0002 "Tab sizing") and truncate with an ellipsis, so a mouse
             // user needs the hover path to recover a name that got cut off; a diff/transcript tab reuses its own
@@ -234,7 +235,7 @@ function DocumentPaneTab({
                     ? gitDiffTabLabel(gitDiffTab)
                     : transcriptTab
                       ? agentTranscriptTabLabel(transcriptTerminal?.title)
-                      : path
+                      : (document?.displayPath ?? externalTab?.name ?? path)
             }
             // The full path is a different detail than the filename, not a fuller version of it, so it must not
             // replace the filename a screen reader announces the way a Terminal's untruncated title does.

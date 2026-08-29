@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
-import { canceledResultSchema, identifierSchema } from '../domain/domain.js';
+import { MAX_CONFIGURABLE_FILE_BYTES } from '../configuration/settings-spec.js';
+import { identifierSchema, pathSchema } from '../domain/domain.js';
 import { commandPolicy } from '../transport/method-spec.js';
 
 export const MAX_PATH_BROWSER_ENTRIES = 200;
@@ -9,16 +10,18 @@ const desktopRead = commandPolicy('desktop', 'read');
 const desktopWrite = commandPolicy('desktop', 'write');
 const desktopControl = commandPolicy('desktop', 'control');
 const entryTarget = z.object({ kind: z.literal('entry'), entryId: identifierSchema });
-const inputTarget = z.object({
-    kind: z.literal('input'),
-    value: z.string().min(1).max(4_096),
-});
 const parentTarget = z.object({ kind: z.literal('parent') });
-const navigationTarget = z.discriminatedUnion('kind', [entryTarget, inputTarget, parentTarget]);
+const detachProjectTarget = z.object({ kind: z.literal('detachProject') });
+const navigationTarget = z.discriminatedUnion('kind', [
+    entryTarget,
+    parentTarget,
+    detachProjectTarget,
+]);
+const pathBrowserEntryName = z.string().min(1).max(255);
 const pathBrowserEntry = z.object({
     id: identifierSchema,
     kind: z.enum(['directory', 'file', 'symlink']),
-    name: z.string().min(1).max(255),
+    name: pathBrowserEntryName,
     size: z.number().int().nonnegative().optional(),
 });
 const pathBrowserSnapshot = z.object({
@@ -27,15 +30,30 @@ const pathBrowserSnapshot = z.object({
     canGoParent: z.boolean(),
     directoryLabel: z.string().max(4_096),
     entries: z.array(pathBrowserEntry).max(MAX_PATH_BROWSER_ENTRIES),
-    rootLabel: z.string().min(1).max(1_024),
+    input: z.string().max(4_096),
+    mode: z.enum(['project', 'free']),
+    rootLabel: z.string().min(1).max(1_024).optional(),
     truncated: z.boolean(),
 });
-const pathBrowserOpened = z.object({ opened: z.literal(true) });
-const pathBrowserNavigationResult = z.union([
-    canceledResultSchema,
-    pathBrowserOpened,
-    pathBrowserSnapshot,
+const nonnegativeInteger = z.number().int().nonnegative();
+const externalDocument = z.object({
+    id: identifierSchema,
+    name: pathBrowserEntryName,
+    displayPath: pathSchema,
+    content: z.string().max(MAX_CONFIGURABLE_FILE_BYTES),
+    mtimeMs: z.number().nonnegative(),
+    size: nonnegativeInteger.max(MAX_CONFIGURABLE_FILE_BYTES),
+    readOnly: z.literal(true),
+});
+const pathBrowserOpened = z.discriminatedUnion('kind', [
+    z.object({ opened: z.literal(true), kind: z.literal('project') }),
+    z.object({
+        opened: z.literal(true),
+        kind: z.literal('external'),
+        document: externalDocument,
+    }),
 ]);
+const pathBrowserNavigationResult = z.union([pathBrowserOpened, pathBrowserSnapshot]);
 
 /**
  * Main owns path-browser locations and entry IDs so the Renderer cannot expand an opaque folder grant into raw
@@ -49,7 +67,11 @@ export const pathBrowserMethods = {
     },
     'pathBrowser.browse': {
         ...desktopRead,
-        params: z.object({ browserId: identifierSchema, query: z.string().max(255) }),
+        params: z.object({
+            browserId: identifierSchema,
+            mode: z.enum(['project', 'free']),
+            input: z.string().max(4_096),
+        }),
         result: pathBrowserSnapshot,
     },
     'pathBrowser.navigate': {
@@ -60,7 +82,7 @@ export const pathBrowserMethods = {
     'pathBrowser.open': {
         ...desktopWrite,
         params: z.object({ browserId: identifierSchema, entryId: identifierSchema }),
-        result: z.union([canceledResultSchema, pathBrowserOpened]),
+        result: pathBrowserOpened,
     },
     'pathBrowser.close': {
         ...desktopControl,

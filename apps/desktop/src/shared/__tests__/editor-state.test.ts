@@ -50,4 +50,10 @@ describe('Session document cache', () => {
         expect(modelPath).toBe('caxri://session/session%2F1/project/a%23b%3Fc%252F.ts');
         expect(modelPath).not.toBe(editorModelPath('session/1', '/project/a/b.ts'));
     });
+
+    it('maps an external virtual tab to a clean opaque Monaco source path', () => {
+        expect(
+            editorModelPath('session-1', 'caxri-external-file://document-1/external-only.ts'),
+        ).toBe('caxri://session/session-1/external/document-1/external-only.ts');
+    });
 });

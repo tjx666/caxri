@@ -121,6 +121,17 @@ collapsed PrimarySidebar preserves the same 44px-tall drag region beneath the tr
 Open Folder / Add Folder to Workspace, not "directory" or "local folder". The primary action is
 Add Project.
 
+**Path browser** — `Cmd+P` opens one 44px palette input with the current Project rendered as a
+removable leading anchor. With an empty field and the caret at its start, Backspace or Delete removes
+that anchor and turns the same control into a normal path field. Free-path mode accepts `~/`, `../`,
+relative paths from the last browsed folder, and `/`-rooted absolute paths. Matching folders and files
+remain visible below the field while the user types; Tab completes one unambiguous result, arrows move
+through results, and Enter opens the selected result. This flow never opens a native folder picker.
+Project-anchored mode retains Project-local create actions. Free-path mode is browse-and-open only: a
+file inside the current Project still uses its normal editable Editor path, while an external file becomes
+a read-only virtual Editor tab in the current Session, survives only for the Renderer lifetime, and never
+creates a Project or Session or enters durable Session state.
+
 **Status bar** — `--surface` background, top hairline, `meta` text in `--muted`. The left side
 shows Project and Git context. The right side follows the active tab: a normal file shows
 current-line blame, selection, cursor position, and language; a Terminal shows its transient Agent
