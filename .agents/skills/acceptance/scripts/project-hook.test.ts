@@ -128,6 +128,18 @@ describe('Caxri Acceptance project hook', () => {
             'agent-browser --cdp 9326 screenshot>/tmp/debug.png',
             'agent-browser --cdp 9326 \\\n screenshot /tmp/debug.png',
             'agent-browser --restore acceptance --cdp 9326 screenshot /tmp/debug.png',
+            'agent-browser --restore --cdp 9326 screenshot /tmp/debug.png',
+            'agent-browser --session acceptance --restore --cdp 9326 screenshot /tmp/debug.png',
+            'agent-browser --restore --restore-check-text ready --cdp 9326 screenshot /tmp/debug.png',
+            '/usr/bin/env agent-browser --cdp 9326 screenshot /tmp/debug.png',
+            'env -S agent-browser --cdp 9326 screenshot /tmp/debug.png',
+            "env -S 'agent-browser --cdp 9326 screenshot /tmp/debug.png'",
+            'if true; then agent-browser --cdp 9326 screenshot /tmp/debug.png; fi',
+            'if agent-browser --cdp 9326 screenshot /tmp/debug.png; then true; fi',
+            '{ agent-browser --cdp 9326 screenshot /tmp/debug.png; }',
+            'time agent-browser --cdp 9326 screenshot /tmp/debug.png',
+            "eval 'agent-browser --cdp 9326 screenshot /tmp/debug.png'",
+            'printf ready | xargs agent-browser --cdp 9326 screenshot /tmp/debug.png',
         ]) {
             expect(evaluate(command), command).toMatchObject({
                 ruleId: 'caxri-acceptance-raw-screenshot',
@@ -152,6 +164,10 @@ describe('Caxri Acceptance project hook', () => {
         expect(evaluate('agent-browser get text body | grep screenshot')).toBeNull();
         expect(evaluate('echo "agent-browser screenshot"')).toBeNull();
         expect(evaluate('agent-browser --session screenshot --cdp 9326 get url')).toBeNull();
+        expect(evaluate('env -S echo agent-browser screenshot')).toBeNull();
+        expect(evaluate("eval 'echo agent-browser screenshot'")).toBeNull();
+        expect(evaluate('printf agent-browser | xargs echo screenshot')).toBeNull();
+        expect(evaluate('time echo agent-browser screenshot')).toBeNull();
         expect(
             evaluate("agent-browser --cdp 9326 eval --stdin <<'EOF'\nscreenshot\nEOF"),
         ).toBeNull();
