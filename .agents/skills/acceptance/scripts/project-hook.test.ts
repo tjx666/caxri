@@ -11,7 +11,7 @@ import {
     isOwnedAcceptanceRuntime,
     resolveCommandCwd,
     runPreToolUse,
-} from './codex-pre-tool-use';
+} from './pre-tool-use';
 
 interface EvaluationOverrides {
     acceptanceRuntimeExists?: boolean;
@@ -28,6 +28,10 @@ interface HookConfig {
     };
 }
 
+interface ClaudeSettings extends HookConfig {
+    permissions: { allow: string[] };
+}
+
 const projectRoot = '/tmp/caxri';
 
 const evaluate = (command: string, overrides: EvaluationOverrides = {}) =>
@@ -40,15 +44,52 @@ const evaluate = (command: string, overrides: EvaluationOverrides = {}) =>
     });
 
 describe('Caxri Acceptance project hook', () => {
-    test('loads through a git-root-relative project hook command', () => {
-        const config = JSON.parse(
+    test('loads the same provider-neutral hook through Codex and Claude', () => {
+        const codexConfig = JSON.parse(
             readFileSync(new URL('../../../../.codex/hooks.json', import.meta.url), 'utf8'),
         ) as HookConfig;
-        const command = config.hooks.PreToolUse[0].hooks[0].command;
+        const claudeConfig = JSON.parse(
+            readFileSync(new URL('../../../../.claude/settings.json', import.meta.url), 'utf8'),
+        ) as ClaudeSettings;
+        const codexHook = codexConfig.hooks.PreToolUse[0];
+        const claudeHook = claudeConfig.hooks.PreToolUse[0];
 
-        expect(config.hooks.PreToolUse[0].matcher).toBe('^Bash$');
-        expect(command).toContain('git rev-parse --show-toplevel');
-        expect(command).toContain('/.agents/skills/acceptance/scripts/codex-pre-tool-use.ts');
+        expect(codexHook.matcher).toBe('^Bash$');
+        expect(claudeHook.matcher).toBe('^Bash$');
+        expect(claudeHook.hooks[0].command).toContain('${CLAUDE_PROJECT_DIR}');
+        expect(codexHook.hooks[0].command).toContain('git rev-parse --show-toplevel');
+        for (const hook of [codexHook, claudeHook]) {
+            expect(hook.hooks[0].command).toContain(
+                '/.agents/skills/acceptance/scripts/pre-tool-use.ts',
+            );
+        }
+    });
+
+    test('allows the canonical read-only quality commands in Claude', () => {
+        const config = JSON.parse(
+            readFileSync(new URL('../../../../.claude/settings.json', import.meta.url), 'utf8'),
+        ) as ClaudeSettings;
+
+        expect(config.permissions.allow).toEqual(
+            expect.arrayContaining([
+                'Bash(bun run --silent check *)',
+                'Bash(bun run doctor:changed)',
+                'Bash(bun run lint:type-aware)',
+                'Bash(bun run lint:markdown)',
+            ]),
+        );
+    });
+
+    test('documents canonical authentication and hook trust verification', () => {
+        const projectGuide = readFileSync(
+            new URL('../../../../.agents/acceptance/PROJECT.md', import.meta.url),
+            'utf8',
+        );
+
+        expect(projectGuide).toContain('lobehub whoami --json');
+        expect(projectGuide).not.toContain('lobehub acceptance run list --json');
+        expect(projectGuide).toContain('/hooks');
+        expect(projectGuide).toContain('caxri-acceptance-hook-self-test');
     });
 
     test('blocks pin-tab against the owned Electron Acceptance runtime', () => {
@@ -121,6 +162,7 @@ describe('Caxri Acceptance project hook', () => {
         const output = await runPreToolUse({
             cwd: path.resolve(import.meta.dirname, '../../../..'),
             hook_event_name: 'PreToolUse',
+            tool_name: 'Bash',
             tool_input: { command },
         });
         expect(JSON.parse(output)).toMatchObject({
@@ -128,6 +170,12 @@ describe('Caxri Acceptance project hook', () => {
                 hookEventName: 'PreToolUse',
                 permissionDecision: 'deny',
             },
+        });
+    });
+
+    test('exposes a harmless command that proves the project hook is active', () => {
+        expect(evaluate('caxri-acceptance-hook-self-test')).toMatchObject({
+            ruleId: 'caxri-acceptance-hook-self-test',
         });
     });
 
@@ -165,7 +213,7 @@ describe('Caxri Acceptance project hook', () => {
     });
 
     test('fails the hook process when its input cannot be evaluated', () => {
-        const hookPath = path.resolve(import.meta.dirname, 'codex-pre-tool-use.ts');
+        const hookPath = path.resolve(import.meta.dirname, 'pre-tool-use.ts');
         const result = spawnSync('bun', ['run', hookPath], {
             encoding: 'utf8',
             input: '{invalid json',

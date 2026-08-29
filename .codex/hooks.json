@@ -7,7 +7,7 @@
                 "hooks": [
                     {
                         "type": "command",
-                        "command": "bun run \"$(git rev-parse --show-toplevel)/.agents/skills/acceptance/scripts/codex-pre-tool-use.ts\"",
+                        "command": "bun run \"$(git rev-parse --show-toplevel)/.agents/skills/acceptance/scripts/pre-tool-use.ts\"",
                         "statusMessage": "Checking Caxri command usage",
                         "timeout": 5
                     }

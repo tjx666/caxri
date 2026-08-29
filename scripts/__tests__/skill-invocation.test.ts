@@ -1,4 +1,4 @@
-import { access, readdir, readFile } from 'node:fs/promises';
+import { access, readdir, readFile, readlink, realpath } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -8,6 +8,9 @@ import { parse } from 'yaml';
 const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const SKILLS_ROOT = join(PROJECT_ROOT, '.agents', 'skills');
 const INVOCATION_CONTRACT = join(PROJECT_ROOT, '.agents', 'invocation.md');
+const CANONICAL_INSTRUCTIONS = join(PROJECT_ROOT, 'AGENTS.md');
+const CLAUDE_INSTRUCTIONS = join(PROJECT_ROOT, 'CLAUDE.md');
+const CLAUDE_SKILLS = join(PROJECT_ROOT, '.claude', 'skills');
 
 const EXPLICIT_ONLY_SKILLS = ['go', 'grill-me', 'grill-with-docs'] as const;
 
@@ -19,18 +22,31 @@ interface SkillDocument {
 function parseSkillDocument(source: string): SkillDocument {
     const match = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/u.exec(source);
     if (!match) throw new Error('SKILL.md must contain YAML frontmatter');
-    const frontmatterLines = match[1].split('\n');
-    const name = frontmatterLines
-        .find((line) => line.startsWith('name:'))
-        ?.slice('name:'.length)
-        .trim();
-    if (!name) throw new Error('SKILL.md frontmatter must contain a name');
+    const frontmatter = parse(match[1]) as unknown;
+    if (
+        typeof frontmatter !== 'object' ||
+        frontmatter === null ||
+        !('name' in frontmatter) ||
+        typeof frontmatter.name !== 'string' ||
+        !frontmatter.name
+    ) {
+        throw new Error('SKILL.md frontmatter must contain a name');
+    }
+    if (
+        'disable-model-invocation' in frontmatter &&
+        typeof frontmatter['disable-model-invocation'] !== 'boolean'
+    ) {
+        throw new Error('disable-model-invocation must be a boolean');
+    }
     return {
         body: match[2],
         frontmatter: {
             'disable-model-invocation':
-                frontmatterLines.includes('disable-model-invocation: true') || undefined,
-            name,
+                'disable-model-invocation' in frontmatter &&
+                frontmatter['disable-model-invocation'] === true
+                    ? true
+                    : undefined,
+            'name': frontmatter.name,
         },
     };
 }
@@ -108,6 +124,32 @@ async function implicitInvocationPolicy(name: string): Promise<boolean | undefin
 }
 
 describe('contributor skill invocation contract', () => {
+    it('keeps every skill frontmatter valid, uniquely named, and aligned with its directory', async () => {
+        const skillNames = await installedSkillNames();
+        const declaredNames = new Set<string>();
+
+        for (const directoryName of skillNames) {
+            // This contract intentionally checks each independently installed skill in order.
+            // eslint-disable-next-line no-await-in-loop
+            const skill = await readSkill(directoryName);
+            expect(skill.frontmatter.name, `${directoryName} frontmatter name`).toBe(directoryName);
+            expect(declaredNames.has(skill.frontmatter.name), `${directoryName} unique name`).toBe(
+                false,
+            );
+            declaredNames.add(skill.frontmatter.name);
+        }
+    });
+
+    it('keeps Claude on the canonical project instructions and skill root', async () => {
+        await expect(access(CANONICAL_INSTRUCTIONS)).resolves.toBeUndefined();
+        expect(await readFile(CLAUDE_INSTRUCTIONS, 'utf8')).toBe('@AGENTS.md\n');
+        expect(await readlink(CLAUDE_SKILLS)).toBe('../.agents/skills');
+        expect(await realpath(CLAUDE_SKILLS)).toBe(await realpath(SKILLS_ROOT));
+        expect(await readFile(join(CLAUDE_SKILLS, 'debug', 'SKILL.md'), 'utf8')).toBe(
+            await readFile(join(SKILLS_ROOT, 'debug', 'SKILL.md'), 'utf8'),
+        );
+    });
+
     it('pairs both explicit-only switches and keeps every other skill model-invoked', async () => {
         const explicitOnly = new Set<string>(EXPLICIT_ONLY_SKILLS);
         const skillNames = await installedSkillNames();
@@ -187,5 +229,16 @@ describe('contributor skill invocation contract', () => {
             'Call the Skill tool twice, for "grilling" and "domain-modeling".',
         );
         expect(`${grillMe.body}\n${grillWithDocuments.body}`).not.toContain('Run a `/grilling`');
+    });
+
+    it('keeps agent launch and complete build guidance on their canonical entry points', async () => {
+        const debug = await readSkill('debug');
+        const build = await readSkill('build');
+
+        expect(debug.body).toContain(
+            'bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts dev',
+        );
+        expect(debug.body).not.toContain('Use `bun run dev` in this checkout');
+        expect(build.body).toMatch(/only to isolate a failing\s+workspace/u);
     });
 });

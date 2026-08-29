@@ -24,6 +24,7 @@ type UnknownRecord = Record<string, unknown>;
 
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const ACCEPTANCE_RUNTIME_PATH = '.records/acceptance/runtime.json';
+const HOOK_SELF_TEST_COMMAND = 'caxri-acceptance-hook-self-test';
 
 const asRecord = (value: unknown): UnknownRecord =>
     typeof value === 'object' && value !== null ? (value as UnknownRecord) : {};
@@ -65,6 +66,13 @@ export const evaluateCaxriAcceptanceCommand = ({
     projectRoot = PROJECT_ROOT,
 }: CommandEvaluationInput): GuardAction | null => {
     if (!isWithinProject(cwd, projectRoot)) return null;
+
+    if (command === HOOK_SELF_TEST_COMMAND) {
+        return {
+            ruleId: HOOK_SELF_TEST_COMMAND,
+            reason: 'The Caxri project PreToolUse hook is active.',
+        };
+    }
 
     if (
         acceptanceRuntimeExists &&

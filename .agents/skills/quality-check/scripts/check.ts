@@ -288,6 +288,33 @@ export interface LintBuckets {
     otherFormatFiles: string[];
 }
 
+const SKILL_INVOCATION_CONTRACT_TEST = 'scripts/__tests__/skill-invocation.test.ts';
+const PROJECT_HOOK_CONTRACT_TEST = '.agents/skills/acceptance/scripts/project-hook.test.ts';
+
+function repoHarnessTestCandidates(file: string): string[] {
+    const candidates: string[] = [];
+    const isSkillContractPath =
+        /^(?:\.agents|\.claude)\/skills\/[^/]+\/SKILL\.md$/u.test(file) ||
+        /^(?:\.agents|\.claude)\/skills\/[^/]+\/agents\/[^/]+\.ya?ml$/u.test(file);
+    if (
+        file === 'AGENTS.md' ||
+        file === 'CLAUDE.md' ||
+        file === '.agents/invocation.md' ||
+        file === '.claude/skills' ||
+        isSkillContractPath
+    ) {
+        candidates.push(SKILL_INVOCATION_CONTRACT_TEST);
+    }
+    if (
+        file === '.claude/settings.json' ||
+        file === '.codex/hooks.json' ||
+        file.startsWith('.agents/acceptance/')
+    ) {
+        candidates.push(PROJECT_HOOK_CONTRACT_TEST);
+    }
+    return candidates;
+}
+
 /**
  * Splits changed files into the three pipelines this gate runs, so `.md` files match CI's tool ownership split:
  * markdownlint owns Markdown semantics, Prettier owns formatting for every `FORMAT_EXTENSIONS` file (including `.md`),
@@ -317,9 +344,10 @@ export function lintBucketsForFiles(files: string[]): LintBuckets {
 export function testCandidatesForFile(file: string): string[] {
     const normalized = file.replaceAll('\\', '/');
     if (/\.test\.(?:cts|mts|ts|tsx)$/.test(normalized)) return [normalized];
+    const harnessCandidates = repoHarnessTestCandidates(normalized);
 
     const extension = TEST_EXTENSIONS.find((candidate) => normalized.endsWith(candidate));
-    if (!extension || normalized.endsWith('.d.ts')) return [];
+    if (!extension || normalized.endsWith('.d.ts')) return harnessCandidates;
 
     const directory = posix.dirname(normalized);
     const stem = posix.basename(normalized, extension);
@@ -347,7 +375,7 @@ export function testCandidatesForFile(file: string): string[] {
         );
     }
 
-    return candidates;
+    return [...new Set([...harnessCandidates, ...candidates])];
 }
 
 /**

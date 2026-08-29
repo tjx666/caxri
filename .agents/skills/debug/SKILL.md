@@ -5,9 +5,10 @@ description: Diagnose Caxri failures across Desktop Main, Server Core, Terminal 
 
 # Debug Caxri
 
-1. Reproduce with the narrowest real process path. Use `bun run dev` in this checkout, or
-   `bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts dev` for an isolated
-   worktree, for interactive Electron behavior.
+1. Reproduce with the narrowest real process path. For interactive Electron behavior, agents always
+   use `bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts dev` so the checkout owns
+   an isolated profile and Desktop lease. Bare `bun run dev` is only a first-clone convenience for a
+   human working outside an agent session.
 2. Identify the owner from the `project-architecture` skill's architecture reference: Desktop Main
    for windows, dialogs, the Desktop lease, and the runtime profile; Server Core for Projects,
    Sessions, SQLite, settings, and the public command surface; Terminal Host for PTYs; Extension
