@@ -328,16 +328,29 @@ function artifactError(error: unknown): string {
 }
 
 /**
- * Ordinary reads compare immutable direct-file metadata in constant time. Explicit ledger validation also recomputes
- * SHA-256, and any metadata drift triggers a digest read before the receipt is rejected.
+ * Ordinary reads verify only the newest completed artifact so routine ledger updates stay bounded as history grows.
+ * Explicit audits cover every artifact and recompute SHA-256; any metadata drift still triggers a digest read before
+ * the receipt is rejected.
  */
 export async function reconcileValidationArtifacts(
     state: { validations: ValidationRecord[] },
     runDirectory: string,
     verification: 'full' | 'metadata' = 'metadata',
-): Promise<void> {
-    for (const record of state.validations) {
-        if (record.artifactVersion !== 1 || record.result === 'pending') continue;
+): Promise<number> {
+    const newest = state.validations.at(-1);
+    /**
+     * A valid ledger allows one pending validation, and startValidation always appends it.
+     */
+    const latestCompleted = newest?.result === 'pending' ? state.validations.at(-2) : newest;
+    const records =
+        verification === 'full'
+            ? state.validations.filter(
+                  (record) => record.artifactVersion === 1 && record.result !== 'pending',
+              )
+            : latestCompleted?.artifactVersion === 1
+              ? [latestCompleted]
+              : [];
+    for (const record of records) {
         let integrityError: string | null = null;
         try {
             if (
@@ -372,4 +385,5 @@ export async function reconcileValidationArtifacts(
         }
         refreshValidationResult(record);
     }
+    return records.length;
 }

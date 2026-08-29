@@ -42,6 +42,7 @@ import {
     recordCostCheckpoint,
     routeWorkflowWork,
 } from './run-budget';
+import type { GoState } from './state-model';
 import {
     acceptanceStatusSchema,
     addEvent,
@@ -68,6 +69,11 @@ import {
     writeInitialState,
     writeState,
 } from './state-storage';
+import {
+    assertAllValidationArtifactsAreValid,
+    assertCurrentHeadArtifactsAreRecoverable,
+    assertNoPendingValidation,
+} from './validation-artifact-policy';
 import { validationKindSchema } from './validation-gate';
 import { runValidation } from './validation-run';
 import { inspectWorktreeDelta } from './worktree-integrity';
@@ -124,6 +130,79 @@ function one(options: Options, key: string, isRequired = false): string | undefi
         throw new Error(`Missing --${key}`);
     }
     return typeof value === 'string' ? value : undefined;
+}
+
+const FULL_VALIDATION_ARTIFACT_COMMANDS = new Set([
+    'acceptance',
+    'acceptance-publish',
+    'ci-fallback-admit',
+    'ci-fallback-result',
+    'finalization-delivered',
+    'finalization-generate',
+    'pr',
+    'report-delivered',
+    'report-generate',
+    'review',
+    'validate',
+]);
+const FULL_VALIDATION_ARTIFACT_PHASES = new Set([
+    'acceptance',
+    'acceptance_handoff',
+    'complete',
+    'deep_review',
+    'delivery',
+    'finalization',
+    'merge',
+    'waiting_acceptance',
+]);
+
+/**
+ * Routine ledger bookkeeping checks only the newest completed log. Commands that consume delivery evidence run the
+ * complete artifact audit first so an older receipt can never authorize a review, PR, Acceptance, or finalization.
+ */
+function requiresFullValidationArtifactAudit(command: string, options: Options): boolean {
+    if (FULL_VALIDATION_ARTIFACT_COMMANDS.has(command)) return true;
+    if (command === 'issue' && one(options, 'status') === 'complete') return true;
+    return command === 'phase' && FULL_VALIDATION_ARTIFACT_PHASES.has(one(options, 'phase') ?? '');
+}
+
+function validationArtifactTargetHead(
+    command: string,
+    options: Options,
+    state: GoState,
+): string | undefined {
+    if (command === 'issue' && one(options, 'status') === 'complete') {
+        const issueNumber = integer(options, 'number');
+        return (
+            many(options, 'commit').at(-1) ??
+            state.issues.find(({ number }) => number === issueNumber)?.commits.at(-1)
+        );
+    }
+    if (command === 'acceptance') {
+        const acceptanceHead = one(options, 'accepted-head-sha') ?? one(options, 'waived-head-sha');
+        if (acceptanceHead) return acceptanceHead;
+    }
+    if (
+        [
+            'acceptance-publish',
+            'ci-fallback-admit',
+            'ci-fallback-result',
+            'finalization-generate',
+            'pr',
+            'report-delivered',
+            'report-generate',
+            'review',
+        ].includes(command)
+    ) {
+        const declaredHead = one(options, 'head-sha');
+        if (declaredHead) return declaredHead;
+    }
+    return (
+        state.pullRequest.headSha ??
+        state.reviewGate.frozenHeadSha ??
+        state.issues.flatMap(({ commits }) => commits).at(-1) ??
+        state.worktree?.baseSha
+    );
 }
 
 function many(options: Options, key: string): string[] {
@@ -310,9 +389,22 @@ export async function runStateCli(argv: string[]): Promise<number | void> {
     }
     if (passthrough.length > 0) throw new Error(`${command} does not accept arguments after --`);
     return withStateLock(path, async () => {
+        const requiresFullArtifactAudit = requiresFullValidationArtifactAudit(command, options);
         const state = await readState(path, {
-            validationArtifacts: command === 'validate' ? 'full' : 'metadata',
+            validationArtifacts: requiresFullArtifactAudit ? 'full' : 'metadata',
         });
+        if (requiresFullArtifactAudit) {
+            // Persist reconciliation before any gate throws so a damaged passed receipt can be replaced safely.
+            await writeState(path, state);
+            assertNoPendingValidation(state);
+            if (command === 'validate') assertAllValidationArtifactsAreValid(state);
+            else {
+                assertCurrentHeadArtifactsAreRecoverable(
+                    state,
+                    validationArtifactTargetHead(command, options, state),
+                );
+            }
+        }
         if (command === 'resume') {
             const checkpoint = createResumeCheckpoint(state);
             console.log(
@@ -342,14 +434,6 @@ export async function runStateCli(argv: string[]): Promise<number | void> {
             return;
         }
         if (command === 'validate') {
-            const invalidArtifact = state.validations.find(
-                ({ logIntegrityError }) => logIntegrityError !== null,
-            );
-            if (invalidArtifact) {
-                throw new Error(
-                    `Validation ${invalidArtifact.id} artifact is invalid: ${invalidArtifact.logIntegrityError}`,
-                );
-            }
             console.log('Go state is valid');
             return;
         }
