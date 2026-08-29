@@ -1,7 +1,6 @@
 ---
 name: switch-worktree
-description: Create, resolve, diagnose, run, and safely remove isolated Caxri Git worktrees. Use only when explicitly invoked with `$switch-worktree` to manage parallel repository checkouts, start an isolated development instance, inspect worktree health, or serialize a macOS Electron desktop task.
-disable-model-invocation: true
+description: Create, resolve, diagnose, run, and safely remove isolated Caxri Git worktrees. Use when a user asks to create or switch to a worktree, develop in an isolated worktree, inspect worktree health, start an isolated development instance, or serialize a macOS Electron desktop task.
 ---
 
 # Switch Worktree
