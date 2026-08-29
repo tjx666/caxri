@@ -135,7 +135,7 @@
                 ],
             },
             {
-                // Caxri already runs these schemas on Zod 4.4.3. React Doctor classifies the
+                // Caxri already runs these schemas on Zod 4.5.2. React Doctor classifies the
                 // supported object().strict() spelling as a pre-Zod-4 migration hazard, although
                 // the schemas are exercised by protocol, artifact, and IPC behavior tests.
                 "files": [
