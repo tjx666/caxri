@@ -105,9 +105,11 @@ runner is killed without a catchable signal, the next `validation-run` revalidat
 identities, terminates only a group whose ownership is still provable, marks the old receipt `runner_lost`, and only
 then starts a new attempt. A recycled PID is never treated as authority to signal an unrelated process.
 The supervisor remains inert until its process-group ID is durably recorded, so even SIGKILL cannot strand a command
-in the launch window. Ordinary ledger reads check direct-file identity, timestamps, and size without scanning old log
-contents; `state.ts validate` recomputes every SHA-256. A missing, truncated, replaced, or digest-mismatched log cannot
-remain passed.
+in the launch window. Ordinary ledger reads check only the newest completed validation log's direct-file identity,
+timestamps, and size, keeping lock-held file work bounded as history grows. Evidence-consuming transitions and
+`state.ts validate` audit every version-1 managed log and recompute every SHA-256. A damaged receipt is durably
+invalidated before the transition can continue; evidence for that head requires a later passing replacement of the
+same command. Explicit `state.ts validate` continues to report the damaged historical artifact after replacement.
 
 Wrap every repair mutation batch in the durable single-writer lease:
 
