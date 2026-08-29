@@ -24,8 +24,8 @@ checkpoint when the runtime cannot provide exact metrics.
 | `acceptance_handoff` | Passing round or explicit exact-head waiver      | Complete exact-head report generated and delivered when waiting               | `acceptance` or review phases      |
 | `waiting_acceptance` | Report delivered with stable Acceptance URL      | Human accepts or rejects                                                      | `acceptance`                       |
 | `merge`              | Human accepted or explicitly waived current head | PR remotely merged                                                            | `deep_review` if code changes      |
-| `finalization`       | Merged PR                                        | Final remote receipt generated and delivered                                  | none                               |
-| `complete`           | Handoff and finalization receipts delivered      | Terminal                                                                      | none                               |
+| `finalization`       | Merged PR                                        | Final receipt delivered; resource audit clean or recovered                    | none                               |
+| `complete`           | Handoff, finalization, and resource receipts     | Terminal                                                                      | none                               |
 
 ## Per-issue loop
 

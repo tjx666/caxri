@@ -72,6 +72,7 @@ function nextActionFor(state: GoState, currentIssue: GoState['issues'][number] |
                 return 'Generate finalization.json from refreshed remote state';
             if (!state.handoffReport.deliveredAt || !state.finalization.deliveredAt)
                 return 'Deliver the report and finalization receipts to the user';
+            if (!state.resourceCleanup) return 'Run the final resource cleanup audit';
             return 'Transition to complete';
         case 'complete':
             return 'No remaining action';
@@ -160,6 +161,7 @@ export function createResumeCheckpoint(state: GoState) {
         finalization: state.finalization,
         handoffReport: state.handoffReport,
         mutationLease: state.mutationLease,
+        resourceCleanup: state.resourceCleanup,
         reviewGate: state.reviewGate,
         reviewPolicy: state.reviewPolicy,
         runBudget: state.runBudget,
@@ -224,6 +226,11 @@ export function formatResumeCheckpoint(
     if (checkpoint.finalization) {
         lines.push(
             `finalization: ${checkpoint.finalization.deliveredAt ? 'delivered' : 'generated'} @ ${checkpoint.finalization.mergeSha}`,
+        );
+    }
+    if (checkpoint.resourceCleanup) {
+        lines.push(
+            `resource-cleanup: ${checkpoint.resourceCleanup.status}${checkpoint.resourceCleanup.recovered.length > 0 ? ` (${checkpoint.resourceCleanup.recovered.join(', ')})` : ''}`,
         );
     }
     const pendingValidations = checkpoint.validations.filter(({ result }) => result === 'pending');

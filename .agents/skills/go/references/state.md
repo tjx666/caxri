@@ -11,16 +11,9 @@ bun run .agents/skills/go/scripts/start.ts \
   --objective "<business goal>" --branch "chore/<goal-slug>"
 ```
 
-Keep the returned worktree and `.records/go/<run-id>/state.json` paths. Resume
-only in that worktree. For an already-active legacy run, bind its existing
-isolated worktree once:
-
-```bash
-bun run .agents/skills/go/scripts/state.ts worktree \
-  --state "$STATE" --worktree-path "$PWD" \
-  --main-checkout-path "/path/to/main-checkout" --base-sha "$BASE_SHA" \
-  --branch "chore/<goal-slug>"
-```
+Keep the returned worktree and `.records/go/<run-id>/state.json` paths. Resume only in that
+worktree. The ledger accepts schema v1 only. If an older ledger is encountered, start a new Go run
+instead of translating or mutating it.
 
 ## Core commands
 
@@ -197,12 +190,22 @@ bun run .agents/skills/go/scripts/state.ts finalization-generate \
   --issue 42:CLOSED:Done
 
 bun run .agents/skills/go/scripts/state.ts finalization-delivered --state "$STATE"
+
+bun run .agents/skills/go/scripts/state.ts resource-audit --state "$STATE"
 ```
+
+Run `resource-audit` only after both delivery receipts exist. It fails closed on pending validation
+or mutation ownership, a current-worktree dev process or desktop lease, Acceptance runtime state,
+Go temporary files, or another live process tied to the recorded worktree. It persists no command
+arguments. Reclaim each confirmed current-Go resource through its owning skill, rerun the command,
+and pass one repeated `--recovered KIND` per category actually cleaned. A later mutating command
+invalidates the receipt; read-only `resume`, `show`, `notes`, and `validate` do not.
 
 The state transition to `waiting_acceptance` fails validation when the report is absent,
 incomplete, stale, checksum-invalid, or undelivered. The transition to `complete` fails until the
 same exact-head handoff and finalization receipts exist, their files match the ledger, the PR is
-merged, and every intended issue is `CLOSED` / `Done`.
+merged, every intended issue is `CLOSED` / `Done`, and the final resource audit belongs to the
+current run and recorded worktree.
 
 ## Resume and rules
 
@@ -220,7 +223,7 @@ bun run .agents/skills/go/scripts/state.ts phase --help
 
 - Update state only through the script. Every command acquires an atomic per-run lock owner receipt and
   fails closed when another live process owns it. If an owner is forcibly killed, the next command verifies
-  that its PID is dead and safely reclaims the stale receipt; malformed or legacy locks still fail closed. State and
+  that its PID is dead and safely reclaims the stale receipt; malformed or older-format locks still fail closed. State and
   history artifacts use exclusive unpredictable temporary files, ownership/no-follow checks, and
   atomic replacement.
 - Do not call raw `lobehub acceptance run ingest` inside Go. A `pending`
@@ -230,7 +233,7 @@ bun run .agents/skills/go/scripts/state.ts phase --help
 - Recording a changed PR head invalidates fallback evidence, report/finalization
   receipts, and any freeze that does not already bind the replacement head.
 - Start formal validations only through `validation-run`. It automatically recovers a dead managed runner; an active
-  runner or an imported legacy pending record remains blocked for explicit investigation.
+  runner remains blocked for explicit investigation.
 - Do not rerun a passed exact-head validation without invalidation.
 - Preserve original zero-step infrastructure evidence and keep Actions CI externally blocked when
   the guarded fallback passes.

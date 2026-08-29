@@ -26,6 +26,7 @@ import {
 import { createEmptyLedgerRetention, ledgerRetentionSchema } from './ledger-retention';
 import { mutationLeaseSchema } from './mutation-lease';
 import { MAX_NOTE_TEXT_CHARACTERS, sanitizeLedgerDetail, sanitizeNoteText } from './note-safety';
+import { assertResourceCleanupComplete, resourceCleanupSchema } from './resource-cleanup';
 import {
     assertReviewHeadFrozen,
     createEmptyReviewGate,
@@ -40,10 +41,9 @@ import {
     recordCostCheckpoint,
     runBudgetSchema,
 } from './run-budget';
-import { migrateState } from './state-migration';
 import { refreshValidationResult, validationsSchema } from './validation-gate';
 
-const SCHEMA_VERSION = 12;
+const SCHEMA_VERSION = 1;
 
 const PHASES = [
     'intake',
@@ -163,6 +163,7 @@ const goStateSchema = z.object({
         url: z.string().nullable(),
     }),
     retention: ledgerRetentionSchema,
+    resourceCleanup: resourceCleanupSchema.nullable(),
     reviewGate: reviewGateSchema,
     reviewPolicy: reviewPolicySchema,
     runBudget: runBudgetSchema,
@@ -287,6 +288,7 @@ export function createInitialState({
         phase: 'intake',
         pullRequest: { headSha: null, number: null, status: 'none', url: null },
         retention: createEmptyLedgerRetention(),
+        resourceCleanup: null,
         reviewGate: createEmptyReviewGate(),
         reviewPolicy: createReviewPolicy(),
         runBudget: createRunBudget(),
@@ -367,6 +369,7 @@ export function transitionState(state: GoState, phase: Phase, reason = ''): GoSt
     }
     if (phase === 'complete' && state.phase === 'finalization') {
         assertFinalizationComplete(state);
+        assertResourceCleanupComplete(state);
     }
 
     const previous = state.phase;
@@ -552,7 +555,15 @@ export function recordNote(state: GoState, input: { kind: NoteKind; text: string
 }
 
 export function validateState(state: unknown): GoState {
-    const parsed = goStateSchema.parse(migrateState(state, SCHEMA_VERSION));
+    if (state && typeof state === 'object' && !Array.isArray(state)) {
+        const schemaVersion = (state as Record<string, unknown>).schemaVersion;
+        if (schemaVersion !== undefined && schemaVersion !== SCHEMA_VERSION) {
+            const displayedVersion =
+                typeof schemaVersion === 'number' ? String(schemaVersion) : 'unknown';
+            throw new Error(`Unsupported Go state schema ${displayedVersion}; start a new Go run`);
+        }
+    }
+    const parsed = goStateSchema.parse(state);
     if (parsed.status !== statusForPhase(parsed.phase)) {
         throw new Error('Invalid Go state: status does not match phase');
     }
@@ -640,6 +651,12 @@ export function validateState(state: unknown): GoState {
     ) {
         throw new Error('Invalid Go state: finalization requires a remotely merged pull request');
     }
-    if (parsed.phase === 'complete') assertFinalizationComplete(parsed);
+    if (parsed.resourceCleanup && !['finalization', 'complete'].includes(parsed.phase)) {
+        throw new Error('Invalid Go state: resource cleanup belongs only to finalization');
+    }
+    if (parsed.phase === 'complete') {
+        assertFinalizationComplete(parsed);
+        assertResourceCleanupComplete(parsed);
+    }
     return parsed;
 }

@@ -39,6 +39,9 @@ observations in Simplified Chinese because they are surfaced in the handoff repo
 deduplicated `token_waste` or `workflow` note as soon as a costly repeat or stable script candidate
 is observed; do not reconstruct the audit by rereading the transcript at the end.
 
+The ledger accepts only the current schema v1. Do not migrate an older Go ledger; start a new run
+instead.
+
 Treat the ledger as a cooperative consistency and resume contract. It validates recorded state
 transitions, exact-head and source fingerprints, and receipt lineage. It does not execute the
 recorded commands, derive review findings, attest facts omitted by the caller, or provide an
@@ -166,13 +169,38 @@ invent desktop evidence.
 
 Read [references/report.md](references/report.md). Merge only the accepted or explicitly waived
 head, refresh the merged SHA, and verify every intended issue is closed with its Project item
-`Done`. Reuse the persisted handoff report, generate the final remote receipt, and include
-explicit workflow, automation, cost, debt, and remaining-boundary results.
+`Done`. Reuse the persisted handoff report, generate and deliver the final remote receipt, then run
+the final resource audit before transitioning to `complete`:
+
+```bash
+bun run .agents/skills/go/scripts/state.ts resource-audit \
+  --state "$GO_STATE" [--recovered worktree_process]
+```
+
+The audit checks the current ledger for pending validation or mutation ownership, the dedicated
+worktree's managed dev process and desktop lease, Acceptance runtime state, abandoned Go temporary
+files, and live processes whose cwd or command resolves inside the recorded worktree. It excludes
+the audit command and its ancestors. It records no command arguments or raw process output.
+
+When the audit reports a candidate, inspect and reclaim it through its owning procedure: Call the
+Skill tool with "debug" for worktree processes, Call the Skill tool with "switch-worktree" for a
+managed dev instance or desktop lease, and Call the Skill tool with "acceptance" for Acceptance
+runtime cleanup. Verify PID plus process identity and the exact recorded worktree before signaling;
+never use a broad process-name match. Remove a reported temporary only after proving it is a direct
+regular file inside this run directory and no live writer owns it. Rerun `resource-audit`, adding
+one `--recovered KIND` for each resource category actually reclaimed. Do not automatically delete
+the Go worktree, isolated profile, local branch, or remote branch: those are retained delivery
+resources, not abnormal residue.
+
+Any later mutating state command invalidates the audit, so run it last and transition directly to
+`complete`. A delivered finalization receipt or merged PR never substitutes for this check. Include
+the resource cleanup result with the explicit workflow, automation, cost, debt, and
+remaining-boundary results.
 
 Only an explicit user instruction may update this skill while its workflow is active; the update
 applies prospectively and requires focused validation plus a new exact-head review freeze. Never
-recursively self-improve. Mark the Goal complete only after every delivery and finalization
-receipt is delivered.
+recursively self-improve. Mark the Goal complete only after the delivery and finalization receipts
+are delivered and the final resource-cleanup receipt is recorded.
 
 ## Non-negotiable invariants
 

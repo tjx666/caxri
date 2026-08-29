@@ -29,6 +29,8 @@ import {
     mutationLeaseKindSchema,
     releaseMutationLease,
 } from './mutation-lease';
+import { resourceCleanupKindSchema } from './resource-cleanup';
+import { runResourceAudit } from './resource-cleanup-run';
 import { createResumeCheckpoint, formatResumeCheckpoint } from './resume';
 import {
     overrideReviewPolicy,
@@ -263,6 +265,7 @@ const COMMAND_USAGE: Record<string, string> = {
     'pr': 'pr --state PATH [--number N] [--url URL] [--status STATUS] [--head-sha SHA] [--branch NAME]',
     'report-delivered': 'report-delivered --state PATH --head-sha SHA [--acceptance-url URL]',
     'report-generate': 'report-generate --state PATH --head-sha SHA',
+    'resource-audit': 'resource-audit --state PATH [--recovered KIND]',
     'resume': 'resume --state PATH [--json]',
     'review':
         'review --state PATH --head-sha SHA --mode full|quick|light --p0 N --p1 N --scope TEXT --reviewed-range RANGE [--baseline-review-id ID] [--baseline-head-sha SHA] [--parent-review-id ID] [--freeze]',
@@ -290,6 +293,7 @@ const COMMAND_VALUES: Partial<Record<string, string[]>> = {
     'pr': [`status: ${pullRequestStatusSchema.options.join('|')}`],
     'review': [`mode: ${reviewModeSchema.options.join('|')}`],
     'review-policy': [`mode: ${reviewPolicyModeSchema.options.join('|')}`],
+    'resource-audit': [`recovered: ${resourceCleanupKindSchema.options.join('|')}`],
     'validation-run': [`kind: ${validationKindSchema.options.join('|')}`],
 };
 
@@ -375,7 +379,20 @@ export async function runStateCli(argv: string[]): Promise<number | void> {
     if (command === 'init') return initialize(options);
     const supplied = one(options, 'state', true)!;
     const path = await resolveStatePath(supplied);
+    if (command === 'resource-audit') {
+        const recovered = many(options, 'recovered').map((kind) =>
+            resourceCleanupKindSchema.parse(kind),
+        );
+        return runResourceAudit(path, recovered);
+    }
     if (command === 'validation-run') {
+        await withStateLock(path, async () => {
+            const state = await readState(path);
+            if (!state.resourceCleanup) return;
+            state.resourceCleanup = null;
+            addEvent(state, 'resource_cleanup', 'Invalidated by validation-run');
+            await writeState(path, state);
+        });
         const [executable, ...arguments_] = passthrough;
         if (!executable) throw new Error('validation-run requires -- EXECUTABLE [ARG ...]');
         return runValidation(path, {
@@ -436,6 +453,12 @@ export async function runStateCli(argv: string[]): Promise<number | void> {
         if (command === 'validate') {
             console.log('Go state is valid');
             return;
+        }
+        const shouldPreserveResourceCleanup =
+            command === 'phase' && one(options, 'phase') === 'complete';
+        if (!shouldPreserveResourceCleanup && state.resourceCleanup) {
+            state.resourceCleanup = null;
+            addEvent(state, 'resource_cleanup', `Invalidated by ${command}`);
         }
         let commandOutput: string | undefined;
 

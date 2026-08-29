@@ -12,6 +12,7 @@ describe('Go state CLI help', () => {
             '--acceptance-id ID --reason TEXT',
         );
         expect(stateCliHelp('acceptance-reconcile-round')).toContain('--round N --reason TEXT');
+        expect(stateCliHelp('resource-audit')).toContain('--recovered KIND');
         expect(stateCliHelp()).toContain('state.ts help <command>');
     });
 
