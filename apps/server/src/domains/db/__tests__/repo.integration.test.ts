@@ -376,7 +376,7 @@ describe('CaxriDatabase', () => {
             agentSessionId: 'agent-session-1',
         });
 
-        database.updateTerminalState(created.terminal!.id, 'stopped');
+        database.updateTerminalExitState(created.terminal!.id, 'stopped');
         expect(database.getSession(created.session.id)?.lastActivityState).toBe('completed');
 
         const restartedAt = Date.now() + 1;
@@ -387,7 +387,7 @@ describe('CaxriDatabase', () => {
         });
         expect(database.getSession(created.session.id)).toMatchObject({
             displayTitle: 'Implement Agent metadata',
-            lastActivityState: 'running',
+            lastActivityState: 'completed',
         });
         database.close();
     });

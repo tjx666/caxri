@@ -40,8 +40,8 @@ describe('canonicalPath', () => {
 
 describe('processStateToAgentActivity', () => {
     it.each([
-        ['starting', 'running'],
-        ['running', 'running'],
+        ['starting', 'unknown'],
+        ['running', 'unknown'],
         ['stopped', 'completed'],
         ['dead', 'failed'],
         ['failed', 'failed'],

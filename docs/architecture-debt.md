@@ -139,11 +139,11 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 
 ### AD-ui-work-tab-tablist — [RESOLVED · Confirmed defect · M]
 
-- **Summary:** Open Work now implements automatic keyboard activation, roving focus, an actual active tabpanel association, and text alternatives for dirty and process state.
-- **Evidence:** `apps/desktop/src/renderer/src/features/tabs/work-tab-strip.tsx:298-318` implements Arrow, Home, and End navigation. `apps/desktop/src/renderer/src/features/tabs/work-tab.tsx:127-173` owns tab semantics and descriptions. `e2e/editor-tabs.e2e.ts:275-354` covers mixed Terminal/editor keyboard and accessibility behavior, including preserving roving focus after Terminal attachment.
+- **Summary:** Open Work now implements automatic keyboard activation, roving focus, an actual active tabpanel association, and a text alternative for dirty state.
+- **Evidence:** `apps/desktop/src/renderer/src/features/tabs/work-tab-strip.tsx:298-318` implements Arrow, Home, and End navigation. `apps/desktop/src/renderer/src/features/tabs/work-tab.tsx` owns tab semantics and the dirty-state description. `e2e/editor-tabs.e2e.ts` covers mixed Terminal/editor keyboard and accessibility behavior, including preserving roving focus after Terminal attachment.
 - **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-15 @ e1c5948
 - **Resolved:** 2026-08-15 @ 43af4d6 via [issue caxri#171](https://github.com/tjx666/caxri/issues/171).
-- **Remediation target / Acceptance:** Arrow/Home/End changes and focuses the active work target, one tab participates in sequential focus, the active surface is associated, and color-only state has a screen-reader description.
+- **Remediation target / Acceptance:** Arrow/Home/End changes and focuses the active work target, one tab participates in sequential focus, the active surface is associated, and unsaved state has a screen-reader description.
 
 ### AD-persist-non-atomic-document-save — [RESOLVED · Confirmed defect · M]
 

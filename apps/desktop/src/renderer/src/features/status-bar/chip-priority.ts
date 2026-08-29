@@ -9,9 +9,9 @@
  * - The child-process count and memory chips duplicate a live reading already available in Process Explorer
  *   (`processExplorer.open`), so they are the cheapest to hide first.
  * - The pull request chip duplicates the Git panel, so it goes next.
- * - Degraded-backend/runtime chips, an active Agent operation (compacting/progress), and the Project root + branch
- *   pickers are never included here — they have no other on-screen home and must never disappear silently. The overflow
- *   scrollbar stays as the absolute last resort for the pathological case where even that never-hide set doesn't fit.
+ * - Degraded-backend/runtime chips, active Terminal progress, and the Project root + branch pickers are never included
+ *   here — they have no other on-screen home and must never disappear silently. The overflow scrollbar stays as the
+ *   absolute last resort for the pathological case where even that never-hide set doesn't fit.
  */
 export interface ChipVisibility {
     childProcessCount: boolean;

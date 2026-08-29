@@ -29,7 +29,7 @@ import {
     DEFAULT_SESSION_TITLE,
     defaultTerminalTitle,
     firstActiveSession,
-    processActivityState,
+    processExitActivityState,
     selectFallbackAfterDeletion,
     sessionActivityReasonForAgentState,
 } from '../session-policy';
@@ -435,14 +435,6 @@ export class CaxriDatabase {
             if (!terminal?.provider) return;
             this.db.terminals.updateAgentSessionId(terminalId, undefined, startedAt);
             this.db.terminals.setTitle(terminalId, defaultTerminalTitle(terminal.kind), startedAt);
-            const session = this.db.sessions.get(terminal.sessionId);
-            if (session?.primaryAgentTerminalId === terminalId) {
-                this.db.sessions.setDisplayTitleAndActivity(
-                    session.id,
-                    session.displayTitle,
-                    'running',
-                );
-            }
         });
     }
 
@@ -673,17 +665,19 @@ export class CaxriDatabase {
         return this.db.agentDispatchReceipts.forTerminal(terminalId);
     }
 
+    /**
+     * Updates only PTY lifecycle state. An interactive Agent process remains `running` while it waits at its prompt, so
+     * process liveness cannot prove that the Agent is executing a turn. Session Activity is owned by validated
+     * lifecycle signals, exact provider-turn reconciliation, and {@link updateTerminalExitState} for a real exit.
+     */
     updateTerminalState(
         id: string,
         state: ProcessState,
         failureReason?: TerminalFailureReason,
     ): void {
         this.db.transaction(() => {
-            const terminal = this.db.terminals.get(id);
-            if (!terminal) return;
+            if (!this.db.terminals.get(id)) return;
             this.db.terminals.updateState(id, state, failureReason);
-            if (terminal.provider)
-                this.db.sessions.setActivityStateByPrimaryTerminal(id, processActivityState(state));
         });
     }
 
@@ -697,7 +691,7 @@ export class CaxriDatabase {
             if (!terminal) return;
             this.db.terminals.updateState(id, state);
             if (!terminal.provider) return;
-            const activityState = processActivityState(state);
+            const activityState = processExitActivityState(state);
             const activityReason = sessionActivityReasonForAgentState(activityState);
             return this.db.sessions.setActivityStateByPrimaryTerminal(
                 id,

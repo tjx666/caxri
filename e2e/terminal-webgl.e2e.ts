@@ -165,9 +165,6 @@ test('WebGL modes hot-switch and every Terminal recovers from one GPU process lo
 
         await typeTerminal(running.page, String.raw`printf 'AFTER_WEBGL_FALLBACK\n'`);
         await expect(secondRows).toContainText('AFTER_WEBGL_FALLBACK');
-        await expect(
-            running.page.locator(`.work-tab[data-terminal-id="${terminalId}"] .process-running`),
-        ).toBeVisible();
     } finally {
         try {
             await running.app.close();
