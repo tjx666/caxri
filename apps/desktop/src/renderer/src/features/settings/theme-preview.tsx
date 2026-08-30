@@ -19,6 +19,7 @@ export function ThemePreview({ theme }: ThemePreviewProperties) {
         '--preview-background': theme.terminal.background,
         '--preview-blue': theme.terminal.blue,
         '--preview-border': theme.colors.border,
+        '--preview-chrome-foreground': theme.colors.foreground,
         '--preview-cyan': theme.terminal.cyan,
         '--preview-foreground': theme.terminal.foreground,
         '--preview-green': theme.terminal.green,
@@ -33,7 +34,12 @@ export function ThemePreview({ theme }: ThemePreviewProperties) {
             style={style}
             aria-label="Theme preview"
         >
-            <header className={cn(previewBarClassName, 'border-b border-[var(--preview-border)]')}>
+            <header
+                className={cn(
+                    previewBarClassName,
+                    'border-b border-[var(--preview-border)] text-[var(--preview-chrome-foreground)]',
+                )}
+            >
                 <span className="size-2 rounded-full bg-[var(--preview-accent)]" />
                 <strong className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
                     ~/code/caxri

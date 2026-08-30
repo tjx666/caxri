@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { CaxriError } from '@caxri/protocol';
+import { builtinThemes } from '@caxri/protocol';
 import { execFileAsync } from '@caxri/system';
 import { contrastRatio } from '@caxri/utils';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -300,15 +301,19 @@ describe('built-in theme contrast', () => {
      * floor before activation.
      */
     it('keeps muted secondary text at WCAG AA on every chrome surface', () => {
-        const { muted, background, surface, elevated } = draculaTheme.colors;
-        for (const backdrop of [background, surface, elevated])
-            expect(contrastRatio(muted, backdrop)).toBeGreaterThanOrEqual(4.5);
+        for (const theme of builtinThemes) {
+            const { muted, background, surface, elevated } = theme.colors;
+            for (const backdrop of [background, surface, elevated])
+                expect(contrastRatio(muted, backdrop), theme.id).toBeGreaterThanOrEqual(4.5);
+        }
     });
 
-    it('keeps primary foreground text well clear of AA on every chrome surface', () => {
-        const { foreground, background, surface, elevated } = draculaTheme.colors;
-        for (const backdrop of [background, surface, elevated])
-            expect(contrastRatio(foreground, backdrop)).toBeGreaterThanOrEqual(7);
+    it('keeps primary foreground text at WCAG AA on every chrome surface', () => {
+        for (const theme of builtinThemes) {
+            const { foreground, background, surface, elevated } = theme.colors;
+            for (const backdrop of [background, surface, elevated])
+                expect(contrastRatio(foreground, backdrop), theme.id).toBeGreaterThanOrEqual(4.5);
+        }
     });
 
     /**

@@ -8,6 +8,7 @@ import type {
     ArgvConfigChanges,
     Keybinding,
 } from '@caxri/protocol';
+import { builtinThemes, findMatchingBuiltinTheme } from '@caxri/protocol';
 
 import { caxri } from '../../lib/caxri';
 import { setSettingsOpen, useDialogStore } from '../../stores/dialogs';
@@ -23,6 +24,7 @@ import {
 import type { ConfigAction } from './settings-drafts';
 import { configReducer, initialConfigState, parseConfigSource } from './settings-drafts';
 import { createSettingsWriteCoordinator } from './settings-write-coordinator';
+import { applyBuiltinTheme, applyThemeColorEdit } from './theme-edit';
 
 const onApplied = (): void => {
     // Fire-and-forget: `refreshWorkbench` reports failures through its own request pipeline, so
@@ -451,22 +453,22 @@ export function useSettingsDialogController() {
     ): void => {
         const theme = state.theme.value;
         if (!theme) return;
-        const wasDracula = theme.id === 'dracula';
-        const nextId = wasDracula ? 'custom-dracula' : theme.id;
-        let nextSource = applyFormEdit(state.theme.source, [section, key], value);
-        nextSource = applyFormEdit(nextSource, ['source'], 'custom');
-        if (wasDracula) nextSource = applyFormEdit(nextSource, ['id'], nextId);
+        const next = applyThemeColorEdit(state.theme.source, theme, section, key, value);
         dispatchConfig({
             type: 'theme/changed',
-            value: {
-                ...theme,
-                id: nextId,
-                source: 'custom',
-                [section]: { ...theme[section], [key]: value },
-            },
-            source: nextSource,
+            value: next.value,
+            source: next.source,
         });
-        schedulePersist('theme', nextSource);
+        schedulePersist('theme', next.source);
+    };
+
+    const selectBuiltinTheme = (id: string): void => {
+        const theme = builtinThemes.find((candidate) => candidate.id === id);
+        if (!theme || (state.theme.value && findMatchingBuiltinTheme(state.theme.value)?.id === id))
+            return;
+        const next = applyBuiltinTheme(state.theme.source, theme);
+        dispatchConfig({ type: 'theme/changed', value: next.value, source: next.source });
+        persistNow('theme', next.source);
     };
 
     const updateArgvConfig = (changes: ArgvConfigChanges): void => {
@@ -533,6 +535,7 @@ export function useSettingsDialogController() {
         removeBinding,
         showSource,
         showUi,
+        selectBuiltinTheme,
         sourceErrors,
         state,
         tab,
