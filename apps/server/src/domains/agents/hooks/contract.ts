@@ -84,6 +84,7 @@ interface AgentHookSupport {
 export interface AgentHookAdapter {
     readonly bindings: readonly AgentHookBinding[];
     readonly schemaVersion: number;
+    autoNamingConflict?(documents: AgentHookDocuments): string | undefined;
     configTargets(environment: AgentEnvironment): readonly AgentHookConfigTarget[];
     inspect(documents: AgentHookDocuments, desired: DesiredHookInstall): AgentHookInspection;
     remove(

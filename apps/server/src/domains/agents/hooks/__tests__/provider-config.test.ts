@@ -84,6 +84,51 @@ describe('Agent provider hook configuration adapters', () => {
         expect(JSON.parse(removed)).toEqual(foreign);
     });
 
+    it('detects the existing global automatic naming hooks without removing them', () => {
+        const claudeSource = jsonSource({
+            Stop: [
+                {
+                    hooks: [
+                        {
+                            type: 'command',
+                            command: '/Users/example/.claude/hooks/auto-session-name.js',
+                        },
+                    ],
+                },
+            ],
+        });
+        const codexSource = jsonSource({
+            Stop: [
+                {
+                    hooks: [
+                        {
+                            type: 'command',
+                            command: '/Users/example/.codex/hooks/auto-thread-name.js',
+                        },
+                    ],
+                },
+            ],
+        });
+
+        expect(
+            claudeHookAdapter.autoNamingConflict?.(new Map([['settings', claudeSource]])),
+        ).toContain('left it unchanged');
+        expect(
+            codexHookAdapter.autoNamingConflict?.(
+                new Map([
+                    ['hooks', codexSource],
+                    ['config', undefined],
+                ]),
+            ),
+        ).toContain('left it unchanged');
+        expect(install(claudeHookAdapter, 'settings', claudeSource, 'claude')).toContain(
+            'auto-session-name.js',
+        );
+        expect(install(codexHookAdapter, 'hooks', codexSource, 'codex')).toContain(
+            'auto-thread-name.js',
+        );
+    });
+
     it('updates only stale Caxri entries and leaves a newer Codex schema untouched', () => {
         const current = install(codexHookAdapter, 'hooks', '{}\n', 'codex');
         const stale = current.replaceAll('--schema 6', '--schema 5');

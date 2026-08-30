@@ -458,6 +458,7 @@ export class SessionsModel {
                 layoutVersion: DEFAULT_LAYOUT_VERSION,
                 displayTitle: input.displayTitle,
                 titleMode: 'automatic',
+                autoNamingState: 'active',
             })
             .run();
         return this.get(id)!;
@@ -576,7 +577,12 @@ export class SessionsModel {
         return (
             this.database
                 .update(sessions)
-                .set({ displayTitle, titleMode: 'manual' })
+                .set({
+                    autoNamingState: 'stopped',
+                    displayTitle,
+                    lastAutoTitle: null,
+                    titleMode: 'manual',
+                })
                 .where(eq(sessions.id, id))
                 .run().changes === 1
         );

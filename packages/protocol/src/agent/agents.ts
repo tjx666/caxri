@@ -66,11 +66,19 @@ interface AgentMessagingSettings {
     enabled: boolean;
 }
 
+interface AgentNamingSettings {
+    /**
+     * Explicitly authorizes an extra low-cost model call after eligible Agent turns.
+     */
+    enabled: boolean;
+}
+
 export interface AgentProviderSettings {
     actions: AgentActionsSettings;
     hooks: AgentHookSettings;
     launch: AgentLaunchSettings;
     messaging: AgentMessagingSettings;
+    naming: AgentNamingSettings;
     recovery: AgentOutputRecoverySettings;
 }
 
@@ -118,6 +126,7 @@ export const defaultAgentProviderSettings = Object.fromEntries(
             actions: structuredClone(defaultAgentActionsSettings),
             hooks: { enabled: false },
             messaging: { enabled: true },
+            naming: { enabled: false },
             recovery: { ...defaultAgentOutputRecoverySettings, patterns: [] },
             launch: {
                 executable: agentProviderCatalog[provider].executableName,

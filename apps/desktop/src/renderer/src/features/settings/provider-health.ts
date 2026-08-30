@@ -42,6 +42,32 @@ export function hookHealthLabel(
     return health.message ? `${label} — ${health.message}` : label;
 }
 
+export function automaticNamingHealthLabel(
+    isEnabled: boolean,
+    areHooksEnabled: boolean,
+    health: AgentHookHealthMap[AgentProvider] | undefined,
+): string {
+    if (!isEnabled) return 'Disabled';
+    if (!areHooksEnabled) return 'Enable Lifecycle hooks to use automatic naming.';
+    if (!health) return 'Checking availability…';
+    if (health.kind !== 'active') return `Blocked — ${hookHealthLabel(true, health)}`;
+    if (!health.automaticNaming || health.automaticNaming.kind === 'ready')
+        return 'Ready — runs after the next completed turn';
+    const label = (() => {
+        switch (health.automaticNaming.kind) {
+            case 'blocked':
+                return 'Blocked';
+            case 'unavailable':
+                return 'Unavailable';
+            case 'lastAttemptBlocked':
+                return 'Last attempt blocked';
+            case 'lastAttemptFailed':
+                return 'Last attempt failed';
+        }
+    })();
+    return health.automaticNaming.message ? `${label} — ${health.automaticNaming.message}` : label;
+}
+
 export function skillScopeHealth(
     health: AgentSkillHealth | undefined,
     provider: AgentSkillInstallationHealth['provider'],

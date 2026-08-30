@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { StructuredLogger } from '@caxri/system';
+import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { CaxriDatabase } from '../../db/repository';
@@ -20,11 +21,11 @@ afterEach(async () => {
 /**
  * End-to-end regression for the Claude session-title chain (real provider `readState` against real on-disk fixtures,
  * through the coordinator probe, into the Session row). Claude Code keeps its `/resume` labels in the project
- * transcript (`ai-title` / `last-prompt` records) while the live-session metadata `name` is merely derived from the
- * working directory — a coordinator probe must surface the transcript label, not the derived name.
+ * transcript (`ai-title` records) while the live-session metadata `name` may merely be derived from the working
+ * directory. Raw `last-prompt` content must never enter the Session record because native notifications reuse it.
  */
-describe('AgentCoordinator Claude title propagation', () => {
-    it('publishes the transcript last-prompt label instead of the derived session name', async () => {
+describe('AgentCoordinator provider title propagation', () => {
+    it('keeps a raw transcript last prompt out of the persisted Session title', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-claude-title-'));
         temporaryDirectories.push(directory);
         const root = join(directory, 'project');
@@ -79,10 +80,73 @@ describe('AgentCoordinator Claude title propagation', () => {
 
             await expect
                 .poll(() => database.getSession(created.session.id)?.displayTitle)
-                .toBe('hello');
+                .toBe('project-1a');
             expect(database.getTerminal(created.terminal!.id)?.agentSessionId).toBe(
                 claudeSessionId,
             );
+        } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
+
+    it('keeps a raw Codex first prompt out of the persisted Session title', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-codex-title-'));
+        temporaryDirectories.push(directory);
+        const root = join(directory, 'project');
+        const stateDirectory = join(directory, 'codex-state');
+        await Promise.all([mkdir(root), mkdir(stateDirectory)]);
+
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(root).id, 'codex');
+        const codexSessionId = 'codex-session-sensitive-prompt';
+        const state = new Database(join(stateDirectory, 'state_1.sqlite'));
+        state.exec(
+            'CREATE TABLE threads (id TEXT PRIMARY KEY, cwd TEXT, title TEXT, name TEXT, created_at_ms INTEGER, updated_at_ms INTEGER, tokens_used INTEGER, archived INTEGER)',
+        );
+        state
+            .prepare('INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+            .run(
+                codexSessionId,
+                root,
+                'Sensitive raw first prompt',
+                null,
+                Date.now() + 1_000,
+                Date.now() + 1_000,
+                0,
+                0,
+            );
+        state.close();
+
+        const missingCodexHome = join(directory, 'missing-codex-home');
+        const missingAgent = join(directory, 'missing-agent');
+        const coordinator = new AgentCoordinator(
+            database,
+            new AgentService(
+                undefined,
+                createLocalAgentAdapters(
+                    {
+                        homeDirectory: directory,
+                        variables: {
+                            CODEX_HOME: missingCodexHome,
+                            CODEX_SQLITE_HOME: stateDirectory,
+                        },
+                    },
+                    () => ({ args: [], executable: missingAgent }),
+                ),
+            ),
+            () => {},
+            new StructuredLogger(join(directory, 'logs')),
+            { refreshDelayMs: 5 },
+        );
+
+        try {
+            coordinator.observeOutput(created.terminal!.id);
+
+            await expect
+                .poll(() => database.getTerminal(created.terminal!.id)?.agentSessionId)
+                .toBe(codexSessionId);
+            expect(database.getSession(created.session.id)?.displayTitle).toBe('Untitled');
         } finally {
             coordinator.close();
             database.close();

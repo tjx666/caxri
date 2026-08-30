@@ -42,6 +42,7 @@ const source: RecordQuerySource = {
             hasUnread: false,
             layoutVersion: 1,
             titleMode: 'automatic',
+            autoNamingState: 'active',
         },
         {
             id: 'session-2',
@@ -59,6 +60,7 @@ const source: RecordQuerySource = {
             hasUnread: true,
             layoutVersion: 1,
             titleMode: 'manual',
+            autoNamingState: 'stopped',
         },
     ],
     terminals: () => [

@@ -166,6 +166,16 @@ export async function didRenameSession(sessionId: string, displayTitle: string):
     return renamed !== undefined;
 }
 
+export function resumeAutomaticSessionNaming(sessionId: string): void {
+    // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+    void tryCommand(
+        'Automatic Session naming could not be resumed',
+        () => caxri.request('session.resumeAutomaticNaming', { sessionId }),
+        { refresh: refreshWorkbench },
+    );
+}
+
 /**
  * The folder-picker grant is a single-use Main-process authorization, so abandoning the Agent choice must revoke it
  * instead of leaving the root reachable.

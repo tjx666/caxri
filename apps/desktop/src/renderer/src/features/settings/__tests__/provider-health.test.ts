@@ -1,7 +1,12 @@
 import type { AgentSkillHealth } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { hookHealthLabel, skillScopeHealth, skillScopeSummary } from '../provider-health';
+import {
+    automaticNamingHealthLabel,
+    hookHealthLabel,
+    skillScopeHealth,
+    skillScopeSummary,
+} from '../provider-health';
 
 describe('hookHealthLabel', () => {
     it('reports disabled and pending states before health arrives', () => {
@@ -15,6 +20,37 @@ describe('hookHealthLabel', () => {
         expect(hookHealthLabel(true, { kind: 'error', message: 'EPERM' })).toBe(
             'Setup failed — restart Agent Terminals to try again — EPERM',
         );
+    });
+});
+
+describe('automaticNamingHealthLabel', () => {
+    it('distinguishes lifecycle readiness from automatic naming readiness', () => {
+        expect(automaticNamingHealthLabel(false, true, { kind: 'active' })).toBe('Disabled');
+        expect(automaticNamingHealthLabel(true, false, { kind: 'active' })).toContain(
+            'Enable Lifecycle hooks',
+        );
+        expect(automaticNamingHealthLabel(true, true, { kind: 'active' })).toContain('Ready');
+        expect(
+            automaticNamingHealthLabel(true, true, {
+                kind: 'active',
+                automaticNaming: { kind: 'blocked', message: 'Remove the duplicate hook.' },
+            }),
+        ).toBe('Blocked — Remove the duplicate hook.');
+        expect(
+            automaticNamingHealthLabel(true, true, {
+                kind: 'active',
+                automaticNaming: { kind: 'unavailable', message: 'Update Codex.' },
+            }),
+        ).toBe('Unavailable — Update Codex.');
+        expect(
+            automaticNamingHealthLabel(true, true, {
+                kind: 'active',
+                automaticNaming: {
+                    kind: 'lastAttemptFailed',
+                    message: 'Caxri will retry later.',
+                },
+            }),
+        ).toBe('Last attempt failed — Caxri will retry later.');
     });
 });
 
