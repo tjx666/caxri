@@ -49,9 +49,10 @@ describe('AgentCoordinator Session Activity', () => {
                 available: true,
             }),
         );
+        const renameSession: AgentAdapter['renameSession'] = () => new Promise<never>(() => {});
         const adapters: Record<AgentProvider, AgentAdapter> = {
-            claude: { provider: 'claude', snapshot },
-            codex: { provider: 'codex', snapshot },
+            claude: { provider: 'claude', renameSession, snapshot },
+            codex: { provider: 'codex', renameSession, snapshot },
         };
         const coordinator = new AgentCoordinator(
             database,

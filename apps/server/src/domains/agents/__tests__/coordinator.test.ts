@@ -16,9 +16,11 @@ import { AgentService } from '../service';
 const temporaryDirectories: string[] = [];
 
 function createAgents(snapshot: AgentAdapter['snapshot']): AgentService {
-    const adapters = Object.fromEntries(
-        agentProviderIds.map((provider) => [provider, { provider, snapshot }]),
-    ) as Record<AgentProvider, AgentAdapter>;
+    const renameSession: AgentAdapter['renameSession'] = () => new Promise<never>(() => {});
+    const adapters: Record<AgentProvider, AgentAdapter> = {
+        claude: { provider: 'claude', renameSession, snapshot },
+        codex: { provider: 'codex', renameSession, snapshot },
+    };
     return new AgentService(undefined, adapters);
 }
 

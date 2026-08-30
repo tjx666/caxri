@@ -17,6 +17,7 @@ export type DomainHandlers = {
     [M in ServerOperation]: (
         parameters: ServerOperationParameters<M>,
         signal?: AbortSignal,
+        finalizeDurably?: <Result>(commit: () => Result) => Result,
     ) => Promise<ServerOperationResult<M>> | ServerOperationResult<M>;
 };
 

@@ -205,47 +205,6 @@ describe('domain-service composition root', () => {
         }
     });
 
-    it('renames a Session through typed Runtime IPC and persists manual ownership', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-session-rename-'));
-        temporaryDirectories.push(directory);
-        const projectRoot = join(directory, 'project');
-        await mkdir(projectRoot);
-        const runtime = await createTestDomainServices({
-            userDataPath: join(directory, 'user-data'),
-            logger: new StructuredLogger(join(directory, 'logs')),
-            send: () => {},
-            terminal: {
-                resolveExecutable: () => Promise.resolve('/bin/zsh'),
-                spawn: () => createFakePty(),
-            },
-        });
-
-        try {
-            const project = await runtime.handlers['project.create']({ rootPath: projectRoot });
-            const created = await runtime.handlers['session.create']({
-                projectId: project.id,
-                defaultAgent: 'shell',
-            });
-            expect(
-                runtime.handlers['session.rename']({
-                    sessionId: created.session.id,
-                    displayTitle: '  Focused investigation  ',
-                }),
-            ).toMatchObject({
-                displayTitle: 'Focused investigation',
-                titleMode: 'manual',
-            });
-            expect(() =>
-                runtime.handlers['session.rename']({
-                    sessionId: created.session.id,
-                    displayTitle: ' '.repeat(3),
-                }),
-            ).toThrow(expect.objectContaining({ code: 'VALIDATION' }));
-        } finally {
-            await runtime.close();
-        }
-    });
-
     it('serves a Project, Session, and Files workflow through the handler table', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-'));
         temporaryDirectories.push(directory);

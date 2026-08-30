@@ -59,6 +59,7 @@ import {
 import { editorNavigationTargetSchema } from '../domain/editor.js';
 import { gitInternalMethods, gitMethods } from '../domain/git-contract.js';
 import { projectIconSchema } from '../domain/project-customization.js';
+import { sessionRenameTitleSchema } from '../domain/session.js';
 import {
     terminalFileLinkAmbiguousResolutionSchema,
     terminalFileLinkAmbiguousResultSchema,
@@ -94,8 +95,7 @@ const serverStopControl = commandPolicy('server', 'control', ['host.stop']);
 const desktopEventRead = commandPolicy('server', 'read');
 
 /**
- * Methods without required parameters still accept the preload's `{}` placeholder, and the default makes `undefined` a
- * valid input so callers may omit the argument entirely.
+ * Parameterless methods accept the preload's `{}` placeholder and default `undefined` to it.
  */
 const noParameters = z.object({}).default({});
 
@@ -392,7 +392,7 @@ export const methods = {
         ...serverWrite,
         params: z.object({
             sessionId: identifierSchema,
-            displayTitle: z.string().trim().min(1).max(200),
+            displayTitle: sessionRenameTitleSchema,
         }),
         result: sessionRecordSchema,
     },

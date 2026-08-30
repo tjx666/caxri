@@ -203,13 +203,15 @@ that explicitly advertised the required capability.
 ## Current state delivery and command recovery
 
 State tables are authoritative. The current Server writes structural changes to a bounded durable
-changefeed and uses request identity to deduplicate in-flight and completed requests. Five reviewed
-synchronous SQLite structural commands (`project.reorder`, `project.setIcon`, `session.markRead`,
-`session.rename`, and `session.unarchive`) commit state, content-free events, and their receipt in one
-transaction. Commands that cross filesystem, PTY, Git, or Desktop boundaries retain their A0 behavior
-and persist a content-free receipt after the owning effect returns; they do not claim transactional
-exactly-once behavior across the external effect. The fully durable Multi-Client idempotency model for
-those owners remains part of P2. In that target, the Server writes or coordinates:
+changefeed and uses request identity to deduplicate in-flight and completed requests. Four reviewed
+synchronous SQLite structural commands (`project.reorder`, `project.setIcon`, `session.markRead`, and
+`session.unarchive`) commit state, content-free events, and their receipt in one transaction. Commands
+`session.rename` first completes its idempotent Agent-provider operation, then commits the returned
+title, content-free event, and durable receipt in one SQLite transaction. Other commands that cross
+filesystem, PTY, Git, Agent-provider, or Desktop boundaries retain their A0 behavior and persist a
+content-free receipt after the owning effect returns; they do not claim transactional exactly-once
+behavior across the external effect. The fully durable Multi-Client idempotency model for those owners
+remains part of P2. In that target, the Server writes or coordinates:
 
 1. the new state;
 2. a content-free changefeed entry;

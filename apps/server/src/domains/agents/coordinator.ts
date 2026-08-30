@@ -730,16 +730,18 @@ export class AgentCoordinator {
     }
 
     /**
-     * Probes now instead of waiting for output, for a Terminal that just started or restarted.
+     * Immediately probes a Terminal after start or restart.
      */
     probeTerminal(terminalId: string): void {
         /**
-         * `probe` always catches and logs its own errors internally, so this promise never rejects. This is a
-         * fire-and-forget entry point called from synchronous Server dispatch paths that cannot become async without
-         * changing their own public, sync contracts.
+         * `probe` handles failures internally; synchronous callers cannot await it.
          */
         // eslint-disable-next-line no-void -- see comment above; awaiting is not possible here
         void this.probe(terminalId);
+    }
+
+    probeTerminalNow(terminalId: string): Promise<void> {
+        return this.probe(terminalId);
     }
 
     /**

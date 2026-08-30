@@ -144,7 +144,6 @@ describe('ServerDomainService', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-atomic-domain-command-'));
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const project = database.createProject('/private/project-one');
-        const original = database.createSession(project.id, null).session;
         const identity = database.protocolState.identity();
         const service = new ServerDomainService(dependencies(), (domainDependencies) =>
             Promise.resolve({
@@ -153,20 +152,16 @@ describe('ServerDomainService', () => {
                     return Promise.resolve();
                 },
                 handlers: handlers({
-                    'session.rename': ({
-                        sessionId,
-                        displayTitle,
-                    }: ServerOperationParameters<'session.rename'>) => {
-                        const renamed = database.renameSession(sessionId, displayTitle);
+                    'project.setIcon': ({
+                        projectId,
+                        icon,
+                    }: ServerOperationParameters<'project.setIcon'>) => {
+                        const updated = database.setProjectIcon(projectId, icon);
                         domainDependencies.send({
                             event: 'state.changed',
-                            payload: {
-                                kind: 'records',
-                                sessionIds: [sessionId],
-                                terminalIds: [],
-                            },
+                            payload: { kind: 'full', reason: 'project.setIcon' },
                         });
-                        return renamed;
+                        return updated;
                     },
                 }),
                 protocolRecovery: database.protocolState,
@@ -183,45 +178,163 @@ describe('ServerDomainService', () => {
             expect(() =>
                 service.forwardAtomically(
                     {
-                        method: 'session.rename',
-                        params: { sessionId: original.id, displayTitle: 'Rolled back' },
+                        method: 'project.setIcon',
+                        params: {
+                            projectId: project.id,
+                            icon: { name: 'database', color: 'warning' },
+                        },
                     },
-                    'rename-rollback',
+                    'icon-rollback',
                     () => {
                         throw new Error('receipt write failed');
                     },
                 ),
             ).toThrow('receipt write failed');
-            expect(database.getSession(original.id)?.displayTitle).toBe(original.displayTitle);
+            expect(database.getProject(project.id)?.icon).toBeUndefined();
             expect(database.protocolState.changefeedBounds(identity.stateEpoch).count).toBe(0);
             expect(database.protocolState.inspect().commandReceipts).toBe(0);
 
             const result = service.forwardAtomically(
                 {
-                    method: 'session.rename',
-                    params: { sessionId: original.id, displayTitle: 'Committed' },
+                    method: 'project.setIcon',
+                    params: {
+                        projectId: project.id,
+                        icon: { name: 'database', color: 'warning' },
+                    },
                 },
-                'rename-commit',
-                (renamed) => {
+                'icon-commit',
+                (updated) => {
                     database.protocolState.saveReceipt({
                         stateEpoch: identity.stateEpoch,
                         clientId: 'desktop:workbench-1',
-                        requestId: 'rename-commit',
+                        requestId: 'icon-commit',
                         requestFingerprint: 'a'.repeat(64),
-                        method: 'session.rename',
+                        method: 'project.setIcon',
                         reply: {
                             protocolVersion: CAXRI_PROTOCOL_VERSION,
-                            id: 'rename-commit',
+                            id: 'icon-commit',
                             ok: true,
-                            result: renamed,
+                            result: updated,
                         },
                         createdAt: 1,
                     });
                 },
             );
 
-            expect(result).toMatchObject({ displayTitle: 'Committed' });
-            expect(database.getSession(original.id)?.displayTitle).toBe('Committed');
+            expect(result).toMatchObject({ icon: { name: 'database', color: 'warning' } });
+            expect(database.getProject(project.id)?.icon).toEqual({
+                name: 'database',
+                color: 'warning',
+            });
+            expect(database.protocolState.changefeedBounds(identity.stateEpoch).count).toBe(1);
+            expect(database.protocolState.inspect().commandReceipts).toBe(1);
+            expect(deliveries.at(-1)).toMatchObject({
+                event: { event: 'state.changed' },
+                persistedEnvelope: { cursor: 1, ...identity },
+            });
+        } finally {
+            await service.shutdown();
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
+
+    it('atomically finalizes an asynchronous provider rename with its receipt', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-provider-domain-command-'));
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const project = database.createProject('/private/provider-project');
+        const created = database.createSession(project.id, 'shell', project.rootPath);
+        const identity = database.protocolState.identity();
+        const providerRename = vi.fn((displayTitle: string) =>
+            Promise.resolve(`${displayTitle} (provider)`),
+        );
+        const service = new ServerDomainService(dependencies(), (domainDependencies) =>
+            Promise.resolve({
+                close: () => {
+                    database.close();
+                    return Promise.resolve();
+                },
+                handlers: handlers({
+                    'session.rename': async (
+                        { sessionId, displayTitle }: ServerOperationParameters<'session.rename'>,
+                        _signal: AbortSignal,
+                        finalizeDurably?: <Result>(commit: () => Result) => Result,
+                    ) => {
+                        const appliedTitle = await providerRename(displayTitle);
+                        const commit = () => {
+                            const updated = database.renameSession(sessionId, appliedTitle);
+                            domainDependencies.send({
+                                event: 'state.changed',
+                                payload: {
+                                    kind: 'records',
+                                    sessionIds: [sessionId],
+                                    terminalIds: [],
+                                },
+                            });
+                            return updated;
+                        };
+                        return finalizeDurably ? finalizeDurably(commit) : commit();
+                    },
+                }),
+                protocolRecovery: database.protocolState,
+                validateRequestContext: () => {},
+            }),
+        );
+        const deliveries: unknown[] = [];
+        service.onEvent((event, persistedEnvelope) =>
+            deliveries.push({ event, persistedEnvelope }),
+        );
+
+        try {
+            await service.start();
+            await expect(
+                service.forwardWithDurableFinalizer(
+                    {
+                        method: 'session.rename',
+                        params: { sessionId: created.session.id, displayTitle: 'Focused work' },
+                    },
+                    'rename-rollback',
+                    () => {
+                        throw new Error('receipt write failed');
+                    },
+                ),
+            ).rejects.toThrow('receipt write failed');
+            expect(providerRename).toHaveBeenCalledOnce();
+            expect(database.getSession(created.session.id)).toMatchObject({
+                displayTitle: 'Untitled',
+                titleMode: 'automatic',
+            });
+            expect(database.protocolState.changefeedBounds(identity.stateEpoch).count).toBe(0);
+            expect(deliveries).toHaveLength(1);
+
+            const result = await service.forwardWithDurableFinalizer(
+                {
+                    method: 'session.rename',
+                    params: { sessionId: created.session.id, displayTitle: 'Focused work' },
+                },
+                'rename-commit',
+                (updated) => {
+                    database.protocolState.saveReceipt({
+                        stateEpoch: identity.stateEpoch,
+                        clientId: 'desktop:workbench-1',
+                        requestId: 'rename-commit',
+                        requestFingerprint: 'b'.repeat(64),
+                        method: 'session.rename',
+                        reply: {
+                            protocolVersion: CAXRI_PROTOCOL_VERSION,
+                            id: 'rename-commit',
+                            ok: true,
+                            result: updated,
+                        },
+                        createdAt: 1,
+                    });
+                },
+            );
+
+            expect(providerRename).toHaveBeenCalledTimes(2);
+            expect(result).toMatchObject({
+                displayTitle: 'Focused work (provider)',
+                titleMode: 'manual',
+            });
             expect(database.protocolState.changefeedBounds(identity.stateEpoch).count).toBe(1);
             expect(database.protocolState.inspect().commandReceipts).toBe(1);
             expect(deliveries.at(-1)).toMatchObject({

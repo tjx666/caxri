@@ -7,12 +7,17 @@ import type {
     AgentSnapshot,
     SessionAttentionKind,
 } from '@caxri/protocol';
-import { agentProviderCatalog, agentProviderIds } from '@caxri/protocol';
+import { agentProviderCatalog, agentProviderIds, CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
 import { SingleFlight } from '../single-flight';
-import type { AgentEnvironment, AgentSnapshotContext } from './contract';
+import type {
+    AgentEnvironment,
+    AgentSessionRenameContext,
+    AgentSessionRenameResult,
+    AgentSnapshotContext,
+} from './contract';
 import { defaultAgentEnvironment, processStateToAgentActivity } from './contract';
 import { discoverExecutable, readVersion } from './discovery';
 import { agentProviders } from './providers';
@@ -31,6 +36,7 @@ function reliableAttentionKind(
  */
 export interface AgentAdapter {
     provider: AgentProvider;
+    renameSession(context: AgentSessionRenameContext): Promise<AgentSessionRenameResult>;
     snapshot(context: AgentSnapshotContext): Promise<AgentSnapshot>;
 }
 
@@ -59,6 +65,26 @@ function createCliAdapter(
 ): AgentAdapter {
     return {
         provider,
+        async renameSession(context): Promise<AgentSessionRenameResult> {
+            const executable = await discoverExecutable(provider, launchSettings().executable);
+            if (!executable)
+                throw new CaxriError(
+                    'UNAVAILABLE',
+                    `${agentProviderCatalog[provider].displayName} is not available`,
+                );
+            const version = await readVersion(provider, executable);
+            if (!version)
+                throw new CaxriError(
+                    'UNAVAILABLE',
+                    `${agentProviderCatalog[provider].displayName} version could not be verified`,
+                );
+            return agentProviders[provider].renameSession({
+                ...context,
+                environment,
+                executable,
+                version,
+            });
+        },
         async snapshot(context): Promise<AgentSnapshot> {
             const observedAt = Date.now();
             const [executable, localState] = await Promise.all([
@@ -117,5 +143,12 @@ export class AgentService {
             });
             return snapshot;
         });
+    }
+
+    renameSession(
+        provider: AgentProvider,
+        context: AgentSessionRenameContext,
+    ): Promise<AgentSessionRenameResult> {
+        return this.adapters[provider].renameSession(context);
     }
 }

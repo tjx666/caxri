@@ -24,6 +24,7 @@ import {
 import { createDomainServices } from '../domains/create-domain-services';
 import type { DomainDependencies, DomainServices } from '../domains/domain-services';
 import type { ProtocolRecoveryState } from '../domains/protocol-recovery';
+import { isAtomicStructuralMethod } from './atomic-structural-methods';
 import type { DomainOperationDispatcher } from './operation-dispatcher';
 import { createOperationDispatcher } from './operation-dispatcher';
 
@@ -85,6 +86,7 @@ export class ServerDomainService extends EventTarget {
         timeoutMs = requestTimeout(method),
         context?: WorkbenchRequestContext,
         signal?: AbortSignal,
+        finalizeDurably?: <Result>(commit: () => Result) => Result,
     ): Promise<unknown> {
         await this.start();
         const dispatch = this.dispatch;
@@ -125,7 +127,13 @@ export class ServerDomainService extends EventTarget {
             // settlement branches and this final catch only fences an unexpected callback failure.
             const operation = this.runOperation(
                 dispatch,
-                { id, method, params: parameters, ...(context && { context }) },
+                {
+                    id,
+                    method,
+                    params: parameters,
+                    ...(context && { context }),
+                    ...(finalizeDurably && { finalizeDurably }),
+                },
                 (result) => settle(() => resolve(result)),
                 (error) => settle(() => reject(error)),
             );
@@ -151,6 +159,80 @@ export class ServerDomainService extends EventTarget {
                     ? error
                     : new CaxriError('INTERNAL', 'Server Core operation failed'),
             );
+        }
+    }
+
+    private commitDurableResult<Result>(
+        method: ServerOperation,
+        requestId: string,
+        persistResult: (result: unknown) => void,
+        commit: () => Result,
+    ): Result {
+        const services = this.services;
+        if (!services) throw new CaxriError('UNAVAILABLE', 'Server Core is unavailable');
+        if (this.atomicEvents)
+            throw new CaxriError('CONFLICT', 'A structural transaction is already active');
+        const startedAt = performance.now();
+        const events: ServerEvent[] = [];
+        const persisted: ProtocolEventEnvelope[] = [];
+        const identity = services.protocolRecovery.identity();
+        this.atomicEvents = events;
+        try {
+            const result = services.protocolRecovery.transaction(() => {
+                const outcome = commit();
+                if (
+                    typeof outcome === 'object' &&
+                    outcome !== null &&
+                    'then' in outcome &&
+                    typeof outcome.then === 'function'
+                )
+                    throw new CaxriError(
+                        'INTERNAL',
+                        `${method} durable finalization must be synchronous`,
+                    );
+                for (const event of events) {
+                    const durableEvent = durableServerEventSchema.parse(event);
+                    persisted.push(
+                        protocolEventEnvelopeSchema.parse({
+                            ...services.protocolRecovery.appendEvent(
+                                identity.stateEpoch,
+                                durableEvent,
+                            ),
+                            ...identity,
+                        }),
+                    );
+                }
+                persistResult(outcome);
+                return outcome;
+            });
+            this.atomicEvents = undefined;
+            for (const [index, event] of events.entries())
+                this.publishEvent(event, persisted[index]);
+            this.dependencies.logger.write('debug', logEventCatalog.ipc.request, {
+                correlationId: requestId,
+                durationMs: performance.now() - startedAt,
+                fields: { method, transaction: 'durable-finalizer' },
+            });
+            return result;
+        } catch (error) {
+            const wire = toWireError(error);
+            this.dependencies.logger.write('error', logEventCatalog.ipc.requestFailed, {
+                correlationId: requestId,
+                durationMs: performance.now() - startedAt,
+                fields: {
+                    method,
+                    code: wire.code,
+                    error: wire.message,
+                    stack:
+                        wire.code === 'INTERNAL' && error instanceof Error
+                            ? (error.stack ?? null)
+                            : null,
+                    transaction: 'durable-finalizer',
+                },
+            });
+            throw error;
+        } finally {
+            this.atomicEvents = undefined;
         }
     }
 
@@ -263,6 +345,45 @@ export class ServerDomainService extends EventTarget {
     }
 
     /**
+     * Lets an asynchronous external-effect handler commit its final SQLite state and durable receipt together after the
+     * external operation succeeds. The supplied closure must remain synchronous so no unrelated event can enter the
+     * transaction-scoped buffer.
+     */
+    forwardWithDurableFinalizer(
+        request: ServerOperationRequest,
+        requestId: string,
+        persistResult: (result: unknown) => void,
+        signal?: AbortSignal,
+    ): Promise<unknown> {
+        return this.send(
+            request.method,
+            request.params,
+            undefined,
+            undefined,
+            signal,
+            <Result>(commit: () => Result) =>
+                this.commitDurableResult(request.method, requestId, persistResult, commit),
+        );
+    }
+
+    tryForwardDurableCommand(
+        request: ServerOperationRequest,
+        requestId: string,
+        persistResult: ((result: unknown) => void) | undefined,
+        runCancellable: <Result>(task: (signal: AbortSignal) => Promise<Result>) => Promise<Result>,
+    ): { result: unknown } | undefined {
+        if (!persistResult) return;
+        if (isAtomicStructuralMethod(request.method))
+            return { result: this.forwardAtomically(request, requestId, persistResult) };
+        if (request.method !== 'session.rename') return;
+        return {
+            result: runCancellable((signal) =>
+                this.forwardWithDurableFinalizer(request, requestId, persistResult, signal),
+            ),
+        };
+    }
+
+    /**
      * Executes one reviewed synchronous structural handler inside the owning SQLite transaction. The handler's state
      * changes, its content-free events, and the protocol dispatcher's successful receipt either all commit or all roll
      * back. External-effect and asynchronous handlers are deliberately rejected from this path.
@@ -274,75 +395,14 @@ export class ServerDomainService extends EventTarget {
     ): unknown {
         const services = this.services;
         if (!services) throw new CaxriError('UNAVAILABLE', 'Server Core is unavailable');
-        if (this.atomicEvents)
-            throw new CaxriError('CONFLICT', 'A structural transaction is already active');
-        const startedAt = performance.now();
         const parsed = parseServerOperationRequest(request.method, request.params);
-        const events: ServerEvent[] = [];
-        const persisted: ProtocolEventEnvelope[] = [];
-        const identity = services.protocolRecovery.identity();
-        this.atomicEvents = events;
-        try {
-            const result = services.protocolRecovery.transaction(() => {
-                const handler = services.handlers[parsed.method] as (
-                    parameters: unknown,
-                    signal?: AbortSignal,
-                ) => unknown;
-                const outcome = handler(parsed.params);
-                if (
-                    typeof outcome === 'object' &&
-                    outcome !== null &&
-                    'then' in outcome &&
-                    typeof outcome.then === 'function'
-                )
-                    throw new CaxriError(
-                        'INTERNAL',
-                        `${parsed.method} is not a synchronous structural command`,
-                    );
-                for (const event of events) {
-                    const durableEvent = durableServerEventSchema.parse(event);
-                    persisted.push(
-                        protocolEventEnvelopeSchema.parse({
-                            ...services.protocolRecovery.appendEvent(
-                                identity.stateEpoch,
-                                durableEvent,
-                            ),
-                            ...identity,
-                        }),
-                    );
-                }
-                persistResult(outcome);
-                return outcome;
-            });
-            this.atomicEvents = undefined;
-            for (const [index, event] of events.entries())
-                this.publishEvent(event, persisted[index]);
-            this.dependencies.logger.write('debug', logEventCatalog.ipc.request, {
-                correlationId: requestId,
-                durationMs: performance.now() - startedAt,
-                fields: { method: parsed.method, transaction: 'structural' },
-            });
-            return result;
-        } catch (error) {
-            const wire = toWireError(error);
-            this.dependencies.logger.write('error', logEventCatalog.ipc.requestFailed, {
-                correlationId: requestId,
-                durationMs: performance.now() - startedAt,
-                fields: {
-                    method: parsed.method,
-                    code: wire.code,
-                    error: wire.message,
-                    stack:
-                        wire.code === 'INTERNAL' && error instanceof Error
-                            ? (error.stack ?? null)
-                            : null,
-                    transaction: 'structural',
-                },
-            });
-            throw error;
-        } finally {
-            this.atomicEvents = undefined;
-        }
+        const handler = services.handlers[parsed.method] as (
+            parameters: unknown,
+            signal?: AbortSignal,
+        ) => unknown;
+        return this.commitDurableResult(parsed.method, requestId, persistResult, () =>
+            handler(parsed.params),
+        );
     }
 
     async shutdown(): Promise<void> {

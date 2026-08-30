@@ -1,9 +1,10 @@
 import { Buffer } from 'node:buffer';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { Locator } from '@playwright/test';
+import Database from 'better-sqlite3';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
@@ -39,14 +40,34 @@ test('Agent Commands & Skills stays discoverable, describes its target, and pres
     const requiredSkillDirectory = join(root, '.agents', 'skills', 'e2e-required');
     const pullRequestSkillDirectory = join(root, '.agents', 'skills', 'pull-request');
     const fixCiSkillDirectory = join(root, '.agents', 'skills', 'fix-ci');
+    const codexState = join(userData, 'e2e-agents', 'codex');
     const capture = join(testDirectory, 'agent-input.hex');
     await Promise.all([
         mkdir(skillDirectory, { recursive: true }),
         mkdir(requiredSkillDirectory, { recursive: true }),
         mkdir(pullRequestSkillDirectory, { recursive: true }),
         mkdir(fixCiSkillDirectory, { recursive: true }),
+        mkdir(codexState, { recursive: true }),
         writeFile(capture, ''),
     ]);
+    const canonicalRoot = await realpath(root);
+    const threadIndex = new Database(join(codexState, 'state_1.sqlite'));
+    threadIndex.exec(
+        'CREATE TABLE threads (id TEXT PRIMARY KEY, cwd TEXT, title TEXT, name TEXT, created_at_ms INTEGER, updated_at_ms INTEGER, tokens_used INTEGER, archived INTEGER)',
+    );
+    threadIndex
+        .prepare('INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(
+            'agent-actions-session',
+            canonicalRoot,
+            'Codex action thread',
+            null,
+            Date.now() + 60_000,
+            Date.now() + 60_000,
+            0,
+            0,
+        );
+    threadIndex.close();
     await writeFile(
         join(skillDirectory, 'SKILL.md'),
         '---\nname: e2e-action\ndescription: E2E discovered action\n---\nNever exposed in picker metadata.\n',
@@ -80,6 +101,7 @@ test('Agent Commands & Skills stays discoverable, describes its target, and pres
         const state = await pageRequest<{
             sessions: Array<{ id: string; displayTitle: string; projectId: string }>;
             terminals: Array<{
+                agentSessionId?: string;
                 id: string;
                 provider?: string;
                 lastProcessState: string;
@@ -101,6 +123,16 @@ test('Agent Commands & Skills stays discoverable, describes its target, and pres
             `.terminal-pane[data-terminal-id="${agentTerminal.id}"] .xterm-helper-textarea`,
         );
         await expect(running.page.locator('.xterm-rows')).toContainText('AGENT_ACTIONS_READY');
+        await expect
+            .poll(async () => {
+                const current = await pageRequest<{
+                    terminals: Array<{ agentSessionId?: string; id: string; title: string }>;
+                }>(running.page, 'app.bootstrap');
+                const terminal = current.terminals.find(({ id }) => id === agentTerminal.id);
+                return `${terminal?.agentSessionId ?? ''}:${terminal?.title ?? ''}`;
+            })
+            .toBe('agent-actions-session:Codex action thread');
+        const agentTerminalTitle = 'Codex action thread';
 
         const expectPaletteSearch = async (term: string): Promise<void> => {
             await running.page.keyboard.press('Meta+Shift+P');
@@ -120,7 +152,7 @@ test('Agent Commands & Skills stays discoverable, describes its target, and pres
         await input.pressSequentially('draft-');
         await pageRequest(running.page, 'session.rename', {
             sessionId: agentSession.id,
-            displayTitle: agentTerminal.title,
+            displayTitle: agentTerminalTitle,
         });
         await running.page.keyboard.press('Meta+Shift+A');
 
@@ -130,29 +162,32 @@ test('Agent Commands & Skills stays discoverable, describes its target, and pres
         let target = picker.locator('[data-agent-action-target]');
         await expect(target).toHaveAttribute('data-target-title-kind', 'shared');
         await expect(target.locator('[data-agent-action-target-title]')).toHaveText(
-            agentTerminal.title,
+            agentTerminalTitle,
         );
-        await expect(target).toHaveAccessibleName(`Target: Codex; ${agentTerminal.title}`);
+        await expect(target).toHaveAccessibleName(`Target: Codex; ${agentTerminalTitle}`);
         await running.page.keyboard.press('Escape');
 
         await pageRequest(running.page, 'session.rename', {
             sessionId: agentSession.id,
             displayTitle: 'E2E Session Target',
         });
+        await expect
+            .poll(async () => {
+                const current = await pageRequest<{
+                    terminals: Array<{ id: string; title: string }>;
+                }>(running.page, 'app.bootstrap');
+                return current.terminals.find(({ id }) => id === agentTerminal.id)?.title;
+            })
+            .toBe('E2E Session Target');
         await running.page.keyboard.press('Meta+Shift+A');
         picker = running.page.locator('[data-agent-actions-picker]');
         await expect(picker).toBeVisible();
         target = picker.locator('[data-agent-action-target]');
-        await expect(target).toHaveAttribute('data-target-title-kind', 'distinct');
-        await expect(target.locator('[data-agent-action-target-title="session"]')).toHaveText(
-            'Session: E2E Session Target',
+        await expect(target).toHaveAttribute('data-target-title-kind', 'shared');
+        await expect(target.locator('[data-agent-action-target-title]')).toHaveText(
+            'E2E Session Target',
         );
-        await expect(target.locator('[data-agent-action-target-title="terminal"]')).toHaveText(
-            `Terminal: ${agentTerminal.title}`,
-        );
-        await expect(target).toHaveAccessibleName(
-            `Target: Codex; Session: E2E Session Target; Terminal: ${agentTerminal.title}`,
-        );
+        await expect(target).toHaveAccessibleName('Target: Codex; E2E Session Target');
         await expect(picker).toContainText('Codex');
         await expect(picker).toContainText('/status');
         const search = picker.getByPlaceholder('Search skills and slash commands…');
