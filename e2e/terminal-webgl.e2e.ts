@@ -1,7 +1,8 @@
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { E2EApp } from './support/electron-app.ts';
 import type { Page } from './support/fixtures.ts';
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import {
@@ -16,6 +17,69 @@ import {
 } from './support/helpers.ts';
 
 type GpuPreference = 'Auto' | 'On' | 'Off';
+
+const GPU_RESTART_STUB_KEY = '__caxriE2EGpuRestartStub';
+
+interface GpuRestartStubState {
+    didQuit: boolean;
+    didRelaunch: boolean;
+}
+
+async function stubGpuSafeModeRestart(app: E2EApp): Promise<void> {
+    await app.evaluate(({ app: electronApp }, key) => {
+        const scope = globalThis as Record<string, unknown>;
+        if (scope[key]) throw new Error('GPU restart lifecycle is already stubbed');
+        const state = {
+            didQuit: false,
+            didRelaunch: false,
+            quitDescriptor: Object.getOwnPropertyDescriptor(electronApp, 'quit'),
+            relaunchDescriptor: Object.getOwnPropertyDescriptor(electronApp, 'relaunch'),
+        };
+        scope[key] = state;
+        Object.defineProperties(electronApp, {
+            quit: {
+                configurable: true,
+                value: () => {
+                    state.didQuit = true;
+                },
+            },
+            relaunch: {
+                configurable: true,
+                value: () => {
+                    state.didRelaunch = true;
+                },
+            },
+        });
+    }, GPU_RESTART_STUB_KEY);
+}
+
+async function readGpuSafeModeRestart(app: E2EApp): Promise<GpuRestartStubState> {
+    return app.evaluate((_, key) => {
+        const state = (globalThis as Record<string, unknown>)[key] as
+            GpuRestartStubState | undefined;
+        if (!state) throw new Error('GPU restart lifecycle is not stubbed');
+        return { didQuit: state.didQuit, didRelaunch: state.didRelaunch };
+    }, GPU_RESTART_STUB_KEY);
+}
+
+async function restoreGpuSafeModeRestart(app: E2EApp): Promise<void> {
+    await app.evaluate(({ app: electronApp }, key) => {
+        const scope = globalThis as Record<string, unknown>;
+        const state = scope[key] as
+            | (GpuRestartStubState & {
+                  quitDescriptor?: PropertyDescriptor;
+                  relaunchDescriptor?: PropertyDescriptor;
+              })
+            | undefined;
+        if (!state) throw new Error('GPU restart lifecycle is not stubbed');
+        if (state.quitDescriptor) Object.defineProperty(electronApp, 'quit', state.quitDescriptor);
+        else Reflect.deleteProperty(electronApp, 'quit');
+        if (state.relaunchDescriptor)
+            Object.defineProperty(electronApp, 'relaunch', state.relaunchDescriptor);
+        else Reflect.deleteProperty(electronApp, 'relaunch');
+        Reflect.deleteProperty(scope, key);
+    }, GPU_RESTART_STUB_KEY);
+}
 
 async function applyGpuPreference(page: Page, preference: GpuPreference): Promise<void> {
     await page.keyboard.press('Meta+,');
@@ -172,11 +236,11 @@ test('WebGL modes hot-switch and every Terminal recovers from one GPU process lo
     }
 });
 
-test('two context losses activate reversible GPU Safe Mode on the next launch', async () => {
+test('repeated context losses preserve user choice and explicit GPU Safe Mode persists it', async () => {
     allowE2EErrors([
-        { source: 'desktop', event: 'gpu.process_gone', code: 'GPU_PROCESS_GONE', count: 4 },
+        { source: 'desktop', event: 'gpu.process_gone', code: 'GPU_PROCESS_GONE', count: 3 },
     ]);
-    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-gpu-safe-mode-e2e-'));
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-gpu-user-choice-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
     await mkdir(root);
@@ -191,14 +255,10 @@ test('two context losses activate reversible GPU Safe Mode on the next launch', 
         await createShellSession(running.page);
         await pageRequest(running.page, 'gpu.testInjectContextLoss');
         await pageRequest(running.page, 'gpu.testInjectContextLoss');
-        await expect
-            .poll(async () => {
-                const result = await pageRequest<{
-                    value: { hardwareAcceleration: boolean };
-                }>(running.page, 'argv.get');
-                return result.value.hardwareAcceleration;
-            })
-            .toBe(false);
+        const afterRepeatedIncidents = await pageRequest<{
+            value: { hardwareAcceleration: boolean };
+        }>(running.page, 'argv.get');
+        expect(afterRepeatedIncidents.value.hardwareAcceleration).toBe(true);
 
         await running.app.close();
         running = await launchCaxri({
@@ -212,23 +272,38 @@ test('two context losses activate reversible GPU Safe Mode on the next launch', 
                 'Caxri disabled hardware acceleration after repeated GPU crashes.',
                 { exact: true },
             ),
-        ).toBeVisible();
-        await typeTerminal(running.page, String.raw`printf 'SAFE_MODE_TERMINAL_OK\n'`);
-        await expect(running.page.locator('.xterm-rows')).toContainText('SAFE_MODE_TERMINAL_OK');
-        await running.page.getByRole('button', { name: 'Open Settings' }).click();
-        const dialog = running.page.getByRole('dialog');
-        const acceleration = dialog.getByRole('switch', { name: 'Hardware acceleration' });
-        await expect(acceleration).not.toBeChecked();
-        await acceleration.click();
-        await expect
-            .poll(async () => {
-                const result = await pageRequest<{
-                    value: { hardwareAcceleration: boolean };
-                }>(running.page, 'argv.get');
-                return result.value.hardwareAcceleration;
-            })
-            .toBe(true);
-        await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+        ).toHaveCount(0);
+        const afterRelaunch = await pageRequest<{
+            value: { hardwareAcceleration: boolean };
+        }>(running.page, 'argv.get');
+        expect(afterRelaunch.value.hardwareAcceleration).toBe(true);
+
+        await applyGpuPreference(running.page, 'On');
+        await stubGpuSafeModeRestart(running.app);
+        try {
+            await pageRequest(running.page, 'gpu.testInjectContextLoss');
+            const restart = running.page.getByRole('button', {
+                name: 'Restart in GPU Safe Mode',
+            });
+            await expect(restart).toBeVisible();
+            await restart.click();
+            await expect
+                .poll(async () => {
+                    const result = await pageRequest<{
+                        value: { hardwareAcceleration: boolean };
+                    }>(running.page, 'argv.get');
+                    return result.value.hardwareAcceleration;
+                })
+                .toBe(false);
+            await expect
+                .poll(() => readGpuSafeModeRestart(running.app))
+                .toEqual({
+                    didQuit: true,
+                    didRelaunch: true,
+                });
+        } finally {
+            await restoreGpuSafeModeRestart(running.app);
+        }
 
         await running.app.close();
         running = await launchCaxri({
@@ -236,40 +311,33 @@ test('two context losses activate reversible GPU Safe Mode on the next launch', 
             userDataDir: userData,
             testRootPath: root,
         });
+        const explicitSafeMode = await pageRequest<{
+            value: { hardwareAcceleration: boolean };
+        }>(running.page, 'argv.get');
+        expect(explicitSafeMode.value.hardwareAcceleration).toBe(false);
+        const persistedSettings = await pageRequest<{
+            value: { 'terminal.gpuAcceleration': string };
+        }>(running.page, 'settings.get');
+        expect(persistedSettings.value['terminal.gpuAcceleration']).toBe('on');
+
+        await running.page.keyboard.press('Meta+,');
+        const dialog = running.page.getByRole('dialog');
+        await revealSettingsSection(dialog, 'General');
+        const acceleration = dialog.getByRole('switch', { name: 'Hardware acceleration' });
+        await expect(acceleration).not.toBeChecked();
+        await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+        const surface = running.page.locator('.terminal-surface');
+        await expect(surface).toBeVisible();
+        await expect(surface).toHaveAttribute('data-terminal-renderer', 'dom');
+        await expect(surface).toHaveAttribute('data-terminal-renderer-reason', 'unsupported');
         await expect(
             running.page.getByText(
-                'Caxri disabled hardware acceleration after repeated GPU crashes.',
+                'GPU rendering failed in a Terminal. Caxri switched it to software rendering.',
                 { exact: true },
             ),
         ).toHaveCount(0);
-        await pageRequest(running.page, 'gpu.testInjectContextLoss');
-        const afterOne = await pageRequest<{ value: { hardwareAcceleration: boolean } }>(
-            running.page,
-            'argv.get',
-        );
-        expect(afterOne.value.hardwareAcceleration).toBe(true);
-        await pageRequest(running.page, 'gpu.testInjectContextLoss');
-        await expect
-            .poll(async () => {
-                const result = await pageRequest<{
-                    value: { hardwareAcceleration: boolean };
-                }>(running.page, 'argv.get');
-                return result.value.hardwareAcceleration;
-            })
-            .toBe(false);
-
-        const records = (await readFile(join(userData, 'logs', 'desktop.jsonl'), 'utf8'))
-            .trim()
-            .split('\n')
-            .map((line) => JSON.parse(line) as { event: string; fields?: Record<string, unknown> });
-        expect(
-            records.some(
-                (record) =>
-                    record.event === 'gpu.safe_mode' &&
-                    record.fields?.code === 'GPU_SAFE_MODE_BOOT' &&
-                    record.fields.hardwareAccelerationEnabled === false,
-            ),
-        ).toBe(true);
+        await typeTerminal(running.page, String.raw`printf 'GPU_SETTING_STAYED_ON\n'`);
+        await expect(running.page.locator('.xterm-rows')).toContainText('GPU_SETTING_STAYED_ON');
     } finally {
         try {
             await running.app.close();

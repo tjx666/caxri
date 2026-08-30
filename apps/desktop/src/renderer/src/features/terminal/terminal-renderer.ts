@@ -39,9 +39,28 @@ export function resolveTerminalRendererTarget(
     preference: TerminalGpuAcceleration,
     isWebgl2Available: boolean,
 ): TerminalRendererMode {
-    if (preference === 'off') return 'dom';
-    if (preference === 'auto' && !isWebgl2Available) return 'dom';
+    if (preference === 'off' || !isWebgl2Available) return 'dom';
     return 'webgl';
+}
+
+/**
+ * Probes the capability xterm actually needs instead of constructor presence, which remains truthy when Chromium cannot
+ * create a WebGL2 context. The temporary context is released immediately so probing cannot evict a live Terminal
+ * context from Chromium's per-page limit.
+ */
+export function isWebgl2Available(): boolean {
+    try {
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('webgl2');
+        if (!context) return false;
+        try {
+            return true;
+        } finally {
+            context.getExtension('WEBGL_lose_context')?.loseContext();
+        }
+    } catch {
+        return false;
+    }
 }
 
 /**
@@ -60,10 +79,7 @@ export class TerminalRendererController {
         private readonly host: TerminalRendererHost,
         private readonly redraw: () => void,
         private readonly onStatus: (status: TerminalRendererStatus) => void,
-        // DOM lib types declare `WebGL2RenderingContext` as always present, but this checks whether the runtime
-        // environment (e.g. a WebGL2-less Electron/GPU configuration) actually exposes it.
-        // oxlint-disable-next-line typescript/no-unnecessary-condition -- see comment above
-        private readonly webgl2Available = () => globalThis.WebGL2RenderingContext !== undefined,
+        private readonly webgl2Available = isWebgl2Available,
         private readonly createWebglAddon: WebglAddonFactory = () => new WebglAddon(),
     ) {}
 
@@ -118,7 +134,10 @@ export class TerminalRendererController {
     setPreference(preference: TerminalGpuAcceleration): void {
         if (this.preference === preference) return;
         this.preference = preference;
-        const target = resolveTerminalRendererTarget(preference, this.webgl2Available());
+        const target = resolveTerminalRendererTarget(
+            preference,
+            preference !== 'off' && this.webgl2Available(),
+        );
         if (target === 'dom') {
             const wasWebgl = Boolean(this.webgl);
             this.disposeWebgl();

@@ -649,10 +649,6 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                     event.payload.correlationId,
                 );
                 return;
-            case 'gpu.safeModeStatus':
-                if (event.payload.active && event.payload.automatic)
-                    gpuRecoveryNotificationCoordinator.notifyAutomaticGpuSafeMode();
-                return;
             case 'terminal.outputRecovery': {
                 const providerName = agentProviderCatalog[event.payload.provider].displayName;
                 if (event.payload.status === 'recovered')
