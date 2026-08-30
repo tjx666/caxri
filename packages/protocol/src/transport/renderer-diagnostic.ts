@@ -71,6 +71,108 @@ export const terminalResizeBurstDiagnosticSchema = z.strictObject({
     requestCount: resizeBurstCountSchema,
 });
 
+const performanceDurationSchema = z.number().nonnegative().max(120_000);
+const performanceCountSchema = z.number().int().nonnegative().max(1_000_000);
+const percentileDurationSchema = z.number().nonnegative().max(120_000);
+const reactProfileCountSchema = z.number().int().nonnegative().max(10_000);
+const browserObserverCountSchema = z.number().int().nonnegative().max(2_000);
+const reactScanCountSchema = z.number().int().nonnegative().max(20_000);
+
+const reactPerformanceSummarySchema = z.strictObject({
+    commitCount: reactProfileCountSchema,
+    profiledRenderCount: reactProfileCountSchema,
+    mountRenderCount: reactProfileCountSchema,
+    updateRenderCount: reactProfileCountSchema,
+    nestedUpdateRenderCount: reactProfileCountSchema,
+    actualDurationP50Ms: percentileDurationSchema,
+    actualDurationP95Ms: percentileDurationSchema,
+    actualDurationMaxMs: percentileDurationSchema,
+    baseDurationMaxMs: percentileDurationSchema,
+    slowestSurface: z
+        .enum(['app-shell', 'primary-sidebar', 'workbench', 'secondary-sidebar'])
+        .nullable(),
+    slowestSurfaceDurationMs: performanceDurationSchema,
+});
+
+const longAnimationFrameSummarySchema = z.strictObject({
+    count: browserObserverCountSchema,
+    totalDurationMs: performanceDurationSchema,
+    maxDurationMs: performanceDurationSchema,
+    totalBlockingDurationMs: performanceDurationSchema,
+    maxBlockingDurationMs: performanceDurationSchema,
+    maxStyleAndLayoutDurationMs: performanceDurationSchema,
+});
+
+const interactionPerformanceSummarySchema = z.strictObject({
+    count: browserObserverCountSchema,
+    maxDurationMs: performanceDurationSchema,
+    maxInputDelayMs: performanceDurationSchema,
+    maxProcessingDurationMs: performanceDurationSchema,
+    maxPresentationDelayMs: performanceDurationSchema,
+});
+
+const framePerformanceSummarySchema = z.strictObject({
+    sampleCount: z.number().int().nonnegative().max(20_000),
+    estimatedRefreshIntervalMs: z.number().nonnegative().max(100),
+    intervalP50Ms: performanceDurationSchema,
+    intervalP95Ms: performanceDurationSchema,
+    maxIntervalMs: performanceDurationSchema,
+    missedFrameCount: performanceCountSchema,
+});
+
+const safeComponentNameSchema = z
+    .string()
+    .max(120)
+    .regex(/^[\w $().:#[\]-]+$/u)
+    .nullable();
+
+const reactScanPerformanceSummarySchema = z.strictObject({
+    commitCount: reactScanCountSchema,
+    renderCount: reactScanCountSchema,
+    slowestComponent: safeComponentNameSchema,
+    slowestComponentRenderCount: reactScanCountSchema,
+    slowestComponentTotalDurationMs: performanceDurationSchema,
+    treeTruncated: z.boolean(),
+});
+
+export const rendererPerformanceActions = [
+    'benchmark.renderer',
+    'session.switch',
+    'terminal.resize',
+    'files.expand',
+    'editor.open',
+] as const;
+
+/**
+ * Bounded, content-free performance receipt emitted for one named Renderer scenario. It intentionally excludes
+ * arbitrary labels, paths, DOM text, component props/state, stack traces, and source locations.
+ */
+export const rendererPerformanceScenarioDiagnosticSchema = z.strictObject({
+    kind: z.literal('renderer-performance-scenario'),
+    diagnosticId: z.uuid(),
+    scenarioId: z.uuid(),
+    entry: z.literal('workbench'),
+    action: z.enum(rendererPerformanceActions),
+    buildMode: z.enum(['development', 'production', 'profiling']),
+    durationMs: performanceDurationSchema,
+    documentVisible: z.boolean(),
+    documentFocused: z.boolean(),
+    visibilityInterrupted: z.boolean(),
+    focusInterrupted: z.boolean(),
+    capabilities: z.strictObject({
+        longAnimationFrame: z.enum(['available', 'unavailable']),
+        eventTiming: z.enum(['available', 'unavailable']),
+        reactProfiler: z.enum(['available', 'disabled']),
+        reactScan: z.enum(['active', 'commit-tree-only', 'disabled', 'error']),
+    }),
+    react: reactPerformanceSummarySchema,
+    longAnimationFrames: longAnimationFrameSummarySchema,
+    interactions: interactionPerformanceSummarySchema,
+    frames: framePerformanceSummarySchema,
+    reactScan: reactScanPerformanceSummarySchema,
+    truncated: z.boolean(),
+});
+
 function addAggregateIssue(context: z.core.$RefinementCtx<unknown>, path: string): void {
     context.addIssue({
         code: 'custom',
@@ -79,32 +181,151 @@ function addAggregateIssue(context: z.core.$RefinementCtx<unknown>, path: string
     });
 }
 
+function addPerformanceAggregateIssue(
+    context: z.core.$RefinementCtx<unknown>,
+    path: PropertyKey[],
+): void {
+    context.addIssue({
+        code: 'custom',
+        message: 'Inconsistent Renderer performance aggregate',
+        path,
+    });
+}
+
 export const rendererDiagnosticSchema = z
     .discriminatedUnion('kind', [
         terminalRendererDiagnosticSchema,
         terminalResizeBurstDiagnosticSchema,
+        rendererPerformanceScenarioDiagnosticSchema,
     ])
     .superRefine((diagnostic, context) => {
-        if (diagnostic.kind !== 'terminal-resize-burst') return;
-        if (diagnostic.changeCount >= diagnostic.sampleCount)
-            addAggregateIssue(context, 'changeCount');
-        if (diagnostic.localAppliedCount > diagnostic.sampleCount)
-            addAggregateIssue(context, 'localAppliedCount');
-        if (diagnostic.requestCount > diagnostic.sampleCount)
-            addAggregateIssue(context, 'requestCount');
+        if (diagnostic.kind === 'terminal-resize-burst') {
+            if (diagnostic.changeCount >= diagnostic.sampleCount)
+                addAggregateIssue(context, 'changeCount');
+            if (diagnostic.localAppliedCount > diagnostic.sampleCount)
+                addAggregateIssue(context, 'localAppliedCount');
+            if (diagnostic.requestCount > diagnostic.sampleCount)
+                addAggregateIssue(context, 'requestCount');
 
-        for (const dimension of ['Cols', 'Rows'] as const) {
-            const minimum = diagnostic[`min${dimension}`];
-            const maximum = diagnostic[`max${dimension}`];
-            if (minimum > maximum) addAggregateIssue(context, `min${dimension}`);
-            for (const position of ['start', 'final'] as const) {
-                const value = diagnostic[`${position}${dimension}`];
-                if (value < minimum || value > maximum)
-                    addAggregateIssue(context, `${position}${dimension}`);
+            for (const dimension of ['Cols', 'Rows'] as const) {
+                const minimum = diagnostic[`min${dimension}`];
+                const maximum = diagnostic[`max${dimension}`];
+                if (minimum > maximum) addAggregateIssue(context, `min${dimension}`);
+                for (const position of ['start', 'final'] as const) {
+                    const value = diagnostic[`${position}${dimension}`];
+                    if (value < minimum || value > maximum)
+                        addAggregateIssue(context, `${position}${dimension}`);
+                }
             }
+            return;
         }
+
+        if (diagnostic.kind !== 'renderer-performance-scenario') return;
+        const { react, longAnimationFrames, interactions, frames, reactScan } = diagnostic;
+        if (react.commitCount > react.profiledRenderCount)
+            addPerformanceAggregateIssue(context, ['react', 'commitCount']);
+        if (
+            react.mountRenderCount + react.updateRenderCount + react.nestedUpdateRenderCount !==
+            react.profiledRenderCount
+        )
+            addPerformanceAggregateIssue(context, ['react', 'profiledRenderCount']);
+        if ((react.slowestSurface === null) !== (react.profiledRenderCount === 0))
+            addPerformanceAggregateIssue(context, ['react', 'slowestSurface']);
+        if (
+            react.actualDurationP50Ms > react.actualDurationP95Ms ||
+            react.actualDurationP95Ms > react.actualDurationMaxMs
+        )
+            addPerformanceAggregateIssue(context, ['react', 'actualDurationP95Ms']);
+        if (
+            react.profiledRenderCount === 0 &&
+            [
+                react.actualDurationP50Ms,
+                react.actualDurationP95Ms,
+                react.actualDurationMaxMs,
+                react.baseDurationMaxMs,
+                react.slowestSurfaceDurationMs,
+            ].some((value) => value !== 0)
+        )
+            addPerformanceAggregateIssue(context, ['react', 'profiledRenderCount']);
+        if (diagnostic.capabilities.reactProfiler === 'disabled' && react.profiledRenderCount !== 0)
+            addPerformanceAggregateIssue(context, ['capabilities', 'reactProfiler']);
+
+        for (const [name, count, metrics] of [
+            [
+                'longAnimationFrames',
+                longAnimationFrames.count,
+                [
+                    longAnimationFrames.totalDurationMs,
+                    longAnimationFrames.maxDurationMs,
+                    longAnimationFrames.totalBlockingDurationMs,
+                    longAnimationFrames.maxBlockingDurationMs,
+                    longAnimationFrames.maxStyleAndLayoutDurationMs,
+                ],
+            ],
+            [
+                'interactions',
+                interactions.count,
+                [
+                    interactions.maxDurationMs,
+                    interactions.maxInputDelayMs,
+                    interactions.maxProcessingDurationMs,
+                    interactions.maxPresentationDelayMs,
+                ],
+            ],
+            [
+                'frames',
+                frames.sampleCount,
+                [
+                    frames.estimatedRefreshIntervalMs,
+                    frames.intervalP50Ms,
+                    frames.intervalP95Ms,
+                    frames.maxIntervalMs,
+                    frames.missedFrameCount,
+                ],
+            ],
+        ] as const) {
+            if (count === 0 && metrics.some((value) => value !== 0))
+                addPerformanceAggregateIssue(context, [name, 'count']);
+        }
+
+        if (
+            diagnostic.capabilities.longAnimationFrame === 'unavailable' &&
+            longAnimationFrames.count !== 0
+        )
+            addPerformanceAggregateIssue(context, ['capabilities', 'longAnimationFrame']);
+        if (diagnostic.capabilities.eventTiming === 'unavailable' && interactions.count !== 0)
+            addPerformanceAggregateIssue(context, ['capabilities', 'eventTiming']);
+        if (
+            frames.intervalP50Ms > frames.intervalP95Ms ||
+            frames.intervalP95Ms > frames.maxIntervalMs ||
+            (frames.sampleCount > 0 && frames.estimatedRefreshIntervalMs === 0)
+        )
+            addPerformanceAggregateIssue(context, ['frames', 'intervalP95Ms']);
+
+        if ((reactScan.slowestComponent === null) !== (reactScan.renderCount === 0))
+            addPerformanceAggregateIssue(context, ['reactScan', 'slowestComponent']);
+        if (
+            reactScan.commitCount > reactScan.renderCount ||
+            reactScan.slowestComponentRenderCount > reactScan.renderCount
+        )
+            addPerformanceAggregateIssue(context, ['reactScan', 'commitCount']);
+        if (
+            reactScan.renderCount === 0 &&
+            (reactScan.slowestComponentRenderCount !== 0 ||
+                reactScan.slowestComponentTotalDurationMs !== 0 ||
+                reactScan.treeTruncated)
+        )
+            addPerformanceAggregateIssue(context, ['reactScan', 'renderCount']);
+        if (
+            ['disabled', 'error'].includes(diagnostic.capabilities.reactScan) &&
+            reactScan.renderCount !== 0
+        )
+            addPerformanceAggregateIssue(context, ['capabilities', 'reactScan']);
     });
 
 export type TerminalRendererDiagnostic = z.infer<typeof terminalRendererDiagnosticSchema>;
 export type TerminalResizeBurstDiagnostic = z.infer<typeof terminalResizeBurstDiagnosticSchema>;
+export type RendererPerformanceScenarioDiagnostic = z.infer<
+    typeof rendererPerformanceScenarioDiagnosticSchema
+>;
 export type RendererDiagnostic = z.infer<typeof rendererDiagnosticSchema>;

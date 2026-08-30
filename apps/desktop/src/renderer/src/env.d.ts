@@ -4,6 +4,8 @@ import type { CaxriBridge } from '@caxri/protocol';
 import type { ProcessExplorerBridge } from '@desktop-shared/process-explorer';
 
 declare global {
+    const __CAXRI_REACT_PROFILING__: boolean;
+
     interface Window {
         caxri: CaxriBridge;
         processExplorer: ProcessExplorerBridge;

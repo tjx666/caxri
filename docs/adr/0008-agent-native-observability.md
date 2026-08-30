@@ -1,11 +1,11 @@
 # Agent-native observability and diagnostics
 
 - Status: accepted (internal foundation implemented; public operator surfaces pending)
-- Date: 2026-08-25
+- Date: 2026-08-30
 - Implementation plan: [Server architecture refactor plan](../server-refactor-plan.md)
 
 Caxri treats observability as a machine-readable product contract across Server Core, Terminal Host,
-Extension Host, Clients, and future provider processes. The internal foundation has four deliberately
+Extension Host, Clients, and future provider processes. The internal foundation has five deliberately
 separate layers:
 
 1. Structured logs propagate normalized build, Server, boot, connection, trace, request, operation,
@@ -19,6 +19,10 @@ separate layers:
 4. The refactor parity tooling combines those manifests with six content-free probe states to classify
    exactly one root owner: control, Server Core, Terminal Host, Extension Host, persistence, or stream.
    Classification is read-only; remediation is output data, never an automatic restart or repair.
+5. The Desktop Renderer measures one named UI scenario at a time using browser observers, frame
+   timestamps, and stable React Profiler boundaries. It sends only the bounded finished aggregate to
+   authenticated Main IPC, which persists `renderer.performance_scenario` as flat structured-log
+   fields. Optional `react-scan/lite` attribution exists only in opt-in monitoring/profiling builds.
 
 ## Bounds and failure isolation
 
@@ -31,6 +35,9 @@ separate layers:
 - logging, sampling, and publication failures are best-effort and cannot fail a command, recovery,
   shutdown, or product process;
 - there is no local or remote exporter in the implemented foundation.
+- Renderer scenarios retain at most 20,001 frame timestamps, 10,000 React Profiler samples, 20,000
+  optional component samples, 2,000 Long Animation Frames, and 2,000 interactions, and automatically
+  finish after two minutes.
 
 Runtime validation occurs again immediately before manifest persistence. This keeps TypeScript escape
 hatches or malformed internal input from writing unknown fields, dynamic metric labels, or unnormalized
@@ -42,6 +49,9 @@ Diagnostics never contain source contents, Draft bodies, Terminal input, output 
 Agent transcripts, credentials, environment values, or secret-like settings. Correlation accepts only
 bounded opaque identities. Metrics contain fixed labels and numeric aggregates only. The read-only
 classifier consumes fixed probe states and never reads product payloads.
+Renderer performance receipts additionally reject DOM text, paths, source locations, props, state, and
+arbitrary action or surface labels. Optional component names use a short allowlisted character set;
+unsafe names are discarded and mark the aggregate as truncated.
 
 ## Deferred public surfaces
 

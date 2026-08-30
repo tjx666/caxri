@@ -15,6 +15,7 @@ import { CommandPalette } from './features/palette/command-palette';
 import { PathBrowserDialog } from './features/path-browser/path-browser-dialog';
 import { PrimarySidebar } from './features/primary-sidebar/primary-sidebar';
 import { ProjectIconDialog } from './features/primary-sidebar/project-icon-dialog';
+import { RendererPerformanceProfiler } from './features/renderer-performance/renderer-performance-profiler';
 import { ScreencastOverlay } from './features/screencast/screencast-overlay';
 import { SecondarySidebar } from './features/secondary-sidebar/secondary-sidebar';
 import { ArchivedSessionsDialog } from './features/session/archived-sessions-dialog';
@@ -172,7 +173,11 @@ export function App() {
                         className="collapsed-primary-sidebar-titlebar fixed top-0 left-0 z-20 h-11 w-[78px] [-webkit-app-region:drag]"
                     />
                 )}
-                {isPrimarySidebarVisible && <PrimarySidebar />}
+                {isPrimarySidebarVisible && (
+                    <RendererPerformanceProfiler surface="primary-sidebar">
+                        <PrimarySidebar />
+                    </RendererPerformanceProfiler>
+                )}
                 {isPrimarySidebarVisible && (
                     <PanelDivider
                         ariaLabel="Resize Primary Side Bar"
@@ -188,7 +193,9 @@ export function App() {
                         }
                     />
                 )}
-                <WorkbenchColumn />
+                <RendererPerformanceProfiler surface="workbench">
+                    <WorkbenchColumn />
+                </RendererPerformanceProfiler>
                 {isSecondarySidebarVisible && (
                     <PanelDivider
                         ariaLabel="Resize Secondary Side Bar"
@@ -204,7 +211,11 @@ export function App() {
                         }
                     />
                 )}
-                {isSecondarySidebarVisible && <SecondarySidebar />}
+                {isSecondarySidebarVisible && (
+                    <RendererPerformanceProfiler surface="secondary-sidebar">
+                        <SecondarySidebar />
+                    </RendererPerformanceProfiler>
+                )}
                 <StatusBar />
                 <CreateSessionDialog />
                 <ArchivedSessionsDialog />
