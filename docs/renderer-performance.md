@@ -48,8 +48,14 @@ The budgets below were calibrated from three local Apple M5 Max profiling runs o
 observed render-count ranges were `61–102`, `36–37`, and `26`; the observed maximum total durations
 were `15.9 ms`, `7.7 ms`, and `5.2 ms`, respectively. Duration gates use roughly three times the
 observed maximum, while render-count gates retain enough headroom for asynchronous state commits
-without allowing an accidental whole-tree render per event to pass unnoticed. The exact-head CI run
-on `m2-24` is the required cross-machine acceptance evidence.
+without allowing an accidental whole-tree render per event to pass unnoticed.
+
+The first exact-head `m2-24` CI receipt on 2026-08-31 recorded `59` renders / `15.4 ms` for the
+Primary Sidebar, `36` / `9.1 ms` for the Workbench, and `26` / `7.1 ms` for the Secondary Sidebar.
+The dedicated Renderer performance step passed all three budgets and uploaded the receipt in
+[Actions run 33321345787](https://github.com/tjx666/caxri/actions/runs/33321345787). This
+cross-machine result is the calibration evidence for the current ceilings; future changes should
+preserve comparable exact-head CI receipts rather than relying on local samples alone.
 
 | Surface           | Required renders | Maximum renders | Maximum total actual duration |
 | ----------------- | ---------------: | --------------: | ----------------------------: |
