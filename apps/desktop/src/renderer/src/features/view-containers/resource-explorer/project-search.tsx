@@ -19,6 +19,10 @@ import { openFile } from '../../editor/document-actions';
 import { revealEditorMatch } from '../../editor/editor-reveal';
 import { useResourceExplorerClient } from '../controlled-view-context';
 import { projectSearchQueryKey } from './project-search-query';
+import {
+    projectSearchDisplayState,
+    projectSearchTerminationMessage,
+} from './project-search-status';
 import type { NameSearchNode } from './project-search-tree';
 import { buildNameSearchTree, groupSearchMatches } from './project-search-tree';
 
@@ -225,6 +229,22 @@ export function ProjectSearch({
         () => buildNameSearchTree(result.data?.matches ?? []),
         [result.data?.matches],
     );
+    const displayState = projectSearchDisplayState({
+        active: isActive,
+        settled: isSettled,
+        fetching: result.isFetching,
+        failed: result.isError,
+        matchCount: result.data?.matches.length,
+        truncated: result.data?.truncated,
+        canceled: result.data?.canceled,
+    });
+    const terminationMessage = result.data
+        ? projectSearchTerminationMessage(
+              result.data.terminationReason,
+              result.data.scannedFiles,
+              result.data.matches.length > 0,
+          )
+        : undefined;
     const SearchModeIcon = mode === 'name' ? ListFilter : Search;
 
     /**
@@ -350,15 +370,19 @@ export function ProjectSearch({
                     </div>
                 )}
             </div>
-            {!isActive ? (
+            {displayState === 'idle' ? (
                 <div className="min-h-0 flex-1" />
-            ) : !isSettled ? (
+            ) : displayState === 'searching' ? (
                 <div className="p-3 text-center text-muted">Searching…</div>
-            ) : result.isError ? (
+            ) : displayState === 'error' ? (
                 <div className="p-3 text-center text-danger" role="alert">
                     Search failed.
                 </div>
-            ) : !result.isFetching && result.data?.matches.length === 0 ? (
+            ) : displayState === 'incomplete' ? (
+                <div className="p-3 text-center text-warning" role="status">
+                    {terminationMessage}
+                </div>
+            ) : displayState === 'empty' ? (
                 <div className="p-3 text-center text-muted">No results.</div>
             ) : (
                 <div className="search-results min-h-0 flex-1 overflow-auto">
@@ -381,7 +405,7 @@ export function ProjectSearch({
                           ))}
                     {result.data?.truncated && (
                         <div className="border-t border-border p-2 text-center text-[11px] text-warning">
-                            Results truncated by safety limits.
+                            {terminationMessage}
                         </div>
                     )}
                 </div>

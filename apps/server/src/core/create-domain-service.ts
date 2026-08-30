@@ -15,6 +15,7 @@ export interface ServerDomainServiceOptions {
     executable?: string;
     createServices?: CreateDomainServices;
     logger: StructuredLogger;
+    projectSearch?: { executablePath: string; workerPath: string };
     terminalExecution: TerminalExecutionPort;
     userDataPath: string;
 }
@@ -35,6 +36,7 @@ export function createServerDomainService(
             agentHooksPath: options.agentHooksPath,
             logger: options.logger,
             hookExecutable: options.executable ?? process.execPath,
+            projectSearch: options.projectSearch,
             terminalExecution: options.terminalExecution,
             userDataPath: options.userDataPath,
         },

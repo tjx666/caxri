@@ -1,9 +1,11 @@
 #!/usr/bin/env bun
 
+import { execFile } from 'node:child_process';
 import { cp, lstat, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
+import { promisify } from 'node:util';
 
 import { connectDesktopToServer, ensureServer } from '@caxri/client/supervise';
 import type { TerminalSnapshot } from '@caxri/protocol';
@@ -17,6 +19,7 @@ import { verifyServerArtifact } from '../apps/server/scripts/artifact';
 
 const root = resolve(import.meta.dirname, '..');
 const sourceArtifact = resolve(root, 'apps/server/dist/server');
+const execFileAsync = promisify(execFile);
 
 async function hasPath(path: string): Promise<boolean> {
     try {
@@ -108,11 +111,22 @@ try {
         mkdir(profile, { recursive: true }),
         mkdir(projectRoot, { recursive: true }),
     ]);
+    const searchMarker = `caxri-project-search-smoke-${process.pid}`;
+    await writeFile(join(projectRoot, 'search-smoke.txt'), `${searchMarker}\n`, 'utf8');
     const sourceManifest = await verifyServerArtifact(sourceArtifact);
     const copiedManifest = await verifyServerArtifact(copiedArtifact);
     if (JSON.stringify(sourceManifest) !== JSON.stringify(copiedManifest)) {
         throw new Error('Copied Server artifact inputs are not byte-identical');
     }
+    const ripgrep = await execFileAsync(join(copiedArtifact, 'runtime', 'bin', 'rg'), [
+        '--no-config',
+        '--fixed-strings',
+        '--',
+        searchMarker,
+        join(projectRoot, 'search-smoke.txt'),
+    ]);
+    if (!ripgrep.stdout.includes(searchMarker))
+        throw new Error('Copied Server artifact ripgrep executable did not return a match');
 
     const readyStartedAt = performance.now();
     operator = await ensureServer(profile, { artifactRoot: copiedArtifact }, 15_000);
@@ -181,6 +195,10 @@ try {
             version: status.version,
         },
         readyMs: Number(readyMs.toFixed(2)),
+        ripgrep: {
+            checkId: 'project-search-bundled-ripgrep',
+            matchObserved: true,
+        },
         observability: {
             checkId: 'architecture-a6-agent-observability',
             owners: Object.fromEntries(

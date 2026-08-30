@@ -16,6 +16,7 @@ export interface ServerArtifactInput {
     nativePackages: Array<{ name: string; source: string; version: string }>;
     platform: string;
     protocolVersion: number;
+    ripgrep: { executable: string; ripgrepLicense: string; vscodeLicense: string };
     runtime: { executable: string; version: string };
     version: string;
 }
@@ -24,6 +25,7 @@ const manifestRelativePath = join('metadata', 'manifest.json');
 const requiredBundleNames = [
     'agent-launcher.js',
     'extension-host.js',
+    'project-search-worker.js',
     'server-core.js',
     'terminal-host.js',
 ] as const;
@@ -149,6 +151,7 @@ export async function assembleServerArtifact(
         mkdir(join(input.artifactRoot, 'metadata'), { recursive: true }),
         mkdir(join(input.artifactRoot, 'migrations'), { recursive: true }),
         mkdir(join(input.artifactRoot, 'native', 'node_modules'), { recursive: true }),
+        mkdir(join(input.artifactRoot, 'licenses'), { recursive: true }),
         mkdir(join(input.artifactRoot, 'runtime', 'bin'), { recursive: true }),
     ]);
 
@@ -193,6 +196,23 @@ export async function assembleServerArtifact(
     const runtimeExecutable = join(input.artifactRoot, 'runtime', 'bin', 'node');
     await cp(input.runtime.executable, runtimeExecutable);
     await chmod(runtimeExecutable, 0o755);
+    const ripgrepExecutable = join(input.artifactRoot, 'runtime', 'bin', 'rg');
+    const ripgrepMetadata = await lstat(input.ripgrep.executable);
+    if (!ripgrepMetadata.isFile() || ripgrepMetadata.isSymbolicLink())
+        throw new Error('ripgrep executable must be a regular file');
+    await cp(input.ripgrep.executable, ripgrepExecutable);
+    await chmod(ripgrepExecutable, 0o755);
+    await Promise.all(
+        [
+            ['RIPGREP_LICENSE.txt', input.ripgrep.ripgrepLicense],
+            ['VSCODE_RIPGREP_LICENSE.txt', input.ripgrep.vscodeLicense],
+        ].map(async ([name, source]) => {
+            const metadata = await lstat(source);
+            if (!metadata.isFile() || metadata.isSymbolicLink())
+                throw new Error(`${name} must be a regular file`);
+            await cp(source, join(input.artifactRoot, 'licenses', name));
+        }),
+    );
     const launcher = join(input.artifactRoot, 'runtime', 'caxri-server');
     await writeFile(launcher, launcherSource(), { mode: 0o755 });
 

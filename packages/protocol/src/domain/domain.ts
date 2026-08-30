@@ -516,26 +516,6 @@ export const fileDocumentSchema = z.object({
     size: z.number(),
 });
 
-export const fileSearchModeSchema = z.enum(['name', 'content']);
-
-const fileSearchMatchSchema = z.object({
-    path: pathSchema,
-    relativePath: z.string().min(1).max(16_384),
-    line: z.number().int().positive().optional(),
-    column: z.number().int().positive().optional(),
-    matchLength: z.number().int().nonnegative().max(1_024).optional(),
-    preview: z.string().max(500).optional(),
-    previewMatchIndex: z.number().int().nonnegative().max(500).optional(),
-});
-
-export const fileSearchResultSchema = z.object({
-    mode: fileSearchModeSchema,
-    matches: z.array(fileSearchMatchSchema).max(500),
-    scannedFiles: z.number().int().nonnegative(),
-    truncated: z.boolean(),
-    canceled: z.boolean(),
-});
-
 const gitCommitFileSchema = z.object({
     path: pathSchema,
     previousPath: pathSchema.optional(),
@@ -779,8 +759,6 @@ export type MovedFileEntry = z.infer<typeof movedFileEntrySchema>;
 export type FileMutationOperation = z.infer<typeof fileMutationOperationSchema>;
 export type FileChange = z.infer<typeof fileChangeSchema>;
 export type FileDocument = z.infer<typeof fileDocumentSchema>;
-export type FileSearchMode = z.infer<typeof fileSearchModeSchema>;
-export type FileSearchMatch = z.infer<typeof fileSearchMatchSchema>;
 export type GitCommitFile = z.infer<typeof gitCommitFileSchema>;
 export type GitCommitDetails = z.infer<typeof gitCommitDetailsSchema>;
 export type GitDiffDocument = z.infer<typeof gitDiffDocumentSchema>;

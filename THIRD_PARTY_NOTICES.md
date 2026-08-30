@@ -37,3 +37,11 @@ The bundled icon assets are (c) the vscode-icons project, licensed under the Cre
 Caxri bundles Claude Code, Codex, Grok, and OpenCode SVG assets from `@lobehub/icons-static-svg`. Color assets preserve their authored palette; monochrome assets are rendered as theme-colored masks.
 
 Copyright (c) 2023 LobeHub. Licensed under the MIT License. The vendored license text is in `licenses/LOBEHUB_ICONS_LICENSE.txt`; the upstream source is <https://github.com/lobehub/lobe-icons>.
+
+## ripgrep / vscode-ripgrep
+
+Caxri bundles the platform-specific ripgrep executable distributed by `@vscode/ripgrep-universal` for fast Project file discovery.
+
+ripgrep is Copyright (c) 2015 Andrew Gallant and licensed under the MIT License. The vendored license text is in `licenses/RIPGREP_LICENSE.txt`; the upstream source is <https://github.com/BurntSushi/ripgrep>.
+
+vscode-ripgrep is Copyright (c) Microsoft Corporation and licensed under the MIT License. The vendored license text is in `licenses/VSCODE_RIPGREP_LICENSE.txt`; the upstream source is <https://github.com/microsoft/vscode-ripgrep>.

@@ -42,6 +42,10 @@ export default defineConfig(async () => {
                         'src/terminal-host/agent-launcher/process.ts',
                     ),
                     'extension-host': resolve(import.meta.dirname, 'src/extension-host/process.ts'),
+                    'project-search-worker': resolve(
+                        import.meta.dirname,
+                        'src/domains/files/project-search-worker.ts',
+                    ),
                     'server-core': resolve(import.meta.dirname, 'src/core/process.ts'),
                     'terminal-host': resolve(import.meta.dirname, 'src/terminal-host/process.ts'),
                 },

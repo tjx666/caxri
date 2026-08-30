@@ -8,6 +8,7 @@ import process from 'node:process';
 import { promisify } from 'node:util';
 
 import { CAXRI_PROTOCOL_VERSION } from '@caxri/protocol';
+import { binPathFor } from '@vscode/ripgrep-universal';
 
 import { selectNodePtyNativeDirectory } from '../../../scripts/node-pty-layout';
 import { assembleServerArtifact, verifyServerArtifact } from './artifact';
@@ -200,6 +201,8 @@ const nativePackages: Array<{ name: string; source: string; version: string }> =
         };
     }),
 );
+const ripgrepExecutable = binPathFor({ arch: process.arch, os: process.platform });
+const ripgrepPackageRoot = resolve(dirname(ripgrepExecutable), '../..');
 
 const artifactRoot = resolve(serverRoot, 'dist/server');
 const extensions = [
@@ -219,6 +222,11 @@ const manifest = await assembleServerArtifact({
     nativePackages,
     platform: process.platform,
     protocolVersion: CAXRI_PROTOCOL_VERSION,
+    ripgrep: {
+        executable: ripgrepExecutable,
+        ripgrepLicense: resolve(root, 'licenses/RIPGREP_LICENSE.txt'),
+        vscodeLicense: join(ripgrepPackageRoot, 'LICENSE'),
+    },
     runtime: { executable, version: runtimeVersion },
     version: workspaceManifest.version,
 });
