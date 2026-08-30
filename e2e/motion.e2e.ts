@@ -96,17 +96,53 @@ async function wasWorkTabExitObserved(page: Page): Promise<boolean> {
     });
 }
 
-async function animationStateOf(locator: Locator) {
-    const state = await locator.evaluate((element) => {
-        const style = getComputedStyle(element);
-        return {
-            closed: Object.hasOwn(element.dataset, 'closed'),
-            duration: style.animationDuration,
-            name: style.animationName,
-        };
+/**
+ * Captures the popup's short-lived exit state before Playwright sends the close click. A loaded CI runner can spend the
+ * entire 100ms exit duration between protocol calls, so polling the live locator after the click can observe only the
+ * already-unmounted popup even though the animation ran correctly.
+ */
+async function startOverlayExitProbe(popup: Locator): Promise<void> {
+    await popup.evaluate((element) => {
+        const probe: {
+            animation: { closed: boolean; duration: string; name: string } | null;
+        } = { animation: null };
+        const observer = new MutationObserver(() => {
+            if (!Object.hasOwn(element.dataset, 'closed')) return;
+            const style = getComputedStyle(element);
+            probe.animation = {
+                closed: true,
+                duration: style.animationDuration,
+                name: style.animationName,
+            };
+            observer.disconnect();
+        });
+        observer.observe(element, { attributeFilter: ['data-closed'], attributes: true });
+        Object.defineProperty(globalThis, 'overlayExitProbe', {
+            configurable: true,
+            value: { observer, probe },
+        });
     });
-    const durationMs = parseDurationMs(state.duration);
-    return durationMs === null ? null : { closed: state.closed, durationMs, name: state.name };
+}
+
+async function overlayExitAnimationOf(page: Page) {
+    const animation = await page.evaluate(() => {
+        const state = (
+            globalThis as unknown as {
+                overlayExitProbe?: {
+                    probe: {
+                        animation: { closed: boolean; duration: string; name: string } | null;
+                    };
+                };
+            }
+        ).overlayExitProbe;
+        if (!state) throw new Error('Overlay exit probe was not started');
+        return state.probe.animation;
+    });
+    if (!animation) return null;
+    const durationMs = parseDurationMs(animation.duration);
+    return durationMs === null
+        ? null
+        : { closed: animation.closed, durationMs, name: animation.name };
 }
 
 /**
@@ -283,14 +319,14 @@ test('Overlay popups animate with --motion-overlay-enter/--motion-overlay-exit t
         // "Settings shortcut opens while Terminal input has focus" documents that opening Settings
         // via the keyboard shortcut does not steal focus into the dialog), so Escape would be
         // delivered to the Terminal instead of the dialog and never close it.
+        await startOverlayExitProbe(dialogPopup);
         await dialogPopup.getByRole('button', { name: 'Close' }).click();
         /**
-         * Base UI exposes `data-closed` only during the exit animation. Read that state and both computed animation
-         * fields atomically: separate awaits can let the popup unmount between samples, returning an empty duration and
-         * turning a still-converging overlay into a hard poll-callback failure.
+         * Base UI exposes `data-closed` only during the exit animation. The browser-side probe records that state and
+         * both computed animation fields atomically before the popup unmounts.
          */
         const exitAnimation = await pollUntil(
-            () => animationStateOf(dialogPopup),
+            () => overlayExitAnimationOf(running.page),
             (state) => state.closed && state.name === 'exit' && state.durationMs === exitMs,
             { message: 'Settings dialog exit animation', timeout: exitMs + 2_000 },
         );
