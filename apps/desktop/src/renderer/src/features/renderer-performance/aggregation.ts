@@ -1,10 +1,10 @@
 import type { RendererPerformanceScenarioDiagnostic } from '@caxri/protocol';
+import { rendererPerformanceSurfaces } from '@caxri/protocol';
 
 export type RendererPerformanceAction = RendererPerformanceScenarioDiagnostic['action'];
 export type RendererPerformanceBuildMode = RendererPerformanceScenarioDiagnostic['buildMode'];
-export type RendererPerformanceSurface = NonNullable<
-    RendererPerformanceScenarioDiagnostic['react']['slowestSurface']
->;
+export type RendererPerformanceSurface =
+    keyof RendererPerformanceScenarioDiagnostic['react']['surfaces'];
 
 export interface ReactProfileSample {
     actualDurationMs: number;
@@ -85,23 +85,30 @@ function percentile(values: readonly number[], quantile: number): number {
     return sorted[index] ?? 0;
 }
 
+function summarizeReactSurface(
+    samples: readonly ReactProfileSample[],
+): RendererPerformanceScenarioDiagnostic['react']['surfaces'][RendererPerformanceSurface] {
+    const actualDurations = samples.map((sample) => sample.actualDurationMs);
+    return {
+        profiledRenderCount: boundedCount(samples.length),
+        actualDurationP50Ms: percentile(actualDurations, 0.5),
+        actualDurationP95Ms: percentile(actualDurations, 0.95),
+        actualDurationMaxMs: maximum(actualDurations),
+        actualDurationTotalMs: sum(actualDurations),
+        baseDurationMaxMs: maximum(samples.map((sample) => sample.baseDurationMs)),
+    };
+}
+
 function summarizeReact(
     samples: readonly ReactProfileSample[],
 ): RendererPerformanceScenarioDiagnostic['react'] {
-    const surfaceDurations = new Map<RendererPerformanceSurface, number>();
-    for (const sample of samples) {
-        surfaceDurations.set(
-            sample.surface,
-            (surfaceDurations.get(sample.surface) ?? 0) + boundedDuration(sample.actualDurationMs),
-        );
-    }
-    const slowestSurfaceEntry = [...surfaceDurations]
-        .toSorted((left, right) => right[1] - left[1])
-        .at(0);
-    const slowestSurface = slowestSurfaceEntry
-        ? { name: slowestSurfaceEntry[0], durationMs: slowestSurfaceEntry[1] }
-        : { name: null, durationMs: 0 };
     const actualDurations = samples.map((sample) => sample.actualDurationMs);
+    const surfaceSamples = Object.fromEntries(
+        rendererPerformanceSurfaces.map((surface) => [
+            surface,
+            samples.filter((sample) => sample.surface === surface),
+        ]),
+    ) as Record<RendererPerformanceSurface, ReactProfileSample[]>;
 
     return {
         commitCount: boundedCount(new Set(samples.map((sample) => sample.commitTime)).size),
@@ -117,8 +124,11 @@ function summarizeReact(
         actualDurationP95Ms: percentile(actualDurations, 0.95),
         actualDurationMaxMs: maximum(actualDurations),
         baseDurationMaxMs: maximum(samples.map((sample) => sample.baseDurationMs)),
-        slowestSurface: slowestSurface.name,
-        slowestSurfaceDurationMs: boundedDuration(slowestSurface.durationMs),
+        surfaces: {
+            'primary-sidebar': summarizeReactSurface(surfaceSamples['primary-sidebar']),
+            'workbench': summarizeReactSurface(surfaceSamples.workbench),
+            'secondary-sidebar': summarizeReactSurface(surfaceSamples['secondary-sidebar']),
+        },
     };
 }
 

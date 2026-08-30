@@ -40,7 +40,7 @@
         "test:smoke": "bun run --silent check e2e/smoke.e2e.ts --e2e",
         "benchmark:startup": "bun run build && playwright test e2e/startup.performance.e2e.ts --reporter=line",
         "benchmark:editor": "bun run build && playwright test e2e/editor.performance.e2e.ts --reporter=line",
-        "benchmark:renderer": "CAXRI_REACT_PROFILING=1 CAXRI_RENDERER_MONITORING=1 bun run build && CAXRI_RENDERER_BENCHMARK=1 playwright test e2e/renderer.performance.e2e.ts --reporter=line",
+        "benchmark:renderer": "CAXRI_REACT_PROFILING=1 bun run build && CAXRI_RENDERER_BENCHMARK=1 playwright test e2e/renderer.performance.e2e.ts --reporter=line",
         "build": "bun run build:workspaces && bun run build:desktop",
         "build:workspaces": "pnpm --recursive --filter './apps/*' --filter './packages/*' --filter './extensions/*' --filter '!@caxri/desktop' --filter '!@caxri/server' --if-present run build && pnpm --filter @caxri/server run build",
         "build:api": "pnpm --filter caxri run build",

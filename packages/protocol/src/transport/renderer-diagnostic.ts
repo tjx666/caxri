@@ -78,6 +78,21 @@ const reactProfileCountSchema = z.number().int().nonnegative().max(10_000);
 const browserObserverCountSchema = z.number().int().nonnegative().max(2_000);
 const reactScanCountSchema = z.number().int().nonnegative().max(20_000);
 
+export const rendererPerformanceSurfaces = [
+    'primary-sidebar',
+    'workbench',
+    'secondary-sidebar',
+] as const;
+
+const reactSurfacePerformanceSummarySchema = z.strictObject({
+    profiledRenderCount: reactProfileCountSchema,
+    actualDurationP50Ms: percentileDurationSchema,
+    actualDurationP95Ms: percentileDurationSchema,
+    actualDurationMaxMs: percentileDurationSchema,
+    actualDurationTotalMs: performanceDurationSchema,
+    baseDurationMaxMs: percentileDurationSchema,
+});
+
 const reactPerformanceSummarySchema = z.strictObject({
     commitCount: reactProfileCountSchema,
     profiledRenderCount: reactProfileCountSchema,
@@ -88,10 +103,11 @@ const reactPerformanceSummarySchema = z.strictObject({
     actualDurationP95Ms: percentileDurationSchema,
     actualDurationMaxMs: percentileDurationSchema,
     baseDurationMaxMs: percentileDurationSchema,
-    slowestSurface: z
-        .enum(['app-shell', 'primary-sidebar', 'workbench', 'secondary-sidebar'])
-        .nullable(),
-    slowestSurfaceDurationMs: performanceDurationSchema,
+    surfaces: z.strictObject({
+        'primary-sidebar': reactSurfacePerformanceSummarySchema,
+        'workbench': reactSurfacePerformanceSummarySchema,
+        'secondary-sidebar': reactSurfacePerformanceSummarySchema,
+    }),
 });
 
 const longAnimationFrameSummarySchema = z.strictObject({
@@ -229,8 +245,6 @@ export const rendererDiagnosticSchema = z
             react.profiledRenderCount
         )
             addPerformanceAggregateIssue(context, ['react', 'profiledRenderCount']);
-        if ((react.slowestSurface === null) !== (react.profiledRenderCount === 0))
-            addPerformanceAggregateIssue(context, ['react', 'slowestSurface']);
         if (
             react.actualDurationP50Ms > react.actualDurationP95Ms ||
             react.actualDurationP95Ms > react.actualDurationMaxMs
@@ -243,10 +257,54 @@ export const rendererDiagnosticSchema = z
                 react.actualDurationP95Ms,
                 react.actualDurationMaxMs,
                 react.baseDurationMaxMs,
-                react.slowestSurfaceDurationMs,
             ].some((value) => value !== 0)
         )
             addPerformanceAggregateIssue(context, ['react', 'profiledRenderCount']);
+        const surfaceSummaries = rendererPerformanceSurfaces.map(
+            (surface) => react.surfaces[surface],
+        );
+        if (
+            surfaceSummaries.reduce((total, surface) => total + surface.profiledRenderCount, 0) !==
+            react.profiledRenderCount
+        )
+            addPerformanceAggregateIssue(context, ['react', 'surfaces']);
+        if (
+            Math.max(0, ...surfaceSummaries.map((surface) => surface.actualDurationMaxMs)) !==
+                react.actualDurationMaxMs ||
+            Math.max(0, ...surfaceSummaries.map((surface) => surface.baseDurationMaxMs)) !==
+                react.baseDurationMaxMs
+        )
+            addPerformanceAggregateIssue(context, ['react', 'surfaces']);
+        for (const surface of rendererPerformanceSurfaces) {
+            const summary = react.surfaces[surface];
+            if (
+                summary.actualDurationP50Ms > summary.actualDurationP95Ms ||
+                summary.actualDurationP95Ms > summary.actualDurationMaxMs ||
+                summary.actualDurationMaxMs > summary.actualDurationTotalMs
+            )
+                addPerformanceAggregateIssue(context, [
+                    'react',
+                    'surfaces',
+                    surface,
+                    'actualDurationP95Ms',
+                ]);
+            if (
+                summary.profiledRenderCount === 0 &&
+                [
+                    summary.actualDurationP50Ms,
+                    summary.actualDurationP95Ms,
+                    summary.actualDurationMaxMs,
+                    summary.actualDurationTotalMs,
+                    summary.baseDurationMaxMs,
+                ].some((value) => value !== 0)
+            )
+                addPerformanceAggregateIssue(context, [
+                    'react',
+                    'surfaces',
+                    surface,
+                    'profiledRenderCount',
+                ]);
+        }
         if (diagnostic.capabilities.reactProfiler === 'disabled' && react.profiledRenderCount !== 0)
             addPerformanceAggregateIssue(context, ['capabilities', 'reactProfiler']);
 
