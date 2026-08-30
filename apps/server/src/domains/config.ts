@@ -28,6 +28,7 @@ import {
     keybindingsFileSchema,
     MAX_CONFIGURATION_SOURCE_BYTES,
     MAX_TRUSTED_DOMAINS,
+    normalizeBuiltinTheme,
     normalizeTrustedDomainRule,
     pushRecentAgentAction,
     reconcileDefaultKeybindings,
@@ -316,12 +317,27 @@ export class ConfigService {
                     },
                 };
             }
-            const theme = parseCaxriTheme(source);
+            const parsedTheme = parseCaxriTheme(source);
+            const theme = normalizeBuiltinTheme(parsedTheme);
+            let preparedSource = source;
+            if (theme !== parsedTheme) {
+                /**
+                 * Built-in identity is metadata. Editing only these two leaves preserves comments and formatting in
+                 * externally maintained JSONC theme files while preventing an edited preset from posing as built-in.
+                 */
+                for (const property of ['id', 'source'] as const)
+                    preparedSource = applyEdits(
+                        preparedSource,
+                        modify(preparedSource, [property], theme[property], {
+                            formattingOptions: JSONC_FORMATTING_OPTIONS,
+                        }),
+                    );
+            }
             return {
-                source,
+                source: preparedSource,
                 apply: () => {
                     this.theme = theme;
-                    this.themeSource = source;
+                    this.themeSource = preparedSource;
                 },
             };
         } catch (error) {

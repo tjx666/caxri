@@ -1,3 +1,4 @@
+export * from './builtin-themes.js';
 export * from './config-files.js';
 export * from './configuration-contract.js';
 export * from './settings-schema.js';
