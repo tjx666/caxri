@@ -31,6 +31,7 @@ import * as HoverCard from '@/components/ui/hover-card';
 import * as Input from '@/components/ui/input';
 import * as Kbd from '@/components/ui/kbd';
 import * as Label from '@/components/ui/label';
+import * as Popover from '@/components/ui/popover';
 import * as Progress from '@/components/ui/progress';
 import * as Select from '@/components/ui/select';
 import * as Separator from '@/components/ui/separator';
@@ -81,6 +82,7 @@ export default {
     '@/components/ui/input': Input,
     '@/components/ui/kbd': Kbd,
     '@/components/ui/label': Label,
+    '@/components/ui/popover': Popover,
     '@/components/ui/progress': Progress,
     '@/components/ui/select': Select,
     '@/components/ui/separator': Separator,
