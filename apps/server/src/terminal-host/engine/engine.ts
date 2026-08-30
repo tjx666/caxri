@@ -22,7 +22,11 @@ import { TerminalAttachments } from './attachments';
 import { TerminalOutputQueue } from './buffer';
 import { oscColorReply, TerminalColorQueryResponder } from './color-query';
 import { TerminalImageOutputFilter, TerminalImageRecoveryFilter } from './image-recovery';
-import { recordPtyDroppedBytes, recordPtyThroughput } from './observability';
+import {
+    PtyResizeBurstObserver,
+    recordPtyDroppedBytes,
+    recordPtyThroughput,
+} from './observability';
 import type { AgentOutputRecovery } from './output-recovery';
 import { ensureLiveOutputRecovery, hasConfiguredOutputRecovery } from './output-recovery-manager';
 import { sampleTerminalResources } from './resources';
@@ -85,6 +89,7 @@ export class TerminalExecutionEngine {
     private readonly terminals = new Map<string, LiveTerminal>();
     private readonly attachments = new TerminalAttachments();
     private readonly outputFlushMs: number;
+    private readonly resizeObserver: PtyResizeBurstObserver;
     private readonly sampleResources: (pid: number) => Promise<TerminalResourceUsage | null>;
     private readonly spawnProcess: typeof pty.spawn;
     private hasConfiguredOutputRecovery: boolean;
@@ -95,6 +100,7 @@ export class TerminalExecutionEngine {
             throw new RangeError('Terminal output flush delay must be a positive integer');
         this.spawnProcess = options.spawn;
         this.sampleResources = options.sampleResources ?? sampleTerminalResources;
+        this.resizeObserver = new PtyResizeBurstObserver(options.logger);
         this.hasConfiguredOutputRecovery = hasConfiguredOutputRecovery(
             options.agentOutputRecoverySettings,
         );
@@ -206,6 +212,7 @@ export class TerminalExecutionEngine {
         live.droppedBytes += live.imageOutput.finish(live.outputQueue);
         this.flushOutput(live);
         this.flushMetrics(live);
+        this.resizeObserver.disposeTerminal(live.record.id);
         if (shouldCapture) {
             const colorTail = live.colorQuery?.finish() ?? '';
             const recoveryTail = `${
@@ -362,6 +369,7 @@ export class TerminalExecutionEngine {
         if (live.process.cols === cols && live.process.rows === rows) return true;
         live.screen.resize(cols, rows);
         live.process.resize(cols, rows);
+        this.resizeObserver.recordApplied(terminalId, { cols, rows });
         return true;
     }
 
@@ -474,6 +482,7 @@ export class TerminalExecutionEngine {
             if (capture) finalizations.push({ terminalId: live.record.id, capture });
             live.process.kill();
         }
+        this.resizeObserver.dispose();
         return finalizations;
     }
 

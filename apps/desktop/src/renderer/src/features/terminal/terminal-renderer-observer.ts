@@ -1,6 +1,6 @@
 import type { ProcessState } from '@caxri/protocol';
 
-import { showGpuRecoveryToast } from '../gpu/gpu-recovery-notifications';
+import { gpuRecoveryNotificationCoordinator } from '../gpu/gpu-recovery-notifications';
 import type { TerminalGpuAcceleration, TerminalRendererStatus } from './terminal-renderer';
 import { createTerminalRendererDiagnostic } from './terminal-renderer-diagnostics';
 
@@ -25,14 +25,21 @@ export function createTerminalRendererObserver(options: TerminalRendererObserver
     let correlationId: string | undefined;
     let droppedBytes = 0;
     let receivedBytes = 0;
-    let didNotifyFallback = false;
 
     return {
+        dispose(): void {
+            gpuRecoveryNotificationCoordinator.disposeTerminal(options.terminalId);
+        },
         publish(status: TerminalRendererStatus): void {
             options.container.dataset.terminalRenderer = status.mode;
             options.container.dataset.terminalRendererReason = status.reason;
             options.container.dataset.terminalWebglContextLosses = String(status.contextLossCount);
             options.container.dataset.terminalRendererRedraws = String(status.redrawCount);
+            gpuRecoveryNotificationCoordinator.observeTerminalRendererStatus({
+                status,
+                terminalId: options.terminalId,
+                ...(correlationId && { correlationId }),
+            });
             const current = options.current();
             const diagnostic = createTerminalRendererDiagnostic({
                 agentTerminal: current.isAgent,
@@ -50,11 +57,6 @@ export function createTerminalRendererObserver(options: TerminalRendererObserver
                 ...(correlationId && { correlationId }),
             });
             if (diagnostic) globalThis.caxri.reportDiagnostic(diagnostic);
-            const isFailed = status.reason === 'context-loss' || status.reason === 'load-failed';
-            if (!didNotifyFallback && isFailed) {
-                didNotifyFallback = true;
-                showGpuRecoveryToast();
-            }
         },
         recordOutput(data: string, dropped: number): void {
             receivedBytes += encoder.encode(data).byteLength;

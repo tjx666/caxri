@@ -16,10 +16,7 @@ import {
     recordExternalEditorState,
     stripExternalEditorTabs,
 } from '../features/editor/external-editor-state';
-import {
-    showAutomaticGpuSafeModeToast,
-    showGpuRecoveryToast,
-} from '../features/gpu/gpu-recovery-notifications';
+import { gpuRecoveryNotificationCoordinator } from '../features/gpu/gpu-recovery-notifications';
 import {
     dismissWorkbenchRootCandidate,
     showWorkbenchRootCandidate,
@@ -648,11 +645,13 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                 useWorkbenchStore.setState({ isFullScreen: event.payload.isFullScreen });
                 return;
             case 'gpu.recoveryRequested':
-                showGpuRecoveryToast();
+                gpuRecoveryNotificationCoordinator.notifyGpuProcessRecovery(
+                    event.payload.correlationId,
+                );
                 return;
             case 'gpu.safeModeStatus':
                 if (event.payload.active && event.payload.automatic)
-                    showAutomaticGpuSafeModeToast();
+                    gpuRecoveryNotificationCoordinator.notifyAutomaticGpuSafeMode();
                 return;
             case 'terminal.outputRecovery': {
                 const providerName = agentProviderCatalog[event.payload.provider].displayName;

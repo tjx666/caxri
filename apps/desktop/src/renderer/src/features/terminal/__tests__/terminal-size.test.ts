@@ -1,10 +1,15 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
     didTerminalSizeChange,
+    TerminalResizeBurstTracker,
     TerminalResizeSettler,
     terminalSizeWithScrollbarGutter,
 } from '../terminal-size';
+
+afterEach(() => {
+    vi.useRealTimers();
+});
 
 describe('Terminal scrollbar gutter', () => {
     it('reserves one text column without dropping below xterm minimum dimensions', () => {
@@ -76,5 +81,141 @@ describe('Terminal resize deduplication', () => {
 
         expect(onFrame).toHaveBeenCalledTimes(1);
         expect(requestFrame).toHaveBeenCalledTimes(3);
+    });
+});
+
+describe('Terminal resize burst diagnostics', () => {
+    it('reports one bounded summary after the grid has been quiet for 250ms', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(1_000);
+        const emit = vi.fn();
+        const tracker = new TerminalResizeBurstTracker({ emit, now: Date.now });
+
+        tracker.sample({ cols: 153, rows: 59 }, { localApplied: false, requestSent: false });
+        vi.advanceTimersByTime(10);
+        tracker.sample({ cols: 4, rows: 59 }, { localApplied: true, requestSent: true });
+        vi.advanceTimersByTime(10);
+        tracker.sample({ cols: 4, rows: 59 }, { localApplied: false, requestSent: false });
+        vi.advanceTimersByTime(10);
+        tracker.sample({ cols: 80, rows: 59 }, { localApplied: true, requestSent: true });
+
+        vi.advanceTimersByTime(249);
+        expect(emit).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(1);
+
+        expect(emit).toHaveBeenCalledOnce();
+        expect(emit).toHaveBeenCalledWith({
+            sampleCount: 4,
+            changeCount: 2,
+            startCols: 153,
+            startRows: 59,
+            minCols: 4,
+            minRows: 59,
+            maxCols: 153,
+            maxRows: 59,
+            finalCols: 80,
+            finalRows: 59,
+            durationMs: 30,
+            flushReason: 'quiet',
+            truncated: false,
+            localAppliedCount: 2,
+            requestCount: 2,
+        });
+    });
+
+    it('omits stable observations that caused neither a local resize nor a Server request', () => {
+        vi.useFakeTimers();
+        const emit = vi.fn();
+        const tracker = new TerminalResizeBurstTracker({ emit, now: Date.now });
+
+        tracker.sample({ cols: 80, rows: 59 }, { localApplied: false, requestSent: false });
+        vi.advanceTimersByTime(100);
+        tracker.sample({ cols: 80, rows: 59 }, { localApplied: false, requestSent: false });
+        vi.advanceTimersByTime(250);
+
+        expect(emit).not.toHaveBeenCalled();
+    });
+
+    it('splits a continuously changing burst after five seconds', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(0);
+        const emit = vi.fn();
+        const tracker = new TerminalResizeBurstTracker({ emit, now: Date.now });
+
+        tracker.sample({ cols: 80, rows: 59 }, { localApplied: true, requestSent: true });
+        for (let index = 1; index <= 24; index += 1) {
+            vi.advanceTimersByTime(200);
+            tracker.sample(
+                { cols: index % 2 === 0 ? 80 : 81, rows: 59 },
+                { localApplied: true, requestSent: true },
+            );
+        }
+
+        expect(emit).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(200);
+        expect(emit).toHaveBeenCalledOnce();
+        expect(emit).toHaveBeenLastCalledWith(
+            expect.objectContaining({ flushReason: 'max-duration' }),
+        );
+
+        tracker.sample({ cols: 82, rows: 59 }, { localApplied: true, requestSent: true });
+        vi.advanceTimersByTime(250);
+        expect(emit).toHaveBeenCalledTimes(2);
+        expect(emit).toHaveBeenLastCalledWith(
+            expect.objectContaining({
+                sampleCount: 1,
+                finalCols: 82,
+                flushReason: 'quiet',
+            }),
+        );
+    });
+
+    it('flushes pending evidence on pause and dispose without a later duplicate', () => {
+        vi.useFakeTimers();
+        const pausedEmit = vi.fn();
+        const paused = new TerminalResizeBurstTracker({ emit: pausedEmit, now: Date.now });
+        paused.sample({ cols: 4, rows: 59 }, { localApplied: true, requestSent: true });
+
+        paused.pause();
+        expect(pausedEmit).toHaveBeenCalledWith(
+            expect.objectContaining({ finalCols: 4, flushReason: 'paused' }),
+        );
+        paused.dispose();
+        vi.advanceTimersByTime(250);
+        expect(pausedEmit).toHaveBeenCalledOnce();
+
+        const disposedEmit = vi.fn();
+        const disposed = new TerminalResizeBurstTracker({ emit: disposedEmit, now: Date.now });
+        disposed.sample({ cols: 80, rows: 59 }, { localApplied: true, requestSent: true });
+
+        disposed.dispose();
+        expect(disposedEmit).toHaveBeenCalledWith(
+            expect.objectContaining({ finalCols: 80, flushReason: 'disposed' }),
+        );
+        vi.advanceTimersByTime(250);
+        expect(disposedEmit).toHaveBeenCalledOnce();
+    });
+
+    it('keeps the final grid while marking a saturated sample count as truncated', () => {
+        vi.useFakeTimers();
+        const emit = vi.fn();
+        const tracker = new TerminalResizeBurstTracker({ emit, maxSamples: 3, now: Date.now });
+
+        tracker.sample({ cols: 153, rows: 59 }, { localApplied: false, requestSent: false });
+        tracker.sample({ cols: 4, rows: 59 }, { localApplied: true, requestSent: true });
+        tracker.sample({ cols: 4, rows: 59 }, { localApplied: false, requestSent: false });
+        tracker.sample({ cols: 80, rows: 59 }, { localApplied: true, requestSent: true });
+        vi.advanceTimersByTime(250);
+
+        expect(emit).toHaveBeenCalledWith(
+            expect.objectContaining({
+                sampleCount: 3,
+                changeCount: 2,
+                finalCols: 80,
+                localAppliedCount: 2,
+                requestCount: 2,
+                truncated: true,
+            }),
+        );
     });
 });

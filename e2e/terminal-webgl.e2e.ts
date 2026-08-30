@@ -119,21 +119,18 @@ test('WebGL modes hot-switch and every Terminal recovers from one GPU process lo
         );
         expect(incident.correlationId).toMatch(/^[0-9a-f-]{36}$/u);
         /**
-         * A dropped GPU context used to downgrade silently, with the reason only reaching `dataset` for Playwright. It
-         * is now surfaced to the user once per Terminal. Asserted before the `data-terminal-renderer` attributes below
-         * — both are set by the same fallback, but the toast is an `info` that auto-dismisses after 4s
-         * (`stores/toasts.ts`) while the attributes persist, and the fallback itself is allowed up to 8s here. Waiting
-         * on the durable signal first could therefore consume the whole lifetime of the expiring one.
+         * Main and both mounted Terminals observe the same correlated GPU incident. The coordinator must collapse those
+         * three signals into one transient, actionable notification before the durable renderer state is checked.
          */
-        await expect(
-            running.page.getByText(
-                'GPU rendering failed. Caxri switched the Terminal to software rendering.',
-                { exact: true },
-            ),
-        ).toBeVisible({ timeout: 8_000 });
+        const recoveryNotification = running.page.getByText(
+            'A GPU process crash interrupted rendering. Caxri switched affected Terminals to software rendering.',
+            { exact: true },
+        );
+        await expect(recoveryNotification).toHaveCount(1, { timeout: 8_000 });
         await expect(
             running.page.getByRole('button', { name: 'Restart in GPU Safe Mode' }),
-        ).toBeVisible();
+        ).toHaveCount(1);
+        await expect(recoveryNotification).toHaveCount(0, { timeout: 6_000 });
         await expect(surfaces.nth(0)).toHaveAttribute('data-terminal-renderer', 'dom', {
             timeout: 8_000,
         });
