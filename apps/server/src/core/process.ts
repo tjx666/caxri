@@ -67,6 +67,10 @@ const app = await startServerCore({
     }),
     includeTestExtensions: process.env.CAXRI_E2E === '1',
     logger,
+    projectSearch: {
+        executablePath: join(serverBundleDirectory, '../runtime/bin/rg'),
+        workerPath: join(serverBundleDirectory, 'project-search-worker.js'),
+    },
     ...(desktopLaunch && {
         launchDesktop: createDesktopLauncher({
             launch: desktopLaunch,

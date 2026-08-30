@@ -109,6 +109,11 @@ export const REPORT_COMPONENTS: ComponentSpec[] = [
     },
     { label: 'Server artifact', path: 'apps/server/dist/server' },
     { label: 'Server › pinned runtime', path: 'apps/server/dist/server/runtime' },
+    {
+        label: 'Server › ripgrep',
+        path: 'apps/server/dist/server/runtime/bin',
+        match: /^rg(?:\.exe)?$/u,
+    },
     { label: 'Server › native dependencies', path: 'apps/server/dist/server/native' },
     { label: 'Server › bundles', path: 'apps/server/dist/server/bundles' },
     { label: 'out/main', path: 'out/main' },

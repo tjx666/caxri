@@ -26,19 +26,26 @@ describe('standalone Server artifact', () => {
         const sources = join(root, 'sources');
         const artifactRoot = join(root, 'output', 'server');
         const runtimeExecutable = join(sources, 'node');
+        const ripgrepExecutable = join(sources, 'rg');
+        const ripgrepLicense = join(sources, 'RIPGREP_LICENSE.txt');
+        const vscodeRipgrepLicense = join(sources, 'VSCODE_RIPGREP_LICENSE.txt');
         await Promise.all([
             fixtureFile(join(sources, 'bundles', 'server-core.js'), 'server-core'),
             fixtureFile(join(sources, 'bundles', 'agent-launcher.js'), 'agent-launcher'),
             fixtureFile(join(sources, 'bundles', 'extension-host.js'), 'extension-host'),
+            fixtureFile(join(sources, 'bundles', 'project-search-worker.js'), 'search-worker'),
             fixtureFile(join(sources, 'bundles', 'terminal-host.js'), 'terminal-host'),
             fixtureFile(runtimeExecutable, '#!/bin/sh\nexit 0\n'),
+            fixtureFile(ripgrepExecutable, '#!/bin/sh\nexit 0\n'),
+            fixtureFile(ripgrepLicense, 'ripgrep license'),
+            fixtureFile(vscodeRipgrepLicense, 'vscode ripgrep license'),
             fixtureFile(join(sources, 'native', 'better-sqlite3', 'package.json'), '{}'),
             fixtureFile(join(sources, 'migrations', '0000.sql'), 'SELECT 1;'),
             fixtureFile(join(sources, 'migrations', 'meta', '_journal.json'), '{}'),
             fixtureFile(join(sources, 'extensions', 'git', 'package.json'), '{}'),
             fixtureFile(join(sources, 'extensions', 'git', 'dist', 'extension.js'), 'export {};'),
         ]);
-        await chmod(runtimeExecutable, 0o755);
+        await Promise.all([chmod(runtimeExecutable, 0o755), chmod(ripgrepExecutable, 0o755)]);
 
         const manifest = await assembleServerArtifact({
             architecture: 'arm64',
@@ -56,6 +63,11 @@ describe('standalone Server artifact', () => {
             ],
             platform: 'darwin',
             protocolVersion: 2,
+            ripgrep: {
+                executable: ripgrepExecutable,
+                ripgrepLicense,
+                vscodeLicense: vscodeRipgrepLicense,
+            },
             runtime: { executable: runtimeExecutable, version: '24.0.0-fixture' },
             version: '0.0.18',
         });
@@ -79,14 +91,21 @@ describe('standalone Server artifact', () => {
             expect.arrayContaining([
                 'bundles/server-core.js',
                 'bundles/agent-launcher.js',
+                'bundles/project-search-worker.js',
                 'bundles/terminal-host.js',
                 'extensions/git/dist/extension.js',
                 'migrations/0000.sql',
                 'native/node_modules/better-sqlite3/package.json',
+                'licenses/RIPGREP_LICENSE.txt',
+                'licenses/VSCODE_RIPGREP_LICENSE.txt',
                 'runtime/bin/node',
+                'runtime/bin/rg',
                 'runtime/caxri-server',
             ]),
         );
+        expect(
+            manifest.integrity.files.find(({ path }) => path === 'runtime/bin/rg'),
+        ).toMatchObject({ mode: 0o755 });
         expect(await verifyServerArtifact(artifactRoot)).toEqual(manifest);
         expect(await readFile(join(artifactRoot, 'metadata', 'manifest.json'), 'utf8')).toContain(
             manifest.integrity.aggregateSha256,
@@ -99,15 +118,22 @@ describe('standalone Server artifact', () => {
         const artifactRoot = join(root, 'server');
         const bundleSource = join(root, 'bundles');
         const runtimeExecutable = join(root, 'node');
+        const ripgrepExecutable = join(root, 'rg');
+        const ripgrepLicense = join(root, 'RIPGREP_LICENSE.txt');
+        const vscodeRipgrepLicense = join(root, 'VSCODE_RIPGREP_LICENSE.txt');
         await Promise.all([
             fixtureFile(join(bundleSource, 'server-core.js'), 'server-core'),
             fixtureFile(join(bundleSource, 'agent-launcher.js'), 'agent-launcher'),
             fixtureFile(join(bundleSource, 'extension-host.js'), 'extension-host'),
+            fixtureFile(join(bundleSource, 'project-search-worker.js'), 'search-worker'),
             fixtureFile(join(bundleSource, 'terminal-host.js'), 'terminal-host'),
             fixtureFile(runtimeExecutable, 'runtime'),
+            fixtureFile(ripgrepExecutable, 'ripgrep'),
+            fixtureFile(ripgrepLicense, 'ripgrep license'),
+            fixtureFile(vscodeRipgrepLicense, 'vscode ripgrep license'),
             fixtureFile(join(root, 'migrations', '0000.sql'), 'SELECT 1;'),
         ]);
-        await chmod(runtimeExecutable, 0o755);
+        await Promise.all([chmod(runtimeExecutable, 0o755), chmod(ripgrepExecutable, 0o755)]);
         await assembleServerArtifact({
             architecture: 'arm64',
             artifactRoot,
@@ -118,6 +144,11 @@ describe('standalone Server artifact', () => {
             nativePackages: [],
             platform: 'darwin',
             protocolVersion: 2,
+            ripgrep: {
+                executable: ripgrepExecutable,
+                ripgrepLicense,
+                vscodeLicense: vscodeRipgrepLicense,
+            },
             runtime: { executable: runtimeExecutable, version: '24.0.0-fixture' },
             version: '0.0.18',
         });
