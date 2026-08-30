@@ -330,6 +330,28 @@ export const settingsSpec = [
             'timeout',
         ],
     },
+    {
+        kind: 'boolean',
+        key: 'agents.notifications.enabled',
+        title: 'System notifications',
+        description:
+            'Notify when a background Agent needs attention; provider lifecycle hooks must also be enabled',
+        category: 'agents',
+        keywords: ['notification', 'alert', 'background', 'attention', 'waiting', 'completed'],
+        default: true,
+    },
+    {
+        kind: 'integer',
+        key: 'agents.notifications.completionThresholdSeconds',
+        title: 'Completed turn threshold',
+        description: 'Only notify for completed Agent turns that ran for at least this long',
+        category: 'agents',
+        keywords: ['notification', 'duration', 'minimum', 'completed', 'turn'],
+        min: 0,
+        max: 3_600,
+        default: 60,
+        display: { unit: 'seconds' },
+    },
 ] as const satisfies readonly SettingSpec[];
 
 export type SettingKey = (typeof settingsSpec)[number]['key'];
