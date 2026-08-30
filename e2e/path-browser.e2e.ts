@@ -327,11 +327,36 @@ test('typing a name that does not exist offers to create a file or folder', asyn
             })
             .toBe('');
 
+        await running.page.evaluate(() => {
+            const e2eBridge = (
+                globalThis as typeof globalThis & {
+                    caxriE2E: { armPathBrowserStartGate: () => void };
+                }
+            ).caxriE2E;
+            e2eBridge.armPathBrowserStartGate();
+        });
         await running.page.keyboard.press('Meta+P');
+        await running.page.evaluate(() =>
+            (
+                globalThis as typeof globalThis & {
+                    caxriE2E: { waitForPathBrowserStartGate: () => Promise<void> };
+                }
+            ).caxriE2E.waitForPathBrowserStartGate(),
+        );
         const secondDialog = running.page.getByRole('dialog');
         const secondInput = secondDialog.getByRole('combobox', { name: 'File path' });
         await expect(secondInput).toBeFocused();
         await secondInput.fill('drafts/');
+        await running.page.evaluate(() => {
+            const e2eBridge = (
+                globalThis as typeof globalThis & {
+                    caxriE2E: { releasePathBrowserStartGate: () => void };
+                }
+            ).caxriE2E;
+            e2eBridge.releasePathBrowserStartGate();
+        });
+        // A slow initial snapshot must not overwrite input entered while the dialog is opening.
+        await expect(secondInput).toHaveValue('drafts/');
         await expect(secondInput).toHaveAttribute('aria-busy', 'false');
         const folderCreateButton = secondDialog.getByRole('button', { name: 'Create folder' });
         await expect(folderCreateButton).toBeVisible();
