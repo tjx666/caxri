@@ -33,6 +33,12 @@ and agent adapters. Acceptance uses the real macOS Electron desktop surface.
   The final root remains selected after the queue is exhausted, so Acceptance never falls through
   to a native dialog.
 
+- **Agent fixtures:** Agent discovery is blocked by default. When the frozen plan declares
+  `"agentFixture": "agent-features-v1"`, pass `--agent-fixture agent-features-v1` to the launcher.
+  The adapter creates fixed fake Claude Code and Codex executables plus isolated provider homes
+  beneath the owned user-data directory. It rejects arbitrary ids and host executable paths and
+  records `assets/<case-id>-agent-fixture.json`; include that receipt in the case evidence.
+
 - **Native dialogs:** these are manual Acceptance boundaries by default. Keep the deterministic
   test-root environment and stub Main's dialog result for automated coverage. Hand dialog-specific
   checks to the user. Only when the current user request explicitly asks the agent to verify native
@@ -128,6 +134,8 @@ project settings, use the same self-test and treat `command not found` as a miss
 - **Project fixture:** pass purpose-built fixture folders through one or more `--test-root`
   options; defaulting to the repository root is appropriate only when the acceptance case needs a
   real large Project.
+- **Agent fixture:** declare the fixed repository-owned fixture in the plan and pass its id through
+  `--agent-fixture`; never expose a host Claude Code or Codex installation to Acceptance.
 - **Quick navigation:** no hidden app-state mutation contract exists. Prefer the
   shortest user-visible path or a committed E2E fixture helper.
 

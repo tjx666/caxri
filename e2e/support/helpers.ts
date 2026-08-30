@@ -1,15 +1,10 @@
-import { chmod, mkdir, writeFile } from 'node:fs/promises';
-import { isAbsolute, join, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import process from 'node:process';
 
 import { connectToServer, discoverServerManifest } from '@caxri/client/supervise';
 import type { AgentProvider } from '@caxri/protocol';
 import { agentProviderCatalog } from '@caxri/protocol';
-import {
-    e2eAgentPolicyEnvironment,
-    e2eAgentShellShims,
-    e2eFakeExecutableEnvironmentKeys,
-} from '@caxri/system';
+import { createE2EAgentEnvironment, e2eAgentEnvironmentKeys } from '@caxri/system';
 import type { ElectronApplication, Locator, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 import { _electron as electron } from 'playwright';
@@ -21,11 +16,6 @@ import {
     releaseDesktopLease,
     transferDesktopLease,
 } from '../../.agents/skills/switch-worktree/scripts/desktop-lease.ts';
-import {
-    createE2EAgentIsolationEnvironment,
-    e2eAgentStateEnvironmentKeys,
-    selectE2ERealAgentStateEnvironment,
-} from './agent-environment.ts';
 import { stubAppQuitDecision } from './app-quit.ts';
 import { assertE2EBuildIsFresh } from './build-freshness.ts';
 import type { ClipboardCapability, ClipboardFixture, ClipboardSnapshot } from './clipboard.ts';
@@ -43,12 +33,7 @@ import { stageDevelopmentTestExtension } from './test-extension.ts';
 import { resolveE2EClipboardPolicy, resolveE2EWorkerIsolation } from './worker-isolation.ts';
 
 const projectRoot = resolve(import.meta.dirname, '../..');
-const e2eAgentEnvironmentKeys = [
-    'CAXRI_E2E_AGENT_MODE',
-    'CAXRI_E2E_AGENT_PROVIDER',
-    ...e2eFakeExecutableEnvironmentKeys(),
-    ...e2eAgentStateEnvironmentKeys,
-] as const;
+const agentEnvironmentKeys = e2eAgentEnvironmentKeys();
 
 export interface LaunchCaxriOptions {
     /**
@@ -125,60 +110,21 @@ async function e2eAgentEnvironment(
     agentMode: E2EAgentMode,
     sourceEnvironment: NodeJS.ProcessEnv,
 ): Promise<NodeJS.ProcessEnv> {
-    if (agentMode.mode === 'real') {
-        const provider = agentMode.provider ?? 'codex';
-        return {
-            ...selectE2ERealAgentStateEnvironment(provider, sourceEnvironment),
-            ...e2eAgentPolicyEnvironment({ mode: 'real', provider }),
-        };
-    }
-    const fixtureRoot = join(userDataDirectory, 'e2e-agents');
-    const isolatedEnvironment = await createE2EAgentIsolationEnvironment(fixtureRoot);
-
-    const fakeExecutables = agentMode.mode === 'fake' ? agentMode.executables : {};
-    if (agentMode.mode === 'fake') {
-        for (const executable of Object.values(agentMode.executables)) {
-            if (executable && !isAbsolute(executable))
-                throw new Error('Fake Agent executables must use absolute paths');
-        }
-        Object.assign(isolatedEnvironment, agentMode.environment);
-    }
-
-    const shellBin = join(fixtureRoot, 'shell-bin');
-    await mkdir(shellBin, { recursive: true });
-    await Promise.all(
-        e2eAgentShellShims(fakeExecutables).map(async (shim) => {
-            const executable = join(shellBin, shim.executable);
-            await writeFile(executable, shim.source, 'utf8');
-            await chmod(executable, 0o700);
-        }),
-    );
-    const shellPath = `${shellBin}:${sourceEnvironment.PATH ?? process.env.PATH ?? '/usr/bin:/bin'}`;
-    const profile = `export PATH=${shellQuote(shellPath)}\n`;
-    const isolatedHome = isolatedEnvironment.HOME;
-    if (!isolatedHome || !isAbsolute(isolatedHome))
-        throw new Error('Isolated E2E Agent HOME must be an absolute path');
-    await Promise.all([
-        writeFile(join(isolatedHome, '.zprofile'), profile, { encoding: 'utf8', mode: 0o600 }),
-        writeFile(join(isolatedHome, '.bash_profile'), profile, {
-            encoding: 'utf8',
-            mode: 0o600,
-        }),
-        writeFile(join(isolatedHome, '.profile'), profile, { encoding: 'utf8', mode: 0o600 }),
-    ]);
-    return {
-        ...isolatedEnvironment,
-        PATH: shellPath,
-        ...e2eAgentPolicyEnvironment(
-            agentMode.mode === 'fake'
-                ? { mode: 'fake', executables: fakeExecutables }
-                : { mode: 'blocked' },
-        ),
+    /**
+     * Preserve the host Shell PATH fallback without granting ambient provider state to real mode.
+     */
+    const explicitEnvironmentWithPath = {
+        ...sourceEnvironment,
+        PATH: sourceEnvironment.PATH ?? process.env.PATH,
     };
-}
-
-function shellQuote(value: string): string {
-    return `'${value.replaceAll("'", `'"'"'`)}'`;
+    return createE2EAgentEnvironment({
+        fixtureRoot: join(userDataDirectory, 'e2e-agents'),
+        mode:
+            agentMode.mode === 'real'
+                ? { mode: 'real', provider: agentMode.provider ?? 'codex' }
+                : agentMode,
+        sourceEnvironment: explicitEnvironmentWithPath,
+    });
 }
 
 function errorCode(error: unknown): string | undefined {
@@ -295,7 +241,7 @@ export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<Runni
     /**
      * Prevent ambient internal test switches from adding an undeclared fake provider.
      */
-    for (const key of e2eAgentEnvironmentKeys) {
+    for (const key of agentEnvironmentKeys) {
         if (!Object.hasOwn(agentEnvironment, key)) delete launchEnvironmentSource[key];
     }
     const launchEnvironment = Object.fromEntries(
