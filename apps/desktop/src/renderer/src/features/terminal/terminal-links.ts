@@ -208,6 +208,20 @@ function isLikelyFilePath(path: string): boolean {
     return /^[^/:]+\.[a-z\d][\w-]{0,15}$/i.test(path);
 }
 
+/**
+ * A bare first segment containing sentence punctuation is indistinguishable from adjacent CJK prose, so it must not
+ * become a link by guessing where the path starts. Explicit `./`, `../`, `/`, and `file://` candidates are detached
+ * before this check, while punctuation in later segments remains unambiguous.
+ */
+function hasAmbiguousCjkProsePrefix(path: string): boolean {
+    const firstSlash = path.indexOf('/');
+    if (firstSlash <= 0) return false;
+    for (let index = 0; index < firstSlash; index += 1) {
+        if (CJK_PROSE_BOUNDARIES.has(path[index])) return true;
+    }
+    return false;
+}
+
 function locationPathStart(text: string, pathEnd: number, wordSeparators: string): number {
     let start = pathEnd;
     while (start > 0) {
@@ -250,7 +264,13 @@ function findLocationFileLinks(
         const startIndex = locationPathStart(text, suffix.index, wordSeparators);
         const trimmed = trimToken(text.slice(startIndex, endIndex));
         const location = parseTerminalFileLocation(trimmed.text);
-        if (!location.location || location.invalidLocation || !isLikelyFilePath(location.target))
+        if (
+            !location.location ||
+            location.invalidLocation ||
+            !isLikelyFilePath(location.target) ||
+            (wordSeparators === TERMINAL_DEFAULT_WORD_SEPARATORS &&
+                hasAmbiguousCjkProsePrefix(location.target))
+        )
             continue;
         const matchStart = startIndex + trimmed.startOffset;
         const matchEnd = startIndex + trimmed.endOffset;
@@ -408,7 +428,13 @@ export function findTerminalLinks(
                 continue;
         }
         const location = parseTerminalFileLocation(trimmed.text);
-        if (location.invalidLocation || !isLikelyFilePath(location.target)) continue;
+        if (
+            location.invalidLocation ||
+            !isLikelyFilePath(location.target) ||
+            (wordSeparators === TERMINAL_DEFAULT_WORD_SEPARATORS &&
+                hasAmbiguousCjkProsePrefix(location.target))
+        )
+            continue;
         while (locationFileLinks[locationLinkIndex]?.endIndex <= startIndex) locationLinkIndex += 1;
         const locationLink = locationFileLinks.at(locationLinkIndex);
         if (
