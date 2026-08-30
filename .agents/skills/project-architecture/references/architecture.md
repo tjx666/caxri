@@ -60,9 +60,11 @@ runtime and Server Core entrypoint through `@caxri/client/supervise`.
 
 A second same-profile Desktop exits before attachment and asks the existing Desktop to restore or focus
 its window. The typed Desktop lease remains defense in depth for non-Electron Clients and stale-build
-recovery. Desktop Main is otherwise replaceable: closing a window or quitting Desktop revokes its lease
-and detaches views without stopping Server Core, Terminal Host, or PTYs. A Renderer reload attaches to
-the same Server state and bounded Terminal snapshots. A Server Core crash causes its coupled Terminal
+recovery. Desktop Main is otherwise replaceable: closing a window revokes its lease and detaches views
+without stopping Server Core, Terminal Host, or PTYs. Explicit application quit inspects Server impact:
+an idle Server owned only by Desktop stops directly, while live PTYs require a native choice to terminate
+tasks, keep them attached in the background, or cancel. A Renderer reload attaches to the same Server
+state and bounded Terminal snapshots. A Server Core crash causes its coupled Terminal
 Host and live PTYs to be retired; supervision restarts Server Core with capped exponential backoff and
 persisted Terminals become `dead`, never silently restored processes. Server Core must remain ready for
 30 seconds before its restart budget resets, so ready/crash flapping fails closed after three restarts.
@@ -330,9 +332,12 @@ The Agent Actions picker targets one captured, running Agent Terminal. A typed `
 Closing the last macOS window with live PTYs asks whether to keep running, terminate and close, or
 cancel. `Keep Running` detaches every Renderer view and closes the window while Server Core, Terminal
 Host, and PTYs remain alive; reopening creates a new window and attaches it to the live Server. `Quit
-Caxri Desktop` persists window state, detaches views, and disconnects Main, but only the frozen public
-`host stop` control terminates PTYs and shuts down Server. Dead Terminals remain visible and can be
-restarted. In-flight Agent CLI discovery is revalidated against durable metadata before a PTY is
+Caxri` stops an idle Server without prompting. With live PTYs it asks whether to terminate every Terminal
+and Agent process before `host.stop`, keep work attached to the background Server, or cancel; the
+non-destructive keep-running choice is the default. Other connected clients are called out in the stop
+warning, and an idle Server remains alive without prompting when another client is connected. System
+shutdown and explicit Desktop relaunch preserve work without prompting. Dead Terminals remain visible
+and can be restarted. In-flight Agent CLI discovery is revalidated against durable metadata before a PTY is
 registered, so closing a Terminal or deleting its Session cannot create an orphan process.
 
 Interrupted-Terminal recovery is supervised by one Server Core-wide four-spawn budget. Selecting a Session invalidates queued restore work from the previous selection, and the selected generation is revalidated after executable discovery immediately before PTY spawn. A visible interrupted Terminal retains the receiving Renderer grid before restore, starts its PTY and parsed screen at that grid when possible, and performs one ordered live-screen reattach after the record becomes `running`; this removes any remaining attach/spawn race without relying on a later ResizeObserver event. Startup Agent metadata probes are limited to the selected Session; another Session is probed when selected rather than during boot.

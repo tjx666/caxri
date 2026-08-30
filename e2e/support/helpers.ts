@@ -26,6 +26,7 @@ import {
     e2eAgentStateEnvironmentKeys,
     selectE2ERealAgentStateEnvironment,
 } from './agent-environment.ts';
+import { stubAppQuitDecision } from './app-quit.ts';
 import { assertE2EBuildIsFresh } from './build-freshness.ts';
 import type { ClipboardCapability, ClipboardFixture, ClipboardSnapshot } from './clipboard.ts';
 import {
@@ -418,6 +419,8 @@ export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<Runni
                     cleanup,
                     close,
                     handBackLease,
+                    prepareBeforeClose: () =>
+                        stubAppQuitDecision(app, preserveHostOnClose ? 'keep-running' : 'stop'),
                     ...(activeClipboardSnapshot && {
                         restoreBeforeClose: async () => {
                             try {

@@ -501,6 +501,12 @@ export class DesktopServerConnection extends EventTarget {
             : new CaxriError('UNAVAILABLE', 'Desktop is not connected to the Caxri Host');
     }
 
+    private disposeLifecycle(): void {
+        if (this.lifecycle.status !== 'disposed')
+            this.lifecycle = transitionServerConnection(this.lifecycle, { type: 'dispose' });
+        this.unsubscribeServerLifecycle();
+    }
+
     serverProcessId(): number | undefined {
         return this.serverPid;
     }
@@ -569,13 +575,58 @@ export class DesktopServerConnection extends EventTarget {
     }
 
     close(): void {
-        this.lifecycle = transitionServerConnection(this.lifecycle, { type: 'dispose' });
-        this.unsubscribeServerLifecycle();
+        this.disposeLifecycle();
         /**
          * Main disposal is terminal for Renderer work, unlike a recoverable transport loss.
          */
         this.client?.close({ cancelPendingRequests: true });
         this.client = undefined;
+    }
+
+    /**
+     * Ends every live Terminal before stopping Server Core so an explicit Desktop quit releases external Agent session
+     * locks and cannot be auto-restored as interrupted work by a later Caxri launch. Disposal is fenced before either
+     * request because the expected transport close from `host.stop` must never start the recovery loop.
+     */
+    async stopServer(): Promise<void> {
+        const attached = this.client;
+        if (!attached) throw this.disconnectedRequestError();
+        const pid = this.serverPid;
+        const client = attached as unknown as UntypedServerClient;
+        this.disposeLifecycle();
+        this.client = undefined;
+        let didTerminationFail = false;
+        let terminationFailure: unknown;
+        let didHostStopFail = false;
+        let hostStopFailure: unknown;
+        try {
+            try {
+                await client.requestServerOperation('terminal.terminateAll', undefined, undefined);
+            } catch (error) {
+                didTerminationFail = true;
+                terminationFailure = error;
+            }
+            try {
+                await client.request('host.stop', { confirmLivePtys: true });
+                if (pid !== undefined) {
+                    this.serverSupervisor.releaseProcess(pid);
+                    await waitForProcessExit(pid, SERVER_REPLACEMENT_EXIT_TIMEOUT_MS);
+                }
+            } catch (error) {
+                didHostStopFail = true;
+                hostStopFailure = error;
+            }
+        } finally {
+            attached.close({ cancelPendingRequests: true });
+            this.serverPid = undefined;
+        }
+        if (didTerminationFail && didHostStopFail)
+            throw new AggregateError(
+                [terminationFailure, hostStopFailure],
+                'Could not terminate tasks or stop Caxri Server',
+            );
+        if (didHostStopFail) throw hostStopFailure;
+        if (didTerminationFail) throw terminationFailure;
     }
 
     /**

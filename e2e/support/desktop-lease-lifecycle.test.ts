@@ -16,10 +16,11 @@ describe('E2E desktop lease lifecycle', () => {
             cleanup: step('cleanup'),
             close: step('close'),
             handBackLease: step('hand-back'),
+            prepareBeforeClose: step('prepare'),
             restoreBeforeClose: step('restore'),
         });
 
-        expect(order).toEqual(['hand-back', 'restore', 'close', 'cleanup']);
+        expect(order).toEqual(['hand-back', 'restore', 'prepare', 'close', 'cleanup']);
     });
 
     it('skips handback and cleans Hosts after Electron has already exited', async () => {
