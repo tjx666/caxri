@@ -72,6 +72,15 @@
     background: var(--muted);
 }
 
+/* The 24px breadcrumb rail must remain visually quiet while still allowing horizontal scrolling;
+   the active file segment scrolls itself into view whenever the editor path changes. */
+.editor-breadcrumbs {
+    scrollbar-width: none;
+}
+.editor-breadcrumbs::-webkit-scrollbar {
+    display: none;
+}
+
 /*
  * User-toggled disclosures transition intrinsic height natively: `interpolate-size:
  * allow-keywords` (Chromium 129+) lets `height` interpolate 0 ↔ auto, so the container is a
