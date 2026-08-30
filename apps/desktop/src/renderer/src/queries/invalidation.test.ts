@@ -212,6 +212,14 @@ describe('subscribeRuntimeQueryInvalidation', () => {
             [],
         );
         queryClient.setQueryData(
+            ['files.list', { sessionId: 'session-a', directory: '/project/src' }],
+            { entries: [], truncated: false },
+        );
+        queryClient.setQueryData(
+            ['files.list', { sessionId: 'session-a', directory: '/project/docs' }],
+            { entries: [], truncated: false },
+        );
+        queryClient.setQueryData(
             [
                 'viewContainers.viewOperation',
                 {
@@ -298,6 +306,18 @@ describe('subscribeRuntimeQueryInvalidation', () => {
                     arguments: { directory: '/project/docs' },
                     contextKey: 'session-a:project-p',
                 },
+            ])?.isInvalidated,
+        ).toBe(false);
+        expect(
+            queryClient.getQueryState([
+                'files.list',
+                { sessionId: 'session-a', directory: '/project/src' },
+            ])?.isInvalidated,
+        ).toBe(true);
+        expect(
+            queryClient.getQueryState([
+                'files.list',
+                { sessionId: 'session-a', directory: '/project/docs' },
             ])?.isInvalidated,
         ).toBe(false);
         expect(

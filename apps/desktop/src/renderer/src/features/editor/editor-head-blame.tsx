@@ -20,7 +20,7 @@ export function EditorHeadBlame({ path, sessionId }: { path: string; sessionId: 
     const absoluteTime = new Date(head.authoredAt).toLocaleString();
     return (
         <div
-            className="editor-head-blame flex h-6 shrink-0 items-center gap-1.5 overflow-hidden border-b border-border bg-surface px-3 text-[11px] text-muted"
+            className="editor-head-blame ml-auto flex max-w-96 min-w-0 shrink items-center gap-1.5 overflow-hidden px-3 text-[11px] text-muted"
             // The full annotation stays reachable when the inline text truncates: `title` for
             // pointer users, `aria-label` for assistive technology.
             aria-label={`Last change: ${head.author}, ${absoluteTime}, ${head.subject}`}

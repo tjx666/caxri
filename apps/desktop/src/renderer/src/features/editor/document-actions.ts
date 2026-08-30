@@ -37,7 +37,7 @@ import { patchSessionState, persistSessionState, useWorkbenchStore } from '../..
 import { closeTerminal } from '../terminal/terminal-actions';
 import { getActivePaneTab, getPaneLayout } from '../workbench/pane-actions';
 import { markEditorDocumentReady, markEditorOpenStarted } from './editor-performance';
-import { queueEditorNavigation, revealEditorNavigation } from './editor-reveal';
+import { focusEditor, queueEditorNavigation, revealEditorNavigation } from './editor-reveal';
 
 const fileOpenIntentState = { current: 0 };
 
@@ -46,6 +46,16 @@ interface PendingDocumentOperation {
     path: string;
     sessionId: string;
     workbenchProjectId?: string;
+}
+
+interface OpenFileOptions {
+    focus?: boolean;
+    location?: EditorNavigationTarget;
+    /**
+     * Exact split pane that should own preview placement and Editor focus.
+     */
+    paneId?: string;
+    preview?: boolean;
 }
 
 /**
@@ -198,7 +208,7 @@ export async function cacheDocument(sessionId: string, path: string): Promise<vo
 
 export async function openFile(
     path: string,
-    options: { location?: EditorNavigationTarget; preview?: boolean } = {},
+    options: OpenFileOptions = {},
 ): Promise<string | false> {
     const session = getSelectedSession();
     if (!session) return false;
@@ -211,7 +221,7 @@ export async function openFile(
 export async function openFileForSession(
     sessionId: string,
     path: string,
-    options: { location?: EditorNavigationTarget; preview?: boolean } = {},
+    options: OpenFileOptions = {},
 ): Promise<string | false> {
     if (isVirtualEditorTabPath(path)) return false;
     const session = getBootstrap()?.sessions.find((candidate) => candidate.id === sessionId);
@@ -242,7 +252,15 @@ export async function openFileForSession(
                 },
                 operation.workbenchProjectId,
             );
-            didOpenEditorTabForSession(session.id, currentPath, options);
+            const didOpen = didOpenEditorTabForSession(session.id, currentPath, options);
+            if (didOpen && options.focus)
+                focusEditor(
+                    editorModelPath(
+                        sessionViewScope(session.id, session.workbenchProjectId),
+                        currentPath,
+                    ),
+                    options.paneId,
+                );
             return currentPath;
         });
         return opened ?? false;
