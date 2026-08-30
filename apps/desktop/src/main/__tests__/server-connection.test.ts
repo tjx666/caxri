@@ -743,4 +743,54 @@ describe('Desktop Server connection facade', () => {
             expect.anything(),
         );
     });
+
+    it('terminates tasks before stopping Server and fences the expected transport close from recovery', async () => {
+        const client = mockServerRound({ pid: 999_999 });
+        client.requestServerOperation.mockResolvedValue(undefined);
+        client.request.mockImplementation((method: string) =>
+            method === 'host.stop'
+                ? Promise.resolve({ stopping: true, activePtyCount: 0 })
+                : Promise.resolve(recoveryResult(0)),
+        );
+        const { connection, logger, serverSupervisor } = createConnection();
+        await connection.start();
+
+        const stopping = connection.stopServer();
+        client.triggerClose();
+        await stopping;
+
+        expect(client.requestServerOperation).toHaveBeenCalledWith(
+            'terminal.terminateAll',
+            undefined,
+            undefined,
+        );
+        expect(client.request).toHaveBeenCalledWith('host.stop', { confirmLivePtys: true });
+        expect(serverSupervisor.releaseProcess).toHaveBeenCalledWith(999_999);
+        expect(client.close).toHaveBeenCalledWith({ cancelPendingRequests: true });
+        expect(logger.write).not.toHaveBeenCalledWith(
+            'warn',
+            'server_connection.lost',
+            expect.anything(),
+        );
+        await expect(connection.request('app.health')).rejects.toMatchObject({ code: 'CANCELLED' });
+    });
+
+    it('still stops Server when task termination fails during an accepted destructive quit', async () => {
+        const client = mockServerRound({ pid: 999_999 });
+        const terminationFailure = new Error('Terminal Host unavailable');
+        client.requestServerOperation.mockRejectedValue(terminationFailure);
+        client.request.mockImplementation((method: string) =>
+            method === 'host.stop'
+                ? Promise.resolve({ stopping: true, activePtyCount: 1 })
+                : Promise.resolve(recoveryResult(0)),
+        );
+        const { connection, serverSupervisor } = createConnection();
+        await connection.start();
+
+        await expect(connection.stopServer()).rejects.toBe(terminationFailure);
+
+        expect(client.request).toHaveBeenCalledWith('host.stop', { confirmLivePtys: true });
+        expect(serverSupervisor.releaseProcess).toHaveBeenCalledWith(999_999);
+        expect(client.close).toHaveBeenCalledWith({ cancelPendingRequests: true });
+    });
 });

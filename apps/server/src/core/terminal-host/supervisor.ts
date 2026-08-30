@@ -109,11 +109,11 @@ export class TerminalHostSupervisor extends EventTarget {
         super();
     }
 
-    private rejectPending(message: string): void {
+    private rejectPending(message: string, code: CaxriErrorCode = 'UNAVAILABLE'): void {
         for (const pending of this.pending.values()) {
             clearTimeout(pending.timer);
             pending.cleanup?.();
-            pending.reject(new CaxriError('UNAVAILABLE', message));
+            pending.reject(new CaxriError(code, message));
         }
         this.pending.clear();
     }
@@ -490,7 +490,10 @@ export class TerminalHostSupervisor extends EventTarget {
         if (this.owned === owned) {
             this.owned = undefined;
             this.startup = undefined;
-            this.rejectPending('Terminal Host is stopping');
+            /**
+             * Intentional shutdown cancels stale reads; reserving UNAVAILABLE for Host loss keeps it actionable.
+             */
+            this.rejectPending('Terminal Host is stopping', 'CANCELLED');
             await this.terminate(owned);
         }
         return snapshots;

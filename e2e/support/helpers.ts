@@ -26,6 +26,7 @@ import {
     e2eAgentStateEnvironmentKeys,
     selectE2ERealAgentStateEnvironment,
 } from './agent-environment.ts';
+import { stubAppQuitDecision } from './app-quit.ts';
 import { assertE2EBuildIsFresh } from './build-freshness.ts';
 import type { ClipboardCapability, ClipboardFixture, ClipboardSnapshot } from './clipboard.ts';
 import {
@@ -79,6 +80,10 @@ export interface LaunchCaxriOptions {
      * Blocks host Agents by default; fake and real modes require an explicit per-spec choice.
      */
     agentMode?: E2EAgentMode;
+    /**
+     * Native quit choice; independent Host cleanup lets restart tests preserve tasks before a harness stop.
+     */
+    quitDecisionOnClose?: 'keep-running' | 'stop';
     /**
      * Restart workflows let the next launch inherit the same live Host; the final launch cleans it.
      */
@@ -262,10 +267,12 @@ export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<Runni
         gpuMode = 'disabled',
         windowMode = 'hidden',
         agentMode = { mode: 'blocked' },
+        quitDecisionOnClose,
         preserveHostOnClose = false,
         clipboard = false,
         clipboardFixture,
     } = options;
+    const closeDecision = quitDecisionOnClose ?? (preserveHostOnClose ? 'keep-running' : 'stop');
     if (!executablePath) await stageDevelopmentTestExtension(projectRoot, userDataDir);
     const agentEnvironment = await e2eAgentEnvironment(userDataDir, agentMode, environment);
     const clipboardPolicy = resolveE2EClipboardPolicy(process.env, clipboard);
@@ -418,6 +425,7 @@ export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<Runni
                     cleanup,
                     close,
                     handBackLease,
+                    prepareBeforeClose: () => stubAppQuitDecision(app, closeDecision),
                     ...(activeClipboardSnapshot && {
                         restoreBeforeClose: async () => {
                             try {

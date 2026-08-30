@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createGpuRecoveryCoordinator } from '../gpu-recovery';
 
 function createHarness(recordContextLoss: (correlationId: string) => Promise<unknown>) {
+    const app = { on: vi.fn(), quit: vi.fn(), relaunch: vi.fn() };
     const write = vi.fn<StructuredLogger['write']>();
     const diagnostics = {
         recordGpuProcessGone: vi.fn(() => ({
@@ -18,7 +19,7 @@ function createHarness(recordContextLoss: (correlationId: string) => Promise<unk
         updateArgvConfig: vi.fn(),
     };
     const coordinator = createGpuRecoveryCoordinator({
-        app: { on: vi.fn() } as never,
+        app: app as never,
         boot: {
             argvConfig: { hardwareAcceleration: true, remoteDebugging: true },
             safeMode: { active: false, automatic: false },
@@ -26,10 +27,11 @@ function createHarness(recordContextLoss: (correlationId: string) => Promise<unk
         diagnostics: diagnostics as never,
         isE2E: false,
         logger: () => ({ write }) as never,
+        prepareRelaunch: vi.fn(),
         safeMode: safeMode as never,
         sendEvent: vi.fn(),
     });
-    return { coordinator, safeMode, write };
+    return { app, coordinator, safeMode, write };
 }
 
 describe('GPU recovery coordinator', () => {
@@ -72,5 +74,31 @@ describe('GPU recovery coordinator', () => {
         finish();
         await expect(drained).resolves.toBeUndefined();
         expect(harness.safeMode.drain).toHaveBeenCalledOnce();
+    });
+
+    it('marks Safe Mode restart intent before Electron enters the ordinary quit path', async () => {
+        const calls: string[] = [];
+        const harness = createHarness(() => Promise.resolve());
+        const coordinator = createGpuRecoveryCoordinator({
+            app: {
+                on: vi.fn(),
+                quit: vi.fn(() => calls.push('quit')),
+                relaunch: vi.fn(() => calls.push('relaunch')),
+            } as never,
+            boot: {
+                argvConfig: { hardwareAcceleration: true, remoteDebugging: true },
+                safeMode: { active: false, automatic: false },
+            },
+            diagnostics: {} as never,
+            isE2E: false,
+            logger: () => {},
+            prepareRelaunch: () => calls.push('prepare'),
+            safeMode: harness.safeMode as never,
+            sendEvent: vi.fn(),
+        });
+
+        await coordinator.mainMethodOptions.restartInGpuSafeMode();
+
+        expect(calls).toEqual(['prepare', 'relaunch', 'quit']);
     });
 });

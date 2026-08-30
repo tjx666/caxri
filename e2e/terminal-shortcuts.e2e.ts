@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { execFileAsync } from '@caxri/system';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
+import { stubAppQuitDecision } from './support/app-quit.ts';
 import type { Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
@@ -341,6 +342,7 @@ test('Codex Terminal maps input shortcuts and restores the clipboard on quit', a
             /**
              * Bypass the wrapped Playwright close path to prove Main's `before-quit` guardian restores the clipboard.
              */
+            await stubAppQuitDecision(running.app, 'stop');
             await running.app.evaluate(({ app }) => app.quit());
         } catch {
             // The evaluation transport may close before returning because quitting is the operation under test.

@@ -5,6 +5,7 @@ interface CloseE2EAppOptions {
     cleanup: () => Promise<void>;
     close: () => Promise<void>;
     handBackLease: () => Promise<void>;
+    prepareBeforeClose?: () => Promise<void>;
     restoreBeforeClose?: () => Promise<void>;
 }
 
@@ -17,6 +18,7 @@ export async function closeE2EApp({
     cleanup,
     close,
     handBackLease,
+    prepareBeforeClose,
     restoreBeforeClose,
 }: CloseE2EAppOptions): Promise<void> {
     let failure: unknown;
@@ -30,6 +32,11 @@ export async function closeE2EApp({
         }
         try {
             await restoreBeforeClose?.();
+        } catch (error) {
+            failure ??= error;
+        }
+        try {
+            await prepareBeforeClose?.();
         } catch (error) {
             failure ??= error;
         }

@@ -207,4 +207,32 @@ describe('architecture-a3b-terminal-host: TerminalHostSupervisor', () => {
         });
         expect(typeof failedDiagnostics.lastExit?.at).toBe('number');
     });
+
+    it('cancels pending requests during an intentional shutdown', async () => {
+        const { child, supervisor } = createSupervisor();
+        await becomeReady(child, supervisor);
+        const resources = supervisor.request(
+            { method: 'terminal.resources', params: {} },
+            {
+                scope: 'terminal',
+                capability: 'terminal.inspect',
+                sessionId: 'session-1',
+                terminalId: 'terminal-1',
+                ptyGeneration: 1,
+            },
+        );
+        await vi.waitFor(() => expect(child.sent).toHaveLength(2));
+
+        const shutdown = supervisor.shutdown();
+        await vi.waitFor(() => expect(child.sent).toHaveLength(3));
+        child.emit('message', {
+            type: 'reply',
+            id: child.sent[2].id,
+            ok: true,
+            result: { snapshots: [], stopped: true },
+        });
+
+        await expect(resources).rejects.toMatchObject({ code: 'CANCELLED' });
+        await expect(shutdown).resolves.toEqual([]);
+    });
 });
