@@ -100,6 +100,7 @@ export function EditorBreadcrumbPicker({
                 {isPending && (
                     <div
                         aria-disabled="true"
+                        aria-selected="false"
                         className="flex h-7 items-center gap-2 px-2 text-muted"
                         role="option"
                     >
@@ -110,12 +111,22 @@ export function EditorBreadcrumbPicker({
                     </div>
                 )}
                 {isError && (
-                    <div aria-disabled="true" className="px-2 py-2 text-danger" role="option">
+                    <div
+                        aria-disabled="true"
+                        aria-selected="false"
+                        className="px-2 py-2 text-danger"
+                        role="option"
+                    >
                         <span role="alert">{describeFailure(error, 'Unable to read folder')}</span>
                     </div>
                 )}
                 {!isPending && !isError && entries.length === 0 && (
-                    <div aria-disabled="true" className="px-2 py-2 text-muted italic" role="option">
+                    <div
+                        aria-disabled="true"
+                        aria-selected="false"
+                        className="px-2 py-2 text-muted italic"
+                        role="option"
+                    >
                         Empty folder
                     </div>
                 )}
