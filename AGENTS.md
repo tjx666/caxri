@@ -50,11 +50,6 @@ directories.
   use `dianjiang` to consult another agent harness. Keep the consultation read-only unless the
   current request explicitly authorizes the same scoped mutation. Treat the result as evidence.
   Final adjudication stays with the primary agent against current repository state.
-- Delegate bounded discovery, review, and validation to context-isolated subagents when that
-  reduces primary-context pollution, latency, or token cost. Pass only the required artifacts and
-  constraints. Prefer faster and cheaper presets for well-scoped tasks. Synthesize their results in
-  the primary agent before acting. Never run Electron desktop tasks concurrently; additional
-  desktop work must use the repository's isolated worktree and desktop-lease workflow.
 - A request to review current local work authorizes the primary agent to repair validated P0/P1
   findings introduced by that work when the fix is unambiguous, local, and inside the requested
   scope. This applies to direct review, `deep-review`, and `dianjiang` review. Keep delegated
