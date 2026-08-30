@@ -129,6 +129,10 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
             .filter({ hasText: 'Shell' })
             .first()
             .click();
+        const activeTerminalId = await running.page
+            .locator('.work-tab.active[data-terminal-id]')
+            .getAttribute('data-terminal-id');
+        if (!activeTerminalId) throw new Error('Active Shell Terminal ID was not rendered');
         await typeTerminal(running.page, String.raw`sleep 1; printf 'AFTER_RENDERER_RELOAD\n'`);
         await running.page.reload();
         await waitForRuntimeReady(running.page);
@@ -147,16 +151,34 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         // selected Session without a manual Restart click (GitHub issue #18). The mounted xterm is
         // replaced from the durable snapshot, so output that existed only in the dead
         // Renderer/Core generation cannot linger on screen (GitHub issue #67).
+        // Runtime readiness precedes the selected Shell's automatic PTY restore. Waiting on the old
+        // Session activity spinner only hid that ordering; use the Terminal's owning process state.
+        await expect
+            .poll(async () => {
+                const state = await pageRequest<{
+                    terminals: Array<{ id: string; lastProcessState: string }>;
+                }>(running.page, 'app.bootstrap');
+                return state.terminals.find((terminal) => terminal.id === activeTerminalId)
+                    ?.lastProcessState;
+            })
+            .toBe('running');
+        const restoredRows = running.page.locator(
+            `.terminal-pane[data-terminal-id="${activeTerminalId}"] .xterm-rows`,
+        );
+        await expect(restoredRows).not.toContainText('STALE_RENDERER_ONLY');
         await expect(
-            running.page.locator('.terminal-surface[data-terminal-attached="true"]'),
+            running.page.locator(
+                `.terminal-info-card[data-terminal-info-id="${activeTerminalId}"] .terminal-state-running`,
+            ),
         ).toBeVisible();
-        await expect(running.page.locator('.xterm-rows').first()).not.toContainText(
-            'STALE_RENDERER_ONLY',
+        const restoredInput = running.page.locator(
+            `.terminal-pane[data-terminal-id="${activeTerminalId}"] .xterm-helper-textarea`,
         );
-        await typeTerminal(running.page, String.raw`printf 'AFTER_RUNTIME_RESTART\n'`);
-        await expect(running.page.locator('.xterm-rows').first()).toContainText(
-            'AFTER_RUNTIME_RESTART',
-        );
+        await restoredInput.focus();
+        await expect(restoredInput).toBeFocused();
+        await restoredInput.pressSequentially(String.raw`printf 'AFTER_RUNTIME_RESTART\n'`);
+        await restoredInput.press('Enter');
+        await expect(restoredRows).toContainText('AFTER_RUNTIME_RESTART');
 
         // Must differ from the 1440x900 default AND fit the CI display: the macos-26-arm64
         // runner's work area is only 1024x677 and macOS clamps larger setBounds calls to it.
