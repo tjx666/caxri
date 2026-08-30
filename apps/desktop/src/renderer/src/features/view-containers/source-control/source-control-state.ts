@@ -3,6 +3,21 @@ import { MAX_SOURCE_CONTROL_VIEW_STATE_ENTRIES } from '@caxri/protocol';
 
 export type SourceControlViewNavigation = SourceControlViewState;
 
+export function setSourceControlDirectoriesExpanded(
+    current: Readonly<Record<string, boolean>>,
+    keys: readonly string[],
+    isExpanded: boolean,
+): Record<string, boolean> {
+    const next = { ...current };
+    for (const key of keys) delete next[key];
+    /**
+     * The persistence boundary retains the newest entries. A recursive batch arrives root-first, so writing it in
+     * reverse keeps the clicked root and its nearest descendants ahead of deep nodes.
+     */
+    for (const key of keys.toReversed()) next[key] = isExpanded;
+    return next;
+}
+
 export function createSourceControlViewNavigation(
     persisted?: SourceControlViewState,
 ): SourceControlViewNavigation {

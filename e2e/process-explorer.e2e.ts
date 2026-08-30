@@ -59,9 +59,16 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
         const expandedRowCount = await processPage.locator('.process-row').count();
         expect(expandedRowCount).toBeGreaterThan(3);
 
-        await processPage.locator('button.process-name[title="caxri"]').click();
+        const rootProcess = processPage.locator('button.process-name[title="caxri"]');
+        await rootProcess.click({ modifiers: ['Alt'] });
         await expect(processPage.locator('.process-row')).toHaveCount(1);
-        await processPage.locator('button.process-name[title="caxri"]').click();
+        await rootProcess.click();
+        const partiallyExpandedRowCount = await processPage.locator('.process-row').count();
+        expect(partiallyExpandedRowCount).toBeGreaterThan(1);
+        expect(partiallyExpandedRowCount).toBeLessThan(expandedRowCount);
+        await rootProcess.click();
+        await expect(processPage.locator('.process-row')).toHaveCount(1);
+        await rootProcess.click({ modifiers: ['Alt'] });
         await expect(processPage.locator('.process-row')).toHaveCount(expandedRowCount);
 
         const sampledAt = Number(

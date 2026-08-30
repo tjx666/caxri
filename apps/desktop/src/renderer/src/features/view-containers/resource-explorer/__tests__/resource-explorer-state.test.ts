@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
+import { controlledViewQueryKey } from '../../view-operation-client';
 import type { PendingFileOperation } from '../file-operation-state';
 import {
     fileOperationsForProject,
     fileTreeRootCaption,
+    knownDirectoryChildrenFromQueries,
     scopedValue,
     setScopedPathExpanded,
+    setScopedSubtreeExpanded,
     setScopedValue,
 } from '../resource-explorer-state';
 
@@ -42,6 +45,103 @@ describe('Resource Explorer state', () => {
             'session-b:project-b': ['/project-b/docs'],
         });
         expect(initial['session-a:project-a']).toEqual(['/project-a/src']);
+    });
+
+    it('updates only the known directory subtree and protects sibling branches and scopes', () => {
+        const scopeId = 'session-a:project-a';
+        const initial = {
+            [scopeId]: [
+                '/project-a/src',
+                '/project-a/src/nested',
+                '/project-a/src/nested/deep',
+                '/project-a/src/nested/unknown',
+                '/project-a/src2',
+            ],
+            'session-b:project-b': ['/project-b/docs'],
+        };
+        const knownChildren = new Map<string, readonly string[]>([
+            ['/project-a/src', ['/project-a/src/nested']],
+            [
+                '/project-a/src/nested',
+                ['/project-a/src/nested/deep', '/project-a/src/nested/unknown'],
+            ],
+            ['/project-a/src/nested/deep', ['/project-a/src']],
+            ['/project-a/orphan', ['/project-a/orphan/child']],
+        ]);
+
+        const collapsed = setScopedSubtreeExpanded(
+            initial,
+            scopeId,
+            '/project-a/src',
+            knownChildren,
+            false,
+        );
+        const expanded = setScopedSubtreeExpanded(
+            collapsed,
+            scopeId,
+            '/project-a/src',
+            knownChildren,
+            true,
+        );
+
+        expect(collapsed).toEqual({
+            [scopeId]: ['/project-a/src2'],
+            'session-b:project-b': ['/project-b/docs'],
+        });
+        expect(new Set(expanded[scopeId])).toEqual(
+            new Set(initial[scopeId].filter((path) => !path.endsWith('/unknown'))),
+        );
+        expect(expanded['session-b:project-b']).toEqual(['/project-b/docs']);
+        expect(initial[scopeId]).toHaveLength(5);
+    });
+
+    it('derives recursive expansion only from current Files query data in the active scope', () => {
+        const viewId = 'files-view';
+        const scopeId = 'session-a:project-a';
+        const query = (
+            directory: string,
+            child: string,
+            options: { isInvalidated?: boolean; scopeId?: string; viewId?: string } = {},
+        ) => ({
+            data: { entries: [{ kind: 'directory', path: child }] },
+            isInvalidated: options.isInvalidated ?? false,
+            queryKey: controlledViewQueryKey(
+                options.viewId ?? viewId,
+                'files.list',
+                { directory },
+                options.scopeId ?? scopeId,
+            ),
+        });
+
+        const knownChildren = knownDirectoryChildrenFromQueries(
+            [
+                query('/project', '/project/src'),
+                query('/project/src', '/project/src/stale', { isInvalidated: true }),
+                query('/other-project', '/other-project/docs', {
+                    scopeId: 'session-b:project-b',
+                }),
+                query('/other-view', '/other-view/docs', { viewId: 'other-view' }),
+                {
+                    data: { entries: [{ kind: 'file', path: '/project/README.md' }] },
+                    isInvalidated: false,
+                    queryKey: controlledViewQueryKey(
+                        viewId,
+                        'files.list',
+                        { directory: '/project/empty' },
+                        scopeId,
+                    ),
+                },
+            ],
+            viewId,
+            scopeId,
+        );
+
+        expect(knownChildren).toEqual(
+            new Map([
+                ['/project', ['/project/src']],
+                ['/project/empty', []],
+            ]),
+        );
     });
 
     it('projects only operations owned by the active Workbench Project', () => {

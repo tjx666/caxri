@@ -21,6 +21,7 @@ import { subscribeViewEvents } from '../../view-event-bridge';
 import type { SourceControlClient } from '../../view-operation-client';
 import { controlledViewQueryKey } from '../../view-operation-client';
 import type { SourceControlViewNavigation } from '../source-control-state';
+import { setSourceControlDirectoriesExpanded } from '../source-control-state';
 import type { SourceControlNavigationScope } from './use-source-control-navigation';
 import { useSourceControlNavigation } from './use-source-control-navigation';
 
@@ -49,7 +50,7 @@ interface SourceControlViewReadyController {
     navigation: SourceControlViewNavigation;
     runAction: (action: SourceControlAction) => Promise<void>;
     selectMode: (mode: SourceControlMode) => void;
-    setDirectoryExpanded: (key: string, isExpanded: boolean) => void;
+    setDirectoriesExpanded: (keys: readonly string[], isExpanded: boolean) => void;
     setGroupExpanded: (groupId: string, isExpanded: boolean) => void;
     setProviderExpanded: (providerId: string, isExpanded: boolean) => void;
     status: 'ready';
@@ -258,12 +259,13 @@ export function useSourceControlController(
         navigation,
         runAction,
         selectMode,
-        setDirectoryExpanded: (key, isExpanded) =>
+        setDirectoriesExpanded: (keys, isExpanded) =>
             updateNavigation({
-                expandedDirectories: {
-                    ...navigation.expandedDirectories,
-                    [key]: isExpanded,
-                },
+                expandedDirectories: setSourceControlDirectoriesExpanded(
+                    navigation.expandedDirectories,
+                    keys,
+                    isExpanded,
+                ),
             }),
         setGroupExpanded: (groupId, isExpanded) =>
             updateNavigation({

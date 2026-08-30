@@ -1,5 +1,6 @@
 import type { ExtensionTreeViewState, TreeItemDto } from '@caxri/protocol';
 import { MAX_VIEW_TREE_HANDLES, MAX_VIEW_TREE_PERSISTED_IDS } from '@caxri/protocol';
+import { collectTreeSubtree } from '@caxri/utils';
 
 const STABLE_KEY_PREFIX = 'id\0';
 const TRANSIENT_KEY_PREFIX = 'handle\0';
@@ -15,7 +16,7 @@ export interface TreeChildrenReplacement {
     retiredHandles: ReadonlySet<string>;
 }
 
-export type TreeRowAction = 'none' | 'toggle' | 'activate';
+export type TreeRowAction = 'none' | 'toggle' | 'toggle-recursive' | 'activate';
 
 function treeItemStateKey(item: TreeItemDto): string {
     return item.id ? `${STABLE_KEY_PREFIX}${item.id}` : `${TRANSIENT_KEY_PREFIX}${item.handle}`;
@@ -74,13 +75,68 @@ export function isTreeItemFocused(state: ExtensionTreeState, item: TreeItemDto):
 }
 
 export function toggleTreeItem(state: ExtensionTreeState, item: TreeItemDto): ExtensionTreeState {
-    const key = treeItemStateKey(item);
+    return setTreeItemsExpanded(state, [item], !isTreeItemExpanded(state, item));
+}
+
+function setTreeItemsExpanded(
+    state: ExtensionTreeState,
+    items: readonly TreeItemDto[],
+    isExpanded: boolean,
+): ExtensionTreeState {
     const expandedKeys = new Set(state.expandedKeys);
-    if (expandedKeys.has(key)) expandedKeys.delete(key);
-    else expandedKeys.add(key);
     const initializedKeys = new Set(state.initializedKeys);
-    initializedKeys.add(key);
+    /**
+     * Touched items become the newest persistence candidates. Recursive batches are root-first, so reversing them
+     * leaves the clicked root and its nearest descendants highest priority.
+     */
+    for (const item of items.toReversed()) {
+        const key = treeItemStateKey(item);
+        expandedKeys.delete(key);
+        if (isExpanded) expandedKeys.add(key);
+        initializedKeys.delete(key);
+        initializedKeys.add(key);
+    }
     return { ...state, expandedKeys, initializedKeys };
+}
+
+export function treeItemSubtreeHandles(
+    item: TreeItemDto,
+    children: ReadonlyMap<string, readonly TreeItemDto[]>,
+): string[] {
+    return collectTreeSubtree(item.handle, (handle) =>
+        (children.get(handle) ?? []).flatMap((child) =>
+            child.collapsibleState === 'none' ? [] : [child.handle],
+        ),
+    );
+}
+
+/**
+ * Applies one target state to the selected item and every collapsible descendant already loaded into the tree model.
+ * Unknown descendants stay lazy, matching VS Code's asynchronous-tree behavior.
+ */
+export function toggleTreeItemSubtree(
+    state: ExtensionTreeState,
+    item: TreeItemDto,
+    children: ReadonlyMap<string, readonly TreeItemDto[]>,
+): ExtensionTreeState {
+    const itemsByHandle = new Map<string, TreeItemDto>();
+    for (const items of children.values())
+        for (const child of items)
+            if (child.collapsibleState !== 'none') itemsByHandle.set(child.handle, child);
+    itemsByHandle.set(item.handle, item);
+    const items = treeItemSubtreeHandles(item, children)
+        .map((handle) => itemsByHandle.get(handle))
+        .filter((candidate): candidate is TreeItemDto => candidate !== undefined);
+    const isExpanded = !isTreeItemExpanded(state, item);
+    return setTreeItemsExpanded(
+        state,
+        isExpanded
+            ? items.filter(
+                  (candidate) => candidate.handle === item.handle || children.has(candidate.handle),
+              )
+            : items,
+        isExpanded,
+    );
 }
 
 export function focusTreeItem(state: ExtensionTreeState, item: TreeItemDto): ExtensionTreeState {
@@ -119,11 +175,11 @@ export function serializeExtensionTreeState(state: ExtensionTreeState): Extensio
     const expandedItemIds = [...state.expandedKeys]
         .map(stableItemId)
         .filter((id): id is string => id !== undefined)
-        .slice(0, MAX_VIEW_TREE_PERSISTED_IDS);
+        .slice(-MAX_VIEW_TREE_PERSISTED_IDS);
     const initializedItemIds = [...state.initializedKeys]
         .map(stableItemId)
         .filter((id): id is string => id !== undefined)
-        .slice(0, MAX_VIEW_TREE_PERSISTED_IDS);
+        .slice(-MAX_VIEW_TREE_PERSISTED_IDS);
     const focusedItemId = stableItemId(state.focusedKey);
     return {
         expandedItemIds,
@@ -142,12 +198,14 @@ export function pointerTreeRowAction(
     target: 'body' | 'disclosure',
     event: 'click' | 'doubleClick',
     detail: number,
+    isRecursive = false,
 ): TreeRowAction {
     if (event !== 'click' || detail !== 1) return 'none';
     const isCollapsible = item.collapsibleState !== 'none';
-    if (target === 'disclosure') return isCollapsible ? 'toggle' : 'none';
+    if (target === 'disclosure')
+        return isCollapsible ? (isRecursive ? 'toggle-recursive' : 'toggle') : 'none';
     if (item.command) return 'activate';
-    return isCollapsible ? 'toggle' : 'none';
+    return isCollapsible ? (isRecursive ? 'toggle-recursive' : 'toggle') : 'none';
 }
 
 export function keyboardTreeRowAction(item: TreeItemDto, key: string): TreeRowAction {

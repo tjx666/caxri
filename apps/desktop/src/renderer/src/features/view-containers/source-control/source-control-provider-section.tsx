@@ -233,8 +233,8 @@ export function SourceControlProviderSection({
                                                         )}
                                                         providerKey={`${controller.model.selectedModeId}:${provider.id}`}
                                                         runAction={controller.runAction}
-                                                        setDirectoryExpanded={
-                                                            controller.setDirectoryExpanded
+                                                        setDirectoriesExpanded={
+                                                            controller.setDirectoriesExpanded
                                                         }
                                                     />
                                                 )}

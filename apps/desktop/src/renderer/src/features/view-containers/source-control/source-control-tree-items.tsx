@@ -1,13 +1,13 @@
 import type { SourceControlAction, SourceControlResource } from '@caxri/protocol';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 
-import { DisclosureMotion } from '../../../components/disclosure-motion';
 import { Button } from '../../../components/ui/button';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { FileTypeIcon } from '../../../icons/files/file-type-icon';
 import { cn } from '../../../lib/utilities';
 import { SourceControlIcon } from './source-control-icon';
 import type { SourceControlTreeNode } from './source-control-tree';
+import { sourceControlDirectoryExpansionKeys } from './source-control-tree';
 
 const resourceRowClassName =
     'git-row flex w-full items-center gap-2 h-7 px-2 border-0 bg-surface text-left cursor-pointer';
@@ -44,7 +44,7 @@ export function SourceControlTreeItems({
     nodes,
     providerKey,
     runAction,
-    setDirectoryExpanded,
+    setDirectoriesExpanded,
 }: {
     activeEditorResource?: string;
     depth?: number;
@@ -52,7 +52,7 @@ export function SourceControlTreeItems({
     nodes: SourceControlTreeNode[];
     providerKey: string;
     runAction: (action: SourceControlAction) => void;
-    setDirectoryExpanded: (key: string, isExpanded: boolean) => void;
+    setDirectoriesExpanded: (keys: readonly string[], isExpanded: boolean) => void;
 }) {
     return nodes.map((node) => {
         if (node.kind === 'directory') {
@@ -65,7 +65,14 @@ export function SourceControlTreeItems({
                         style={{ paddingLeft: 8 + depth * 14 }}
                         aria-expanded={isExpanded}
                         title={node.path}
-                        onClick={() => setDirectoryExpanded(expansionKey, !isExpanded)}
+                        onClick={(event) =>
+                            setDirectoriesExpanded(
+                                event.altKey
+                                    ? sourceControlDirectoryExpansionKeys(node, providerKey)
+                                    : [expansionKey],
+                                !isExpanded,
+                            )
+                        }
                     >
                         {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                         <FileTypeIcon
@@ -74,19 +81,17 @@ export function SourceControlTreeItems({
                         />
                         <span className="truncate">{node.name}</span>
                     </button>
-                    <DisclosureMotion animate expanded={isExpanded} kind="git-directory">
-                        {() => (
-                            <SourceControlTreeItems
-                                activeEditorResource={activeEditorResource}
-                                depth={depth + 1}
-                                expandedDirectories={expandedDirectories}
-                                nodes={node.children}
-                                providerKey={providerKey}
-                                runAction={runAction}
-                                setDirectoryExpanded={setDirectoryExpanded}
-                            />
-                        )}
-                    </DisclosureMotion>
+                    {isExpanded && (
+                        <SourceControlTreeItems
+                            activeEditorResource={activeEditorResource}
+                            depth={depth + 1}
+                            expandedDirectories={expandedDirectories}
+                            nodes={node.children}
+                            providerKey={providerKey}
+                            runAction={runAction}
+                            setDirectoriesExpanded={setDirectoriesExpanded}
+                        />
+                    )}
                 </div>
             );
         }

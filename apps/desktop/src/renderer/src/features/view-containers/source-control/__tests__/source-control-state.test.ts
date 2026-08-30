@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
     createSourceControlViewNavigation,
     serializeSourceControlViewNavigation,
+    setSourceControlDirectoriesExpanded,
     updateSourceControlViewNavigation,
 } from '../source-control-state';
 
@@ -59,5 +60,42 @@ describe('Source Control navigation state', () => {
             `directory-${MAX_SOURCE_CONTROL_VIEW_STATE_ENTRIES + 1}`,
             false,
         );
+    });
+
+    it('updates a directory subtree atomically without changing existing disclosure state', () => {
+        const initial = { sibling: true, stale: false };
+
+        const updated = setSourceControlDirectoriesExpanded(
+            initial,
+            ['root', 'root/nested'],
+            false,
+        );
+
+        expect(updated).toEqual({
+            'sibling': true,
+            'stale': false,
+            'root': false,
+            'root/nested': false,
+        });
+        expect(initial).toEqual({ sibling: true, stale: false });
+    });
+
+    it('keeps the recursively toggled root when persistence reaches its safety limit', () => {
+        const keys = [
+            'root',
+            ...Array.from(
+                { length: MAX_SOURCE_CONTROL_VIEW_STATE_ENTRIES + 1 },
+                (_, index) => `root/directory-${index}`,
+            ),
+        ];
+        const expandedDirectories = setSourceControlDirectoriesExpanded({}, keys, false);
+
+        const serialized = serializeSourceControlViewNavigation({
+            expandedDirectories,
+            expandedGroups: {},
+            expandedProviders: {},
+        });
+
+        expect(serialized.expandedDirectories).toHaveProperty('root', false);
     });
 });

@@ -42,6 +42,7 @@ export interface TreeProperties {
     setPathExpanded: (
         path: string,
         isNextExpanded: boolean | ((isCurrentExpanded: boolean) => boolean),
+        isRecursive?: boolean,
     ) => void;
     setSelectedPath: (path?: string) => void;
 }
@@ -347,10 +348,12 @@ function FileTreeItem({
                       ? `${entry.path} (Git ignored)`
                       : entry.path
             }
-            onClick={() => {
+            onClick={(event) => {
                 setSelectedPath(entry.path);
-                if (entry.kind === 'directory') setExpanded((value) => !value);
-                else if (editable) discard(openFile(entry.path, { preview: true }));
+                if (entry.kind === 'directory') {
+                    if (event.altKey) setPathExpanded(entry.path, !expanded, true);
+                    else setExpanded((value) => !value);
+                } else if (editable) discard(openFile(entry.path, { preview: true }));
             }}
             onDoubleClick={() => {
                 if (entry.kind === 'file') discard(openFile(entry.path));

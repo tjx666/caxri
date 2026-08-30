@@ -1,6 +1,12 @@
-import { pathBasename } from '@caxri/utils';
+import { collectTreeSubtree, pathBasename } from '@caxri/utils';
 
 import type { PendingFileOperation } from './file-operation-state';
+
+interface FileListQuerySnapshot {
+    data: unknown;
+    isInvalidated: boolean;
+    queryKey: readonly unknown[];
+}
 
 export function scopedValue<T>(
     values: Readonly<Record<string, T>>,
@@ -29,6 +35,76 @@ export function setScopedPathExpanded(
     if (isExpanded) paths.add(path);
     else paths.delete(path);
     return { ...expandedByScope, [scopeId]: [...paths] };
+}
+
+export function setScopedSubtreeExpanded(
+    expandedByScope: Readonly<Record<string, string[]>>,
+    scopeId: string,
+    rootPath: string,
+    knownChildren: ReadonlyMap<string, readonly string[]>,
+    isExpanded: boolean,
+): Record<string, string[]> {
+    const paths = new Set(expandedByScope[scopeId]);
+    const subtree = collectTreeSubtree(rootPath, (path) => knownChildren.get(path) ?? []);
+    for (const path of subtree) {
+        if (isExpanded && path !== rootPath && !knownChildren.has(path)) continue;
+        if (isExpanded) paths.add(path);
+        else paths.delete(path);
+    }
+    return { ...expandedByScope, [scopeId]: [...paths] };
+}
+
+/**
+ * Builds the loaded directory graph from React Query's current cache instead of retaining a second tree cache.
+ * Invalidated results are stale by definition and must not make recursive expansion visit removed paths.
+ */
+export function knownDirectoryChildrenFromQueries(
+    queries: readonly FileListQuerySnapshot[],
+    viewId: string,
+    scopeId: string,
+): Map<string, readonly string[]> {
+    const knownChildren = new Map<string, readonly string[]>();
+    for (const query of queries) {
+        if (query.isInvalidated) continue;
+        const [method, rawParameters] = query.queryKey;
+        if (
+            method !== 'viewContainers.viewOperation' ||
+            typeof rawParameters !== 'object' ||
+            rawParameters === null
+        )
+            continue;
+        const parameters = rawParameters as {
+            arguments?: unknown;
+            contextKey?: unknown;
+            operation?: unknown;
+            viewId?: unknown;
+        };
+        if (
+            parameters.viewId !== viewId ||
+            parameters.operation !== 'files.list' ||
+            parameters.contextKey !== scopeId ||
+            typeof parameters.arguments !== 'object' ||
+            parameters.arguments === null
+        )
+            continue;
+        const directory = (parameters.arguments as { directory?: unknown }).directory;
+        if (typeof directory !== 'string' || typeof query.data !== 'object' || query.data === null)
+            continue;
+        const entries = (query.data as { entries?: unknown }).entries;
+        if (!Array.isArray(entries)) continue;
+        knownChildren.set(
+            directory,
+            entries.flatMap((entry) =>
+                typeof entry === 'object' &&
+                entry !== null &&
+                (entry as { kind?: unknown }).kind === 'directory' &&
+                typeof (entry as { path?: unknown }).path === 'string'
+                    ? [(entry as { path: string }).path]
+                    : [],
+            ),
+        );
+    }
+    return knownChildren;
 }
 
 export function fileOperationsForProject(
