@@ -138,14 +138,21 @@ export async function createDomainServices(
         agentLaunchSettings: dependencies.terminal?.agentLaunchSettings ?? agentLaunchSettings,
         agentOutputRecoverySettings:
             dependencies.terminal?.agentOutputRecoverySettings ?? agentOutputRecoverySettings,
-        lifecycleEnvironment: async (terminal, launch) => {
-            const hookEnvironment = agentHooks.terminalEnvironment(terminal.id, terminal.provider);
+        lifecycleEnvironment: async (terminal, launch, launchId) => {
+            if (!launchId)
+                throw new CaxriError('CONFLICT', 'Managed Agent launch identity is unavailable');
+            const hookEnvironment = agentHooks.terminalEnvironment(
+                terminal.id,
+                terminal.provider,
+                launchId,
+            );
             if (!launch || terminal.kind === 'shell' || !dependencies.agentEndpoints)
                 return hookEnvironment;
             const session = database.getSession(terminal.sessionId);
             if (!session) throw new CaxriError('CONFLICT', 'Agent Session no longer exists');
             const endpointEnvironment = await provenance.prepareAgentWorkbenchProvenance({
                 endpoints: dependencies.agentEndpoints,
+                launchId,
                 projectId: session.projectId,
                 settings: configuration.getSettings().value['agents.providers'][terminal.kind],
                 terminal,
@@ -160,8 +167,8 @@ export async function createDomainServices(
             terminal.kind === 'shell'
                 ? undefined
                 : dependencies.agentEndpoints?.activate(terminal.id),
-        onLifecycleRetired: async (terminalId) => {
-            agentHooks.endTerminalLaunch(terminalId);
+        onLifecycleRetired: async (terminalId, launchId) => {
+            agentHooks.endTerminalLaunch(terminalId, launchId);
             await provenance.retireAgentWorkbenchProvenance({
                 endpoints: dependencies.agentEndpoints,
                 logger,
@@ -171,6 +178,8 @@ export async function createDomainServices(
         },
         onOutputActivity: (terminalId, processId) =>
             coordinator.observeOutput(terminalId, processId),
+        onAgentStateChanged: (terminalId, state) =>
+            agentDispatchState.service?.observeTerminalState(terminalId, state),
         onStateChanged: (terminalId, state) =>
             agentDispatchState.service?.observeTerminalState(terminalId, state),
         shellIntegration: (executable, environment) =>
@@ -346,15 +355,18 @@ export async function createDomainServices(
         const restored = await terminalRestores.restore(
             sessionId,
             interrupted.map((terminal) => async (isCurrent, abortSignal) => {
-                const resumeAgentSessionId = terminal.provider
-                    ? terminal.agentSessionId
-                    : undefined;
+                const shouldRestoreAgent = ['interrupted', 'running', 'starting'].includes(
+                    terminal.lastAgentProcessState ?? 'stopped',
+                );
+                const resumeAgentSessionId =
+                    shouldRestoreAgent && terminal.provider ? terminal.agentSessionId : undefined;
                 if (resumeAgentSessionId) coordinator.prepareTerminalResume(terminal.id);
-                else coordinator.prepareTerminalStart(terminal.id);
+                else if (shouldRestoreAgent) coordinator.prepareTerminalStart(terminal.id);
                 try {
                     const expectedWorkingDirectory = await terminalDirectoryIdentity(terminal.cwd);
                     const restarted = await terminals.restart(terminal.id, {
                         expectedWorkingDirectory,
+                        launchAgent: shouldRestoreAgent,
                         resumeAgentSessionId,
                         shouldStart: isCurrent,
                         abortSignal,
@@ -543,7 +555,8 @@ export async function createDomainServices(
                 );
             if (
                 terminal.lastProcessState !== 'running' ||
-                terminals.processId(terminalId) === undefined
+                terminal.lastAgentProcessState !== 'running' ||
+                terminals.agentProcessId(terminalId) === undefined
             )
                 throw new CaxriError('UNAVAILABLE', 'The selected Agent is no longer running');
             if (pasteImage) {

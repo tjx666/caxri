@@ -415,13 +415,27 @@ session created after command submission supplies the Agent session ID and gener
 and process-list output are never logged or persisted, and ordinary output alone does not infer Agent
 identity.
 
-Each directly launched Agent PTY generation receives an independent, short-lived Agent Endpoint ref
-and token after Server Core has resolved its Project, Session, Terminal, provider, and launch configuration.
-The filtered PTY environment carries the credential only for that direct launch; Server Core never persists
-the token or publishes it through events, diagnostics, snapshots, or command output. Provider launch
-evidence classifies only the built-in executable with an empty argument list as `standard`, exact
-documented bypass flags as `elevated`, and custom executables or arguments as `unknown`. Endpoint
-selectors use the opaque ref; duplicate display names never redirect a mutation to a newer generation.
+An Agent Terminal keeps one interactive Shell as its PTY root and starts the configured Agent as a managed
+foreground child. The Shell process defines the Terminal lifecycle, while `lastAgentProcessState` records
+whether the managed Agent generation is starting, running, or stopped. Agent exit therefore returns to the
+same live Shell without emitting `terminal.exit`; only the Shell root exiting stops the Terminal. Durable
+provider, title, and Agent session identity remain attached to the Terminal so a later explicit resume can
+start another managed generation. `terminal.restart`, Resume, and Fresh deliberately replace the Shell PTY too:
+injecting a command into an existing prompt could append to an unpublished edit or disrupt foreground job control.
+Ordinary Agent exit never replaces the Shell; this explicit restart boundary is the safe exception.
+
+Each managed Agent generation receives an independent, short-lived Agent Endpoint ref and token after Server
+Core has resolved its Project, Session, Terminal, provider, and launch configuration. Terminal Host exposes a
+mode-`0600` private Unix socket and gives the Shell only a one-time launcher capability. A fixed launcher
+claims that capability before user startup files run, receives structured executable, argv, cwd, and filtered
+environment fields, removes the capability from the Shell environment, and waits for the Agent child. Endpoint
+and hook credentials exist only in that child plan; they never enter the long-lived Shell environment. Agent
+start and exit events carry the exact launch ID so stale generations cannot activate credentials, settle a
+newer dispatch, or receive control signals. Server Core never persists a token or publishes it through events,
+diagnostics, snapshots, or command output. Provider launch evidence classifies only the built-in executable
+with an empty argument list as `standard`, exact documented bypass flags as `elevated`, and custom executables
+or arguments as `unknown`. Endpoint selectors use the opaque ref; duplicate display names never redirect a
+mutation to a newer generation.
 
 Peer messages are Server Core-owned, generation-scoped, bounded plain text. Their bodies exist only in the
 live in-memory Inbox and never enter SQLite, logs, diagnostics, the event journal, Terminal
@@ -438,11 +452,11 @@ change settings, invoke a slash command, wake an Agent, or write a user prompt.
 Agent dispatch/control and human Terminal steer are separate command domains rather than Peer Inbox
 fallbacks. A default Agent Endpoint can read same-Project dispatch receipts, but `agent:control` is a
 bounded generation grant that adds `agents.dispatch` and `agents.control` for that Project only.
-Server Core persists a dispatch receipt before a fresh Terminal or resumed PTY can spawn, fences resume
-to the Terminal's exact provider session binding, and reports lifecycle changes from process events
-without reading output or silence. Server Core and Terminal Host both revalidate an exact Endpoint generation
-before an interrupt or stop reaches the current Caxri-owned PTY. A client disconnect explicitly
-cancels its dispatch long poll.
+Server Core persists a dispatch receipt before a fresh Terminal or resumed managed Agent can spawn, fences
+resume to the Terminal's exact provider session binding, and reports lifecycle changes from managed Agent
+process events without reading output or silence. Server Core and Terminal Host both revalidate the exact
+launch ID before an interrupt or stop reaches the current Caxri-owned Agent child; control never targets the
+long-lived Shell root. A client disconnect explicitly cancels its dispatch long poll.
 
 `terminal.send` requires a Desktop or human CLI owner with `terminals.steer`. Its text is bounded by
 UTF-8 bytes, rejects C0/C1 controls except Tab, and adds Enter only through the explicit flag. It

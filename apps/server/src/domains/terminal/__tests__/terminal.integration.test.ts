@@ -7,6 +7,7 @@ import { StructuredLogger } from '@caxri/system';
 import type { IPty, spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { LocalTerminalExecution } from '../../../__tests__/support/local-terminal-execution';
 import { createTestTerminalManager } from '../../../__tests__/support/terminal';
 import { TERMINAL_IMAGE_RECOVERY_PLACEHOLDER } from '../../../terminal-host/engine/image-recovery';
 import { CaxriDatabase } from '../../db/repository';
@@ -33,11 +34,13 @@ function createFakePty() {
         cols = nextCols;
         rows = nextRows;
     });
+    const write = vi.fn();
     const process = {
         get cols() {
             return cols;
         },
         kill,
+        pid: 7_777,
         onData: vi.fn((listener: (data: string) => void) => {
             onData = listener;
             return { dispose: vi.fn() };
@@ -50,7 +53,7 @@ function createFakePty() {
         get rows() {
             return rows;
         },
-        write: vi.fn(),
+        write,
     } as unknown as IPty;
     return {
         emitData: (data: string) => onData?.(data),
@@ -58,6 +61,7 @@ function createFakePty() {
         kill,
         process,
         resize,
+        write,
     };
 }
 
@@ -72,11 +76,11 @@ afterEach(async () => {
 });
 
 describe('TerminalManager', () => {
-    it('injects and revokes a fresh lifecycle environment for each PTY generation', async () => {
+    it('keeps each Agent lifecycle environment out of its long-lived Shell generation', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-lifecycle-'));
         temporaryDirectories.push(directory);
         const database = new CaxriDatabase(join(directory, 'state.db'));
-        const created = database.createSession(database.createProject(directory).id, 'shell');
+        const created = database.createSession(database.createProject(directory).id, 'codex');
         const spawned: Array<ReturnType<typeof createFakePty>> = [];
         const spawn = vi.fn<typeof spawnPty>(() => {
             const fake = createFakePty();
@@ -84,42 +88,45 @@ describe('TerminalManager', () => {
             return fake.process;
         });
         let generation = 0;
+        const lifecycleEnvironment = vi.fn(() => ({
+            CAXRI_HOOK_LAUNCH_ID: `launch-${(generation += 1)}`,
+            CAXRI_HOOK_TOKEN: `token-${generation}`,
+        }));
         const retired = vi.fn();
         const manager = createTestTerminalManager(
             database,
             () => {},
             createTestLogger(join(directory, 'logs')),
             {
-                lifecycleEnvironment: () => ({
-                    CAXRI_HOOK_LAUNCH_ID: `launch-${(generation += 1)}`,
-                    CAXRI_HOOK_TOKEN: `token-${generation}`,
-                }),
+                agentEnvironment: () => Promise.resolve({ PATH: '/agent/bin' }),
+                agentLaunchSettings: () => ({ executable: 'codex', args: [] }),
+                lifecycleEnvironment,
                 onLifecycleRetired: retired,
-                resolveExecutable: () => Promise.resolve('/bin/zsh'),
+                resolveExecutable: (kind) =>
+                    Promise.resolve(kind === 'shell' ? '/bin/zsh' : '/bin/codex'),
                 spawn,
             },
         );
 
         try {
             await manager.start(created.terminal!);
-            expect(spawn.mock.calls[0]?.[2].env).toMatchObject({
-                CAXRI_HOOK_LAUNCH_ID: 'launch-1',
-                CAXRI_HOOK_TOKEN: 'token-1',
-            });
+            await manager.waitForAgentRunning(created.terminal!.id);
+            expect(spawn.mock.calls[0]?.[0]).toBe('/bin/zsh');
+            expect(spawn.mock.calls[0]?.[2].env).not.toHaveProperty('CAXRI_HOOK_TOKEN');
+            expect(lifecycleEnvironment).toHaveBeenCalledOnce();
 
             await manager.restart(created.terminal!.id);
-            expect(retired).toHaveBeenCalledWith(created.terminal!.id);
-            expect(spawn.mock.calls[1]?.[2].env).toMatchObject({
-                CAXRI_HOOK_LAUNCH_ID: 'launch-2',
-                CAXRI_HOOK_TOKEN: 'token-2',
-            });
+            await manager.waitForAgentRunning(created.terminal!.id);
+            expect(retired).toHaveBeenCalledWith(created.terminal!.id, expect.any(String));
+            expect(spawn.mock.calls[1]?.[2].env).not.toHaveProperty('CAXRI_HOOK_TOKEN');
+            expect(lifecycleEnvironment).toHaveBeenCalledTimes(2);
         } finally {
             manager.close(created.terminal!.id);
             database.close();
         }
     });
 
-    it('composes configured Agent argv with resume args and uses the filtered login environment', async () => {
+    it('keeps the filtered Agent environment out of the parent Shell across resume', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-agent-launch-'));
         temporaryDirectories.push(directory);
         const database = new CaxriDatabase(join(directory, 'state.db'));
@@ -130,6 +137,9 @@ describe('TerminalManager', () => {
             spawned.push(fake);
             return fake.process;
         });
+        const agentEnvironment = vi.fn(() =>
+            Promise.resolve({ HOME: directory, PATH: '/login/bin:/usr/bin' }),
+        );
         const manager = createTestTerminalManager(
             database,
             () => {},
@@ -139,37 +149,78 @@ describe('TerminalManager', () => {
                     executable: '/bin/echo',
                     args: ['--profile', 'focused'],
                 }),
-                agentEnvironment: () =>
-                    Promise.resolve({ HOME: directory, PATH: '/login/bin:/usr/bin' }),
+                agentEnvironment,
+                resolveExecutable: (kind) =>
+                    Promise.resolve(kind === 'shell' ? '/bin/zsh' : '/bin/echo'),
                 spawn,
             },
         );
 
         try {
             await manager.start(created.terminal!);
-            expect(spawn.mock.calls[0]?.[0]).toBe('/bin/echo');
-            expect(spawn.mock.calls[0]?.[1]).toEqual(['--profile', 'focused']);
-            expect(spawn.mock.calls[0]?.[2]).toMatchObject({
-                cwd: directory,
-                env: {
-                    COLORTERM: 'truecolor',
-                    HOME: directory,
-                    PATH: '/login/bin:/usr/bin',
-                    TERM: 'xterm-256color',
-                },
+            await manager.waitForAgentRunning(created.terminal!.id);
+            expect(spawn.mock.calls[0]?.[0]).toBe('/bin/zsh');
+            expect(spawn.mock.calls[0]?.[1]).toEqual(['-l']);
+            expect(spawn.mock.calls[0]?.[2].env).not.toMatchObject({
+                PATH: '/login/bin:/usr/bin',
             });
 
             await manager.restart(created.terminal!.id, {
                 resumeAgentSessionId: 'conversation-1',
             });
-            expect(spawn).toHaveBeenNthCalledWith(
-                2,
-                '/bin/echo',
-                ['--profile', 'focused', 'resume', 'conversation-1'],
-                expect.any(Object),
-            );
+            await manager.waitForAgentRunning(created.terminal!.id);
+            expect(spawn).toHaveBeenNthCalledWith(2, '/bin/zsh', ['-l'], expect.any(Object));
+            expect(agentEnvironment).toHaveBeenCalledTimes(2);
         } finally {
             for (const fake of spawned) fake.kill();
+            manager.close(created.terminal!.id);
+            database.close();
+        }
+    });
+
+    it('keeps the same Shell running when its managed Agent exits', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-exit-shell-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'codex');
+        const fake = createFakePty();
+        const events: ServerEvent[] = [];
+        const logger = createTestLogger(join(directory, 'logs'));
+        const execution = new LocalTerminalExecution({ logger, spawn: () => fake.process });
+        const retired = vi.fn();
+        const manager = createTestTerminalManager(database, (event) => events.push(event), logger, {
+            agentEnvironment: () => Promise.resolve({ PATH: '/agent/bin' }),
+            agentLaunchSettings: () => ({ executable: 'codex', args: [] }),
+            execution,
+            lifecycleEnvironment: () => ({ CAXRI_AGENT_TEST: '1' }),
+            onLifecycleRetired: retired,
+            resolveExecutable: (kind) =>
+                Promise.resolve(kind === 'shell' ? '/bin/zsh' : '/bin/codex'),
+        });
+
+        try {
+            await manager.start(created.terminal!);
+            await manager.waitForAgentRunning(created.terminal!.id);
+            const shellProcessId = manager.processId(created.terminal!.id);
+
+            expect(execution.emitAgentExit(created.terminal!.id, 0)).toBe(true);
+            await vi.waitFor(() =>
+                expect(database.getTerminal(created.terminal!.id)).toMatchObject({
+                    lastProcessState: 'running',
+                    lastAgentProcessState: 'stopped',
+                }),
+            );
+
+            expect(manager.processId(created.terminal!.id)).toBe(shellProcessId);
+            expect(manager.write(created.terminal!.id, "printf 'RETURNED_TO_SHELL\\n'\r")).toBe(
+                true,
+            );
+            expect(fake.write).toHaveBeenCalledWith("printf 'RETURNED_TO_SHELL\\n'\r");
+            expect(events).not.toContainEqual(expect.objectContaining({ event: 'terminal.exit' }));
+            await vi.waitFor(() =>
+                expect(retired).toHaveBeenCalledWith(created.terminal!.id, expect.any(String)),
+            );
+        } finally {
             manager.close(created.terminal!.id);
             database.close();
         }
@@ -232,6 +283,7 @@ describe('TerminalManager', () => {
             Promise.withResolvers<void>();
         const resolveExecutable = vi.fn(
             async (_kind: TerminalKind, settings?: AgentLaunchSettings) => {
+                if (_kind === 'shell') return '/bin/zsh';
                 await resolutionPending;
                 if (!settings) throw new Error('Agent launch settings are required');
                 return settings.executable;
@@ -251,16 +303,16 @@ describe('TerminalManager', () => {
 
         try {
             const starting = manager.start(created.terminal!);
-            await vi.waitFor(() => expect(resolveExecutable).toHaveBeenCalledOnce());
+            await vi.waitFor(() => expect(resolveExecutable).toHaveBeenCalledTimes(2));
             launch = { executable: '/new/codex', args: ['--new-profile'] };
             finishResolution();
             await starting;
 
-            expect(resolveExecutable).toHaveBeenCalledWith('codex', {
+            expect(resolveExecutable).toHaveBeenNthCalledWith(2, 'codex', {
                 executable: '/old/codex',
                 args: ['--old-profile'],
             });
-            expect(spawn).toHaveBeenCalledWith('/old/codex', ['--old-profile'], expect.any(Object));
+            expect(spawn).toHaveBeenCalledWith('/bin/zsh', ['-l'], expect.any(Object));
         } finally {
             fake.kill();
             manager.close(created.terminal!.id);
@@ -268,7 +320,7 @@ describe('TerminalManager', () => {
         }
     });
 
-    it('contains an immediately failing Agent child to its durable Terminal', async () => {
+    it('contains an immediately failing Agent Terminal Shell to its durable Terminal', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-agent-fast-failure-'));
         temporaryDirectories.push(directory);
         const database = new CaxriDatabase(join(directory, 'state.db'));
@@ -281,7 +333,8 @@ describe('TerminalManager', () => {
             (event) => events.push(event),
             createTestLogger(join(directory, 'logs')),
             {
-                resolveExecutable: () => Promise.resolve('/bin/echo'),
+                resolveExecutable: (kind) =>
+                    Promise.resolve(kind === 'shell' ? '/bin/zsh' : '/bin/echo'),
                 spawn: () => failed.process,
             },
         );
@@ -703,7 +756,11 @@ describe('TerminalManager', () => {
             database,
             () => {},
             createTestLogger(join(directory, 'logs')),
-            { resolveExecutable: () => Promise.resolve('/bin/echo'), spawn: () => fake.process },
+            {
+                resolveExecutable: (kind) =>
+                    Promise.resolve(kind === 'shell' ? '/bin/zsh' : '/bin/echo'),
+                spawn: () => fake.process,
+            },
         );
 
         await manager.start(created.terminal!);

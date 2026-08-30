@@ -44,6 +44,9 @@ function installCurrentSchema(database: Database.Database): void {
 const PROJECT_ORDER_SCHEMA_VERSION = schemaVersionForMigration('0004_wonderful_gladiator');
 const TERMINAL_PTY_TITLE_SCHEMA_VERSION = schemaVersionForMigration('0015_terminal-pty-title');
 const SESSION_ACTIVITY_SCHEMA_VERSION = schemaVersionForMigration('0017_salty_piledriver');
+const AGENT_PROCESS_STATE_SCHEMA_VERSION = schemaVersionForMigration(
+    '0018_empty_marten_broadcloak',
+);
 
 /**
  * Preserves the v9 PrimarySidebar order, which was defined by `created_at, id`, as explicit indexes.
@@ -81,12 +84,26 @@ function backfillSessionActivity(database: Database.Database): void {
         .run();
 }
 
+/**
+ * Before Shell-root Agent Terminals, the Terminal process state also described the directly launched Agent. Preserve
+ * that recovery intent for existing Agent records so the first upgraded start can distinguish an interrupted Agent from
+ * a Terminal that had already returned to an idle Shell.
+ */
+function backfillAgentProcessState(database: Database.Database): void {
+    database
+        .prepare(
+            "UPDATE terminals SET last_agent_process_state = last_process_state WHERE kind <> 'shell' OR provider IS NOT NULL",
+        )
+        .run();
+}
+
 function migratePreservingData(database: Database.Database, version: number): void {
     for (const migration of preservingMigrations)
         if (migration.version > version) runGeneratedSql(database, migration.sql);
     if (version < PROJECT_ORDER_SCHEMA_VERSION) backfillProjectOrder(database);
     if (version < TERMINAL_PTY_TITLE_SCHEMA_VERSION) backfillTerminalTitles(database);
     if (version < SESSION_ACTIVITY_SCHEMA_VERSION) backfillSessionActivity(database);
+    if (version < AGENT_PROCESS_STATE_SCHEMA_VERSION) backfillAgentProcessState(database);
 }
 
 function initializeSchema(database: Database.Database): void {
@@ -139,6 +156,11 @@ export function markShutdown(
         .update(terminals)
         .set({ lastProcessState: terminalProcessState, updatedAt: now })
         .where(inArray(terminals.lastProcessState, liveProcessStates))
+        .run();
+    database
+        .update(terminals)
+        .set({ lastAgentProcessState: terminalProcessState, updatedAt: now })
+        .where(inArray(terminals.lastAgentProcessState, liveProcessStates))
         .run();
     const affectedTerminalIds = database
         .select({ id: terminals.id })

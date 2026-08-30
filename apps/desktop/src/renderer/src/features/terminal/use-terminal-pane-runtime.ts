@@ -65,6 +65,7 @@ import {
 } from './terminal-size';
 
 interface TerminalPaneRuntimeOptions {
+    canAcceptAgentInput: boolean;
     active: boolean;
     attachEpoch: number;
     copyOnSelect: boolean;
@@ -77,7 +78,6 @@ interface TerminalPaneRuntimeOptions {
     gpuAcceleration: TerminalGpuAcceleration;
     githubRepositories: TerminalReferenceContext['githubRepositories'];
     imagePasteInput?: string;
-    isAgent: boolean;
     osc52ClipboardWrite: boolean;
     processState: ProcessState;
     projectRoot: string;
@@ -96,6 +96,7 @@ interface TerminalPaneRuntimeOptions {
  * Owns the imperative xterm lifecycle so TerminalPane stays a small presentation component.
  */
 export function useTerminalPaneRuntime({
+    canAcceptAgentInput,
     active,
     attachEpoch,
     copyOnSelect,
@@ -105,7 +106,6 @@ export function useTerminalPaneRuntime({
     gpuAcceleration,
     githubRepositories,
     imagePasteInput,
-    isAgent,
     osc52ClipboardWrite,
     processState,
     projectRoot,
@@ -135,6 +135,7 @@ export function useTerminalPaneRuntime({
     const attachedEpochReference = useRef(attachEpoch);
     const previousProcessStateReference = useRef(processState);
     const latestReference = useLatestReference({
+        canAcceptAgentInput,
         active,
         copyOnSelect,
         dangerColor,
@@ -143,7 +144,7 @@ export function useTerminalPaneRuntime({
         gpuAcceleration,
         githubRepositories,
         imagePasteInput,
-        isAgent,
+        isAgent: canAcceptAgentInput,
         osc52ClipboardWrite,
         processState,
         projectRoot,
@@ -297,7 +298,7 @@ export function useTerminalPaneRuntime({
         });
         const terminalLinks = registerTerminalPaneLinks(xterm, () => latestReference.current);
         xterm.attachCustomKeyEventHandler((event) => {
-            const input = terminalKeyboardInput(event, latestReference.current.isAgent);
+            const input = terminalKeyboardInput(event, latestReference.current.canAcceptAgentInput);
             if (!input) return true;
             event.preventDefault();
             event.stopPropagation();
@@ -305,6 +306,7 @@ export function useTerminalPaneRuntime({
             return false;
         });
         const unregisterClipboardHandlers = registerTerminalClipboardHandlers({
+            canAcceptAgentInput: () => latestReference.current.canAcceptAgentInput,
             container,
             document,
             getSelection: () => xterm.getSelection(),

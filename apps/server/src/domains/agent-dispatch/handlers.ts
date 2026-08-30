@@ -60,11 +60,9 @@ export function createAgentCommandHandlers(
         if (!options.endpoints)
             throw new CaxriError('UNAVAILABLE', 'Agent Endpoint control is unavailable');
         const target = options.endpoints.controlTarget(endpoint);
-        const processId = options.terminals.processId(target.terminalId);
         if (
-            processId === undefined ||
             !options.endpoints.isCurrent(target) ||
-            !options.terminals.signalExact(target.terminalId, processId, signal)
+            !options.terminals.signalAgentExact(target.terminalId, target.launchId, signal)
         )
             throw new CaxriError('UNAVAILABLE', 'Agent Endpoint generation is unavailable');
         return { endpoint, terminalId: target.terminalId, outcome: 'signaled' as const };

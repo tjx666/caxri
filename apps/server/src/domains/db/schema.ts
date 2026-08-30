@@ -87,6 +87,10 @@ export const terminals = sqliteTable(
         icon: text('icon').notNull(),
         orderIndex: integer('order_index').notNull(),
         agentSessionId: text('agent_session_id'),
+        /**
+         * Null until this Shell has hosted an Agent child process. Kept separate from the outer Shell lifecycle below.
+         */
+        lastAgentProcessState: text('last_agent_process_state'),
         lastProcessState: text('last_process_state').notNull(),
         /**
          * Set only alongside `lastProcessState = 'failed'`; see `TerminalFailureReason`.

@@ -20,6 +20,7 @@ import desiredSecondarySidebarViewContainerMigrationSql from './0014_wide_squadr
 import terminalPtyTitleMigrationSql from './0015_terminal-pty-title.sql?raw';
 import protocolStateMigrationSql from './0016_volatile_roland_deschain.sql?raw';
 import sessionActivityMigrationSql from './0017_salty_piledriver.sql?raw';
+import agentProcessStateMigrationSql from './0018_empty_marten_broadcloak.sql?raw';
 import migrationJournal from './meta/_journal.json';
 
 interface MigrationJournal {
@@ -77,6 +78,7 @@ export const migrationManifest = [
     { tag: '0015_terminal-pty-title', sql: terminalPtyTitleMigrationSql },
     { tag: '0016_volatile_roland_deschain', sql: protocolStateMigrationSql },
     { tag: '0017_salty_piledriver', sql: sessionActivityMigrationSql },
+    { tag: '0018_empty_marten_broadcloak', sql: agentProcessStateMigrationSql },
 ] as const;
 
 // Intentional: this check must run at module initialization (see the docstring above) so an

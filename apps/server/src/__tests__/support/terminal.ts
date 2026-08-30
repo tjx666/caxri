@@ -50,6 +50,9 @@ export function createTestTerminalManager(
     ]);
     return new TerminalManager(database, emit, logger, {
         ...managerOptions,
+        shellIntegration:
+            managerOptions.shellIntegration ??
+            ((_executable, environment) => ({ args: ['-l'], environment })),
         execution: createTestTerminalExecution(
             logger,
             options,

@@ -32,6 +32,7 @@ import {
     processExitActivityState,
     selectFallbackAfterDeletion,
     sessionActivityReasonForAgentState,
+    shutdownOutcome,
 } from '../session-policy';
 import type { CaxriDatabaseConnectionOptions as CaxriDatabaseOptions } from './database-connection';
 import { CaxriDatabaseConnection as CaxriDatabase_ } from './database-connection';
@@ -679,6 +680,17 @@ export class CaxriDatabase {
             if (!this.db.terminals.get(id)) return;
             this.db.terminals.updateState(id, state, failureReason);
         });
+    }
+
+    updateAgentProcessState(id: string, state: ProcessState): void {
+        this.db.transaction(() => this.db.terminals.updateAgentProcessState(id, state));
+    }
+
+    markAgentProcessesShutdown(reason: ShutdownReason): void {
+        const { liveProcessStates, terminalProcessState } = shutdownOutcome(reason);
+        this.db.transaction(() =>
+            this.db.terminals.markAgentProcessesShutdown(liveProcessStates, terminalProcessState),
+        );
     }
 
     /**

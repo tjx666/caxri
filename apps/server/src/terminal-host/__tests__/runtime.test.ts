@@ -8,9 +8,10 @@ import type { ObservationContext } from '@caxri/system';
 import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { TerminalExecutionStart } from '../engine/engine';
 import type { TerminalHostMessage, TerminalHostRequestEnvelope } from '../protocol';
 import { terminalHostRequestEnvelopeSchema } from '../protocol';
-import type { TerminalExecutionOwner } from '../runtime';
+import type { ManagedAgentExecutionOwner, TerminalExecutionOwner } from '../runtime';
 import { TerminalHostRuntime } from '../runtime';
 
 const credential = 'a'.repeat(64);
@@ -47,16 +48,10 @@ function privateRequest(
     });
 }
 
-function fakeEngine(): {
-    attach: ReturnType<typeof vi.fn>;
-    owner: TerminalExecutionOwner;
-    snapshot: ReturnType<typeof vi.fn>;
-    start: ReturnType<typeof vi.fn>;
-    write: ReturnType<typeof vi.fn>;
-} {
+function fakeEngine() {
     const attach = vi.fn(() => Promise.resolve({ snapshot: null, wasAttached: false }));
     const snapshot = vi.fn(() => Promise.resolve(null));
-    const start = vi.fn(() => 42);
+    const start = vi.fn<(input: TerminalExecutionStart) => number>(() => 42);
     const write = vi.fn(() => true);
     return {
         attach,
@@ -85,7 +80,10 @@ function fakeEngine(): {
     };
 }
 
-function createRuntime(engine: TerminalExecutionOwner): {
+function createRuntime(
+    engine: TerminalExecutionOwner,
+    agentLauncher?: ManagedAgentExecutionOwner,
+): {
     logger: StructuredLogger;
     messages: TerminalHostMessage[];
     runtime: TerminalHostRuntime;
@@ -106,6 +104,7 @@ function createRuntime(engine: TerminalExecutionOwner): {
             buildId: 'build-1',
             commit: 'deadbeef',
             credential,
+            agentLauncher,
             engine,
             logger,
             onProtocolViolation: protocolViolation,
@@ -121,6 +120,104 @@ afterEach(() => {
 });
 
 describe('architecture-a3b-terminal-host: TerminalHostRuntime', () => {
+    it('keeps Agent credentials in the one-time child plan and projects child exit separately', async () => {
+        const engine = fakeEngine();
+        const prepare = vi.fn(() => ({
+            environment: {
+                CAXRI_AGENT_LAUNCHER_RUNTIME: '/runtime/node',
+                CAXRI_AGENT_LAUNCHER_ENTRY: '/bundles/agent-launcher.js',
+                CAXRI_AGENT_LAUNCHER_SOCKET: '/tmp/agent.sock',
+                CAXRI_AGENT_LAUNCHER_ID: 'launch-1',
+                CAXRI_AGENT_LAUNCHER_TOKEN: 'one-time-token',
+            },
+            started: Promise.resolve(101),
+        }));
+        const agentLauncher: ManagedAgentExecutionOwner = {
+            cancel: vi.fn(() => Promise.resolve(true)),
+            close: vi.fn(() => Promise.resolve()),
+            prepare,
+            signalExact: vi.fn(() => true),
+        };
+        const { messages, runtime } = createRuntime(engine.owner, agentLauncher);
+        const agentTerminal: TerminalRecord = {
+            ...terminal,
+            kind: 'codex',
+            provider: 'codex',
+            lastAgentProcessState: 'starting',
+        };
+        const lifecycleScope = {
+            scope: 'terminal',
+            capability: 'terminal.lifecycle',
+            sessionId: terminal.sessionId,
+            terminalId: terminal.id,
+            ptyGeneration: 1,
+        } as const;
+
+        await runtime.accept(
+            privateRequest(
+                {
+                    method: 'terminal.start',
+                    params: {
+                        record: agentTerminal,
+                        executable: '/bin/zsh',
+                        args: ['-l'],
+                        environment: { TERM: 'xterm-256color' },
+                        agent: {
+                            launchId: 'launch-1',
+                            provider: 'codex',
+                            executable: '/usr/local/bin/codex',
+                            args: ['resume', 'conversation-1'],
+                            environment: { CAXRI_AGENT_ENDPOINT_TOKEN: 'agent-secret' },
+                        },
+                    },
+                },
+                lifecycleScope,
+                'start-agent-1',
+            ),
+        );
+
+        expect(prepare).toHaveBeenCalledWith({
+            terminalId: terminal.id,
+            launchId: 'launch-1',
+            plan: {
+                executable: '/usr/local/bin/codex',
+                args: ['resume', 'conversation-1'],
+                environment: { CAXRI_AGENT_ENDPOINT_TOKEN: 'agent-secret' },
+                cwd: terminal.cwd,
+            },
+        });
+        const shellLaunch = engine.start.mock.calls[0]?.[0];
+        expect(shellLaunch).toMatchObject({
+            executable: '/bin/zsh',
+            environment: {
+                TERM: 'xterm-256color',
+                CAXRI_AGENT_LAUNCHER_ID: 'launch-1',
+            },
+        });
+        expect(shellLaunch.environment).not.toHaveProperty('CAXRI_AGENT_ENDPOINT_TOKEN');
+
+        runtime.projectManagedAgentEvent({
+            type: 'started',
+            terminalId: terminal.id,
+            launchId: 'launch-1',
+            processId: 101,
+        });
+        runtime.projectManagedAgentEvent({
+            type: 'exited',
+            terminalId: terminal.id,
+            launchId: 'launch-1',
+            exitCode: 0,
+            signal: null,
+        });
+        expect(messages).toContainEqual(
+            expect.objectContaining({ event: 'terminal.agent.started', processId: 101 }),
+        );
+        expect(messages).toContainEqual(
+            expect.objectContaining({ event: 'terminal.agent.exit', exitCode: 0 }),
+        );
+        expect(messages).not.toContainEqual(expect.objectContaining({ event: 'terminal.exit' }));
+    });
+
     it('records successful PTY restarts without retaining Terminal identity', async () => {
         const engine = fakeEngine();
         const { logger, runtime } = createRuntime(engine.owner);

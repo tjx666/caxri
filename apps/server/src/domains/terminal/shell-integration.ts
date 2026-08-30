@@ -41,6 +41,37 @@ add-zsh-hook precmd __caxri_prompt_started
 add-zsh-hook preexec __caxri_command_started
 `;
 
+/**
+ * Removes one-time launcher metadata before starting the child so an exited Agent returns to a credential-free
+ * interactive shell instead of ending the PTY or leaking its token.
+ */
+const MANAGED_AGENT_LAUNCHER = String.raw`function __caxri_launch_managed_agent() {
+  local __caxri_agent_restore_xtrace=0
+  case "$-" in
+    *x*) __caxri_agent_restore_xtrace=1; set +x ;;
+  esac
+  local __caxri_agent_launcher_runtime="${'$'}{CAXRI_AGENT_LAUNCHER_RUNTIME-}"
+  local __caxri_agent_launcher_entry="${'$'}{CAXRI_AGENT_LAUNCHER_ENTRY-}"
+  local __caxri_agent_launcher_socket="${'$'}{CAXRI_AGENT_LAUNCHER_SOCKET-}"
+  local __caxri_agent_launcher_id="${'$'}{CAXRI_AGENT_LAUNCHER_ID-}"
+  local __caxri_agent_launcher_token="${'$'}{CAXRI_AGENT_LAUNCHER_TOKEN-}"
+  unset CAXRI_AGENT_LAUNCHER_RUNTIME CAXRI_AGENT_LAUNCHER_ENTRY CAXRI_AGENT_LAUNCHER_SOCKET CAXRI_AGENT_LAUNCHER_ID CAXRI_AGENT_LAUNCHER_TOKEN
+
+  if [[ -n "$__caxri_agent_launcher_runtime" && -n "$__caxri_agent_launcher_entry" && -n "$__caxri_agent_launcher_socket" && -n "$__caxri_agent_launcher_id" && -n "$__caxri_agent_launcher_token" ]]; then
+    CAXRI_AGENT_LAUNCHER_TOKEN="$__caxri_agent_launcher_token" \
+      "$__caxri_agent_launcher_runtime" "$__caxri_agent_launcher_entry" --managed-agent-launcher "$__caxri_agent_launcher_socket" "$__caxri_agent_launcher_id"
+  fi
+
+  unset __caxri_agent_launcher_runtime __caxri_agent_launcher_entry __caxri_agent_launcher_socket __caxri_agent_launcher_id __caxri_agent_launcher_token
+  if [[ "$__caxri_agent_restore_xtrace" == 1 ]]; then set -x; fi
+}
+__caxri_launch_managed_agent
+unset -f __caxri_launch_managed_agent
+`;
+
+const ZSH_ENV_WITH_MANAGED_AGENT = `${MANAGED_AGENT_LAUNCHER}
+${ZSH_ENV}`;
+
 const ZSH_LOGIN = `if [[ -n "$__caxri_user_zdotdir" && -r "$__caxri_user_zdotdir/.zlogin" ]]; then
   source "$__caxri_user_zdotdir/.zlogin"
 fi
@@ -48,7 +79,8 @@ fi
 unset CAXRI_SHELL_INTEGRATION_DIR CAXRI_USER_ZDOTDIR
 `;
 
-const BASH_RC = String.raw`if [[ -r /etc/profile ]]; then source /etc/profile; fi
+const BASH_RC = String.raw`${MANAGED_AGENT_LAUNCHER}
+if [[ -r /etc/profile ]]; then source /etc/profile; fi
 if [[ -r "${'$'}{HOME:-}/.bash_profile" ]]; then
   source "${'$'}{HOME:-}/.bash_profile"
 elif [[ -r "${'$'}{HOME:-}/.bash_login" ]]; then
@@ -143,7 +175,7 @@ export class ShellIntegrationService {
         await chmod(directory, 0o700);
         await Promise.all(
             [
-                ['.zshenv', ZSH_ENV],
+                ['.zshenv', ZSH_ENV_WITH_MANAGED_AGENT],
                 ['.zprofile', ZSH_PROFILE],
                 ['.zshrc', ZSH_RC],
                 ['.zlogin', ZSH_LOGIN],

@@ -13,6 +13,12 @@ import { logEventCatalog, mergeObservationContext, runWithObservationContext } f
 import type * as pty from 'node-pty';
 
 import type {
+    ManagedAgentLauncherEvent,
+    ManagedAgentLauncherSignal,
+    ManagedAgentLaunchPlan,
+    PreparedManagedAgentLaunch,
+} from './agent-launcher';
+import type {
     TerminalExecutionEvent,
     TerminalExecutionExit,
     TerminalExecutionStart,
@@ -53,7 +59,20 @@ export interface TerminalExecutionOwner {
     write(terminalId: string, data: string): boolean;
 }
 
+export interface ManagedAgentExecutionOwner {
+    cancel(terminalId: string, launchId: string): Promise<boolean>;
+    close(): Promise<void>;
+    prepare(input: {
+        terminalId: string;
+        launchId: string;
+        plan: ManagedAgentLaunchPlan;
+    }): PreparedManagedAgentLaunch;
+    signalExact(terminalId: string, launchId: string, signal: ManagedAgentLauncherSignal): boolean;
+}
+
 interface RuntimeTerminalIdentity {
+    agentLaunchId?: string;
+    agentProvider?: AgentProvider;
     attachmentId?: string;
     ptyGeneration: number;
     record: TerminalRecord;
@@ -69,6 +88,7 @@ export interface TerminalHostRuntimeOptions {
     credential: string;
     engine?: TerminalExecutionOwner;
     logger: StructuredLogger;
+    agentLauncher?: ManagedAgentExecutionOwner;
     outputFlushMs?: number;
     onProtocolViolation?: () => void;
     send(message: TerminalHostMessage): void;
@@ -95,7 +115,7 @@ export class TerminalHostRuntime {
         this.engine = new TerminalExecutionEngine({
             agentOutputRecoverySettings: (provider) =>
                 this.recoverySettings.get(provider) ?? defaultAgentOutputRecoverySettings,
-            currentProvider: (terminalId) => this.identities.get(terminalId)?.record.provider,
+            currentProvider: (terminalId) => this.identities.get(terminalId)?.agentProvider,
             emit: (event) => this.projectExecutionEvent(event),
             logger: options.logger,
             onExit: (event) => this.projectExecutionExit(event),
@@ -197,6 +217,8 @@ export class TerminalHostRuntime {
     private async projectExecutionExit(event: TerminalExecutionExit): Promise<void> {
         const identity = this.identities.get(event.record.id);
         if (!identity) return;
+        if (identity.agentLaunchId)
+            await this.options.agentLauncher?.cancel(event.record.id, identity.agentLaunchId);
         const snapshot = await event.capture;
         if (this.identities.get(event.record.id) === identity) {
             this.identities.delete(event.record.id);
@@ -209,6 +231,18 @@ export class TerminalHostRuntime {
             exitCode: event.exitCode,
             ...(event.signal !== undefined && { signal: event.signal }),
             snapshot,
+        });
+    }
+
+    private projectManagedAgentStartFailure(terminalId: string, launchId: string): void {
+        const identity = this.identities.get(terminalId);
+        if (!identity || identity.agentLaunchId !== launchId) return;
+        this.projectManagedAgentEvent({
+            type: 'exited',
+            terminalId,
+            launchId,
+            exitCode: null,
+            signal: null,
         });
     }
 
@@ -253,6 +287,7 @@ export class TerminalHostRuntime {
                 );
                 this.identities.clear();
                 this.colors.clear();
+                await this.options.agentLauncher?.close();
                 return { stopped: true, snapshots };
             }
             case 'terminal.reserve':
@@ -268,10 +303,41 @@ export class TerminalHostRuntime {
                 if (request.params.colors) this.colors.set(record.id, request.params.colors);
                 else this.colors.delete(record.id);
                 this.engine.reconcileOutputRecoverySettings();
+                let preparedAgent: PreparedManagedAgentLaunch | undefined;
                 try {
+                    if (request.params.agent) {
+                        if (!this.options.agentLauncher)
+                            throw new CaxriError(
+                                'UNAVAILABLE',
+                                'Managed Agent launcher is unavailable',
+                            );
+                        preparedAgent = this.options.agentLauncher.prepare({
+                            terminalId: record.id,
+                            launchId: request.params.agent.launchId,
+                            plan: {
+                                executable: request.params.agent.executable,
+                                args: request.params.agent.args,
+                                environment: request.params.agent.environment,
+                                cwd: record.cwd,
+                            },
+                        });
+                        const identity = this.identities.get(record.id)!;
+                        identity.agentLaunchId = request.params.agent.launchId;
+                        identity.agentProvider = request.params.agent.provider;
+                        // eslint-disable-next-line no-void -- Host events settle the managed launch asynchronously.
+                        void preparedAgent.started.catch(() =>
+                            this.projectManagedAgentStartFailure(
+                                record.id,
+                                request.params.agent!.launchId,
+                            ),
+                        );
+                    }
                     const processId = this.engine.start({
                         args: request.params.args,
-                        environment: request.params.environment,
+                        environment: {
+                            ...request.params.environment,
+                            ...preparedAgent?.environment,
+                        },
                         executable: request.params.executable,
                         initialSize: request.params.initialSize,
                         initialSnapshot: request.params.initialSnapshot?.payload ?? '',
@@ -287,6 +353,11 @@ export class TerminalHostRuntime {
                         });
                     return { processId };
                 } catch (error) {
+                    if (request.params.agent)
+                        await this.options.agentLauncher?.cancel(
+                            record.id,
+                            request.params.agent.launchId,
+                        );
                     if (previous) this.identities.set(record.id, previous);
                     else this.identities.delete(record.id);
                     this.colors.delete(record.id);
@@ -339,14 +410,30 @@ export class TerminalHostRuntime {
                     ),
                 };
             }
+            case 'terminal.agent.signal': {
+                const scope = this.requireTerminalScope(envelope);
+                return {
+                    accepted:
+                        this.options.agentLauncher?.signalExact(
+                            scope.terminalId,
+                            request.params.launchId,
+                            request.params.signal,
+                        ) ?? false,
+                };
+            }
             case 'terminal.stop': {
                 const scope = this.requireTerminalScope(envelope);
+                const identity = this.identities.get(scope.terminalId);
+                if (identity?.agentLaunchId)
+                    await this.options.agentLauncher?.cancel(
+                        scope.terminalId,
+                        identity.agentLaunchId,
+                    );
                 const capture = request.params.persistSnapshot
                     ? this.engine.restartBarrier(scope.terminalId)
                     : undefined;
                 if (!request.params.persistSnapshot) this.engine.close(scope.terminalId);
                 const snapshot = capture ? await capture : null;
-                const identity = this.identities.get(scope.terminalId);
                 if (identity) identity.running = false;
                 if (!request.params.persistSnapshot) {
                     this.identities.delete(scope.terminalId);
@@ -432,6 +519,33 @@ export class TerminalHostRuntime {
         }
     }
 
+    projectManagedAgentEvent(event: ManagedAgentLauncherEvent): void {
+        const identity = this.identities.get(event.terminalId);
+        if (!identity || identity.agentLaunchId !== event.launchId) return;
+        const wireIdentity = this.eventIdentity(identity);
+        if (event.type === 'started') {
+            this.options.send({
+                type: 'event',
+                event: 'terminal.agent.started',
+                identity: wireIdentity,
+                launchId: event.launchId,
+                processId: event.processId,
+            });
+            return;
+        }
+        delete identity.agentLaunchId;
+        delete identity.agentProvider;
+        this.engine.reconcileOutputRecoverySettings();
+        this.options.send({
+            type: 'event',
+            event: 'terminal.agent.exit',
+            identity: wireIdentity,
+            launchId: event.launchId,
+            exitCode: event.exitCode,
+            ...(event.signal && { signal: event.signal }),
+        });
+    }
+
     ready(): void {
         this.options.send({
             type: 'event',
@@ -471,6 +585,7 @@ export class TerminalHostRuntime {
 
     async stopAfterParentDisconnect(): Promise<void> {
         await Promise.all(this.engine.shutdown().map(({ capture }) => capture));
+        await this.options.agentLauncher?.close();
         this.identities.clear();
         this.colors.clear();
     }

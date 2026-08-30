@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import type {
     AgentLaunchSettings,
     AgentProvider,
@@ -28,10 +30,17 @@ import { terminalEnvironment } from './terminal-environment';
 export interface ResolvedTerminalLaunch {
     args: string[];
     executable: string;
-    launch?: AgentLaunchSettings;
+    agent?: {
+        args: string[];
+        executable: string;
+        launch: AgentLaunchSettings;
+        launchId: ReturnType<typeof randomUUID>;
+        provider: AgentProvider;
+    };
 }
 
 export interface TerminalLaunchPlan extends ResolvedTerminalLaunch {
+    agent?: NonNullable<ResolvedTerminalLaunch['agent']> & { environment: NodeJS.ProcessEnv };
     environment: NodeJS.ProcessEnv;
 }
 
@@ -64,34 +73,59 @@ export class TerminalLaunchPlanner {
     ): Promise<TerminalLaunchPlanResult<ResolvedTerminalLaunch>> {
         try {
             const e2eAgentPolicy = readE2EAgentPolicy();
-            const launch =
-                record.kind === 'shell'
-                    ? undefined
-                    : (this.options.agentLaunchSettings?.(record.kind) ?? {
-                          executable: agentProviderCatalog[record.kind].executableName,
-                          args: [],
-                      });
-            if (record.kind === 'shell') assertE2EShellLaunch(e2eAgentPolicy);
-            else
+            const executable = await resolveTerminalExecutable(
+                'shell',
+                undefined,
+                this.options.resolveExecutable,
+            );
+            if (record.kind === 'shell') {
+                assertE2EShellLaunch(e2eAgentPolicy);
+                return { ok: true, value: { args: ['-l'], executable } };
+            }
+            const shouldLaunchAgent =
+                start?.launchAgent ?? record.lastAgentProcessState !== 'stopped';
+            if (!shouldLaunchAgent) return { ok: true, value: { args: ['-l'], executable } };
+
+            const launch = this.options.agentLaunchSettings?.(record.kind) ?? {
+                executable: agentProviderCatalog[record.kind].executableName,
+                args: [],
+            };
+            try {
                 assertE2EAgentLaunch(
                     e2eAgentPolicy,
                     record.kind,
-                    launch!,
+                    launch,
                     start?.resumeAgentSessionId,
                 );
+            } catch (error) {
+                return { ok: false, error, failureReason: 'spawn_failed' };
+            }
             try {
-                const executable = await resolveTerminalExecutable(
+                const agentExecutable = await resolveTerminalExecutable(
                     record.kind,
                     launch,
                     this.options.resolveExecutable,
                 );
-                const arguments_ = record.kind === 'shell' ? ['-l'] : [...launch!.args];
-                if (record.kind !== 'shell' && start?.resumeAgentSessionId) {
-                    arguments_.push(
+                const agentArguments = [...launch.args];
+                if (start?.resumeAgentSessionId) {
+                    agentArguments.push(
                         ...agentProviders[record.kind].resumeArguments(start.resumeAgentSessionId),
                     );
                 }
-                return { ok: true, value: { args: arguments_, executable, launch } };
+                return {
+                    ok: true,
+                    value: {
+                        args: ['-l'],
+                        executable,
+                        agent: {
+                            args: agentArguments,
+                            executable: agentExecutable,
+                            launch,
+                            launchId: randomUUID(),
+                            provider: record.kind,
+                        },
+                    },
+                };
             } catch (error) {
                 return { ok: false, error, failureReason: 'executable_not_found' };
             }
@@ -112,41 +146,54 @@ export class TerminalLaunchPlanner {
         }
         try {
             let arguments_ = resolved.args;
-            let environment = {
-                ...(record.kind === 'shell'
-                    ? terminalEnvironment()
-                    : {
+            let environment = terminalEnvironment();
+            try {
+                const integrated = this.options.shellIntegration?.(
+                    resolved.executable,
+                    environment,
+                );
+                if (integrated) {
+                    arguments_ = integrated.args;
+                    environment = integrated.environment;
+                } else if (resolved.agent) {
+                    throw new Error(
+                        'Managed Agent Terminals require zsh or bash shell integration',
+                    );
+                }
+            } catch (error) {
+                if (resolved.agent) throw error;
+                /**
+                 * Shell integration is optional decoration metadata; startup retains the ordinary login-shell path if
+                 * its resolver becomes unavailable.
+                 */
+                this.options.logger.write('warn', logEventCatalog.pty.shellIntegrationUnavailable, {
+                    fields: { error: errorMessage(error, 'unknown') },
+                });
+            }
+            const agent = resolved.agent
+                ? {
+                      ...resolved.agent,
+                      environment: {
                           ...(await this.agentEnvironment()),
                           TERM: 'xterm-256color',
                           COLORTERM: 'truecolor',
-                      }),
-                ...(await this.options.lifecycleEnvironment?.(record, resolved.launch)),
+                          ...(await this.options.lifecycleEnvironment?.(
+                              record,
+                              resolved.agent.launch,
+                              resolved.agent.launchId,
+                          )),
+                      },
+                  }
+                : undefined;
+            return {
+                ok: true,
+                value: {
+                    executable: resolved.executable,
+                    args: arguments_,
+                    environment,
+                    ...(agent && { agent }),
+                },
             };
-            if (record.kind === 'shell') {
-                try {
-                    const integrated = this.options.shellIntegration?.(
-                        resolved.executable,
-                        environment,
-                    );
-                    if (integrated) {
-                        arguments_ = integrated.args;
-                        environment = integrated.environment;
-                    }
-                } catch (error) {
-                    /**
-                     * Shell integration is optional decoration metadata; startup retains the ordinary login-shell path
-                     * if its resolver becomes unavailable.
-                     */
-                    this.options.logger.write(
-                        'warn',
-                        logEventCatalog.pty.shellIntegrationUnavailable,
-                        {
-                            fields: { error: errorMessage(error, 'unknown') },
-                        },
-                    );
-                }
-            }
-            return { ok: true, value: { ...resolved, args: arguments_, environment } };
         } catch (error) {
             return { ok: false, error, failureReason: 'spawn_failed' };
         }

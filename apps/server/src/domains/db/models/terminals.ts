@@ -7,7 +7,7 @@ import type {
     TerminalKind,
     TerminalRecord,
 } from '@caxri/protocol';
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 
 import type { CaxriDrizzleDatabase } from '../connection';
 import { terminals } from '../schema';
@@ -26,6 +26,7 @@ interface TerminalRow {
     icon: string;
     orderIndex: number;
     agentSessionId: string | null;
+    lastAgentProcessState: string | null;
     lastProcessState: string;
     failureReason: string | null;
     createdAt: number;
@@ -44,6 +45,7 @@ function mapTerminal(row: TerminalRow): TerminalRecord {
         icon: row.icon,
         orderIndex: row.orderIndex,
         agentSessionId: row.agentSessionId ?? undefined,
+        lastAgentProcessState: (row.lastAgentProcessState as ProcessState | null) ?? undefined,
         lastProcessState: row.lastProcessState as ProcessState,
         failureReason: (row.failureReason as TerminalFailureReason | null) ?? undefined,
         createdAt: row.createdAt,
@@ -127,6 +129,7 @@ export class TerminalsModel {
                 title: input.title,
                 icon: input.kind,
                 orderIndex,
+                lastAgentProcessState: input.kind === 'shell' ? null : 'starting',
                 lastProcessState: 'starting',
                 createdAt: now,
                 updatedAt: now,
@@ -167,6 +170,30 @@ export class TerminalsModel {
             .run();
     }
 
+    updateAgentProcessState(id: string, state: ProcessState, now = Date.now()): void {
+        this.database
+            .update(terminals)
+            .set({ lastAgentProcessState: state, updatedAt: now })
+            .where(and(eq(terminals.id, id), sql`${terminals.provider} IS NOT NULL`))
+            .run();
+    }
+
+    /**
+     * Marks only Agent child processes that were still live. The outer Shell is intentionally untouched so callers can
+     * retire an Agent without ending the durable PTY.
+     */
+    markAgentProcessesShutdown(
+        liveProcessStates: readonly ProcessState[],
+        state: ProcessState,
+        now = Date.now(),
+    ): void {
+        this.database
+            .update(terminals)
+            .set({ lastAgentProcessState: state, updatedAt: now })
+            .where(inArray(terminals.lastAgentProcessState, liveProcessStates))
+            .run();
+    }
+
     /**
      * Reclassifies an existing Agent Terminal onto a different provider after the user launched another agent in the
      * same PTY. The provider-owned session binding is cleared so the coordinator's follow-up probe can adopt the new
@@ -189,6 +216,7 @@ export class TerminalsModel {
                     ptyTitle: null,
                     icon: provider,
                     agentSessionId: null,
+                    lastAgentProcessState: 'running',
                     updatedAt: now,
                 })
                 .where(
@@ -266,6 +294,7 @@ export class TerminalsModel {
                     title,
                     ptyTitle: null,
                     icon: provider,
+                    lastAgentProcessState: 'running',
                     updatedAt: now,
                 })
                 .where(

@@ -658,10 +658,13 @@ export class AgentHookManager {
         return run;
     }
 
-    terminalEnvironment(terminalId: string, provider?: AgentProvider): NodeJS.ProcessEnv {
+    terminalEnvironment(
+        terminalId: string,
+        provider?: AgentProvider,
+        launchId: string = randomUUID(),
+    ): NodeJS.ProcessEnv {
         if (!this.server || !this.bridgePath || !this.anyEnabled()) return {};
         this.endTerminalLaunch(terminalId);
-        const launchId = randomUUID();
         const token = this.server.register(terminalId, launchId, provider);
         this.terminalLaunches.set(terminalId, { launchId, token });
         this.options.onLaunchStarted(terminalId, launchId);
@@ -681,9 +684,9 @@ export class AgentHookManager {
         };
     }
 
-    endTerminalLaunch(terminalId: string): void {
+    endTerminalLaunch(terminalId: string, expectedLaunchId?: string): void {
         const launch = this.terminalLaunches.get(terminalId);
-        if (!launch) return;
+        if (!launch || (expectedLaunchId && launch.launchId !== expectedLaunchId)) return;
         this.loggedSignalDiagnostics.delete(terminalId);
         this.terminalLaunches.delete(terminalId);
         this.server?.unregister(launch.token);

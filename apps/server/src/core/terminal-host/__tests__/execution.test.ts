@@ -208,6 +208,153 @@ describe('architecture-a3b-terminal-host: RemoteTerminalExecution', () => {
         });
     });
 
+    it('projects only the current managed Agent launch and signals it by exact identity', async () => {
+        const { control, execution } = createExecution();
+        const events = vi.fn();
+        execution.onEvent(events);
+        await execution.reserve(terminal);
+        await execution.start({
+            args: ['-l'],
+            environment: { TERM: 'xterm-256color' },
+            executable: '/bin/zsh',
+            initialSnapshot: null,
+            record: terminal,
+            agent: {
+                launchId: 'launch-1',
+                provider: 'codex',
+                executable: '/usr/local/bin/codex',
+                args: ['resume', 'session-1'],
+                environment: { CAXRI_ENDPOINT_REF: 'endpoint-1' },
+            },
+        });
+
+        expect(control.requests.at(-1)?.request).toMatchObject({
+            method: 'terminal.start',
+            params: {
+                executable: '/bin/zsh',
+                agent: {
+                    launchId: 'launch-1',
+                    provider: 'codex',
+                    executable: '/usr/local/bin/codex',
+                    args: ['resume', 'session-1'],
+                },
+            },
+        });
+
+        const identity = {
+            scope: 'terminal' as const,
+            sessionId: terminal.sessionId,
+            terminalId: terminal.id,
+            ptyGeneration: 1,
+        };
+        control.emit({
+            type: 'event',
+            event: 'terminal.agent.started',
+            identity,
+            launchId: 'stale-launch',
+            processId: 9999,
+        });
+        expect(execution.agentProcessId(terminal.id)).toBeUndefined();
+        control.emit({
+            type: 'event',
+            event: 'terminal.agent.started',
+            identity: { ...identity, ptyGeneration: 2 },
+            launchId: 'launch-1',
+            processId: 9999,
+        });
+        expect(execution.agentProcessId(terminal.id)).toBeUndefined();
+        control.emit({
+            type: 'event',
+            event: 'terminal.agent.started',
+            identity,
+            launchId: 'launch-1',
+            processId: 4244,
+        });
+        expect(execution.agentProcessId(terminal.id)).toBe(4244);
+        expect(events).toHaveBeenLastCalledWith({
+            type: 'agentStarted',
+            terminalId: terminal.id,
+            launchId: 'launch-1',
+            processId: 4244,
+        });
+
+        expect(execution.signalAgentExact(terminal.id, 'stale-launch', 'SIGINT')).toBe(false);
+        expect(execution.signalAgentExact(terminal.id, 'launch-1', 'SIGINT')).toBe(true);
+        await vi.waitFor(() =>
+            expect(control.requests.at(-1)?.request).toEqual({
+                method: 'terminal.agent.signal',
+                params: { launchId: 'launch-1', signal: 'SIGINT' },
+            }),
+        );
+
+        control.emit({
+            type: 'event',
+            event: 'terminal.agent.exit',
+            identity,
+            launchId: 'stale-launch',
+            exitCode: 0,
+        });
+        expect(execution.agentProcessId(terminal.id)).toBe(4244);
+        control.emit({
+            type: 'event',
+            event: 'terminal.agent.exit',
+            identity,
+            launchId: 'launch-1',
+            exitCode: null,
+            signal: 'SIGINT',
+        });
+        expect(execution.agentProcessId(terminal.id)).toBeUndefined();
+        expect(events).toHaveBeenLastCalledWith({
+            type: 'agentExit',
+            terminalId: terminal.id,
+            launchId: 'launch-1',
+            exitCode: null,
+            signal: 'SIGINT',
+        });
+    });
+
+    it('retires the managed Agent identity when the root PTY exits', async () => {
+        const { control, execution } = createExecution();
+        await execution.reserve(terminal);
+        await execution.start({
+            args: [],
+            environment: {},
+            executable: '/bin/zsh',
+            initialSnapshot: null,
+            record: terminal,
+            agent: {
+                launchId: 'launch-1',
+                provider: 'codex',
+                executable: '/usr/local/bin/codex',
+                args: [],
+                environment: {},
+            },
+        });
+        const identity = {
+            scope: 'terminal' as const,
+            sessionId: terminal.sessionId,
+            terminalId: terminal.id,
+            ptyGeneration: 1,
+        };
+        control.emit({
+            type: 'event',
+            event: 'terminal.agent.started',
+            identity,
+            launchId: 'launch-1',
+            processId: 4244,
+        });
+        control.emit({
+            type: 'event',
+            event: 'terminal.exit',
+            identity,
+            exitCode: 0,
+            snapshot,
+        });
+
+        expect(execution.agentProcessId(terminal.id)).toBeUndefined();
+        expect(execution.signalAgentExact(terminal.id, 'launch-1', 'SIGINT')).toBe(false);
+    });
+
     it('fences lost PTYs while preserving the next monotonic Core generation', async () => {
         const { control, execution } = createExecution();
         const hostExit = vi.fn();
@@ -219,11 +366,32 @@ describe('architecture-a3b-terminal-host: RemoteTerminalExecution', () => {
             executable: '/bin/zsh',
             initialSnapshot: null,
             record: terminal,
+            agent: {
+                launchId: 'launch-1',
+                provider: 'codex',
+                executable: '/usr/local/bin/codex',
+                args: [],
+                environment: {},
+            },
+        });
+        control.emit({
+            type: 'event',
+            event: 'terminal.agent.started',
+            identity: {
+                scope: 'terminal',
+                sessionId: terminal.sessionId,
+                terminalId: terminal.id,
+                ptyGeneration: 1,
+            },
+            launchId: 'launch-1',
+            processId: 4244,
         });
         control.exit();
 
         expect(hostExit).toHaveBeenCalledWith([terminal.id]);
         expect(execution.processId(terminal.id)).toBeUndefined();
+        expect(execution.agentProcessId(terminal.id)).toBeUndefined();
+        expect(execution.signalAgentExact(terminal.id, 'launch-1', 'SIGINT')).toBe(false);
         await execution.reserve(terminal);
         const reserve = control.requests.findLast(
             ({ request }) => request.method === 'terminal.reserve',

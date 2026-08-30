@@ -28,6 +28,7 @@ describe('standalone Server artifact', () => {
         const runtimeExecutable = join(sources, 'node');
         await Promise.all([
             fixtureFile(join(sources, 'bundles', 'server-core.js'), 'server-core'),
+            fixtureFile(join(sources, 'bundles', 'agent-launcher.js'), 'agent-launcher'),
             fixtureFile(join(sources, 'bundles', 'extension-host.js'), 'extension-host'),
             fixtureFile(join(sources, 'bundles', 'terminal-host.js'), 'terminal-host'),
             fixtureFile(runtimeExecutable, '#!/bin/sh\nexit 0\n'),
@@ -77,6 +78,7 @@ describe('standalone Server artifact', () => {
         expect(manifest.integrity.files.map(({ path }) => path)).toEqual(
             expect.arrayContaining([
                 'bundles/server-core.js',
+                'bundles/agent-launcher.js',
                 'bundles/terminal-host.js',
                 'extensions/git/dist/extension.js',
                 'migrations/0000.sql',
@@ -99,6 +101,7 @@ describe('standalone Server artifact', () => {
         const runtimeExecutable = join(root, 'node');
         await Promise.all([
             fixtureFile(join(bundleSource, 'server-core.js'), 'server-core'),
+            fixtureFile(join(bundleSource, 'agent-launcher.js'), 'agent-launcher'),
             fixtureFile(join(bundleSource, 'extension-host.js'), 'extension-host'),
             fixtureFile(join(bundleSource, 'terminal-host.js'), 'terminal-host'),
             fixtureFile(runtimeExecutable, 'runtime'),

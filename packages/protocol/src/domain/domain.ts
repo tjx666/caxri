@@ -167,6 +167,7 @@ export const terminalRecordSchema = z.object({
      * Live Runtime-only Agent subphase. It is projected with Terminal records and is never persisted.
      */
     agentOperation: agentOperationSchema.optional(),
+    lastAgentProcessState: processStateSchema.optional(),
     lastProcessState: processStateSchema,
     /**
      * Present only when `lastProcessState` is `failed`; see `TerminalFailureReason`.

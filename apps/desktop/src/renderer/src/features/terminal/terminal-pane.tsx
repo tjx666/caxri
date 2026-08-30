@@ -29,6 +29,7 @@ import {
     restartTerminal,
     startNewAgentSession,
 } from './terminal-actions';
+import { isAgentProcessRunning } from './terminal-agent-runtime';
 import { getTerminalExitPresentation } from './terminal-exit-presentation';
 import { terminalFontFamily } from './terminal-fonts';
 import { openTerminalLinkPicker } from './terminal-link-actions';
@@ -179,7 +180,7 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
     const imagePasteInput = provider
         ? agentProviderCatalog[provider].imageInput?.terminalInput
         : undefined;
-    const isAgent = Boolean(terminal && (terminal.kind !== 'shell' || terminal.provider));
+    const canAcceptAgentInput = isAgentProcessRunning(terminal?.lastAgentProcessState);
     const terminalTheme = theme?.terminal;
 
     const [searchState, dispatchSearch] = useReducer(
@@ -195,6 +196,7 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         pasteFromClipboard,
         searchResults,
     } = useTerminalPaneRuntime({
+        canAcceptAgentInput,
         active,
         attachEpoch,
         copyOnSelect: isCopyOnSelect,
@@ -204,7 +206,6 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         gpuAcceleration,
         githubRepositories: referenceContext?.githubRepositories ?? [],
         imagePasteInput,
-        isAgent,
         osc52ClipboardWrite: isOsc52ClipboardWrite,
         processState,
         projectRoot: session?.rootPath ?? '',

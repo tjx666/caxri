@@ -71,6 +71,86 @@ describe('architecture-a3b-terminal-host: private protocol', () => {
         expect(authorizeTerminalHostRequest(startEnvelope(), liveAuthority)).toEqual({ ok: true });
     });
 
+    it('accepts only a strict structured Agent sub-plan', () => {
+        const envelope = startEnvelope();
+        expect(
+            terminalHostRequestEnvelopeSchema.safeParse({
+                ...envelope,
+                request: {
+                    ...envelope.request,
+                    params: {
+                        ...envelope.request.params,
+                        agent: {
+                            launchId: 'launch-1',
+                            provider: 'codex',
+                            executable: '/usr/local/bin/codex',
+                            args: ['resume', 'session-1'],
+                            environment: { TERM: 'xterm-256color' },
+                        },
+                    },
+                },
+            }).success,
+        ).toBe(true);
+        expect(
+            terminalHostRequestEnvelopeSchema.safeParse({
+                ...envelope,
+                request: {
+                    ...envelope.request,
+                    params: {
+                        ...envelope.request.params,
+                        agent: {
+                            launchId: 'launch-1',
+                            provider: 'codex',
+                            executable: '/usr/local/bin/codex',
+                            args: [],
+                            environment: {},
+                            shellCommand: 'codex',
+                        },
+                    },
+                },
+            }).success,
+        ).toBe(false);
+    });
+
+    it('validates Agent lifecycle events and exact-launch signals', () => {
+        const identity = {
+            scope: 'terminal' as const,
+            sessionId: terminal.sessionId,
+            terminalId: terminal.id,
+            ptyGeneration: 1,
+        };
+        expect(
+            terminalHostMessageSchema.safeParse({
+                type: 'event',
+                event: 'terminal.agent.started',
+                identity,
+                launchId: 'launch-1',
+                processId: 4244,
+            }).success,
+        ).toBe(true);
+        expect(
+            terminalHostMessageSchema.safeParse({
+                type: 'event',
+                event: 'terminal.agent.exit',
+                identity,
+                launchId: 'launch-1',
+                exitCode: null,
+                signal: 'SIGINT',
+            }).success,
+        ).toBe(true);
+
+        const signal = terminalHostRequestEnvelopeSchema.parse({
+            ...startEnvelope(),
+            id: 'request-agent-signal',
+            request: {
+                method: 'terminal.agent.signal',
+                params: { launchId: 'launch-1', signal: 'SIGHUP' },
+            },
+        });
+        expect(authorizeTerminalHostRequest(signal, liveAuthority)).toEqual({ ok: true });
+        expect(isTerminalHostResult('terminal.agent.signal', { accepted: true })).toBe(true);
+    });
+
     it("accepts Core's first positive generation when a replacement Host has no baseline", () => {
         const envelope = startEnvelope();
         if (envelope.scope.scope !== 'terminal') throw new Error('Expected Terminal scope');
@@ -220,6 +300,8 @@ describe('architecture-a3b-terminal-host: private protocol', () => {
         expect(isTerminalHostResult('terminal.start', { processId: 0 })).toBe(false);
         expect(isTerminalHostResult('terminal.input', { accepted: true })).toBe(true);
         expect(isTerminalHostResult('terminal.input', { accepted: 'yes' })).toBe(false);
+        expect(isTerminalHostResult('terminal.agent.signal', { accepted: true })).toBe(true);
+        expect(isTerminalHostResult('terminal.agent.signal', { accepted: 'yes' })).toBe(false);
         expect(isTerminalHostResult('host.shutdown', { stopped: true, snapshots: [] })).toBe(true);
         expect(isTerminalHostResult('host.shutdown', { stopped: true })).toBe(false);
     });
