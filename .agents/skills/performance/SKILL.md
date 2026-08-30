@@ -1,6 +1,6 @@
 ---
 name: performance
-description: Measure and protect Caxri startup and Server Core responsiveness in large Projects. Use for slow launch or Session restore, repeated Server Core requests, watcher or file-descriptor growth, PTY responsiveness, Git or Agent probe latency, logging overhead, and Renderer bundle regressions.
+description: Measure and protect Caxri startup, Server Core responsiveness, and Renderer interaction quality. Use for slow launch or Session restore, repeated Server Core requests, watcher or file-descriptor growth, PTY responsiveness, Git or Agent probe latency, logging overhead, React re-renders, frame gaps, or Renderer bundle regressions.
 ---
 
 # Measure Caxri Performance
@@ -15,6 +15,9 @@ description: Measure and protect Caxri startup and Server Core responsiveness in
    defaults to `vitest.config.ts` and `package.json`; for another representative root, set
    `CAXRI_BENCHMARK_EDITOR_FILE`, a visible unique `CAXRI_BENCHMARK_EDITOR_TEXT`, and a root-level
    `CAXRI_BENCHMARK_EDITOR_DETOUR_FILE` that does not contain that text.
+   For Renderer re-renders, frame gaps, Long Animation Frames, and interaction latency, run
+   `bun run benchmark:renderer` and record `CAXRI_RENDERER_BENCHMARK`. The command owns its isolated
+   Project and uses a profiling React build with opt-in `react-scan/lite` attribution.
 3. Read the correlated Desktop Main, Server Core, Terminal Host, and Extension Host JSONL logs
    from the active runtime profile's `<userData>/logs/` directory. Use `app.ready`,
    `server_connection.attached`, `window.ready_to_show`, `server_core.ready`, `pty.spawned`,
@@ -33,6 +36,10 @@ description: Measure and protect Caxri startup and Server Core responsiveness in
 7. Run `bun run check --lint --test --type`, the focused Electron workflow, and the benchmark
    again. Compare like-for-like repository, build mode, and executable. Reserve the full unit and
    E2E suites for release or CI parity.
+
+For an interactive Renderer scenario, follow [Renderer performance observability](../../../docs/renderer-performance.md).
+The strict receipt is the source of truth; `react-scan/lite` is an optional attribution layer and must
+not introduce a second schema, a production startup cost, or content-bearing diagnostics.
 
 The large-Project startup gate requires Server Core, Terminal, Files, and single- or
 multi-repository Git to become usable within three seconds. A performance change must retain that

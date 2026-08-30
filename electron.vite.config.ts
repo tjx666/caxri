@@ -18,6 +18,8 @@ import type { PluginOption } from 'vite';
  * to packages, so the flag also turns them on.
  */
 const isBundleAnalysisEnabled = process.env.CAXRI_BUNDLE_ANALYZE === '1';
+const isReactProfilingEnabled = process.env.CAXRI_REACT_PROFILING === '1';
+const isRendererMonitoringEnabled = process.env.CAXRI_RENDERER_MONITORING === '1';
 
 function bundleAnalysisPlugins(reportName: string): PluginOption[] {
     if (!isBundleAnalysisEnabled) return [];
@@ -116,6 +118,9 @@ export default defineConfig(async ({ command }) => {
         },
         renderer: {
             root: resolve('apps/desktop/src/renderer'),
+            define: {
+                __CAXRI_REACT_PROFILING__: JSON.stringify(isReactProfilingEnabled),
+            },
             /**
              * Ships the full vscode-icons SVG set (`icons/*.svg` + `manifest.json`) by verbatim copy into the build
              * output and via the dev server. `import.meta.glob` cannot reach into `node_modules` in production builds
@@ -143,6 +148,9 @@ export default defineConfig(async ({ command }) => {
                 alias: {
                     '@': resolve('apps/desktop/src/renderer/src'),
                     '@desktop-shared': resolve('apps/desktop/src/shared'),
+                    ...(isReactProfilingEnabled && {
+                        'react-dom/client': resolve('node_modules/react-dom/profiling.js'),
+                    }),
                 },
             },
             plugins: [
@@ -151,10 +159,30 @@ export default defineConfig(async ({ command }) => {
                 tailwindcss(),
                 {
                     name: 'caxri-renderer-csp',
-                    transformIndexHtml(html: string) {
-                        const connectSource =
-                            command === 'serve' ? "'self' ws://localhost:*" : "'self'";
-                        return html.replace('__CAXRI_CONNECT_SRC__', () => connectSource);
+                    transformIndexHtml: {
+                        /**
+                         * The instrumented entry must be selected before Vite discovers the HTML module graph. A
+                         * default post-order transform changes only emitted HTML and silently leaves `main.tsx` as the
+                         * bundled entry, so react-scan would never execute.
+                         */
+                        order: 'pre',
+                        handler(html: string, context) {
+                            const connectSource =
+                                command === 'serve' ? "'self' ws://localhost:*" : "'self'";
+                            const withCsp = html.replace(
+                                '__CAXRI_CONNECT_SRC__',
+                                () => connectSource,
+                            );
+                            if (
+                                !context.path.endsWith('/index.html') ||
+                                (!isReactProfilingEnabled && !isRendererMonitoringEnabled)
+                            )
+                                return withCsp;
+                            return withCsp.replace(
+                                '/src/main.tsx',
+                                '/src/features/renderer-performance/react-scan-bootstrap.ts',
+                            );
+                        },
                     },
                 },
                 ...bundleAnalysisPlugins('renderer'),

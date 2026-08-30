@@ -159,6 +159,7 @@ export const logEventCatalog = {
     renderer: {
         consoleError: 'renderer.console_error',
         pageException: 'renderer.page_exception',
+        performanceScenario: 'renderer.performance_scenario',
         preloadError: 'renderer.preload_error',
         terminalResizeBurst: 'renderer.terminal_resize_burst',
         terminalRendererStatus: 'renderer.terminal_renderer_status',

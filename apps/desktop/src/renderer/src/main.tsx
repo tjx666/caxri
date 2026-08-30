@@ -9,10 +9,12 @@ import { QueryClientProvider } from '@tanstack/react-query';
 
 import { App } from './app';
 import { ErrorBoundary } from './components/error-boundary';
+import { installRendererPerformanceMonitoring } from './features/renderer-performance/controller';
 import { queryClient } from './queries/client';
 import { installRendererErrorReporter } from './renderer-error-reporter';
 
 installRendererErrorReporter((kind) => globalThis.caxri.reportError(kind));
+installRendererPerformanceMonitoring();
 
 createRoot(document.querySelector('#root')!).render(
     <StrictMode>
