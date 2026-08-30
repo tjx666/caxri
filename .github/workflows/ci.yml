@@ -183,6 +183,7 @@ jobs:
     timeout-minutes: 30
     outputs:
       full_checks_result: ${{ steps.full-checks-receipt.outcome }}
+      renderer_performance_result: ${{ steps.renderer-performance.outcome }}
     needs: [retry-policy, checks]
     if: >-
       always() &&
@@ -390,12 +391,31 @@ jobs:
         id: ci-parity
         if: always() && steps.e2e-build.outcome == 'success' && github.event_name == 'workflow_dispatch'
         run: bun run scripts/ci-metrics.ts --label "CI parity workers=1 repeat=3" -- bun run scripts/run-ci-parity.ts
+      - name: Run Renderer performance gate
+        id: renderer-performance
+        if: >-
+          always() &&
+          (
+            steps.concurrent-full.outcome == 'success' ||
+            steps.focused-repair.outcome == 'success' ||
+            steps.control.outcome == 'success' ||
+            steps.desktop-exclusive.outcome == 'success'
+          )
+        run: bun run benchmark:renderer
       - name: Record actual E2E execution receipt
         id: execution-receipt
         if: always() && steps.e2e-build.outcome == 'success'
         run: >-
           bun run scripts/report-e2e-manifest.ts
           ${{ needs.retry-policy.outputs.e2e_profile == 'optimized' && 'parallel-safe desktop-exclusive' || 'control' }}
+      - name: Upload Renderer performance receipt
+        if: always() && steps.renderer-performance.outcome != 'skipped'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: renderer-performance-receipt
+          path: test-results/receipts/renderer-performance.json
+          if-no-files-found: error
+          retention-days: 7
       - name: Upload parallel-safe failure artifacts
         if: >-
           always() && (
@@ -447,6 +467,7 @@ jobs:
             steps.failure-isolation.outcome == 'failure' ||
             steps.failure-census.outcome == 'failure' ||
             steps.ci-parity.outcome == 'failure' ||
+            steps.renderer-performance.outcome == 'failure' ||
             steps.execution-receipt.outcome == 'failure'
           )
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -482,6 +503,7 @@ jobs:
           E2E_PROFILE: ${{ needs.retry-policy.outputs.e2e_profile }}
           FULL_CHECKS_RESULT: ${{ needs.e2e.outputs.full_checks_result }}
           MODE: ${{ needs.retry-policy.outputs.mode }}
+          RENDERER_PERFORMANCE_RESULT: ${{ needs.e2e.outputs.renderer_performance_result }}
           RETRY_POLICY_RESULT: ${{ needs.retry-policy.result }}
           SHOULD_RUN_E2E: ${{ needs.retry-policy.outputs.run_e2e }}
           # The stable gate runs without checkout even for rejected events, so it repeats only the
@@ -523,6 +545,7 @@ jobs:
           fi
           if test "$SHOULD_RUN_E2E" = true; then
             test "$E2E_RESULT" = success
+            test "$RENDERER_PERFORMANCE_RESULT" = success
           else
             test "$E2E_RESULT" = skipped
           fi

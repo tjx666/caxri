@@ -114,8 +114,36 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
                 reactActualDurationP95Ms: react.actualDurationP95Ms,
                 reactActualDurationMaxMs: react.actualDurationMaxMs,
                 reactBaseDurationMaxMs: react.baseDurationMaxMs,
-                reactSlowestSurface: react.slowestSurface,
-                reactSlowestSurfaceDurationMs: react.slowestSurfaceDurationMs,
+                reactPrimarySidebarRenderCount:
+                    react.surfaces['primary-sidebar'].profiledRenderCount,
+                reactPrimarySidebarActualDurationP50Ms:
+                    react.surfaces['primary-sidebar'].actualDurationP50Ms,
+                reactPrimarySidebarActualDurationP95Ms:
+                    react.surfaces['primary-sidebar'].actualDurationP95Ms,
+                reactPrimarySidebarActualDurationMaxMs:
+                    react.surfaces['primary-sidebar'].actualDurationMaxMs,
+                reactPrimarySidebarActualDurationTotalMs:
+                    react.surfaces['primary-sidebar'].actualDurationTotalMs,
+                reactPrimarySidebarBaseDurationMaxMs:
+                    react.surfaces['primary-sidebar'].baseDurationMaxMs,
+                reactWorkbenchRenderCount: react.surfaces.workbench.profiledRenderCount,
+                reactWorkbenchActualDurationP50Ms: react.surfaces.workbench.actualDurationP50Ms,
+                reactWorkbenchActualDurationP95Ms: react.surfaces.workbench.actualDurationP95Ms,
+                reactWorkbenchActualDurationMaxMs: react.surfaces.workbench.actualDurationMaxMs,
+                reactWorkbenchActualDurationTotalMs: react.surfaces.workbench.actualDurationTotalMs,
+                reactWorkbenchBaseDurationMaxMs: react.surfaces.workbench.baseDurationMaxMs,
+                reactSecondarySidebarRenderCount:
+                    react.surfaces['secondary-sidebar'].profiledRenderCount,
+                reactSecondarySidebarActualDurationP50Ms:
+                    react.surfaces['secondary-sidebar'].actualDurationP50Ms,
+                reactSecondarySidebarActualDurationP95Ms:
+                    react.surfaces['secondary-sidebar'].actualDurationP95Ms,
+                reactSecondarySidebarActualDurationMaxMs:
+                    react.surfaces['secondary-sidebar'].actualDurationMaxMs,
+                reactSecondarySidebarActualDurationTotalMs:
+                    react.surfaces['secondary-sidebar'].actualDurationTotalMs,
+                reactSecondarySidebarBaseDurationMaxMs:
+                    react.surfaces['secondary-sidebar'].baseDurationMaxMs,
                 longAnimationFrameCount: longAnimationFrames.count,
                 longAnimationFrameTotalDurationMs: longAnimationFrames.totalDurationMs,
                 longAnimationFrameMaxDurationMs: longAnimationFrames.maxDurationMs,

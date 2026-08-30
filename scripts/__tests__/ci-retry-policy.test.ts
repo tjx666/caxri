@@ -60,6 +60,13 @@ describe('CI retry policy', () => {
                 mode: 'e2e-repair',
             },
         });
+        expect(
+            parseRetryHint(
+                `repair\n\nCI-Mode: e2e-repair\nCI-Base-Run: 123\nCI-E2E-Tests: ["e2e/renderer.performance.e2e.ts"]\nCI-Validated-Tree: ${tree}`,
+            ),
+        ).toEqual({
+            error: 'Renderer performance requires the profiling CI gate, not e2e-repair',
+        });
     });
 
     it('admits only the exact PR tree with successful checks and failed e2e', () => {
@@ -319,6 +326,7 @@ describe('CI retry policy', () => {
             'scripts/run-ci-parity.ts',
             'scripts/self-hosted-runner.ts',
             'e2e/failure-isolation.e2e.ts',
+            'e2e/renderer.performance.e2e.ts',
             'RELEASING.md',
         ]) {
             expect(isProtectedRetryPath(path), path).toBe(true);

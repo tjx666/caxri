@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { rendererDiagnosticSchema } from '../renderer-diagnostic.js';
+import { rendererDiagnosticSchema, rendererPerformanceSurfaces } from '../renderer-diagnostic.js';
 
 const validDiagnostic = {
     kind: 'terminal-renderer',
@@ -74,8 +74,32 @@ const validPerformanceScenarioDiagnostic = {
         actualDurationP95Ms: 24,
         actualDurationMaxMs: 24,
         baseDurationMaxMs: 41,
-        slowestSurface: 'workbench',
-        slowestSurfaceDurationMs: 38,
+        surfaces: {
+            'primary-sidebar': {
+                profiledRenderCount: 1,
+                actualDurationP50Ms: 5,
+                actualDurationP95Ms: 5,
+                actualDurationMaxMs: 5,
+                actualDurationTotalMs: 5,
+                baseDurationMaxMs: 8,
+            },
+            'workbench': {
+                profiledRenderCount: 3,
+                actualDurationP50Ms: 12.5,
+                actualDurationP95Ms: 24,
+                actualDurationMaxMs: 24,
+                actualDurationTotalMs: 38,
+                baseDurationMaxMs: 41,
+            },
+            'secondary-sidebar': {
+                profiledRenderCount: 1,
+                actualDurationP50Ms: 7,
+                actualDurationP95Ms: 7,
+                actualDurationMaxMs: 7,
+                actualDurationTotalMs: 7,
+                baseDurationMaxMs: 10,
+            },
+        },
     },
     longAnimationFrames: {
         count: 2,
@@ -123,6 +147,11 @@ describe('Renderer diagnostic contract', () => {
     });
 
     it('accepts a bounded content-free Renderer performance scenario', () => {
+        expect(rendererPerformanceSurfaces).toEqual([
+            'primary-sidebar',
+            'workbench',
+            'secondary-sidebar',
+        ]);
         expect(rendererDiagnosticSchema.parse(validPerformanceScenarioDiagnostic)).toEqual(
             validPerformanceScenarioDiagnostic,
         );
@@ -233,7 +262,34 @@ describe('Renderer diagnostic contract', () => {
             {
                 react: {
                     ...validPerformanceScenarioDiagnostic.react,
-                    slowestSurface: 'private/path',
+                    surfaces: {
+                        ...validPerformanceScenarioDiagnostic.react.surfaces,
+                        workbench: {
+                            ...validPerformanceScenarioDiagnostic.react.surfaces.workbench,
+                            actualDurationP95Ms: 25,
+                        },
+                    },
+                },
+            },
+            {
+                react: {
+                    ...validPerformanceScenarioDiagnostic.react,
+                    surfaces: {
+                        ...validPerformanceScenarioDiagnostic.react.surfaces,
+                        'app-shell': validPerformanceScenarioDiagnostic.react.surfaces.workbench,
+                    },
+                },
+            },
+            {
+                react: {
+                    ...validPerformanceScenarioDiagnostic.react,
+                    surfaces: {
+                        ...validPerformanceScenarioDiagnostic.react.surfaces,
+                        workbench: {
+                            ...validPerformanceScenarioDiagnostic.react.surfaces.workbench,
+                            profiledRenderCount: 4,
+                        },
+                    },
                 },
             },
             {

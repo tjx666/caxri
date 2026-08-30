@@ -97,6 +97,7 @@ const protectedPathPatterns = [
     /^scripts\/fixtures\//,
     /^scripts\/reporters\/e2e-receipt-reporter\.ts$/,
     /^e2e\/(?:failure-isolation\.e2e|support\/(?:pools|worker-isolation))\.ts$/,
+    /^e2e\/renderer\.performance\.e2e\.ts$/,
     /^\.agents\/skills\/(?:quality-check|switch-worktree)\//,
     /^\.agents\/skills\/e2e-testing\//,
     /^\.agents\/skills\/(?:build|release)\//,
@@ -190,6 +191,11 @@ export function parseRetryHint(message: string): { error?: string; hint?: RetryH
         let parsedEndToEndTests: string[] | undefined;
         if (e2eTests) {
             const value: unknown = JSON.parse(e2eTests);
+            if (Array.isArray(value) && value.includes('e2e/renderer.performance.e2e.ts')) {
+                return {
+                    error: 'Renderer performance requires the profiling CI gate, not e2e-repair',
+                };
+            }
             if (
                 !Array.isArray(value) ||
                 value.length === 0 ||
