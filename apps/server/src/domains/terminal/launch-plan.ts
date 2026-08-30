@@ -25,6 +25,7 @@ import type {
     TerminalStartOptions,
     TerminalWorkingDirectoryIdentity,
 } from './manager-types';
+import { managedAgentShellExecutable } from './shell-integration';
 import { terminalEnvironment } from './terminal-environment';
 
 export interface ResolvedTerminalLaunch {
@@ -73,15 +74,19 @@ export class TerminalLaunchPlanner {
     ): Promise<TerminalLaunchPlanResult<ResolvedTerminalLaunch>> {
         try {
             const e2eAgentPolicy = readE2EAgentPolicy();
-            const executable = await resolveTerminalExecutable(
+            const configuredShellExecutable = await resolveTerminalExecutable(
                 'shell',
                 undefined,
                 this.options.resolveExecutable,
             );
             if (record.kind === 'shell') {
                 assertE2EShellLaunch(e2eAgentPolicy);
-                return { ok: true, value: { args: ['-l'], executable } };
+                return {
+                    ok: true,
+                    value: { args: ['-l'], executable: configuredShellExecutable },
+                };
             }
+            const executable = managedAgentShellExecutable(configuredShellExecutable);
             const shouldLaunchAgent =
                 start?.launchAgent ?? record.lastAgentProcessState !== 'stopped';
             if (!shouldLaunchAgent) return { ok: true, value: { args: ['-l'], executable } };

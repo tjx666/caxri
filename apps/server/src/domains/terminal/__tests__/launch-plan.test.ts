@@ -63,4 +63,25 @@ describe('TerminalLaunchPlanner managed Agent launch', () => {
         expect(prepared.value.environment).not.toHaveProperty('CAXRI_AGENT_ENDPOINT_TOKEN');
         expect(shellIntegration).toHaveBeenCalledWith('/bin/zsh', expect.any(Object));
     });
+
+    it('falls back to the system zsh when the configured Shell cannot host a managed Agent', async () => {
+        const shellIntegration = vi.fn((_executable: string, environment: NodeJS.ProcessEnv) => ({
+            args: ['--managed-agent-shell'],
+            environment,
+        }));
+        const planner = new TerminalLaunchPlanner({
+            logger: new StructuredLogger('/tmp/caxri-launch-plan-test-logs'),
+            resolveExecutable: (kind) =>
+                Promise.resolve(kind === 'shell' ? '/bin/sh' : '/usr/local/bin/codex'),
+            shellIntegration,
+        });
+
+        const resolved = await planner.resolve(record);
+        if (!resolved.ok) throw resolved.error;
+        const prepared = await planner.prepare(record, resolved.value);
+        if (!prepared.ok) throw prepared.error;
+
+        expect(prepared.value.executable).toBe('/bin/zsh');
+        expect(shellIntegration).toHaveBeenCalledWith('/bin/zsh', expect.any(Object));
+    });
 });

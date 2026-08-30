@@ -420,7 +420,9 @@ foreground child. The Shell process defines the Terminal lifecycle, while `lastA
 whether the managed Agent generation is starting, running, or stopped. Agent exit therefore returns to the
 same live Shell without emitting `terminal.exit`; only the Shell root exiting stops the Terminal. Durable
 provider, title, and Agent session identity remain attached to the Terminal so a later explicit resume can
-start another managed generation. `terminal.restart`, Resume, and Fresh deliberately replace the Shell PTY too:
+start another managed generation. Managed startup supports zsh and bash; when the configured platform Shell is
+unsupported, Agent Terminals use macOS's system zsh while ordinary Shell Terminals keep the configured executable.
+`terminal.restart`, Resume, and Fresh deliberately replace the Shell PTY too:
 injecting a command into an existing prompt could append to an unpublished edit or disrupt foreground job control.
 Ordinary Agent exit never replaces the Shell; this explicit restart boundary is the safe exception.
 

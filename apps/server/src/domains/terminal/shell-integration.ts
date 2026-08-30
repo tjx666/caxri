@@ -7,6 +7,14 @@ export interface ShellIntegrationLaunch {
     environment: NodeJS.ProcessEnv;
 }
 
+/**
+ * Managed Agent startup needs a shell whose private startup files Caxri can control. Ordinary Shell Terminals still use
+ * the configured platform shell; only Agent Terminals fall back to macOS's system zsh.
+ */
+export function managedAgentShellExecutable(executable: string): string {
+    return ['bash', 'zsh'].includes(basename(executable)) ? executable : '/bin/zsh';
+}
+
 const ZSH_ENV = `typeset -g __caxri_user_zdotdir="\${CAXRI_USER_ZDOTDIR:-\${HOME:-}}"
 typeset -g __caxri_integration_zdotdir="\${CAXRI_SHELL_INTEGRATION_DIR:-}"
 if [[ -n "$__caxri_user_zdotdir" && "$__caxri_user_zdotdir" != "$__caxri_integration_zdotdir" && -r "$__caxri_user_zdotdir/.zshenv" ]]; then
