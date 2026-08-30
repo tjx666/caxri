@@ -112,18 +112,19 @@ function extractCodexMessage(record: unknown): AgentTitleMessage | undefined {
     if (entry.payload.role !== 'user' && entry.payload.role !== 'assistant') return;
     const role = entry.payload.role;
     const content = Array.isArray(entry.payload.content) ? entry.payload.content : [];
-    const text = content
-        .flatMap((part) => {
-            if (typeof part !== 'object' || part === null) return [];
-            const candidate = part as { text?: unknown; type?: unknown };
-            return ['input_text', 'output_text', 'text'].includes(String(candidate.type)) &&
-                typeof candidate.text === 'string'
-                ? [candidate.text]
-                : [];
-        })
-        .filter((part) => role !== 'user' || !isInjectedUserContext(part))
-        .join('\n')
-        .trim();
+    const messageParts: string[] = [];
+    for (const part of content) {
+        if (typeof part !== 'object' || part === null) continue;
+        const candidate = part as { text?: unknown; type?: unknown };
+        if (
+            !['input_text', 'output_text', 'text'].includes(String(candidate.type)) ||
+            typeof candidate.text !== 'string' ||
+            (role === 'user' && isInjectedUserContext(candidate.text))
+        )
+            continue;
+        messageParts.push(candidate.text);
+    }
+    const text = messageParts.join('\n').trim();
     return text ? { role, text } : undefined;
 }
 
