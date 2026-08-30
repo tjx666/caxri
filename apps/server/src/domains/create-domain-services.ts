@@ -180,8 +180,6 @@ export async function createDomainServices(
             coordinator.observeOutput(terminalId, processId),
         onAgentStateChanged: (terminalId, state) =>
             agentDispatchState.service?.observeTerminalState(terminalId, state),
-        onStateChanged: (terminalId, state) =>
-            agentDispatchState.service?.observeTerminalState(terminalId, state),
         shellIntegration: (executable, environment) =>
             shellIntegration?.resolve(executable, environment),
         terminalColors:

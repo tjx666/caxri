@@ -477,11 +477,14 @@ export class TerminalManager {
     async restart(terminalId: string, options?: TerminalStartOptions): Promise<TerminalRecord> {
         const record = this.database.getTerminal(terminalId);
         if (!record) throw new CaxriError('NOT_FOUND', 'Terminal not found');
-        const capture = await this.execution.restartBarrier(terminalId);
-        if (capture) {
+        /**
+         * Fence the managed Agent generation before Host cancellation can report its intentional SIGHUP as an
+         * unexpected process failure. The late exit event is then ignored by its retired launch ID.
+         */
+        if (this.agentLaunches.has(terminalId))
             this.retireAgentLifecycleSoon(terminalId, 'interrupted');
-            await this.snapshots.finalize(terminalId, Promise.resolve(capture));
-        }
+        const capture = await this.execution.restartBarrier(terminalId);
+        if (capture) await this.snapshots.finalize(terminalId, Promise.resolve(capture));
         const launchAgent =
             options?.launchAgent ??
             (options?.resumeAgentSessionId !== undefined ||

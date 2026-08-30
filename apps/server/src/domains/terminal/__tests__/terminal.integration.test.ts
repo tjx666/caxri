@@ -76,7 +76,7 @@ afterEach(async () => {
 });
 
 describe('TerminalManager', () => {
-    it('keeps each Agent lifecycle environment out of its long-lived Shell generation', async () => {
+    it('isolates Agent lifecycle environment and fences an intentional restart', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-lifecycle-'));
         temporaryDirectories.push(directory);
         const database = new CaxriDatabase(join(directory, 'state.db'));
@@ -92,21 +92,20 @@ describe('TerminalManager', () => {
             CAXRI_HOOK_LAUNCH_ID: `launch-${(generation += 1)}`,
             CAXRI_HOOK_TOKEN: `token-${generation}`,
         }));
+        const logger = createTestLogger(join(directory, 'logs'));
+        const execution = new LocalTerminalExecution({ logger, spawn });
+        const agentStates: string[] = [];
         const retired = vi.fn();
-        const manager = createTestTerminalManager(
-            database,
-            () => {},
-            createTestLogger(join(directory, 'logs')),
-            {
-                agentEnvironment: () => Promise.resolve({ PATH: '/agent/bin' }),
-                agentLaunchSettings: () => ({ executable: 'codex', args: [] }),
-                lifecycleEnvironment,
-                onLifecycleRetired: retired,
-                resolveExecutable: (kind) =>
-                    Promise.resolve(kind === 'shell' ? '/bin/zsh' : '/bin/codex'),
-                spawn,
-            },
-        );
+        const manager = createTestTerminalManager(database, () => {}, logger, {
+            agentEnvironment: () => Promise.resolve({ PATH: '/agent/bin' }),
+            agentLaunchSettings: () => ({ executable: 'codex', args: [] }),
+            execution,
+            lifecycleEnvironment,
+            onAgentStateChanged: (_terminalId, state) => agentStates.push(state),
+            onLifecycleRetired: retired,
+            resolveExecutable: (kind) =>
+                Promise.resolve(kind === 'shell' ? '/bin/zsh' : '/bin/codex'),
+        });
 
         try {
             await manager.start(created.terminal!);
@@ -115,11 +114,19 @@ describe('TerminalManager', () => {
             expect(spawn.mock.calls[0]?.[2].env).not.toHaveProperty('CAXRI_HOOK_TOKEN');
             expect(lifecycleEnvironment).toHaveBeenCalledOnce();
 
+            agentStates.length = 0;
+            const restartBarrier = execution.restartBarrier.bind(execution);
+            vi.spyOn(execution, 'restartBarrier').mockImplementation((terminalId) => {
+                expect(execution.emitAgentExit(terminalId, null, 'SIGHUP')).toBe(true);
+                return restartBarrier(terminalId);
+            });
             await manager.restart(created.terminal!.id);
             await manager.waitForAgentRunning(created.terminal!.id);
             expect(retired).toHaveBeenCalledWith(created.terminal!.id, expect.any(String));
             expect(spawn.mock.calls[1]?.[2].env).not.toHaveProperty('CAXRI_HOOK_TOKEN');
             expect(lifecycleEnvironment).toHaveBeenCalledTimes(2);
+            expect(agentStates.filter((state) => state !== 'running')).toEqual(['interrupted']);
+            expect(agentStates).not.toContain('dead');
         } finally {
             manager.close(created.terminal!.id);
             database.close();

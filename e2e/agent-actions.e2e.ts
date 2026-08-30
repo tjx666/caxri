@@ -401,10 +401,10 @@ test('Agent Commands & Skills stays discoverable, describes its target, and pres
         await expect
             .poll(async () => {
                 const current = await pageRequest<{
-                    terminals: Array<{ id: string; lastProcessState: string }>;
+                    terminals: Array<{ id: string; lastAgentProcessState?: string }>;
                 }>(running.page, 'app.bootstrap');
                 return current.terminals.find(({ id }) => id === claudeCreation.terminal.id)
-                    ?.lastProcessState;
+                    ?.lastAgentProcessState;
             })
             .toBe('running');
         const claudeInput = running.page.locator(
@@ -456,10 +456,10 @@ test('Agent Commands & Skills stays discoverable, describes its target, and pres
         await expect
             .poll(async () => {
                 const current = await pageRequest<{
-                    terminals: Array<{ id: string; lastProcessState: string }>;
+                    terminals: Array<{ id: string; lastAgentProcessState?: string }>;
                 }>(running.page, 'app.bootstrap');
                 return current.terminals.find(({ id }) => id === agentTerminal.id)
-                    ?.lastProcessState;
+                    ?.lastAgentProcessState;
             })
             .toBe('running');
         await expect

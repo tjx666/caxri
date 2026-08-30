@@ -19,6 +19,7 @@ import WebSocket from 'ws';
 import { createTestProtocolRecoveryState } from '../../__tests__/support/protocol-recovery';
 import type { CreateDomainServices } from '../../core/domain-service';
 import type { DomainHandlers } from '../../domains/domain-services';
+import * as extensionServiceFactory from '../extensions/create-service';
 import type { ServerCore } from '../server-core';
 import { startServerCore } from '../server-core';
 
@@ -736,5 +737,58 @@ describe('Server Core application', () => {
         });
 
         await waitForRemoval(app.lease.paths.manifest);
+    });
+
+    it('suppresses only the expected extension refresh rejection during shutdown', async () => {
+        const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-extension-refresh-stop-'));
+        directories.push(userDataPath);
+        const stateChanged = {
+            event: 'state.changed',
+            payload: { kind: 'full', reason: 'session.select' },
+        } as const;
+        let emit: ((event: typeof stateChanged) => void) | undefined;
+        const refreshError = new Error('Extension context refresh failed before shutdown');
+        vi.spyOn(extensionServiceFactory, 'createExtensionService').mockResolvedValue({
+            activeContextChanged: vi.fn(),
+            shutdown: vi.fn(),
+        } as never);
+        const app = await startServerCore({
+            commit: 'test',
+            createDomainServices: (dependencies) => {
+                emit = dependencies.send;
+                return Promise.resolve({
+                    close: () => Promise.resolve(dependencies.send(stateChanged)),
+                    handlers: fixtureHandlers({
+                        'app.bootstrap': () => {
+                            throw refreshError;
+                        },
+                    }),
+                    protocolRecovery: createTestProtocolRecoveryState(),
+                    validateRequestContext: () => {},
+                });
+            },
+            userDataPath,
+            version: '1.0.0',
+        });
+        apps.push(app);
+
+        emit?.(stateChanged);
+        const logPath = join(userDataPath, 'logs', 'server-core.jsonl');
+        await vi.waitFor(async () =>
+            expect(await readFile(logPath, 'utf8')).toContain(refreshError.message),
+        );
+        const countFailures = async () =>
+            (
+                (await readFile(logPath, 'utf8')).match(
+                    /extension_host\.context_refresh_failed/g,
+                ) ?? []
+            ).length;
+        const refreshFailureCount = await countFailures();
+
+        await app.stop('test-extension-refresh-shutdown');
+        await vi.waitFor(async () =>
+            expect(await readFile(logPath, 'utf8')).toContain('server_core.stopped'),
+        );
+        expect(await countFailures()).toBe(refreshFailureCount);
     });
 });

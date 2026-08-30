@@ -119,7 +119,6 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         mutationsInFlight === 0
             ? Promise.resolve()
             : new Promise((resolve) => mutationDrainWaiters.add(resolve));
-
     const projectScope = (context: CommandExecutionContext): string[] | null => {
         switch (context.principal.kind) {
             case 'agent':
@@ -130,21 +129,17 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                 return null;
         }
     };
-
     const assertProjectScope = (context: CommandExecutionContext, projectId: string): void => {
         const scope = projectScope(context);
         if (scope && !scope.includes(projectId))
             throw new CaxriError('FORBIDDEN', 'Agent control is outside the granted Project');
     };
-
     const requestCancellations = new RequestCancellationRegistry();
-
     /**
      * Keeps public dispatch identity independent while preserving principal-scoped request retry.
      */
     const dispatchIdFor = (context: CommandExecutionContext, requestId: string): string =>
         `dispatch-${createHash('sha256').update(principalRequestKey(context, requestId)).digest('hex')}`;
-
     const forwardDomainOperation = async (
         request: ServerOperationRequest,
         signal?: AbortSignal,
@@ -188,7 +183,6 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             finishMutation();
         }
     };
-
     const recoverySnapshot = async (cursor: number) => {
         const state = await domainService.request('app.bootstrap');
         return {
@@ -204,7 +198,6 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
     const recoveryJournal = createServerRecoveryJournal(recoverySnapshot, (observation) =>
         logDurableRecovery(logger, observation),
     );
-
     const deliver = (event: ServerEvent, persistedEnvelope?: ProtocolEventEnvelope): void => {
         if (event.event === 'terminal.exit')
             agentEndpoints.retireTerminal(event.payload.terminalId);
@@ -219,14 +212,22 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                     },
                 },
             );
-        const extensionRefresh = routeExtensionDomainEvent(extensionService, domainService, event);
-        // The domain event callback cannot await the best-effort extension refresh.
-        // eslint-disable-next-line unicorn/prefer-await
-        extensionRefresh.catch((error: unknown) =>
-            logger.write('error', logEventCatalog.extensionHost.contextRefreshFailed, {
-                fields: { message: error instanceof Error ? error.message : String(error) },
-            }),
-        );
+        /**
+         * Skip refreshes emitted after the Extension Host enters teardown.
+         */
+        if (!stopPromise) {
+            const extensionRefresh = routeExtensionDomainEvent(
+                extensionService,
+                domainService,
+                event,
+            );
+            // eslint-disable-next-line unicorn/prefer-await -- event delivery cannot await a best-effort refresh
+            extensionRefresh.catch((error: unknown) =>
+                logger.write('error', logEventCatalog.extensionHost.contextRefreshFailed, {
+                    fields: { message: error instanceof Error ? error.message : String(error) },
+                }),
+            );
+        }
         if (isTransientServerEvent(event)) server?.broadcast(event);
         else {
             const envelope = persistedEnvelope ?? recoveryJournal.publish(event);
@@ -234,7 +235,6 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         }
     };
     domainService.onEvent(deliver);
-
     const stop = (reason = 'requested'): Promise<void> => {
         isMutationAdmissionClosed = true;
         resolveStopping();

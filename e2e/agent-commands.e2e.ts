@@ -238,12 +238,19 @@ process.stdin.resume();
         await expect
             .poll(async () => {
                 const state = await pageRequest<{
-                    terminals: Array<{ id: string; lastProcessState: string }>;
+                    terminals: Array<{
+                        id: string;
+                        lastAgentProcessState?: string;
+                        lastProcessState: string;
+                    }>;
                 }>(running.page, 'app.bootstrap');
-                return state.terminals.find(({ id }) => id === firstDispatch.terminalId)
-                    ?.lastProcessState;
+                const terminal = state.terminals.find(({ id }) => id === firstDispatch.terminalId);
+                return {
+                    agent: terminal?.lastAgentProcessState,
+                    shell: terminal?.lastProcessState,
+                };
             })
-            .toBe('running');
+            .toEqual({ agent: 'running', shell: 'running' });
 
         const humanText = 'terminal-human-steer sentinel';
         const ownerCli = await runCli([
@@ -296,12 +303,20 @@ process.stdin.resume();
         await expect
             .poll(async () => {
                 const state = await pageRequest<{
-                    terminals: Array<{ id: string; lastProcessState: string }>;
+                    terminals: Array<{
+                        id: string;
+                        lastAgentProcessState?: string;
+                        lastProcessState: string;
+                    }>;
                 }>(running.page, 'app.bootstrap');
-                return state.terminals.find(({ id }) => id === firstDispatch.terminalId)
-                    ?.lastProcessState;
+                const terminal = state.terminals.find(({ id }) => id === firstDispatch.terminalId);
+                return Boolean(
+                    terminal?.lastAgentProcessState &&
+                    terminal.lastAgentProcessState !== 'running' &&
+                    terminal.lastProcessState === 'running',
+                );
             })
-            .not.toBe('running');
+            .toBe(true);
 
         const unavailable = await controller.request('agent.message.send', {
             to: currentTarget.context.endpoint.ref,
