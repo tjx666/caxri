@@ -25,6 +25,9 @@ export const logEventCatalog = {
         signalIgnored: 'agent_hooks.signal_ignored',
         signalRejected: 'agent_hooks.signal_rejected',
     },
+    agentNotifications: {
+        operationFailed: 'agent_notifications.operation_failed',
+    },
     app: {
         childProcessGone: 'app.child_process_gone',
         quitFailed: 'app.quit_failed',

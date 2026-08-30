@@ -144,6 +144,10 @@ export const appSettingsSchema = z.object({
     'workbench.fontFamily': nullableStringField(spec['workbench.fontFamily']),
     'workbench.externalEditor': nullableStringField(spec['workbench.externalEditor']),
     'agents.providers': agentProvidersSchema,
+    'agents.notifications.enabled': booleanField(spec['agents.notifications.enabled']),
+    'agents.notifications.completionThresholdSeconds': integerField(
+        spec['agents.notifications.completionThresholdSeconds'],
+    ),
     'git.fetchGitHubAvatars': booleanField(spec['git.fetchGitHubAvatars']),
     'security.trustedDomains': trustedDomainsSchema,
     'terminal.defaultWorkingDirectory': nullableStringField(

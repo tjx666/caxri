@@ -1,0 +1,82 @@
+import { isCaxriError } from '@caxri/protocol';
+import type { StructuredLogger } from '@caxri/system';
+import { logEventCatalog } from '@caxri/system';
+import type { BrowserWindow } from 'electron';
+import { Notification } from 'electron';
+
+import type { AgentNotificationCoordinator } from './agent-notifications';
+import { createAgentNotificationCoordinator } from './agent-notifications';
+import type { DesktopServerConnection } from './server-connection';
+
+interface DesktopAgentNotificationOptions {
+    focusMainWindow: () => Promise<BrowserWindow>;
+    getWindow: () => BrowserWindow | undefined;
+    logger: () => StructuredLogger | undefined;
+    supervisor: DesktopServerConnection;
+}
+
+/**
+ * Focuses Caxri even when a delivered notification has gone stale, then changes selection only after the current Host
+ * confirms that the exact Session still exists and remains active.
+ */
+export async function activateAgentNotificationSession(
+    {
+        focusMainWindow,
+        supervisor,
+    }: Pick<DesktopAgentNotificationOptions, 'focusMainWindow' | 'supervisor'>,
+    sessionId: string,
+): Promise<void> {
+    await focusMainWindow();
+    const bootstrap = await supervisor.request('app.bootstrap');
+    const session = bootstrap.sessions.find(
+        (candidate) => candidate.id === sessionId && candidate.archivedAt === undefined,
+    );
+    if (session) await supervisor.request('session.select', { sessionId });
+}
+
+/**
+ * Binds the pure attention coordinator to Electron and the exact Desktop Server lease. A click revalidates the Session
+ * before changing durable selection, so stale system notifications cannot navigate to an archived or deleted Session.
+ */
+export function createDesktopAgentNotifications({
+    focusMainWindow,
+    getWindow,
+    logger,
+    supervisor,
+}: DesktopAgentNotificationOptions): AgentNotificationCoordinator {
+    return createAgentNotificationCoordinator({
+        activateSession: (sessionId) =>
+            activateAgentNotificationSession({ focusMainWindow, supervisor }, sessionId),
+        isSessionVisible: (sessionId, selectedSessionId) => {
+            const window = getWindow();
+            return Boolean(
+                selectedSessionId === sessionId &&
+                window &&
+                !window.isDestroyed() &&
+                window.isVisible() &&
+                !window.isMinimized() &&
+                window.isFocused(),
+            );
+        },
+        loadBootstrap: () => supervisor.request('app.bootstrap'),
+        loadRecords: (parameters) => supervisor.request('app.records', parameters),
+        loadSettings: async () => (await supervisor.request('settings.get')).value,
+        onError: (error) => {
+            const errorKind = isCaxriError(error)
+                ? error.code
+                : error instanceof Error
+                  ? error.name
+                  : typeof error;
+            logger()?.write('warn', logEventCatalog.agentNotifications.operationFailed, {
+                fields: { errorKind },
+            });
+        },
+        showNotification: (notification, onClick) => {
+            if (!Notification.isSupported()) return;
+            const nativeNotification = new Notification(notification);
+            nativeNotification.on('click', onClick);
+            nativeNotification.show();
+            return { close: () => nativeNotification.close() };
+        },
+    });
+}

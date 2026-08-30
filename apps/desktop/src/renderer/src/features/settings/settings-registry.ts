@@ -241,6 +241,8 @@ const rows: SettingRowDescriptor[] = [
         binding: { type: 'files-exclude' },
     },
     specRow('files.maxFileBytes'),
+    specRow('agents.notifications.enabled'),
+    specRow('agents.notifications.completionThresholdSeconds'),
     ...agentProviderIds.flatMap((provider) => providerRows(provider)),
 ];
 
