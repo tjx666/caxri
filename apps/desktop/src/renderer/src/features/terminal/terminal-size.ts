@@ -1,3 +1,5 @@
+import { GridBurstAccumulator } from '@caxri/utils';
+
 export interface TerminalSize {
     cols: number;
     rows: number;
@@ -5,8 +7,305 @@ export interface TerminalSize {
 
 type CancelFrame = (frame: number) => void;
 type RequestFrame = (callback: () => void) => number;
+type TimerHandle = ReturnType<typeof setTimeout>;
+type ClearTimer = (timer: TimerHandle) => void;
+type SetTimer = (callback: () => void, delayMs: number) => TimerHandle;
 
 const DEFAULT_SETTLE_FRAME_BUDGET = 8;
+const DEFAULT_RESIZE_BURST_QUIET_MS = 250;
+const DEFAULT_RESIZE_BURST_MAX_DURATION_MS = 5_000;
+const DEFAULT_RESIZE_BURST_MAX_SAMPLES = 10_000;
+
+export type TerminalResizeBurstFlushReason = 'disposed' | 'max-duration' | 'paused' | 'quiet';
+
+export interface TerminalResizeBurstSummary {
+    changeCount: number;
+    durationMs: number;
+    finalCols: number;
+    finalRows: number;
+    flushReason: TerminalResizeBurstFlushReason;
+    localAppliedCount: number;
+    maxCols: number;
+    maxRows: number;
+    minCols: number;
+    minRows: number;
+    requestCount: number;
+    sampleCount: number;
+    startCols: number;
+    startRows: number;
+    truncated: boolean;
+}
+
+interface TerminalResizeBurstSample {
+    localApplied: boolean;
+    requestSent: boolean;
+}
+
+interface TerminalResizeBurstTrackerOptions {
+    clearTimer?: ClearTimer;
+    emit: (summary: TerminalResizeBurstSummary) => void;
+    maxDurationMs?: number;
+    maxSamples?: number;
+    now?: () => number;
+    quietMs?: number;
+    setTimer?: SetTimer;
+}
+
+function positiveInteger(value: number, name: string, maximum?: number): number {
+    if (!Number.isSafeInteger(value) || value <= 0 || (maximum !== undefined && value > maximum))
+        throw new RangeError(`${name} must be a positive bounded integer`);
+    return value;
+}
+
+function isValidTerminalSize(size: TerminalSize): boolean {
+    return (
+        Number.isSafeInteger(size.cols) &&
+        size.cols >= 2 &&
+        size.cols <= 1_000 &&
+        Number.isSafeInteger(size.rows) &&
+        size.rows >= 1 &&
+        size.rows <= 1_000
+    );
+}
+
+/**
+ * Coalesces one mounted xterm's high-frequency fit observations into content-free bounded diagnostics.
+ */
+export class TerminalResizeBurstTracker {
+    private readonly accumulator = new GridBurstAccumulator();
+    private readonly clearTimer: ClearTimer;
+    private readonly emit: (summary: TerminalResizeBurstSummary) => void;
+    private readonly maxDurationMs: number;
+    private readonly maxSamples: number;
+    private readonly now: () => number;
+    private readonly quietMs: number;
+    private readonly setTimer: SetTimer;
+    private burstStartedAt: number | undefined;
+    private disposed = false;
+    private lastSampleAt: number | undefined;
+    private localAppliedCount = 0;
+    private maxDurationTimer: TimerHandle | undefined;
+    private paused = false;
+    private quietTimer: TimerHandle | undefined;
+    private requestCount = 0;
+
+    constructor(options: TerminalResizeBurstTrackerOptions) {
+        this.emit = options.emit;
+        this.now = options.now ?? (() => Date.now());
+        this.quietMs = positiveInteger(
+            options.quietMs ?? DEFAULT_RESIZE_BURST_QUIET_MS,
+            'Resize burst quiet window',
+            DEFAULT_RESIZE_BURST_MAX_DURATION_MS,
+        );
+        this.maxDurationMs = positiveInteger(
+            options.maxDurationMs ?? DEFAULT_RESIZE_BURST_MAX_DURATION_MS,
+            'Resize burst maximum duration',
+            DEFAULT_RESIZE_BURST_MAX_DURATION_MS,
+        );
+        this.maxSamples = positiveInteger(
+            options.maxSamples ?? DEFAULT_RESIZE_BURST_MAX_SAMPLES,
+            'Resize burst maximum samples',
+            DEFAULT_RESIZE_BURST_MAX_SAMPLES,
+        );
+        this.setTimer = options.setTimer ?? ((callback, delayMs) => setTimeout(callback, delayMs));
+        this.clearTimer = options.clearTimer ?? ((timer) => clearTimeout(timer));
+    }
+
+    private cancelTimers(): void {
+        if (this.quietTimer !== undefined) this.clearTimer(this.quietTimer);
+        if (this.maxDurationTimer !== undefined) this.clearTimer(this.maxDurationTimer);
+        this.quietTimer = undefined;
+        this.maxDurationTimer = undefined;
+    }
+
+    private flush(flushReason: TerminalResizeBurstFlushReason): void {
+        this.cancelTimers();
+        const aggregate = this.accumulator.reset();
+        const burstStartedAt = this.burstStartedAt;
+        const lastSampleAt = this.lastSampleAt;
+        const localAppliedCount = this.localAppliedCount;
+        const requestCount = this.requestCount;
+        this.burstStartedAt = undefined;
+        this.lastSampleAt = undefined;
+        this.localAppliedCount = 0;
+        this.requestCount = 0;
+        if (
+            !aggregate ||
+            burstStartedAt === undefined ||
+            lastSampleAt === undefined ||
+            (localAppliedCount === 0 && requestCount === 0)
+        )
+            return;
+
+        const rawDurationMs = Math.max(0, lastSampleAt - burstStartedAt);
+        const sampleCount = Math.min(aggregate.sampleCount, this.maxSamples);
+        const report: TerminalResizeBurstSummary = {
+            sampleCount,
+            changeCount: Math.min(aggregate.changeCount, Math.max(0, sampleCount - 1)),
+            startCols: aggregate.start.cols,
+            startRows: aggregate.start.rows,
+            minCols: aggregate.minimum.cols,
+            minRows: aggregate.minimum.rows,
+            maxCols: aggregate.maximum.cols,
+            maxRows: aggregate.maximum.rows,
+            finalCols: aggregate.final.cols,
+            finalRows: aggregate.final.rows,
+            durationMs: Math.min(rawDurationMs, this.maxDurationMs),
+            flushReason,
+            truncated:
+                aggregate.sampleCount > this.maxSamples || rawDurationMs > this.maxDurationMs,
+            localAppliedCount: Math.min(localAppliedCount, sampleCount),
+            requestCount: Math.min(requestCount, sampleCount),
+        };
+        try {
+            this.emit(report);
+        } catch {
+            // Diagnostics are best-effort and must never disturb Terminal layout or snapshot recovery.
+        }
+    }
+
+    sample(size: TerminalSize, observation: TerminalResizeBurstSample): void {
+        if (this.disposed || this.paused || !isValidTerminalSize(size)) return;
+        const sampledAt = this.now();
+        if (this.burstStartedAt === undefined) {
+            this.burstStartedAt = sampledAt;
+            this.maxDurationTimer = this.setTimer(
+                () => this.flush('max-duration'),
+                this.maxDurationMs,
+            );
+        }
+        this.lastSampleAt = sampledAt;
+        this.accumulator.sample(size);
+        if (observation.localApplied) this.localAppliedCount += 1;
+        if (observation.requestSent) this.requestCount += 1;
+        if (this.quietTimer !== undefined) this.clearTimer(this.quietTimer);
+        this.quietTimer = this.setTimer(() => this.flush('quiet'), this.quietMs);
+    }
+
+    pause(): void {
+        if (this.disposed || this.paused) return;
+        this.paused = true;
+        this.flush('paused');
+    }
+
+    resume(): void {
+        if (!this.disposed) this.paused = false;
+    }
+
+    dispose(): void {
+        if (this.disposed) return;
+        this.flush('disposed');
+        this.disposed = true;
+        this.paused = true;
+    }
+}
+
+interface TerminalPaneResizeControllerOptions {
+    apply(size: TerminalSize): void;
+    current(): TerminalSize;
+    fitted(size: TerminalSize): void;
+    isRunning(): boolean;
+    propose(): TerminalSize | undefined;
+    request(size: TerminalSize): Promise<unknown>;
+    terminalId: string;
+}
+
+interface TerminalFitResult {
+    localApplied: boolean;
+    size: TerminalSize;
+}
+
+/**
+ * Owns one pane's fit, local xterm resize, Server resize deduplication, and resize-burst reporting so React lifecycle
+ * wiring cannot accidentally observe a proposal at only one of those boundaries.
+ */
+export class TerminalPaneResizeController {
+    private lastSentSize: TerminalSize | undefined;
+    private readonly tracker: TerminalResizeBurstTracker;
+
+    constructor(private readonly options: TerminalPaneResizeControllerOptions) {
+        this.tracker = new TerminalResizeBurstTracker({
+            emit: (summary) =>
+                globalThis.caxri.reportDiagnostic({
+                    kind: 'terminal-resize-burst',
+                    diagnosticId: crypto.randomUUID(),
+                    terminalId: options.terminalId,
+                    side: 'renderer-xterm',
+                    ...summary,
+                }),
+        });
+    }
+
+    private fit(): TerminalFitResult | undefined {
+        try {
+            const size = terminalSizeWithScrollbarGutter(this.options.propose());
+            if (!size) return undefined;
+            const isLocalApplied = didTerminalSizeChange(this.options.current(), size);
+            if (isLocalApplied) this.options.apply(size);
+            this.options.fitted(size);
+            return { localApplied: isLocalApplied, size };
+        } catch {
+            // The pane may be between layout and disposal during a Session switch.
+            return undefined;
+        }
+    }
+
+    private async request(size: TerminalSize): Promise<void> {
+        try {
+            await this.options.request(size);
+        } catch {
+            /**
+             * Server restarts can reject a resize; allow the next layout observation to retry it.
+             */
+            if (this.lastSentSize?.cols === size.cols && this.lastSentSize.rows === size.rows)
+                this.lastSentSize = undefined;
+        }
+    }
+
+    fitAndResize(): void {
+        const result = this.fit();
+        if (!result) return;
+        const requestSent =
+            this.options.isRunning() && didTerminalSizeChange(this.lastSentSize, result.size);
+        this.tracker.sample(result.size, { localApplied: result.localApplied, requestSent });
+        if (!requestSent) return;
+        this.lastSentSize = result.size;
+        // eslint-disable-next-line no-void -- request owns its bounded retry-state repair
+        void this.request(result.size);
+    }
+
+    fitLocal(): void {
+        const result = this.fit();
+        if (result)
+            this.tracker.sample(result.size, {
+                localApplied: result.localApplied,
+                requestSent: false,
+            });
+    }
+
+    fitInitial(): TerminalSize | undefined {
+        const result = this.fit();
+        if (!result) return undefined;
+        this.tracker.sample(result.size, { localApplied: result.localApplied, requestSent: true });
+        return result.size;
+    }
+
+    confirmSent(size: TerminalSize): void {
+        this.lastSentSize = size;
+    }
+
+    pause(): void {
+        this.tracker.pause();
+    }
+
+    resume(): void {
+        this.tracker.resume();
+    }
+
+    dispose(): void {
+        this.tracker.dispose();
+    }
+}
 
 /**
  * Keeps one bounded trailing fit loop alive after a layout observation. Split-pane layout can expose an intermediate

@@ -22,6 +22,65 @@ interface PersistedTerminalGridSnapshot {
     rows: number;
 }
 
+interface StructuredLogRecord {
+    event: string;
+    fields?: Record<string, unknown>;
+}
+
+interface ResizeBurstPair {
+    host: Record<string, unknown>;
+    renderer: Record<string, unknown>;
+}
+
+async function readStructuredLog(path: string): Promise<StructuredLogRecord[]> {
+    try {
+        const content = await readFile(path, 'utf8');
+        const completeContent = content.endsWith('\n')
+            ? content
+            : content.slice(0, content.lastIndexOf('\n') + 1);
+        return completeContent
+            .trim()
+            .split('\n')
+            .filter(Boolean)
+            .map((line) => JSON.parse(line) as StructuredLogRecord);
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+        throw error;
+    }
+}
+
+async function waitForResizeBurstPair(
+    userData: string,
+    terminalId: string,
+    finalGrid: string,
+): Promise<ResizeBurstPair> {
+    const [finalCols, finalRows] = finalGrid.split('x').map(Number);
+    let pair: ResizeBurstPair | undefined;
+    await expect
+        .poll(async () => {
+            const [desktopRecords, hostRecords] = await Promise.all([
+                readStructuredLog(join(userData, 'logs', 'desktop.jsonl')),
+                readStructuredLog(join(userData, 'logs', 'terminal-host.jsonl')),
+            ]);
+            const isFinalGridMatch = (record: StructuredLogRecord): boolean =>
+                record.fields?.terminalId === terminalId &&
+                record.fields.finalCols === finalCols &&
+                record.fields.finalRows === finalRows;
+            const renderer = desktopRecords.findLast(
+                (record) =>
+                    record.event === 'renderer.terminal_resize_burst' && isFinalGridMatch(record),
+            )?.fields;
+            const host = hostRecords.findLast(
+                (record) => record.event === 'pty.resize_burst' && isFinalGridMatch(record),
+            )?.fields;
+            if (!renderer || !host) return false;
+            pair = { host, renderer };
+            return true;
+        })
+        .toBe(true);
+    return pair!;
+}
+
 async function typeTerminal(page: Page, command: string): Promise<void> {
     const input = page.locator('.xterm-helper-textarea').last();
     await input.focus();
@@ -493,6 +552,10 @@ render();
         let running = await launchCaxri(launchOptions);
         try {
             await createProjectSession(running.page, agent.kind);
+            const terminalId = await running.page
+                .locator('.terminal-pane')
+                .getAttribute('data-terminal-id');
+            if (!terminalId) throw new Error('Terminal identity was not rendered');
             await expect
                 .poll(() => pageRequest<number>(running.page, 'terminal.runningCount'))
                 .toBe(1);
@@ -505,6 +568,26 @@ render();
             );
             await expect.poll(() => latestAgentGrid(gridLog, 1)).not.toBe(intermediateGrid);
             const expectedGrid = await waitForStableAgentGrid(running.page, gridLog, 1);
+            const resizeBursts = await waitForResizeBurstPair(userData, terminalId, expectedGrid);
+            const [expectedCols, expectedRows] = expectedGrid.split('x').map(Number);
+            expect(resizeBursts.renderer).toMatchObject({
+                code: 'TERMINAL_RESIZE_BURST',
+                terminalId,
+                side: 'renderer-xterm',
+                finalCols: expectedCols,
+                finalRows: expectedRows,
+            });
+            expect(resizeBursts.host).toMatchObject({
+                code: 'PTY_RESIZE_BURST',
+                terminalId,
+                side: 'terminal-host-pty',
+                finalCols: expectedCols,
+                finalRows: expectedRows,
+            });
+            expect([resizeBursts.renderer.finalCols, resizeBursts.renderer.finalRows]).toEqual([
+                resizeBursts.host.finalCols,
+                resizeBursts.host.finalRows,
+            ]);
 
             await running.app.close();
             running = await launchCaxri(launchOptions);

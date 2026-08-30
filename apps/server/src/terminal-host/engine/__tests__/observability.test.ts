@@ -1,9 +1,27 @@
 import type { StructuredLogger } from '@caxri/system';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { recordPtyDroppedBytes, recordPtyThroughput } from '../observability';
+import {
+    PtyResizeBurstObserver,
+    recordPtyDroppedBytes,
+    recordPtyThroughput,
+} from '../observability';
+
+function resizeLogger() {
+    const write = vi.fn<StructuredLogger['write']>();
+    return { logger: { write } as unknown as StructuredLogger, write };
+}
 
 describe('PTY observability', () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+        vi.setSystemTime(1_000);
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
     it('records bounded byte aggregates without Terminal content or identity', () => {
         const recordMetric = vi.fn<StructuredLogger['recordMetric']>();
         const logger = { recordMetric } as unknown as StructuredLogger;
@@ -22,5 +40,170 @@ describe('PTY observability', () => {
             outcome: 'overflow',
         });
         expect(recordMetric).toHaveBeenCalledTimes(2);
+    });
+
+    it('writes one bounded summary after 250ms of resize quiet', () => {
+        const { logger, write } = resizeLogger();
+        const observer = new PtyResizeBurstObserver(logger);
+
+        observer.recordApplied('terminal-1', { cols: 120, rows: 40 });
+        vi.advanceTimersByTime(40);
+        observer.recordApplied('terminal-1', { cols: 120, rows: 40 });
+        vi.advanceTimersByTime(40);
+        observer.recordApplied('terminal-1', { cols: 4, rows: 12 });
+        vi.advanceTimersByTime(40);
+        observer.recordApplied('terminal-1', { cols: 80, rows: 30 });
+
+        vi.advanceTimersByTime(249);
+        expect(write).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(1);
+
+        expect(write).toHaveBeenCalledOnce();
+        expect(write).toHaveBeenCalledWith('info', 'pty.resize_burst', {
+            fields: {
+                code: 'PTY_RESIZE_BURST',
+                terminalId: 'terminal-1',
+                side: 'terminal-host-pty',
+                sampleCount: 4,
+                changeCount: 2,
+                startCols: 120,
+                startRows: 40,
+                minCols: 4,
+                minRows: 12,
+                maxCols: 120,
+                maxRows: 40,
+                finalCols: 80,
+                finalRows: 30,
+                durationMs: 120,
+                flushReason: 'quiet',
+                truncated: false,
+            },
+        });
+    });
+
+    it('bounds a continuously changing resize burst at five seconds', () => {
+        const { logger, write } = resizeLogger();
+        const observer = new PtyResizeBurstObserver(logger);
+        observer.recordApplied('terminal-1', { cols: 120, rows: 40 });
+
+        for (let index = 1; index <= 20; index += 1) {
+            vi.advanceTimersByTime(240);
+            observer.recordApplied('terminal-1', {
+                cols: index % 2 === 0 ? 120 : 4,
+                rows: index % 2 === 0 ? 40 : 12,
+            });
+        }
+        vi.advanceTimersByTime(200);
+
+        expect(write).toHaveBeenCalledOnce();
+        expect(write.mock.calls[0]?.[2]?.fields).toMatchObject({
+            terminalId: 'terminal-1',
+            durationMs: 4_800,
+            flushReason: 'max-duration',
+            truncated: false,
+        });
+    });
+
+    it('flushes an unfinished burst once on dispose and clears its timers', () => {
+        const { logger, write } = resizeLogger();
+        const observer = new PtyResizeBurstObserver(logger);
+        observer.recordApplied('terminal-1', { cols: 120, rows: 40 });
+        vi.advanceTimersByTime(50);
+        observer.recordApplied('terminal-1', { cols: 4, rows: 12 });
+
+        observer.dispose();
+
+        expect(write).toHaveBeenCalledOnce();
+        expect(write.mock.calls[0]?.[2]?.fields).toMatchObject({
+            terminalId: 'terminal-1',
+            finalCols: 4,
+            finalRows: 12,
+            durationMs: 50,
+            flushReason: 'disposed',
+            truncated: false,
+        });
+
+        vi.advanceTimersByTime(10_000);
+        expect(write).toHaveBeenCalledOnce();
+    });
+
+    it('isolates Terminal bursts and retires one without a late timer', () => {
+        const { logger, write } = resizeLogger();
+        const observer = new PtyResizeBurstObserver(logger);
+        observer.recordApplied('terminal-1', { cols: 120, rows: 40 });
+        observer.recordApplied('terminal-2', { cols: 80, rows: 30 });
+
+        observer.disposeTerminal('terminal-1');
+        expect(write).toHaveBeenCalledOnce();
+        expect(write.mock.calls[0]?.[2]?.fields).toMatchObject({
+            terminalId: 'terminal-1',
+            flushReason: 'disposed',
+        });
+
+        vi.advanceTimersByTime(250);
+        expect(write).toHaveBeenCalledTimes(2);
+        expect(write.mock.calls[1]?.[2]?.fields).toMatchObject({
+            terminalId: 'terminal-2',
+            flushReason: 'quiet',
+        });
+
+        vi.advanceTimersByTime(5_000);
+        expect(write).toHaveBeenCalledTimes(2);
+    });
+
+    it('saturates counts while retaining the final applied grid', () => {
+        const { logger, write } = resizeLogger();
+        const observer = new PtyResizeBurstObserver(logger);
+
+        for (let index = 0; index <= 10_000; index += 1)
+            observer.recordApplied('terminal-1', {
+                cols: index % 2 === 0 ? 120 : 80,
+                rows: 30,
+            });
+        observer.dispose();
+
+        expect(write.mock.calls[0]?.[2]?.fields).toMatchObject({
+            terminalId: 'terminal-1',
+            sampleCount: 10_000,
+            changeCount: 9_999,
+            finalCols: 120,
+            finalRows: 30,
+            truncated: true,
+        });
+    });
+
+    it('keeps the PTY resize log field set content-free', () => {
+        const { logger, write } = resizeLogger();
+        const observer = new PtyResizeBurstObserver(logger);
+        observer.recordApplied('opaque-terminal-id', { cols: 80, rows: 30 });
+        observer.recordApplied('opaque-terminal-id', { cols: 4, rows: 12 });
+        observer.dispose();
+
+        const fields = write.mock.calls[0]?.[2]?.fields;
+        expect(
+            Object.keys(fields ?? {}).toSorted((left, right) => left.localeCompare(right)),
+        ).toEqual(
+            [
+                'changeCount',
+                'code',
+                'durationMs',
+                'finalCols',
+                'finalRows',
+                'flushReason',
+                'maxCols',
+                'maxRows',
+                'minCols',
+                'minRows',
+                'sampleCount',
+                'side',
+                'startCols',
+                'startRows',
+                'terminalId',
+                'truncated',
+            ].toSorted((left, right) => left.localeCompare(right)),
+        );
+        expect(JSON.stringify(fields)).not.toMatch(
+            /terminalOutput|snapshot|command|cwd|path|environment|private transcript/u,
+        );
     });
 });
