@@ -1,5 +1,4 @@
 import { caxri } from '../../lib/caxri';
-import { openSettings } from '../../stores/dialogs';
 import type { ToastKind, ToastOptions } from '../../stores/toasts';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import type { TerminalRendererStatus } from '../terminal/terminal-renderer';
@@ -8,7 +7,6 @@ const GPU_PROCESS_RECOVERY_MESSAGE =
     'A GPU process crash interrupted rendering. Caxri switched affected Terminals to software rendering.';
 const TERMINAL_GPU_FALLBACK_MESSAGE =
     'GPU rendering failed in a Terminal. Caxri switched it to software rendering.';
-const GPU_SAFE_MODE_MESSAGE = 'Caxri disabled hardware acceleration after repeated GPU crashes.';
 const GPU_INCIDENT_MERGE_MS = 500;
 const MAX_REMEMBERED_GPU_INCIDENTS = 64;
 const MAX_REMEMBERED_FAILED_TERMINALS = 256;
@@ -22,7 +20,6 @@ interface RendererStatusInput {
 interface GpuRecoveryNotificationCoordinatorOptions {
     clearTimer(handle: number): void;
     now(): number;
-    openGpuSettings?(): void;
     pushToast(kind: ToastKind, message: string, options?: ToastOptions): void;
     restartInGpuSafeMode(): void;
     setTimer(callback: () => void, delayMs: number): number;
@@ -84,17 +81,6 @@ export function createGpuRecoveryNotificationCoordinator(
         disposeTerminal(terminalId: string): void {
             cancelPendingLocalFallback(terminalId);
         },
-        notifyAutomaticGpuSafeMode(): void {
-            options.pushToast('info', GPU_SAFE_MODE_MESSAGE, {
-                persist: true,
-                ...(options.openGpuSettings && {
-                    action: {
-                        label: 'Open Settings',
-                        onSelect: () => options.openGpuSettings?.(),
-                    },
-                }),
-            });
-        },
         notifyGpuProcessRecovery,
         observeTerminalRendererStatus(input: RendererStatusInput): void {
             if (input.status.mode === 'webgl' && input.status.reason === 'active') {
@@ -137,7 +123,6 @@ export function createGpuRecoveryNotificationCoordinator(
 export const gpuRecoveryNotificationCoordinator = createGpuRecoveryNotificationCoordinator({
     clearTimer: (handle) => clearTimeout(handle),
     now: () => Date.now(),
-    openGpuSettings: () => openSettings('hardware-acceleration'),
     pushToast,
     restartInGpuSafeMode: () => {
         // The shared command funnel turns a failed Desktop restart request into one actionable toast.
