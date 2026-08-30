@@ -109,6 +109,77 @@ describe('Git source-control view model', () => {
         expect(commandIds).toContain('caxri.git.discardAll');
     });
 
+    it('uses the deepest repository for the active file history', () => {
+        const nestedRepo = {
+            ...summary.repositories[0],
+            id: 'repo-nested',
+            kind: 'submodule' as const,
+            name: 'library',
+            rootPath: '/authorized/project/vendor/library',
+        };
+        const model = buildSourceControlViewModel({
+            activeResource: '/authorized/project/vendor/library/src/nested.ts',
+            mode: 'working',
+            summary: {
+                isRepository: true,
+                repositories: [summary.repositories[0], nestedRepo],
+            },
+        });
+
+        expect(model.fileHistory).toMatchObject({
+            label: 'File History',
+            description: 'nested.ts',
+            path: 'src/nested.ts',
+            tooltip: 'src/nested.ts',
+            history: {
+                id: 'repo-nested',
+                itemActivation: 'action',
+            },
+        });
+    });
+
+    it('preserves a macOS backslash filename in the history path', () => {
+        const model = buildSourceControlViewModel({
+            activeResource: String.raw`/authorized/project/src/a\b.ts`,
+            mode: 'working',
+            summary,
+        });
+
+        expect(model.fileHistory).toMatchObject({
+            description: String.raw`a\b.ts`,
+            path: String.raw`src/a\b.ts`,
+            tooltip: String.raw`src/a\b.ts`,
+        });
+    });
+
+    it.each([
+        ['no active resource', undefined],
+        ['an active resource outside the repositories', '/outside/project/file.ts'],
+    ])('keeps an empty File History model for %s', (_scenario, activeResource) => {
+        const model = buildSourceControlViewModel({ activeResource, mode: 'working', summary });
+
+        expect(model.fileHistory).toMatchObject({
+            label: 'File History',
+            emptyMessage: 'Open a file to view its history.',
+            history: {
+                id: 'repo-1',
+                itemActivation: 'action',
+            },
+        });
+        expect(model.fileHistory?.path).toBeUndefined();
+        expect(model.fileHistory?.description).toBeUndefined();
+    });
+
+    it('keeps repository Commits as a non-action history descriptor', () => {
+        const model = buildSourceControlViewModel({ mode: 'working', summary });
+
+        expect(model.providers[0].history).toMatchObject({
+            id: 'repo-1',
+            label: 'Commits',
+        });
+        expect(model.providers[0].history?.itemActivation).toBeUndefined();
+    });
+
     it('projects Last Commit details, file status, diff resources, and truncated state', () => {
         const details: GitCommitDetails = {
             commit: {

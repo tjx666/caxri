@@ -21,6 +21,7 @@ export interface SourceControlClient {
     historyPage(
         request: {
             historyId: string;
+            itemActivation?: 'action';
             offset: number;
             pageSize: number;
             path?: string;
@@ -29,7 +30,12 @@ export interface SourceControlClient {
         signal?: AbortSignal,
     ): Promise<SourceControlHistoryPage>;
     snapshot(
-        request: { preferredModeId?: string; refresh: number; revision?: string },
+        request: {
+            activeResource?: string;
+            preferredModeId?: string;
+            refresh: number;
+            revision?: string;
+        },
         signal?: AbortSignal,
     ): Promise<SourceControlViewModel>;
 }

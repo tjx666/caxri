@@ -378,8 +378,18 @@ export const sourceControlHistoryDescriptorSchema = z.object({
     detailsEmptyMessage: z.string().min(1).max(1_024),
     detailsTruncatedMessage: z.string().min(1).max(1_024),
     itemAccessibilityLabelPrefix: z.string().min(1).max(1_024),
+    itemActivation: z.literal('action').optional(),
     pageSize: z.number().int().min(1).max(50),
     revision: z.string().max(1_024).optional(),
+});
+
+const sourceControlFileHistorySchema = z.object({
+    label: z.string().min(1).max(1_024),
+    description: z.string().min(1).max(1_024).optional(),
+    tooltip: z.string().min(1).max(4_096).optional(),
+    emptyMessage: z.string().min(1).max(2_048),
+    path: z.string().min(1).max(4_096).optional(),
+    history: sourceControlHistoryDescriptorSchema,
 });
 
 const sourceControlProviderModelSchema = z.object({
@@ -413,6 +423,7 @@ export const sourceControlViewModelSchema = z.object({
     modes: z.array(sourceControlModeSchema).max(32),
     selectedModeId: treeItemIdSchema,
     refreshAction: sourceControlActionSchema,
+    fileHistory: sourceControlFileHistorySchema.optional(),
     providers: z.array(sourceControlProviderModelSchema).max(1_000),
     emptyMessage: z.string().min(1).max(2_048).optional(),
     truncationMessage: z.string().min(1).max(2_048).optional(),
@@ -429,6 +440,7 @@ const sourceControlHistoryItemSchema = z.object({
     avatarUrl: z.url().max(8_192).optional(),
     decorations: z.array(z.string().max(1_024)).max(50),
     body: z.string().max(16_384).optional(),
+    action: sourceControlActionSchema.optional(),
 });
 
 export const sourceControlHistoryPageSchema = z.object({
@@ -619,6 +631,7 @@ export type SourceControlAction = z.infer<typeof sourceControlActionSchema>;
 export type SourceControlActionEffect = z.infer<typeof sourceControlActionEffectSchema>;
 export type SourceControlActionResult = z.infer<typeof sourceControlActionResultSchema>;
 export type SourceControlHistoryDescriptor = z.infer<typeof sourceControlHistoryDescriptorSchema>;
+export type SourceControlFileHistory = z.infer<typeof sourceControlFileHistorySchema>;
 export type SourceControlHistoryDetails = z.infer<typeof sourceControlHistoryDetailsSchema>;
 export type SourceControlHistoryPage = z.infer<typeof sourceControlHistoryPageSchema>;
 export type SourceControlResource = z.infer<typeof sourceControlResourceSchema>;

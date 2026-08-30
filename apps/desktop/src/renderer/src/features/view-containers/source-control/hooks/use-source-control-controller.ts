@@ -1,11 +1,14 @@
+import type { Dispatch, SetStateAction } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type {
+    PaneResource,
     SourceControlAction,
     SourceControlActionEffect,
     SourceControlViewModel,
     SourceControlViewState,
 } from '@caxri/protocol';
+import { isVirtualEditorTabPath } from '@caxri/protocol';
 import { queryOptions, useQuery } from '@tanstack/react-query';
 
 import { useShouldReduceMotion } from '@/hooks/use-should-reduce-motion';
@@ -43,6 +46,7 @@ interface SourceControlViewEmptyController {
 
 interface SourceControlViewReadyController {
     activeEditorResource: string | undefined;
+    fileHistoryExpanded: boolean;
     flashedProviderId: string | undefined;
     focusProvider: (targetId: string) => void;
     isRefreshing: boolean;
@@ -51,6 +55,7 @@ interface SourceControlViewReadyController {
     runAction: (action: SourceControlAction) => Promise<void>;
     selectMode: (mode: SourceControlMode) => void;
     setDirectoriesExpanded: (keys: readonly string[], isExpanded: boolean) => void;
+    setFileHistoryExpanded: Dispatch<SetStateAction<boolean>>;
     setGroupExpanded: (groupId: string, isExpanded: boolean) => void;
     setProviderExpanded: (providerId: string, isExpanded: boolean) => void;
     status: 'ready';
@@ -59,20 +64,54 @@ interface SourceControlViewReadyController {
 export type SourceControlController =
     SourceControlViewEmptyController | SourceControlViewReadyController;
 
-function requestedModeFromQueryKey(queryKey: readonly unknown[]): string | undefined {
+type SourceControlSnapshotRequest = Record<string, unknown> & {
+    activeResource?: string;
+    preferredModeId?: string;
+    refresh: number;
+};
+
+interface SourceControlSnapshotIdentity {
+    activeResource: string | undefined;
+    preferredModeId: string | undefined;
+}
+
+function requestedSnapshotIdentityFromQueryKey(
+    queryKey: readonly unknown[],
+): SourceControlSnapshotIdentity | undefined {
     const parameters = queryKey[1];
     if (typeof parameters !== 'object' || parameters === null) return;
     const arguments_ = (parameters as { arguments?: unknown }).arguments;
     if (typeof arguments_ !== 'object' || arguments_ === null) return;
-    const preferredModeId = (arguments_ as { preferredModeId?: unknown }).preferredModeId;
-    return typeof preferredModeId === 'string' ? preferredModeId : undefined;
+    const { activeResource, preferredModeId } = arguments_ as {
+        activeResource?: unknown;
+        preferredModeId?: unknown;
+    };
+    return {
+        activeResource: typeof activeResource === 'string' ? activeResource : undefined,
+        preferredModeId: typeof preferredModeId === 'string' ? preferredModeId : undefined,
+    };
+}
+
+export function buildSourceControlSnapshotRequest(
+    activeResource: PaneResource | undefined,
+    preferredModeId: string | undefined,
+    refresh: number,
+): SourceControlSnapshotRequest {
+    return {
+        refresh,
+        ...(preferredModeId && { preferredModeId }),
+        ...(activeResource?.kind === 'file' &&
+            !isVirtualEditorTabPath(activeResource.path) && {
+                activeResource: activeResource.path,
+            }),
+    };
 }
 
 /**
- * Keeps the last resolved tree visible while a same-requested-mode refresh advances the query generation. Comparing
- * request keys instead of the provider's selected mode also covers a persisted mode that the provider had to replace
- * with a fallback. A real mode switch receives no placeholder, so Working Tree, Commit, and Pull Request data are never
- * presented as each other while the newly selected model loads.
+ * Keeps the last resolved tree visible while a same-context refresh advances the query generation. Comparing request
+ * keys instead of the provider's selected mode also covers a persisted mode that the provider had to replace with a
+ * fallback. A real mode or active-file switch receives no placeholder, so unrelated Source Control data is never
+ * presented while the newly selected model loads.
  *
  * Session and Workbench Root changes remount `ScopedSourceControlView` with a new scope key, so placeholder data never
  * crosses those ownership boundaries.
@@ -89,7 +128,7 @@ export function sourceControlSnapshotQueryOptions({
     configRevision: string;
     enabled: boolean;
     queryScope?: string;
-    request: { preferredModeId?: string; refresh: number };
+    request: SourceControlSnapshotRequest;
     viewId: string;
 }) {
     return queryOptions({
@@ -102,10 +141,20 @@ export function sourceControlSnapshotQueryOptions({
         ),
         queryFn: ({ signal }) => client.snapshot(request, signal),
         enabled,
-        placeholderData: (previousData, previousQuery) =>
-            requestedModeFromQueryKey(previousQuery?.queryKey ?? []) === request.preferredModeId
+        /**
+         * Revision-bound actions and history pages make cached snapshots unsafe after another file advances the model.
+         */
+        staleTime: 0,
+        placeholderData: (previousData, previousQuery) => {
+            const previousRequest = requestedSnapshotIdentityFromQueryKey(
+                previousQuery?.queryKey ?? [],
+            );
+            if (!previousRequest) return;
+            return previousRequest.preferredModeId === request.preferredModeId &&
+                previousRequest.activeResource === request.activeResource
                 ? previousData
-                : undefined,
+                : undefined;
+        },
     });
 }
 
@@ -123,6 +172,7 @@ export function useSourceControlController(
     const settings = useSettings();
     const activeResource = useActivePaneTab()?.resource;
     const queryScope = session ? `${session.id}:${session.workbenchProjectId}` : undefined;
+    const [fileHistoryExpanded, setFileHistoryExpanded] = useState(false);
     const [refresh, setRefresh] = useState(0);
     const [flashedProviderId, setFlashedProviderId] = useState<string>();
     const reduceMotion = useShouldReduceMotion();
@@ -132,10 +182,11 @@ export function useSourceControlController(
         navigationScope,
         persistedNavigation,
     );
-    const snapshotRequest = {
+    const snapshotRequest = buildSourceControlSnapshotRequest(
+        activeResource,
+        navigation.modeId,
         refresh,
-        ...(navigation.modeId && { preferredModeId: navigation.modeId }),
-    };
+    );
     const configRevision = JSON.stringify(
         configurationDependencies.map((key) => [
             key,
@@ -252,6 +303,7 @@ export function useSourceControlController(
 
     return {
         activeEditorResource: activeResource?.kind === 'file' ? activeResource.path : undefined,
+        fileHistoryExpanded,
         flashedProviderId,
         focusProvider,
         isRefreshing: snapshot.isFetching,
@@ -267,6 +319,7 @@ export function useSourceControlController(
                     isExpanded,
                 ),
             }),
+        setFileHistoryExpanded,
         setGroupExpanded: (groupId, isExpanded) =>
             updateNavigation({
                 expandedGroups: { ...navigation.expandedGroups, [groupId]: isExpanded },

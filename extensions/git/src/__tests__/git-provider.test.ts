@@ -522,6 +522,80 @@ describe('GitProvider', () => {
         provider.dispose();
     });
 
+    it('keeps the deepest active-file repository authorized and opens file history commits', async () => {
+        const nestedRepo = {
+            ...repo,
+            id: 'repo-nested',
+            kind: 'nested' as const,
+            name: 'nested',
+            rootPath: '/authorized/project/packages/nested',
+        };
+        const nestedSummary: GitSummary = {
+            isRepository: true,
+            repositories: [repo, nestedRepo],
+        };
+        const { git, provider } = createHarness();
+        vi.mocked(git.summary).mockResolvedValue(nestedSummary);
+        const cancellation = new CancellationTokenSource();
+        await provider.provideView({ scopeId, refresh: 0 }, cancellation.token);
+        await provider.openCommit(scopeId, repo.id, repo.head, cancellation.token);
+
+        const view = await provider.provideView(
+            {
+                activeResource: '/authorized/project/packages/nested/src/feature.ts',
+                scopeId,
+                preferredModeId: 'commit',
+                refresh: 0,
+            },
+            cancellation.token,
+        );
+        const page = await provider.provideHistoryPage(
+            {
+                historyId: nestedRepo.id,
+                itemActivation: 'action',
+                scopeId,
+                offset: 0,
+                pageSize: 5,
+                path: 'src/feature.ts',
+                revision: view.revision,
+            },
+            cancellation.token,
+        );
+        const action = page.items[0]?.action;
+        const actionResult = await provider.runAction(
+            { actionId: action!.id, scopeId, revision: view.revision },
+            cancellation.token,
+        );
+
+        expect(view.providers).toHaveLength(1);
+        expect(view.fileHistory).toMatchObject({
+            path: 'src/feature.ts',
+            history: { id: nestedRepo.id },
+        });
+        expect(git.commits).toHaveBeenCalledWith(
+            {
+                repositoryId: nestedRepo.id,
+                offset: 0,
+                pageSize: 5,
+                path: 'src/feature.ts',
+            },
+            expect.anything(),
+        );
+        expect(actionResult).toEqual({
+            revision: view.revision,
+            effects: [
+                {
+                    kind: 'open-editor',
+                    resource: `caxri-git-diff://commit-file/${nestedRepo.id}/${commitDetails.commit.sha}/src%2Ffeature.ts`,
+                },
+            ],
+            refresh: false,
+        });
+
+        cancellation.dispose();
+        provider.dispose();
+    });
+
     it('publishes loading state before cancellable Commit details complete', async () => {
         const pending = Promise.withResolvers<GitCommitDetails>();
         const { git, provider } = createHarness();
