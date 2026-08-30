@@ -162,6 +162,26 @@ test('extension fixture lazily activates a bounded virtualized keyboard tree', a
             tree.getByRole('treeitem', { name: 'Command count: 3', exact: true }),
         ).toBeVisible();
 
+        const deepTree = tree.getByRole('treeitem', { name: 'Deep tree', exact: true });
+        await deepTree.click();
+        const levelOne = tree.getByRole('treeitem', { name: 'Level 1 item 1', exact: true });
+        await levelOne.click();
+        const levelTwo = tree.getByRole('treeitem', { name: 'Level 2 item 1', exact: true });
+        await expect(levelTwo).toBeVisible();
+
+        await deepTree.click({ modifiers: ['Alt'] });
+        await expect(deepTree).toHaveAttribute('aria-expanded', 'false');
+        await expect(levelOne).toHaveCount(0);
+
+        await deepTree.click();
+        await expect(levelOne).toHaveAttribute('aria-expanded', 'false');
+        await expect(levelTwo).toHaveCount(0);
+        await deepTree.click();
+        await deepTree.click({ modifiers: ['Alt'] });
+        await expect(levelOne).toHaveAttribute('aria-expanded', 'true');
+        await expect(levelTwo).toBeVisible();
+        await expect(levelTwo).toHaveAttribute('aria-expanded', 'false');
+
         await lazy.focus();
         await lazy.press('ArrowRight');
         await expect(lazy).toHaveAttribute('aria-expanded', 'true');

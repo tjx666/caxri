@@ -19,6 +19,12 @@ test('Git disclosure state survives Secondary Side Bar tab switches', async () =
     await execFileAsync('git', ['add', 'README.md'], { cwd: root });
     await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: root });
     await writeFile(join(root, 'README.md'), 'after\n', 'utf8');
+    await execFileAsync('mkdir', ['-p', join(root, '.agents', 'acceptance', 'references')]);
+    await writeFile(
+        join(root, '.agents', 'acceptance', 'references', 'dev-server.md'),
+        'new file\n',
+        'utf8',
+    );
 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
@@ -27,10 +33,27 @@ test('Git disclosure state survives Secondary Side Bar tab switches', async () =
         const statusTab = running.page.getByRole('tab', { name: 'Status', exact: true });
         await gitTab.click();
 
-        const changes = running.page
-            .locator('.git-repository-section')
-            .getByRole('button', { name: 'Changes', exact: true });
+        const repo = running.page.locator('.git-repository-section');
+        const changes = repo.getByRole('button', { name: 'Changes', exact: true });
         await expect(changes).toHaveAttribute('aria-expanded', 'true');
+        const agents = repo.getByRole('button', { name: '.agents', exact: true });
+        const acceptance = repo.getByRole('button', { name: 'acceptance', exact: true });
+        const references = repo.getByRole('button', { name: 'references', exact: true });
+        await expect(references).toHaveAttribute('aria-expanded', 'true');
+        await expect(repo.locator('[data-disclosure="git-directory"]')).toHaveCount(0);
+
+        await agents.click({ modifiers: ['Alt'] });
+        await expect(agents).toHaveAttribute('aria-expanded', 'false');
+        await expect(acceptance).toHaveCount(0);
+
+        await agents.click();
+        await expect(acceptance).toHaveAttribute('aria-expanded', 'false');
+        await expect(references).toHaveCount(0);
+        await agents.click();
+        await agents.click({ modifiers: ['Alt'] });
+        await expect(references).toHaveAttribute('aria-expanded', 'true');
+        await expect(repo.getByText('dev-server.md', { exact: true })).toBeVisible();
+
         await changes.click();
         await expect(changes).toHaveAttribute('aria-expanded', 'false');
 

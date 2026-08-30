@@ -1,8 +1,24 @@
+import { collectTreeSubtree } from '@caxri/utils';
 import type { ProcessExplorerEntry } from '@desktop-shared/process-explorer';
 import { sortBy } from 'es-toolkit';
 
 export interface ProcessTreeNode extends ProcessExplorerEntry {
     children: ProcessTreeNode[];
+}
+
+export function setProcessSubtreeCollapsed(
+    current: ReadonlySet<number>,
+    root: ProcessTreeNode,
+    isCollapsed: boolean,
+): Set<number> {
+    const next = new Set(current);
+    const subtree = collectTreeSubtree(root, (candidate) => candidate.children);
+    for (const node of subtree) {
+        if (node.children.length === 0) continue;
+        if (isCollapsed) next.add(node.pid);
+        else next.delete(node.pid);
+    }
+    return next;
 }
 
 export function buildProcessTree(processes: ProcessExplorerEntry[]): ProcessTreeNode[] {

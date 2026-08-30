@@ -1,4 +1,5 @@
 import type { TreeItemDto } from '@caxri/protocol';
+import { MAX_VIEW_TREE_PERSISTED_IDS } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -11,6 +12,7 @@ import {
     replaceTreeChildren,
     serializeExtensionTreeState,
     toggleTreeItem,
+    toggleTreeItemSubtree,
 } from '../extension-tree-state';
 
 function item(options: {
@@ -102,6 +104,49 @@ describe('extension tree state', () => {
         expect(result.children.has(oldGrandchild.handle)).toBe(false);
         expect(result.retiredHandles).toEqual(new Set([stableChild.handle, oldGrandchild.handle]));
     });
+
+    it('toggles every known collapsible descendant while preserving unrelated branches', () => {
+        const root = item({ handle: 'root', id: 'root', collapsibleState: 'collapsed' });
+        const nested = item({ handle: 'nested', id: 'nested', collapsibleState: 'collapsed' });
+        const deep = item({ handle: 'deep', id: 'deep', collapsibleState: 'collapsed' });
+        const unknown = item({ handle: 'unknown', id: 'unknown', collapsibleState: 'collapsed' });
+        const leaf = item({ handle: 'leaf', id: 'leaf' });
+        const sibling = item({ handle: 'sibling', id: 'sibling', collapsibleState: 'collapsed' });
+        const children = new Map<string, readonly TreeItemDto[]>([
+            [root.handle, [nested, leaf]],
+            [nested.handle, [deep, unknown]],
+            [deep.handle, [root]],
+        ]);
+        let state = toggleTreeItem(createExtensionTreeState(), sibling);
+
+        state = toggleTreeItemSubtree(state, root, children);
+        expect(isTreeItemExpanded(state, root)).toBe(true);
+        expect(isTreeItemExpanded(state, nested)).toBe(true);
+        expect(isTreeItemExpanded(state, deep)).toBe(true);
+        expect(isTreeItemExpanded(state, unknown)).toBe(false);
+        expect(isTreeItemExpanded(state, sibling)).toBe(true);
+
+        state = toggleTreeItemSubtree(state, root, children);
+        expect(isTreeItemExpanded(state, root)).toBe(false);
+        expect(isTreeItemExpanded(state, nested)).toBe(false);
+        expect(isTreeItemExpanded(state, deep)).toBe(false);
+        expect(isTreeItemExpanded(state, sibling)).toBe(true);
+        expect(serializeExtensionTreeState(state).initializedItemIds).toEqual(
+            expect.arrayContaining(['root', 'nested', 'deep', 'sibling']),
+        );
+    });
+
+    it('prioritizes the most recently toggled branch at the persistence safety limit', () => {
+        const existing = Array.from({ length: MAX_VIEW_TREE_PERSISTED_IDS }, (_, index) =>
+            item({ handle: `old-${index}`, id: `old-${index}`, collapsibleState: 'collapsed' }),
+        );
+        const root = item({ handle: 'root', id: 'root', collapsibleState: 'collapsed' });
+        let state = reconcileTreeItems(createExtensionTreeState(), existing);
+
+        state = toggleTreeItemSubtree(state, root, new Map([[root.handle, []]]));
+
+        expect(serializeExtensionTreeState(state).initializedItemIds).toContain('root');
+    });
 });
 
 describe('extension tree interaction gate', () => {
@@ -129,6 +174,9 @@ describe('extension tree interaction gate', () => {
         expect(pointerTreeRowAction(branch, 'body', 'click', 2)).toBe('none');
         expect(pointerTreeRowAction(branch, 'body', 'doubleClick', 2)).toBe('none');
         expect(pointerTreeRowAction(branch, 'disclosure', 'click', 1)).toBe('toggle');
+        expect(pointerTreeRowAction(branch, 'disclosure', 'click', 1, true)).toBe(
+            'toggle-recursive',
+        );
         expect(pointerTreeRowAction(branch, 'disclosure', 'click', 2)).toBe('none');
     });
 
@@ -137,6 +185,9 @@ describe('extension tree interaction gate', () => {
         expect(pointerTreeRowAction(plainBranch, 'body', 'click', 2)).toBe('none');
         expect(pointerTreeRowAction(plainBranch, 'body', 'doubleClick', 2)).toBe('none');
         expect(pointerTreeRowAction(plainBranch, 'disclosure', 'click', 1)).toBe('toggle');
+        expect(pointerTreeRowAction(plainBranch, 'body', 'click', 1, true)).toBe(
+            'toggle-recursive',
+        );
     });
 
     it('keeps keyboard activation and expansion as single explicit actions', () => {

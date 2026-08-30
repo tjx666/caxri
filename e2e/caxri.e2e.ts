@@ -108,6 +108,46 @@ test('file changes refresh entries without collapsing expanded directories', asy
     }
 });
 
+test('Option-click recursively toggles the known Files subtree', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-file-tree-option-click-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', join(root, 'outer', 'inner')]);
+    await writeFile(join(root, 'outer', 'inner', 'inside.txt'), 'inside\n', 'utf8');
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    try {
+        await createShellSession(running.page);
+        const tree = running.page.getByRole('tree', { name: 'Files' });
+        const outer = tree.getByRole('treeitem', { name: 'outer', exact: true });
+        const inner = tree.getByRole('treeitem', { name: 'inner', exact: true });
+        const inside = tree.getByRole('treeitem', { name: 'inside.txt', exact: true });
+
+        await outer.click();
+        await inner.click();
+        await expect(inside).toBeVisible();
+
+        await outer.click({ modifiers: ['Alt'] });
+        await expect(outer).toHaveAttribute('aria-expanded', 'false');
+        await expect(inner).toHaveCount(0);
+
+        await outer.click();
+        await expect(inner).toHaveAttribute('aria-expanded', 'false');
+        await expect(inside).toHaveCount(0);
+        await outer.click();
+        await outer.click({ modifiers: ['Alt'] });
+        await expect(inner).toHaveAttribute('aria-expanded', 'true');
+        await expect(inside).toBeVisible();
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
 test('Terminal tabs reveal an accessible close action on hover and focus', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-tab-close-e2e-'));
     const userData = join(testDirectory, 'user-data');

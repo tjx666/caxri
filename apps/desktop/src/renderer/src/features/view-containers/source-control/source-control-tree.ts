@@ -1,5 +1,5 @@
 import type { SourceControlResource } from '@caxri/protocol';
-import { compareTreeNodesDirectoriesFirst } from '@caxri/utils';
+import { collectTreeSubtree, compareTreeNodesDirectoriesFirst } from '@caxri/utils';
 
 interface SourceControlTreeDirectory {
     children: SourceControlTreeNode[];
@@ -16,6 +16,12 @@ interface SourceControlTreeResource {
 }
 
 export type SourceControlTreeNode = SourceControlTreeDirectory | SourceControlTreeResource;
+
+function isSourceControlTreeDirectory(
+    node: SourceControlTreeNode,
+): node is SourceControlTreeDirectory {
+    return node.kind === 'directory';
+}
 
 function placeResource(root: SourceControlTreeDirectory, resource: SourceControlResource): void {
     const parts = resource.path.split('/').filter(Boolean);
@@ -57,4 +63,17 @@ export function buildSourceControlResourceTree(
     };
     sort(root);
     return root.children;
+}
+
+/**
+ * Returns the complete eager Source Control directory subtree as persisted disclosure keys.
+ */
+export function sourceControlDirectoryExpansionKeys(
+    node: SourceControlTreeNode,
+    providerKey: string,
+): string[] {
+    if (node.kind !== 'directory') return [];
+    return collectTreeSubtree(node, (directory) =>
+        directory.children.filter(isSourceControlTreeDirectory),
+    ).map((directory) => `${providerKey}:${directory.path}`);
 }

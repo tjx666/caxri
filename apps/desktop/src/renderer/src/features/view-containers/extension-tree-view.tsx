@@ -46,6 +46,8 @@ import {
     keyboardTreeRowAction,
     pointerTreeRowAction,
     toggleTreeItem,
+    toggleTreeItemSubtree,
+    treeItemSubtreeHandles,
 } from './extension-tree-state';
 import { ExtensionTreeTooltip } from './extension-tree-tooltip';
 import { ROOT_HANDLE, useExtensionTreeChildren } from './use-extension-tree-children';
@@ -352,22 +354,31 @@ function ExtensionTreeViewContent({
                 ?.focus(),
         );
     };
-    const toggle = (row: VisibleItemRow): void => {
+    const toggle = (row: VisibleItemRow, isRecursive = false): void => {
         if (row.item.collapsibleState === 'none') {
             runTreeCommand(row.item);
             return;
         }
         const willExpand = !isTreeItemExpanded(treeState, row.item);
-        updateTreeState((current) => toggleTreeItem(current, row.item));
+        updateTreeState((current) =>
+            isRecursive
+                ? toggleTreeItemSubtree(current, row.item, children)
+                : toggleTreeItem(current, row.item),
+        );
         if (willExpand && !children.has(row.item.handle)) {
             // eslint-disable-next-line no-void -- the loader reports failures in the tree's error row
             void loadChildren(row.item.handle);
         }
         if (!willExpand) {
-            const requestId = requests.current.get(row.item.handle);
-            if (requestId) {
-                // eslint-disable-next-line no-void -- cancellation is best-effort when collapsing a branch
-                void caxri.request('viewContainers.cancelRequest', { requestId });
+            const handles = isRecursive
+                ? treeItemSubtreeHandles(row.item, children)
+                : [row.item.handle];
+            for (const handle of handles) {
+                const requestId = requests.current.get(handle);
+                if (requestId) {
+                    // eslint-disable-next-line no-void -- cancellation is best-effort when collapsing a branch
+                    void caxri.request('viewContainers.cancelRequest', { requestId });
+                }
             }
         }
     };
@@ -467,11 +478,28 @@ function ExtensionTreeViewContent({
                                         row={row}
                                         rows={rows}
                                         onAction={(action) => {
-                                            if (action === 'toggle') toggle(row);
-                                            else if (action === 'activate') {
-                                                if (isMessageRefreshAction(row.item, refreshAction))
-                                                    refresh();
-                                                else runTreeCommand(row.item);
+                                            switch (action) {
+                                                case 'toggle': {
+                                                    toggle(row);
+                                                    break;
+                                                }
+                                                case 'toggle-recursive': {
+                                                    toggle(row, true);
+                                                    break;
+                                                }
+                                                case 'activate': {
+                                                    if (
+                                                        isMessageRefreshAction(
+                                                            row.item,
+                                                            refreshAction,
+                                                        )
+                                                    )
+                                                        refresh();
+                                                    else runTreeCommand(row.item);
+
+                                                    break;
+                                                }
+                                                // No default
                                             }
                                         }}
                                         onFocus={() =>
@@ -572,7 +600,7 @@ function TreeItemRow({
                 rowElement.current?.focus();
                 if (!isMessage)
                     dispatchRowAction(
-                        pointerTreeRowAction(row.item, 'body', 'click', event.detail),
+                        pointerTreeRowAction(row.item, 'body', 'click', event.detail, event.altKey),
                     );
             }}
             onFocus={onFocus}
@@ -648,7 +676,13 @@ function TreeItemRow({
                         event.stopPropagation();
                         rowElement.current?.focus();
                         dispatchRowAction(
-                            pointerTreeRowAction(row.item, 'disclosure', 'click', event.detail),
+                            pointerTreeRowAction(
+                                row.item,
+                                'disclosure',
+                                'click',
+                                event.detail,
+                                event.altKey,
+                            ),
                         );
                     }}
                 >

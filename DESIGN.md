@@ -203,8 +203,8 @@ layer:
    exist to bridge Radix and Base UI, and this repo is Base UI–only, so native Tailwind attribute
    variants are equivalent (see upstream debate in shadcn-ui/ui#10267).
 2. **Native CSS** (`interpolate-size: allow-keywords`, height `0 ↔ auto` transitions) — every
-   user-triggered disclosure: PrimarySidebar Project, Files search groups, Git
-   directory/repository/history, Project Status sections. The measured SecondarySidebar/Settings
+   user-triggered section disclosure: PrimarySidebar Project, Files search groups, Git
+   repository/history, Project Status sections. The measured SecondarySidebar/Settings
    chrome tab indicator also uses a native transform/width transition.
    `components/disclosure-motion.tsx` is the thin presence wrapper: it mounts content in the
    commit that flips `data-expanded` and releases collapsed DOM once the height transition
@@ -229,9 +229,8 @@ settlement fallbacks are token plus a safety margin (`motionSettleTimeoutMs`), n
 literal.
 
 Intentionally instant: initial bootstrap/restore, Session switches, tab-panel activation, Agent
-state transitions, Project drag settlement, folder glyph changes, Terminal panes/output, data refreshes, and
-asynchronously lazy-loaded expansion (the Files directory tree fetches children on expand — with
-no content there is no spatial continuity to explain). Do not stagger rows or neighboring tabs.
+state transitions, Project drag settlement, folder glyph changes, Terminal panes/output, data refreshes, and tree-item
+disclosures in Files, Source Control, and extension-contributed trees. Do not stagger rows or neighboring tabs.
 The Process Explorer window is out of scope (separate style layer, read-only diagnostics).
 
 The Session status icon is the narrow state-motion exception: unread attention pings so a newly
@@ -372,6 +371,10 @@ dialog naming the target ("Delete session 'api-fix'? Files on disk are not touch
 
 ## Interaction rules
 
+- `Option+click` on an existing tree or treegrid item disclosure target applies the clicked item's next state to that
+  item and every descendant already known to the local tree model. Lazy trees never crawl unknown filesystem or
+  extension branches for this gesture. Each tree keeps its existing row-versus-arrow activation behavior; section and
+  Project disclosures are not tree items.
 - Global shortcuts never fire while focus is in an editable target (inputs, textarea, Monaco,
   xterm) unless the binding explicitly opts in (e.g. save or opening Agent Actions from its
   running xterm).

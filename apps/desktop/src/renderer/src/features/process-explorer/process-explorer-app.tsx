@@ -8,7 +8,7 @@ import { createVisibilityAwarePoll } from '../../lib/poll-scheduler';
 import { applyCssTheme } from '../../lib/theme-css';
 import { cn } from '../../lib/utilities';
 import type { ProcessTreeNode } from './process-tree';
-import { buildProcessTree } from './process-tree';
+import { buildProcessTree, setProcessSubtreeCollapsed } from './process-tree';
 
 const SAMPLE_INTERVAL_MS = 2_000;
 
@@ -26,7 +26,7 @@ function ProcessRow({
     collapsed: Set<number>;
     depth: number;
     node: ProcessTreeNode;
-    toggle: (pid: number) => void;
+    toggle: (node: ProcessTreeNode, isRecursive: boolean) => void;
 }) {
     const isExpandable = node.children.length > 0;
     const isExpanded = isExpandable && !collapsed.has(node.pid);
@@ -49,7 +49,7 @@ function ProcessRow({
                         className="process-name flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 overflow-hidden border-0 bg-transparent p-0 text-left focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-foreground disabled:cursor-default disabled:text-inherit"
                         title={node.name}
                         disabled={!isExpandable}
-                        onClick={() => toggle(node.pid)}
+                        onClick={(event) => toggle(node, event.altKey)}
                     >
                         {isExpandable ? (
                             isExpanded ? (
@@ -136,11 +136,13 @@ export function ProcessExplorerApp() {
         };
     }, [refresh]);
     const roots = useMemo(() => buildProcessTree(snapshot?.processes ?? []), [snapshot?.processes]);
-    const toggle = (pid: number): void =>
+    const toggle = (node: ProcessTreeNode, isRecursive: boolean): void =>
         setCollapsed((current) => {
+            if (isRecursive)
+                return setProcessSubtreeCollapsed(current, node, !current.has(node.pid));
             const next = new Set(current);
-            if (next.has(pid)) next.delete(pid);
-            else next.add(pid);
+            if (next.has(node.pid)) next.delete(node.pid);
+            else next.add(node.pid);
             return next;
         });
     return (

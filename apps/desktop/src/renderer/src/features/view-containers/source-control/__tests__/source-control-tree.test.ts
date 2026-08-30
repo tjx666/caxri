@@ -1,7 +1,10 @@
 import type { SourceControlResource } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { buildSourceControlResourceTree } from '../source-control-tree';
+import {
+    buildSourceControlResourceTree,
+    sourceControlDirectoryExpansionKeys,
+} from '../source-control-tree';
 
 function resource(path: string): SourceControlResource {
     return {
@@ -25,6 +28,20 @@ describe('controlled Source Control resource tree', () => {
         ).toMatchObject([
             { kind: 'directory', name: 'src', children: [{ name: 'a.ts' }, { name: 'z.ts' }] },
             { kind: 'file', name: 'README.md' },
+        ]);
+    });
+
+    it('collects the selected directory and every nested directory for recursive disclosure', () => {
+        const [agents] = buildSourceControlResourceTree([
+            resource('.agents/acceptance/references/dev-server.md'),
+            resource('.agents/skills/README.md'),
+        ]);
+
+        expect(sourceControlDirectoryExpansionKeys(agents, 'pull-request:repo')).toEqual([
+            'pull-request:repo:.agents',
+            'pull-request:repo:.agents/acceptance',
+            'pull-request:repo:.agents/acceptance/references',
+            'pull-request:repo:.agents/skills',
         ]);
     });
 });

@@ -406,9 +406,8 @@ test('Files directory tree expands instantly with no disclosure-motion wrapper',
         await createProjectSession(running.page);
         const filesPanel = running.page.locator('.secondary-sidebar');
         await expect(filesPanel.locator('.file-list .tree-row')).toHaveCount(1);
-        // Files is the one user-triggered disclosure DESIGN.md keeps intentionally instant
-        // (lazy fetch, no spatial continuity to explain): confirm the tree never wraps its
-        // children in the shared presence layer that every other disclosure site uses.
+        // Files tree items are intentionally instant (lazy fetch, no spatial continuity to
+        // explain), so the tree never wraps its children in the shared presence layer.
         await expect(filesPanel.locator('.disclosure-motion')).toHaveCount(0);
 
         const directoryRow = filesPanel.getByRole('treeitem', { name: 'subdir' });

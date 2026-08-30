@@ -28,8 +28,10 @@ import { closeFileSearch, requestFileSearchFocus, useFileSearchStore } from './f
 import {
     fileOperationsForProject,
     fileTreeRootCaption,
+    knownDirectoryChildrenFromQueries,
     scopedValue,
     setScopedPathExpanded,
+    setScopedSubtreeExpanded,
     setScopedValue,
 } from './resource-explorer-state';
 
@@ -146,6 +148,7 @@ export interface ResourceExplorerController {
     setPathExpanded: (
         path: string,
         isNextExpanded: boolean | ((isCurrentExpanded: boolean) => boolean),
+        isRecursive?: boolean,
     ) => void;
     setSelectedPath: (path?: string) => void;
     toggleSearch: () => void;
@@ -265,10 +268,38 @@ export function useResourceExplorerController(): ResourceExplorerController | un
     const setPathExpanded = (
         path: string,
         isNextExpanded: boolean | ((isCurrentExpanded: boolean) => boolean),
-    ): void =>
-        setExpandedByScope((current) =>
-            setScopedPathExpanded(current, scopeId, path, isNextExpanded),
-        );
+        isRecursive = false,
+    ): void => {
+        const knownChildren = isRecursive
+            ? knownDirectoryChildrenFromQueries(
+                  queryClient
+                      .getQueryCache()
+                      .findAll({ queryKey: ['viewContainers.viewOperation'] })
+                      .map((query) => ({
+                          data: query.state.data,
+                          isInvalidated: query.state.isInvalidated,
+                          queryKey: query.queryKey,
+                      })),
+                  viewId,
+                  scopeId,
+              )
+            : undefined;
+        setExpandedByScope((current) => {
+            if (!isRecursive) return setScopedPathExpanded(current, scopeId, path, isNextExpanded);
+            const currentPaths = new Set(current[scopeId]);
+            const isExpanded =
+                typeof isNextExpanded === 'function'
+                    ? isNextExpanded(currentPaths.has(path))
+                    : isNextExpanded;
+            return setScopedSubtreeExpanded(
+                current,
+                scopeId,
+                path,
+                knownChildren ?? new Map(),
+                isExpanded,
+            );
+        });
+    };
     const isRootPasteEmpty = !clipboard || clipboard.projectId !== projectId;
     const isRootPasteBlocked = isPathBlockedByFileOperations(
         projectOperations,
