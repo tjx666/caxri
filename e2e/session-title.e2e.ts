@@ -38,6 +38,7 @@ test('Codex SessionStart binds a resumed thread before the first ordinary prompt
             id TEXT PRIMARY KEY,
             cwd TEXT,
             title TEXT,
+            name TEXT,
             created_at_ms INTEGER,
             updated_at_ms INTEGER,
             tokens_used INTEGER,
@@ -46,6 +47,7 @@ test('Codex SessionStart binds a resumed thread before the first ordinary prompt
         INSERT INTO threads VALUES (
             'resumed-codex-session',
             ${sqliteString(canonicalRoot)},
+            'Private resume prompt',
             ${sqliteString(resumedTitle)},
             ${Date.now() - 60_000},
             ${Date.now() - 60_000},
@@ -156,6 +158,7 @@ test('Agent output refreshes the Session title without opening Info', async () =
             id TEXT PRIMARY KEY,
             cwd TEXT,
             title TEXT,
+            name TEXT,
             created_at_ms INTEGER,
             updated_at_ms INTEGER,
             tokens_used INTEGER,
@@ -165,6 +168,7 @@ test('Agent output refreshes the Session title without opening Info', async () =
             'stale-agent-session',
             '${canonicalRoot}',
             '$debug https://github.com/lobehub/lobehub/issues/123',
+            NULL,
             ${Date.now() - 60_000},
             ${Date.now() - 60_000},
             0,
@@ -183,7 +187,7 @@ fi
 printf 'Fake Codex ready\n'
 while IFS= read -r line; do
   now_ms="$(date +%s)999"
-  /usr/bin/sqlite3 -cmd '.timeout 5000' "$CODEX_SQLITE_HOME/state_9.sqlite" "INSERT OR REPLACE INTO threads VALUES ('current-agent-session', '${canonicalRoot}', '[Image #1] hello', $now_ms, $now_ms, 0, 0);"
+  /usr/bin/sqlite3 -cmd '.timeout 5000' "$CODEX_SQLITE_HOME/state_9.sqlite" "INSERT OR REPLACE INTO threads VALUES ('current-agent-session', '${canonicalRoot}', '[Image #1] private prompt', 'hello', $now_ms, $now_ms, 0, 0);"
   printf 'received %s\n' "$line"
 done
 `,
@@ -214,7 +218,7 @@ done
                         '-cmd',
                         '.timeout 5000',
                         database,
-                        'SELECT title FROM threads;',
+                        'SELECT name FROM threads;',
                     ])
                 ).stdout.trim(),
             )
