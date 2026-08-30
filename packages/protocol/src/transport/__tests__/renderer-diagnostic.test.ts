@@ -51,7 +51,7 @@ const validPerformanceScenarioDiagnostic = {
     diagnosticId: 'd66947a8-0da0-4a4b-8629-a7694116d8e5',
     scenarioId: '08f3dd5f-5c18-49e2-bc25-e46262ec624d',
     entry: 'workbench',
-    action: 'benchmark.renderer',
+    action: 'session.switch',
     buildMode: 'profiling',
     durationMs: 750,
     documentVisible: true,
@@ -62,7 +62,6 @@ const validPerformanceScenarioDiagnostic = {
         longAnimationFrame: 'available',
         eventTiming: 'available',
         reactProfiler: 'available',
-        reactScan: 'active',
     },
     react: {
         commitCount: 3,
@@ -101,6 +100,10 @@ const validPerformanceScenarioDiagnostic = {
             },
         },
     },
+    requests: {
+        sessionSelect: { count: 1, totalDurationMs: 18, maxDurationMs: 18 },
+        appBootstrap: { count: 2, totalDurationMs: 24, maxDurationMs: 14 },
+    },
     longAnimationFrames: {
         count: 2,
         totalDurationMs: 112,
@@ -123,14 +126,6 @@ const validPerformanceScenarioDiagnostic = {
         intervalP95Ms: 32,
         maxIntervalMs: 48,
         missedFrameCount: 3,
-    },
-    reactScan: {
-        commitCount: 3,
-        renderCount: 20,
-        slowestComponent: 'TerminalPane',
-        slowestComponentRenderCount: 4,
-        slowestComponentTotalDurationMs: 18,
-        treeTruncated: false,
     },
     truncated: false,
 };
@@ -251,7 +246,17 @@ describe('Renderer diagnostic contract', () => {
 
         for (const invalid of [
             { action: 'arbitrary.user.value' },
+            { action: 'benchmark.renderer' },
+            { action: 'terminal.resize' },
+            { action: 'files.expand' },
+            { action: 'editor.open' },
             { durationMs: 120_001 },
+            {
+                requests: {
+                    ...validPerformanceScenarioDiagnostic.requests,
+                    appBootstrap: { count: 0, totalDurationMs: 1, maxDurationMs: 1 },
+                },
+            },
             { react: { ...validPerformanceScenarioDiagnostic.react, commitCount: 6 } },
             {
                 react: {
@@ -299,9 +304,9 @@ describe('Renderer diagnostic contract', () => {
                 },
             },
             {
-                reactScan: {
-                    ...validPerformanceScenarioDiagnostic.reactScan,
-                    slowestComponent: '/Users/example/private.tsx',
+                capabilities: {
+                    ...validPerformanceScenarioDiagnostic.capabilities,
+                    reactScan: 'active',
                 },
             },
             {
@@ -323,27 +328,9 @@ describe('Renderer diagnostic contract', () => {
                 },
             },
             {
-                capabilities: {
-                    ...validPerformanceScenarioDiagnostic.capabilities,
-                    reactScan: 'disabled',
-                },
-            },
-            {
-                reactScan: {
-                    ...validPerformanceScenarioDiagnostic.reactScan,
-                    commitCount: 21,
-                },
-            },
-            {
                 longAnimationFrames: {
                     ...validPerformanceScenarioDiagnostic.longAnimationFrames,
                     count: 2_001,
-                },
-            },
-            {
-                reactScan: {
-                    ...validPerformanceScenarioDiagnostic.reactScan,
-                    renderCount: 20_001,
                 },
             },
         ]) {

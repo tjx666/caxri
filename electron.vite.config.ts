@@ -19,7 +19,6 @@ import type { PluginOption } from 'vite';
  */
 const isBundleAnalysisEnabled = process.env.CAXRI_BUNDLE_ANALYZE === '1';
 const isReactProfilingEnabled = process.env.CAXRI_REACT_PROFILING === '1';
-const isRendererMonitoringEnabled = process.env.CAXRI_RENDERER_MONITORING === '1';
 
 function bundleAnalysisPlugins(reportName: string): PluginOption[] {
     if (!isBundleAnalysisEnabled) return [];
@@ -160,29 +159,11 @@ export default defineConfig(async ({ command }) => {
                 {
                     name: 'caxri-renderer-csp',
                     transformIndexHtml: {
-                        /**
-                         * The react-scan entry must be selected before Vite discovers the HTML module graph. A default
-                         * post-order transform changes only emitted HTML and silently leaves `main.tsx` as the bundled
-                         * entry. React profiling alone deliberately keeps `main.tsx`: CI budgets must not include the
-                         * observer overhead of the optional attribution tool.
-                         */
                         order: 'pre',
-                        handler(html: string, context) {
+                        handler(html: string) {
                             const connectSource =
                                 command === 'serve' ? "'self' ws://localhost:*" : "'self'";
-                            const withCsp = html.replace(
-                                '__CAXRI_CONNECT_SRC__',
-                                () => connectSource,
-                            );
-                            if (
-                                !isRendererMonitoringEnabled ||
-                                !context.path.endsWith('/index.html')
-                            )
-                                return withCsp;
-                            return withCsp.replace(
-                                '/src/main.tsx',
-                                '/src/features/renderer-performance/react-scan-bootstrap.ts',
-                            );
+                            return html.replace('__CAXRI_CONNECT_SRC__', () => connectSource);
                         },
                     },
                 },

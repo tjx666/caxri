@@ -17,6 +17,7 @@ import {
     stripExternalEditorTabs,
 } from '../features/editor/external-editor-state';
 import { gpuRecoveryNotificationCoordinator } from '../features/gpu/gpu-recovery-notifications';
+import { beginRendererPerformanceRequest } from '../features/renderer-performance/controller';
 import {
     dismissWorkbenchRootCandidate,
     showWorkbenchRootCandidate,
@@ -467,11 +468,14 @@ function applyStateChange(
 
 async function runLoadBootstrap(): Promise<void> {
     const terminalReadSequence = beginTerminalRead();
+    const finishPerformanceRequest = beginRendererPerformanceRequest('app.bootstrap');
     try {
         const readStamp = sessionStateWrites.sent;
         const state = await caxri.request('app.bootstrap');
+        finishPerformanceRequest();
         applySnapshot(state, readStamp, terminalReadSequence);
     } catch (error: unknown) {
+        finishPerformanceRequest();
         pushToast('error', describeFailure(error, 'Unable to attach to the Runtime'));
     } finally {
         finishTerminalRead(terminalReadSequence);

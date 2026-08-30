@@ -86,7 +86,7 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
             });
             return;
         }
-        const { react, longAnimationFrames, interactions, frames, reactScan, capabilities } =
+        const { react, requests, longAnimationFrames, interactions, frames, capabilities } =
             diagnostic;
         options.logger()?.write('info', logEventCatalog.renderer.performanceScenario, {
             correlationId: diagnostic.scenarioId,
@@ -104,7 +104,6 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
                 longAnimationFrameCapability: capabilities.longAnimationFrame,
                 eventTimingCapability: capabilities.eventTiming,
                 reactProfilerCapability: capabilities.reactProfiler,
-                reactScanCapability: capabilities.reactScan,
                 reactCommitCount: react.commitCount,
                 reactProfiledRenderCount: react.profiledRenderCount,
                 reactMountRenderCount: react.mountRenderCount,
@@ -144,6 +143,12 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
                     react.surfaces['secondary-sidebar'].actualDurationTotalMs,
                 reactSecondarySidebarBaseDurationMaxMs:
                     react.surfaces['secondary-sidebar'].baseDurationMaxMs,
+                sessionSelectRequestCount: requests.sessionSelect.count,
+                sessionSelectRequestTotalDurationMs: requests.sessionSelect.totalDurationMs,
+                sessionSelectRequestMaxDurationMs: requests.sessionSelect.maxDurationMs,
+                appBootstrapRequestCount: requests.appBootstrap.count,
+                appBootstrapRequestTotalDurationMs: requests.appBootstrap.totalDurationMs,
+                appBootstrapRequestMaxDurationMs: requests.appBootstrap.maxDurationMs,
                 longAnimationFrameCount: longAnimationFrames.count,
                 longAnimationFrameTotalDurationMs: longAnimationFrames.totalDurationMs,
                 longAnimationFrameMaxDurationMs: longAnimationFrames.maxDurationMs,
@@ -163,12 +168,6 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
                 frameIntervalP95Ms: frames.intervalP95Ms,
                 frameMaxIntervalMs: frames.maxIntervalMs,
                 estimatedMissedFrameCount: frames.missedFrameCount,
-                reactScanCommitCount: reactScan.commitCount,
-                reactScanRenderCount: reactScan.renderCount,
-                reactScanSlowestComponent: reactScan.slowestComponent,
-                reactScanSlowestComponentRenderCount: reactScan.slowestComponentRenderCount,
-                reactScanSlowestComponentTotalDurationMs: reactScan.slowestComponentTotalDurationMs,
-                reactScanTreeTruncated: reactScan.treeTruncated,
                 truncated: diagnostic.truncated,
             },
         });

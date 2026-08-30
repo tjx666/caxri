@@ -27,12 +27,11 @@ export interface InteractionPerformanceSample {
     processingDurationMs: number;
 }
 
-export interface ReactScanCommitSample {
-    commitId: number;
-    componentName: string | null;
-    renderCount: number;
-    totalDurationMs: number;
-    treeTruncated: boolean;
+export type RendererPerformanceRequest = 'app.bootstrap' | 'session.select';
+
+export interface RequestPerformanceSample {
+    durationMs: number;
+    request: RendererPerformanceRequest;
 }
 
 export interface RendererPerformanceSamples {
@@ -48,7 +47,7 @@ export interface RendererPerformanceSamples {
     interactions: readonly InteractionPerformanceSample[];
     longAnimationFrames: readonly LongAnimationFrameSample[];
     reactProfiles: readonly ReactProfileSample[];
-    reactScanCommits: readonly ReactScanCommitSample[];
+    requests: readonly RequestPerformanceSample[];
     scenarioId: string;
     startedAt: number;
     truncated: boolean;
@@ -58,7 +57,6 @@ export interface RendererPerformanceSamples {
 const maximumDurationMs = 120_000;
 const maximumCount = 1_000_000;
 const maximumFrameSamples = 20_000;
-const safeComponentName = /^[\w $().:#[\]-]+$/u;
 
 function boundedDuration(value: number): number {
     if (!Number.isFinite(value)) return 0;
@@ -132,6 +130,31 @@ function summarizeReact(
     };
 }
 
+function summarizeRequests(
+    samples: readonly RequestPerformanceSample[],
+): RendererPerformanceScenarioDiagnostic['requests'] {
+    const summaries: Record<
+        RendererPerformanceRequest,
+        RendererPerformanceScenarioDiagnostic['requests']['sessionSelect']
+    > = {
+        'session.select': { count: 0, totalDurationMs: 0, maxDurationMs: 0 },
+        'app.bootstrap': { count: 0, totalDurationMs: 0, maxDurationMs: 0 },
+    };
+
+    for (const sample of samples) {
+        const summary = summaries[sample.request];
+        const durationMs = boundedDuration(sample.durationMs);
+        summary.count = boundedCount(summary.count + 1);
+        summary.totalDurationMs = boundedDuration(summary.totalDurationMs + durationMs);
+        summary.maxDurationMs = boundedDuration(Math.max(summary.maxDurationMs, durationMs));
+    }
+
+    return {
+        sessionSelect: summaries['session.select'],
+        appBootstrap: summaries['app.bootstrap'],
+    };
+}
+
 function summarizeFrames(
     timestamps: readonly number[],
 ): RendererPerformanceScenarioDiagnostic['frames'] {
@@ -170,62 +193,9 @@ function summarizeFrames(
     };
 }
 
-function summarizeReactScan(samples: readonly ReactScanCommitSample[]): {
-    summary: RendererPerformanceScenarioDiagnostic['reactScan'];
-    discardedUnsafeName: boolean;
-} {
-    const componentAggregates = new Map<string, { renderCount: number; totalDurationMs: number }>();
-    let isDiscardedUnsafeName = false;
-    for (const sample of samples) {
-        const componentName = sample.componentName;
-        const isSafeName =
-            componentName !== null &&
-            componentName.length <= 120 &&
-            safeComponentName.test(componentName);
-        const name =
-            isSafeName && componentName !== 'Anonymous' && /^[A-Z]/u.test(componentName)
-                ? componentName
-                : null;
-        if (!name) {
-            isDiscardedUnsafeName ||= componentName !== null && !isSafeName;
-            continue;
-        }
-        const aggregate = componentAggregates.get(name) ?? { renderCount: 0, totalDurationMs: 0 };
-        aggregate.renderCount += boundedCount(sample.renderCount);
-        aggregate.totalDurationMs += boundedDuration(sample.totalDurationMs);
-        componentAggregates.set(name, aggregate);
-    }
-    const slowest = [...componentAggregates]
-        .toSorted((left, right) => right[1].totalDurationMs - left[1].totalDurationMs)
-        .at(0);
-    const renderCount = boundedCount(
-        samples.reduce((total, sample) => total + boundedCount(sample.renderCount), 0),
-    );
-    const slowestComponent = slowest
-        ? {
-              name: slowest[0],
-              renderCount: slowest[1].renderCount,
-              totalDurationMs: slowest[1].totalDurationMs,
-          }
-        : { name: renderCount > 0 ? 'Unknown' : null, renderCount, totalDurationMs: 0 };
-
-    return {
-        summary: {
-            commitCount: boundedCount(new Set(samples.map((sample) => sample.commitId)).size),
-            renderCount,
-            slowestComponent: slowestComponent.name,
-            slowestComponentRenderCount: boundedCount(slowestComponent.renderCount),
-            slowestComponentTotalDurationMs: boundedDuration(slowestComponent.totalDurationMs),
-            treeTruncated: samples.some((sample) => sample.treeTruncated),
-        },
-        discardedUnsafeName: isDiscardedUnsafeName,
-    };
-}
-
 export function summarizeRendererPerformance(
     samples: RendererPerformanceSamples,
 ): RendererPerformanceScenarioDiagnostic {
-    const reactScan = summarizeReactScan(samples.reactScanCommits);
     const longAnimationFrames = samples.longAnimationFrames;
     const interactions = samples.interactions;
     return {
@@ -242,6 +212,7 @@ export function summarizeRendererPerformance(
         focusInterrupted: samples.focusInterrupted,
         capabilities: samples.capabilities,
         react: summarizeReact(samples.reactProfiles),
+        requests: summarizeRequests(samples.requests),
         longAnimationFrames: {
             count: boundedCount(longAnimationFrames.length),
             totalDurationMs: sum(longAnimationFrames.map((sample) => sample.durationMs)),
@@ -268,10 +239,6 @@ export function summarizeRendererPerformance(
             ),
         },
         frames: summarizeFrames(samples.frameTimestamps),
-        reactScan: reactScan.summary,
-        truncated:
-            samples.truncated ||
-            reactScan.discardedUnsafeName ||
-            samples.frameTimestamps.length - 1 > maximumFrameSamples,
+        truncated: samples.truncated || samples.frameTimestamps.length - 1 > maximumFrameSamples,
     };
 }

@@ -7,11 +7,12 @@ import type {
     InteractionPerformanceSample,
     LongAnimationFrameSample,
     ReactProfileSample,
-    ReactScanCommitSample,
     RendererPerformanceAction,
     RendererPerformanceBuildMode,
+    RendererPerformanceRequest,
     RendererPerformanceSamples,
     RendererPerformanceSurface,
+    RequestPerformanceSample,
 } from './aggregation';
 import { summarizeRendererPerformance } from './aggregation';
 
@@ -20,7 +21,7 @@ const maximumReactProfileSamples = 10_000;
 const maximumLongAnimationFrameSamples = 2_000;
 const maximumInteractionSamples = 2_000;
 const maximumFrameTimestamps = 20_001;
-const maximumReactScanSamples = 20_000;
+const maximumRequestSamples = 100;
 const supportedActions: ReadonlySet<string> = new Set(rendererPerformanceActions);
 
 interface LongAnimationFrameEntry extends PerformanceEntry {
@@ -35,26 +36,9 @@ interface EventTimingEntry extends PerformanceEntry {
     processingStart?: number;
 }
 
-interface ReactScanEvent {
-    available?: boolean;
-    kind: string;
-    timestamp: number;
-    tree?: Array<{ actualDuration: number; name: string }>;
-}
-
-interface ReactScanRuntime {
-    error?: boolean;
-    handle?: {
-        isActive(): boolean;
-        subscribe(listener: (event: ReactScanEvent) => void): () => void;
-    };
-    profilingAvailable?: boolean;
-}
-
 interface RendererPerformanceGlobal {
     caxriE2E?: unknown;
     caxriPerformance?: RendererPerformanceMonitor;
-    caxriReactScan?: ReactScanRuntime;
 }
 
 interface ActiveScenario extends RendererPerformanceSamples {
@@ -65,7 +49,8 @@ interface ActiveScenario extends RendererPerformanceSamples {
     longAnimationFrames: LongAnimationFrameSample[];
     observers: PerformanceObserver[];
     reactProfiles: ReactProfileSample[];
-    reactScanCommits: ReactScanCommitSample[];
+    requests: RequestPerformanceSample[];
+    pendingRequestCount: number;
     timeoutId: number;
 }
 
@@ -73,6 +58,7 @@ interface RendererPerformanceStatus {
     action: RendererPerformanceAction | null;
     capabilities: RendererPerformanceScenarioDiagnostic['capabilities'];
     frameSampleCount: number;
+    pendingRequestCount: number;
     scenarioId: string | null;
 }
 
@@ -98,18 +84,6 @@ function isReactProfilerAvailable(): boolean {
     return import.meta.env.DEV || __CAXRI_REACT_PROFILING__;
 }
 
-function reactScanRuntime(): ReactScanRuntime | undefined {
-    return (globalThis as RendererPerformanceGlobal).caxriReactScan;
-}
-
-function reactScanCapability(): RendererPerformanceScenarioDiagnostic['capabilities']['reactScan'] {
-    const runtime = reactScanRuntime();
-    if (runtime?.error) return 'error';
-    if (!runtime?.handle?.isActive()) return 'disabled';
-    if (runtime.profilingAvailable === false) return 'commit-tree-only';
-    return 'active';
-}
-
 function createScenario(action: RendererPerformanceAction): ActiveScenario {
     const startedAt = performance.now();
     return {
@@ -129,14 +103,14 @@ function createScenario(action: RendererPerformanceAction): ActiveScenario {
                 : 'unavailable',
             eventTiming: isBrowserEntryTypeSupported('event') ? 'available' : 'unavailable',
             reactProfiler: isReactProfilerAvailable() ? 'available' : 'disabled',
-            reactScan: reactScanCapability(),
         },
         reactProfiles: [],
+        requests: [],
+        pendingRequestCount: 0,
         longAnimationFrames: [],
         interactions: [],
         interactionById: new Map(),
         frameTimestamps: [],
-        reactScanCommits: [],
         truncated: false,
         observers: [],
         animationFrameId: 0,
@@ -229,26 +203,6 @@ function startObserver(
     }
 }
 
-function consumeReactScanEvent(scenario: ActiveScenario, event: ReactScanEvent): void {
-    if (event.kind !== 'commit') return;
-    const tree = event.tree ?? [];
-    for (const fiber of tree) {
-        if (fiber.actualDuration <= 0) continue;
-        pushBounded<ReactScanCommitSample>(
-            scenario.reactScanCommits,
-            {
-                commitId: event.timestamp,
-                componentName: fiber.name,
-                renderCount: 1,
-                totalDurationMs: fiber.actualDuration,
-                treeTruncated: tree.length >= 500,
-            },
-            maximumReactScanSamples,
-            scenario,
-        );
-    }
-}
-
 class RendererPerformanceController implements RendererPerformanceMonitor {
     private activeScenario?: ActiveScenario;
 
@@ -301,6 +255,7 @@ class RendererPerformanceController implements RendererPerformanceMonitor {
             observer.disconnect();
         }
         scenario.interactions = scenario.interactionById.values().toArray();
+        if (scenario.pendingRequestCount > 0) scenario.truncated = true;
         scenario.endedAt = performance.now();
         const diagnostic = summarizeRendererPerformance(scenario);
         globalThis.caxri.reportDiagnostic(diagnostic);
@@ -312,13 +267,13 @@ class RendererPerformanceController implements RendererPerformanceMonitor {
             scenarioId: this.activeScenario?.scenarioId ?? null,
             action: this.activeScenario?.action ?? null,
             frameSampleCount: this.activeScenario?.frameTimestamps.length ?? 0,
+            pendingRequestCount: this.activeScenario?.pendingRequestCount ?? 0,
             capabilities: this.activeScenario?.capabilities ?? {
                 longAnimationFrame: isBrowserEntryTypeSupported('long-animation-frame')
                     ? 'available'
                     : 'unavailable',
                 eventTiming: isBrowserEntryTypeSupported('event') ? 'available' : 'unavailable',
                 reactProfiler: isReactProfilerAvailable() ? 'available' : 'disabled',
-                reactScan: reactScanCapability(),
             },
         };
     }
@@ -340,6 +295,31 @@ class RendererPerformanceController implements RendererPerformanceMonitor {
         );
     }
 
+    beginRequest(request: RendererPerformanceRequest): () => void {
+        const scenario = this.activeScenario;
+        if (!scenario) return () => {};
+        const scenarioId = scenario.scenarioId;
+        const startedAt = performance.now();
+        scenario.pendingRequestCount += 1;
+        let isSettled = false;
+        return () => {
+            if (isSettled) return;
+            isSettled = true;
+            const activeScenario = this.activeScenario;
+            if (!activeScenario || activeScenario.scenarioId !== scenarioId) return;
+            activeScenario.pendingRequestCount = Math.max(
+                0,
+                activeScenario.pendingRequestCount - 1,
+            );
+            pushBounded(
+                activeScenario.requests,
+                { request, durationMs: performance.now() - startedAt },
+                maximumRequestSamples,
+                activeScenario,
+            );
+        };
+    }
+
     install(): void {
         const performanceGlobal = globalThis as RendererPerformanceGlobal;
         const shouldExpose =
@@ -350,12 +330,6 @@ class RendererPerformanceController implements RendererPerformanceMonitor {
         performanceGlobal.caxriPerformance = this;
         document.addEventListener('visibilitychange', this.handleVisibilityChange);
         addEventListener('blur', this.handleWindowBlur);
-        const runtime = reactScanRuntime();
-        runtime?.handle?.subscribe((event) => {
-            if (event.kind === 'profiling-hooks-status' && event.available !== undefined)
-                runtime.profilingAvailable = event.available;
-            if (this.activeScenario) consumeReactScanEvent(this.activeScenario, event);
-        });
     }
 }
 
@@ -369,6 +343,14 @@ export function recordReactProfile(
     commitTime: number,
 ): void {
     controller.recordReactProfile(surface, phase, actualDurationMs, baseDurationMs, commitTime);
+}
+
+/**
+ * Brackets the two fixed Server requests that determine Session-switch readiness. The returned callback is idempotent
+ * so every success and failure path can settle the same in-memory sample without adding a general request logger.
+ */
+export function beginRendererPerformanceRequest(request: RendererPerformanceRequest): () => void {
+    return controller.beginRequest(request);
 }
 
 /**

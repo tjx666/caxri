@@ -15,21 +15,18 @@ Each `renderer-performance-scenario` receipt contains:
 - Event Timing input, processing, and presentation delay maxima when Chromium exposes the API;
 - React Profiler commit and render counts for the Primary Sidebar, Workbench, and Secondary Sidebar,
   with per-surface p50, p95, maximum, total actual duration, and maximum base duration;
-- optional `react-scan/lite` commit, render, and slowest-component summaries in an instrumented build.
+- fixed `session.select` and `app.bootstrap` request counts, total duration, and maximum duration.
 
-Capabilities are explicit. An unavailable browser observer, a normal production React build, or a
-react-scan build limited to commit-tree data produces `unavailable`, `disabled`, or
-`commit-tree-only`; it never silently produces a meaningful-looking zero. `visibilityInterrupted`
-and `focusInterrupted` make a sample unsuitable for a strict frame budget.
+Capabilities are explicit. An unavailable browser observer or a normal production React build
+produces `unavailable` or `disabled`; it never silently produces a meaningful-looking zero.
+`visibilityInterrupted` and `focusInterrupted` make a sample unsuitable for a strict frame budget.
 
 The React Profiler summaries describe the stable surface boundaries, not every component.
-`react-scan/lite` adds component attribution only in an opt-in monitoring build. It is
-not the canonical schema and is never required for frame, Long Animation Frame, Event Timing, or
-surface-level React measurements.
-
-`react-scan/lite` owns React's profiling-hook channel while that instrumented window is running, so
-the React DevTools Timeline Profiler may not receive events at the same time. Restart without
-`CAXRI_RENDERER_MONITORING=1` when using the DevTools Timeline Profiler.
+Component attribution is deliberately not shipped. `react-scan/lite` 0.5.7 was tested against the
+profiling React 19.2 build, but exposed only commit-tree data and every measured commit violated the
+parent/child duration relationship required to derive self time. Its fiber `actualDuration` is also
+subtree-inclusive, so a component ranking would double-count work and misidentify ancestors as
+bottlenecks. The dependency and opt-in entry were removed rather than preserving an unusable tool.
 
 ## Repeatable benchmark
 
@@ -40,33 +37,36 @@ bun run benchmark:renderer
 ```
 
 The command prints exactly one receipt prefixed by `CAXRI_RENDERER_BENCHMARK` and writes the same JSON
-to `test-results/receipts/renderer-performance.json`. The fixed scenario switches between two
-Sessions, collapses and expands their Project, and hides and restores both sidebars three times. It
-therefore requires every stable surface to participate instead of accepting one global aggregate.
+to `test-results/receipts/renderer-performance.json`. The fixture creates eight Sessions and thirty
+files across five nested directories, expands `src/features` in both source and target workspaces,
+then measures exactly one Session-card click. Readiness requires the target Session, Terminal, and
+Files surface to be visible, two presented frames, and no pending measured request.
 
-The budgets below were calibrated from three local Apple M5 Max profiling runs on 2026-08-30. The
-observed render-count ranges were `61–102`, `36–37`, and `26`; the observed maximum total durations
-were `15.9 ms`, `7.7 ms`, and `5.2 ms`, respectively. Duration gates use roughly three times the
-observed maximum, while render-count gates retain enough headroom for asynchronous state commits
-without allowing an accidental whole-tree render per event to pass unnoticed.
+The budgets below were calibrated from three local profiling runs before and after removing the
+duplicate post-selection refresh on 2026-08-31. Before the repair, every run issued one
+`session.select` plus two full `app.bootstrap` reads; those reads took `7.2–7.5 ms` in total. After
+the repair, every run issued exactly one of each and the bootstrap segment took `2.7–3.4 ms`,
+removing `53–64%` of the full-snapshot read cost. The wall-clock range stayed `67.4–69.1 ms` because
+the scenario deliberately waits for two complete presentation frames.
 
-The first exact-head `m2-24` CI receipt on 2026-08-31 recorded `59` renders / `15.4 ms` for the
-Primary Sidebar, `36` / `9.1 ms` for the Workbench, and `26` / `7.1 ms` for the Secondary Sidebar.
-The dedicated Renderer performance step passed all three budgets and uploaded the receipt in
-[Actions run 33321345787](https://github.com/tjx666/caxri/actions/runs/33321345787). This
-cross-machine result is the calibration evidence for the current ceilings; future changes should
-preserve comparable exact-head CI receipts rather than relying on local samples alone.
+React was not the bottleneck: all six comparison runs recorded exactly `7`, `5`, and `3` renders
+for the Primary Sidebar, Workbench, and Secondary Sidebar. The optimized runs' maximum total React
+durations were `1.8 ms`, `1.3 ms`, and `1.0 ms`, respectively. Those surface totals did not justify
+speculative component memoization; the attempted react-scan component ranking was rejected for the
+inconsistent timing data described above.
 
 | Surface           | Required renders | Maximum renders | Maximum total actual duration |
 | ----------------- | ---------------: | --------------: | ----------------------------: |
-| Primary Sidebar   |                1 |             140 |                         50 ms |
-| Workbench         |                1 |              60 |                         30 ms |
-| Secondary Sidebar |                1 |              45 |                         20 ms |
+| Primary Sidebar   |                1 |              12 |                          8 ms |
+| Workbench         |                1 |               8 |                          6 ms |
+| Secondary Sidebar |                1 |               6 |                          5 ms |
 
-The benchmark also requires a focused, uninterrupted profiling window, bounded sample storage, and a
-matching structured-log record. Frame intervals, missed frames, Long Animation Frames, and Event
-Timing remain in the receipt for diagnosis but are not hard gates: display refresh rate and runner
-load make those browser-level values too noisy for a deterministic CI budget.
+The benchmark also requires one `session.select`, one `app.bootstrap`, each request below `100 ms`,
+an end-to-end duration below `500 ms`, no frame interval at or above `100 ms`, a focused and
+uninterrupted profiling window, bounded sample storage, and a matching structured-log record. The
+refresh-rate estimate, interval percentiles, missed-frame estimate, Long Animation Frames, and Event
+Timing remain diagnostic because display refresh rate and runner load make them too noisy for tighter
+CI budgets.
 
 The trusted macOS E2E job runs this command after the ordinary production-build suites. It rebuilds
 only for this final profiling scenario, uploads the JSON receipt for seven days, and exposes the step
@@ -80,13 +80,11 @@ scenario-specific; do not turn one local sample into a repository-wide threshold
 
 ## Development investigation
 
-The small `caxriPerformance` API is available in development, E2E, and profiling builds. To add
-component attribution through `react-scan/lite`, start the current worktree with instrumentation
-enabled:
+The small `caxriPerformance` API is available in development, E2E, and profiling builds. For an
+interactive investigation, start the current worktree:
 
 ```bash
-CAXRI_RENDERER_MONITORING=1 \
-  bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts dev
+bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts dev
 ```
 
 From the Workbench DevTools console, bracket one supported action and copy the receipt as inert JSON:
@@ -97,9 +95,14 @@ const scenarioId = globalThis.caxriPerformance.begin('session.switch');
 JSON.stringify(globalThis.caxriPerformance.end(scenarioId), null, 2);
 ```
 
-Supported actions are `benchmark.renderer`, `session.switch`, `terminal.resize`, `files.expand`, and
-`editor.open`. Starting a second scenario before ending the first fails clearly. A scenario is
-automatically finalized after two minutes so observers cannot grow without bound.
+`session.switch` is the only supported action. Starting a second scenario before ending the first
+fails clearly. A scenario is automatically finalized after two minutes so observers cannot grow
+without bound.
+
+Do not infer a component bottleneck from one run or from subtree-inclusive Fiber durations. Start a
+component investigation only after three exact-head runs identify the same Profiler surface as the
+regression. Any future component-attribution tool must prove bounded, internally consistent self
+time and an avoidable props/state/context/hook cause before it can justify a product-code change.
 
 The Main-process copy is queryable by an Agent through the existing CLI:
 
@@ -111,9 +114,8 @@ caxri logs query --event renderer.performance_scenario --limit 20 --json
 
 The Renderer-to-Main protocol is a strict allowlist. Receipts may contain fixed action/surface names,
 opaque UUIDs, booleans, counts, and bounded durations. They cannot contain DOM text, Project or source
-paths, source locations, props, state, stack traces, Terminal output, prompts, transcripts,
-credentials, or environment values. Optional component names are restricted to a short safe character
-set; rejected names are discarded and mark the receipt as truncated.
+paths, component names, source locations, props, state, stack traces, Terminal output, prompts,
+transcripts, credentials, or environment values.
 
 Frame timestamps and per-render samples exist only in Renderer memory during the active scenario. Main
 persists the finished aggregate as flat scalar fields so `logs query` remains directly usable by
