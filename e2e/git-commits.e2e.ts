@@ -133,6 +133,10 @@ test('File History follows the active editor and opens a committed file diff', a
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createProjectSession(running.page);
+        await running.page.getByRole('tab', { name: 'Git', exact: true }).click();
+        const repositories = running.page.locator('.git-repositories');
+        await expect(repositories.locator(':scope > .file-history-section')).toHaveCount(0);
+
         await running.page.getByRole('tab', { name: 'Files', exact: true }).click();
         await running.page.getByRole('treeitem', { name: 'empty', exact: true }).dblclick();
         const rootFileTab = running.page.getByRole('tab', { name: 'empty', exact: true });
@@ -146,7 +150,6 @@ test('File History follows the active editor and opens a committed file diff', a
         await rootFileTab.click();
 
         await running.page.getByRole('tab', { name: 'Git', exact: true }).click();
-        const repositories = running.page.locator('.git-repositories');
         const fileHistory = repositories.locator(':scope > .file-history-section');
         await expect(fileHistory).toHaveCount(1);
         await expect(repositories.locator(':scope > .git-repository-section')).toHaveCount(2);
@@ -189,12 +192,12 @@ test('File History follows the active editor and opens a committed file diff', a
         ).toBeVisible();
         await expect(running.page.locator('.git-file-diff')).toBeVisible();
 
-        const emptyFileHistory = repositories.locator(':scope > .file-history-section');
+        await expect(repositories.locator(':scope > .file-history-section')).toHaveCount(0);
+
+        await rootFileTab.click();
         await expect(
-            emptyFileHistory.getByRole('button', { name: 'File History', exact: true }),
+            repositories.getByRole('button', { name: 'File History: empty' }),
         ).toHaveAttribute('aria-expanded', 'true');
-        await expect(emptyFileHistory).toContainText('Open a file to view its history.');
-        await expect(emptyFileHistory.locator('.commit-row')).toHaveCount(0);
     } finally {
         try {
             await running.app.close();
