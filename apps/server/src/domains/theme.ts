@@ -4,7 +4,12 @@ import { extname } from 'node:path';
  * The theme token shape lives in the IPC contract; importers reuse it instead of redeclaring it.
  */
 import type { ThemeTokens } from '@caxri/protocol';
-import { CaxriError, themeImportFormats, themeTokensSchema as themeSchema } from '@caxri/protocol';
+import {
+    CaxriError,
+    draculaTheme,
+    themeImportFormats,
+    themeTokensSchema as themeSchema,
+} from '@caxri/protocol';
 import { parseJsonc } from '@caxri/system';
 import { contrastRatio } from '@caxri/utils';
 import { parse as parsePlist } from 'plist';
@@ -12,6 +17,8 @@ import YAML from 'yaml';
 
 import type { BoundedRegularFileReadOptions } from './bounded-file-reader';
 import { readBoundedRegularFileText } from './bounded-file-reader';
+
+export { draculaTheme } from '@caxri/protocol';
 
 type ThemeImportFormat = (typeof themeImportFormats)[number];
 
@@ -29,76 +36,6 @@ const APP_COLOR_SURFACE_LABELS = {
     elevated: 'raised panel background',
     surface: 'sidebar and status bar background',
 } satisfies Record<(typeof APP_COLOR_SURFACES)[number], string>;
-
-/**
- * Official Dracula OSS palette, normalized once for app, terminal, and Monaco consumers.
- */
-export const draculaTheme: ThemeTokens = {
-    id: 'dracula',
-    name: 'Dracula',
-    source: 'builtin',
-    colors: {
-        background: '#282a36',
-        surface: '#21222c',
-        elevated: '#343746',
-        foreground: '#f8f8f2',
-        /**
-         * Deliberately NOT Dracula's `#6272a4`. That value is the palette's _comment_ color, tuned for syntax that is
-         * meant to recede behind code; `--muted` is the UI's secondary-text role (133 of its 135 uses in the Renderer
-         * are `text-muted`), so it has to stay readable. On the lightest chrome surface (`elevated` `#343746`)
-         * `#6272a4` measures 3.35:1 against `surface` and only 2.50:1 against `elevated`, both below the WCAG AA 4.5:1
-         * floor for body text. This value keeps the same blue-grey hue and stays clearly subordinate to `foreground`,
-         * while clearing AA on every chrome surface (4.81:1 on `elevated`). The comment color itself is unchanged
-         * below, where it is still correct.
-         */
-        muted: '#9aa5c4',
-        /**
-         * Deliberately NOT Dracula's `#44475a` "current line" color: as the only hairline token it sits on every
-         * panel/tab/status-bar boundary, and at that brightness the workbench reads as a grid of visible frames. This
-         * value is barely above `background` (~3% foreground mix) so regions read as blocks of surface color, matching
-         * how VS Code's panel borders are nearly indistinguishable from the surfaces they separate.
-         */
-        border: '#2f313c',
-        selection: '#44475a',
-        accent: '#bd93f9',
-        success: '#50fa7b',
-        warning: '#f1fa8c',
-        danger: '#ff5555',
-    },
-    terminal: {
-        background: '#282a36',
-        foreground: '#f8f8f2',
-        cursor: '#f8f8f2',
-        selectionBackground: '#44475a',
-        black: '#21222c',
-        red: '#ff5555',
-        green: '#50fa7b',
-        yellow: '#f1fa8c',
-        blue: '#6272a4',
-        magenta: '#ff79c6',
-        cyan: '#8be9fd',
-        white: '#f8f8f2',
-        brightBlack: '#6272a4',
-        brightRed: '#ff6e6e',
-        brightGreen: '#69ff94',
-        brightYellow: '#ffffa5',
-        brightBlue: '#d6acff',
-        brightMagenta: '#ff92df',
-        brightCyan: '#a4ffff',
-        brightWhite: '#ffffff',
-    },
-    editor: {
-        background: '#282a36',
-        foreground: '#f8f8f2',
-        lineHighlight: '#44475a',
-        selection: '#44475a',
-        comment: '#6272a4',
-        keyword: '#ff79c6',
-        string: '#f1fa8c',
-        number: '#bd93f9',
-    },
-    warnings: [],
-};
 
 function normalizedHex(value: unknown, fallback: string): string {
     if (typeof value !== 'string') return fallback;

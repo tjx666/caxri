@@ -1,4 +1,6 @@
 import type { ThemeTokens } from '@caxri/protocol';
+import { builtinThemes, solarizedLightTheme } from '@caxri/protocol';
+import { contrastRatio } from '@caxri/utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { applyCssTheme } from './theme-css';
@@ -78,12 +80,37 @@ describe('applyCssTheme', () => {
     it('writes every theme.colors entry to documentElement.style as a --<key> custom property', () => {
         applyCssTheme(themeFixture());
 
-        expect(setProperty).toHaveBeenCalledTimes(11);
+        expect(setProperty).toHaveBeenCalledTimes(13);
         expect(setProperty).toHaveBeenCalledWith('--background', '#100000');
         expect(setProperty).toHaveBeenCalledWith('--surface', '#200000');
         expect(setProperty).toHaveBeenCalledWith('--foreground', '#400000');
         expect(setProperty).toHaveBeenCalledWith('--accent', '#800000');
         expect(setProperty).toHaveBeenCalledWith('--danger', '#b00000');
+    });
+
+    it('derives accessible foregrounds for semantic fill colors in every built-in theme', () => {
+        for (const theme of builtinThemes) {
+            setProperty.mockClear();
+            applyCssTheme(theme);
+            const properties = new Map(
+                setProperty.mock.calls.map(
+                    ([property, value]) => [property as string, value as string] as const,
+                ),
+            );
+
+            expect(
+                contrastRatio(properties.get('--accent-foreground')!, theme.colors.accent),
+                `${theme.id} accent foreground`,
+            ).toBeGreaterThanOrEqual(4.5);
+            expect(
+                contrastRatio(properties.get('--danger-foreground')!, theme.colors.danger),
+                `${theme.id} danger foreground`,
+            ).toBeGreaterThanOrEqual(4.5);
+        }
+
+        setProperty.mockClear();
+        applyCssTheme(solarizedLightTheme);
+        expect(setProperty).toHaveBeenCalledWith('--accent-foreground', '#000000');
     });
 
     it('never writes properties for theme.terminal or theme.editor tokens', () => {
