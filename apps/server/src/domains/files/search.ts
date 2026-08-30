@@ -1,7 +1,7 @@
 import { Buffer } from 'node:buffer';
 import type { Dirent } from 'node:fs';
 import { lstat, readdir, realpath } from 'node:fs/promises';
-import { basename, join, relative, sep } from 'node:path';
+import { basename, isAbsolute, join, relative, sep } from 'node:path';
 
 import type {
     FileDocument,
@@ -19,6 +19,7 @@ import { isTraversalExcludedName } from './ignore-rules';
 const DEFAULT_TIMEOUT_MS = 5_000;
 const DEFAULT_MAX_RESULTS = 500;
 const DEFAULT_MAX_SCANNED_FILES = 50_000;
+const DEFAULT_MAX_SCANNED_DIRECTORIES = 50_000;
 const MAX_PREVIEW_LENGTH = 300;
 const MAX_RESULT_PAYLOAD_BYTES = 512 * 1024;
 
@@ -26,6 +27,20 @@ export interface SearchServiceOptions {
     timeoutMs?: number;
     maxResults?: number;
     maxScannedFiles?: number;
+    maxScannedDirectories?: number;
+}
+
+export interface ProjectFileSuffixSearchResult {
+    matches: FileSearchMatch[];
+    scannedDirectories: number;
+    truncated: boolean;
+    canceled: boolean;
+}
+
+interface SuffixProbeResult {
+    paths: string[];
+    scannedDirectories: number;
+    truncated: boolean;
 }
 
 type SearchParameters = ServerOperationParameters<'files.search'>;
@@ -40,6 +55,10 @@ interface SearchAccumulator {
 
 function normalizedRelative(root: string, path: string): string {
     return relative(root, path).split(sep).join('/');
+}
+
+function isSearchCanceled(signal: AbortSignal): boolean {
+    return signal.aborted;
 }
 
 function escapeRegex(value: string): string {
@@ -157,6 +176,7 @@ export class SearchService {
     private readonly timeoutMs: number;
     private readonly maxResults: number;
     private readonly maxScannedFiles: number;
+    private readonly maxScannedDirectories: number;
 
     constructor(
         private readonly resolveSessionPath: ResolveSessionPath,
@@ -172,6 +192,8 @@ export class SearchService {
         this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
         this.maxResults = options.maxResults ?? DEFAULT_MAX_RESULTS;
         this.maxScannedFiles = options.maxScannedFiles ?? DEFAULT_MAX_SCANNED_FILES;
+        this.maxScannedDirectories =
+            options.maxScannedDirectories ?? DEFAULT_MAX_SCANNED_DIRECTORIES;
     }
 
     private async run(
@@ -429,6 +451,83 @@ export class SearchService {
         });
     }
 
+    private async readStableDirectory(directory: string): Promise<Dirent[] | undefined> {
+        try {
+            const before = await lstat(directory);
+            if (!before.isDirectory() || before.isSymbolicLink()) return;
+            const entries = await readdir(directory, { withFileTypes: true });
+            const after = await lstat(directory);
+            if (
+                !after.isDirectory() ||
+                after.isSymbolicLink() ||
+                before.dev !== after.dev ||
+                before.ino !== after.ino ||
+                (await realpath(directory)) !== directory
+            )
+                throw new CaxriError('IO', 'Directory changed during search');
+            return entries;
+        } catch (error) {
+            if (error instanceof CaxriError) throw error;
+            this.logSkipped(directory, error);
+            return undefined;
+        }
+    }
+
+    private async probeCaseInsensitiveSuffix(
+        directory: string,
+        entries: Dirent[],
+        suffixSegments: string[],
+        signal: AbortSignal,
+        startedAt: number,
+        maximumDirectories: number,
+        maximumMatches: number,
+    ): Promise<SuffixProbeResult> {
+        let states = [{ directory, entries }];
+        let scannedDirectories = 0;
+        const paths: string[] = [];
+        for (const [index, segment] of suffixSegments.entries()) {
+            const isLastSegment = index === suffixSegments.length - 1;
+            const nextStates: typeof states = [];
+            for (const state of states) {
+                for (const entry of state.entries) {
+                    if (signal.aborted) return { paths, scannedDirectories, truncated: false };
+                    if (performance.now() - startedAt > this.timeoutMs)
+                        return { paths, scannedDirectories, truncated: true };
+                    // eslint-disable-next-line unicorn/no-break-in-nested-loop -- unmatched entries remain in this directory
+                    if (entry.name.toLowerCase() !== segment.toLowerCase()) continue;
+                    const path = join(state.directory, entry.name);
+                    if (isLastSegment) {
+                        // eslint-disable-next-line unicorn/no-break-in-nested-loop -- only regular leaf entries can match
+                        if (!entry.isFile()) continue;
+                        try {
+                            // eslint-disable-next-line no-await-in-loop -- only matching suffix leaves are verified
+                            const stats = await lstat(path);
+                            if (stats.isFile() && stats.nlink === 1) paths.push(path);
+                        } catch (error) {
+                            this.logSkipped(path, error);
+                        }
+                        if (paths.length >= maximumMatches)
+                            return { paths, scannedDirectories, truncated: true };
+                        // eslint-disable-next-line unicorn/no-break-in-nested-loop -- leaf handling never creates a child state
+                        continue;
+                    }
+                    // eslint-disable-next-line unicorn/no-break-in-nested-loop -- intermediate suffix segments must be directories
+                    if (!entry.isDirectory()) continue;
+                    if (scannedDirectories >= maximumDirectories)
+                        return { paths, scannedDirectories, truncated: true };
+                    // eslint-disable-next-line no-await-in-loop -- only matching suffix branches are traversed
+                    const childEntries = await this.readStableDirectory(path);
+                    scannedDirectories += 1;
+                    if (childEntries) nextStates.push({ directory: path, entries: childEntries });
+                }
+            }
+            if (isLastSegment) break;
+            states = nextStates;
+            if (states.length === 0) break;
+        }
+        return { paths, scannedDirectories, truncated: false };
+    }
+
     async search(
         parameters: SearchParameters,
         externalSignal?: AbortSignal,
@@ -450,30 +549,125 @@ export class SearchService {
     }
 
     /**
-     * Reuses the bounded name-search walker for an already-authorized Project without canceling an unrelated Files
-     * panel search for the source Session. Only Server-owned callers may supply `root`; Renderer requests stay
-     * Session-rooted through `search` above.
+     * Finds an incomplete relative path without letting unrelated files consume the generic name-search budget. Each
+     * visited directory probes the complete suffix directly, so a large sibling tree costs directories rather than
+     * every file it contains. The Terminal resolver still reauthorizes every returned path before exposing it.
      */
-    searchProjectFileNames(
+    async searchProjectFileSuffixes(
         sessionId: string,
         root: string,
-        query: string,
+        suffix: string,
         signal: AbortSignal,
-    ): Promise<SearchResult> {
-        return this.run(
-            {
+    ): Promise<ProjectFileSuffixSearchResult> {
+        const startedAt = performance.now();
+        const rootBefore = await lstat(root);
+        if (!rootBefore.isDirectory() || rootBefore.isSymbolicLink())
+            throw new CaxriError('IO', 'Project root is not a directory');
+        const suffixSegments = suffix.split(/[\\/]/u);
+        if (
+            isAbsolute(suffix) ||
+            suffixSegments.some((segment) => !segment || segment === '.' || segment === '..')
+        )
+            throw new CaxriError('VALIDATION', 'File suffix is invalid');
+        if (
+            suffixSegments.some(
+                (segment) =>
+                    isTraversalExcludedName(segment) ||
+                    isTraversalExcludedName(segment.toLowerCase()),
+            )
+        )
+            return {
+                matches: [],
+                scannedDirectories: 0,
+                truncated: false,
+                canceled: signal.aborted,
+            };
+        const directories = [root];
+        const matches: FileSearchMatch[] = [];
+        let directoryIndex = 0;
+        let scannedDirectories = 0;
+        let isTruncated = false;
+
+        while (!isTruncated && !signal.aborted && directoryIndex < directories.length) {
+            if (
+                performance.now() - startedAt > this.timeoutMs ||
+                scannedDirectories >= this.maxScannedDirectories
+            ) {
+                isTruncated = true;
+                break;
+            }
+            const directory = directories[directoryIndex++];
+            scannedDirectories += 1;
+            // eslint-disable-next-line no-await-in-loop -- directory traversal is intentionally sequential and bounded
+            const entries = await this.readStableDirectory(directory);
+            if (!entries) continue;
+            // eslint-disable-next-line no-await-in-loop -- each directory is searched within one shared deadline
+            const probe = await this.probeCaseInsensitiveSuffix(
+                directory,
+                entries,
+                suffixSegments,
+                signal,
+                startedAt,
+                this.maxScannedDirectories - scannedDirectories,
+                this.maxResults - matches.length,
+            );
+            scannedDirectories += probe.scannedDirectories;
+            matches.push(
+                ...probe.paths.map((path) => ({
+                    path,
+                    relativePath: normalizedRelative(root, path),
+                })),
+            );
+            if (probe.truncated || matches.length >= this.maxResults) {
+                isTruncated = true;
+                break;
+            }
+            for (const entry of entries) {
+                // eslint-disable-next-line unicorn/no-break-in-nested-loop -- cancellation ends this directory and the outer loop
+                if (isSearchCanceled(signal)) break;
+                if (
+                    performance.now() - startedAt > this.timeoutMs ||
+                    directories.length >= this.maxScannedDirectories
+                ) {
+                    isTruncated = true;
+                    // eslint-disable-next-line unicorn/no-break-in-nested-loop -- the shared traversal budget is exhausted
+                    break;
+                }
+                if (entry.isDirectory() && !isTraversalExcludedName(entry.name))
+                    directories.push(join(directory, entry.name));
+            }
+        }
+
+        const rootAfter = await lstat(root);
+        if (
+            !rootAfter.isDirectory() ||
+            rootAfter.isSymbolicLink() ||
+            rootBefore.dev !== rootAfter.dev ||
+            rootBefore.ino !== rootAfter.ino ||
+            (await realpath(root)) !== root
+        )
+            throw new CaxriError('IO', 'Project root changed during search');
+        const canceled = signal.aborted;
+        this.logger.write('info', logEventCatalog.file.search, {
+            durationMs: performance.now() - startedAt,
+            fields: {
                 sessionId,
-                mode: 'name',
-                query,
-                caseSensitive: false,
-                wholeWord: false,
-                regex: false,
-                include: '',
-                exclude: '',
+                mode: 'path-suffix',
+                scannedDirectories,
+                matchCount: canceled ? 0 : matches.length,
+                truncated: canceled ? false : isTruncated,
+                canceled,
             },
-            signal,
-            performance.now(),
-            root,
-        );
+        });
+        return {
+            matches: canceled
+                ? []
+                : matches.toSorted((left, right) =>
+                      left.relativePath.localeCompare(right.relativePath),
+                  ),
+            scannedDirectories,
+            truncated: canceled ? false : isTruncated,
+            canceled,
+        };
     }
 }

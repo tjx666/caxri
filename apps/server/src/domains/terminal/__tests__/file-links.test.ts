@@ -13,7 +13,7 @@ const databases: CaxriDatabase[] = [];
 const fileServices: FileService[] = [];
 const temporaryDirectories: string[] = [];
 
-async function fixture() {
+async function fixture(options?: ConstructorParameters<typeof FileService>[4]) {
     const temporary = await mkdtemp(join(tmpdir(), 'caxri-terminal-file-link-'));
     temporaryDirectories.push(temporary);
     const userHome = await realpath(temporary);
@@ -27,6 +27,7 @@ async function fixture() {
         () => {},
         new StructuredLogger(join(userHome, 'logs')),
         () => 1_024 * 1_024,
+        options,
     );
     fileServices.push(files);
     return {
@@ -41,12 +42,12 @@ async function fixture() {
 
 function searchOptions(files: FileService) {
     return {
-        searchProjectFileNames: (
+        searchProjectFileSuffixes: (
             sessionId: string,
             root: string,
-            query: string,
+            suffix: string,
             signal: AbortSignal,
-        ) => files.searchProjectFileNames(sessionId, root, query, signal),
+        ) => files.searchProjectFileSuffixes(sessionId, root, suffix, signal),
     };
 }
 
@@ -63,6 +64,137 @@ afterEach(async () => {
 });
 
 describe('resolveTerminalFileLink', () => {
+    it('resolves a unique relative-path suffix inside the current Project', async () => {
+        const { database, files, sourceRoot, terminalId } = await fixture();
+        const directory = join(sourceRoot, 'lobehub', 'apps', 'server', 'src', 'routers');
+        const target = join(directory, 'message.ts');
+        await mkdir(directory, { recursive: true });
+        await writeFile(target, 'export {};\n');
+
+        await expect(
+            resolveTerminalFileLink(
+                database,
+                { terminalId, target: 'apps/server/src/routers/message.ts' },
+                searchOptions(files),
+            ),
+        ).resolves.toMatchObject({
+            status: 'authorized',
+            path: target,
+        });
+    });
+
+    it('finds a relative-path suffix after the generic file-scan budget is exhausted', async () => {
+        const { database, files, sourceRoot, terminalId } = await fixture({
+            search: { maxScannedFiles: 1 },
+        });
+        const targetDirectory = join(sourceRoot, 'alpha', 'apps', 'server', 'src', 'routers');
+        const target = join(targetDirectory, 'message.ts');
+        const busyDirectory = join(sourceRoot, 'z-busy');
+        await Promise.all([
+            mkdir(targetDirectory, { recursive: true }),
+            mkdir(busyDirectory, { recursive: true }),
+        ]);
+        await Promise.all([
+            writeFile(target, 'export {};\n'),
+            writeFile(join(busyDirectory, 'decoy.ts'), 'export {};\n'),
+        ]);
+
+        await expect(
+            resolveTerminalFileLink(
+                database,
+                { terminalId, target: 'apps/server/src/routers/message.ts' },
+                searchOptions(files),
+            ),
+        ).resolves.toMatchObject({
+            status: 'authorized',
+            path: target,
+        });
+    });
+
+    it('keeps suffix guessing case-insensitive', async () => {
+        const { database, files, sourceRoot, terminalId } = await fixture();
+        const directory = join(sourceRoot, 'Nested', 'Apps', 'Server');
+        const target = join(directory, 'Message.ts');
+        await mkdir(directory, { recursive: true });
+        await writeFile(target, 'export {};\n');
+
+        await expect(
+            resolveTerminalFileLink(
+                database,
+                { terminalId, target: 'apps/server/message.ts' },
+                searchOptions(files),
+            ),
+        ).resolves.toMatchObject({ status: 'authorized', path: target });
+    });
+
+    it.each(['a/', 'b/'])(
+        'resolves a unique relative-path suffix after a Git %s prefix',
+        async (prefix) => {
+            const { database, files, sourceRoot, terminalId } = await fixture();
+            const directory = join(sourceRoot, 'lobehub', 'apps', 'server');
+            const target = join(directory, 'message.ts');
+            await mkdir(directory, { recursive: true });
+            await writeFile(target, 'export {};\n');
+
+            await expect(
+                resolveTerminalFileLink(
+                    database,
+                    { terminalId, target: `${prefix}apps/server/message.ts` },
+                    searchOptions(files),
+                ),
+            ).resolves.toMatchObject({ status: 'authorized', path: target });
+        },
+    );
+
+    it('returns candidates when a relative-path suffix is ambiguous inside the current Project', async () => {
+        const { database, files, sourceRoot, terminalId } = await fixture();
+        const alpha = join(sourceRoot, 'alpha', 'apps', 'server', 'message.ts');
+        const beta = join(sourceRoot, 'beta', 'apps', 'server', 'message.ts');
+        await Promise.all([
+            mkdir(join(sourceRoot, 'alpha', 'apps', 'server'), { recursive: true }),
+            mkdir(join(sourceRoot, 'beta', 'apps', 'server'), { recursive: true }),
+        ]);
+        await Promise.all([writeFile(alpha, 'alpha\n'), writeFile(beta, 'beta\n')]);
+
+        await expect(
+            resolveTerminalFileLink(
+                database,
+                { terminalId, target: 'apps/server/message.ts' },
+                searchOptions(files),
+            ),
+        ).resolves.toMatchObject({
+            status: 'ambiguous',
+            candidates: [{ path: alpha }, { path: beta }],
+            truncated: false,
+        });
+    });
+
+    it('searches only the selected Workbench Project for an ordinary relative suffix', async () => {
+        const { database, files, sourceRoot, sourceSessionId, terminalId, userHome } =
+            await fixture();
+        const workbenchRoot = join(userHome, 'workbench');
+        const ownerTarget = join(sourceRoot, 'owner', 'apps', 'server', 'message.ts');
+        const workbenchTarget = join(workbenchRoot, 'nested', 'apps', 'server', 'message.ts');
+        await Promise.all([
+            mkdir(join(sourceRoot, 'owner', 'apps', 'server'), { recursive: true }),
+            mkdir(join(workbenchRoot, 'nested', 'apps', 'server'), { recursive: true }),
+        ]);
+        await Promise.all([
+            writeFile(ownerTarget, 'owner\n'),
+            writeFile(workbenchTarget, 'workbench\n'),
+        ]);
+        const workbench = database.createProject(workbenchRoot);
+        database.selectWorkbenchProject(sourceSessionId, workbench.id);
+
+        await expect(
+            resolveTerminalFileLink(
+                database,
+                { terminalId, target: 'apps/server/message.ts' },
+                searchOptions(files),
+            ),
+        ).resolves.toMatchObject({ status: 'authorized', path: workbenchTarget });
+    });
+
     it('resolves a unique shortened suffix inside an authorized Project', async () => {
         const { database, files, sourceRoot, terminalId } = await fixture();
         const directory = join(sourceRoot, 'packages', 'services', 'artifactDeploymentQuota');
@@ -134,6 +266,21 @@ describe('resolveTerminalFileLink', () => {
         ).rejects.toMatchObject({ code: 'NOT_FOUND', message: 'File not found' });
     });
 
+    it('does not guess through directories excluded from Project traversal', async () => {
+        const { database, files, sourceRoot, terminalId } = await fixture();
+        const directory = join(sourceRoot, 'nested', 'node_modules', 'package');
+        await mkdir(directory, { recursive: true });
+        await writeFile(join(directory, 'index.ts'), 'export {};\n');
+
+        await expect(
+            resolveTerminalFileLink(
+                database,
+                { terminalId, target: 'node_modules/package/index.ts' },
+                searchOptions(files),
+            ),
+        ).rejects.toMatchObject({ code: 'NOT_FOUND', message: 'File not found' });
+    });
+
     it('does not silently open one match when the bounded search is incomplete', async () => {
         const { database, sourceRoot, terminalId } = await fixture();
         const directory = join(sourceRoot, 'packages', 'services', 'shared');
@@ -146,16 +293,14 @@ describe('resolveTerminalFileLink', () => {
                 database,
                 { terminalId, target: '.../services/shared/index.test.ts' },
                 {
-                    searchProjectFileNames: () =>
+                    searchProjectFileSuffixes: () =>
                         Promise.resolve({
-                            mode: 'name',
                             matches: [
                                 {
                                     path: target,
                                     relativePath: 'packages/services/shared/index.test.ts',
                                 },
                             ],
-                            scannedFiles: 50_000,
                             truncated: true,
                             canceled: false,
                         }),
@@ -165,6 +310,24 @@ describe('resolveTerminalFileLink', () => {
             status: 'ambiguous',
             candidates: [{ path: target }],
             truncated: true,
+        });
+    });
+
+    it('does not report not-found when the bounded search ends before finding a candidate', async () => {
+        const { database, terminalId } = await fixture();
+
+        await expect(
+            resolveTerminalFileLink(
+                database,
+                { terminalId, target: 'apps/server/message.ts' },
+                {
+                    searchProjectFileSuffixes: () =>
+                        Promise.resolve({ matches: [], truncated: true, canceled: false }),
+                },
+            ),
+        ).rejects.toMatchObject({
+            code: 'CAPACITY',
+            message: 'File search reached its safety limit before completion',
         });
     });
 
@@ -202,6 +365,35 @@ describe('resolveTerminalFileLink', () => {
                 searchOptions(files),
             ),
         ).rejects.toMatchObject({ code: 'NOT_FOUND', message: 'File not found' });
+    });
+
+    it('rejects a suffix-search result outside the Project being searched', async () => {
+        const { database, terminalId, userHome } = await fixture();
+        const otherRoot = join(userHome, 'other-project');
+        const otherTarget = join(otherRoot, 'apps', 'server', 'message.ts');
+        await mkdir(join(otherRoot, 'apps', 'server'), { recursive: true });
+        await writeFile(otherTarget, 'other\n');
+        database.createProject(otherRoot);
+
+        await expect(
+            resolveTerminalFileLink(
+                database,
+                { terminalId, target: 'apps/server/message.ts' },
+                {
+                    searchProjectFileSuffixes: () =>
+                        Promise.resolve({
+                            matches: [
+                                {
+                                    path: otherTarget,
+                                    relativePath: 'apps/server/message.ts',
+                                },
+                            ],
+                            truncated: false,
+                            canceled: false,
+                        }),
+                },
+            ),
+        ).rejects.toMatchObject({ code: 'PATH_DENIED' });
     });
 
     it('normalizes an unavailable Project during suffix search without exposing ENOENT', async () => {

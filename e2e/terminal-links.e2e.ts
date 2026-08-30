@@ -27,6 +27,7 @@ test('Terminal links open Project files and confirm URLs through Main', async ()
     const isolatedHome = join(userData, 'e2e-agents', 'home');
     const root = join(isolatedHome, 'project');
     const file = join(root, 'link-target.ts');
+    const inferredFile = join(root, 'lobehub', 'apps', 'server', 'message.ts');
     const lineFile = join(root, '.local-config', 'router-runtime.json');
     const rangeFile = join(root, 'doctor.config.jsonc');
     const shortenedFile = join(
@@ -43,6 +44,7 @@ test('Terminal links open Project files and confirm URLs through Main', async ()
     const outsideFile = join(outsideRoot, 'outside-target.ts');
     await Promise.all([
         mkdir(join(root, '.local-config'), { recursive: true }),
+        mkdir(dirname(inferredFile), { recursive: true }),
         mkdir(dirname(shortenedFile), { recursive: true }),
         mkdir(dirname(ambiguousAlpha), { recursive: true }),
         mkdir(dirname(ambiguousBeta), { recursive: true }),
@@ -50,6 +52,7 @@ test('Terminal links open Project files and confirm URLs through Main', async ()
     ]);
     await Promise.all([
         writeFile(file, 'first line\nsecond line\nthird line\n'),
+        writeFile(inferredFile, 'export const nestedWorkspaceTarget = true;\n'),
         writeFile(
             lineFile,
             `${Array.from({ length: 40 }, (_, index) => `single-${String(index + 1).padStart(2, '0')}`).join('\n')}\n`,
@@ -82,6 +85,22 @@ test('Terminal links open Project files and confirm URLs through Main', async ()
             'true',
         );
         await expect(running.page.getByLabel(/^Editor position: Ln 2, Col 3/)).toBeVisible();
+
+        await running.page.getByRole('tab', { name: 'Shell' }).click();
+        const inferredLink = 'apps/server/message.ts';
+        await typeTerminal(running.page, String.raw`printf '%s\n' '${inferredLink}'`);
+        await expect(running.page.locator('.xterm-rows')).toContainText(inferredLink);
+        await clickTerminalLink(running.page, inferredLink);
+        await expect(running.page.getByRole('tab', { name: 'message.ts' })).toHaveAttribute(
+            'aria-selected',
+            'true',
+        );
+        await expect(
+            running.page.locator('.monaco-editor').first().locator('.view-lines'),
+        ).toContainText('nestedWorkspaceTarget');
+        await expect(
+            running.page.getByRole('dialog', { name: 'Choose Terminal File' }),
+        ).toHaveCount(0);
 
         await running.page.getByRole('tab', { name: 'Shell' }).click();
         const lineLink = '.local-config/router-runtime.json:32';
