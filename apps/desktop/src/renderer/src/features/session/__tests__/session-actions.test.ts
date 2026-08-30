@@ -109,6 +109,7 @@ describe('Session actions', () => {
         expect(mocks.caxriRequest).toHaveBeenCalledWith('session.select', {
             sessionId: 'newer',
         });
+        expect(mocks.tryCommand.mock.calls[0]?.[2]).toBeUndefined();
     });
 
     it('walks adjacent Sessions in visible Project and activity order', async () => {
