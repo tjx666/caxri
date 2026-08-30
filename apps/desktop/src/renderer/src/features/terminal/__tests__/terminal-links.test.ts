@@ -199,6 +199,10 @@ describe('findTerminalLinks', () => {
         ]);
     });
 
+    it('does not detach an ordinary relative path from adjacent CJK prose', () => {
+        expect(findTerminalLinks('说明。workspace/apps/server/src/file.ts:15')).toEqual([]);
+    });
+
     it('preserves CJK punctuation inside valid relative paths', () => {
         expect(findTerminalLinks('./目录。版本/file.ts:8')).toMatchObject([
             {
@@ -207,17 +211,10 @@ describe('findTerminalLinks', () => {
                 location: { mode: 'line', startLine: 8, endLine: 8 },
             },
         ]);
-        expect(findTerminalLinks('目录。版本/file.ts:8')).toMatchObject([
+        expect(findTerminalLinks('docs/目录。版本/file.ts:8')).toMatchObject([
             {
                 kind: 'file',
-                target: '目录。版本/file.ts',
-                location: { mode: 'line', startLine: 8, endLine: 8 },
-            },
-        ]);
-        expect(findTerminalLinks('目录。version/file.ts:8')).toMatchObject([
-            {
-                kind: 'file',
-                target: '目录。version/file.ts',
+                target: 'docs/目录。版本/file.ts',
                 location: { mode: 'line', startLine: 8, endLine: 8 },
             },
         ]);
@@ -350,6 +347,21 @@ describe('registerTerminalLinks', () => {
         });
         links?.[0].activate({ metaKey: true } as MouseEvent, links[0].text);
         expect(openUrl).toHaveBeenCalledWith('https://example.com');
+    });
+
+    it('does not expose an adjacent bare path after CJK prose', async () => {
+        const text = '说明。workspace/apps/server/src/file.ts:15';
+        const terminal = createTerminal(text, cellsFor(text));
+        const { context, openFile } = baseContext();
+        const registration = registerTerminalLinks(terminal.terminal, context);
+
+        expect(await terminal.links()).toBeUndefined();
+        expect(registration.getViewportLinks()).toEqual([]);
+        terminal.terminal.options.linkHandler?.activate({ metaKey: true } as MouseEvent, text, {
+            start: { x: 1, y: 1 },
+            end: { x: 1, y: 1 },
+        });
+        expect(openFile).not.toHaveBeenCalled();
     });
 
     it('exposes current-viewport links with accessible actions that reuse typed activation', () => {
