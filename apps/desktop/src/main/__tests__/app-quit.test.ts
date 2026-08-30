@@ -16,7 +16,6 @@ function options(overrides: Partial<AppQuitOptions> = {}): AppQuitOptions {
         closeDesktop: vi.fn().mockResolvedValue(undefined),
         confirm: vi.fn().mockResolvedValue('keep-running'),
         detachAll: vi.fn().mockResolvedValue(undefined),
-        drainGpuRecovery: vi.fn().mockResolvedValue(undefined),
         exit: vi.fn(),
         quitIntent: () => 'user',
         logFailure: vi.fn(),
@@ -37,10 +36,6 @@ describe('resolveAppQuit', () => {
                 calls.push('persist');
                 return Promise.resolve();
             },
-            drainGpuRecovery: () => {
-                calls.push('drain');
-                return Promise.resolve();
-            },
             stopServer: () => {
                 calls.push('stop');
                 return Promise.resolve();
@@ -54,7 +49,7 @@ describe('resolveAppQuit', () => {
 
         await expect(resolveAppQuit(target)).resolves.toBe('stopped');
 
-        expect(calls).toEqual(['accept', 'persist', 'drain', 'stop', 'close', 'exit']);
+        expect(calls).toEqual(['accept', 'persist', 'stop', 'close', 'exit']);
         expect(target.confirm).not.toHaveBeenCalled();
         expect(target.detachAll).not.toHaveBeenCalled();
         expect(target.closeDesktop).toHaveBeenCalledOnce();
@@ -134,7 +129,6 @@ describe('resolveAppQuit', () => {
 
     it('exits after best-effort shutdown failures and reports their owning stages', async () => {
         const target = options({
-            drainGpuRecovery: vi.fn().mockRejectedValue(new Error('GPU drain failed')),
             persistWindowState: vi.fn().mockRejectedValue(new Error('persist failed')),
             stopServer: vi.fn().mockRejectedValue(new Error('stop failed')),
         });
@@ -142,8 +136,7 @@ describe('resolveAppQuit', () => {
         await expect(resolveAppQuit(target)).resolves.toBe('stop-failed');
 
         expect(target.logFailure).toHaveBeenNthCalledWith(1, 'error', 'persist', 'persist failed');
-        expect(target.logFailure).toHaveBeenNthCalledWith(2, 'error', 'gpu', 'GPU drain failed');
-        expect(target.logFailure).toHaveBeenNthCalledWith(3, 'error', 'stop', 'stop failed');
+        expect(target.logFailure).toHaveBeenNthCalledWith(2, 'error', 'stop', 'stop failed');
         expect(target.notifyStopFailure).toHaveBeenCalledOnce();
         expect(target.exit).toHaveBeenCalledOnce();
     });

@@ -25,6 +25,7 @@ import { shouldEnableAcceptanceAccessibility } from './acceptance-accessibility'
 import { resolveDevelopmentDockIconPath } from './app-icon';
 import type { AppQuitIntent } from './app-quit';
 import { confirmAppQuit, createAppQuitHandler, notifyAppQuitStopFailure } from './app-quit';
+import { updateArgvConfig } from './argv-config';
 import { discardGitChangesPrompt, trashPrompt } from './confirmations';
 import { consoleErrorLogFields } from './console-error-fields';
 import { decideCrashRecovery } from './crash-policy';
@@ -38,7 +39,6 @@ import { createMainEventRelay } from './event-relay';
 import { launchExternalEditor } from './external-editor';
 import { createGpuDiagnostics } from './gpu-diagnostics';
 import { createGpuRecoveryCoordinator, prepareGpuBoot } from './gpu-recovery';
-import { createGpuSafeModeController } from './gpu-safe-mode';
 import { createElectronIpcCommandAdapter } from './ipc-command-adapter';
 import { resolveLogLevel } from './log-level';
 import { createMainMethodHandler } from './main-methods';
@@ -93,9 +93,6 @@ if (ownsProfileInstance) {
     let mainRenderer: WebContents | undefined;
     let supervisor: DesktopServerConnection;
     let mainLogger: StructuredLogger | undefined;
-    const gpuSafeMode = createGpuSafeModeController({
-        userDataPath: desktopProfile.userDataPath,
-    });
     const gpuDiagnostics = createGpuDiagnostics({
         app,
         logger: () => mainLogger,
@@ -159,8 +156,8 @@ if (ownsProfileInstance) {
         prepareRelaunch: () => {
             quitIntent = 'relaunch';
         },
-        safeMode: gpuSafeMode,
         sendEvent,
+        updateArgvConfig: (changes) => updateArgvConfig(desktopProfile.userDataPath, changes),
     });
     gpuRecovery.install();
     const requestAppQuit = createAppQuitHandler({
@@ -170,7 +167,6 @@ if (ownsProfileInstance) {
         closeDesktop: () => supervisor.shutdown(),
         confirm: (impact) => confirmAppQuit(dialog, mainWindow, impact),
         detachAll: () => supervisor.request('terminal.detachAll'),
-        drainGpuRecovery: () => gpuRecovery.drain(),
         exit: () => app.exit(0),
         logFailure: (level, stage, error) =>
             mainLogger?.write(level, logEventCatalog.app.quitFailed, {
@@ -550,7 +546,6 @@ if (ownsProfileInstance) {
             onRendererDiagnostic: gpuDiagnostics.recordRendererDiagnostic,
             onEventsReady: () => {
                 eventRelay.rendererReady();
-                gpuRecovery.rendererReady();
                 if (mainRenderer) rendererReadiness.ready(mainRenderer);
                 // `onEventsReady` is a synchronous listener; a failed readiness handshake is only
                 // logged, so this is deliberately fire-and-forget rather than awaited.

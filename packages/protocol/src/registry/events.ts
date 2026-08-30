@@ -217,14 +217,6 @@ export const serverEventPayloads = {
      * this independently so background panes discard invalid WebGL contexts without touching their PTY lifecycle.
      */
     'gpu.recoveryRequested': z.object({ correlationId: z.uuid() }),
-    /**
-     * Startup-only projection of Main's pre-ready GPU Safe Mode decision.
-     */
-    'gpu.safeModeStatus': z.object({
-        active: z.boolean(),
-        automatic: z.boolean(),
-        correlationId: z.uuid().optional(),
-    }),
     'desktop.openRequested': z.object({
         sessionId: identifierSchema,
         kind: z.enum(['file', 'directory']),

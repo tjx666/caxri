@@ -29,7 +29,6 @@ interface RendererStatusInput {
 
 interface GpuRecoveryNotificationCoordinator {
     disposeTerminal(terminalId: string): void;
-    notifyAutomaticGpuSafeMode(): void;
     notifyGpuProcessRecovery(correlationId: string): void;
     observeTerminalRendererStatus(input: RendererStatusInput): void;
 }
@@ -295,14 +294,5 @@ describe('GPU recovery notification coordinator', () => {
         expect(local.toasts).toHaveLength(1);
         expect(local.toasts[0]?.options?.persist).not.toBe(true);
         expect(local.toasts[0]?.options?.action).toBeUndefined();
-    });
-
-    it('keeps the automatic GPU Safe Mode notification persistent', () => {
-        const { coordinator, toasts } = createHarness();
-
-        coordinator.notifyAutomaticGpuSafeMode();
-
-        expect(toasts).toHaveLength(1);
-        expect(toasts[0]?.options?.persist).toBe(true);
     });
 });

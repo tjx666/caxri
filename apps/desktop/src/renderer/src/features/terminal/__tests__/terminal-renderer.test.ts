@@ -2,7 +2,11 @@ import type { ITerminalAddon, Terminal } from '@xterm/xterm';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { TerminalRendererStatus } from '../terminal-renderer';
-import { resolveTerminalRendererTarget, TerminalRendererController } from '../terminal-renderer';
+import {
+    isWebgl2Available,
+    resolveTerminalRendererTarget,
+    TerminalRendererController,
+} from '../terminal-renderer';
 
 class FakeWebglAddon implements ITerminalAddon {
     private listener: (() => void) | undefined;
@@ -48,16 +52,55 @@ function createHarness(options: { supported?: boolean; loadError?: Error } = {})
 }
 
 describe('TerminalRendererController', () => {
+    it('probes a real WebGL2 context and releases it immediately', () => {
+        const loseContext = vi.fn();
+        const getExtension = vi.fn(() => ({ loseContext }));
+        const getContext = vi.fn(() => ({ getExtension }));
+        const createElement = vi.fn(() => ({ getContext }));
+        vi.stubGlobal('document', { createElement });
+
+        try {
+            expect(isWebgl2Available()).toBe(true);
+            expect(createElement).toHaveBeenCalledWith('canvas');
+            expect(getContext).toHaveBeenCalledWith('webgl2');
+            expect(getExtension).toHaveBeenCalledWith('WEBGL_lose_context');
+            expect(loseContext).toHaveBeenCalledOnce();
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    });
+
+    it('reports WebGL2 unavailable when Chromium cannot create a context', () => {
+        const getContext = vi.fn(() => null);
+        vi.stubGlobal('document', { createElement: vi.fn(() => ({ getContext })) });
+
+        try {
+            expect(isWebgl2Available()).toBe(false);
+            expect(getContext).toHaveBeenCalledWith('webgl2');
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    });
+
     it('uses a deterministic Auto rule and keeps Off on DOM', () => {
         expect(resolveTerminalRendererTarget('off', true)).toBe('dom');
         expect(resolveTerminalRendererTarget('auto', false)).toBe('dom');
         expect(resolveTerminalRendererTarget('auto', true)).toBe('webgl');
-        expect(resolveTerminalRendererTarget('on', false)).toBe('webgl');
+        expect(resolveTerminalRendererTarget('on', false)).toBe('dom');
 
         const harness = createHarness();
         harness.controller.setPreference('off');
         expect(harness.host.loadAddon).not.toHaveBeenCalled();
         expect(harness.statuses.at(-1)).toMatchObject({ mode: 'dom', reason: 'disabled' });
+    });
+
+    it('keeps On on DOM when a real WebGL2 context is unavailable', () => {
+        const harness = createHarness({ supported: false });
+
+        harness.controller.setPreference('on');
+
+        expect(harness.host.loadAddon).not.toHaveBeenCalled();
+        expect(harness.statuses.at(-1)).toMatchObject({ mode: 'dom', reason: 'unsupported' });
     });
 
     it('enables WebGL and hot-disables it with a full DOM redraw', () => {

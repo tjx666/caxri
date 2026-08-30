@@ -183,7 +183,7 @@ const rows: SettingRowDescriptor[] = [
         category: 'general',
         title: 'Hardware acceleration',
         description:
-            'Uses the GPU for Caxri rendering. Turn this back on to leave GPU Safe Mode; changes take effect after restarting Caxri',
+            'Uses the GPU for Caxri rendering. Turn it off to use GPU Safe Mode; Caxri never changes this automatically. Changes take effect after restarting Caxri',
         binding: { type: 'hardware-acceleration' },
         haystack: lower([
             'hardware acceleration',

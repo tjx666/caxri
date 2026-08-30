@@ -5,7 +5,7 @@ export type AppQuitDecision = 'cancel' | 'keep-running' | 'stop';
 export type AppQuitOutcome = 'cancelled' | 'kept-running' | 'stop-failed' | 'stopped';
 export type AppQuitIntent = 'relaunch' | 'system-shutdown' | 'user';
 type AppQuitFailureStage =
-    'decision' | 'detach' | 'disconnect' | 'gpu' | 'notification' | 'persist' | 'status' | 'stop';
+    'decision' | 'detach' | 'disconnect' | 'notification' | 'persist' | 'status' | 'stop';
 
 export interface AppQuitImpact {
     activePtyCount: number;
@@ -17,7 +17,6 @@ export interface AppQuitOptions {
     closeDesktop: () => Promise<void>;
     confirm: (impact: AppQuitImpact) => Promise<AppQuitDecision>;
     detachAll: () => Promise<unknown>;
-    drainGpuRecovery: () => Promise<void>;
     exit: () => void;
     logFailure: (level: 'error' | 'warn', stage: AppQuitFailureStage, message: string) => void;
     notifyStopFailure: () => Promise<void>;
@@ -169,7 +168,6 @@ export async function resolveAppQuit(options: AppQuitOptions): Promise<AppQuitOu
 
     options.acceptQuit();
     await attempt(options, 'persist', options.persistWindowState);
-    await attempt(options, 'gpu', options.drainGpuRecovery);
 
     if (decision === 'stop') {
         const stopFailure = await attempt(options, 'stop', options.stopServer);
