@@ -5,10 +5,13 @@ import { errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
-import { defaultAgentEnvironment } from './agents/contract';
-import { AgentCoordinator } from './agents/coordinator';
-import { AgentHookManager } from './agents/hooks';
-import { AgentService, createLocalAgentAdapters } from './agents/service';
+import {
+    AgentCoordinator,
+    AgentHookManager,
+    AgentService,
+    createLocalAgentAdapters,
+    defaultAgentEnvironment,
+} from './agents';
 import type { ConfigService } from './config';
 import type { CaxriDatabase } from './db';
 import type { DomainDependencies } from './domain-services';
