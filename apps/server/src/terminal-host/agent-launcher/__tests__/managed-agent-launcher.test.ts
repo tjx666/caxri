@@ -1,0 +1,561 @@
+import { Buffer } from 'node:buffer';
+import type { ChildProcess } from 'node:child_process';
+import { access, mkdtemp, readFile, realpath, rm, stat } from 'node:fs/promises';
+import { createConnection } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import process from 'node:process';
+
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { runManagedAgentLauncher } from '../client';
+import {
+    parseManagedAgentLauncherProcessArguments,
+    runManagedAgentLauncherProcess,
+} from '../process';
+import type { ManagedAgentLauncherEvent, ManagedAgentLaunchPlan } from '../protocol';
+import { MANAGED_AGENT_LAUNCHER_FLAG, managedAgentLauncherEnvironmentNames } from '../protocol';
+import { ManagedAgentLauncherServer } from '../server';
+import { managedAgentLauncherSocketPath } from '../socket-path';
+
+const temporaryDirectories: string[] = [];
+const servers: ManagedAgentLauncherServer[] = [];
+
+afterEach(async () => {
+    const pendingServers = [...servers];
+    servers.length = 0;
+    await Promise.all(pendingServers.map((server) => server.close()));
+    const pendingDirectories = [...temporaryDirectories];
+    temporaryDirectories.length = 0;
+    await Promise.all(
+        pendingDirectories.map((directory) => rm(directory, { recursive: true, force: true })),
+    );
+});
+
+async function createTestServer(onEvent?: (event: ManagedAgentLauncherEvent) => void) {
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-managed-agent-launcher-'));
+    temporaryDirectories.push(directory);
+    const socketPath = join(directory, 'launcher.sock');
+    const server = new ManagedAgentLauncherServer({
+        socketPath,
+        runtimePath: process.execPath,
+        entryPath: join(directory, 'terminal-host.js'),
+        onEvent,
+        claimTimeoutMs: 100,
+        terminationGraceMs: 50,
+    });
+    servers.push(server);
+    await server.start();
+    return { directory, server, socketPath };
+}
+
+function immediateExitPlan(cwd: string): ManagedAgentLaunchPlan {
+    return {
+        executable: process.execPath,
+        args: ['-e', 'process.exit(0)'],
+        environment: {},
+        cwd,
+    };
+}
+
+function isProcessAlive(processId: number): boolean {
+    try {
+        process.kill(processId, 0);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+async function rawClaim(
+    socketPath: string,
+    launchId: string,
+    token: string,
+): Promise<{ response: string; close(): Promise<void> }> {
+    const socket = createConnection(socketPath);
+    let response = '';
+    let isFirstLineResolved = false;
+    const { promise: firstLine, resolve: resolveFirstLine } = Promise.withResolvers<void>();
+    const closed = new Promise<void>((resolve) => {
+        socket.once('close', resolve);
+    });
+    socket.setEncoding('utf8');
+    socket.once('connect', () => {
+        socket.write(`${JSON.stringify({ type: 'claim', launchId, token })}\n`);
+    });
+    socket.on('data', (chunk: string) => {
+        response += chunk;
+        if (!isFirstLineResolved && response.includes('\n')) {
+            isFirstLineResolved = true;
+            resolveFirstLine();
+        }
+    });
+    socket.once('error', () => {
+        if (isFirstLineResolved) {
+            return;
+        }
+
+        isFirstLineResolved = true;
+        resolveFirstLine();
+    });
+    socket.once('close', () => {
+        if (isFirstLineResolved) {
+            return;
+        }
+
+        isFirstLineResolved = true;
+        resolveFirstLine();
+    });
+    await firstLine;
+    return {
+        response,
+        async close() {
+            socket.destroy();
+            await closed;
+        },
+    };
+}
+
+describe('ManagedAgentLauncherServer', () => {
+    it('creates a mode-0600 socket and returns only the five launcher environment entries', async () => {
+        const { directory, server, socketPath } = await createTestServer();
+
+        const prepared = server.prepare({
+            terminalId: 'terminal-1',
+            launchId: 'launch-1',
+            plan: immediateExitPlan(directory),
+        });
+
+        expect((await stat(socketPath)).mode & 0o777).toBe(0o600);
+        expect(
+            Object.keys(prepared.environment).toSorted((left, right) => left.localeCompare(right)),
+        ).toEqual(
+            managedAgentLauncherEnvironmentNames.toSorted((left, right) =>
+                left.localeCompare(right),
+            ),
+        );
+        expect(prepared.environment).toMatchObject({
+            CAXRI_AGENT_LAUNCHER_RUNTIME: process.execPath,
+            CAXRI_AGENT_LAUNCHER_SOCKET: socketPath,
+            CAXRI_AGENT_LAUNCHER_ID: 'launch-1',
+        });
+        await server.cancel('terminal-1', 'launch-1');
+        await expect(prepared.started).rejects.toThrow(
+            'Managed Agent launch ended before the Agent started',
+        );
+    });
+
+    it('consumes a valid claim token exactly once', async () => {
+        const { directory, server, socketPath } = await createTestServer();
+        const prepared = server.prepare({
+            terminalId: 'terminal-1',
+            launchId: 'launch-1',
+            plan: immediateExitPlan(directory),
+        });
+        const token = prepared.environment.CAXRI_AGENT_LAUNCHER_TOKEN;
+
+        const first = await rawClaim(socketPath, 'launch-1', token);
+        expect(JSON.parse(first.response.trim())).toEqual(immediateExitPlan(directory));
+
+        const second = await rawClaim(socketPath, 'launch-1', token);
+        expect(second.response).toBe('');
+
+        await Promise.all([first.close(), second.close()]);
+    });
+
+    it('expires an unclaimed prepared launch and releases both identities', async () => {
+        const { directory, server } = await createTestServer();
+        const prepared = server.prepare({
+            terminalId: 'terminal-timeout',
+            launchId: 'launch-timeout',
+            plan: immediateExitPlan(directory),
+        });
+
+        await expect(prepared.started).rejects.toThrow(
+            'Managed Agent launch ended before the Agent started',
+        );
+
+        const replacement = server.prepare({
+            terminalId: 'terminal-timeout',
+            launchId: 'launch-timeout',
+            plan: immediateExitPlan(directory),
+        });
+        await expect(server.cancel('terminal-timeout', 'launch-timeout')).resolves.toBe(true);
+        await expect(replacement.started).rejects.toThrow(
+            'Managed Agent launch ended before the Agent started',
+        );
+    });
+
+    it('expires a claimed launch that never reports started and closes its socket', async () => {
+        const { directory, server, socketPath } = await createTestServer();
+        const prepared = server.prepare({
+            terminalId: 'terminal-timeout',
+            launchId: 'launch-timeout',
+            plan: immediateExitPlan(directory),
+        });
+        const claim = await rawClaim(
+            socketPath,
+            'launch-timeout',
+            prepared.environment.CAXRI_AGENT_LAUNCHER_TOKEN,
+        );
+
+        await expect(prepared.started).rejects.toThrow(
+            'Managed Agent launch ended before the Agent started',
+        );
+        await vi.waitFor(() =>
+            expect(
+                (Reflect.get(server, 'sockets') as Set<ReturnType<typeof createConnection>>).size,
+            ).toBe(0),
+        );
+
+        const replacement = server.prepare({
+            terminalId: 'terminal-timeout',
+            launchId: 'launch-timeout',
+            plan: immediateExitPlan(directory),
+        });
+        await claim.close();
+        await expect(server.cancel('terminal-timeout', 'launch-timeout')).resolves.toBe(true);
+        await expect(replacement.started).rejects.toThrow(
+            'Managed Agent launch ended before the Agent started',
+        );
+    });
+
+    it('spawns with structured argv and only the plan cwd/environment, then reports started and exited', async () => {
+        const events: ManagedAgentLauncherEvent[] = [];
+        const { directory, server, socketPath } = await createTestServer((event) =>
+            events.push(event),
+        );
+        const outputPath = join(directory, 'child-result.json');
+        const childSource = [
+            "const { writeFileSync } = require('node:fs');",
+            'writeFileSync(process.env.OUTPUT_PATH, JSON.stringify({',
+            '  argv: process.argv.slice(1),',
+            '  cwd: process.cwd(),',
+            '  value: process.env.EXPECTED_VALUE,',
+            '  path: process.env.PATH,',
+            '  launcherToken: process.env.CAXRI_AGENT_LAUNCHER_TOKEN,',
+            '}));',
+        ].join('\n');
+        const prepared = server.prepare({
+            terminalId: 'terminal-1',
+            launchId: 'launch-1',
+            plan: {
+                executable: process.execPath,
+                args: ['-e', childSource, '--', 'argument with spaces', 'literal;$(echo unsafe)'],
+                environment: {
+                    OUTPUT_PATH: outputPath,
+                    EXPECTED_VALUE: 'plan-only',
+                },
+                cwd: directory,
+            },
+        });
+        const launcherEnvironment = { ...prepared.environment };
+
+        const completed = runManagedAgentLauncher({
+            socketPath,
+            launchId: 'launch-1',
+            environment: launcherEnvironment,
+        });
+        expect(launcherEnvironment.CAXRI_AGENT_LAUNCHER_TOKEN).toBeUndefined();
+
+        const processId = await prepared.started;
+        expect(processId).toBeGreaterThan(0);
+        await expect(completed).resolves.toEqual({ exitCode: 0, signal: null });
+        const childResult = JSON.parse(await readFile(outputPath, 'utf8')) as Record<
+            string,
+            unknown
+        >;
+        expect(childResult).toEqual({
+            argv: ['argument with spaces', 'literal;$(echo unsafe)'],
+            cwd: await realpath(directory),
+            value: 'plan-only',
+        });
+        expect(events).toEqual([
+            { type: 'started', terminalId: 'terminal-1', launchId: 'launch-1', processId },
+            {
+                type: 'exited',
+                terminalId: 'terminal-1',
+                launchId: 'launch-1',
+                exitCode: 0,
+                signal: null,
+            },
+        ]);
+    });
+
+    it('signals only the exact live terminalId and launchId', async () => {
+        const { directory, server, socketPath } = await createTestServer();
+        const readyPath = join(directory, 'signal-ready');
+        const prepared = server.prepare({
+            terminalId: 'terminal-1',
+            launchId: 'launch-current',
+            plan: {
+                executable: process.execPath,
+                args: [
+                    '-e',
+                    "require('node:fs').writeFileSync(process.env.READY_PATH, ''); process.on('SIGINT', () => process.exit(23)); setInterval(() => {}, 1000)",
+                ],
+                environment: { READY_PATH: readyPath },
+                cwd: directory,
+            },
+        });
+        const completed = runManagedAgentLauncher({
+            socketPath,
+            launchId: 'launch-current',
+            environment: { ...prepared.environment },
+        });
+        const processId = await prepared.started;
+        await vi.waitFor(() => access(readyPath));
+
+        expect(server.signalExact('terminal-1', 'launch-stale', 'SIGINT')).toBe(false);
+        expect(server.signalExact('terminal-stale', 'launch-current', 'SIGINT')).toBe(false);
+        expect(isProcessAlive(processId)).toBe(true);
+        expect(server.signalExact('terminal-1', 'launch-current', 'SIGINT')).toBe(true);
+        await expect(completed).resolves.toEqual({ exitCode: 23, signal: null });
+        await vi.waitFor(() =>
+            expect(server.signalExact('terminal-1', 'launch-current', 'SIGINT')).toBe(false),
+        );
+    });
+
+    it('does not duplicate terminal foreground signals but preserves socket signals and SIGTERM termination', async () => {
+        const { directory, server, socketPath } = await createTestServer();
+        const prepared = server.prepare({
+            terminalId: 'terminal-signals',
+            launchId: 'launch-signals',
+            plan: immediateExitPlan(directory),
+        });
+        const originalSigintListeners = new Set(process.listeners('SIGINT'));
+        const originalSighupListeners = new Set(process.listeners('SIGHUP'));
+        const originalSigtermListeners = new Set(process.listeners('SIGTERM'));
+        const kill = vi.fn(() => true);
+        const childListeners = new Map<string, (...arguments_: unknown[]) => void>();
+        const child = {
+            pid: 47_201,
+            kill,
+            once(event: string, listener: (...arguments_: unknown[]) => void) {
+                childListeners.set(event, listener);
+                return child;
+            },
+        } as unknown as ChildProcess;
+        const completed = runManagedAgentLauncher({
+            socketPath,
+            launchId: 'launch-signals',
+            environment: { ...prepared.environment },
+            spawnChild: () => {
+                queueMicrotask(() => childListeners.get('spawn')?.());
+                return child;
+            },
+        });
+        await prepared.started;
+
+        const foregroundSigint = process
+            .listeners('SIGINT')
+            .find((listener) => !originalSigintListeners.has(listener));
+        const foregroundSighup = process
+            .listeners('SIGHUP')
+            .find((listener) => !originalSighupListeners.has(listener));
+        const foregroundSigterm = process
+            .listeners('SIGTERM')
+            .find((listener) => !originalSigtermListeners.has(listener));
+        expect(foregroundSigint).toBeDefined();
+        expect(foregroundSighup).toBeDefined();
+        expect(foregroundSigterm).toBeDefined();
+
+        foregroundSigint?.('SIGINT');
+        foregroundSighup?.('SIGHUP');
+        expect(kill).not.toHaveBeenCalled();
+
+        expect(server.signalExact('terminal-signals', 'launch-signals', 'SIGINT')).toBe(true);
+        await vi.waitFor(() => expect(kill).toHaveBeenCalledWith('SIGINT'));
+        expect(server.signalExact('terminal-signals', 'launch-signals', 'SIGHUP')).toBe(true);
+        await vi.waitFor(() => expect(kill).toHaveBeenCalledWith('SIGHUP'));
+
+        foregroundSigterm?.('SIGTERM');
+        expect(kill).toHaveBeenCalledWith('SIGTERM');
+        await vi.waitFor(() => expect(kill).toHaveBeenCalledWith('SIGKILL'), { timeout: 1_100 });
+        childListeners.get('exit')?.(0, null);
+        await expect(completed).resolves.toEqual({ exitCode: 0, signal: null });
+    });
+
+    it('delegates disconnect termination to the launcher without signaling a cached PID', async () => {
+        const events: ManagedAgentLauncherEvent[] = [];
+        const { directory, server, socketPath } = await createTestServer((event) =>
+            events.push(event),
+        );
+        const prepared = server.prepare({
+            terminalId: 'terminal-disconnect-owner',
+            launchId: 'launch-disconnect-owner',
+            plan: immediateExitPlan(directory),
+        });
+        const childListeners = new Map<string, (...arguments_: unknown[]) => void>();
+        const kill = vi.fn((signal: NodeJS.Signals) => {
+            queueMicrotask(() => childListeners.get('exit')?.(null, signal));
+            return true;
+        });
+        const child = {
+            pid: 47_202,
+            kill,
+            once(event: string, listener: (...arguments_: unknown[]) => void) {
+                childListeners.set(event, listener);
+                return child;
+            },
+        } as unknown as ChildProcess;
+        const completed = runManagedAgentLauncher({
+            socketPath,
+            launchId: 'launch-disconnect-owner',
+            environment: { ...prepared.environment },
+            spawnChild: () => {
+                queueMicrotask(() => childListeners.get('spawn')?.());
+                return child;
+            },
+        });
+        await prepared.started;
+        const processKill = vi.spyOn(process, 'kill');
+        const sockets = Reflect.get(server, 'sockets') as Set<ReturnType<typeof createConnection>>;
+
+        try {
+            for (const socket of sockets) socket.destroy();
+            await expect(completed).rejects.toThrow('Managed Agent launcher failed closed');
+            await vi.waitFor(() => expect(events).toHaveLength(2));
+            expect(kill).toHaveBeenCalledWith('SIGHUP');
+            expect(processKill).not.toHaveBeenCalled();
+            expect(events.at(-1)).toEqual({
+                type: 'exited',
+                terminalId: 'terminal-disconnect-owner',
+                launchId: 'launch-disconnect-owner',
+                exitCode: null,
+                signal: 'SIGHUP',
+            });
+        } finally {
+            processKill.mockRestore();
+        }
+    });
+
+    it('leaves no child after cancel or server close', async () => {
+        const { directory, server, socketPath } = await createTestServer();
+        const first = server.prepare({
+            terminalId: 'terminal-1',
+            launchId: 'launch-cancel',
+            plan: {
+                executable: process.execPath,
+                args: ['-e', 'setInterval(() => {}, 1000)'],
+                environment: {},
+                cwd: directory,
+            },
+        });
+        const firstCompleted = runManagedAgentLauncher({
+            socketPath,
+            launchId: 'launch-cancel',
+            environment: { ...first.environment },
+        });
+        const firstProcessId = await first.started;
+
+        await expect(server.cancel('terminal-1', 'launch-cancel')).resolves.toBe(true);
+        await firstCompleted;
+        expect(isProcessAlive(firstProcessId)).toBe(false);
+
+        const second = server.prepare({
+            terminalId: 'terminal-1',
+            launchId: 'launch-close',
+            plan: {
+                executable: process.execPath,
+                args: ['-e', 'setInterval(() => {}, 1000)'],
+                environment: {},
+                cwd: directory,
+            },
+        });
+        const secondCompleted = runManagedAgentLauncher({
+            socketPath,
+            launchId: 'launch-close',
+            environment: { ...second.environment },
+        });
+        const secondProcessId = await second.started;
+
+        await server.close();
+        await secondCompleted;
+        expect(isProcessAlive(secondProcessId)).toBe(false);
+    });
+
+    it('kills the Agent when its authenticated launcher connection disconnects', async () => {
+        const events: ManagedAgentLauncherEvent[] = [];
+        const { directory, server, socketPath } = await createTestServer((event) =>
+            events.push(event),
+        );
+        const prepared = server.prepare({
+            terminalId: 'terminal-1',
+            launchId: 'launch-disconnect',
+            plan: {
+                executable: process.execPath,
+                args: ['-e', 'setInterval(() => {}, 1000)'],
+                environment: {},
+                cwd: directory,
+            },
+        });
+        const completed = runManagedAgentLauncher({
+            socketPath,
+            launchId: 'launch-disconnect',
+            environment: { ...prepared.environment },
+        });
+        const processId = await prepared.started;
+        const sockets = Reflect.get(server, 'sockets') as Set<ReturnType<typeof createConnection>>;
+        expect(sockets.size).toBe(1);
+
+        for (const socket of sockets) socket.destroy();
+
+        await expect(completed).rejects.toThrow('Managed Agent launcher failed closed');
+        await vi.waitFor(() => expect(isProcessAlive(processId)).toBe(false));
+        await vi.waitFor(() => expect(events).toHaveLength(2));
+        expect(events.at(-1)).toEqual({
+            type: 'exited',
+            terminalId: 'terminal-1',
+            launchId: 'launch-disconnect',
+            exitCode: null,
+            signal: 'SIGHUP',
+        });
+    });
+});
+
+describe('managed Agent launcher process arguments', () => {
+    it('accepts only the exact private mode argument shape', async () => {
+        expect(MANAGED_AGENT_LAUNCHER_FLAG).toBe('--managed-agent-launcher');
+        expect(
+            parseManagedAgentLauncherProcessArguments([
+                MANAGED_AGENT_LAUNCHER_FLAG,
+                '/tmp/launcher.sock',
+                'launch-1',
+            ]),
+        ).toEqual({ socketPath: '/tmp/launcher.sock', launchId: 'launch-1' });
+        expect(
+            parseManagedAgentLauncherProcessArguments([
+                MANAGED_AGENT_LAUNCHER_FLAG,
+                '/tmp/launcher.sock',
+                'launch-1',
+                'unexpected',
+            ]),
+        ).toBeUndefined();
+
+        const environment = { CAXRI_AGENT_LAUNCHER_TOKEN: 'one-use-token' };
+        await expect(
+            runManagedAgentLauncherProcess({ argv: ['invalid'], environment }),
+        ).resolves.toBe(1);
+        expect(environment.CAXRI_AGENT_LAUNCHER_TOKEN).toBeUndefined();
+    });
+});
+
+describe('managed Agent launcher socket path', () => {
+    it('stays within the macOS Unix socket limit under the real user temp directory', async () => {
+        const socketPath = managedAgentLauncherSocketPath(
+            tmpdir(),
+            '01a050c4-3cb6-7543-8604-1c238994563a',
+        );
+        const server = new ManagedAgentLauncherServer({
+            socketPath,
+            runtimePath: process.execPath,
+            entryPath: join(tmpdir(), 'agent-launcher.js'),
+        });
+        servers.push(server);
+
+        expect(Buffer.byteLength(socketPath, 'utf8')).toBeLessThanOrEqual(103);
+        await expect(server.start()).resolves.toBeUndefined();
+        expect((await stat(socketPath)).mode & 0o777).toBe(0o600);
+    });
+});

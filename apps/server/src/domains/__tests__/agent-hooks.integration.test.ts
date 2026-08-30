@@ -8,11 +8,13 @@ import type { spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createTestDomainServices } from '../../__tests__/support/domain-services';
+import { LocalTerminalExecution } from '../../__tests__/support/local-terminal-execution';
 import { createFakePty, createPendingAgentAdapters } from './create-test-domain-services';
 
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
+    vi.restoreAllMocks();
     const pendingDirectories = temporaryDirectories.slice();
     temporaryDirectories.length = 0;
     await Promise.all(pendingDirectories.map((path) => rm(path, { recursive: true, force: true })));
@@ -26,6 +28,7 @@ describe('Runtime Agent hook integration', () => {
         const codexHome = join(directory, 'codex');
         await mkdir(projectRoot);
         const spawn = vi.fn<typeof spawnPty>(() => createFakePty());
+        const start = vi.spyOn(LocalTerminalExecution.prototype, 'start');
         const runtime = await createTestDomainServices({
             agentAdapters: createPendingAgentAdapters(),
             agentEnvironment: {
@@ -37,7 +40,8 @@ describe('Runtime Agent hook integration', () => {
             hookExecutable: process.execPath,
             send: () => {},
             terminal: {
-                resolveExecutable: () => Promise.resolve('/bin/echo'),
+                resolveExecutable: (kind) =>
+                    Promise.resolve(kind === 'shell' ? '/bin/zsh' : '/bin/echo'),
                 spawn,
             },
             userDataPath: join(directory, 'user-data'),
@@ -71,7 +75,22 @@ describe('Runtime Agent hook integration', () => {
                 selected.session.id,
             );
 
-            const environment = spawn.mock.calls[0]?.[2].env;
+            expect(background.terminal).toMatchObject({
+                lastProcessState: 'running',
+                lastAgentProcessState: 'running',
+            });
+            expect(spawn.mock.calls[0]?.[0]).toBe('/bin/zsh');
+            const rootEnvironment = spawn.mock.calls[0]?.[2].env;
+            expect(rootEnvironment).not.toHaveProperty('CAXRI_HOOK_TERMINAL_ID');
+            const launchPlan = start.mock.calls[0]?.[0];
+            expect(launchPlan).toMatchObject({
+                executable: '/bin/zsh',
+                agent: {
+                    executable: '/bin/echo',
+                    provider: 'codex',
+                },
+            });
+            const environment = launchPlan.agent?.environment;
             expect(environment).toMatchObject({
                 CAXRI_HOOK_TERMINAL_ID: background.terminal!.id,
             });

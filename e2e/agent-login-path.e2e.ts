@@ -16,7 +16,7 @@ test('Finder-like launch PATH starts a Node-dependent Codex launcher', async () 
     const bin = join(testDirectory, 'login-bin');
     const home = join(testDirectory, 'home');
     const state = join(testDirectory, 'provider-state');
-    const loginShell = join(testDirectory, 'login-shell');
+    const loginShell = join(testDirectory, 'zsh');
     const probeLog = join(testDirectory, 'probe.jsonl');
     await Promise.all([mkdir(root), mkdir(bin), mkdir(home), mkdir(state)]);
     await symlink(process.execPath, join(bin, 'node'));
@@ -49,7 +49,11 @@ if (version) {
     await writeFile(
         loginShell,
         `#!/bin/sh
-printf '\n__CAXRI_LOGIN_PATH__${bin}:/usr/bin:/bin\n'
+if [ "$1" = "-lic" ]; then
+  printf '\n__CAXRI_LOGIN_PATH__${bin}:/usr/bin:/bin\n'
+  exit 0
+fi
+exec /bin/zsh "$@"
 `,
         'utf8',
     );

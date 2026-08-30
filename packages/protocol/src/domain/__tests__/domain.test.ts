@@ -9,6 +9,7 @@ import {
     MAX_TERMINAL_OSC_LINK_TARGET_CHARACTERS,
     pathSchema,
     terminalKindSchema,
+    terminalRecordSchema,
     terminalSnapshotSchema,
     themeImportFormatIds,
     themeTokenSourceIds,
@@ -41,6 +42,44 @@ describe('terminalKindSchema', () => {
 
     it('rejects an unregistered terminal kind', () => {
         expect(terminalKindSchema.safeParse('gemini').success).toBe(false);
+    });
+});
+
+describe('terminalRecordSchema process state', () => {
+    const terminal = {
+        id: 'terminal-1',
+        sessionId: 'session-1',
+        kind: 'codex' as const,
+        provider: 'codex' as const,
+        cwd: '/private/project',
+        title: 'Codex',
+        icon: 'codex',
+        orderIndex: 0,
+        lastProcessState: 'running' as const,
+        createdAt: 1,
+        updatedAt: 1,
+    };
+
+    it('round-trips the optional persisted Agent child-process state', () => {
+        expect(
+            terminalRecordSchema.parse({
+                ...terminal,
+                lastAgentProcessState: 'starting',
+            }),
+        ).toMatchObject({
+            lastProcessState: 'running',
+            lastAgentProcessState: 'starting',
+        });
+    });
+
+    it('keeps the Agent child-process state optional for a bare Shell', () => {
+        expect(
+            terminalRecordSchema.parse({
+                ...terminal,
+                kind: 'shell',
+                provider: undefined,
+            }),
+        ).not.toHaveProperty('lastAgentProcessState');
     });
 });
 

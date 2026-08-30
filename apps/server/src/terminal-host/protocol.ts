@@ -64,6 +64,47 @@ const environmentSchema = z
     .refine((environment) => Object.keys(environment).length <= 512, {
         message: 'Terminal launch environment exceeds 512 entries',
     });
+const terminalArgumentsSchema = z.array(z.string().max(16_384)).max(256);
+
+const nodeSignalSchema = z.enum([
+    'SIGABRT',
+    'SIGALRM',
+    'SIGBUS',
+    'SIGCHLD',
+    'SIGCONT',
+    'SIGFPE',
+    'SIGHUP',
+    'SIGILL',
+    'SIGINFO',
+    'SIGINT',
+    'SIGIO',
+    'SIGIOT',
+    'SIGKILL',
+    'SIGLOST',
+    'SIGPIPE',
+    'SIGPOLL',
+    'SIGPROF',
+    'SIGPWR',
+    'SIGQUIT',
+    'SIGSEGV',
+    'SIGSTKFLT',
+    'SIGSTOP',
+    'SIGSYS',
+    'SIGTERM',
+    'SIGTRAP',
+    'SIGTSTP',
+    'SIGTTIN',
+    'SIGTTOU',
+    'SIGURG',
+    'SIGUNUSED',
+    'SIGUSR1',
+    'SIGUSR2',
+    'SIGVTALRM',
+    'SIGWINCH',
+    'SIGXCPU',
+    'SIGXFSZ',
+    'SIGBREAK',
+]);
 
 const outputRecoverySettingsSchema = z
     .object({
@@ -78,8 +119,18 @@ const terminalLaunchPlanSchema = z
     .object({
         record: terminalRecordSchema,
         executable: pathSchema,
-        args: z.array(z.string().max(16_384)).max(256),
+        args: terminalArgumentsSchema,
         environment: environmentSchema,
+        agent: z
+            .object({
+                launchId: identifierSchema,
+                provider: agentProviderSchema,
+                executable: pathSchema,
+                args: terminalArgumentsSchema,
+                environment: environmentSchema,
+            })
+            .strict()
+            .optional(),
         initialSnapshot: terminalSnapshotSchema.optional(),
         initialSize: terminalGridSizeSchema.optional(),
         outputRecovery: outputRecoverySettingsSchema.optional(),
@@ -133,6 +184,17 @@ const terminalRequestSchemas = [
             params: z
                 .object({
                     expectedProcessId: z.number().int().positive(),
+                    signal: z.enum(['SIGINT', 'SIGHUP']),
+                })
+                .strict(),
+        })
+        .strict(),
+    z
+        .object({
+            method: z.literal('terminal.agent.signal'),
+            params: z
+                .object({
+                    launchId: identifierSchema,
                     signal: z.enum(['SIGINT', 'SIGHUP']),
                 })
                 .strict(),
@@ -268,6 +330,25 @@ const terminalHostEventEnvelopeSchema = z.discriminatedUnion('event', [
     z
         .object({
             type: z.literal('event'),
+            event: z.literal('terminal.agent.started'),
+            identity: terminalEventIdentitySchema,
+            launchId: identifierSchema,
+            processId: z.number().int().positive(),
+        })
+        .strict(),
+    z
+        .object({
+            type: z.literal('event'),
+            event: z.literal('terminal.agent.exit'),
+            identity: terminalEventIdentitySchema,
+            launchId: identifierSchema,
+            exitCode: z.number().int().nullable(),
+            signal: nodeSignalSchema.optional(),
+        })
+        .strict(),
+    z
+        .object({
+            type: z.literal('event'),
             event: z.literal('terminal.activity'),
             identity: terminalEventIdentitySchema,
             processId: z.number().int().positive(),
@@ -319,6 +400,7 @@ const terminalHostResultSchemas = {
     'terminal.snapshot': z.object({ snapshot: terminalSnapshotSchema.nullable() }).strict(),
     'terminal.waitForAttachedSize': z.object({ attached: z.literal(true) }).strict(),
     'terminal.signal': z.object({ accepted: z.boolean() }).strict(),
+    'terminal.agent.signal': z.object({ accepted: z.boolean() }).strict(),
     'terminal.stop': z
         .object({ snapshot: terminalSnapshotSchema.nullable(), stopped: z.literal(true) })
         .strict(),
@@ -348,6 +430,7 @@ const requiredCapabilities = {
     'terminal.snapshot': 'terminal.view',
     'terminal.waitForAttachedSize': 'terminal.view',
     'terminal.signal': 'terminal.lifecycle',
+    'terminal.agent.signal': 'terminal.lifecycle',
     'terminal.stop': 'terminal.lifecycle',
     'terminal.reassign': 'terminal.lifecycle',
     'terminal.resources': 'terminal.inspect',

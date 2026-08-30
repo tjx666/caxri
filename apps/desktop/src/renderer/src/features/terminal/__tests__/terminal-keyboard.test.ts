@@ -26,7 +26,7 @@ function catalogImagePasteInput(provider: AgentProvider): string | undefined {
 }
 
 describe('terminalKeyboardInput', () => {
-    it('maps Shift+Enter to ESC+CR newline input only for Agent Terminals', () => {
+    it('maps Shift+Enter to ESC+CR newline input only while an Agent child is running', () => {
         const event = keyEvent({ key: 'Enter', shiftKey: true });
         expect(terminalKeyboardInput(event, true)).toBe('\u{1B}\r');
         expect(terminalKeyboardInput(event, false)).toBeUndefined();
@@ -76,17 +76,20 @@ describe('isClipboardContainingImage', () => {
         const textClipboard = { files: [], items: [], types: ['text/plain'] };
         expect(isClipboardContainingImage(textClipboard)).toBe(false);
         expect(
-            terminalImagePasteInput(textClipboard, catalogImagePasteInput('codex')),
+            terminalImagePasteInput(textClipboard, catalogImagePasteInput('codex'), true),
         ).toBeUndefined();
     });
 
-    it('intercepts image paste only when the provider catalog declares an input capability', () => {
+    it('intercepts image paste only for a running Agent with a catalogued capability', () => {
         const imageClipboard = { files: [], items: [], types: ['image/png'] };
-        expect(terminalImagePasteInput(imageClipboard, catalogImagePasteInput('codex'))).toBe(
+        expect(terminalImagePasteInput(imageClipboard, catalogImagePasteInput('codex'), true)).toBe(
             '\u{16}',
         );
         expect(
-            terminalImagePasteInput(imageClipboard, catalogImagePasteInput('claude')),
+            terminalImagePasteInput(imageClipboard, catalogImagePasteInput('claude'), true),
+        ).toBeUndefined();
+        expect(
+            terminalImagePasteInput(imageClipboard, catalogImagePasteInput('codex'), false),
         ).toBeUndefined();
     });
 });

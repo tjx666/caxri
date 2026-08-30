@@ -38,26 +38,46 @@ async function openDatabase(): Promise<CaxriDatabase> {
     return database;
 }
 
-function fakeTerminals() {
+function fakeTerminals(database: CaxriDatabase) {
     const processIds = new Map<string, number>();
+    const agentProcessIds = new Map<string, number>();
+    const markRunning = (terminalId: string): TerminalRecord => {
+        database.updateTerminalState(terminalId, 'running');
+        database.updateAgentProcessState(terminalId, 'running');
+        agentProcessIds.set(terminalId, 5_242);
+        return database.getTerminal(terminalId)!;
+    };
     return {
+        agentProcessId: (terminalId: string) => agentProcessIds.get(terminalId),
         processId: (terminalId: string) => processIds.get(terminalId),
         start: (terminal: TerminalRecord) => {
             processIds.set(terminal.id, 4_242);
-            return Promise.resolve({ ...terminal, lastProcessState: 'running' as const });
+            return Promise.resolve(markRunning(terminal.id));
         },
         restart: (terminalId: string) => {
             processIds.set(terminalId, 4_243);
-            return Promise.resolve({
-                id: terminalId,
-                lastProcessState: 'running',
-            } as TerminalRecord);
+            return Promise.resolve(markRunning(terminalId));
         },
-        signalExact: vi.fn(() => true),
+        signalAgentExact: vi.fn(() => true),
+        waitForAgentRunning: vi.fn(() => Promise.resolve()),
     } as unknown as TerminalManager;
 }
 
-function createService(database: CaxriDatabase, terminals: TerminalManager = fakeTerminals()) {
+function createService(
+    database: CaxriDatabase,
+    terminals: TerminalManager = fakeTerminals(database),
+    endpoints: AgentEndpointLifecycle = {
+        endpointForTerminal: (terminalId: string) => ({
+            launchId: `launch-${terminalId}`,
+            terminalId,
+            ref: {
+                hostId: 'host-1',
+                endpointId: `endpoint-${terminalId}`,
+                generation: 1,
+            },
+        }),
+    } as AgentEndpointLifecycle,
+) {
     const service = new AgentDispatchService({
         database,
         coordinator: {
@@ -66,17 +86,7 @@ function createService(database: CaxriDatabase, terminals: TerminalManager = fak
             probeTerminal: vi.fn(),
         } as unknown as AgentCoordinator,
         terminals,
-        endpoints: {
-            endpointForTerminal: (terminalId: string) => ({
-                launchId: `launch-${terminalId}`,
-                terminalId,
-                ref: {
-                    hostId: 'host-1',
-                    endpointId: `endpoint-${terminalId}`,
-                    generation: 1,
-                },
-            }),
-        } as AgentEndpointLifecycle,
+        endpoints,
         launchSettings: () => ({ executable: '/fixture/codex', args: [] }),
         terminalDirectoryIdentity: (path) => Promise.resolve({ device: '1', inode: '1', path }),
         terminalWorkingDirectory: (projectRoot) => Promise.resolve(projectRoot),
@@ -103,18 +113,19 @@ describe('AgentDispatchService', () => {
             .prepare('UPDATE terminals SET agent_session_id = ? WHERE id = ?')
             .run('codex-session-1', terminal!.id);
         database.updateTerminalState(terminal!.id, 'stopped');
-        let processId: number | undefined;
+        let agentProcessId: number | undefined;
         const restart = vi.fn((terminalId: string) => {
-            processId = 4_243;
-            return Promise.resolve({
-                ...database.getTerminal(terminalId)!,
-                lastProcessState: 'running' as const,
-            });
+            database.updateTerminalState(terminalId, 'running');
+            database.updateAgentProcessState(terminalId, 'running');
+            agentProcessId = 5_243;
+            return Promise.resolve(database.getTerminal(terminalId)!);
         });
         const terminals = {
-            processId: () => processId,
+            agentProcessId: () => agentProcessId,
+            processId: () => 4_243,
             restart,
-            signalExact: vi.fn(() => true),
+            signalAgentExact: vi.fn(() => true),
+            waitForAgentRunning: vi.fn(() => Promise.resolve()),
         } as unknown as TerminalManager;
         const service = createService(database, terminals);
 
@@ -129,6 +140,126 @@ describe('AgentDispatchService', () => {
         expect(restart).toHaveBeenCalledWith(
             terminal!.id,
             expect.objectContaining({ resumeAgentSessionId: 'codex-session-1' }),
+        );
+    });
+
+    it('resumes a stopped Agent while its outer Shell remains running', async () => {
+        const database = await openDatabase();
+        const project = database.createProject(join(temporaryDirectories.at(-1)!, 'project'));
+        const { session, terminal } = database.createSession(project.id, 'codex');
+        database.database
+            .prepare('UPDATE terminals SET agent_session_id = ? WHERE id = ?')
+            .run('codex-session-1', terminal!.id);
+        database.updateTerminalState(terminal!.id, 'running');
+        database.updateAgentProcessState(terminal!.id, 'stopped');
+        let agentProcessId: number | undefined;
+        const restart = vi.fn((terminalId: string) => {
+            database.updateAgentProcessState(terminalId, 'running');
+            agentProcessId = 5_243;
+            return Promise.resolve(database.getTerminal(terminalId)!);
+        });
+        const terminals = {
+            agentProcessId: () => agentProcessId,
+            processId: () => 4_243,
+            restart,
+            signalAgentExact: vi.fn(() => true),
+            waitForAgentRunning: vi.fn(() => Promise.resolve()),
+        } as unknown as TerminalManager;
+        const service = createService(database, terminals);
+
+        await expect(
+            service.resume('dispatch-resume-shell-running', PRINCIPAL, {
+                projectId: project.id,
+                sessionId: session.id,
+                terminalId: terminal!.id,
+                providerSessionId: 'codex-session-1',
+            }),
+        ).resolves.toMatchObject({ status: 'running' });
+        expect(restart).toHaveBeenCalledOnce();
+    });
+
+    it('rejects resume when a managed Agent process is still present', async () => {
+        const database = await openDatabase();
+        const project = database.createProject(join(temporaryDirectories.at(-1)!, 'project'));
+        const { session, terminal } = database.createSession(project.id, 'codex');
+        database.database
+            .prepare('UPDATE terminals SET agent_session_id = ? WHERE id = ?')
+            .run('codex-session-1', terminal!.id);
+        database.updateTerminalState(terminal!.id, 'running');
+        database.updateAgentProcessState(terminal!.id, 'stopped');
+        const terminals = {
+            agentProcessId: () => 5_243,
+            processId: () => 4_243,
+        } as unknown as TerminalManager;
+        const service = createService(database, terminals);
+
+        await expect(
+            service.resume('dispatch-resume-live-agent', PRINCIPAL, {
+                projectId: project.id,
+                sessionId: session.id,
+                terminalId: terminal!.id,
+                providerSessionId: 'codex-session-1',
+            }),
+        ).rejects.toMatchObject({ code: 'CONFLICT' });
+    });
+
+    it('waits for the managed Agent and requires its durable and live state', async () => {
+        const database = await openDatabase();
+        const waitForAgentRunning = vi.fn((terminalId: string) => {
+            database.updateAgentProcessState(terminalId, 'running');
+            return Promise.resolve();
+        });
+        const terminals = {
+            agentProcessId: () => 5_244,
+            processId: () => 4_244,
+            start: (terminal: TerminalRecord) => {
+                database.updateTerminalState(terminal.id, 'running');
+                return Promise.resolve(database.getTerminal(terminal.id)!);
+            },
+            signalAgentExact: vi.fn(() => true),
+            waitForAgentRunning,
+        } as unknown as TerminalManager;
+        const service = createService(database, terminals);
+        const project = database.createProject(join(temporaryDirectories.at(-1)!, 'project'));
+        const { session } = database.createSession(project.id, 'shell');
+
+        await expect(
+            service.start('dispatch-wait-agent', PRINCIPAL, {
+                projectId: project.id,
+                sessionId: session.id,
+                provider: 'codex',
+            }),
+        ).resolves.toMatchObject({ status: 'running' });
+        expect(waitForAgentRunning).toHaveBeenCalledOnce();
+    });
+
+    it('signals the prepared Agent generation when Endpoint activation is missing', async () => {
+        const database = await openDatabase();
+        const terminals = fakeTerminals(database);
+        const signalAgentExact = vi.spyOn(terminals, 'signalAgentExact');
+        const endpoints = {
+            endpointForTerminal: vi.fn(() => {}),
+            preparedEndpointForTerminal: vi.fn((terminalId: string) => ({
+                launchId: 'launch-prepared',
+                terminalId,
+                ref: { hostId: 'host-1', endpointId: 'endpoint-prepared', generation: 1 },
+            })),
+        } as unknown as AgentEndpointLifecycle;
+        const service = createService(database, terminals, endpoints);
+        const project = database.createProject(join(temporaryDirectories.at(-1)!, 'project'));
+        const { session } = database.createSession(project.id, 'shell');
+
+        await expect(
+            service.start('dispatch-no-active-endpoint', PRINCIPAL, {
+                projectId: project.id,
+                sessionId: session.id,
+                provider: 'codex',
+            }),
+        ).resolves.toMatchObject({ status: 'failed' });
+        expect(signalAgentExact).toHaveBeenCalledWith(
+            expect.any(String),
+            'launch-prepared',
+            'SIGHUP',
         );
     });
 

@@ -1,3 +1,4 @@
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
@@ -12,6 +13,8 @@ import {
 } from '@caxri/system';
 import * as pty from 'node-pty';
 
+import { ManagedAgentLauncherServer } from './agent-launcher';
+import { managedAgentLauncherSocketPath } from './agent-launcher/socket-path';
 import { resolveE2ETerminalOutputFlushDelay } from './e2e-options';
 import type { TerminalHostMessage } from './protocol';
 import { TerminalHostRuntime } from './runtime';
@@ -57,7 +60,20 @@ const lifecycle = { isStopping: false };
 const send = (message: TerminalHostMessage): void => {
     if (process.connected) process.send?.(message);
 };
+const runtimeReference: { current?: TerminalHostRuntime } = {};
+const agentLauncher = new ManagedAgentLauncherServer({
+    socketPath: managedAgentLauncherSocketPath(tmpdir(), bootId),
+    runtimePath: process.execPath,
+    entryPath: join(import.meta.dirname, 'agent-launcher.js'),
+    onEvent: (event) => {
+        const currentRuntime = runtimeReference.current;
+        if (!currentRuntime) throw new Error('Terminal Host Runtime is not initialized');
+        currentRuntime.projectManagedAgentEvent(event);
+    },
+});
+await agentLauncher.start();
 const runtime = new TerminalHostRuntime({
+    agentLauncher,
     appVersion,
     bootId,
     buildId,
@@ -77,6 +93,7 @@ const runtime = new TerminalHostRuntime({
     send,
     spawn: pty.spawn,
 });
+runtimeReference.current = runtime;
 
 async function stop(exitCode: number): Promise<void> {
     if (lifecycle.isStopping) return;

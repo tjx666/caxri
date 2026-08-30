@@ -88,7 +88,8 @@ describe('Agent dispatch Runtime integration', () => {
                 events.push(event.event);
             },
             terminal: {
-                resolveExecutable: () => Promise.resolve('/fixture/agent'),
+                resolveExecutable: (kind) =>
+                    Promise.resolve(kind === 'shell' ? '/bin/zsh' : '/fixture/agent'),
                 spawn,
             },
             userDataPath: join(directory, 'profile'),
@@ -176,7 +177,8 @@ describe('Agent dispatch Runtime integration', () => {
             logger: new StructuredLogger(join(directory, 'logs')),
             send: () => {},
             terminal: {
-                resolveExecutable: () => Promise.resolve('/fixture/agent'),
+                resolveExecutable: (kind) =>
+                    Promise.resolve(kind === 'shell' ? '/bin/zsh' : '/fixture/agent'),
                 spawn: () => {
                     const fake = fakePty(5_000 + spawned.length);
                     spawned.push(fake);

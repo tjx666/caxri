@@ -46,6 +46,35 @@ function seedPaneLayout(paneLayout: PaneLayout): void {
     });
 }
 
+/**
+ * Seeds the default command context with a content-free Agent Terminal whose outer shell remains alive independently
+ * from its Agent child.
+ */
+function seedAgentTerminal(lastAgentProcessState: 'running' | 'stopped' | undefined): void {
+    const paneLayout = createPaneLayout(
+        { kind: 'terminal', terminalId: 'terminal-1' },
+        () => 'tab-1',
+    );
+    useWorkbenchStore.setState({
+        bootstrap: {
+            selectedSessionId: 'session-1',
+            sessions: [{ id: 'session-1', projectId: 'project-1' }],
+            sessionStates: [{ sessionId: 'session-1', paneLayout }],
+            terminals: [
+                {
+                    id: 'terminal-1',
+                    sessionId: 'session-1',
+                    kind: 'codex',
+                    provider: 'codex',
+                    lastProcessState: 'running',
+                    lastAgentProcessState,
+                },
+            ],
+        } as unknown as BootstrapState,
+        attachEpoch: 0,
+    });
+}
+
 function recordingContext(): { calls: string[]; context: CommandContext } {
     const calls: string[] = [];
     const record =
@@ -171,6 +200,19 @@ describe('executeCommand', () => {
         executeCommand('agentActions.open', undefined, context);
         expect(calls).toEqual(['agentActions.open']);
     });
+
+    it.each([
+        { expected: true, lastAgentProcessState: 'running' as const },
+        { expected: false, lastAgentProcessState: 'stopped' as const },
+        { expected: false, lastAgentProcessState: undefined },
+    ])(
+        'exposes Agent Actions=$expected when the Agent child state is $lastAgentProcessState',
+        ({ expected, lastAgentProcessState }) => {
+            seedAgentTerminal(lastAgentProcessState);
+
+            expect(isCommandAvailable('agentActions.open')).toBe(expected);
+        },
+    );
 
     it('keeps registry titles and categories in sync with the shared catalog', () => {
         for (const definition of registeredCommandDefinitions) {

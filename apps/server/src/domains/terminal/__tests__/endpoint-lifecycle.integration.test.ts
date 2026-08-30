@@ -126,7 +126,7 @@ describe('TerminalManager Agent Endpoint lifecycle', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-endpoint-activation-'));
         temporaryDirectories.push(directory);
         const database = new CaxriDatabase(join(directory, 'state.db'));
-        const created = database.createSession(database.createProject(directory).id, 'shell');
+        const created = database.createSession(database.createProject(directory).id, 'codex');
         const activation = Promise.withResolvers<void>();
         const onLifecycleStarted = vi.fn(() => activation.promise);
         const fake = createFakePty();
@@ -138,8 +138,12 @@ describe('TerminalManager Agent Endpoint lifecycle', () => {
             },
             new StructuredLogger(join(directory, 'logs')),
             {
+                agentEnvironment: () => Promise.resolve({ PATH: '/usr/bin' }),
+                agentLaunchSettings: () => ({ executable: 'codex', args: [] }),
+                lifecycleEnvironment: () => ({ CAXRI_AGENT_TEST: '1' }),
                 onLifecycleStarted,
-                resolveExecutable: () => Promise.resolve('/bin/zsh'),
+                resolveExecutable: (kind) =>
+                    Promise.resolve(kind === 'shell' ? '/bin/zsh' : '/bin/codex'),
                 spawn: () => fake.process,
             },
         );
@@ -169,7 +173,7 @@ describe('TerminalManager Agent Endpoint lifecycle', () => {
             ).toBe(true);
 
             activation.resolve();
-            await expect(starting).resolves.toMatchObject({ lastProcessState: 'stopped' });
+            await expect(starting).resolves.toMatchObject({ lastProcessState: 'running' });
         } finally {
             activation.resolve();
             manager.close(created.terminal!.id);

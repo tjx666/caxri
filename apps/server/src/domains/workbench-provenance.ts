@@ -115,15 +115,16 @@ export async function retireAgentWorkbenchProvenance(options: {
  */
 export async function prepareAgentWorkbenchProvenance(options: {
     endpoints: AgentEndpointLifecycle;
+    launchId: string;
     projectId: string;
     settings: AgentProviderSettings;
     terminal: TerminalRecord;
     workbenchRoots: WorkbenchRootService;
 }): Promise<NodeJS.ProcessEnv> {
-    const { endpoints, projectId, settings, terminal, workbenchRoots } = options;
+    const { endpoints, launchId, projectId, settings, terminal, workbenchRoots } = options;
     if (terminal.kind === 'shell')
         throw new CaxriError('CONFLICT', 'Shell Terminals cannot establish Agent provenance');
-    const environment = await endpoints.environment(terminal, projectId, settings);
+    const environment = await endpoints.environment(terminal, projectId, settings, launchId);
     const endpoint = endpoints.preparedEndpointForTerminal(terminal.id);
     if (!endpoint)
         throw new CaxriError(

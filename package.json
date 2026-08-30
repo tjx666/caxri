@@ -145,6 +145,7 @@
             },
             "apps/server": {
                 "entry": [
+                    "src/terminal-host/agent-launcher/process.ts",
                     "src/extension-host/process.ts",
                     "src/core/process.ts",
                     "src/terminal-host/process.ts"

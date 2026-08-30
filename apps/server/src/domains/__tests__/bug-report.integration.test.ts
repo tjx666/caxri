@@ -29,11 +29,20 @@ describe('Runtime bug report delivery', () => {
             logger: new StructuredLogger(join(directory, 'logs')),
             send: () => {},
             terminal: {
-                resolveExecutable: () => Promise.resolve('/bin/echo'),
+                resolveExecutable: (kind) =>
+                    Promise.resolve(kind === 'shell' ? '/bin/zsh' : '/bin/echo'),
                 spawn: () => pty,
             },
             agentAdapters: createPendingAgentAdapters(),
         });
+        const waitForAgentRunning = async (terminalId: string): Promise<void> => {
+            await vi.waitFor(async () => {
+                const state = await runtime.handlers['app.bootstrap']({});
+                const terminal = state.terminals.find((entry) => entry.id === terminalId);
+                expect(terminal?.lastProcessState).toBe('running');
+                expect(terminal?.lastAgentProcessState).toBe('running');
+            });
+        };
 
         try {
             const project = await runtime.handlers['project.create']({ rootPath: projectRoot });
@@ -46,6 +55,7 @@ describe('Runtime bug report delivery', () => {
                 defaultAgent: 'shell',
             });
             const report = '# Bug report\n\nLine one\nLine two';
+            await waitForAgentRunning(claude.terminal!.id);
 
             expect(
                 runtime.handlers['bugReport.deliver']({
@@ -77,6 +87,7 @@ describe('Runtime bug report delivery', () => {
                 projectId: project.id,
                 defaultAgent: 'codex',
             });
+            await waitForAgentRunning(codex.terminal!.id);
             write.mockClear();
             expect(
                 runtime.handlers['bugReport.deliver']({

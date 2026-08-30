@@ -27,6 +27,7 @@ import { setAgentActionsOpen, useDialogStore } from '../../stores/dialogs';
 import { getBootstrap, useSessions, useSettings, useTerminal } from '../../stores/selectors';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { focusTerminalById } from '../terminal/terminal-actions';
+import { isAgentProcessRunning } from '../terminal/terminal-agent-runtime';
 import type { AgentActionSubmitMode, AgentActionTerminalInputStep } from './agent-action-input';
 import {
     agentActionSubmitModes,
@@ -116,10 +117,11 @@ export function AgentActionsDialog() {
     const sessions = useSessions();
     const session = sessions?.find((candidate) => candidate.id === terminal?.sessionId);
     const provider = terminal?.provider;
+    const isAgentRunning = isAgentProcessRunning(terminal?.lastAgentProcessState);
     const query = useCaxriQuery(
         'agentActions.list',
         { terminalId: terminalId ?? '' },
-        { enabled: Boolean(isOpen && terminalId && provider), staleTime: 0 },
+        { enabled: Boolean(isOpen && terminalId && provider && isAgentRunning), staleTime: 0 },
     );
     const fallbackActions = useMemo(
         () =>
@@ -168,7 +170,7 @@ export function AgentActionsDialog() {
             return;
         }
         const current = getBootstrap()?.terminals.find((candidate) => candidate.id === terminalId);
-        if (!current?.provider || current.lastProcessState !== 'running') {
+        if (!current?.provider || !isAgentProcessRunning(current.lastAgentProcessState)) {
             pushToast('error', 'The selected Agent is no longer running.');
             closePicker();
             return;

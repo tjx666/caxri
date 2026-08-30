@@ -21,7 +21,12 @@ export interface ServerArtifactInput {
 }
 
 const manifestRelativePath = join('metadata', 'manifest.json');
-const requiredBundleNames = ['extension-host.js', 'server-core.js', 'terminal-host.js'] as const;
+const requiredBundleNames = [
+    'agent-launcher.js',
+    'extension-host.js',
+    'server-core.js',
+    'terminal-host.js',
+] as const;
 
 function compareCodeUnits(left: string, right: string): number {
     if (left === right) return 0;

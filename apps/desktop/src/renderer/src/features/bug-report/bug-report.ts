@@ -80,7 +80,8 @@ export function runningAgentTargets(
             terminal.sessionId === sessionId &&
             terminal.provider !== undefined &&
             terminal.processId !== undefined &&
-            terminal.lastProcessState === 'running',
+            terminal.lastProcessState === 'running' &&
+            terminal.lastAgentProcessState === 'running',
     );
 }
 

@@ -93,7 +93,7 @@ describe('CaxriDatabaseConnection', () => {
             (database.database.pragma('table_info(terminals)') as Array<{ name: string }>).map(
                 (column) => column.name,
             ),
-        ).toContain('pty_title');
+        ).toEqual(expect.arrayContaining(['pty_title', 'last_agent_process_state']));
         database.close();
     });
 
@@ -317,9 +317,10 @@ describe('CaxriDatabaseConnection', () => {
                 `INSERT INTO sessions
                  (id, project_id, created_at, last_opened_at, primary_agent_terminal_id,
                   last_activity_state, layout_version, display_title, archived_at, title_mode,
-                  attention_epoch, read_attention_epoch, last_attention_kind)
+                  attention_epoch, read_attention_epoch, last_attention_kind,
+                  last_session_activity_at, last_session_activity_reason)
                  VALUES ('session-preserved', ?, 1, 1, NULL, 'idle', 2, 'Shell', NULL,
-                         'automatic', 0, 0, NULL)`,
+                         'automatic', 0, 0, NULL, 1, 'created')`,
             )
             .run(project.id);
         previous
@@ -346,7 +347,7 @@ describe('CaxriDatabaseConnection', () => {
                  (id, session_id, kind, provider, cwd, title, pty_title, icon, order_index,
                   agent_session_id, last_process_state, failure_reason, created_at, updated_at)
                  VALUES ('terminal-codex', 'session-preserved', 'codex', 'codex', ?,
-                         'Codex', 'codex reviewing', 'codex', 2, NULL, 'stopped', NULL, 1, 1)`,
+                         'Codex', 'codex reviewing', 'codex', 2, NULL, 'running', NULL, 1, 1)`,
             )
             .run(directory);
         previous
@@ -413,14 +414,18 @@ describe('CaxriDatabaseConnection', () => {
         expect(upgraded.terminals.get('terminal-preserved')).toMatchObject({
             id: 'terminal-preserved',
             failureReason: undefined,
+            lastAgentProcessState: undefined,
             ptyTitle: 'zsh old-project',
             title: 'Shell',
         });
         expect(upgraded.terminals.get('terminal-claude')).toMatchObject({
+            lastAgentProcessState: 'stopped',
             ptyTitle: 'claude working',
             title: 'Claude Code',
         });
         expect(upgraded.terminals.get('terminal-codex')).toMatchObject({
+            lastAgentProcessState: 'interrupted',
+            lastProcessState: 'interrupted',
             ptyTitle: 'codex reviewing',
             title: 'Codex',
         });
@@ -485,6 +490,30 @@ describe('CaxriDatabaseConnection', () => {
 
         const reopened = new CaxriDatabase(databasePath);
         expect(reopened.terminals.get(terminal.id)?.lastProcessState).toBe('interrupted');
+        reopened.close();
+    });
+
+    it('marks the outer Shell and Agent child as interrupted after an unclean reopen', async () => {
+        const directory = await temporaryDirectory('caxri-db-agent-recovery-');
+        const databasePath = join(directory, 'state.db');
+        const database = new CaxriDatabase(databasePath);
+        const project = database.projects.create(directory);
+        const session = database.sessions.insert({ projectId: project.id, displayTitle: 'Codex' });
+        const terminal = database.terminals.insert({
+            sessionId: session.id,
+            kind: 'codex',
+            cwd: directory,
+            title: 'Codex',
+        });
+        database.terminals.updateState(terminal.id, 'running');
+        database.terminals.updateAgentProcessState(terminal.id, 'running');
+        database.close();
+
+        const reopened = new CaxriDatabase(databasePath);
+        expect(reopened.terminals.get(terminal.id)).toMatchObject({
+            lastProcessState: 'interrupted',
+            lastAgentProcessState: 'interrupted',
+        });
         reopened.close();
     });
 

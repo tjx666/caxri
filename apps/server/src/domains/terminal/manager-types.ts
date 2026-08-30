@@ -24,15 +24,20 @@ export interface TerminalManagerOptions {
     lifecycleEnvironment?: (
         record: TerminalRecord,
         launch?: AgentLaunchSettings,
+        launchId?: string,
     ) => NodeJS.ProcessEnv | Promise<NodeJS.ProcessEnv>;
     /**
      * Publishes a prepared generation only after its PTY is registered as live.
      */
-    onLifecycleStarted?: (record: TerminalRecord) => void | Promise<void>;
+    onLifecycleStarted?: (record: TerminalRecord, launchId: string) => void | Promise<void>;
     /**
      * Revokes lifecycle integration for a PTY generation before its durable record can be reused.
      */
-    onLifecycleRetired?: (terminalId: string) => void | Promise<void>;
+    onLifecycleRetired?: (terminalId: string, launchId?: string) => void | Promise<void>;
+    /**
+     * Dispatch receipts follow the managed Agent child rather than the long-lived Shell state.
+     */
+    onAgentStateChanged?: (terminalId: string, state: ProcessState) => void;
     /**
      * Dispatch receipts observe durable process state without reading Terminal output.
      */
@@ -62,6 +67,10 @@ export interface TerminalWorkingDirectoryIdentity {
 export interface TerminalStartOptions {
     expectedWorkingDirectory?: TerminalWorkingDirectoryIdentity;
     resumeAgentSessionId?: string;
+    /**
+     * Explicitly starts the bound Agent runtime. By default a stopped Agent restores only its Shell.
+     */
+    launchAgent?: boolean;
     /**
      * Restore generations use this to abandon stale discovery before it spawns a process.
      */

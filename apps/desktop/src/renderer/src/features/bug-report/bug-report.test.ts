@@ -19,6 +19,7 @@ function terminal(id: string, overrides: Partial<TerminalRecord> = {}): Terminal
         icon: 'terminal',
         orderIndex: 0,
         lastProcessState: 'running',
+        lastAgentProcessState: 'running',
         createdAt: 1,
         updatedAt: 1,
         processId: 100,
@@ -73,6 +74,7 @@ describe('bug report target selection', () => {
             terminal('claude'),
             terminal('codex', { kind: 'codex', provider: 'codex', processId: 200 }),
             terminal('shell', { kind: 'shell', provider: undefined }),
+            terminal('agent-idle', { lastAgentProcessState: 'stopped' }),
             terminal('exited', { processId: undefined, lastProcessState: 'stopped' }),
             terminal('foreign', { sessionId: 'session-2' }),
         ];

@@ -209,6 +209,23 @@ process.stdout.write('BACKPRESSURE_FIXTURE_READY\r\n');
 `;
 }
 
+function interruptibleAgentFixture(): string {
+    return String.raw`#!${process.execPath}
+if (process.argv.includes('--version')) {
+  process.stdout.write('caxri-fake-codex 1.0.0\n');
+  process.exit(0);
+}
+process.stdin.setRawMode?.(true);
+process.stdin.resume();
+process.stdin.on('data', (chunk) => {
+  if (!chunk.includes(3)) return;
+  process.stdin.setRawMode?.(false);
+  process.stdout.write('\r\nFAKE_CODEX_EXITED\r\n', () => process.exit(0));
+});
+process.stdout.write('FAKE_CODEX_READY\r\n');
+`;
+}
+
 test('live Terminal restores the authoritative screen after Renderer output backpressure', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-backpressure-e2e-'));
     const userData = join(testDirectory, 'user-data');
@@ -285,6 +302,73 @@ test('live Terminal restores the authoritative screen after Renderer output back
             terminals: Array<{ id: string; processId?: number }>;
         }>(running.page, 'app.bootstrap');
         expect(after.terminals.find(({ id }) => id === terminalId)?.processId).toBe(processId);
+        await expect.poll(() => pageRequest<number>(running.page, 'terminal.runningCount')).toBe(1);
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('Agent exit returns to the same live Shell instead of stopping the Terminal', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-agent-shell-return-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await mkdir(root, { recursive: true });
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: { codex: { executableSource: interruptibleAgentFixture() } },
+    });
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        await createProjectSession(running.page, 'codex');
+        const pane = running.page.locator('.terminal-pane');
+        const rows = pane.locator('.xterm-rows');
+        const input = pane.locator('.xterm-helper-textarea');
+        await expect(rows).toContainText('FAKE_CODEX_READY');
+
+        const terminalId = await pane.getAttribute('data-terminal-id');
+        if (!terminalId) throw new Error('Terminal identity was not rendered');
+        const before = await pageRequest<{
+            terminals: Array<{
+                id: string;
+                lastAgentProcessState?: string;
+                lastProcessState?: string;
+                processId?: number;
+            }>;
+        }>(running.page, 'app.bootstrap');
+        const processId = before.terminals.find(({ id }) => id === terminalId)?.processId;
+        expect(typeof processId).toBe('number');
+
+        await input.focus();
+        await input.press('Control+C');
+        await expect(rows).toContainText('FAKE_CODEX_EXITED');
+        await expect(running.page.locator('[data-terminal-exit-state]')).toHaveCount(0);
+        await expect
+            .poll(async () => {
+                const bootstrap = await pageRequest<{
+                    terminals: Array<{
+                        id: string;
+                        lastAgentProcessState?: string;
+                        lastProcessState?: string;
+                        processId?: number;
+                    }>;
+                }>(running.page, 'app.bootstrap');
+                const terminal = bootstrap.terminals.find(({ id }) => id === terminalId);
+                return {
+                    agent: terminal?.lastAgentProcessState,
+                    process: terminal?.lastProcessState,
+                    processId: terminal?.processId,
+                };
+            })
+            .toEqual({ agent: 'stopped', process: 'running', processId });
+
+        await typeTerminal(running.page, String.raw`printf 'RETURNED_TO_SHELL\n'`);
+        await expect(rows).toContainText('RETURNED_TO_SHELL');
+        await expect(pane).toHaveAttribute('data-terminal-id', terminalId);
         await expect.poll(() => pageRequest<number>(running.page, 'terminal.runningCount')).toBe(1);
     } finally {
         try {
