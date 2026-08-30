@@ -75,6 +75,16 @@ describe('Runtime Agent hook integration', () => {
             expect(environment).toMatchObject({
                 CAXRI_HOOK_TERMINAL_ID: background.terminal!.id,
             });
+            expect(
+                [
+                    'CAXRI_HOOK_LAUNCH_ID',
+                    'CAXRI_HOOK_RECEIPTS',
+                    'CAXRI_HOOK_RUNTIME',
+                    'CAXRI_HOOK_SOCKET',
+                    'CAXRI_HOOK_TERMINAL_ID',
+                    'CAXRI_HOOK_TOKEN',
+                ].every((key) => typeof environment?.[key] === 'string' && environment[key] !== ''),
+            ).toBe(true);
             const bridge = join(directory, 'shared-hooks', 'bin', 'caxri-agent-hook-bridge');
             await execFileAsync(
                 bridge,
@@ -86,7 +96,7 @@ describe('Runtime Agent hook integration', () => {
                     '--phase',
                     'compactionStarted',
                     '--schema',
-                    '5',
+                    '6',
                 ],
                 { env: { ...process.env, ...environment } },
             );
@@ -118,7 +128,7 @@ describe('Runtime Agent hook integration', () => {
                     '--phase',
                     'compactionFinished',
                     '--schema',
-                    '5',
+                    '6',
                 ],
                 { env: { ...process.env, ...environment } },
             );
@@ -142,7 +152,7 @@ describe('Runtime Agent hook integration', () => {
                     '--phase',
                     'turnFinished',
                     '--schema',
-                    '5',
+                    '6',
                     '--reply',
                     'empty-json',
                 ],

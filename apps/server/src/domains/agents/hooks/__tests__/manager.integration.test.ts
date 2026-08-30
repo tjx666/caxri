@@ -315,7 +315,7 @@ describe('AgentHookManager', () => {
                     '--phase',
                     'turnFinished',
                     '--schema',
-                    '5',
+                    '6',
                 ],
                 {
                     env: {
@@ -337,7 +337,7 @@ describe('AgentHookManager', () => {
                     '--phase',
                     'turnFinished',
                     '--schema',
-                    '5',
+                    '6',
                     '--reply',
                     'empty-json',
                 ],
@@ -360,7 +360,7 @@ describe('AgentHookManager', () => {
                     '--phase',
                     'turnStarted',
                     '--schema',
-                    '5',
+                    '6',
                 ],
                 { env: { ...process.env, ...environment } },
             );
@@ -391,7 +391,7 @@ describe('AgentHookManager', () => {
                     '--phase',
                     'turnStarted',
                     '--schema',
-                    '5',
+                    '6',
                 ],
                 { env: { ...process.env, ...environment } },
             );
@@ -408,7 +408,7 @@ describe('AgentHookManager', () => {
                     '--phase',
                     'sessionIdentified',
                     '--schema',
-                    '5',
+                    '6',
                 ],
                 { env: { ...process.env, ...environment } },
             );
@@ -427,6 +427,12 @@ describe('AgentHookManager', () => {
             const acceptedLogs = logRecords.filter(
                 (record) => record.event === 'agent_hooks.signal_accepted',
             );
+            const bridgeStartedLog = logRecords.find(
+                (record) => record.event === 'agent_hooks.bridge_started',
+            );
+            const launchPreparedLog = logRecords.find(
+                (record) => record.event === 'agent_hooks.launch_prepared',
+            );
             const acceptedIdentityLog = acceptedLogs.find(
                 (record) =>
                     (record.fields as Record<string, unknown> | undefined)?.hasAgentSessionId ===
@@ -437,6 +443,12 @@ describe('AgentHookManager', () => {
             );
             expect(rejectedLog).toMatchObject({
                 fields: { reason: 'unknownToken', stage: 'serverCore' },
+            });
+            expect(bridgeStartedLog).toMatchObject({
+                fields: { provider: 'codex', stage: 'serverCore', terminalId: 'terminal-1' },
+            });
+            expect(launchPreparedLog).toMatchObject({
+                fields: { provider: 'codex', stage: 'serverCore', terminalId: 'terminal-1' },
             });
             expect(acceptedIdentityLog).toMatchObject({
                 fields: { hasAgentSessionId: true, stage: 'serverCore' },
@@ -470,7 +482,7 @@ describe('AgentHookManager', () => {
                     '--phase',
                     'turnFinished',
                     '--schema',
-                    '5',
+                    '6',
                 ],
                 { env: { ...process.env, ...environment } },
             );
@@ -612,7 +624,7 @@ describe('AgentHookManager', () => {
                                 {
                                     type: 'command',
                                     command:
-                                        "'/newer/bridge' --source caxri --provider codex --phase turnFinished --schema 6",
+                                        "'/newer/bridge' --source caxri --provider codex --phase turnFinished --schema 7",
                                     timeout: 1,
                                 },
                             ],
