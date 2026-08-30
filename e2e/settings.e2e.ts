@@ -103,7 +103,13 @@ test('Settings keeps actions visible and provides highlighted editors and live T
             dialog.getByRole('switch', { name: 'Claude Code peer messaging' }),
         ).toBeChecked();
         await expect(
+            dialog.getByRole('switch', { name: 'Claude Code automatic Session naming' }),
+        ).not.toBeChecked();
+        await expect(
             dialog.locator('[data-setting-row="agents.claude.hooks"]').getByRole('status'),
+        ).toHaveText('Disabled');
+        await expect(
+            dialog.locator('[data-setting-row="agents.claude.naming"]').getByRole('status'),
         ).toHaveText('Disabled');
         await expect(dialog.getByLabel('Claude Code initial arguments')).toBeVisible();
         await expect(
@@ -150,6 +156,10 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         await expect(
             dialog.locator('[data-setting-row="agents.claude.hooks"]').getByRole('status'),
         ).toContainText('Waiting for the agent CLI to be installed');
+        await dialog.getByRole('switch', { name: 'Claude Code automatic Session naming' }).check();
+        await expect(
+            dialog.locator('[data-setting-row="agents.claude.naming"]').getByRole('status'),
+        ).toContainText('Waiting for the agent CLI to be installed');
         await expect
             .poll(async () => {
                 const settings = await pageRequest<{
@@ -168,6 +178,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
                                 hooks: { enabled: boolean };
                                 launch: { executable: string; args: string[] };
                                 messaging: { enabled: boolean };
+                                naming: { enabled: boolean };
                                 recovery: {
                                     enabled: boolean;
                                     patterns: string[];
@@ -185,6 +196,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
                 hooks: { enabled: true },
                 launch: { executable: 'claude', args: [] },
                 messaging: { enabled: true },
+                naming: { enabled: true },
                 recovery: {
                     enabled: false,
                     patterns: [],

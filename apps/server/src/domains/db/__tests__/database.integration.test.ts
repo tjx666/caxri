@@ -325,6 +325,17 @@ describe('CaxriDatabaseConnection', () => {
             .run(project.id);
         previous
             .prepare(
+                `INSERT INTO sessions
+                 (id, project_id, created_at, last_opened_at, primary_agent_terminal_id,
+                  last_activity_state, layout_version, display_title, archived_at, title_mode,
+                  attention_epoch, read_attention_epoch, last_attention_kind,
+                  last_session_activity_at, last_session_activity_reason)
+                 VALUES ('session-manual', ?, 2, 2, NULL, 'idle', 2, 'Keep this title', NULL,
+                         'manual', 0, 0, NULL, 2, 'created')`,
+            )
+            .run(project.id);
+        previous
+            .prepare(
                 `INSERT INTO terminals
                  (id, session_id, kind, provider, cwd, title, pty_title, icon, order_index,
                   agent_session_id, last_process_state, failure_reason, created_at, updated_at)
@@ -365,6 +376,15 @@ describe('CaxriDatabaseConnection', () => {
                  VALUES ('terminal-preserved', 1, 1, 8, 'restored', 123)`,
             )
             .run();
+        /**
+         * The previous released schema had already run migration 0018's one-time semantic backfill. Applying generated
+         * SQL above reconstructs its columns only, so reproduce that prior-version runtime state before testing 0019.
+         */
+        previous
+            .prepare(
+                "UPDATE terminals SET last_agent_process_state = last_process_state WHERE kind <> 'shell' OR provider IS NOT NULL",
+            )
+            .run();
         previous.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 1}`);
         previous.close();
 
@@ -386,6 +406,8 @@ describe('CaxriDatabaseConnection', () => {
                 'workbench_root_inode',
                 'last_session_activity_at',
                 'last_session_activity_reason',
+                'auto_naming_state',
+                'last_auto_title',
             ]),
         );
         expect(upgraded.projects.list()).toEqual([
@@ -410,6 +432,12 @@ describe('CaxriDatabaseConnection', () => {
             hasUnread: false,
             readAttentionEpoch: 0,
             titleMode: 'automatic',
+            autoNamingState: 'active',
+        });
+        expect(upgraded.sessions.get('session-manual')).toMatchObject({
+            autoNamingState: 'stopped',
+            displayTitle: 'Keep this title',
+            titleMode: 'manual',
         });
         expect(upgraded.terminals.get('terminal-preserved')).toMatchObject({
             id: 'terminal-preserved',

@@ -1,15 +1,12 @@
 import type { Buffer } from 'node:buffer';
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import { spawn } from 'node:child_process';
-import { readdir } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 
 import { CaxriError } from '@caxri/protocol';
-import { mapWithConcurrency } from '@caxri/system';
 import Database from 'better-sqlite3';
 
 import type {
-    AgentEnvironment,
     AgentProviderDescriptor,
     AgentProviderSessionRenameContext,
     AgentSessionRenameResult,
@@ -23,6 +20,9 @@ import {
     throwAgentRenameError,
 } from '../../rename';
 import { codexHookAdapter } from './hooks';
+import { codexNaming } from './naming';
+import { resolveCodexHome, resolveCodexStateDirectories } from './paths';
+import { findCodexStateDatabases } from './state-databases';
 
 /**
  * A one-shot app-server sees the active conversation as an unloaded thread; 0.110.0 made that rename path durable.
@@ -216,7 +216,7 @@ interface SqliteColumn {
 
 interface CodexThreadRow {
     id: string;
-    title: string;
+    title?: string;
     tokens_used?: number;
 }
 
@@ -224,33 +224,12 @@ interface CodexTurnRow {
     status: string;
 }
 
-async function findCodexDatabases(
-    directories: string[],
-    namePattern = /^state_\d+\.sqlite$/,
-): Promise<string[]> {
-    const groups = await mapWithConcurrency([...new Set(directories)], 4, async (directory) => {
-        try {
-            const names = await readdir(directory);
-            return names
-                .filter((name) => namePattern.test(name))
-                .toSorted((left, right) => right.localeCompare(left, undefined, { numeric: true }))
-                .map((name) => join(directory, name));
-        } catch {
-            /**
-             * Missing or unreadable state directories are normal capability misses.
-             */
-            return [];
-        }
-    });
-    return groups.flat();
-}
-
 async function readCodexTurnStatus(
     context: AgentSnapshotContext,
     stateDirectories: string[],
 ): Promise<LocalAgentState['status']> {
     if (!context.agentSessionId || !context.agentTurnId) return undefined;
-    const databasePaths = await findCodexDatabases(
+    const databasePaths = await findCodexStateDatabases(
         stateDirectories,
         /^thread_history_\d+\.sqlite$/,
     );
@@ -291,7 +270,7 @@ async function readCodexState(
     stateDirectories: string[],
 ): Promise<LocalAgentState | undefined> {
     const requestedRoots = [...new Set([context.rootPath, await canonicalPath(context.rootPath)])];
-    const databasePaths = await findCodexDatabases(stateDirectories);
+    const databasePaths = await findCodexStateDatabases(stateDirectories);
     let selectedRow: CodexThreadRow | undefined;
     for (const path of databasePaths) {
         let database: Database.Database | undefined;
@@ -302,7 +281,7 @@ async function readCodexState(
                     (column) => column.name,
                 ),
             );
-            if (['id', 'cwd', 'title'].some((column) => !columns.has(column))) continue;
+            if (['id', 'cwd'].some((column) => !columns.has(column))) continue;
             const updatedColumn = columns.has('updated_at_ms')
                 ? 'updated_at_ms'
                 : columns.has('updated_at')
@@ -319,9 +298,9 @@ async function readCodexState(
                     : columns.has('updated_at')
                       ? 'updated_at * 1000'
                       : undefined;
-            const titleExpression = columns.has('name')
-                ? "COALESCE(NULLIF(TRIM(name), ''), title)"
-                : 'title';
+            // `threads.title` is Codex's raw first prompt. Only its explicit `name` is safe to project into Caxri or
+            // a native notification, where the title can be visible outside the application and on the lock screen.
+            const titleExpression = columns.has('name') ? "NULLIF(TRIM(name), '')" : 'NULL';
             const tokens = columns.has('tokens_used') ? ', tokens_used' : '';
             const archived = columns.has('archived') ? 'archived = 0 AND ' : '';
             const session = context.agentSessionId ? 'id = ? AND ' : '';
@@ -361,34 +340,16 @@ async function readCodexState(
         }
     }
     if (!selectedRow) return undefined;
+    const explicitTitle = selectedRow.title?.trim();
     return {
         sessionId: selectedRow.id,
         status: await readCodexTurnStatus(context, stateDirectories),
-        title: selectedRow.title.trim() || undefined,
+        title: explicitTitle === '' ? undefined : explicitTitle,
         usage:
             typeof selectedRow.tokens_used === 'number' && selectedRow.tokens_used > 0
                 ? [{ label: 'Tokens', value: selectedRow.tokens_used.toLocaleString('en-US') }]
                 : undefined,
     };
-}
-
-/**
- * Resolves the ordered set of directories Codex may keep its thread index SQLite databases in, from generic environment
- * inputs. `CODEX_SQLITE_HOME` takes priority when set, followed by Codex's own `sqlite` subdirectory and its home
- * directory, mirroring Codex's own resolution order.
- */
-function resolveCodexStateDirectories(environment: AgentEnvironment): string[] {
-    // `||` (not `??`) is deliberate: `CODEX_HOME=''` is not a usable override path either.
-    // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- empty string is not a valid override path either
-    const codexHome = environment.variables.CODEX_HOME || join(environment.homeDirectory, '.codex');
-    const sqliteHome = environment.variables.CODEX_SQLITE_HOME;
-    return [...(sqliteHome ? [resolve(sqliteHome)] : []), join(codexHome, 'sqlite'), codexHome];
-}
-
-function resolveCodexHome(environment: AgentEnvironment): string {
-    // `||` is deliberate: an empty override is not a usable configuration root.
-    // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- empty string is not a valid override path either
-    return resolve(environment.variables.CODEX_HOME || join(environment.homeDirectory, '.codex'));
 }
 
 export const codexProvider: AgentProviderDescriptor = {
@@ -423,6 +384,7 @@ export const codexProvider: AgentProviderDescriptor = {
     },
     hooks: codexHookAdapter,
     id: 'codex',
+    naming: codexNaming,
     readState: (context, environment) =>
         readCodexState(context, resolveCodexStateDirectories(environment)),
     renameSession: renameCodexSession,

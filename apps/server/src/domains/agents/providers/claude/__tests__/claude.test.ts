@@ -1,6 +1,7 @@
-import { appendFile, chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { appendFile, chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -28,6 +29,7 @@ import type { AgentProviderSessionRenameContext } from '../../../contract';
 import { clearExecutableCache } from '../../../discovery';
 import { AgentService, createLocalAgentAdapters } from '../../../service';
 import { claudeProvider, renameClaudeSession } from '..';
+import { claudeTranscriptPath, claudeTranscriptRoot } from '../paths';
 
 const temporaryDirectories: string[] = [];
 
@@ -61,6 +63,97 @@ function claudeRenameContext(
 }
 
 describe('Claude Code provider', () => {
+    it('reads a bounded naming source and distinguishes an explicit native title', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-claude-naming-source-'));
+        temporaryDirectories.push(directory);
+        const root = join(directory, 'project');
+        const config = join(directory, 'claude');
+        const sessionId = 'claude-naming-session';
+        await Promise.all([
+            mkdir(root),
+            mkdir(join(config, 'sessions'), { recursive: true }),
+            mkdir(claudeTranscriptRoot(config, root), { recursive: true }),
+        ]);
+        await writeFile(
+            join(config, 'sessions', 'session.json'),
+            JSON.stringify({
+                cwd: root,
+                name: 'Manual Claude title',
+                nameSource: 'custom',
+                sessionId,
+            }),
+            'utf8',
+        );
+        await writeFile(
+            claudeTranscriptPath(config, root, sessionId),
+            [
+                { type: 'user', message: { content: 'Investigate lifecycle hooks' } },
+                {
+                    type: 'assistant',
+                    message: { content: [{ type: 'text', text: 'I found the coordinator.' }] },
+                },
+            ]
+                .map((record) => JSON.stringify(record))
+                .join('\n'),
+            'utf8',
+        );
+
+        await expect(
+            claudeProvider.naming?.readSource(
+                { agentSessionId: sessionId, rootPath: root },
+                {
+                    homeDirectory: directory,
+                    variables: { CLAUDE_CONFIG_DIR: config },
+                },
+            ),
+        ).resolves.toMatchObject({
+            assistantMessages: ['I found the coordinator.'],
+            currentProviderTitle: 'Manual Claude title',
+            providerTitleState: 'explicit',
+            userMessages: ['Investigate lifecycle hooks'],
+        });
+    });
+
+    it('sends title prompt content only through stdin to the low-cost model', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-claude-naming-command-'));
+        temporaryDirectories.push(directory);
+        const executable = join(directory, 'claude.cjs');
+        const argumentsPath = join(directory, 'arguments.json');
+        const inputPath = join(directory, 'input.txt');
+        await writeFile(
+            executable,
+            `#!${process.execPath}
+const { writeFileSync } = require('node:fs');
+writeFileSync(${JSON.stringify(argumentsPath)}, JSON.stringify(process.argv.slice(2)));
+let input = '';
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', (chunk) => { input += chunk; });
+process.stdin.on('end', () => {
+    writeFileSync(${JSON.stringify(inputPath)}, input);
+    process.stdout.write('🧭 Claude naming lifecycle');
+});
+`,
+            'utf8',
+        );
+        await chmod(executable, 0o700);
+
+        await expect(
+            claudeProvider.naming?.generateTitle({
+                cwd: directory,
+                environment: { homeDirectory: directory, variables: {} },
+                executable,
+                prompt: 'private transcript excerpt',
+                version: '2.1.251 (Claude Code)',
+            }),
+        ).resolves.toBe('🧭 Claude naming lifecycle');
+        const arguments_ = JSON.parse(await readFile(argumentsPath, 'utf8')) as string[];
+        expect(arguments_).toEqual(
+            expect.arrayContaining(['--model', 'haiku', '--no-session-persistence']),
+        );
+        expect(arguments_.join(' ')).not.toContain('private transcript excerpt');
+        expect(await readFile(inputPath, 'utf8')).toBe('private transcript excerpt');
+    });
+
     it('renames the exact native session with structured arguments and returns the provider-authoritative name', async () => {
         mocks.runExternalCommand.mockResolvedValue({
             stderr: '',
@@ -397,7 +490,7 @@ describe('Claude Code provider', () => {
         ).resolves.toMatchObject({ title: 'project-worktree-7d' });
     });
 
-    it('falls back to the transcript last prompt before the derived name, mirroring the /resume list', async () => {
+    it('never exposes a raw transcript prompt as the Session title', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-claude-last-prompt-'));
         temporaryDirectories.push(directory);
         const root = join(directory, 'project');
@@ -454,9 +547,9 @@ describe('Claude Code provider', () => {
 
         await expect(
             service.snapshot('claude', { rootPath: root, processState: 'running' }),
-        ).resolves.toMatchObject({ title: 'hello' });
+        ).resolves.toMatchObject({ title: 'project-derived-77' });
 
-        // A newer prompt replaces the fallback label on the next incremental poll.
+        // Later prompt records also stay private.
         await appendFile(
             transcript,
             `${JSON.stringify({
@@ -468,9 +561,9 @@ describe('Claude Code provider', () => {
         );
         await expect(
             service.snapshot('claude', { rootPath: root, processState: 'running' }),
-        ).resolves.toMatchObject({ title: 'next question about lifecycles' });
+        ).resolves.toMatchObject({ title: 'project-derived-77' });
 
-        // An AI-generated title always outranks the prompt fallback.
+        // A provider-generated title remains safe to surface.
         await appendFile(
             transcript,
             `${JSON.stringify({

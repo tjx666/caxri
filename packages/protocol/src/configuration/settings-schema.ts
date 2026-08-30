@@ -54,6 +54,9 @@ const agentHooksSettingsSchema = z
 const agentMessagingSettingsSchema = z
     .object({ enabled: z.boolean().default(true) })
     .default({ enabled: true });
+const agentNamingSettingsSchema = z
+    .object({ enabled: z.boolean().default(false) })
+    .default({ enabled: false });
 const agentOutputRecoverySettingsSchema = z
     .object({
         enabled: z.boolean(),
@@ -86,6 +89,7 @@ const agentProviderSettingsSchema = z.object({
     hooks: agentHooksSettingsSchema,
     launch: agentLaunchSettingsSchema,
     messaging: agentMessagingSettingsSchema,
+    naming: agentNamingSettingsSchema,
     recovery: agentOutputRecoverySettingsSchema,
 });
 

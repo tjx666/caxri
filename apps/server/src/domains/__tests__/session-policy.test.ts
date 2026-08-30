@@ -57,6 +57,7 @@ function session(overrides: Partial<SessionRecord> = {}): SessionRecord {
         layoutVersion: 2,
         displayTitle: DEFAULT_SESSION_TITLE,
         titleMode: 'automatic',
+        autoNamingState: 'active',
         ...overrides,
     };
 }

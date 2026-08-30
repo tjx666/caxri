@@ -27,7 +27,7 @@ import { AgentActionSettingsEditor } from './agent-action-settings-editor';
 import { EnumControl } from './enum-control';
 import { FilesExcludeEditor } from './files-exclude-editor';
 import { IntegerControl } from './integer-control';
-import { hookHealthLabel } from './provider-health';
+import { automaticNamingHealthLabel, hookHealthLabel } from './provider-health';
 import { ProviderRecoveryEditor } from './provider-recovery-editor';
 import { ProviderSkillHealth } from './provider-skill-health';
 import type { SettingRowDescriptor } from './settings-registry';
@@ -230,17 +230,29 @@ function rowControl(properties: SettingRowProperties): {
         }
         case 'provider-toggle': {
             const providerName = agentProviderCatalog[binding.provider].displayName;
-            const isEnabled = settings['agents.providers'][binding.provider][binding.field].enabled;
+            const providerSettings = settings['agents.providers'][binding.provider];
+            const isEnabled = providerSettings[binding.field].enabled;
             const status =
                 binding.field === 'hooks' ? (
                     <FieldDescription role="status">
                         {hookHealthLabel(isEnabled, agentHookHealth?.[binding.provider])}
                     </FieldDescription>
+                ) : binding.field === 'naming' ? (
+                    <FieldDescription role="status">
+                        {automaticNamingHealthLabel(
+                            isEnabled,
+                            providerSettings.hooks.enabled,
+                            agentHookHealth?.[binding.provider],
+                        )}
+                    </FieldDescription>
                 ) : undefined;
-            const label =
+            const label = `${providerName} ${
                 binding.field === 'hooks'
-                    ? `${providerName} lifecycle hooks`
-                    : `${providerName} peer messaging`;
+                    ? 'lifecycle hooks'
+                    : binding.field === 'naming'
+                      ? 'automatic Session naming'
+                      : 'peer messaging'
+            }`;
             return {
                 labelFor: controlId,
                 status,

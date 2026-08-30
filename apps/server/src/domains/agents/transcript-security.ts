@@ -2,9 +2,13 @@ import type { Stats } from 'node:fs';
 import { constants } from 'node:fs';
 import type { FileHandle } from 'node:fs/promises';
 import { lstat, open, realpath, stat } from 'node:fs/promises';
-import { basename, relative, resolve } from 'node:path';
+import { basename, isAbsolute, relative, resolve, sep } from 'node:path';
 
 export interface AgentTranscriptLocation {
+    /**
+     * Optional provider-owned ancestor for fixed-depth nested layouts such as Codex `sessions/YYYY/MM/DD`.
+     */
+    anchorRoot?: string;
     baseRoot: string;
     path: string;
     root: string;
@@ -28,6 +32,11 @@ function isDirectChild(root: string, path: string): boolean {
     return child !== '' && child === basename(child);
 }
 
+function isDescendant(root: string, path: string): boolean {
+    const child = relative(root, path);
+    return child !== '' && child !== '..' && !child.startsWith(`..${sep}`) && !isAbsolute(child);
+}
+
 function isMissing(error: unknown): boolean {
     return (error as NodeJS.ErrnoException).code === 'ENOENT';
 }
@@ -39,16 +48,29 @@ function isMissing(error: unknown): boolean {
 export async function resolveSafeAgentTranscriptPath(
     location: AgentTranscriptLocation,
 ): Promise<SafeAgentTranscriptPath | undefined> {
+    const rawAnchorRoot = location.anchorRoot ? resolve(location.anchorRoot) : undefined;
     const rawBaseRoot = resolve(location.baseRoot);
     const rawRoot = resolve(location.root);
     const rawPath = resolve(location.path);
     if (!isDirectChild(rawBaseRoot, rawRoot) || !isDirectChild(rawRoot, rawPath)) return;
+
+    let anchorRoot: string | undefined;
+    if (rawAnchorRoot) {
+        try {
+            const anchorLink = await lstat(rawAnchorRoot);
+            if (anchorLink.isSymbolicLink() || !anchorLink.isDirectory()) return;
+            anchorRoot = await realpath(rawAnchorRoot);
+        } catch {
+            return;
+        }
+    }
 
     let baseRoot: string;
     try {
         const baseLink = await lstat(rawBaseRoot);
         if (baseLink.isSymbolicLink() || !baseLink.isDirectory()) return;
         baseRoot = await realpath(rawBaseRoot);
+        if (anchorRoot && !isDescendant(anchorRoot, baseRoot)) return;
     } catch (error) {
         if (!isMissing(error)) return;
         return { exists: false, path: rawPath, root: rawRoot };
