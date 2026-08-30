@@ -1,0 +1,380 @@
+import type { ProfilerOnRenderCallback } from 'react';
+
+import type { RendererPerformanceScenarioDiagnostic } from '@caxri/protocol';
+import { rendererPerformanceActions } from '@caxri/protocol';
+
+import type {
+    InteractionPerformanceSample,
+    LongAnimationFrameSample,
+    ReactProfileSample,
+    ReactScanCommitSample,
+    RendererPerformanceAction,
+    RendererPerformanceBuildMode,
+    RendererPerformanceSamples,
+    RendererPerformanceSurface,
+} from './aggregation';
+import { summarizeRendererPerformance } from './aggregation';
+
+const maximumScenarioDurationMs = 120_000;
+const maximumReactProfileSamples = 10_000;
+const maximumLongAnimationFrameSamples = 2_000;
+const maximumInteractionSamples = 2_000;
+const maximumFrameTimestamps = 20_001;
+const maximumReactScanSamples = 20_000;
+const supportedActions: ReadonlySet<string> = new Set(rendererPerformanceActions);
+
+interface LongAnimationFrameEntry extends PerformanceEntry {
+    blockingDuration?: number;
+    renderStart?: number;
+    styleAndLayoutStart?: number;
+}
+
+interface EventTimingEntry extends PerformanceEntry {
+    interactionId?: number;
+    processingEnd?: number;
+    processingStart?: number;
+}
+
+interface ReactScanEvent {
+    available?: boolean;
+    kind: string;
+    timestamp: number;
+    tree?: Array<{ actualDuration: number; name: string }>;
+}
+
+interface ReactScanRuntime {
+    error?: boolean;
+    handle?: {
+        isActive(): boolean;
+        subscribe(listener: (event: ReactScanEvent) => void): () => void;
+    };
+    profilingAvailable?: boolean;
+}
+
+interface RendererPerformanceGlobal {
+    caxriE2E?: unknown;
+    caxriPerformance?: RendererPerformanceMonitor;
+    caxriReactScan?: ReactScanRuntime;
+}
+
+interface ActiveScenario extends RendererPerformanceSamples {
+    animationFrameId: number;
+    frameTimestamps: number[];
+    interactionById: Map<number, InteractionPerformanceSample>;
+    interactions: InteractionPerformanceSample[];
+    longAnimationFrames: LongAnimationFrameSample[];
+    observers: PerformanceObserver[];
+    reactProfiles: ReactProfileSample[];
+    reactScanCommits: ReactScanCommitSample[];
+    timeoutId: number;
+}
+
+interface RendererPerformanceStatus {
+    action: RendererPerformanceAction | null;
+    capabilities: RendererPerformanceScenarioDiagnostic['capabilities'];
+    frameSampleCount: number;
+    scenarioId: string | null;
+}
+
+interface RendererPerformanceMonitor {
+    begin(action: RendererPerformanceAction): string;
+    end(scenarioId: string): RendererPerformanceScenarioDiagnostic;
+    status(): RendererPerformanceStatus;
+}
+
+function isBrowserEntryTypeSupported(type: string): boolean {
+    return (
+        typeof PerformanceObserver !== 'undefined' &&
+        PerformanceObserver.supportedEntryTypes.includes(type)
+    );
+}
+
+function resolveBuildMode(): RendererPerformanceBuildMode {
+    if (__CAXRI_REACT_PROFILING__) return 'profiling';
+    return import.meta.env.DEV ? 'development' : 'production';
+}
+
+function isReactProfilerAvailable(): boolean {
+    return import.meta.env.DEV || __CAXRI_REACT_PROFILING__;
+}
+
+function reactScanRuntime(): ReactScanRuntime | undefined {
+    return (globalThis as RendererPerformanceGlobal).caxriReactScan;
+}
+
+function reactScanCapability(): RendererPerformanceScenarioDiagnostic['capabilities']['reactScan'] {
+    const runtime = reactScanRuntime();
+    if (runtime?.error) return 'error';
+    if (!runtime?.handle?.isActive()) return 'disabled';
+    if (runtime.profilingAvailable === false) return 'commit-tree-only';
+    return 'active';
+}
+
+function createScenario(action: RendererPerformanceAction): ActiveScenario {
+    const startedAt = performance.now();
+    return {
+        diagnosticId: crypto.randomUUID(),
+        scenarioId: crypto.randomUUID(),
+        action,
+        buildMode: resolveBuildMode(),
+        startedAt,
+        endedAt: startedAt,
+        documentVisible: document.visibilityState === 'visible',
+        documentFocused: document.hasFocus(),
+        visibilityInterrupted: false,
+        focusInterrupted: false,
+        capabilities: {
+            longAnimationFrame: isBrowserEntryTypeSupported('long-animation-frame')
+                ? 'available'
+                : 'unavailable',
+            eventTiming: isBrowserEntryTypeSupported('event') ? 'available' : 'unavailable',
+            reactProfiler: isReactProfilerAvailable() ? 'available' : 'disabled',
+            reactScan: reactScanCapability(),
+        },
+        reactProfiles: [],
+        longAnimationFrames: [],
+        interactions: [],
+        interactionById: new Map(),
+        frameTimestamps: [],
+        reactScanCommits: [],
+        truncated: false,
+        observers: [],
+        animationFrameId: 0,
+        timeoutId: 0,
+    };
+}
+
+function pushBounded<T>(values: T[], value: T, maximum: number, scenario: ActiveScenario): void {
+    if (values.length >= maximum) {
+        scenario.truncated = true;
+        return;
+    }
+    values.push(value);
+}
+
+function consumeLongAnimationFrames(
+    scenario: ActiveScenario,
+    entries: readonly PerformanceEntry[],
+): void {
+    for (const rawEntry of entries) {
+        const entry = rawEntry as LongAnimationFrameEntry;
+        const styleAndLayoutDurationMs =
+            entry.styleAndLayoutStart && entry.styleAndLayoutStart > entry.startTime
+                ? Math.max(0, entry.startTime + entry.duration - entry.styleAndLayoutStart)
+                : 0;
+        pushBounded<LongAnimationFrameSample>(
+            scenario.longAnimationFrames,
+            {
+                durationMs: entry.duration,
+                blockingDurationMs: entry.blockingDuration ?? 0,
+                styleAndLayoutDurationMs,
+            },
+            maximumLongAnimationFrameSamples,
+            scenario,
+        );
+    }
+}
+
+function consumeEventTiming(scenario: ActiveScenario, entries: readonly PerformanceEntry[]): void {
+    for (const rawEntry of entries) {
+        const entry = rawEntry as EventTimingEntry;
+        const interactionId = entry.interactionId ?? 0;
+        if (interactionId === 0) continue;
+        const processingStart = entry.processingStart ?? entry.startTime;
+        const processingEnd = entry.processingEnd ?? processingStart;
+        const sample = {
+            durationMs: entry.duration,
+            inputDelayMs: Math.max(0, processingStart - entry.startTime),
+            processingDurationMs: Math.max(0, processingEnd - processingStart),
+            presentationDelayMs: Math.max(0, entry.startTime + entry.duration - processingEnd),
+        };
+        const previous = scenario.interactionById.get(interactionId);
+        scenario.interactionById.set(interactionId, {
+            durationMs: Math.max(previous?.durationMs ?? 0, sample.durationMs),
+            inputDelayMs: Math.max(previous?.inputDelayMs ?? 0, sample.inputDelayMs),
+            processingDurationMs: Math.max(
+                previous?.processingDurationMs ?? 0,
+                sample.processingDurationMs,
+            ),
+            presentationDelayMs: Math.max(
+                previous?.presentationDelayMs ?? 0,
+                sample.presentationDelayMs,
+            ),
+        });
+        if (scenario.interactionById.size > maximumInteractionSamples) {
+            scenario.interactionById.delete(interactionId);
+            scenario.truncated = true;
+        }
+    }
+}
+
+function startObserver(
+    scenario: ActiveScenario,
+    type: 'event' | 'long-animation-frame',
+    consume: (scenario: ActiveScenario, entries: readonly PerformanceEntry[]) => void,
+): void {
+    if (!isBrowserEntryTypeSupported(type)) return;
+    const observer = new PerformanceObserver((list) => consume(scenario, list.getEntries()));
+    try {
+        observer.observe(
+            type === 'event'
+                ? ({ type, buffered: false, durationThreshold: 16 } as PerformanceObserverInit)
+                : { type, buffered: false },
+        );
+        scenario.observers.push(observer);
+    } catch {
+        scenario.capabilities[type === 'event' ? 'eventTiming' : 'longAnimationFrame'] =
+            'unavailable';
+        observer.disconnect();
+    }
+}
+
+function consumeReactScanEvent(scenario: ActiveScenario, event: ReactScanEvent): void {
+    if (event.kind !== 'commit') return;
+    const tree = event.tree ?? [];
+    for (const fiber of tree) {
+        if (fiber.actualDuration <= 0) continue;
+        pushBounded<ReactScanCommitSample>(
+            scenario.reactScanCommits,
+            {
+                commitId: event.timestamp,
+                componentName: fiber.name,
+                renderCount: 1,
+                totalDurationMs: fiber.actualDuration,
+                treeTruncated: tree.length >= 500,
+            },
+            maximumReactScanSamples,
+            scenario,
+        );
+    }
+}
+
+class RendererPerformanceController implements RendererPerformanceMonitor {
+    private activeScenario?: ActiveScenario;
+
+    private readonly sampleFrame = (timestamp: number): void => {
+        const scenario = this.activeScenario;
+        if (!scenario) return;
+        pushBounded(scenario.frameTimestamps, timestamp, maximumFrameTimestamps, scenario);
+        scenario.animationFrameId = requestAnimationFrame(this.sampleFrame);
+    };
+
+    private readonly handleVisibilityChange = (): void => {
+        if (this.activeScenario && document.visibilityState !== 'visible')
+            this.activeScenario.visibilityInterrupted = true;
+    };
+
+    private readonly handleWindowBlur = (): void => {
+        if (this.activeScenario) this.activeScenario.focusInterrupted = true;
+    };
+
+    begin(action: RendererPerformanceAction): string {
+        if (!supportedActions.has(action))
+            throw new Error('Unsupported Renderer performance action');
+        if (this.activeScenario)
+            throw new Error('A Renderer performance scenario is already active');
+        const scenario = createScenario(action);
+        this.activeScenario = scenario;
+        startObserver(scenario, 'long-animation-frame', consumeLongAnimationFrames);
+        startObserver(scenario, 'event', consumeEventTiming);
+        scenario.animationFrameId = requestAnimationFrame(this.sampleFrame);
+        scenario.timeoutId = setTimeout(
+            () => this.end(scenario.scenarioId),
+            maximumScenarioDurationMs,
+        );
+        return scenario.scenarioId;
+    }
+
+    end(scenarioId: string): RendererPerformanceScenarioDiagnostic {
+        const scenario = this.activeScenario;
+        if (!scenario || scenario.scenarioId !== scenarioId)
+            throw new Error('Renderer performance scenario is not active');
+
+        this.activeScenario = undefined;
+        cancelAnimationFrame(scenario.animationFrameId);
+        clearTimeout(scenario.timeoutId);
+        for (const observer of scenario.observers) {
+            const entries = observer.takeRecords();
+            const type = entries[0]?.entryType;
+            if (type === 'long-animation-frame') consumeLongAnimationFrames(scenario, entries);
+            else if (type === 'event') consumeEventTiming(scenario, entries);
+            observer.disconnect();
+        }
+        scenario.interactions = scenario.interactionById.values().toArray();
+        scenario.endedAt = performance.now();
+        const diagnostic = summarizeRendererPerformance(scenario);
+        globalThis.caxri.reportDiagnostic(diagnostic);
+        return diagnostic;
+    }
+
+    status(): RendererPerformanceStatus {
+        return {
+            scenarioId: this.activeScenario?.scenarioId ?? null,
+            action: this.activeScenario?.action ?? null,
+            frameSampleCount: this.activeScenario?.frameTimestamps.length ?? 0,
+            capabilities: this.activeScenario?.capabilities ?? {
+                longAnimationFrame: isBrowserEntryTypeSupported('long-animation-frame')
+                    ? 'available'
+                    : 'unavailable',
+                eventTiming: isBrowserEntryTypeSupported('event') ? 'available' : 'unavailable',
+                reactProfiler: isReactProfilerAvailable() ? 'available' : 'disabled',
+                reactScan: reactScanCapability(),
+            },
+        };
+    }
+
+    recordReactProfile(
+        surface: RendererPerformanceSurface,
+        phase: Parameters<ProfilerOnRenderCallback>[1],
+        actualDurationMs: number,
+        baseDurationMs: number,
+        commitTime: number,
+    ): void {
+        const scenario = this.activeScenario;
+        if (scenario?.capabilities.reactProfiler !== 'available') return;
+        pushBounded<ReactProfileSample>(
+            scenario.reactProfiles,
+            { surface, phase, actualDurationMs, baseDurationMs, commitTime },
+            maximumReactProfileSamples,
+            scenario,
+        );
+    }
+
+    install(): void {
+        const performanceGlobal = globalThis as RendererPerformanceGlobal;
+        const shouldExpose =
+            import.meta.env.DEV ||
+            __CAXRI_REACT_PROFILING__ ||
+            performanceGlobal.caxriE2E !== undefined;
+        if (!shouldExpose || performanceGlobal.caxriPerformance) return;
+        performanceGlobal.caxriPerformance = this;
+        document.addEventListener('visibilitychange', this.handleVisibilityChange);
+        addEventListener('blur', this.handleWindowBlur);
+        const runtime = reactScanRuntime();
+        runtime?.handle?.subscribe((event) => {
+            if (event.kind === 'profiling-hooks-status' && event.available !== undefined)
+                runtime.profilingAvailable = event.available;
+            if (this.activeScenario) consumeReactScanEvent(this.activeScenario, event);
+        });
+    }
+}
+
+const controller = new RendererPerformanceController();
+
+export function recordReactProfile(
+    surface: RendererPerformanceSurface,
+    phase: Parameters<ProfilerOnRenderCallback>[1],
+    actualDurationMs: number,
+    baseDurationMs: number,
+    commitTime: number,
+): void {
+    controller.recordReactProfile(surface, phase, actualDurationMs, baseDurationMs, commitTime);
+}
+
+/**
+ * Exposes a small scenario API only to development, profiling, and E2E builds. Production still contains the inert
+ * Profiler boundaries so the profiling alias can be enabled without changing the component tree.
+ */
+export function installRendererPerformanceMonitoring(): void {
+    controller.install();
+}

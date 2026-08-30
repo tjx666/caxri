@@ -46,6 +46,71 @@ const validResizeBurstDiagnostic = {
     requestCount: 2,
 };
 
+const validPerformanceScenarioDiagnostic = {
+    kind: 'renderer-performance-scenario',
+    diagnosticId: 'd66947a8-0da0-4a4b-8629-a7694116d8e5',
+    scenarioId: '08f3dd5f-5c18-49e2-bc25-e46262ec624d',
+    entry: 'workbench',
+    action: 'benchmark.renderer',
+    buildMode: 'profiling',
+    durationMs: 750,
+    documentVisible: true,
+    documentFocused: false,
+    visibilityInterrupted: false,
+    focusInterrupted: false,
+    capabilities: {
+        longAnimationFrame: 'available',
+        eventTiming: 'available',
+        reactProfiler: 'available',
+        reactScan: 'active',
+    },
+    react: {
+        commitCount: 3,
+        profiledRenderCount: 5,
+        mountRenderCount: 1,
+        updateRenderCount: 3,
+        nestedUpdateRenderCount: 1,
+        actualDurationP50Ms: 12.5,
+        actualDurationP95Ms: 24,
+        actualDurationMaxMs: 24,
+        baseDurationMaxMs: 41,
+        slowestSurface: 'workbench',
+        slowestSurfaceDurationMs: 38,
+    },
+    longAnimationFrames: {
+        count: 2,
+        totalDurationMs: 112,
+        maxDurationMs: 64,
+        totalBlockingDurationMs: 24,
+        maxBlockingDurationMs: 16,
+        maxStyleAndLayoutDurationMs: 8,
+    },
+    interactions: {
+        count: 1,
+        maxDurationMs: 48,
+        maxInputDelayMs: 8,
+        maxProcessingDurationMs: 24,
+        maxPresentationDelayMs: 16,
+    },
+    frames: {
+        sampleCount: 40,
+        estimatedRefreshIntervalMs: 16.67,
+        intervalP50Ms: 16.67,
+        intervalP95Ms: 32,
+        maxIntervalMs: 48,
+        missedFrameCount: 3,
+    },
+    reactScan: {
+        commitCount: 3,
+        renderCount: 20,
+        slowestComponent: 'TerminalPane',
+        slowestComponentRenderCount: 4,
+        slowestComponentTotalDurationMs: 18,
+        treeTruncated: false,
+    },
+    truncated: false,
+};
+
 describe('Renderer diagnostic contract', () => {
     it('accepts bounded content-free terminal renderer state', () => {
         expect(rendererDiagnosticSchema.parse(validDiagnostic)).toEqual(validDiagnostic);
@@ -54,6 +119,12 @@ describe('Renderer diagnostic contract', () => {
     it('accepts a bounded content-free Renderer resize burst', () => {
         expect(rendererDiagnosticSchema.parse(validResizeBurstDiagnostic)).toEqual(
             validResizeBurstDiagnostic,
+        );
+    });
+
+    it('accepts a bounded content-free Renderer performance scenario', () => {
+        expect(rendererDiagnosticSchema.parse(validPerformanceScenarioDiagnostic)).toEqual(
+            validPerformanceScenarioDiagnostic,
         );
     });
 
@@ -128,6 +199,101 @@ describe('Renderer diagnostic contract', () => {
             expect(
                 rendererDiagnosticSchema.safeParse({
                     ...validResizeBurstDiagnostic,
+                    ...invalid,
+                }).success,
+            ).toBe(false);
+        }
+    });
+
+    it('rejects sensitive, unbounded, and inconsistent performance summaries', () => {
+        for (const forbidden of [
+            { domText: 'private project title' },
+            { sourceUrl: 'file:///Users/example/private.tsx' },
+            { path: '/private/project' },
+            { props: { token: 'secret' } },
+        ]) {
+            expect(
+                rendererDiagnosticSchema.safeParse({
+                    ...validPerformanceScenarioDiagnostic,
+                    ...forbidden,
+                }).success,
+            ).toBe(false);
+        }
+
+        for (const invalid of [
+            { action: 'arbitrary.user.value' },
+            { durationMs: 120_001 },
+            { react: { ...validPerformanceScenarioDiagnostic.react, commitCount: 6 } },
+            {
+                react: {
+                    ...validPerformanceScenarioDiagnostic.react,
+                    actualDurationP95Ms: 25,
+                },
+            },
+            {
+                react: {
+                    ...validPerformanceScenarioDiagnostic.react,
+                    slowestSurface: 'private/path',
+                },
+            },
+            {
+                frames: {
+                    ...validPerformanceScenarioDiagnostic.frames,
+                    sampleCount: 20_001,
+                },
+            },
+            {
+                reactScan: {
+                    ...validPerformanceScenarioDiagnostic.reactScan,
+                    slowestComponent: '/Users/example/private.tsx',
+                },
+            },
+            {
+                interactions: {
+                    ...validPerformanceScenarioDiagnostic.interactions,
+                    count: 0,
+                },
+            },
+            {
+                capabilities: {
+                    ...validPerformanceScenarioDiagnostic.capabilities,
+                    longAnimationFrame: 'unavailable',
+                },
+            },
+            {
+                capabilities: {
+                    ...validPerformanceScenarioDiagnostic.capabilities,
+                    reactProfiler: 'disabled',
+                },
+            },
+            {
+                capabilities: {
+                    ...validPerformanceScenarioDiagnostic.capabilities,
+                    reactScan: 'disabled',
+                },
+            },
+            {
+                reactScan: {
+                    ...validPerformanceScenarioDiagnostic.reactScan,
+                    commitCount: 21,
+                },
+            },
+            {
+                longAnimationFrames: {
+                    ...validPerformanceScenarioDiagnostic.longAnimationFrames,
+                    count: 2_001,
+                },
+            },
+            {
+                reactScan: {
+                    ...validPerformanceScenarioDiagnostic.reactScan,
+                    renderCount: 20_001,
+                },
+            },
+        ]) {
+            expect(
+                rendererDiagnosticSchema.safeParse({
+                    ...validPerformanceScenarioDiagnostic,
                     ...invalid,
                 }).success,
             ).toBe(false);

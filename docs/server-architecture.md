@@ -287,7 +287,9 @@ dimensions stay low-cardinality.
 
 The implemented internal foundation consists of normalized cross-process correlation, fixed-dimension
 metric aggregates, private owner manifests, bounded causal capsules, and a read-only parity classifier.
-It changes no public command, event, UI, CLI, HTTP, or recovery behavior. The classifier reports one of
+Desktop additionally emits bounded named Renderer performance scenarios through authenticated IPC to
+the existing structured logs; the browser keeps raw frame/render samples only for the scenario
+lifetime. This changes no public command, event, UI, CLI, HTTP, or recovery behavior. The classifier reports one of
 control, Server Core, Terminal Host, Extension Host, persistence, or stream with a stable reason and
 remediation category; it never performs the remediation.
 

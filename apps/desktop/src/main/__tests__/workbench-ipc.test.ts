@@ -171,6 +171,135 @@ describe('workbench IPC sender boundary', () => {
         expect(onRendererDiagnostic).not.toHaveBeenCalled();
     });
 
+    it('logs a trusted Renderer performance scenario as flat Agent-queryable fields', () => {
+        const report = electronMock.listeners.get(RENDERER_DIAGNOSTIC_CHANNEL)!;
+        const diagnostic = {
+            kind: 'renderer-performance-scenario',
+            diagnosticId: 'd66947a8-0da0-4a4b-8629-a7694116d8e5',
+            scenarioId: '08f3dd5f-5c18-49e2-bc25-e46262ec624d',
+            entry: 'workbench',
+            action: 'benchmark.renderer',
+            buildMode: 'profiling',
+            durationMs: 750,
+            documentVisible: true,
+            documentFocused: false,
+            visibilityInterrupted: false,
+            focusInterrupted: false,
+            capabilities: {
+                longAnimationFrame: 'available',
+                eventTiming: 'available',
+                reactProfiler: 'available',
+                reactScan: 'active',
+            },
+            react: {
+                commitCount: 3,
+                profiledRenderCount: 5,
+                mountRenderCount: 1,
+                updateRenderCount: 3,
+                nestedUpdateRenderCount: 1,
+                actualDurationP50Ms: 12.5,
+                actualDurationP95Ms: 24,
+                actualDurationMaxMs: 24,
+                baseDurationMaxMs: 41,
+                slowestSurface: 'workbench',
+                slowestSurfaceDurationMs: 38,
+            },
+            longAnimationFrames: {
+                count: 2,
+                totalDurationMs: 112,
+                maxDurationMs: 64,
+                totalBlockingDurationMs: 24,
+                maxBlockingDurationMs: 16,
+                maxStyleAndLayoutDurationMs: 8,
+            },
+            interactions: {
+                count: 1,
+                maxDurationMs: 48,
+                maxInputDelayMs: 8,
+                maxProcessingDurationMs: 24,
+                maxPresentationDelayMs: 16,
+            },
+            frames: {
+                sampleCount: 40,
+                estimatedRefreshIntervalMs: 16.67,
+                intervalP50Ms: 16.67,
+                intervalP95Ms: 32,
+                maxIntervalMs: 48,
+                missedFrameCount: 3,
+            },
+            reactScan: {
+                commitCount: 3,
+                renderCount: 20,
+                slowestComponent: 'TerminalPane',
+                slowestComponentRenderCount: 4,
+                slowestComponentTotalDurationMs: 18,
+                treeTruncated: false,
+            },
+            truncated: false,
+        };
+
+        report({ sender: {} }, diagnostic);
+        expect(write).not.toHaveBeenCalled();
+        report({ sender: renderer }, diagnostic);
+
+        expect(write).toHaveBeenCalledOnce();
+        expect(write).toHaveBeenCalledWith('info', 'renderer.performance_scenario', {
+            durationMs: 750,
+            correlationId: diagnostic.scenarioId,
+            fields: {
+                code: 'RENDERER_PERFORMANCE_SCENARIO',
+                diagnosticId: diagnostic.diagnosticId,
+                entry: 'workbench',
+                action: 'benchmark.renderer',
+                buildMode: 'profiling',
+                documentVisible: true,
+                documentFocused: false,
+                visibilityInterrupted: false,
+                focusInterrupted: false,
+                longAnimationFrameCapability: 'available',
+                eventTimingCapability: 'available',
+                reactProfilerCapability: 'available',
+                reactScanCapability: 'active',
+                reactCommitCount: 3,
+                reactProfiledRenderCount: 5,
+                reactMountRenderCount: 1,
+                reactUpdateRenderCount: 3,
+                reactNestedUpdateRenderCount: 1,
+                reactActualDurationP50Ms: 12.5,
+                reactActualDurationP95Ms: 24,
+                reactActualDurationMaxMs: 24,
+                reactBaseDurationMaxMs: 41,
+                reactSlowestSurface: 'workbench',
+                reactSlowestSurfaceDurationMs: 38,
+                longAnimationFrameCount: 2,
+                longAnimationFrameTotalDurationMs: 112,
+                longAnimationFrameMaxDurationMs: 64,
+                longAnimationFrameTotalBlockingDurationMs: 24,
+                longAnimationFrameMaxBlockingDurationMs: 16,
+                longAnimationFrameMaxStyleAndLayoutDurationMs: 8,
+                interactionCount: 1,
+                interactionMaxDurationMs: 48,
+                interactionMaxInputDelayMs: 8,
+                interactionMaxProcessingDurationMs: 24,
+                interactionMaxPresentationDelayMs: 16,
+                frameSampleCount: 40,
+                frameEstimatedRefreshIntervalMs: 16.67,
+                frameIntervalP50Ms: 16.67,
+                frameIntervalP95Ms: 32,
+                frameMaxIntervalMs: 48,
+                estimatedMissedFrameCount: 3,
+                reactScanCommitCount: 3,
+                reactScanRenderCount: 20,
+                reactScanSlowestComponent: 'TerminalPane',
+                reactScanSlowestComponentRenderCount: 4,
+                reactScanSlowestComponentTotalDurationMs: 18,
+                reactScanTreeTruncated: false,
+                truncated: false,
+            },
+        });
+        expect(onRendererDiagnostic).not.toHaveBeenCalled();
+    });
+
     it('does not report an in-flight request failure after application shutdown begins', async () => {
         const completion = Promise.withResolvers<{
             protocolVersion: 2;
