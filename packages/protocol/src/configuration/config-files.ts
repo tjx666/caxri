@@ -41,9 +41,11 @@ export function reconcileDefaultKeybindings(
     const value = [...keybindings];
     const additions: DefaultKeybinding[] = [];
     const replacements: Array<{ binding: ArgumentFreeDefaultKeybinding; index: number }> = [];
-    const isChordOccupied = (key: string): boolean => {
+    const isChordOccupied = (key: string, ignoredIndex?: number): boolean => {
         const chord = normalizeShortcut(key);
-        return value.some((binding) => normalizeShortcut(binding.key) === chord);
+        return value.some(
+            (binding, index) => index !== ignoredIndex && normalizeShortcut(binding.key) === chord,
+        );
     };
 
     for (const change of changes) {
@@ -68,8 +70,13 @@ export function reconcileDefaultKeybindings(
                 ? [index]
                 : [],
         );
-        if (matchingIndexes.length !== 1 || isChordOccupied(change.current.key)) continue;
+        if (matchingIndexes.length !== 1) continue;
         const index = matchingIndexes[0];
+        /**
+         * A command rename often keeps its chord. The exact old default being replaced cannot conflict with itself,
+         * while any other entry on that normalized chord must still preserve the user's file unchanged.
+         */
+        if (isChordOccupied(change.current.key, index)) continue;
         const binding = { ...change.current };
         value[index] = binding;
         replacements.push({ binding, index });

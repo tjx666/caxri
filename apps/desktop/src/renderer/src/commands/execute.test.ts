@@ -24,12 +24,11 @@ import { registerCommand } from './registry';
  */
 vi.mock('../lib/keybindings', () => ({ isEditableEventTarget: vi.fn() }));
 const mockedIsEditableEventTarget = vi.mocked(isEditableEventTarget);
-const catalogOwnedSharedIds = new Set<CommandId>([
-    'secondarySidebar.showFiles',
-    'secondarySidebar.showGit',
-    'secondarySidebar.showStatus',
-    'secondarySidebar.searchFiles',
-]);
+const catalogOwnedSharedIds = new Set<CommandId>(
+    sharedCommandDefinitions
+        .filter(({ execution }) => execution === 'viewCatalog')
+        .map(({ id }) => id),
+);
 
 /**
  * Puts a layout where the default command context reads it from, for the availability predicates that resolve their

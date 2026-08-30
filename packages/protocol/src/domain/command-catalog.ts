@@ -12,6 +12,10 @@ export interface CommandDefinition {
     category: string;
     description: string;
     /**
+     * Static commands execute in the Renderer registry unless their owning View catalog handles them.
+     */
+    execution?: 'viewCatalog';
+    /**
      * Search-only aliases that preserve familiar language without leaking it back into visible command copy.
      */
     keywords?: readonly string[];
@@ -290,12 +294,14 @@ export const commandDefinitions: CommandDefinition[] = [
         title: 'Show Git',
         category: 'Secondary Side Bar',
         description: 'Show Source Control in the Secondary Side Bar',
+        execution: 'viewCatalog',
     },
     {
         id: 'secondarySidebar.showStatus',
         title: 'Show Status',
         category: 'Secondary Side Bar',
         description: 'Show Project Status in the Secondary Side Bar',
+        execution: 'viewCatalog',
     },
     {
         id: 'secondarySidebar.toggle',
@@ -521,6 +527,51 @@ export const defaultKeybindings: Keybinding[] = [
  * Reviewed changes to defaults that existing keybinding files can adopt without overwriting custom choices.
  */
 export const defaultKeybindingChanges = [
+    {
+        type: 'replace',
+        previous: { key: 'cmd+1', command: 'inspector.showFiles' },
+        current: { key: 'cmd+1', command: 'secondarySidebar.showFiles' },
+    },
+    {
+        type: 'replace',
+        previous: { key: 'cmd+2', command: 'inspector.showGit' },
+        current: { key: 'cmd+2', command: 'secondarySidebar.showGit' },
+    },
+    {
+        type: 'replace',
+        previous: { key: 'cmd+3', command: 'inspector.showStatus' },
+        current: { key: 'cmd+3', command: 'secondarySidebar.showStatus' },
+    },
+    {
+        type: 'replace',
+        previous: { key: 'cmd+shift+u', command: 'bottomPanel.showLogs' },
+        current: { key: 'cmd+shift+1', command: 'panel.showLogs' },
+    },
+    {
+        type: 'replace',
+        previous: { key: 'cmd+shift+y', command: 'bottomPanel.showInfo' },
+        current: { key: 'cmd+shift+2', command: 'panel.showInfo' },
+    },
+    {
+        type: 'replace',
+        previous: { key: 'cmd+shift+f', command: 'inspector.searchFiles' },
+        current: { key: 'cmd+shift+f', command: 'secondarySidebar.searchFiles' },
+    },
+    {
+        type: 'replace',
+        previous: { key: 'cmd+[', command: 'sidebar.toggle' },
+        current: { key: 'cmd+[', command: 'primarySidebar.toggle' },
+    },
+    {
+        type: 'replace',
+        previous: { key: 'cmd+]', command: 'inspector.toggle' },
+        current: { key: 'cmd+]', command: 'secondarySidebar.toggle' },
+    },
+    {
+        type: 'replace',
+        previous: { key: 'cmd+j', command: 'bottomPanel.toggle' },
+        current: { key: 'cmd+j', command: 'panel.toggle' },
+    },
     {
         type: 'replace',
         previous: { key: 'alt+p', command: 'pathBrowser.open' },
