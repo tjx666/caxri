@@ -198,6 +198,17 @@ remains noticeable without animating the Agent icon or Session title. Work tabs 
 process-state dot; process liveness remains available through diagnostics rather than duplicate
 chrome. This does not govern the Session list's right-edge running spinner.
 
+**Editor breadcrumbs** — an ordinary Project file gets one 24px metadata row below the tab strip.
+Its Project-relative path sits on the left and the current file's last-change annotation sits on
+the right; both use dense, muted chrome on `--surface`, separated from the editor by one hairline.
+Only the file segment carries its file-type icon. Clicking any segment opens a flat sibling picker:
+folders navigate one level at a time, files open in the Session's preview Editor, symbolic links are
+visible but unavailable, and no symbol outline or settings are added. The path uses one keyboard tab
+stop with Left/Right/Home/End navigation; Enter or Space opens the picker. The picker keeps one
+listbox focus, supports arrows, Home/End, typeahead, Enter/Right to activate, Left for the parent,
+and Escape to close. Long paths scroll horizontally without a visible scrollbar and keep the active
+file in view; the last-change annotation truncates before the path becomes unusable.
+
 **Motion** — motion explains structure; it never decorates state. Motion is a layered stack. Pick
 the least-powerful layer that covers the scenario, and one element is only ever driven by one
 layer:

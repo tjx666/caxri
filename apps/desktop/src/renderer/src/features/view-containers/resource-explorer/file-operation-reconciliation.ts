@@ -5,6 +5,7 @@ import { isCaxriError } from '@caxri/protocol';
 import { clamp, uniq } from 'es-toolkit';
 
 import { caxri } from '../../../lib/caxri';
+import { parentDirectoryPath } from '../../../lib/file-path';
 import { queryClient } from '../../../queries/client';
 import { getSessionOwnerProjectId, useSelectedSession } from '../../../stores/selectors';
 import { pushToast } from '../../../stores/toasts';
@@ -12,7 +13,6 @@ import { remapOpenEditorsDurably } from '../../editor/document-actions';
 import { availableResourceExplorerClient } from '../resource-explorer-catalog-client';
 import { isControlledViewOperationQuery } from '../view-operation-client';
 import { useFileOperationStore } from './file-operation-state';
-import { parentDirectoryPath } from './file-tree-path';
 import type { ResourceExplorerClient } from './resource-explorer-client';
 
 const reconciling = new Map<string, Promise<void>>();

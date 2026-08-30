@@ -14,6 +14,10 @@ import { registerEditorRevealTarget } from './editor-reveal';
 import { useEditorStatusStore } from './editor-status';
 
 export interface CodeEditorProperties {
+    /**
+     * Distinguishes independent Monaco instances that share one document model across split panes.
+     */
+    editorInstanceId?: string;
     path: string;
     statusKey?: string;
     value: string;
@@ -40,6 +44,7 @@ function publishEditorStatus(editor: MonacoCodeEditor, statusKey: string | undef
 }
 
 export function CodeEditor({
+    editorInstanceId,
     path,
     statusKey,
     value,
@@ -69,14 +74,14 @@ export function CodeEditor({
             monaco.editor.setModelLanguage(model, language);
         }
         registrationReference.current?.();
-        const unregister = registerEditorRevealTarget(path, editor);
+        const unregister = registerEditorRevealTarget(path, editor, editorInstanceId);
         registrationReference.current = unregister;
         return () => {
             unregister();
             if (registrationReference.current === unregister)
                 registrationReference.current = undefined;
         };
-    }, [language, path]);
+    }, [editorInstanceId, language, path]);
     useEffect(() => {
         statusKeyReference.current = statusKey;
         const frame = requestAnimationFrame(() => {
@@ -111,7 +116,11 @@ export function CodeEditor({
                     publishEditorStatus(editor, statusKeyReference.current),
                 );
                 registrationReference.current?.();
-                registrationReference.current = registerEditorRevealTarget(path, editor);
+                registrationReference.current = registerEditorRevealTarget(
+                    path,
+                    editor,
+                    editorInstanceId,
+                );
                 publishEditorStatus(editor, statusKeyReference.current);
                 markEditorMounted();
             }}
