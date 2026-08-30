@@ -33,11 +33,25 @@ interface RegisteredLaunch {
     terminalId: string;
 }
 
-interface HookWireSignal extends AgentLifecycleSignal {
+interface HookWireContext {
+    launchId: string;
+    phase: AgentLifecyclePhase;
     protocolVersion: number;
+    provider: AgentProvider;
     schemaVersion: number;
+    terminalId: string;
     token: string;
 }
+
+interface HookWireSignal extends AgentLifecycleSignal, HookWireContext {
+    kind?: undefined;
+}
+
+interface HookWireBridgeStarted extends HookWireContext {
+    kind: 'bridgeStarted';
+}
+
+type HookWirePacket = HookWireBridgeStarted | HookWireSignal;
 
 export type AgentHookSignalRejectionReason =
     | 'downstreamRejected'
@@ -57,6 +71,12 @@ export type AgentHookSignalRejectionReason =
 export type AgentHookSignalDisposition = 'accepted' | 'ignored' | 'rejected';
 
 export type AgentHookSignalDiagnostic =
+    | {
+          outcome: 'started';
+          phase: AgentLifecyclePhase;
+          provider: AgentProvider;
+          terminalId: string;
+      }
     | {
           hasAgentSessionId: boolean;
           outcome: 'accepted' | 'ignored';
@@ -134,9 +154,9 @@ export async function pruneStaleAgentHookSockets(
     }
 }
 
-function parseSignal(
+function parsePacket(
     source: string,
-): { signal: HookWireSignal } | { reason: AgentHookSignalRejectionReason } {
+): { packet: HookWirePacket } | { reason: AgentHookSignalRejectionReason } {
     let value: unknown;
     try {
         value = JSON.parse(source);
@@ -157,6 +177,9 @@ function parseSignal(
     ) {
         return { reason: 'invalidSignal' };
     }
+    if (signal.kind === 'bridgeStarted')
+        return { packet: signal as unknown as HookWireBridgeStarted };
+    if (signal.kind !== undefined) return { reason: 'invalidSignal' };
     if (
         signal.agentSessionId !== undefined &&
         (typeof signal.agentSessionId !== 'string' ||
@@ -173,7 +196,7 @@ function parseSignal(
     ) {
         return { reason: 'invalidAgentTurnId' };
     }
-    return { signal: signal as unknown as HookWireSignal };
+    return { packet: signal as unknown as HookWireSignal };
 }
 
 function diagnosticFields(signal: HookWireSignal) {
@@ -182,6 +205,17 @@ function diagnosticFields(signal: HookWireSignal) {
         phase: signal.phase,
         provider: signal.provider,
         terminalId: signal.terminalId,
+    };
+}
+
+function packetDiagnosticFields(packet: HookWirePacket) {
+    return {
+        ...(packet.kind !== 'bridgeStarted' && {
+            hasAgentSessionId: packet.agentSessionId !== undefined,
+        }),
+        phase: packet.phase,
+        provider: packet.provider,
+        terminalId: packet.terminalId,
     };
 }
 
@@ -226,23 +260,29 @@ export class AgentHookServer {
         });
         socket.on('end', () => {
             if (isSettled) return;
-            const parsed = parseSignal(source);
+            const parsed = parsePacket(source);
             if ('reason' in parsed) {
                 settle({ outcome: 'rejected', reason: parsed.reason });
                 socket.end('{"ok":false}\n');
                 return;
             }
-            const { signal } = parsed;
-            const rejectionReason = this.authorizationRejection(signal);
+            const { packet } = parsed;
+            const rejectionReason = this.authorizationRejection(packet);
             if (rejectionReason) {
                 settle({
-                    ...diagnosticFields(signal),
+                    ...packetDiagnosticFields(packet),
                     outcome: 'rejected',
                     reason: rejectionReason,
                 });
                 socket.end('{"ok":false}\n');
                 return;
             }
+            if (packet.kind === 'bridgeStarted') {
+                settle({ ...packetDiagnosticFields(packet), outcome: 'started' });
+                socket.end('{"ok":true}\n');
+                return;
+            }
+            const signal = packet;
             const disposition = this.onSignal(signal);
             settle(
                 disposition === 'rejected'
@@ -267,7 +307,7 @@ export class AgentHookServer {
     }
 
     private authorizationRejection(
-        signal: HookWireSignal,
+        signal: HookWireContext,
     ): AgentHookSignalRejectionReason | undefined {
         const launch = this.launchesByToken.get(signal.token);
         if (!launch) return 'unknownToken';

@@ -570,6 +570,23 @@ export class AgentHookManager {
                 ]),
             ) as Record<AgentProvider, number>;
             const logSignalDiagnostic = (diagnostic: AgentHookSignalDiagnostic): void => {
+                if (diagnostic.outcome === 'started') {
+                    const key = `started:${diagnostic.provider}:${diagnostic.phase}`;
+                    const logged =
+                        this.loggedSignalDiagnostics.get(diagnostic.terminalId) ?? new Set();
+                    if (logged.has(key)) return;
+                    logged.add(key);
+                    this.loggedSignalDiagnostics.set(diagnostic.terminalId, logged);
+                    this.options.logger.write('info', logEventCatalog.agentHooks.bridgeStarted, {
+                        fields: {
+                            stage: 'serverCore',
+                            phase: diagnostic.phase,
+                            provider: diagnostic.provider,
+                            terminalId: diagnostic.terminalId,
+                        },
+                    });
+                    return;
+                }
                 const { outcome, ...fields } = diagnostic;
                 if (outcome !== 'rejected' && fields.terminalId && fields.phase) {
                     const key = `${outcome}:${fields.provider}:${fields.phase}:${fields.hasAgentSessionId}`;
@@ -648,8 +665,15 @@ export class AgentHookManager {
         const token = this.server.register(terminalId, launchId, provider);
         this.terminalLaunches.set(terminalId, { launchId, token });
         this.options.onLaunchStarted(terminalId, launchId);
+        this.options.logger.write('info', logEventCatalog.agentHooks.launchPrepared, {
+            fields: { stage: 'serverCore', terminalId, ...(provider && { provider }) },
+        });
         return {
             CAXRI_HOOK_LAUNCH_ID: launchId,
+            /**
+             * New staged bridges remain compatible with older Server builds unless this launch explicitly opts in.
+             */
+            CAXRI_HOOK_RECEIPTS: '1',
             CAXRI_HOOK_RUNTIME: this.options.hookExecutable,
             CAXRI_HOOK_SOCKET: this.server.socketPath,
             CAXRI_HOOK_TERMINAL_ID: terminalId,

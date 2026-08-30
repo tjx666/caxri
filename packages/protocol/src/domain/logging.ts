@@ -15,7 +15,9 @@ export const logEventCatalog = {
         retireFailed: 'agent_endpoint.retire_failed',
     },
     agentHooks: {
+        bridgeStarted: 'agent_hooks.bridge_started',
         initializeFailed: 'agent_hooks.initialize_failed',
+        launchPrepared: 'agent_hooks.launch_prepared',
         lockFailed: 'agent_hooks.lock_failed',
         reconcileFailed: 'agent_hooks.reconcile_failed',
         signalAccepted: 'agent_hooks.signal_accepted',
