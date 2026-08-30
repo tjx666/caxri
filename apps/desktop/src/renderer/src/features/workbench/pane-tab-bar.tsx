@@ -4,6 +4,7 @@ import type { PaneNode, PaneTab, TerminalRecord } from '@caxri/protocol';
 import {
     agentTranscriptTabLabel,
     gitDiffTabLabel,
+    isVirtualEditorTabPath,
     parseAgentTranscriptTab,
     parseExternalEditorTab,
     parseGitDiffTab,
@@ -23,6 +24,7 @@ import { useChromeLayoutStore } from '../../stores/chrome-layout';
 import { useSelectedSession, useSessionState, useTerminal } from '../../stores/selectors';
 import { sessionViewScope, useSessionViewStore } from '../../stores/session-view';
 import { closeDocumentTabs, pinDocumentTab } from '../editor/document-actions';
+import { EditorTabActions } from '../editor/editor-tab-actions';
 import { moveTerminalToNewSession } from '../session/session-actions';
 import { WorkTab } from '../tabs/work-tab';
 import type { WorkTabNavigationKey } from '../tabs/work-tab-accessibility';
@@ -322,8 +324,13 @@ export function PaneTabBar({
      * group behavior) but drops the accent, so two panes never both claim the screen's one accent at once.
      */
     const isActivePane = useSessionState()?.paneLayout.activePaneId === pane.id;
-    const activeTabId =
-        pane.tabs.find((tab) => tab.id === pane.activeTabId)?.id ?? pane.tabs[0]?.id;
+    const activeTab = pane.tabs.find((tab) => tab.id === pane.activeTabId) ?? pane.tabs.at(0);
+    const activeTabId = activeTab?.id;
+    const activeEditorPath =
+        activeTab?.resource.kind === 'file' && !isVirtualEditorTabPath(activeTab.resource.path)
+            ? activeTab.resource.path
+            : undefined;
+    const showTabActions = activeEditorPath !== undefined ? true : hasTabsToSwitch;
     /**
      * `overflow-x-auto` has no built-in cue for "the active tab is off to the side," so selecting or creating a tab
      * that lands outside the visible bar must scroll it into view itself.
@@ -447,21 +454,24 @@ export function PaneTabBar({
                     />
                 )}
             </div>
-            {hasTabsToSwitch && (
+            {showTabActions && (
                 <div className="tab-actions flex h-11 flex-none items-center bg-surface px-1 [-webkit-app-region:no-drag]">
-                    <CommandTooltip commandId="terminal.new">
-                        <Button
-                            size="icon"
-                            variant="ghost"
-                            aria-label="New Terminal"
-                            onClick={() => {
-                                // eslint-disable-next-line no-void -- intentional floating-promise discard, createTerminal() reports its own errors via tryCommand
-                                void createTerminal('shell', { paneId: pane.id });
-                            }}
-                        >
-                            <Plus size={14} />
-                        </Button>
-                    </CommandTooltip>
+                    {activeEditorPath && <EditorTabActions path={activeEditorPath} />}
+                    {hasTabsToSwitch && (
+                        <CommandTooltip commandId="terminal.new">
+                            <Button
+                                size="icon"
+                                variant="ghost"
+                                aria-label="New Terminal"
+                                onClick={() => {
+                                    // eslint-disable-next-line no-void -- intentional floating-promise discard, createTerminal() reports its own errors via tryCommand
+                                    void createTerminal('shell', { paneId: pane.id });
+                                }}
+                            >
+                                <Plus size={14} />
+                            </Button>
+                        </CommandTooltip>
+                    )}
                 </div>
             )}
             {/* Evenly divided tabs reach the window's right edge, so with the primarySidebar hidden this bar is the

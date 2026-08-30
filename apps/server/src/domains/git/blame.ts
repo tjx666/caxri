@@ -1,6 +1,6 @@
 import { relative } from 'node:path';
 
-import type { GitBlame, GitCommit, GitSummary, ServerOperationParameters } from '@caxri/protocol';
+import type { GitBlame, GitFileHead, GitSummary, ServerOperationParameters } from '@caxri/protocol';
 
 import { isOutsideRoot } from '../path-security';
 import type { ProjectRootResolver } from '../project-roots';
@@ -38,7 +38,7 @@ function parseBlame(output: string, requestedLine: number): GitBlame | null {
 
 export class GitBlameService {
     private readonly requests = new SingleFlight<string, GitBlame | null>();
-    private readonly fileHeads = new SingleFlight<string, GitCommit | null>();
+    private readonly fileHeads = new SingleFlight<string, GitFileHead | null>();
 
     constructor(
         private readonly paths: ProjectRootResolver,
@@ -52,7 +52,12 @@ export class GitBlameService {
     private async resolveTrackedPath(
         sessionId: string,
         requestedPath: string,
-    ): Promise<{ relativePath: string; rootPath: string } | null> {
+    ): Promise<{
+        headPath: string;
+        relativePath: string;
+        repositoryId: string;
+        rootPath: string;
+    } | null> {
         let path: string;
         try {
             ({ path } = await this.paths.resolveSessionPath(sessionId, requestedPath));
@@ -74,7 +79,13 @@ export class GitBlameService {
         if (!repo?.head) return null;
         const relativePath = relative(repo.rootPath, path);
         if (!relativePath || isOutsideRoot(relativePath)) return null;
-        return { relativePath, rootPath: repo.rootPath };
+        /**
+         * A staged or detected rename exists under its new working-tree path but under `originalPath` in HEAD. Keep
+         * both identities: blame still addresses the open file, while commit history and its diff must address HEAD.
+         */
+        const headPath =
+            repo.files.find((file) => file.path === relativePath)?.originalPath ?? relativePath;
+        return { headPath, relativePath, repositoryId: repo.id, rootPath: repo.rootPath };
     }
 
     blame(parameters: ServerOperationParameters<'git.blame'>): Promise<GitBlame | null> {
@@ -100,7 +111,7 @@ export class GitBlameService {
     /**
      * Latest commit touching one file — the file-level "who changed this last" annotation shown above the editor.
      */
-    fileHead(parameters: ServerOperationParameters<'git.fileHead'>): Promise<GitCommit | null> {
+    fileHead(parameters: ServerOperationParameters<'git.fileHead'>): Promise<GitFileHead | null> {
         return this.fileHeads.run(JSON.stringify(parameters), async () => {
             const target = await this.resolveTrackedPath(parameters.sessionId, parameters.path);
             if (!target) return null;
@@ -113,11 +124,18 @@ export class GitBlameService {
                     '--max-count=1',
                     `--format=${COMMIT_FORMAT}`,
                     '--',
-                    target.relativePath,
+                    target.headPath,
                 ],
                 { allowFailure: true },
             );
-            return parseCommitLog(output).at(0) ?? null;
+            const commit = parseCommitLog(output).at(0);
+            return commit
+                ? {
+                      ...commit,
+                      path: target.headPath,
+                      repositoryId: target.repositoryId,
+                  }
+                : null;
         });
     }
 }

@@ -3,10 +3,10 @@ import { lstat, readFile, realpath } from 'node:fs/promises';
 import { isAbsolute, relative, resolve } from 'node:path';
 
 import type {
-    GitCommit,
     GitCommitDetails,
     GitCommitPage,
     GitDiffDocument,
+    GitFileHead,
     GitFileStatus,
     GitOverview,
     GitRepositorySummary as GitRepoSummary,
@@ -529,8 +529,10 @@ export class GitService {
         const branches = await this.listBranches(repo);
         if (branches.every((candidate) => candidate.name !== parameters.branch))
             throw new CaxriError('NOT_FOUND', 'The selected local branch no longer exists');
-        if (repo.branch !== parameters.branch)
+        if (repo.branch !== parameters.branch) {
             await this.git(repo.rootPath, ['switch', '--', parameters.branch]);
+            this.repositoryService.observeWorkingTreeMutation(repo.rootPath);
+        }
         return null;
     }
 
@@ -684,7 +686,7 @@ export class GitService {
         return this.blameService.blame(parameters);
     }
 
-    fileHead(parameters: ServerOperationParameters<'git.fileHead'>): Promise<GitCommit | null> {
+    fileHead(parameters: ServerOperationParameters<'git.fileHead'>): Promise<GitFileHead | null> {
         return this.blameService.fileHead(parameters);
     }
 

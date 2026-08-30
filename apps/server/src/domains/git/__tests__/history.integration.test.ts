@@ -177,9 +177,21 @@ describe('Git commit history', () => {
             author: 'Caxri Test',
             authorEmail: 'test@example.com',
             body: '',
+            path: 'src/app.ts',
+            repositoryId: repo.id,
         });
         expect(await git.fileHead({ sessionId: session.id, path: 'src/untracked.ts' })).toBeNull();
         expect(await git.fileHead({ sessionId: session.id, path: 'src/missing.ts' })).toBeNull();
+
+        await execFileAsync('git', ['mv', 'src/app.ts', 'src/renamed.ts'], { cwd: root });
+        await git.summary(session.id, 1);
+        await expect(
+            git.fileHead({ sessionId: session.id, path: 'src/renamed.ts' }),
+        ).resolves.toMatchObject({
+            subject: 'fix: change app',
+            path: 'src/app.ts',
+            repositoryId: repo.id,
+        });
 
         const page = await git.commits({
             sessionId: session.id,

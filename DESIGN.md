@@ -184,6 +184,12 @@ carries focus. The command stays reachable through `cmd+t` and the application m
 Both return as soon as a second tab exists anywhere in the window. A clean preview Editor owns one
 transient, Session-scoped motion identity: replacing its path updates the same DOM tab instantly,
 pinning preserves that identity, and only the next real tab receives the existing enter animation.
+An active ordinary file with committed history keeps two fixed ghost icon actions at the right of
+its pane's tab rail: `Open Last Commit Changes` shows the latest commit that touched that file, and
+`Open Pull Request Changes` shows the file's committed current-branch PR diff. They use distinct
+commit and pull-request glyphs, remain keyboard reachable and outside the scroll rail, and hide for
+Terminal, external, transcript, and Git diff tabs. These file actions remain when the Editor is the
+only Workbench tab; the single-tab rule above still hides only New Terminal and the active accent.
 Session bootstrap and switching still mount without structural motion; actual close keeps the exit
 animation. Transient Agent operations may temporarily use the existing text accessory after the
 Terminal title and replace generic progress text while active. `Compacting` is the single
