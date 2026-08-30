@@ -247,6 +247,7 @@ export function SourceControlProviderSection({
                         {provider.history && (
                             <SourceControlHistory
                                 descriptor={provider.history}
+                                enabled={!controller.isRefreshing}
                                 runAction={controller.runAction}
                             />
                         )}

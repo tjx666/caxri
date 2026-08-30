@@ -246,4 +246,63 @@ describe('controlled view operation scope', () => {
             }).success,
         ).toBe(false);
     });
+
+    it('bounds the active resource on Source Control snapshots', () => {
+        const schema = methods['viewContainers.viewOperation'].params;
+        const request = {
+            viewId: 'publisher.git.sourceControl',
+            requestId: 'request-1',
+            context: {
+                kind: 'session' as const,
+                sessionId: 'session-1',
+                workbenchProjectId: 'project-1',
+            },
+            operation: 'source.snapshot' as const,
+            arguments: { refresh: 0 },
+        };
+
+        expect(
+            schema.safeParse({
+                ...request,
+                arguments: { ...request.arguments, activeResource: '/private/project/README.md' },
+            }).success,
+        ).toBe(true);
+        for (const activeResource of ['', 'x'.repeat(8_193)])
+            expect(
+                schema.safeParse({
+                    ...request,
+                    arguments: { ...request.arguments, activeResource },
+                }).success,
+            ).toBe(false);
+    });
+
+    it('allows history pages to request action-activated items explicitly', () => {
+        const schema = methods['viewContainers.viewOperation'].params;
+        const request = {
+            viewId: 'publisher.git.sourceControl',
+            requestId: 'request-1',
+            context: {
+                kind: 'session' as const,
+                sessionId: 'session-1',
+                workbenchProjectId: 'project-1',
+            },
+            operation: 'source.historyPage' as const,
+            arguments: {
+                historyId: 'repo-1',
+                itemActivation: 'action',
+                offset: 0,
+                pageSize: 5,
+                path: 'src/file.ts',
+                revision: '1',
+            },
+        };
+
+        expect(schema.safeParse(request).success).toBe(true);
+        expect(
+            schema.safeParse({
+                ...request,
+                arguments: { ...request.arguments, itemActivation: 'details' },
+            }).success,
+        ).toBe(false);
+    });
 });

@@ -15,10 +15,21 @@ import {
 } from './source-control-projection';
 import { boundedSourceControlResourceId } from './source-control-resource-id';
 
+/**
+ * Present only for path-scoped history. Repository history remains passive so its rows can continue expanding commit
+ * details, while File History opens the exact committed file through a revision-bound provider action.
+ */
+interface FileHistoryActionOptions {
+    path: string;
+    registerAction: RegisterSourceControlAction;
+    repositoryId: string;
+}
+
 export function buildSourceControlHistoryPage(
     page: GitCommitPage,
     revision: string,
     remoteHost?: string | null,
+    fileHistoryAction?: FileHistoryActionOptions,
 ): SourceControlHistoryPage {
     return {
         revision,
@@ -26,6 +37,10 @@ export function buildSourceControlHistoryPage(
             const avatarUrl = shouldFetchGitHubAvatar(remoteHost, true)
                 ? gitHubAvatarUrl(commit.authorEmail, 60)
                 : undefined;
+            const rawResource = fileHistoryAction
+                ? `caxri-git-diff://commit-file/${encodeURIComponent(fileHistoryAction.repositoryId)}/${commit.sha}/${encodeURIComponent(fileHistoryAction.path)}`
+                : undefined;
+            const resource = rawResource ? boundedEditorResource(rawResource) : undefined;
             return {
                 id: commit.sha,
                 label: commit.subject || '(no subject)',
@@ -37,6 +52,14 @@ export function buildSourceControlHistoryPage(
                 ...(avatarUrl && { avatarUrl }),
                 decorations: commit.decorations,
                 ...(commit.body && { body: commit.body }),
+                ...(resource &&
+                    fileHistoryAction && {
+                        action: fileHistoryAction.registerAction({
+                            command: { id: 'caxri.git.openChanges', arguments: [resource] },
+                            icon: { kind: 'theme', id: 'diff' },
+                            label: boundedActionLabel(`Open changes in ${fileHistoryAction.path}`),
+                        }),
+                    }),
             };
         }),
         ...(page.nextOffset !== undefined && { nextOffset: page.nextOffset }),

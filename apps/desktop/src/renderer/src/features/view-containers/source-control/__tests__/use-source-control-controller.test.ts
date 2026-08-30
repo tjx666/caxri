@@ -1,8 +1,12 @@
 import type { SourceControlViewModel } from '@caxri/protocol';
+import { gitFileDiffTabPath } from '@caxri/protocol';
 import { QueryClient, QueryObserver } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
 
-import { sourceControlSnapshotQueryOptions } from '../hooks/use-source-control-controller';
+import {
+    buildSourceControlSnapshotRequest,
+    sourceControlSnapshotQueryOptions,
+} from '../hooks/use-source-control-controller';
 
 function model(revision: string, selectedModeId = 'working'): SourceControlViewModel {
     return {
@@ -23,7 +27,35 @@ function model(revision: string, selectedModeId = 'working'): SourceControlViewM
 }
 
 describe('Source Control snapshot queries', () => {
-    it('keeps the resolved tree visible while a same-mode refresh is pending', async () => {
+    it('requests history context only for the active file resource', () => {
+        expect(
+            buildSourceControlSnapshotRequest(
+                { kind: 'file', path: '/project/file.ts' },
+                'working',
+                2,
+            ),
+        ).toEqual({
+            activeResource: '/project/file.ts',
+            preferredModeId: 'working',
+            refresh: 2,
+        });
+        expect(
+            buildSourceControlSnapshotRequest(
+                { kind: 'terminal', terminalId: 'terminal-1' },
+                'working',
+                2,
+            ),
+        ).toEqual({ preferredModeId: 'working', refresh: 2 });
+        expect(
+            buildSourceControlSnapshotRequest(
+                { kind: 'file', path: gitFileDiffTabPath('repo-1', 'src/file.ts') },
+                'working',
+                2,
+            ),
+        ).toEqual({ preferredModeId: 'working', refresh: 2 });
+    });
+
+    it('keeps the resolved tree visible while a same-context refresh is pending', async () => {
         const queryClient = new QueryClient({
             defaultOptions: { queries: { retry: false } },
         });
@@ -41,7 +73,7 @@ describe('Source Control snapshot queries', () => {
                 configRevision: '[]',
                 enabled: true,
                 queryScope: 'session-1:project-1',
-                request: { refresh },
+                request: { activeResource: '/project/file.ts', refresh },
                 viewId: 'caxri.git.sourceControl',
             });
         const observer = new QueryObserver(queryClient, options(0));
@@ -142,6 +174,92 @@ describe('Source Control snapshot queries', () => {
                 isFetching: true,
                 isPlaceholderData: false,
             });
+        } finally {
+            unsubscribe();
+            queryClient.clear();
+        }
+    });
+
+    it('does not present the previous file while an active-file switch is pending', async () => {
+        const queryClient = new QueryClient({
+            defaultOptions: { queries: { retry: false } },
+        });
+        const pending = Promise.withResolvers<SourceControlViewModel>();
+        const initial = model('1');
+        const snapshot = vi
+            .fn<() => Promise<SourceControlViewModel>>()
+            .mockResolvedValueOnce(initial)
+            .mockReturnValueOnce(pending.promise);
+        const client = { snapshot };
+        const options = (activeResource: string) =>
+            sourceControlSnapshotQueryOptions({
+                client,
+                configRevision: '[]',
+                enabled: true,
+                queryScope: 'session-1:project-1',
+                request: { activeResource, preferredModeId: 'working', refresh: 0 },
+                viewId: 'caxri.git.sourceControl',
+            });
+        const observer = new QueryObserver(queryClient, options('/project/first.ts'));
+        const unsubscribe = observer.subscribe(() => {});
+
+        try {
+            await vi.waitFor(() => expect(observer.getCurrentResult().data).toBe(initial));
+
+            observer.setOptions(options('/project/second.ts'));
+
+            expect(observer.getCurrentResult()).toMatchObject({
+                data: undefined,
+                isFetching: true,
+                isPlaceholderData: false,
+            });
+        } finally {
+            unsubscribe();
+            queryClient.clear();
+        }
+    });
+
+    it('refreshes a cached file snapshot before reusing its revision', async () => {
+        const queryClient = new QueryClient({
+            defaultOptions: { queries: { retry: false, staleTime: 10_000 } },
+        });
+        const pending = Promise.withResolvers<SourceControlViewModel>();
+        const firstRoot = model('1');
+        const nested = model('2');
+        const currentRoot = model('3');
+        const snapshot = vi
+            .fn<() => Promise<SourceControlViewModel>>()
+            .mockResolvedValueOnce(firstRoot)
+            .mockResolvedValueOnce(nested)
+            .mockReturnValueOnce(pending.promise);
+        const options = (activeResource: string) =>
+            sourceControlSnapshotQueryOptions({
+                client: { snapshot },
+                configRevision: '[]',
+                enabled: true,
+                queryScope: 'session-1:project-1',
+                request: { activeResource, preferredModeId: 'working', refresh: 0 },
+                viewId: 'caxri.git.sourceControl',
+            });
+        const observer = new QueryObserver(queryClient, options('/project/root.ts'));
+        const unsubscribe = observer.subscribe(() => {});
+
+        try {
+            await vi.waitFor(() => expect(observer.getCurrentResult().data).toBe(firstRoot));
+            observer.setOptions(options('/project/nested/file.ts'));
+            await vi.waitFor(() => expect(observer.getCurrentResult().data).toBe(nested));
+
+            observer.setOptions(options('/project/root.ts'));
+            await vi.waitFor(() => expect(snapshot).toHaveBeenCalledTimes(3));
+            expect(observer.getCurrentResult()).toMatchObject({
+                data: firstRoot,
+                isFetching: true,
+            });
+
+            pending.resolve(currentRoot);
+            await vi.waitFor(() =>
+                expect(observer.getCurrentResult().data?.revision).toBe(currentRoot.revision),
+            );
         } finally {
             unsubscribe();
             queryClient.clear();

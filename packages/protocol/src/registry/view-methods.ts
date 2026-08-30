@@ -24,6 +24,7 @@ const extensionViewOperationSchema = z.discriminatedUnion('operation', [
         ...common,
         operation: z.literal('source.snapshot'),
         arguments: z.object({
+            activeResource: z.string().min(1).max(8_192).optional(),
             preferredModeId: z.string().min(1).max(480).optional(),
             refresh: z.number().int().nonnegative().default(0),
             revision: z.string().min(1).max(200).optional(),
@@ -34,6 +35,7 @@ const extensionViewOperationSchema = z.discriminatedUnion('operation', [
         operation: z.literal('source.historyPage'),
         arguments: z.object({
             historyId: z.string().min(1).max(480),
+            itemActivation: z.literal('action').optional(),
             offset: z.number().int().nonnegative().max(10_000).default(0),
             pageSize: z.number().int().min(1).max(50).default(25),
             path: z.string().max(4_096).optional(),

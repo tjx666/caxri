@@ -359,6 +359,7 @@ export class GitProvider implements SourceControlProvider {
 
     async provideView(
         request: {
+            activeResource?: string;
             scopeId: string;
             preferredModeId?: string;
             refresh: number;
@@ -419,9 +420,14 @@ export class GitProvider implements SourceControlProvider {
                 else if (detail?.status === 'error') detailErrors.set(repo.id, true);
             }
         }
-        for (const repo of summary.repositories) state.repositories.set(repo.id, repo);
+        /**
+         * Commit mode may narrow visible providers to one repository, while File History still targets the deepest
+         * repository containing the active file. Preserve every approved raw scope for history authorization.
+         */
+        for (const repo of rawSummary.repositories) state.repositories.set(repo.id, repo);
         return boundSourceControlViewModel(
             buildSourceControlViewModel({
+                activeResource: request.activeResource,
                 mode: state.mode,
                 summary,
                 revision,
@@ -429,6 +435,7 @@ export class GitProvider implements SourceControlProvider {
                 detailErrorsByRepository: detailErrors,
                 selectedCommitSha: state.commitSelection?.sha,
                 pullRequestsByRepository: pullRequests,
+                fileHistoryRepositories: rawSummary.repositories,
                 registerAction: this.registerActionFor(state),
             }),
         );
@@ -437,6 +444,7 @@ export class GitProvider implements SourceControlProvider {
     async provideHistoryPage(
         request: {
             historyId: string;
+            itemActivation?: 'action';
             scopeId: string;
             offset: number;
             pageSize: number;
@@ -485,7 +493,18 @@ export class GitProvider implements SourceControlProvider {
         const [page, remoteHost] = await Promise.all([pageRequest, remoteHostRequest]);
         assertNotCancelled(token);
         this.assertRevision(state, request.revision);
-        return buildSourceControlHistoryPage(page, request.revision, remoteHost);
+        return buildSourceControlHistoryPage(
+            page,
+            request.revision,
+            remoteHost,
+            request.itemActivation === 'action' && request.path
+                ? {
+                      path: request.path,
+                      registerAction: this.registerActionFor(state),
+                      repositoryId: request.historyId,
+                  }
+                : undefined,
+        );
     }
 
     async provideHistoryDetails(
