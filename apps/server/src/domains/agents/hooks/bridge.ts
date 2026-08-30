@@ -3,6 +3,11 @@ import { join } from 'node:path';
 
 import { atomicWrite } from '../../atomic-file';
 
+const BRIDGE_RECEIPT_TIMEOUT_MS = 250;
+const BRIDGE_SOCKET_TIMEOUT_MS = 750;
+const BRIDGE_STDIN_TIMEOUT_MS = 250;
+export const AGENT_HOOK_BRIDGE_MAX_DELIVERY_MS = BRIDGE_STDIN_TIMEOUT_MS + BRIDGE_SOCKET_TIMEOUT_MS;
+
 const BRIDGE_SCRIPT = `'use strict';
 const net = require('node:net');
 // The shell wrapper maps these private exit codes to fixed diagnostics so runtime paths and arbitrary child stderr
@@ -32,6 +37,15 @@ const hasAnyLaunchContext = Boolean(
   process.env.CAXRI_HOOK_RUNTIME || socketPath || signal.terminalId || signal.launchId || signal.token,
 );
 const hasLaunchContext = Boolean(socketPath && signal.terminalId && signal.launchId && signal.token);
+// Report a content-free, authenticated receipt before reading provider stdin. This makes a missing lifecycle signal
+// distinguishable from a bridge that never reached the Server without exposing the provider payload.
+function reportBridgeStarted() {
+  const socket = net.createConnection(socketPath);
+  socket.setTimeout(${BRIDGE_RECEIPT_TIMEOUT_MS}, () => socket.destroy());
+  socket.on('connect', () => socket.end(JSON.stringify({ ...signal, kind: 'bridgeStarted' })));
+  socket.on('data', () => {});
+  socket.on('error', () => {});
+}
 // Providers pipe a JSON payload on stdin. Only opaque session and turn identifiers are extracted so prompt and
 // response content never cross this boundary.
 function readIdentifiers(callback) {
@@ -52,7 +66,7 @@ function readIdentifiers(callback) {
     callback({ sessionId, turnId });
   };
   // Stdin may be an interactive TTY when a human runs the bridge by hand; never wait on it.
-  const timer = setTimeout(finish, 250);
+  const timer = setTimeout(finish, ${BRIDGE_STDIN_TIMEOUT_MS});
   timer.unref?.();
   process.stdin.setEncoding('utf8');
   process.stdin.on('data', (chunk) => {
@@ -66,7 +80,9 @@ if (!hasAnyLaunchContext) {
   process.exitCode = 0;
 } else if (!hasLaunchContext) {
   process.exitCode = exitCodes.launchContextUnavailable;
-} else readIdentifiers(({ sessionId, turnId }) => {
+} else {
+if (process.env.CAXRI_HOOK_RECEIPTS === '1') reportBridgeStarted();
+readIdentifiers(({ sessionId, turnId }) => {
   if (sessionId) signal.agentSessionId = sessionId;
   if (turnId) signal.agentTurnId = turnId;
   const socket = net.createConnection(socketPath);
@@ -78,7 +94,7 @@ if (!hasAnyLaunchContext) {
     process.exitCode = exitCode;
   };
   socket.setEncoding('utf8');
-  socket.setTimeout(750, () => {
+  socket.setTimeout(${BRIDGE_SOCKET_TIMEOUT_MS}, () => {
     finish(exitCodes.socketTimeout);
     socket.destroy();
   });
@@ -103,9 +119,10 @@ if (!hasAnyLaunchContext) {
     process.stdin.pause();
   });
 });
+}
 `;
 
-const BRIDGE_VERSION = 8;
+const BRIDGE_VERSION = 9;
 
 const BRIDGE_WRAPPER = String.raw`#!/bin/sh
 bridge_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)

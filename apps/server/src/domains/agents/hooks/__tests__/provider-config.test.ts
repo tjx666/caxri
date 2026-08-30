@@ -73,59 +73,89 @@ describe('Agent provider hook configuration adapters', () => {
         const installed = install(claudeHookAdapter, 'settings', source, 'claude');
 
         expect(
-            claudeHookAdapter.inspect(new Map([['settings', installed]]), desired('claude', 3))
+            claudeHookAdapter.inspect(new Map([['settings', installed]]), desired('claude', 4))
                 .status,
         ).toEqual({ kind: 'current' });
 
         const removed = claudeHookAdapter.remove(
             new Map([['settings', installed]]),
-            desired('claude', 3),
+            desired('claude', 4),
         )[0].source;
         expect(JSON.parse(removed)).toEqual(foreign);
     });
 
     it('updates only stale Caxri entries and leaves a newer Codex schema untouched', () => {
         const current = install(codexHookAdapter, 'hooks', '{}\n', 'codex');
-        const stale = current.replaceAll('--schema 5', '--schema 4');
+        const stale = current.replaceAll('--schema 6', '--schema 5');
         expect(
             codexHookAdapter.inspect(
                 new Map([
                     ['hooks', stale],
                     ['config', undefined],
                 ]),
-                desired('codex', 5),
+                desired('codex', 6),
             ).status,
-        ).toEqual({ kind: 'stale', installedSchema: 4 });
+        ).toEqual({ kind: 'stale', installedSchema: 5 });
 
         const updated = codexHookAdapter.render(
             new Map([
                 ['hooks', stale],
                 ['config', undefined],
             ]),
-            desired('codex', 5),
+            desired('codex', 6),
         )[0].source;
-        expect(updated).not.toContain('--schema 4');
+        expect(updated).not.toContain('--schema 5');
 
-        const newer = updated.replaceAll('--schema 5', '--schema 6');
+        const newer = updated.replaceAll('--schema 6', '--schema 7');
         expect(
             codexHookAdapter.inspect(
                 new Map([
                     ['hooks', newer],
                     ['config', undefined],
                 ]),
-                desired('codex', 5),
+                desired('codex', 6),
             ).status,
-        ).toEqual({ kind: 'newer', installedSchema: 6 });
+        ).toEqual({ kind: 'newer', installedSchema: 7 });
         expect(
             codexHookAdapter.remove(
                 new Map([
                     ['hooks', newer],
                     ['config', undefined],
                 ]),
-                desired('codex', 5),
+                desired('codex', 6),
             ),
         ).toHaveLength(0);
     });
+
+    it.each([
+        {
+            adapter: codexHookAdapter,
+            previousSchema: 5,
+            provider: 'codex' as const,
+            target: 'hooks',
+        },
+        {
+            adapter: claudeHookAdapter,
+            previousSchema: 3,
+            provider: 'claude' as const,
+            target: 'settings',
+        },
+    ])(
+        'keeps the new $provider timeout definition safe from a previous manager',
+        ({ adapter, previousSchema, provider, target }) => {
+            const installed = install(adapter, target, '{}\n', provider);
+
+            expect(
+                adapter.inspect(
+                    new Map([
+                        [target, installed],
+                        ['config', undefined],
+                    ]),
+                    desired(provider, previousSchema),
+                ).status,
+            ).toEqual({ kind: 'newer', installedSchema: previousSchema + 1 });
+        },
+    );
 
     it('installs Codex compaction lifecycle hooks', () => {
         const installed = JSON.parse(install(codexHookAdapter, 'hooks', '{}\n', 'codex')) as {
@@ -142,12 +172,13 @@ describe('Agent provider hook configuration adapters', () => {
 
     it('installs a Codex session-start hook that identifies startup and resumed threads', () => {
         const installed = JSON.parse(install(codexHookAdapter, 'hooks', '{}\n', 'codex')) as {
-            hooks: Record<string, Array<{ hooks: Array<{ command: string }> }>>;
+            hooks: Record<string, Array<{ hooks: Array<{ command: string; timeout: number }> }>>;
         };
 
         expect(installed.hooks.SessionStart[0].hooks[0].command).toContain(
             '--phase sessionIdentified',
         );
+        expect(installed.hooks.SessionStart[0].hooks[0].timeout).toBe(3);
     });
 
     it('refuses to merge Codex hooks.json with inline config.toml hooks', () => {
