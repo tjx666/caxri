@@ -10,8 +10,7 @@ import { cn } from '../../../lib/utilities';
 import { useControlledViewActionCommand } from '../controlled-view-context';
 import type { ResourceExplorerController } from './use-resource-explorer-controller';
 
-const captionActionClassName =
-    'pointer-events-none shrink-0 opacity-0 transition-opacity group-hover/file-caption:pointer-events-auto group-hover/file-caption:opacity-100 group-focus-within/file-caption:pointer-events-auto group-focus-within/file-caption:opacity-100';
+const captionActionClassName = 'shrink-0';
 
 export function ResourceExplorerHeader({ controller }: { controller: ResourceExplorerController }) {
     const searchCommand = useControlledViewActionCommand('resource.search');
