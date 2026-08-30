@@ -83,6 +83,16 @@ export const gitCommitSchema = z.object({
     parents: z.array(z.string().regex(/^[0-9a-f]{40}$/)).max(64),
 });
 
+/**
+ * Latest commit touching an Editor file together with the repository identity needed to open that commit's file diff.
+ * `path` is the repository-relative path in local HEAD, which can differ from the open working-tree path during an
+ * uncommitted rename; the caller's Session-scoped path never becomes an authority token of its own.
+ */
+export const gitFileHeadSchema = gitCommitSchema.extend({
+    repositoryId: z.string(),
+    path: z.string(),
+});
+
 export const gitCommitPageSchema = z.object({
     commits: z.array(gitCommitSchema).max(50),
     nextOffset: z.number().int().nonnegative().optional(),
@@ -120,5 +130,6 @@ export type GitSummary = z.infer<typeof gitSummarySchema>;
 export type GitOverview = z.infer<typeof gitOverviewSchema>;
 export type GitPullRequestChanges = z.infer<typeof gitPullRequestChangesSchema>;
 export type GitCommit = z.infer<typeof gitCommitSchema>;
+export type GitFileHead = z.infer<typeof gitFileHeadSchema>;
 export type GitCommitPage = z.infer<typeof gitCommitPageSchema>;
 export type GitBlame = z.infer<typeof gitBlameSchema>;

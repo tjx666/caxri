@@ -140,6 +140,29 @@ describe('git.commitDetails sha shape', () => {
     });
 });
 
+describe('git.fileHead result bounds', () => {
+    const schema = methods['git.fileHead'].result;
+    const result = {
+        sha: 'a'.repeat(40),
+        shortSha: 'a'.repeat(7),
+        subject: 'change file',
+        body: '',
+        author: 'Caxri Test',
+        authorEmail: 'test@example.com',
+        authoredAt: 1,
+        decorations: [],
+        parents: [],
+        repositoryId: 'repository-1',
+        path: 'src/app.ts',
+    };
+
+    it('bounds the returned repository identity and repository-relative path', () => {
+        expect(schema.safeParse(result).success).toBe(true);
+        expect(schema.safeParse({ ...result, repositoryId: 'r'.repeat(201) }).success).toBe(false);
+        expect(schema.safeParse({ ...result, path: 'p'.repeat(16_385) }).success).toBe(false);
+    });
+});
+
 describe('Runtime-owned Git discard consent', () => {
     it('accepts only extension intent and rejects Runtime-derived prompt metadata', () => {
         const schema = methods['git.discard'].params;

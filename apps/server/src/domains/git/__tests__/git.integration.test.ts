@@ -315,7 +315,11 @@ describe('GitService', () => {
         ).session;
         const rootResolver = new ProjectRootResolver(database);
         const gitLogger = new StructuredLogger(join(directory, '.logs'));
-        const git = trackGitService(new GitService(rootResolver, gitLogger));
+        const git = trackGitService(
+            new GitService(rootResolver, gitLogger, {
+                subscribe: () => Promise.resolve({ unsubscribe: () => Promise.resolve(undefined) }),
+            }),
+        );
         const repo = (await git.summary(session.id)).repositories[0];
 
         const branchList = await git.branches({
@@ -338,6 +342,9 @@ describe('GitService', () => {
         await expect(
             execFileAsync('git', ['branch', '--show-current'], { cwd: directory }),
         ).resolves.toMatchObject({ stdout: 'feature/local-picker\n' });
+        await expect(git.summary(session.id)).resolves.toMatchObject({
+            repositories: [expect.objectContaining({ branch: 'feature/local-picker' })],
+        });
         await expect(
             git.switchBranch({
                 sessionId: session.id,

@@ -8,8 +8,8 @@ import {
     gitBranchSchema,
     gitCommitDetailsSchema,
     gitCommitPageSchema,
-    gitCommitSchema,
     gitDiffDocumentSchema,
+    gitFileHeadSchema,
     gitOverviewSchema,
     gitPullRequestChangesSchema,
     gitSummarySchema,
@@ -193,7 +193,9 @@ export const gitMethods = {
             sessionId: identifierSchema,
             path: pathSchema,
         }),
-        result: gitCommitSchema.nullable(),
+        result: gitFileHeadSchema
+            .extend({ repositoryId: identifierSchema, path: pathSchema })
+            .nullable(),
     },
 } as const satisfies Record<string, MethodSpec>;
 

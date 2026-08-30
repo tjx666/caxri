@@ -438,6 +438,7 @@ const BRANCH_SWITCH_DEPENDENCIES = new Set<CaxriMethod>([
     'git.commits',
     'git.commitDetails',
     'git.blame',
+    'git.fileHead',
     'projectStatus.overview',
     'projectStatus.summary',
 ]);
