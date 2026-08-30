@@ -117,8 +117,32 @@ describe('Renderer performance aggregation', () => {
                 actualDurationP95Ms: 30,
                 actualDurationMaxMs: 30,
                 baseDurationMaxMs: 42,
-                slowestSurface: 'workbench',
-                slowestSurfaceDurationMs: 60,
+                surfaces: {
+                    'primary-sidebar': {
+                        profiledRenderCount: 1,
+                        actualDurationP50Ms: 5,
+                        actualDurationP95Ms: 5,
+                        actualDurationMaxMs: 5,
+                        actualDurationTotalMs: 5,
+                        baseDurationMaxMs: 8,
+                    },
+                    'workbench': {
+                        profiledRenderCount: 3,
+                        actualDurationP50Ms: 20,
+                        actualDurationP95Ms: 30,
+                        actualDurationMaxMs: 30,
+                        actualDurationTotalMs: 60,
+                        baseDurationMaxMs: 42,
+                    },
+                    'secondary-sidebar': {
+                        profiledRenderCount: 0,
+                        actualDurationP50Ms: 0,
+                        actualDurationP95Ms: 0,
+                        actualDurationMaxMs: 0,
+                        actualDurationTotalMs: 0,
+                        baseDurationMaxMs: 0,
+                    },
+                },
             },
             longAnimationFrames: {
                 count: 2,
@@ -185,8 +209,11 @@ describe('Renderer performance aggregation', () => {
         expect(summary.react).toMatchObject({
             commitCount: 0,
             profiledRenderCount: 0,
-            slowestSurface: null,
-            slowestSurfaceDurationMs: 0,
+            surfaces: {
+                'primary-sidebar': { profiledRenderCount: 0 },
+                'workbench': { profiledRenderCount: 0 },
+                'secondary-sidebar': { profiledRenderCount: 0 },
+            },
         });
         expect(summary.frames).toEqual({
             sampleCount: 0,

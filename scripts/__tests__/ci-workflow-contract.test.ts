@@ -268,6 +268,8 @@ describe('CI workflow contract', () => {
         const e2eJob = workflow.match(/\n {2}e2e:\n([\s\S]*?)\n {2}ci:/u)?.[1];
         const focusedIndex = workflow.indexOf('run: bun run scripts/run-e2e-repair.ts');
         const fullIndex = workflow.indexOf('bun run scripts/run-e2e-pools.ts --pool control');
+        const performanceIndex = workflow.indexOf('run: bun run benchmark:renderer');
+        const receiptIndex = workflow.indexOf('name: Record actual E2E execution receipt');
 
         expect(focusedIndex).toBeGreaterThan(0);
         expect(fullIndex).toBeGreaterThan(focusedIndex);
@@ -278,8 +280,26 @@ describe('CI workflow contract', () => {
         expect(e2eJob).toContain(
             "if: always() && steps.e2e-build.outcome == 'success' && needs.retry-policy.outputs.e2e_profile == 'control'",
         );
+        expect(e2eJob).toContain(
+            'renderer_performance_result: ${{ steps.renderer-performance.outcome }}',
+        );
+        expect(e2eJob).toContain('name: Run Renderer performance gate');
+        expect(e2eJob).toContain('run: bun run benchmark:renderer');
+        expect(e2eJob).toContain('name: Upload Renderer performance receipt');
+        expect(e2eJob).toContain('path: test-results/receipts/renderer-performance.json');
+        expect(e2eJob).toContain("steps.focused-repair.outcome == 'success'");
+        expect(performanceIndex).toBeGreaterThan(fullIndex);
+        expect(receiptIndex).toBeGreaterThan(performanceIndex);
+        expect(packageManifest.scripts['benchmark:renderer']).toContain(
+            'CAXRI_RENDERER_BENCHMARK=1',
+        );
         expect(workflow).toContain('name: CI gate');
         expect(workflow).toContain('needs: [retry-policy, checks, e2e]');
+        expect(workflow).toContain(
+            'RENDERER_PERFORMANCE_RESULT: ${{ needs.e2e.outputs.renderer_performance_result }}',
+        );
+        expect(workflow).toContain('test "$RENDERER_PERFORMANCE_RESULT" = success');
+        expect(workflow).not.toContain('if test "$MODE" != e2e-repair');
     });
 
     it('overlaps synthetic-merge checks with exact-head E2E without weakening either tree', () => {

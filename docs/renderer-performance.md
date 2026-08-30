@@ -14,7 +14,7 @@ Each `renderer-performance-scenario` receipt contains:
   exposes the API;
 - Event Timing input, processing, and presentation delay maxima when Chromium exposes the API;
 - React Profiler commit and render counts for the Primary Sidebar, Workbench, and Secondary Sidebar,
-  with bounded duration percentiles;
+  with per-surface p50, p95, maximum, total actual duration, and maximum base duration;
 - optional `react-scan/lite` commit, render, and slowest-component summaries in an instrumented build.
 
 Capabilities are explicit. An unavailable browser observer, a normal production React build, or a
@@ -23,7 +23,7 @@ react-scan build limited to commit-tree data produces `unavailable`, `disabled`,
 and `focusInterrupted` make a sample unsuitable for a strict frame budget.
 
 The React Profiler summaries describe the stable surface boundaries, not every component.
-`react-scan/lite` adds component attribution only in an opt-in monitoring or profiling build. It is
+`react-scan/lite` adds component attribution only in an opt-in monitoring build. It is
 not the canonical schema and is never required for frame, Long Animation Frame, Event Timing, or
 surface-level React measurements.
 
@@ -39,13 +39,38 @@ Run the profiling build and real Electron scenario with:
 bun run benchmark:renderer
 ```
 
-The command prints exactly one receipt prefixed by `CAXRI_RENDERER_BENCHMARK`. The benchmark verifies
-that the profiling build exposes the React Profiler, produces React commits and frame samples, stays
-within its scenario budgets, and persists the same scenario under the
-`renderer.performance_scenario` structured-log event.
+The command prints exactly one receipt prefixed by `CAXRI_RENDERER_BENCHMARK` and writes the same JSON
+to `test-results/receipts/renderer-performance.json`. The fixed scenario switches between two
+Sessions, collapses and expands their Project, and hides and restores both sidebars three times. It
+therefore requires every stable surface to participate instead of accepting one global aggregate.
 
-Compare only like-for-like machine, display refresh rate, build mode, scenario, and visibility/focus
-state. Keep budgets scenario-specific; do not turn one local sample into a repository-wide threshold.
+The budgets below were calibrated from three local Apple M5 Max profiling runs on 2026-08-30. The
+observed render-count ranges were `61–102`, `36–37`, and `26`; the observed maximum total durations
+were `15.9 ms`, `7.7 ms`, and `5.2 ms`, respectively. Duration gates use roughly three times the
+observed maximum, while render-count gates retain enough headroom for asynchronous state commits
+without allowing an accidental whole-tree render per event to pass unnoticed. The exact-head CI run
+on `m2-24` is the required cross-machine acceptance evidence.
+
+| Surface           | Required renders | Maximum renders | Maximum total actual duration |
+| ----------------- | ---------------: | --------------: | ----------------------------: |
+| Primary Sidebar   |                1 |             140 |                         50 ms |
+| Workbench         |                1 |              60 |                         30 ms |
+| Secondary Sidebar |                1 |              45 |                         20 ms |
+
+The benchmark also requires a focused, uninterrupted profiling window, bounded sample storage, and a
+matching structured-log record. Frame intervals, missed frames, Long Animation Frames, and Event
+Timing remain in the receipt for diagnosis but are not hard gates: display refresh rate and runner
+load make those browser-level values too noisy for a deterministic CI budget.
+
+The trusted macOS E2E job runs this command after the ordinary production-build suites. It rebuilds
+only for this final profiling scenario, uploads the JSON receipt for seven days, and exposes the step
+outcome to `CI gate`; a skipped or failed performance step rejects every E2E-running path. Workflows
+whose policy explicitly skips E2E do not start the desktop job. The performance spec itself is protected
+from focused repair selection because a normal React build cannot supply valid Profiler timings; the
+dedicated profiling step still runs after a successful focused repair.
+
+Compare only like-for-like machine, build mode, scenario, and visibility/focus state. Keep budgets
+scenario-specific; do not turn one local sample into a repository-wide threshold.
 
 ## Development investigation
 

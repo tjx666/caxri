@@ -536,6 +536,14 @@ Terminal input, resize, and output are high-frequency paths. Successful input an
 
 `benchmark:startup` exercises a representative large repository and requires Server Core, Terminal, Files, and Git to become usable within three seconds. It also validates timed log coverage, zero request/watcher failures, aggregated terminal metrics, and fewer than 256 Server Core file descriptors. `benchmark:editor` separately launches isolated cold and idle-preloaded renderers. The common-language idle preload must complete within three seconds; the first JavaScript or TypeScript document, editor mount, and visible syntax highlight must complete within 250 ms of selection in both paths, and a repeated open must visibly highlight within the same bound.
 
+`benchmark:renderer` uses React's profiling build to exercise Session switching, Project disclosure,
+and both sidebar visibility paths against fixed Primary Sidebar, Workbench, and Secondary Sidebar
+Profiler boundaries. Its strict receipt retains per-surface render counts and bounded duration
+summaries. CI hard-gates participation, render counts, total React duration, focus/visibility integrity,
+and truncation; refresh-rate-sensitive frame, Long Animation Frame, and Event Timing values remain
+diagnostic. The optional react-scan entry is excluded from the CI build so attribution overhead cannot
+change the canonical budgets.
+
 ## Diagnostics and privacy
 
 Structured logs carry timestamp, process, level, event, correlation ID, duration, and the build's application version and commit when known. Diagnostics contain application/runtime versions, redacted metadata/state, counts, and timing summaries. Home paths normalize to `$HOME`; secret-like keys, bearer/API tokens, GitHub tokens, and Slack tokens are redacted. Bundles never include file contents, terminal output/snapshots, environment values, prompts/responses, or agent transcripts.
