@@ -1,3 +1,4 @@
+import { CaxriError } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { AppQuitOptions } from '../app-quit';
@@ -101,12 +102,14 @@ describe('resolveAppQuit', () => {
 
     it('keeps the Server when status cannot be read so Desktop can still quit safely', async () => {
         const target = options({
-            readStatus: vi.fn().mockRejectedValue(new Error('Server unavailable')),
+            readStatus: vi
+                .fn()
+                .mockRejectedValue(new CaxriError('UNAVAILABLE', 'Server unavailable')),
         });
 
         await expect(resolveAppQuit(target)).resolves.toBe('kept-running');
 
-        expect(target.logFailure).toHaveBeenCalledWith('status', 'Server unavailable');
+        expect(target.logFailure).toHaveBeenCalledWith('warn', 'status', 'Server unavailable');
         expect(target.confirm).not.toHaveBeenCalled();
         expect(target.detachAll).toHaveBeenCalledOnce();
         expect(target.closeDesktop).toHaveBeenCalledOnce();
@@ -138,9 +141,9 @@ describe('resolveAppQuit', () => {
 
         await expect(resolveAppQuit(target)).resolves.toBe('stop-failed');
 
-        expect(target.logFailure).toHaveBeenNthCalledWith(1, 'persist', 'persist failed');
-        expect(target.logFailure).toHaveBeenNthCalledWith(2, 'gpu', 'GPU drain failed');
-        expect(target.logFailure).toHaveBeenNthCalledWith(3, 'stop', 'stop failed');
+        expect(target.logFailure).toHaveBeenNthCalledWith(1, 'error', 'persist', 'persist failed');
+        expect(target.logFailure).toHaveBeenNthCalledWith(2, 'error', 'gpu', 'GPU drain failed');
+        expect(target.logFailure).toHaveBeenNthCalledWith(3, 'error', 'stop', 'stop failed');
         expect(target.notifyStopFailure).toHaveBeenCalledOnce();
         expect(target.exit).toHaveBeenCalledOnce();
     });

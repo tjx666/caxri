@@ -172,8 +172,8 @@ if (ownsProfileInstance) {
         detachAll: () => supervisor.request('terminal.detachAll'),
         drainGpuRecovery: () => gpuRecovery.drain(),
         exit: () => app.exit(0),
-        logFailure: (stage, error) =>
-            mainLogger?.write('error', logEventCatalog.app.quitFailed, {
+        logFailure: (level, stage, error) =>
+            mainLogger?.write(level, logEventCatalog.app.quitFailed, {
                 fields: { stage, error },
             }),
         notifyStopFailure: () => notifyAppQuitStopFailure(dialog, mainWindow),

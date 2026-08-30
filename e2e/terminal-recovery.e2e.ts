@@ -633,7 +633,10 @@ render();
             testRootPath: root,
         };
 
-        let running = await launchCaxri(launchOptions);
+        let running = await launchCaxri({
+            ...launchOptions,
+            quitDecisionOnClose: 'keep-running',
+        });
         try {
             await createProjectSession(running.page, agent.kind);
             const terminalId = await running.page

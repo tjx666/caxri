@@ -1,4 +1,4 @@
-import { errorMessage } from '@caxri/protocol';
+import { errorMessage, toWireError } from '@caxri/protocol';
 import type { BrowserWindow, Dialog } from 'electron';
 
 export type AppQuitDecision = 'cancel' | 'keep-running' | 'stop';
@@ -19,7 +19,7 @@ export interface AppQuitOptions {
     detachAll: () => Promise<unknown>;
     drainGpuRecovery: () => Promise<void>;
     exit: () => void;
-    logFailure: (stage: AppQuitFailureStage, message: string) => void;
+    logFailure: (level: 'error' | 'warn', stage: AppQuitFailureStage, message: string) => void;
     notifyStopFailure: () => Promise<void>;
     persistWindowState: () => Promise<void>;
     quitIntent: () => AppQuitIntent;
@@ -108,7 +108,16 @@ function reportFailure(
     error: unknown,
 ): string {
     const message = errorMessage(error, 'Unknown quit failure');
-    options.logFailure(stage, message);
+    const code = toWireError(error).code;
+    /**
+     * Expected Host loss is fail-open during quit; persistence and other internal failures remain actionable.
+     */
+    const level =
+        (code === 'CANCELLED' || code === 'UNAVAILABLE') &&
+        ['detach', 'disconnect', 'persist', 'status'].includes(stage)
+            ? 'warn'
+            : 'error';
+    options.logFailure(level, stage, message);
     return message;
 }
 

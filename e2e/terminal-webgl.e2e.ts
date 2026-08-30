@@ -182,6 +182,7 @@ test('two context losses activate reversible GPU Safe Mode on the next launch', 
     await mkdir(root);
 
     let running = await launchCaxri({
+        quitDecisionOnClose: 'keep-running',
         gpuMode: 'enabled',
         userDataDir: userData,
         testRootPath: root,
@@ -201,6 +202,7 @@ test('two context losses activate reversible GPU Safe Mode on the next launch', 
 
         await running.app.close();
         running = await launchCaxri({
+            quitDecisionOnClose: 'keep-running',
             gpuMode: 'enabled',
             userDataDir: userData,
             testRootPath: root,
