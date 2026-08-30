@@ -4,8 +4,7 @@ import process from 'node:process';
 
 import type { AgentProvider } from '@caxri/protocol';
 import { agentProviderIds } from '@caxri/protocol';
-
-import { createE2EAgentIsolationEnvironment } from './agent-environment';
+import { createE2EAgentIsolationEnvironment } from '@caxri/system';
 
 interface FakeAgentInputCapture {
     encoding: 'hex' | 'raw' | 'utf8';
