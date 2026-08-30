@@ -27,6 +27,7 @@ export interface LocalTerminalExecutionOptions {
  * In-process adapter retained for focused engine tests. Production Server Core supplies the process-backed port.
  */
 export class LocalTerminalExecution extends EventTarget implements TerminalExecutionPort {
+    private readonly agents = new Map<string, { launchId: string; processId: number }>();
     private readonly engine: TerminalExecutionEngine;
 
     constructor(options: LocalTerminalExecutionOptions) {
@@ -40,6 +41,20 @@ export class LocalTerminalExecution extends EventTarget implements TerminalExecu
                 ),
             logger: options.logger,
             onExit: (event) => {
+                const agent = this.agents.get(event.record.id);
+                if (agent) {
+                    this.agents.delete(event.record.id);
+                    this.dispatchEvent(
+                        new CustomEvent<DomainExecutionEvent>('event', {
+                            detail: {
+                                type: 'agentExit',
+                                terminalId: event.record.id,
+                                launchId: agent.launchId,
+                                exitCode: event.exitCode,
+                            },
+                        }),
+                    );
+                }
                 this.dispatchEvent(new CustomEvent<DomainExecutionExit>('exit', { detail: event }));
             },
             outputFlushMs: options.outputFlushMs,
@@ -53,16 +68,54 @@ export class LocalTerminalExecution extends EventTarget implements TerminalExecu
         return Promise.resolve();
     }
 
-    start(input: Parameters<TerminalExecutionPort['start']>[0]): Promise<number> {
-        return Promise.resolve(
-            this.engine.start({
-                args: input.args,
-                environment: input.environment,
-                executable: input.executable,
-                initialSnapshot: input.initialSnapshot?.payload ?? '',
-                record: input.record,
+    emitAgentExit(terminalId: string, exitCode: number | null, signal?: NodeJS.Signals): boolean {
+        const agent = this.agents.get(terminalId);
+        if (!agent) return false;
+        this.agents.delete(terminalId);
+        this.dispatchEvent(
+            new CustomEvent<DomainExecutionEvent>('event', {
+                detail: {
+                    type: 'agentExit',
+                    terminalId,
+                    launchId: agent.launchId,
+                    exitCode,
+                    ...(signal && { signal }),
+                },
             }),
         );
+        return true;
+    }
+
+    start(input: Parameters<TerminalExecutionPort['start']>[0]): Promise<number> {
+        const processId = this.engine.start({
+            args: input.args,
+            environment: input.environment,
+            executable: input.executable,
+            initialSnapshot: input.initialSnapshot?.payload ?? '',
+            record: input.record,
+        });
+        if (input.agent) {
+            const agent = input.agent;
+            const agentProcessId = processId || 1;
+            this.agents.set(input.record.id, {
+                launchId: agent.launchId,
+                processId: agentProcessId,
+            });
+            queueMicrotask(() => {
+                if (this.agents.get(input.record.id)?.launchId !== agent.launchId) return;
+                this.dispatchEvent(
+                    new CustomEvent<DomainExecutionEvent>('event', {
+                        detail: {
+                            type: 'agentStarted',
+                            terminalId: input.record.id,
+                            launchId: agent.launchId,
+                            processId: agentProcessId,
+                        },
+                    }),
+                );
+            });
+        }
+        return Promise.resolve(processId);
     }
 
     waitForAttachedSize(
@@ -83,6 +136,14 @@ export class LocalTerminalExecution extends EventTarget implements TerminalExecu
 
     signalExact(terminalId: string, expectedProcessId: number, signal: string): boolean {
         return this.engine.signalExact(terminalId, expectedProcessId, signal);
+    }
+
+    signalAgentExact(terminalId: string, launchId: string, signal: string): boolean {
+        const agent = this.agents.get(terminalId);
+        return Boolean(
+            agent?.launchId === launchId &&
+            this.engine.signalExact(terminalId, agent.processId, signal),
+        );
     }
 
     resize(terminalId: string, cols: number, rows: number): boolean {
@@ -109,14 +170,17 @@ export class LocalTerminalExecution extends EventTarget implements TerminalExecu
     }
 
     restartBarrier(terminalId: string): Promise<TerminalSnapshot | null> {
+        this.agents.delete(terminalId);
         return this.engine.restartBarrier(terminalId) ?? Promise.resolve(null);
     }
 
     close(terminalId: string): void {
+        this.agents.delete(terminalId);
         this.engine.close(terminalId);
     }
 
     discard(terminalId: string): void {
+        this.agents.delete(terminalId);
         this.engine.discard(terminalId);
     }
 
@@ -125,6 +189,7 @@ export class LocalTerminalExecution extends EventTarget implements TerminalExecu
     }
 
     terminateSession(sessionId: string, terminalIds: readonly string[]): string[] {
+        for (const terminalId of terminalIds) this.agents.delete(terminalId);
         return this.engine.terminateSession(sessionId, terminalIds);
     }
 
@@ -136,11 +201,16 @@ export class LocalTerminalExecution extends EventTarget implements TerminalExecu
         return this.engine.processId(terminalId);
     }
 
+    agentProcessId(terminalId: string): number | undefined {
+        return this.agents.get(terminalId)?.processId;
+    }
+
     resources(terminalId: string): ReturnType<TerminalExecutionPort['resources']> {
         return this.engine.resources(terminalId);
     }
 
     shutdown(): Promise<Array<{ terminalId: string; capture: Promise<TerminalSnapshot> }>> {
+        this.agents.clear();
         return Promise.resolve(this.engine.shutdown());
     }
 

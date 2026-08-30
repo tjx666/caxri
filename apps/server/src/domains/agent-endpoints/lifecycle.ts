@@ -137,10 +137,10 @@ export class AgentEndpointLifecycle {
         terminal: TerminalRecord,
         projectId: string,
         settings: AgentProviderSettings,
+        launchId: string = randomUUID(),
     ): Promise<NodeJS.ProcessEnv> {
         if (terminal.kind === 'shell') return {};
         await this.retire(terminal.id);
-        const launchId = randomUUID();
         const endpoint = await this.control.begin({
             terminalId: terminal.id,
             sessionId: terminal.sessionId,

@@ -190,8 +190,8 @@ export class AgentDispatchService {
         if (terminal.agentSessionId !== input.providerSessionId)
             throw new CaxriError('UNAVAILABLE', 'Provider session binding changed');
         if (
-            terminal.lastProcessState === 'running' ||
-            this.options.terminals.processId(terminal.id) !== undefined
+            terminal.lastAgentProcessState === 'running' ||
+            this.options.terminals.agentProcessId(terminal.id) !== undefined
         )
             throw new CaxriError('CONFLICT', 'Agent Terminal is already running');
         const launch = this.options.launchSettings(terminal.provider);
@@ -236,28 +236,42 @@ export class AgentDispatchService {
         resumeAgentSessionId?: string,
     ): Promise<AgentDispatchReceipt> {
         try {
-            const running = resumeAgentSessionId
-                ? await this.options.terminals.restart(terminal.id, {
+            await (resumeAgentSessionId
+                ? this.options.terminals.restart(terminal.id, {
                       expectedWorkingDirectory,
                       resumeAgentSessionId,
                   })
-                : await this.options.terminals.start(terminal, { expectedWorkingDirectory });
+                : this.options.terminals.start(terminal, { expectedWorkingDirectory }));
+            await this.options.terminals.waitForAgentRunning(terminal.id);
+            const running = this.options.database.getTerminal(terminal.id);
+            const currentEndpoint = this.options.endpoints?.endpointForTerminal(terminal.id);
+            const controlTarget =
+                currentEndpoint ?? this.options.endpoints?.preparedEndpointForTerminal(terminal.id);
             if (
-                running.lastProcessState !== 'running' ||
-                this.options.terminals.processId(terminal.id) === undefined
-            )
-                throw new CaxriError('UNAVAILABLE', 'Agent PTY did not become running');
-            const endpoint = this.options.endpoints?.endpointForTerminal(terminal.id)?.ref;
-            if (!endpoint) {
-                const processId = this.options.terminals.processId(terminal.id);
-                if (processId !== undefined)
-                    this.options.terminals.signalExact(terminal.id, processId, 'SIGHUP');
+                running?.lastAgentProcessState !== 'running' ||
+                this.options.terminals.agentProcessId(terminal.id) === undefined
+            ) {
+                if (controlTarget)
+                    this.options.terminals.signalAgentExact(
+                        terminal.id,
+                        controlTarget.launchId,
+                        'SIGHUP',
+                    );
+                throw new CaxriError('UNAVAILABLE', 'Managed Agent did not become running');
+            }
+            if (!currentEndpoint) {
+                if (controlTarget)
+                    this.options.terminals.signalAgentExact(
+                        terminal.id,
+                        controlTarget.launchId,
+                        'SIGHUP',
+                    );
                 throw new CaxriError('UNAVAILABLE', 'Agent Endpoint did not become active');
             }
             const receipt = this.update(dispatchId, {
                 status: 'running',
                 terminalId: terminal.id,
-                endpoint,
+                endpoint: currentEndpoint.ref,
             });
             this.options.database.touchSessionActivity(terminal.sessionId, 'agent_started');
             this.options.coordinator.probeTerminal(terminal.id);

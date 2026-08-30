@@ -2,13 +2,14 @@ import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node
 import { homedir, tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 
-import type { ServerEvent } from '@caxri/protocol';
+import type { ServerEvent, TerminalKind } from '@caxri/protocol';
 import { listPaneTerminalIds } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import type { spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createTestDomainServices } from '../../__tests__/support/domain-services';
+import { LocalTerminalExecution } from '../../__tests__/support/local-terminal-execution';
 import { CaxriDatabase } from '../db/repository';
 import { GitService } from '../git';
 import { ProjectStatusService } from '../project-status';
@@ -20,6 +21,7 @@ afterEach(async () => {
     const pendingDirectories = temporaryDirectories.slice();
     temporaryDirectories.length = 0;
     await Promise.all(pendingDirectories.map((path) => rm(path, { recursive: true, force: true })));
+    vi.restoreAllMocks();
 });
 
 describe('domain-service composition root', () => {
@@ -29,6 +31,7 @@ describe('domain-service composition root', () => {
         const projectRoot = join(directory, 'project');
         await mkdir(projectRoot);
         const spawn = vi.fn<typeof spawnPty>(() => createFakePty());
+        const start = vi.spyOn(LocalTerminalExecution.prototype, 'start');
         const runtime = await createTestDomainServices({
             userDataPath: join(directory, 'user-data'),
             logger: new StructuredLogger(join(directory, 'logs')),
@@ -67,13 +70,12 @@ describe('domain-service composition root', () => {
                 defaultAgent: 'codex',
             });
             const canonicalProjectRoot = await realpath(projectRoot);
-
-            expect(spawn.mock.calls[0]?.[0]).toBe('/bin/echo');
-            expect(spawn.mock.calls[0]?.[1]).toEqual(['--profile', 'focused']);
+            expect(['/bin/bash', '/bin/zsh']).toContain(spawn.mock.calls[0]?.[0]);
             expect(spawn.mock.calls[0]?.[2]).toMatchObject({ cwd: canonicalProjectRoot });
-            expect(spawn.mock.calls[0]?.[2].env).toMatchObject({
-                PATH: '/login/bin:/usr/bin',
-            });
+            const agent = start.mock.calls[0]?.[0].agent;
+            expect(agent?.executable).toBe('/bin/echo');
+            expect(agent?.args).toEqual(['--profile', 'focused']);
+            expect(agent?.environment).toMatchObject({ PATH: '/login/bin:/usr/bin' });
         } finally {
             await runtime.close();
         }
@@ -423,7 +425,8 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
             const userDataPath = join(directory, 'user-data');
             const projectRoot = join(directory, 'project');
             await mkdir(projectRoot);
-            const resolveExecutable = () => Promise.resolve(`/usr/local/bin/${provider}`);
+            const resolveExecutable = (kind: TerminalKind) =>
+                Promise.resolve(kind === 'shell' ? '/bin/zsh' : `/usr/local/bin/${provider}`);
 
             const domainsA = await createTestDomainServices({
                 userDataPath,
@@ -449,14 +452,15 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
              * hermetic test does not produce.
              */
             const direct = new CaxriDatabase(join(userDataPath, 'caxri.db'));
-            expect(direct.getTerminal(created.terminal!.id)?.lastProcessState).toBe('interrupted');
+            const interrupted = direct.getTerminal(created.terminal!.id);
+            expect(interrupted?.lastAgentProcessState).toBe('interrupted');
             direct.database
                 .prepare('UPDATE terminals SET agent_session_id = ? WHERE id = ?')
                 .run(sessionId, created.terminal!.id);
             direct.close();
 
-            const spawnSpy = vi.fn();
-            spawnSpy.mockImplementation(() => createFakePty());
+            const spawnSpy = vi.fn<typeof spawnPty>(() => createFakePty());
+            const start = vi.spyOn(LocalTerminalExecution.prototype, 'start');
             const domainsB = await createTestDomainServices({
                 userDataPath,
                 terminalRestoreGridWaitMs: 0,
@@ -467,14 +471,17 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
             });
             try {
                 await vi.waitFor(() => expect(spawnSpy).toHaveBeenCalled());
-                expect(spawnSpy.mock.calls[0]?.[1]).toEqual(resumeArguments);
-
+                expect(spawnSpy.mock.calls[0]?.[0]).toBe('/bin/zsh');
+                const agent = start.mock.calls[0]?.[0].agent;
+                expect(agent?.executable).toBe(`/usr/local/bin/${provider}`);
+                expect(agent?.args).toEqual(resumeArguments);
                 const bootstrap = await vi.waitFor(async () => {
                     const state = await domainsB.handlers['app.bootstrap']({});
                     const terminal = state.terminals.find(
                         (entry) => entry.id === created.terminal!.id,
                     );
                     expect(terminal?.lastProcessState).toBe('running');
+                    expect(terminal?.lastAgentProcessState).toBe('running');
                     return state;
                 });
                 const restoredTerminal = bootstrap.terminals.find(
@@ -559,7 +566,8 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
         const userDataPath = join(directory, 'user-data');
         const projectRoot = join(directory, 'project');
         await mkdir(projectRoot);
-        const resolveExecutable = () => Promise.resolve('/usr/local/bin/claude');
+        const resolveExecutable = (kind: TerminalKind) =>
+            Promise.resolve(kind === 'shell' ? '/bin/zsh' : '/usr/local/bin/claude');
 
         const domainsA = await createTestDomainServices({
             userDataPath,
@@ -577,9 +585,8 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
          * No Agent session id was ever bound, so the orderly close leaves `agentSessionId` unset.
          */
         await domainsA.close();
-
-        const freshSpawnSpy = vi.fn();
-        freshSpawnSpy.mockImplementation(() => createFakePty());
+        const freshSpawnSpy = vi.fn<typeof spawnPty>(() => createFakePty());
+        const start = vi.spyOn(LocalTerminalExecution.prototype, 'start');
         const domainsB = await createTestDomainServices({
             userDataPath,
             terminalRestoreGridWaitMs: 0,
@@ -590,8 +597,9 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
         });
         try {
             await vi.waitFor(() => expect(freshSpawnSpy).toHaveBeenCalled());
-            expect(freshSpawnSpy.mock.calls[0]?.[1]).toEqual([]);
-
+            expect(freshSpawnSpy.mock.calls[0]?.[0]).toBe('/bin/zsh');
+            expect(start.mock.calls[0]?.[0].agent?.executable).toBe('/usr/local/bin/claude');
+            expect(start.mock.calls[0]?.[0].agent?.args).toEqual([]);
             await domainsB.handlers['terminal.terminateAll']({});
             const afterTerminate = await domainsB.handlers['app.bootstrap']({});
             expect(

@@ -19,7 +19,20 @@ export type TerminalExecutionEvent =
           status: 'recovered' | 'rate-limited';
       }
     | { type: 'activity'; terminalId: string; processId: number }
-    | { type: 'title'; terminalId: string; title: string };
+    | { type: 'title'; terminalId: string; title: string }
+    | {
+          type: 'agentStarted';
+          terminalId: string;
+          launchId: string;
+          processId: number;
+      }
+    | {
+          type: 'agentExit';
+          terminalId: string;
+          launchId: string;
+          exitCode: number | null;
+          signal?: NodeJS.Signals;
+      };
 
 export interface TerminalExecutionExit {
     capture: Promise<TerminalSnapshot>;
@@ -29,6 +42,13 @@ export interface TerminalExecutionExit {
 }
 
 export interface TerminalExecutionLaunch {
+    agent?: {
+        args: string[];
+        environment: NodeJS.ProcessEnv;
+        executable: string;
+        launchId: string;
+        provider: NonNullable<TerminalRecord['provider']>;
+    };
     args: string[];
     colors?: { background: string; foreground: string };
     environment: NodeJS.ProcessEnv;
@@ -59,6 +79,7 @@ export interface TerminalExecutionPort {
     onEvent(listener: (event: TerminalExecutionEvent) => void): () => void;
     onExit(listener: (event: TerminalExecutionExit) => void): () => void;
     onHostExit(listener: (terminalIds: readonly string[]) => void): () => void;
+    agentProcessId(terminalId: string): number | undefined;
     processId(terminalId: string): number | undefined;
     reassignSession(terminalId: string, sessionId: string): void;
     reserve(record: TerminalRecord): Promise<void>;
@@ -67,6 +88,7 @@ export interface TerminalExecutionPort {
     restartBarrier(terminalId: string): Promise<TerminalSnapshot | null>;
     runningCount(sessionId?: string): number;
     shutdown(): Promise<Array<{ terminalId: string; capture: Promise<TerminalSnapshot> }>>;
+    signalAgentExact(terminalId: string, expectedLaunchId: string, signal: string): boolean;
     signalExact(terminalId: string, expectedProcessId: number, signal: string): boolean;
     snapshot(terminalId: string): Promise<TerminalSnapshot | null>;
     start(input: TerminalExecutionLaunch): Promise<number>;

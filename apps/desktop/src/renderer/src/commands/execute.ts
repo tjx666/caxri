@@ -30,6 +30,7 @@ import {
     sendTerminalSequence,
     startNewAgentSession,
 } from '../features/terminal/terminal-actions';
+import { isAgentProcessRunning } from '../features/terminal/terminal-agent-runtime';
 import { openTerminalLinkPicker } from '../features/terminal/terminal-link-actions';
 import { checkForUpdates } from '../features/updates/update-actions';
 import {
@@ -66,7 +67,9 @@ function activeAgentTerminal() {
     const terminalId = activeTerminalId();
     if (!terminalId) return;
     const terminal = getBootstrap()?.terminals.find((candidate) => candidate.id === terminalId);
-    return terminal?.provider && terminal.lastProcessState === 'running' ? terminal : undefined;
+    return terminal?.provider && isAgentProcessRunning(terminal.lastAgentProcessState)
+        ? terminal
+        : undefined;
 }
 
 /**

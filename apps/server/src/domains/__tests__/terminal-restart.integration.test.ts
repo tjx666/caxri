@@ -8,6 +8,7 @@ import type { spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createTestDomainServices } from '../../__tests__/support/domain-services';
+import { createTestTerminalExecution } from '../../__tests__/support/terminal';
 import { CaxriDatabase } from '../db/repository';
 import { createFakePty, createPendingAgentAdapters } from './create-test-domain-services';
 
@@ -68,13 +69,19 @@ describe('Agent Terminal restart', () => {
             );
             const createdActivityAt = created.session.lastSessionActivityAt;
             const spawn = vi.fn<typeof spawnPty>(() => createFakePty());
+            const logger = new StructuredLogger(join(directory, 'logs'));
+            const execution = createTestTerminalExecution(logger, { spawn });
+            const start = vi.spyOn(execution, 'start');
             const runtime = await createTestDomainServices({
                 userDataPath,
-                logger: new StructuredLogger(join(directory, 'logs')),
+                logger,
                 send: () => {},
                 terminal: {
-                    resolveExecutable: () => Promise.resolve(`/usr/local/bin/${provider}`),
-                    spawn,
+                    execution,
+                    resolveExecutable: (kind) =>
+                        Promise.resolve(
+                            kind === 'shell' ? '/bin/zsh' : `/usr/local/bin/${provider}`,
+                        ),
                 },
                 agentAdapters: createPendingAgentAdapters(),
             });
@@ -85,7 +92,17 @@ describe('Agent Terminal restart', () => {
                     mode: 'resume',
                 });
 
-                expect(spawn.mock.calls[0]?.[1]).toEqual(resumeArguments);
+                expect(spawn.mock.calls[0]?.[0]).toBe('/bin/zsh');
+                expect(spawn.mock.calls[0]?.[1]).toEqual(['-l']);
+                expect(start.mock.calls[0]?.[0]).toMatchObject({
+                    executable: '/bin/zsh',
+                    args: ['-l'],
+                    agent: {
+                        provider,
+                        executable: `/usr/local/bin/${provider}`,
+                        args: resumeArguments,
+                    },
+                });
                 const bootstrap = await runtime.handlers['app.bootstrap']({});
                 const restartedSession = bootstrap.sessions.find(
                     (session) => session.id === created.session.id,
@@ -94,9 +111,12 @@ describe('Agent Terminal restart', () => {
                 expect(restartedSession.lastSessionActivityReason).toBe('agent_started');
                 expect(restartedSession.lastActivityState).toBe('idle');
                 expect(
-                    bootstrap.terminals.find((terminal) => terminal.id === created.terminal!.id)
-                        ?.agentSessionId,
-                ).toBe(sessionId);
+                    bootstrap.terminals.find((terminal) => terminal.id === created.terminal!.id),
+                ).toMatchObject({
+                    agentSessionId: sessionId,
+                    lastProcessState: 'running',
+                    lastAgentProcessState: 'running',
+                });
             } finally {
                 await runtime.close();
             }
@@ -117,13 +137,17 @@ describe('Agent Terminal restart', () => {
             'codex-session-old',
         );
         const spawn = vi.fn<typeof spawnPty>(() => createFakePty());
+        const logger = new StructuredLogger(join(directory, 'logs'));
+        const execution = createTestTerminalExecution(logger, { spawn });
+        const start = vi.spyOn(execution, 'start');
         const runtime = await createTestDomainServices({
             userDataPath,
-            logger: new StructuredLogger(join(directory, 'logs')),
+            logger,
             send: () => {},
             terminal: {
-                resolveExecutable: () => Promise.resolve('/usr/local/bin/codex'),
-                spawn,
+                execution,
+                resolveExecutable: (kind) =>
+                    Promise.resolve(kind === 'shell' ? '/bin/zsh' : '/usr/local/bin/codex'),
             },
             agentAdapters: createPendingAgentAdapters(),
         });
@@ -134,12 +158,25 @@ describe('Agent Terminal restart', () => {
                 mode: 'fresh',
             });
 
-            expect(spawn.mock.calls[0]?.[1]).toEqual([]);
+            expect(spawn.mock.calls[0]?.[0]).toBe('/bin/zsh');
+            expect(spawn.mock.calls[0]?.[1]).toEqual(['-l']);
+            expect(start.mock.calls[0]?.[0]).toMatchObject({
+                executable: '/bin/zsh',
+                args: ['-l'],
+                agent: {
+                    provider: 'codex',
+                    executable: '/usr/local/bin/codex',
+                    args: [],
+                },
+            });
             const bootstrap = await runtime.handlers['app.bootstrap']({});
             expect(
-                bootstrap.terminals.find((terminal) => terminal.id === created.terminal!.id)
-                    ?.agentSessionId,
-            ).toBeUndefined();
+                bootstrap.terminals.find((terminal) => terminal.id === created.terminal!.id),
+            ).toMatchObject({
+                agentSessionId: undefined,
+                lastProcessState: 'running',
+                lastAgentProcessState: 'running',
+            });
         } finally {
             await runtime.close();
         }

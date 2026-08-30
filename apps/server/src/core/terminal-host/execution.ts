@@ -23,6 +23,10 @@ import type {
 } from '../../terminal-host/protocol';
 
 interface RemoteTerminalIdentity {
+    agent?: {
+        launchId: string;
+        processId?: number;
+    };
     attachmentId?: string;
     generation: number;
     processId?: number;
@@ -153,6 +157,27 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
                     terminalId: identity.record.id,
                     provider: event.provider,
                     status: event.status,
+                });
+                return;
+            case 'terminal.agent.started':
+                if (identity.agent?.launchId !== event.launchId) return;
+                identity.agent.processId = event.processId;
+                this.emitExecution({
+                    type: 'agentStarted',
+                    terminalId: identity.record.id,
+                    launchId: event.launchId,
+                    processId: event.processId,
+                });
+                return;
+            case 'terminal.agent.exit':
+                if (identity.agent?.launchId !== event.launchId) return;
+                delete identity.agent;
+                this.emitExecution({
+                    type: 'agentExit',
+                    terminalId: identity.record.id,
+                    launchId: event.launchId,
+                    exitCode: event.exitCode,
+                    ...(event.signal !== undefined && { signal: event.signal }),
                 });
                 return;
             case 'terminal.exit': {
@@ -350,32 +375,48 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         const identity = this.identities.get(input.record.id);
         if (!identity) throw new Error('Terminal execution was not reserved');
         await identity.ready;
-        const result = (await this.supervisor.request(
-            {
-                method: 'terminal.start',
-                params: {
-                    record: input.record,
-                    executable: input.executable,
-                    args: input.args,
-                    environment: input.environment as Record<string, string>,
-                    ...(input.initialSnapshot && { initialSnapshot: input.initialSnapshot }),
-                    ...(this.views.get(input.record.id)?.size && {
-                        initialSize: this.views.get(input.record.id)!.size,
-                    }),
-                    ...(input.outputRecovery && { outputRecovery: input.outputRecovery }),
-                    ...(input.colors && {
-                        colors: {
-                            background: input.colors.background,
-                            foreground: input.colors.foreground,
-                        },
-                    }),
+        const previousAgent = identity.agent;
+        identity.agent = input.agent ? { launchId: input.agent.launchId } : undefined;
+        try {
+            const result = (await this.supervisor.request(
+                {
+                    method: 'terminal.start',
+                    params: {
+                        record: input.record,
+                        executable: input.executable,
+                        args: input.args,
+                        environment: input.environment as Record<string, string>,
+                        ...(input.agent && {
+                            agent: {
+                                launchId: input.agent.launchId,
+                                provider: input.agent.provider,
+                                executable: input.agent.executable,
+                                args: input.agent.args,
+                                environment: input.agent.environment as Record<string, string>,
+                            },
+                        }),
+                        ...(input.initialSnapshot && { initialSnapshot: input.initialSnapshot }),
+                        ...(this.views.get(input.record.id)?.size && {
+                            initialSize: this.views.get(input.record.id)!.size,
+                        }),
+                        ...(input.outputRecovery && { outputRecovery: input.outputRecovery }),
+                        ...(input.colors && {
+                            colors: {
+                                background: input.colors.background,
+                                foreground: input.colors.foreground,
+                            },
+                        }),
+                    },
                 },
-            },
-            this.terminalScope(identity, 'terminal.lifecycle'),
-        )) as { processId: number };
-        identity.processId = result.processId;
-        this.generations.set(input.record.id, identity.generation);
-        return result.processId;
+                this.terminalScope(identity, 'terminal.lifecycle'),
+            )) as { processId: number };
+            identity.processId = result.processId;
+            this.generations.set(input.record.id, identity.generation);
+            return result.processId;
+        } catch (error) {
+            if (identity.agent?.launchId === input.agent?.launchId) identity.agent = previousAgent;
+            throw error;
+        }
     }
 
     waitForAttachedSize(
@@ -458,6 +499,25 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
                 this.terminalScope(identity, 'terminal.lifecycle'),
             ),
             'terminal.signal',
+            terminalId,
+        );
+        return true;
+    }
+
+    signalAgentExact(terminalId: string, expectedLaunchId: string, signal: string): boolean {
+        const identity = this.identities.get(terminalId);
+        if (
+            identity?.agent?.launchId !== expectedLaunchId ||
+            identity.agent.processId === undefined ||
+            (signal !== 'SIGINT' && signal !== 'SIGHUP')
+        )
+            return false;
+        this.background(
+            this.supervisor.request(
+                { method: 'terminal.agent.signal', params: { launchId: expectedLaunchId, signal } },
+                this.terminalScope(identity, 'terminal.lifecycle'),
+            ),
+            'terminal.agent.signal',
             terminalId,
         );
         return true;
@@ -555,6 +615,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
             this.terminalScope(identity, 'terminal.lifecycle'),
         )) as { snapshot: TerminalSnapshot | null; stopped: true };
         delete identity.processId;
+        delete identity.agent;
         return result.snapshot;
     }
 
@@ -616,6 +677,10 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
 
     processId(terminalId: string): number | undefined {
         return this.identities.get(terminalId)?.processId;
+    }
+
+    agentProcessId(terminalId: string): number | undefined {
+        return this.identities.get(terminalId)?.agent?.processId;
     }
 
     async resources(terminalId: string): Promise<TerminalResourceUsage | null> {

@@ -1,0 +1,1 @@
+ALTER TABLE `terminals` ADD `last_agent_process_state` text;

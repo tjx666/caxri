@@ -10,6 +10,7 @@ interface ClipboardCopyEventLike {
 }
 
 interface TerminalClipboardHandlerOptions {
+    canAcceptAgentInput(): boolean;
     container: HTMLElement;
     document: Document;
     getSelection(): string;
@@ -43,14 +44,17 @@ export function isClipboardContainingImage(data: ClipboardDataLike): boolean {
 }
 
 /**
- * Resolves image paste solely from the current provider's catalog capability. Providers without a documented input
- * sequence leave the native xterm paste path untouched.
+ * Resolves image paste only while the Agent child is running and its provider catalog declares an input capability. An
+ * idle Agent-associated Terminal leaves the native xterm paste path untouched for its surrounding shell.
  */
 export function terminalImagePasteInput(
     data: ClipboardDataLike,
     capabilityInput: string | undefined,
+    canAcceptAgentInput: boolean,
 ): string | undefined {
-    return capabilityInput && isClipboardContainingImage(data) ? capabilityInput : undefined;
+    return canAcceptAgentInput && capabilityInput && isClipboardContainingImage(data)
+        ? capabilityInput
+        : undefined;
 }
 
 /**
@@ -70,7 +74,11 @@ export function registerTerminalClipboardHandlers(
     };
     const handlePaste = (event: ClipboardEvent): void => {
         const input = event.clipboardData
-            ? terminalImagePasteInput(event.clipboardData, options.imagePasteInput())
+            ? terminalImagePasteInput(
+                  event.clipboardData,
+                  options.imagePasteInput(),
+                  options.canAcceptAgentInput(),
+              )
             : undefined;
         if (!input) return;
         /**
@@ -91,16 +99,17 @@ export function registerTerminalClipboardHandlers(
 /**
  * Maps macOS editing gestures onto the control bytes supported by shells and Agent CLIs. Claude Code and Codex both
  * accept Meta+Enter (ESC+CR) as "insert newline" by default, so Shift+Enter — the chord VS Code and most chat inputs
- * train users on — is translated to ESC+CR without depending on a terminal's optional enhanced-keyboard protocol. Shell
- * Terminals are excluded: line editors treat a stray ESC as a mode/meta prefix, not a newline.
+ * train users on — is translated to ESC+CR without depending on a terminal's optional enhanced-keyboard protocol. A
+ * durable Agent association is insufficient: after its Agent child exits, the surrounding shell must receive ordinary
+ * shell input because line editors treat a stray ESC as a mode/meta prefix, not a newline.
  */
 export function terminalKeyboardInput(
     event: Pick<KeyboardEvent, 'altKey' | 'ctrlKey' | 'key' | 'metaKey' | 'shiftKey' | 'type'>,
-    isAgent: boolean,
+    canAcceptAgentInput: boolean,
 ): string | undefined {
     if (event.type !== 'keydown') return undefined;
     if (
-        isAgent &&
+        canAcceptAgentInput &&
         event.key === 'Enter' &&
         event.shiftKey &&
         !event.altKey &&

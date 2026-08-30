@@ -36,7 +36,8 @@ describe('Server Agent input policy', () => {
             send: () => {},
             terminal: {
                 agentEnvironment: () => Promise.resolve({ PATH: '/usr/bin' }),
-                resolveExecutable: () => Promise.resolve('/usr/bin/codex'),
+                resolveExecutable: (kind) =>
+                    Promise.resolve(kind === 'shell' ? '/bin/zsh' : '/usr/bin/codex'),
                 spawn: () => pty,
             },
             agentAdapters: createPendingAgentAdapters(),
@@ -73,6 +74,15 @@ describe('Server Agent input policy', () => {
             const created = await runtime.handlers['session.create']({
                 projectId: project.id,
                 defaultAgent: 'codex',
+            });
+            await vi.waitFor(async () => {
+                const bootstrap = await runtime.handlers['app.bootstrap']({});
+                expect(
+                    bootstrap.terminals.find((terminal) => terminal.id === created.terminal!.id),
+                ).toMatchObject({
+                    lastProcessState: 'running',
+                    lastAgentProcessState: 'running',
+                });
             });
 
             expect(() =>
