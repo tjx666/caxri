@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
@@ -58,19 +59,37 @@ test('Session attention persists until the selected Session is visibly focused',
         userDataDir: userData,
         providers: {
             claude: {
-                executableSource: String.raw`#!/bin/sh
-if [ "$1" = "--version" ]; then
-  printf 'claude-test 1.0\n'
-  exit 0
-fi
-printf 'Fake Claude ready\n'
-while true; do
-  if [ -f "$CLAUDE_CONFIG_DIR/trigger" ]; then
-    /bin/rm -f "$CLAUDE_CONFIG_DIR/trigger"
-    printf 'metadata changed\n'
-  fi
-  sleep 0.05
-done
+                executableSource: String.raw`#!${process.execPath}
+const fs = require('node:fs');
+const path = require('node:path');
+if (process.argv.includes('--version')) {
+  process.stdout.write('2.1.251 (Claude Code)\n');
+  process.exit(0);
+}
+const resumeIndex = process.argv.indexOf('--resume');
+const command = process.argv.at(-1) ?? '';
+if (resumeIndex >= 0 && command.startsWith('/rename ')) {
+  const sessionId = process.argv[resumeIndex + 1];
+  const displayTitle = command.slice('/rename '.length);
+  const metadataPath = path.join(process.env.CLAUDE_CONFIG_DIR, 'sessions', 'session.json');
+  const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
+  fs.writeFileSync(metadataPath, JSON.stringify({ ...metadata, name: displayTitle }), 'utf8');
+  process.stdout.write(JSON.stringify({
+    is_error: false,
+    result: 'Session renamed to: ' + displayTitle,
+    session_id: sessionId,
+    subtype: 'success',
+    type: 'result',
+  }));
+  process.exit(0);
+}
+process.stdout.write('Fake Claude ready\n');
+setInterval(() => {
+  const trigger = path.join(process.env.CLAUDE_CONFIG_DIR, 'trigger');
+  if (!fs.existsSync(trigger)) return;
+  fs.rmSync(trigger);
+  process.stdout.write('metadata changed\n');
+}, 50);
 `,
             },
         },
