@@ -31,6 +31,7 @@ interface GpuRecoveryCoordinatorOptions {
     diagnostics: ReturnType<typeof createGpuDiagnostics>;
     isE2E: boolean;
     logger(): StructuredLogger | undefined;
+    prepareRelaunch(): void;
     safeMode: ReturnType<typeof createGpuSafeModeController>;
     sendEvent(event: ServerEvent): void;
 }
@@ -132,6 +133,7 @@ export function createGpuRecoveryCoordinator(options: GpuRecoveryCoordinatorOpti
                 options.logger()?.write('info', logEventCatalog.gpu.safeMode, {
                     fields: { code: 'GPU_SAFE_MODE_RESTART', active: true, automatic: false },
                 });
+                options.prepareRelaunch();
                 options.app.relaunch();
                 options.app.quit();
             },

@@ -18,11 +18,13 @@ import {
     StructuredLogger,
 } from '@caxri/system';
 import type { WebContents } from 'electron';
-import { app, BrowserWindow, dialog, Menu, shell } from 'electron';
+import { app, BrowserWindow, dialog, Menu, powerMonitor, shell } from 'electron';
 
 import { isBenignRendererErrorMessage } from '../shared/renderer-error-policy';
 import { shouldEnableAcceptanceAccessibility } from './acceptance-accessibility';
 import { resolveDevelopmentDockIconPath } from './app-icon';
+import type { AppQuitIntent } from './app-quit';
+import { confirmAppQuit, createAppQuitHandler, notifyAppQuitStopFailure } from './app-quit';
 import { discardGitChangesPrompt, trashPrompt } from './confirmations';
 import { consoleErrorLogFields } from './console-error-fields';
 import { decideCrashRecovery } from './crash-policy';
@@ -107,6 +109,7 @@ if (ownsProfileInstance) {
     let updateService: UpdateService;
     let isForceWindowClose = false;
     let isQuitStarted = false;
+    let quitIntent: AppQuitIntent = 'user';
     let isAutomaticUpdateCheckStarted = false;
     const grantedRoots = new ProjectRootGrants();
     const rendererReadiness = new RendererReadiness();
@@ -153,10 +156,36 @@ if (ownsProfileInstance) {
         diagnostics: gpuDiagnostics,
         isE2E: process.env.CAXRI_E2E === '1',
         logger: () => mainLogger,
+        prepareRelaunch: () => {
+            quitIntent = 'relaunch';
+        },
         safeMode: gpuSafeMode,
         sendEvent,
     });
     gpuRecovery.install();
+    const requestAppQuit = createAppQuitHandler({
+        acceptQuit: () => {
+            isQuitStarted = true;
+        },
+        closeDesktop: () => supervisor.shutdown(),
+        confirm: (impact) => confirmAppQuit(dialog, mainWindow, impact),
+        detachAll: () => supervisor.request('terminal.detachAll'),
+        drainGpuRecovery: () => gpuRecovery.drain(),
+        exit: () => app.exit(0),
+        logFailure: (level, stage, error) =>
+            mainLogger?.write(level, logEventCatalog.app.quitFailed, {
+                fields: { stage, error },
+            }),
+        notifyStopFailure: () => notifyAppQuitStopFailure(dialog, mainWindow),
+        persistWindowState: async () => {
+            const window = mainWindow;
+            if (window && !window.isDestroyed())
+                await supervisor.request('app.windowState.update', readWindowState(window));
+        },
+        quitIntent: () => quitIntent,
+        readStatus: () => supervisor.request('host.status'),
+        stopServer: () => supervisor.stopServer(),
+    });
     function createWindow(initialState: PersistedWindowState): BrowserWindow {
         const window = new BrowserWindow({
             ...initialState.bounds,
@@ -350,7 +379,7 @@ if (ownsProfileInstance) {
                     type: 'warning',
                     title: 'Terminals are still running',
                     message: `${count} Terminal${count === 1 ? ' is' : 's are'} still running.`,
-                    detail: 'Keeping them running leaves Caxri Server active without a window. Quit Desktop disconnects the window but does not stop the Server.',
+                    detail: 'Keep Running closes this window and leaves Caxri Server active. To exit the app, use Quit Caxri and choose whether running tasks should stop.',
                     buttons: ['Keep Running', 'Terminate and Close', 'Cancel'],
                     defaultId: 2,
                     cancelId: 2,
@@ -588,6 +617,9 @@ if (ownsProfileInstance) {
     app.whenReady()
         // eslint-disable-next-line unicorn/prefer-await -- see comment above
         .then(async () => {
+            powerMonitor.on('shutdown', () => {
+                quitIntent = 'system-shutdown';
+            });
             if (
                 shouldEnableAcceptanceAccessibility({
                     environment: process.env,
@@ -757,35 +789,12 @@ if (ownsProfileInstance) {
     app.on('window-all-closed', () => {
         // macOS keeps the Desktop client alive; the independently supervised Server survives either way.
     });
-
     app.on('before-quit', (event) => {
-        if (isQuitStarted) return;
         event.preventDefault();
-        isQuitStarted = true;
+        if (isQuitStarted) return;
         mainLogger?.write('info', logEventCatalog.app.quitRequested);
-        // `before-quit` is a synchronous listener; the shutdown sequence below must not block it, so
-        // it runs fire-and-forget and unconditionally exits the process once it settles.
-        (async () => {
-            if (mainWindow && !mainWindow.isDestroyed()) {
-                try {
-                    await supervisor.request('app.windowState.update', readWindowState(mainWindow));
-                } catch {
-                    // Best-effort persistence; quitting must proceed regardless.
-                }
-            }
-            await gpuRecovery.drain();
-            try {
-                await supervisor.request('terminal.detachAll');
-            } catch {
-                // Best-effort detach; quitting must proceed regardless.
-            }
-            try {
-                await supervisor.shutdown();
-            } catch {
-                // Best-effort shutdown; the process still needs to exit below.
-            }
-            app.exit(0);
-            // eslint-disable-next-line unicorn/prefer-await -- see comment above
-        })().catch(() => app.exit(0));
+        // Coalesce repeated Cmd+Q events and commit shutdown only after the user accepts.
+        // eslint-disable-next-line unicorn/prefer-await -- see comment above
+        requestAppQuit().catch(() => app.exit(0));
     });
 }

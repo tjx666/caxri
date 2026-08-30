@@ -95,7 +95,12 @@ test('Agent Commands & Skills stays discoverable, describes its target, and pres
         },
     });
 
-    let running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    let running = await launchCaxri({
+        agentMode,
+        quitDecisionOnClose: 'keep-running',
+        userDataDir: userData,
+        testRootPath: root,
+    });
     try {
         await createProjectSession(running.page, 'codex');
         const state = await pageRequest<{
