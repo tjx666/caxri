@@ -1,9 +1,13 @@
 import { lstat, realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { basename, isAbsolute, relative, resolve, sep } from 'node:path';
+import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import type { ServerOperationResult, TerminalFileLinkCandidate } from '@caxri/protocol';
+import type {
+    FileSearchMatch,
+    ServerOperationResult,
+    TerminalFileLinkCandidate,
+} from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
 import type { CaxriDatabase } from '../db';
@@ -13,12 +17,16 @@ const MAX_TERMINAL_FILE_LINK_CANDIDATES = 50;
 const TERMINAL_FILE_LINK_SEARCH_TIMEOUT_MS = 5_000;
 
 interface TerminalFileLinkResolverOptions {
-    searchProjectFileNames?: (
+    searchProjectFileSuffixes?: (
         sessionId: string,
         root: string,
-        query: string,
+        suffix: string,
         signal: AbortSignal,
-    ) => Promise<ServerOperationResult<'files.search'>>;
+    ) => Promise<{
+        matches: FileSearchMatch[];
+        truncated: boolean;
+        canceled: boolean;
+    }>;
     userHome?: string;
 }
 
@@ -160,16 +168,21 @@ function exactCandidatePaths(target: string, cwd: string, projectRoot: string): 
     return [...new Set(candidates)];
 }
 
-function searchableSuffix(target: string): string | undefined {
+interface TerminalFileLinkSearch {
+    scope: 'all' | 'current';
+    suffix: string;
+}
+
+function terminalFileLinkSearch(target: string): TerminalFileLinkSearch | undefined {
     /**
-     * Only an explicit ellipsis opts into cross-Project guessing. Ordinary relative and Git a/b paths retain their
-     * exact current-Project behavior when missing instead of silently opening a same-named file elsewhere.
+     * Ordinary relative paths may be incomplete Agent output, so exact misses fall back to a suffix search inside the
+     * current Workbench Project. Only an explicit ellipsis opts into searching every authorized Project.
      */
-    if (!target.startsWith('.../')) return;
-    const suffix = target.slice(4);
-    const segments = suffix.split('/');
+    const isCrossProject = target.startsWith('.../');
+    const suffix = isCrossProject ? target.slice(4) : target.replace(/^[ab][\\/]/u, '');
+    const segments = suffix.split(/[\\/]/u);
     if (segments.some((segment) => !segment || segment === '.' || segment === '..')) return;
-    return segments.join('/');
+    return { scope: isCrossProject ? 'all' : 'current', suffix: segments.join('/') };
 }
 
 function isMatchingSuffix(relativePath: string, suffix: string): boolean {
@@ -180,7 +193,7 @@ function isMatchingSuffix(relativePath: string, suffix: string): boolean {
 
 async function hasReachedCandidateLimit(
     project: ReturnType<CaxriDatabase['listProjects']>[number],
-    matches: ServerOperationResult<'files.search'>['matches'],
+    matches: FileSearchMatch[],
     suffix: string,
     candidates: ResolvedCandidate[],
     canonicalPaths: Set<string>,
@@ -214,34 +227,52 @@ async function hasReachedCandidateLimit(
 async function searchAuthorizedProjects(
     database: CaxriDatabase,
     sourceSessionId: string,
+    sourceProjectId: string,
     suffix: string,
-    searchProjectFileNames: NonNullable<TerminalFileLinkResolverOptions['searchProjectFileNames']>,
-): Promise<{ candidates: ResolvedCandidate[]; truncated: boolean; timedOut: boolean }> {
+    searchProjectFileSuffixes: NonNullable<
+        TerminalFileLinkResolverOptions['searchProjectFileSuffixes']
+    >,
+    scope: TerminalFileLinkSearch['scope'],
+): Promise<{
+    candidates: ResolvedCandidate[];
+    truncated: boolean;
+    timedOut: boolean;
+    searchLimitReached: boolean;
+}> {
     const controller = new AbortController();
     let isTimedOut = false;
     const timeout = setTimeout(() => {
         isTimedOut = true;
         controller.abort();
     }, TERMINAL_FILE_LINK_SEARCH_TIMEOUT_MS);
-    const sourceProjectId = database.getSession(sourceSessionId)?.workbenchProjectId;
-    const projects = database.listProjects().toSorted((left, right) => {
-        const leftSource = left.id === sourceProjectId ? 0 : 1;
-        const rightSource = right.id === sourceProjectId ? 0 : 1;
-        return leftSource - rightSource || left.displayTitle.localeCompare(right.displayTitle);
-    });
+    const sourceProject = database.getProject(sourceProjectId);
+    const projects =
+        scope === 'current'
+            ? sourceProject
+                ? [sourceProject]
+                : []
+            : database.listProjects().toSorted((left, right) => {
+                  const leftSource = left.id === sourceProjectId ? 0 : 1;
+                  const rightSource = right.id === sourceProjectId ? 0 : 1;
+                  return (
+                      leftSource - rightSource ||
+                      left.displayTitle.localeCompare(right.displayTitle)
+                  );
+              });
     const candidates: ResolvedCandidate[] = [];
     const canonicalPaths = new Set<string>();
     let isTruncated = false;
+    let hasReachedSearchLimit = false;
     try {
         for (const project of projects) {
             if (controller.signal.aborted) break;
-            let result: ServerOperationResult<'files.search'>;
+            let result: Awaited<ReturnType<typeof searchProjectFileSuffixes>>;
             try {
                 // eslint-disable-next-line no-await-in-loop -- one shared deadline and candidate budget bound every Project
-                result = await searchProjectFileNames(
+                result = await searchProjectFileSuffixes(
                     sourceSessionId,
                     project.rootPath,
-                    basename(suffix),
+                    suffix,
                     controller.signal,
                 );
             } catch (error) {
@@ -253,6 +284,7 @@ async function searchAuthorizedProjects(
                 throw new CaxriError('IO', 'Project files could not be searched');
             }
             isTruncated ||= result.truncated || result.canceled;
+            hasReachedSearchLimit ||= result.truncated;
             // eslint-disable-next-line no-await-in-loop -- one global budget serializes Project results
             const hasReachedLimit = await hasReachedCandidateLimit(
                 project,
@@ -263,13 +295,19 @@ async function searchAuthorizedProjects(
             );
             if (hasReachedLimit) {
                 isTruncated = true;
+                hasReachedSearchLimit = true;
                 controller.abort();
             }
         }
     } finally {
         clearTimeout(timeout);
     }
-    return { candidates, truncated: isTruncated || isTimedOut, timedOut: isTimedOut };
+    return {
+        candidates,
+        truncated: isTruncated || isTimedOut,
+        timedOut: isTimedOut,
+        searchLimitReached: hasReachedSearchLimit,
+    };
 }
 
 async function resolveHomeLink(
@@ -305,8 +343,9 @@ async function resolveHomeLink(
 
 /**
  * Resolves a Terminal path only through durable Project grants. Exact cwd/Project candidates are tried first; an
- * explicit `.../` suffix then reuses the bounded Files name-search walker, and ambiguous matches return safe display
- * metadata for the Renderer picker. A selected candidate is revalidated on its next request before Main opens it.
+ * ordinary relative miss searches the current Workbench Project by suffix, while explicit `.../` searches every
+ * authorized Project. Ambiguous matches return safe display metadata for the Renderer picker. A selected candidate is
+ * revalidated on its next request before Main opens it.
  */
 export async function resolveTerminalFileLink(
     database: CaxriDatabase,
@@ -355,18 +394,25 @@ export async function resolveTerminalFileLink(
         throw new CaxriError('NOT_FOUND', 'File not found');
     }
 
-    const suffix = searchableSuffix(parameters.target);
-    if (!suffix || !options.searchProjectFileNames)
+    const search = terminalFileLinkSearch(parameters.target);
+    if (!search || !options.searchProjectFileSuffixes)
         throw new CaxriError('NOT_FOUND', 'File not found');
     const result = await searchAuthorizedProjects(
         database,
         terminal.sessionId,
-        suffix,
-        options.searchProjectFileNames,
+        session.workbenchProjectId,
+        search.suffix,
+        options.searchProjectFileSuffixes,
+        search.scope,
     );
     if (result.candidates.length === 0) {
         if (result.timedOut)
             throw new CaxriError('TIMEOUT', 'File search did not finish before its safety limit');
+        if (result.searchLimitReached)
+            throw new CaxriError(
+                'CAPACITY',
+                'File search reached its safety limit before completion',
+            );
         throw new CaxriError('NOT_FOUND', 'File not found');
     }
     if (result.candidates.length === 1 && !result.truncated) {

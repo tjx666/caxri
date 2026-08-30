@@ -166,8 +166,8 @@ export function createServiceHandlers(services: {
         },
         'terminal.fileLink.resolve': (parameters) =>
             resolveTerminalFileLink(database, parameters, {
-                searchProjectFileNames: (sessionId, root, query, signal) =>
-                    files.searchProjectFileNames(sessionId, root, query, signal),
+                searchProjectFileSuffixes: (sessionId, root, suffix, signal) =>
+                    files.searchProjectFileSuffixes(sessionId, root, suffix, signal),
             }),
         'terminal.referenceContext': ({ terminalId }) => {
             const terminal = database.getTerminal(terminalId);

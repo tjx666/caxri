@@ -23,7 +23,7 @@ import { FileMutationJournal } from './mutation-journal';
 import type { FileMutationServiceOptions } from './mutations';
 import { FileMutationService } from './mutations';
 import { FileOperationQueue } from './operation-queue';
-import type { SearchServiceOptions } from './search';
+import type { ProjectFileSuffixSearchResult, SearchServiceOptions } from './search';
 import { SearchService } from './search';
 import type { WatcherServiceOptions } from './watcher';
 import { WatcherService } from './watcher';
@@ -339,16 +339,15 @@ export class FileService {
     }
 
     /**
-     * Searches one root selected from the durable Project catalog. This is intentionally not a protocol method: the
-     * Terminal resolver owns the approved-root lookup, while the shared SearchService owns traversal limits.
+     * Searches one authorized root for a complete relative suffix without scanning unrelated file names.
      */
-    searchProjectFileNames(
+    searchProjectFileSuffixes(
         sessionId: string,
         root: string,
-        query: string,
+        suffix: string,
         signal: AbortSignal,
-    ): Promise<ServerOperationResult<'files.search'>> {
-        return this.searcher.searchProjectFileNames(sessionId, root, query, signal);
+    ): Promise<ProjectFileSuffixSearchResult> {
+        return this.searcher.searchProjectFileSuffixes(sessionId, root, suffix, signal);
     }
 
     watchSession(sessionId?: string): Promise<void> {

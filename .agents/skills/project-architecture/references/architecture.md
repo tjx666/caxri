@@ -283,18 +283,22 @@ globally. The Renderer bundles JetBrains Mono's four terminal faces plus Symbols
 fallback and loads them before xterm measures its cells, so packaged builds do not depend on
 system-installed terminal fonts.
 
-Terminal file-link detection accepts only the current-user Home shorthand `~/...`; Renderer forwards
-that raw text, the owning Terminal ID, and an optional editor location without learning or expanding
-Home. Server Core expands Home, rejects escape and non-regular targets, and reuses a canonical Project
-that already contains the file. A target outside all Projects remains unread until Main obtains a
-native folder selection, Server Core proves that exact root contains the canonical target, and Main
-consumes the existing single-use grant to create or reuse the Project. Main then selects the unique
-target Session, creates a no-Terminal Session when none exists, or requires a native choice when the
-target Project has multiple reasonable Sessions. The final open still uses Server Core's one-use Desktop
-target: Server Core's approved root/file identity becomes an expected identity that Server Core compares with
-its first `files.authorizeOpen` result, then Server Core revalidates that captured result again when Main
-redeems the target. Home expansion never creates a permanent single-file exception or a Renderer
-filesystem capability.
+Terminal file-link detection forwards the raw text, owning Terminal ID, and optional editor location
+without giving Renderer filesystem access. Server Core tries exact absolute, current Workbench Project,
+and persisted Terminal-cwd candidates first. When an ordinary relative path is incomplete, a bounded
+directory suffix search may resolve it only inside the current Workbench Project; one complete
+result opens directly, while incomplete or ambiguous results require the Renderer candidate picker.
+An explicit `.../` prefix opts into the same bounded suffix search across every authorized Project.
+Current-user `~/...` links expand only in Server Core, which rejects escape and non-regular targets and
+reuses a canonical Project that already contains the file. A Home target outside all Projects remains
+unread until Main obtains a native folder selection, Server Core proves that exact root contains the
+canonical target, and Main consumes the existing single-use grant to create or reuse the Project. Main
+then selects the unique target Session, creates a no-Terminal Session when none exists, or requires a
+native choice when the target Project has multiple reasonable Sessions. The final open still uses Server
+Core's one-use Desktop target: Server Core's approved root/file identity becomes an expected identity
+that Server Core compares with its first `files.authorizeOpen` result, then Server Core revalidates that
+captured result again when Main redeems the target. Home expansion and suffix search never create a
+permanent single-file exception or a Renderer filesystem capability.
 
 Provider output recovery is an explicit, disabled-by-default Terminal steering policy for unstable Agent
 connections. Terminal Host matches bounded, case-insensitive literal suffixes only after the latest PTY

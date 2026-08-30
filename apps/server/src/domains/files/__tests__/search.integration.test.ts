@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -76,33 +76,6 @@ function searchParameters(
 }
 
 describe('SearchService', () => {
-    it('reuses the bounded name walker for a Server-authorized Project root', async () => {
-        const { database, root, service, session } = await fixture();
-        const otherRoot = join(root, '..', 'other-project');
-        await mkdir(join(otherRoot, 'nested'), { recursive: true });
-        const canonicalOtherRoot = await realpath(otherRoot);
-        const target = join(canonicalOtherRoot, 'nested', 'orphan-session-file.ts');
-        await writeFile(target, 'file\n');
-
-        try {
-            await expect(
-                service.searchProjectFileNames(
-                    session.id,
-                    canonicalOtherRoot,
-                    'orphan-session-file.ts',
-                    new AbortController().signal,
-                ),
-            ).resolves.toMatchObject({
-                mode: 'name',
-                matches: [{ path: target, relativePath: 'nested/orphan-session-file.ts' }],
-                truncated: false,
-            });
-        } finally {
-            await service.close();
-            database.close();
-        }
-    });
-
     it('searches names and bounded text with case, word, regex, include, and exclude controls', async () => {
         const { database, service, session } = await fixture();
         try {
