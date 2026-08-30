@@ -2,7 +2,7 @@ import type { FileEntry, MethodResult, MutableFileEntry } from '@caxri/protocol'
 import { errorMessage, isCaxriError } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
 
-import { projectRelativePath } from '../../../lib/file-path';
+import { parentDirectoryPath, projectRelativePath } from '../../../lib/file-path';
 import { queryClient } from '../../../queries/client';
 import { getSelectedSession, getSessionProjectId } from '../../../stores/selectors';
 import { pushToast, tryCommand } from '../../../stores/toasts';
@@ -23,7 +23,6 @@ import {
     suppressFailureToast,
 } from './file-operation-reconciliation';
 import { useFileOperationStore } from './file-operation-state';
-import { parentDirectoryPath } from './file-tree-path';
 import type { ResourceExplorerClient } from './resource-explorer-client';
 
 /**

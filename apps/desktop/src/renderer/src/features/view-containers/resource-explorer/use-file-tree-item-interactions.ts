@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import type { FileEntry } from '@caxri/protocol';
 
 import { dragPath } from '../../../lib/file-drag';
+import { parentDirectoryPath } from '../../../lib/file-path';
 import { openFile } from '../../editor/document-actions';
 import { useResourceExplorerClient } from '../controlled-view-context';
 import { didTrashFile, duplicateFile, moveFile, pasteFile, rememberFile } from './file-actions';
@@ -18,7 +19,6 @@ import {
     focusParentTreeItem,
     focusTreeItemEdge,
 } from './file-tree-navigation';
-import { parentDirectoryPath } from './file-tree-path';
 
 export interface UseFileTreeItemInteractionsOptions {
     clearFocusPath: () => void;

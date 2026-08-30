@@ -101,7 +101,7 @@ function PaneContent({ isActivePane, pane }: { isActivePane: boolean; pane: Pane
                 terminalId={terminal.id}
             />
         ) : null;
-    return <EditorSurface path={tab.resource.path} />;
+    return <EditorSurface paneId={pane.id} path={tab.resource.path} />;
 }
 
 function PaneBox({

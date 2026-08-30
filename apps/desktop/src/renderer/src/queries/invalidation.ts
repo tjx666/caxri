@@ -5,6 +5,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { caxri } from '../lib/caxri';
+import { parentDirectoryPath } from '../lib/file-path';
 import { getWorkbenchProjectSessionIds } from '../stores/selectors';
 
 /**
@@ -27,11 +28,6 @@ interface PendingFileChangeBatch {
     sessionId: string;
 }
 
-function parentDirectory(path: string): string {
-    const separator = path.lastIndexOf('/');
-    return separator <= 0 ? '/' : path.slice(0, separator);
-}
-
 function isDirectoryAffected(
     directory: string | undefined,
     changes: readonly string[],
@@ -40,7 +36,7 @@ function isDirectoryAffected(
 ): boolean {
     if (isOverflow || hasGitIgnoreRulesChanged) return true;
     if (!directory) return changes.length > 0;
-    return changes.some((path) => path === directory || parentDirectory(path) === directory);
+    return changes.some((path) => path === directory || parentDirectoryPath(path) === directory);
 }
 
 function isControlledContextMatch(
@@ -140,6 +136,17 @@ function invalidateFileDependentQueries(
                     batch.gitIgnoreRulesChanged,
                 );
             if (isPathBrowserMatch) return true;
+            const isDirectFileListingMatch =
+                method === 'files.list' &&
+                parameters?.sessionId !== undefined &&
+                sessionIdSet.has(parameters.sessionId) &&
+                isDirectoryAffected(
+                    parameters.directory,
+                    changes,
+                    batch.overflow,
+                    batch.gitIgnoreRulesChanged,
+                );
+            if (isDirectFileListingMatch) return true;
             return sessionIds.some((sessionId) =>
                 isControlledOperationMatch(query.queryKey, RESOURCE_EXPLORER_READ_OPERATIONS, {
                     context: { kind: 'session', sessionId, workbenchProjectId },
@@ -257,6 +264,7 @@ function invalidateFileTreeQueries(queryClient: ReturnType<typeof useQueryClient
             ];
             return (
                 method === 'files.browse' ||
+                method === 'files.list' ||
                 (method === 'viewContainers.viewOperation' &&
                     (parameters?.operation === 'files.list' ||
                         parameters?.operation === 'files.search'))

@@ -1,6 +1,7 @@
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import {
+    focusEditor,
     queueEditorNavigation,
     registerEditorRevealTarget,
     revealEditorNavigation,
@@ -18,10 +19,11 @@ function editor(lineCount = 30) {
     };
 }
 
-function mount(path: string, mounted: ReturnType<typeof editor>): void {
+function mount(path: string, mounted: ReturnType<typeof editor>, instanceId?: string): void {
     const unregister = registerEditorRevealTarget(
         path,
         mounted as unknown as Parameters<typeof registerEditorRevealTarget>[1],
+        instanceId,
     );
     onTestFinished(unregister);
 }
@@ -89,5 +91,36 @@ describe('Editor navigation', () => {
             endColumn: 11,
         });
         expect(queued.focus).toHaveBeenCalledOnce();
+    });
+
+    it('focuses a mounted Editor immediately and a newly opened Editor after mount', () => {
+        const mounted = editor();
+        mount('/project/mounted.ts', mounted);
+        focusEditor('/project/mounted.ts');
+        expect(mounted.focus).toHaveBeenCalledOnce();
+
+        focusEditor('/project/queued-focus.ts');
+        const queued = editor();
+        mount('/project/queued-focus.ts', queued);
+        expect(queued.focus).toHaveBeenCalledOnce();
+    });
+
+    it('focuses the exact pane when one model is mounted in multiple Editors', () => {
+        const left = editor();
+        const right = editor();
+        mount('/project/shared.ts', left, 'pane-left');
+        mount('/project/shared.ts', right, 'pane-right');
+
+        focusEditor('/project/shared.ts', 'pane-left');
+        expect(left.focus).toHaveBeenCalledOnce();
+        expect(right.focus).not.toHaveBeenCalled();
+
+        focusEditor('/project/queued-shared.ts', 'pane-left');
+        const queuedRight = editor();
+        const queuedLeft = editor();
+        mount('/project/queued-shared.ts', queuedRight, 'pane-right');
+        mount('/project/queued-shared.ts', queuedLeft, 'pane-left');
+        expect(queuedRight.focus).not.toHaveBeenCalled();
+        expect(queuedLeft.focus).toHaveBeenCalledOnce();
     });
 });

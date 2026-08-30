@@ -13,12 +13,30 @@ export interface EditorRevealTarget {
     select?: boolean;
 }
 
-const editors = new Map<string, MonacoEditor>();
+const defaultEditorInstance = Symbol('default-editor-instance');
+type EditorInstanceKey = string | typeof defaultEditorInstance;
+
+const editors = new Map<string, Map<EditorInstanceKey, MonacoEditor>>();
 type EditorRevealIntent =
+    | { kind: 'focus' }
     | { kind: 'match'; target: EditorRevealTarget }
     | { kind: 'navigation'; target: EditorNavigationTarget };
 
 const pending = new Map<string, EditorRevealIntent>();
+const pendingByInstance = new Map<string, EditorRevealIntent>();
+
+function pendingInstanceKey(path: string, instanceId: string): string {
+    return JSON.stringify([path, instanceId]);
+}
+
+function registeredEditor(path: string, instanceId?: string): MonacoEditor | undefined {
+    const registrations = editors.get(path);
+    if (!registrations) return undefined;
+    if (instanceId) return registrations.get(instanceId);
+    let latest: MonacoEditor | undefined;
+    for (const editor of registrations.values()) latest = editor;
+    return latest;
+}
 
 function applyReveal(editor: MonacoEditor, target: EditorRevealTarget): void {
     const endColumn =
@@ -60,22 +78,41 @@ function applyNavigation(editor: MonacoEditor, target: EditorNavigationTarget): 
 }
 
 function applyIntent(editor: MonacoEditor, intent: EditorRevealIntent): void {
-    if (intent.kind === 'match') applyReveal(editor, intent.target);
+    if (intent.kind === 'focus') editor.focus();
+    else if (intent.kind === 'match') applyReveal(editor, intent.target);
     else applyNavigation(editor, intent.target);
 }
 
 /**
- * Registers the live editor for one model and consumes any search reveal queued before mount.
+ * Registers one live Editor occurrence for a model. `instanceId` preserves independent split-pane focus while
+ * model-only navigation keeps its established latest-mounted fallback.
  */
-export function registerEditorRevealTarget(path: string, editor: MonacoEditor): () => void {
-    editors.set(path, editor);
-    const intent = pending.get(path);
-    if (intent) {
+export function registerEditorRevealTarget(
+    path: string,
+    editor: MonacoEditor,
+    instanceId?: string,
+): () => void {
+    const registrations = editors.get(path) ?? new Map<EditorInstanceKey, MonacoEditor>();
+    const registrationKey = instanceId ?? defaultEditorInstance;
+    registrations.set(registrationKey, editor);
+    editors.set(path, registrations);
+    const generalIntent = pending.get(path);
+    if (generalIntent) {
         pending.delete(path);
-        applyIntent(editor, intent);
+        applyIntent(editor, generalIntent);
+    }
+    const instanceIntent = instanceId
+        ? pendingByInstance.get(pendingInstanceKey(path, instanceId))
+        : undefined;
+    if (instanceId && instanceIntent) {
+        pendingByInstance.delete(pendingInstanceKey(path, instanceId));
+        applyIntent(editor, instanceIntent);
     }
     return () => {
-        if (editors.get(path) === editor) editors.delete(path);
+        const current = editors.get(path);
+        if (current?.get(registrationKey) !== editor) return;
+        current.delete(registrationKey);
+        if (current.size === 0) editors.delete(path);
     };
 }
 
@@ -83,7 +120,7 @@ export function registerEditorRevealTarget(path: string, editor: MonacoEditor): 
  * Reveals immediately when the model is mounted, otherwise queues one latest intent for mount.
  */
 export function revealEditorMatch(path: string, target: EditorRevealTarget): void {
-    const editor = editors.get(path);
+    const editor = registeredEditor(path);
     if (editor) applyReveal(editor, target);
     else pending.set(path, { kind: 'match', target });
 }
@@ -96,10 +133,22 @@ export function queueEditorNavigation(path: string, target: EditorNavigationTarg
 }
 
 /**
+ * Focuses a mounted Editor model or queues focus for the commit that mounts a newly opened model. A supplied instance
+ * ID keeps a breadcrumb action in the pane that owns it when another pane renders the same Monaco model.
+ */
+export function focusEditor(path: string, instanceId?: string): void {
+    const editor = registeredEditor(path, instanceId);
+    if (editor) editor.focus();
+    else if (instanceId)
+        pendingByInstance.set(pendingInstanceKey(path, instanceId), { kind: 'focus' });
+    else pending.set(path, { kind: 'focus' });
+}
+
+/**
  * Applies an exact caret or inclusive whole-line selection to an already mounted Editor.
  */
 export function revealEditorNavigation(path: string, target: EditorNavigationTarget): void {
-    const editor = editors.get(path);
+    const editor = registeredEditor(path);
     if (editor) applyNavigation(editor, target);
     else queueEditorNavigation(path, target);
 }
