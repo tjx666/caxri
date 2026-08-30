@@ -58,11 +58,10 @@ import { TerminalBackpressureRecovery, TerminalReplayCoordinator } from './termi
 import type { TerminalSearchOptions, TerminalSearchResults } from './terminal-search';
 import { TERMINAL_SEARCH_HIGHLIGHT_LIMIT } from './terminal-search';
 import { TerminalSelectionClipboard } from './terminal-selection-clipboard';
-import type { TerminalSize } from './terminal-size';
 import {
     didTerminalSizeChange,
+    TerminalPaneResizeController,
     TerminalResizeSettler,
-    terminalSizeWithScrollbarGutter,
 } from './terminal-size';
 
 interface TerminalPaneRuntimeOptions {
@@ -314,39 +313,16 @@ export function useTerminalPaneRuntime({
         });
         xtermReference.current = xterm;
         let isDisposed = false;
-        let lastSentSize: TerminalSize | undefined;
-        const fitToPane = (): TerminalSize | undefined => {
-            const size = terminalSizeWithScrollbarGutter(fit.proposeDimensions());
-            if (!size) return undefined;
-            if (didTerminalSizeChange({ cols: xterm.cols, rows: xterm.rows }, size))
-                xterm.resize(size.cols, size.rows);
-            container.dataset.terminalGrid = `${size.cols}x${size.rows}`;
-            return size;
-        };
-        const sendResize = async (size: TerminalSize): Promise<void> => {
-            try {
-                await caxri.request('terminal.resize', { terminalId, ...size });
-            } catch {
-                /**
-                 * Server restarts can reject a resize; allow the next layout observation to retry it.
-                 */
-                if (lastSentSize?.cols === size.cols && lastSentSize.rows === size.rows)
-                    lastSentSize = undefined;
-            }
-        };
-        const fitAndResize = (): void => {
-            try {
-                const size = fitToPane();
-                if (!size || latestReference.current.processState !== 'running') return;
-                if (!didTerminalSizeChange(lastSentSize, size)) return;
-                lastSentSize = size;
-                // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-                void sendResize(size);
-            } catch {
-                // The pane may be between layout and disposal during a Session switch.
-            }
-        };
-        const resizeSettler = new TerminalResizeSettler(fitAndResize);
+        const resizeController = new TerminalPaneResizeController({
+            apply: ({ cols, rows }) => xterm.resize(cols, rows),
+            current: () => ({ cols: xterm.cols, rows: xterm.rows }),
+            fitted: ({ cols, rows }) => (container.dataset.terminalGrid = `${cols}x${rows}`),
+            isRunning: () => latestReference.current.processState === 'running',
+            propose: () => fit.proposeDimensions(),
+            request: (size) => caxri.request('terminal.resize', { terminalId, ...size }),
+            terminalId,
+        });
+        const resizeSettler = new TerminalResizeSettler(() => resizeController.fitAndResize());
         const scheduleResize = (): void => resizeSettler.schedule();
         fitAndResizeReference.current = scheduleResize;
         const rendererObserver = createTerminalRendererObserver({
@@ -357,7 +333,7 @@ export function useTerminalPaneRuntime({
         const renderer = new TerminalRendererController(
             xterm,
             () => {
-                fitToPane();
+                resizeController.fitLocal();
                 xterm.refresh(0, xterm.rows - 1);
             },
             (status) => rendererObserver.publish(status),
@@ -421,10 +397,14 @@ export function useTerminalPaneRuntime({
                 if (!isDisposed) xterm.reset();
             },
             {
-                beginSnapshot: () => resizeSettler.pause(),
+                beginSnapshot: () => {
+                    resizeSettler.pause();
+                    resizeController.pause();
+                },
                 finishSnapshot: () => {
                     if (isDisposed) return;
                     observer.observe(container);
+                    resizeController.resume();
                     resizeSettler.resume();
                 },
                 prepareSnapshot: ({ cols, rows }) => {
@@ -495,9 +475,10 @@ export function useTerminalPaneRuntime({
         document.addEventListener('focusin', trackNewerFocus);
         document.addEventListener('keydown', trackExplicitInteraction, { capture: true });
         document.addEventListener('pointerdown', trackExplicitInteraction, { capture: true });
-        const initialSize = fitToPane();
+        const initialSize = resizeController.fitInitial();
         const initialize = async (): Promise<void> => {
             resizeSettler.pause();
+            resizeController.pause();
             let attachment: TerminalSnapshot | null = null;
             try {
                 attachment = await caxri.request(
@@ -505,7 +486,7 @@ export function useTerminalPaneRuntime({
                     initialSize ? { terminalId, ...initialSize } : { terminalId },
                 );
                 if (initialSize && latestReference.current.processState === 'running')
-                    lastSentSize = initialSize;
+                    resizeController.confirmSent(initialSize);
             } catch (error) {
                 if (!isDisposed) onError(errorMessage(error, 'Terminal attachment failed'));
             }
@@ -548,6 +529,7 @@ export function useTerminalPaneRuntime({
             delete container.dataset.terminalAttached;
             observer.disconnect();
             resizeSettler.dispose();
+            resizeController.dispose();
             document.removeEventListener('focusin', trackNewerFocus);
             document.removeEventListener('keydown', trackExplicitInteraction, true);
             document.removeEventListener('pointerdown', trackExplicitInteraction, true);
@@ -566,6 +548,7 @@ export function useTerminalPaneRuntime({
             commandTracker.dispose();
             commandStatusElement.remove();
             unregisterTerminalImages();
+            rendererObserver.dispose();
             renderer.dispose();
             /**
              * Inactive tabs dispose their xterm pane too. TerminalProgressRegistry therefore reconciles against durable

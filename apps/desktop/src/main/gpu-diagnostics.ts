@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { release } from 'node:os';
 import process from 'node:process';
 
-import type { RendererDiagnostic } from '@caxri/protocol';
+import type { TerminalRendererDiagnostic } from '@caxri/protocol';
 import type { LogRecord, StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
@@ -59,7 +59,7 @@ interface RecentGpuIncident {
 }
 
 interface RecentRendererDiagnostic {
-    diagnostic: RendererDiagnostic;
+    diagnostic: TerminalRendererDiagnostic;
     receivedAt: number;
 }
 
@@ -198,7 +198,7 @@ function decodeGpuExitStatus(
     };
 }
 
-function rendererDiagnosticFields(diagnostic: RendererDiagnostic): LogFields {
+function rendererDiagnosticFields(diagnostic: TerminalRendererDiagnostic): LogFields {
     return {
         code: 'TERMINAL_RENDERER_STATUS',
         diagnosticId: diagnostic.diagnosticId,
@@ -325,7 +325,7 @@ export function createGpuDiagnostics(options: GpuDiagnosticsOptions) {
         }
     }
 
-    function recordRendererDiagnostic(diagnostic: RendererDiagnostic): void {
+    function recordRendererDiagnostic(diagnostic: TerminalRendererDiagnostic): void {
         const receivedAt = now();
         recentRendererDiagnostics.push({ diagnostic, receivedAt });
         if (recentRendererDiagnostics.length > MAX_RENDERER_DIAGNOSTICS)

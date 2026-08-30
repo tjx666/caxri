@@ -1,4 +1,4 @@
-import type { CaxriReply, RendererDiagnostic } from '@caxri/protocol';
+import type { CaxriReply, TerminalRendererDiagnostic } from '@caxri/protocol';
 import {
     CAXRI_PROTOCOL_VERSION,
     CaxriError,
@@ -19,7 +19,7 @@ import type { createElectronIpcCommandAdapter } from './ipc-command-adapter';
 export interface WorkbenchIpcOptions {
     isQuitting(): boolean;
     logger(): StructuredLogger | undefined;
-    onRendererDiagnostic?(diagnostic: RendererDiagnostic): void;
+    onRendererDiagnostic?(diagnostic: TerminalRendererDiagnostic): void;
     onEventsReady?(): void;
     renderer(): WebContents | undefined;
     transport: ReturnType<typeof createElectronIpcCommandAdapter>;
@@ -54,7 +54,35 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
     ipcMain.on(RENDERER_DIAGNOSTIC_CHANNEL, (event, rawDiagnostic: unknown) => {
         if (event.sender !== options.renderer()) return;
         const parsed = rendererDiagnosticSchema.safeParse(rawDiagnostic);
-        if (parsed.success) options.onRendererDiagnostic?.(parsed.data);
+        if (!parsed.success) return;
+        const diagnostic = parsed.data;
+        if (diagnostic.kind === 'terminal-renderer') {
+            options.onRendererDiagnostic?.(diagnostic);
+            return;
+        }
+        options.logger()?.write('info', logEventCatalog.renderer.terminalResizeBurst, {
+            fields: {
+                code: 'TERMINAL_RESIZE_BURST',
+                diagnosticId: diagnostic.diagnosticId,
+                terminalId: diagnostic.terminalId,
+                side: diagnostic.side,
+                sampleCount: diagnostic.sampleCount,
+                changeCount: diagnostic.changeCount,
+                startCols: diagnostic.startCols,
+                startRows: diagnostic.startRows,
+                minCols: diagnostic.minCols,
+                minRows: diagnostic.minRows,
+                maxCols: diagnostic.maxCols,
+                maxRows: diagnostic.maxRows,
+                finalCols: diagnostic.finalCols,
+                finalRows: diagnostic.finalRows,
+                durationMs: diagnostic.durationMs,
+                flushReason: diagnostic.flushReason,
+                truncated: diagnostic.truncated,
+                localAppliedCount: diagnostic.localAppliedCount,
+                requestCount: diagnostic.requestCount,
+            },
+        });
     });
     ipcMain.on('caxri:renderer-events-ready', (event) => {
         assertSender(event.sender);

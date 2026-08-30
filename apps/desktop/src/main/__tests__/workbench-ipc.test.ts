@@ -35,6 +35,7 @@ describe('workbench IPC sender boundary', () => {
     }));
     const onEventsReady = vi.fn();
     const onRendererDiagnostic = vi.fn();
+    const write = vi.fn();
 
     beforeEach(() => {
         electronMock.handles.clear();
@@ -43,9 +44,10 @@ describe('workbench IPC sender boundary', () => {
         negotiate.mockClear();
         onEventsReady.mockClear();
         onRendererDiagnostic.mockClear();
+        write.mockClear();
         installWorkbenchIpc({
             isQuitting: () => false,
-            logger: () => {},
+            logger: () => ({ write }) as never,
             onEventsReady,
             onRendererDiagnostic,
             renderer: () => renderer as never,
@@ -109,6 +111,64 @@ describe('workbench IPC sender boundary', () => {
         expect(onRendererDiagnostic).not.toHaveBeenCalled();
         report({ sender: renderer }, diagnostic);
         expect(onRendererDiagnostic).toHaveBeenCalledWith(diagnostic);
+    });
+
+    it('logs one trusted Renderer resize burst without routing it into GPU diagnostics', () => {
+        const report = electronMock.listeners.get(RENDERER_DIAGNOSTIC_CHANNEL)!;
+        const diagnostic = {
+            kind: 'terminal-resize-burst',
+            diagnosticId: '5c85eb53-a828-4656-b7ad-1e77bf2baf27',
+            terminalId: 'terminal-1',
+            side: 'renderer-xterm',
+            sampleCount: 4,
+            changeCount: 2,
+            startCols: 120,
+            startRows: 40,
+            minCols: 4,
+            minRows: 12,
+            maxCols: 120,
+            maxRows: 40,
+            finalCols: 80,
+            finalRows: 30,
+            durationMs: 96,
+            flushReason: 'quiet',
+            truncated: false,
+            localAppliedCount: 2,
+            requestCount: 2,
+        };
+
+        report({ sender: {} }, diagnostic);
+        report({ sender: renderer }, { ...diagnostic, terminalOutput: 'private transcript' });
+        expect(write).not.toHaveBeenCalled();
+        expect(onRendererDiagnostic).not.toHaveBeenCalled();
+
+        report({ sender: renderer }, diagnostic);
+
+        expect(write).toHaveBeenCalledOnce();
+        expect(write).toHaveBeenCalledWith('info', 'renderer.terminal_resize_burst', {
+            fields: {
+                code: 'TERMINAL_RESIZE_BURST',
+                diagnosticId: diagnostic.diagnosticId,
+                terminalId: diagnostic.terminalId,
+                side: diagnostic.side,
+                sampleCount: diagnostic.sampleCount,
+                changeCount: diagnostic.changeCount,
+                startCols: diagnostic.startCols,
+                startRows: diagnostic.startRows,
+                minCols: diagnostic.minCols,
+                minRows: diagnostic.minRows,
+                maxCols: diagnostic.maxCols,
+                maxRows: diagnostic.maxRows,
+                finalCols: diagnostic.finalCols,
+                finalRows: diagnostic.finalRows,
+                durationMs: diagnostic.durationMs,
+                flushReason: diagnostic.flushReason,
+                truncated: diagnostic.truncated,
+                localAppliedCount: diagnostic.localAppliedCount,
+                requestCount: diagnostic.requestCount,
+            },
+        });
+        expect(onRendererDiagnostic).not.toHaveBeenCalled();
     });
 
     it('does not report an in-flight request failure after application shutdown begins', async () => {
