@@ -151,8 +151,6 @@ function fileHistoryModel(
     repositories: readonly GitRepositorySummary[],
     revision: string,
 ): SourceControlFileHistory | undefined {
-    const fallback = repositories.at(0);
-    if (!fallback) return;
     const match = activeResource
         ? repositories
               .map((repo) => ({ path: relativeFilePath(repo.rootPath, activeResource), repo }))
@@ -162,16 +160,14 @@ function fileHistoryModel(
               )
               .toSorted((left, right) => right.repo.rootPath.length - left.repo.rootPath.length)[0]
         : undefined;
-    const repo = match?.repo ?? fallback;
+    if (!match) return;
     return {
         label: 'File History',
         emptyMessage: 'Open a file to view its history.',
-        history: historyDescriptor(repo, revision, 'file'),
-        ...(match && {
-            description: basename(match.path),
-            path: match.path,
-            tooltip: match.path,
-        }),
+        history: historyDescriptor(match.repo, revision, 'file'),
+        description: basename(match.path),
+        path: match.path,
+        tooltip: match.path,
     };
 }
 

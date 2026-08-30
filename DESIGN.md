@@ -313,8 +313,8 @@ repository. The multi-file surface mounts Monaco only near the visible viewport 
 unreadable or binary change isolated to its own row. `File History` is a top-level disclosure before
 the repository nodes. It follows the active ordinary file, starts collapsed, and loads commits only
 when opened; each commit opens that file's read-only diff directly. Terminal, diff, and out-of-scope
-editors keep the disclosure visible with an empty state. Repository-scoped `Commits` stays nested
-under each repository and keeps its optional path input and commit-details disclosure.
+editors omit the disclosure entirely. Repository-scoped `Commits` stays nested under each repository
+and keeps its optional path input and commit-details disclosure.
 
 **Terminal panes** — the focused pane keeps the accent inset ring (with the active tab's top
 border it forms the screen's one accent focus). The xterm viewport and scrollbar are full-bleed at

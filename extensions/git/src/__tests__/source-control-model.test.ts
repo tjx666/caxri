@@ -155,19 +155,10 @@ describe('Git source-control view model', () => {
     it.each([
         ['no active resource', undefined],
         ['an active resource outside the repositories', '/outside/project/file.ts'],
-    ])('keeps an empty File History model for %s', (_scenario, activeResource) => {
+    ])('omits File History for %s', (_scenario, activeResource) => {
         const model = buildSourceControlViewModel({ activeResource, mode: 'working', summary });
 
-        expect(model.fileHistory).toMatchObject({
-            label: 'File History',
-            emptyMessage: 'Open a file to view its history.',
-            history: {
-                id: 'repo-1',
-                itemActivation: 'action',
-            },
-        });
-        expect(model.fileHistory?.path).toBeUndefined();
-        expect(model.fileHistory?.description).toBeUndefined();
+        expect(model.fileHistory).toBeUndefined();
     });
 
     it('keeps repository Commits as a non-action history descriptor', () => {
