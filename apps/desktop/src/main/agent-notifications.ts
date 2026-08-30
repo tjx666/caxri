@@ -53,6 +53,7 @@ export function createAgentNotificationCoordinator(
 ): AgentNotificationCoordinator {
     let isInitialized = false;
     let isDisposed = false;
+    let initialization: Promise<void> | undefined;
     let requiresPostInitializeReconciliation = false;
     let fullReconciliationGeneration = 0;
     let selectedSessionId: string | undefined;
@@ -103,10 +104,13 @@ export function createAgentNotificationCoordinator(
         const isActivityAdvanced =
             previous === undefined ||
             session.lastSessionActivityAt !== previous.lastSessionActivityAt;
-        if (
-            (isActivityAdvanced && TURN_START_REASONS.has(session.lastSessionActivityReason)) ||
-            (!previous && session.lastActivityState === 'running')
-        )
+        const isNewTurnStart =
+            isActivityAdvanced &&
+            TURN_START_REASONS.has(session.lastSessionActivityReason) &&
+            (session.lastSessionActivityReason === 'agent_started' ||
+                previous?.lastActivityState !== 'running' ||
+                !turnStartedAt.has(session.id));
+        if (isNewTurnStart || (!previous && session.lastActivityState === 'running'))
             turnStartedAt.set(session.id, session.lastSessionActivityAt);
         return turnStartedAt.get(session.id);
     };
@@ -127,10 +131,13 @@ export function createAgentNotificationCoordinator(
             closeNotification(session.id);
             return;
         }
+        if (!settings?.['agents.notifications.enabled']) {
+            closeNotification(session.id);
+            return;
+        }
         if (!shouldNotify || session.attentionEpoch <= (previous?.attentionEpoch ?? 0)) return;
 
         closeNotification(session.id);
-        if (!settings?.['agents.notifications.enabled']) return;
         const provider = providerForSession(session);
         if (!provider) return;
 
@@ -155,7 +162,8 @@ export function createAgentNotificationCoordinator(
                 body,
             },
             () => {
-                if (notifications.get(session.id) === handle) notifications.delete(session.id);
+                if (notifications.get(session.id) !== handle) return;
+                notifications.delete(session.id);
                 handle?.close();
                 // Notification callbacks are synchronous; the coordinator queue owns async failure handling.
                 schedule(() => options.activateSession(session.id));
@@ -167,6 +175,7 @@ export function createAgentNotificationCoordinator(
     const applyBootstrap = (bootstrap: BootstrapState, shouldNotify: boolean): void => {
         selectedSessionId = bootstrap.selectedSessionId;
         settings = bootstrap.settings;
+        if (!settings['agents.notifications.enabled']) closeAllNotifications();
         terminals.clear();
         for (const terminal of bootstrap.terminals) terminals.set(terminal.id, terminal);
 
@@ -201,7 +210,7 @@ export function createAgentNotificationCoordinator(
         for (const session of records.sessions) reconcileSession(session, true);
     };
 
-    const initialize = async (): Promise<void> => {
+    const initializeOnce = async (): Promise<void> => {
         if (isInitialized || isDisposed) return;
         try {
             applyBootstrap(await options.loadBootstrap(), false);
@@ -216,6 +225,25 @@ export function createAgentNotificationCoordinator(
         }
     };
 
+    const initialize = (): Promise<void> => {
+        if (isInitialized || isDisposed) return Promise.resolve();
+        initialization ??= (async () => {
+            try {
+                await initializeOnce();
+            } finally {
+                initialization = undefined;
+                // oxlint-disable-next-line typescript/no-unnecessary-condition -- disposal and bootstrap success can change while the await above is pending
+                if (!isInitialized && !isDisposed && requiresPostInitializeReconciliation) {
+                    // An event that arrives during a failed bootstrap must start a fresh attempt. Joining the failed
+                    // in-flight promise would otherwise consume the only retry signal.
+                    requiresPostInitializeReconciliation = false;
+                    schedule(initialize);
+                }
+            }
+        })();
+        return initialization;
+    };
+
     return {
         dispose(): void {
             isDisposed = true;
@@ -228,11 +256,11 @@ export function createAgentNotificationCoordinator(
         observe(event: ServerEvent): void {
             if (isDisposed) return;
             if (!isInitialized) {
-                if (event.event === 'state.changed' || event.event === 'settings.changed')
-                    requiresPostInitializeReconciliation = true;
-                else if (
-                    event.event === 'host.connectionChanged' &&
-                    event.payload.status === 'reconnected'
+                if (
+                    event.event === 'state.changed' ||
+                    event.event === 'settings.changed' ||
+                    (event.event === 'host.connectionChanged' &&
+                        event.payload.status === 'reconnected')
                 ) {
                     requiresPostInitializeReconciliation = true;
                     schedule(initialize);
@@ -245,9 +273,12 @@ export function createAgentNotificationCoordinator(
                     schedule(reconcileFull);
                 } else {
                     const { sessionIds, terminalIds } = event.payload;
-                    const relevantTerminalIds = terminalIds.filter(
-                        (terminalId) => terminals.get(terminalId)?.provider !== undefined,
-                    );
+                    const relevantTerminalIds =
+                        sessionIds.length > 0
+                            ? terminalIds
+                            : terminalIds.filter(
+                                  (terminalId) => terminals.get(terminalId)?.provider !== undefined,
+                              );
                     if (sessionIds.length === 0 && relevantTerminalIds.length === 0) return;
                     const expectedFullGeneration = fullReconciliationGeneration;
                     schedule(() =>
@@ -257,6 +288,8 @@ export function createAgentNotificationCoordinator(
                 return;
             }
             if (event.event === 'settings.changed') {
+                settings = undefined;
+                closeAllNotifications();
                 schedule(async () => {
                     settings = await options.loadSettings();
                     if (!settings['agents.notifications.enabled']) closeAllNotifications();
