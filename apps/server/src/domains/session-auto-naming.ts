@@ -15,7 +15,7 @@ import {
     buildAgentTitlePrompt,
     normalizeGeneratedAgentTitle,
     readAgentTitleGitBranch,
-} from './agents/title-generation';
+} from './agents';
 import type { CaxriDatabase } from './db';
 import type { SessionRenameService } from './session-rename';
 
