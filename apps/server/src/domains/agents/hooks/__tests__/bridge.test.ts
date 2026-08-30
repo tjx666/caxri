@@ -39,7 +39,7 @@ describe('stageAgentHookBridge', () => {
         ]);
         expect(wrapperSource).toContain('#!/bin/sh');
         expect(bridgeScript).toContain("require('node:net')");
-        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 8 });
+        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 9 });
         expect(wrapperStats.mode & 0o777).toBe(0o700);
     });
 
@@ -111,7 +111,7 @@ describe('stageAgentHookBridge', () => {
             readFile(bridgePath, 'utf8'),
             readFile(join(binDirectory, 'bridge.cjs'), 'utf8'),
         ]);
-        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 8 });
+        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 9 });
         expect(wrapperSource).toContain('#!/bin/sh');
         expect(scriptSource).toContain("require('node:net')");
     });
@@ -191,6 +191,51 @@ describe('stageAgentHookBridge', () => {
             });
 
             expect(result.stderr).toBe('caxri-hook: launch_context_unavailable\n');
+        } finally {
+            await new Promise<void>((resolve) => server.close(() => resolve()));
+        }
+    });
+
+    it('does not send a bridge receipt to an older launch context that did not opt in', async () => {
+        const sharedPath = await sharedDirectory();
+        const bridgePath = await stageAgentHookBridge(sharedPath);
+        const socketPath = join(sharedPath, 'compatible.sock');
+        const packets: Array<Record<string, unknown>> = [];
+        const server = createServer((socket) => {
+            socket.setEncoding('utf8');
+            let source = '';
+            socket.on('data', (chunk: string) => {
+                source += chunk;
+            });
+            socket.on('end', () => {
+                packets.push(JSON.parse(source) as Record<string, unknown>);
+                socket.end('{"ok":true}\n');
+            });
+        });
+        server.listen(socketPath);
+        await once(server, 'listening');
+
+        try {
+            const invocation = execFileAsync(
+                bridgePath,
+                ['--provider', 'codex', '--phase', 'sessionIdentified', '--schema', '5'],
+                {
+                    env: {
+                        CAXRI_HOOK_LAUNCH_ID: 'older-launch',
+                        CAXRI_HOOK_RUNTIME: process.execPath,
+                        CAXRI_HOOK_SOCKET: socketPath,
+                        CAXRI_HOOK_TERMINAL_ID: 'older-terminal',
+                        CAXRI_HOOK_TOKEN: 'older-token',
+                        PATH: process.env.PATH,
+                    },
+                },
+            );
+            invocation.child.stdin?.end(JSON.stringify({ session_id: 'opaque-session' }));
+            await invocation;
+
+            expect(packets).toHaveLength(1);
+            expect(packets[0]).not.toHaveProperty('kind');
+            expect(packets[0]).toMatchObject({ agentSessionId: 'opaque-session' });
         } finally {
             await new Promise<void>((resolve) => server.close(() => resolve()));
         }

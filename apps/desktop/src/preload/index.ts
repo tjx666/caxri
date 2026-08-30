@@ -28,7 +28,23 @@ const rendererDiagnosticChannel = 'caxri:renderer-diagnostic';
  */
 // eslint-disable-next-line n/prefer-global/process -- required by Electron's sandboxed preload runtime
 const isE2E = process.env.CAXRI_E2E === '1';
-const e2eRequestState = { sessionStateUpdateCount: 0 };
+interface E2ERequestGate {
+    markReached: () => void;
+    reached: Promise<void>;
+    release: () => void;
+    released: Promise<void>;
+}
+
+const e2eRequestState: {
+    pathBrowserStartGate?: E2ERequestGate;
+    sessionStateUpdateCount: number;
+} = { sessionStateUpdateCount: 0 };
+
+function createE2ERequestGate(): E2ERequestGate {
+    const { promise: reached, resolve: markReached } = Promise.withResolvers<void>();
+    const { promise: released, resolve: release } = Promise.withResolvers<void>();
+    return { markReached, reached, release, released };
+}
 
 /**
  * Forwards a structured request and hands the reply envelope back untouched. Main answers with `{ id, ok, result |
@@ -41,6 +57,11 @@ async function requestWithId<M extends CaxriMethod>(
     ...arguments_: ParametersArgument<M>
 ): Promise<MethodReply<M>> {
     if (isE2E && method === 'session.updateState') e2eRequestState.sessionStateUpdateCount += 1;
+    if (isE2E && method === 'pathBrowser.start' && e2eRequestState.pathBrowserStartGate) {
+        const gate = e2eRequestState.pathBrowserStartGate;
+        gate.markReached();
+        await gate.released;
+    }
     /**
      * The payload crosses a process boundary as unknown; the method table owns its static shape.
      */
@@ -108,13 +129,21 @@ contextBridge.exposeInMainWorld('caxri', bridge);
 
 if (isE2E) {
     /**
-     * This narrow E2E-only seam counts the exact persistence request guarded by the pane-tab regression. It is not a
-     * general IPC recorder and never exposes request arguments, replies, or production diagnostics.
+     * These narrow E2E-only seams expose content-free synchronization for two focused regressions. They are not a
+     * general IPC recorder and never expose request arguments, replies, or production diagnostics.
      */
     contextBridge.exposeInMainWorld('caxriE2E', {
+        armPathBrowserStartGate: () => {
+            e2eRequestState.pathBrowserStartGate = createE2ERequestGate();
+        },
+        releasePathBrowserStartGate: () => {
+            e2eRequestState.pathBrowserStartGate?.release();
+            e2eRequestState.pathBrowserStartGate = undefined;
+        },
         resetSessionStateUpdateCount: () => {
             e2eRequestState.sessionStateUpdateCount = 0;
         },
         sessionStateUpdateCount: () => e2eRequestState.sessionStateUpdateCount,
+        waitForPathBrowserStartGate: () => e2eRequestState.pathBrowserStartGate?.reached,
     });
 }

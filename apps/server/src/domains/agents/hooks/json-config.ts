@@ -2,6 +2,7 @@ import type { AgentProvider } from '@caxri/protocol';
 import type { FormattingOptions, ParseError } from 'jsonc-parser';
 import { applyEdits, modify, parse } from 'jsonc-parser';
 
+import { AGENT_HOOK_BRIDGE_MAX_DELIVERY_MS } from './bridge';
 import type {
     AgentHookBinding,
     AgentHookConfigEdit,
@@ -14,7 +15,15 @@ const FORMATTING_OPTIONS: FormattingOptions = {
     insertSpaces: true,
     tabSize: 2,
 };
-const HOOK_TIMEOUT_SECONDS = 1;
+/**
+ * The provider deadline includes shell and Electron-as-Node startup in addition to the bridge's 250 ms stdin and 750 ms
+ * socket budgets. Keep explicit startup headroom so a cold bridge is not killed before it can identify a resumed
+ * session.
+ */
+const HOOK_STARTUP_HEADROOM_MS = 2_000;
+const HOOK_TIMEOUT_SECONDS = Math.ceil(
+    (AGENT_HOOK_BRIDGE_MAX_DELIVERY_MS + HOOK_STARTUP_HEADROOM_MS) / 1_000,
+);
 
 interface JsonHookHandler {
     command?: unknown;

@@ -67,10 +67,16 @@ if (process.argv.includes('--version')) {
 }
 const hooks = JSON.parse(fs.readFileSync(path.join(process.env.CODEX_HOME, 'hooks.json'), 'utf8'));
 const group = hooks.hooks.SessionStart[0];
-childProcess.execFileSync('/bin/sh', ['-c', group.hooks[0].command], {
+/**
+ * Simulate cold shell and Electron-as-Node startup inside Codex's configured deadline. The old one-second deadline
+ * killed the bridge before its own bounded stdin and socket work could finish.
+ */
+const delayedCommand = 'sleep 1.2; exec ' + group.hooks[0].command;
+childProcess.execFileSync('/bin/sh', ['-c', delayedCommand], {
   env: process.env,
   input: JSON.stringify({ hook_event_name: 'SessionStart', session_id: 'resumed-codex-session', source: 'resume' }),
   stdio: ['pipe', 'pipe', 'inherit'],
+  timeout: group.hooks[0].timeout * 1000,
 });
 process.stdout.write('Resume hook invoked\r\n');
 process.stdin.resume();
@@ -118,6 +124,8 @@ process.stdin.resume();
             .poll(async () => readFile(serverCoreLogPath, 'utf8'))
             .toContain('agent_hooks.signal_accepted');
         const serverCoreLog = await readFile(serverCoreLogPath, 'utf8');
+        expect(serverCoreLog).toContain('agent_hooks.launch_prepared');
+        expect(serverCoreLog).toContain('agent_hooks.bridge_started');
         expect(serverCoreLog).toContain('agent_hooks.signal_accepted');
         expect(serverCoreLog).toContain('sessionIdentified');
         expect(serverCoreLog).not.toContain('resumed-codex-session');
