@@ -77,6 +77,7 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
     useEffect(() => {
         let isDisposed = false;
         let browserId: string | undefined;
+        const startingInputRevision = inputRevision.current;
         const startBrowser = async (): Promise<void> => {
             try {
                 const result = await caxri.request('pathBrowser.start', { sessionId });
@@ -86,7 +87,8 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
                     return;
                 }
                 setSnapshot(result);
-                setInputState({ input: result.input, mode: result.mode });
+                if (inputRevision.current === startingInputRevision)
+                    setInputState({ input: result.input, mode: result.mode });
                 setError(undefined);
             } catch (error_) {
                 if (!isDisposed)
