@@ -107,8 +107,18 @@ export interface SourceControlHistoryDescriptor {
     detailsEmptyMessage: string;
     detailsTruncatedMessage: string;
     itemAccessibilityLabelPrefix: string;
+    itemActivation?: 'action';
     pageSize: number;
     revision?: string;
+}
+
+export interface SourceControlFileHistory {
+    label: string;
+    description?: string;
+    tooltip?: string;
+    emptyMessage: string;
+    path?: string;
+    history: SourceControlHistoryDescriptor;
 }
 
 export interface SourceControlProviderModel {
@@ -135,6 +145,7 @@ export interface SourceControlViewModel {
     modes: SourceControlMode[];
     selectedModeId: string;
     refreshAction: SourceControlAction;
+    fileHistory?: SourceControlFileHistory;
     providers: SourceControlProviderModel[];
     emptyMessage?: string;
     truncationMessage?: string;
@@ -151,6 +162,7 @@ export interface SourceControlHistoryItem {
     avatarUrl?: string;
     decorations: string[];
     body?: string;
+    action?: SourceControlAction;
 }
 
 export interface SourceControlHistoryPage {
@@ -188,6 +200,7 @@ export interface SourceControlProvider {
     provideView(
         request: {
             scopeId: string;
+            activeResource?: string;
             preferredModeId?: string;
             refresh: number;
             revision?: string;
@@ -197,6 +210,7 @@ export interface SourceControlProvider {
     provideHistoryPage(
         request: {
             historyId: string;
+            itemActivation?: 'action';
             scopeId: string;
             offset: number;
             pageSize: number;

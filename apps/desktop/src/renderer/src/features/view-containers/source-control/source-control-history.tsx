@@ -1,4 +1,8 @@
-import type { SourceControlAction, SourceControlHistoryDescriptor } from '@caxri/protocol';
+import type {
+    SourceControlAction,
+    SourceControlFileHistory,
+    SourceControlHistoryDescriptor,
+} from '@caxri/protocol';
 import { relativeTime } from '@caxri/utils';
 import { ChevronDown, ChevronRight, X } from 'lucide-react';
 
@@ -11,17 +15,30 @@ import { Spinner } from '../../../components/ui/spinner';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { cn } from '../../../lib/utilities';
 import { executeViewCatalogShortcut } from '../view-container-commands';
+import type { SourceControlHistoryExpansion } from './hooks/use-source-control-history';
 import { useSourceControlHistory } from './hooks/use-source-control-history';
 import { SourceControlHistoryAvatar } from './source-control-history-avatar';
 import { SourceControlHistoryDetails } from './source-control-history-details';
 import { SourceControlHistoryHoverCard } from './source-control-history-hover-card';
+import { SourceControlIcon } from './source-control-icon';
+
+type FileHistoryScope = Pick<
+    SourceControlFileHistory,
+    'description' | 'emptyMessage' | 'label' | 'path' | 'tooltip'
+> & { kind: 'file' };
 
 export function SourceControlHistory({
     descriptor,
+    enabled = true,
+    expansion,
     runAction,
+    scope,
 }: {
     descriptor: SourceControlHistoryDescriptor;
+    enabled?: boolean;
+    expansion?: SourceControlHistoryExpansion;
     runAction: (action: SourceControlAction) => void;
+    scope?: FileHistoryScope;
 }) {
     const now = useNow(30_000);
     const {
@@ -38,57 +55,91 @@ export function SourceControlHistory({
         setExpanded,
         setPath,
         setSelectedId,
-    } = useSourceControlHistory(descriptor);
+    } = useSourceControlHistory(descriptor, scope, expansion, enabled);
+    const toggleExpanded = () => {
+        setExpanded((value) => !value);
+        if (!expanded) {
+            // eslint-disable-next-line no-void -- the shared catalog dispatcher owns command failures
+            void executeViewCatalogShortcut(
+                descriptor.command.id,
+                descriptor.command.arguments ?? [],
+            );
+        }
+    };
 
     return (
-        <section className={cn('commit-history bg-surface', !expanded && 'sticky bottom-0 z-10')}>
-            <button
-                type="button"
-                className="flex h-7 w-full cursor-pointer items-center gap-1 border-0 bg-transparent px-2 text-left text-[10px] font-bold tracking-[0.06em] text-muted uppercase hover:text-foreground"
-                aria-expanded={expanded}
-                onClick={() => {
-                    setExpanded((value) => !value);
-                    if (!expanded) {
-                        // eslint-disable-next-line no-void -- the shared catalog dispatcher owns command failures
-                        void executeViewCatalogShortcut(
-                            descriptor.command.id,
-                            descriptor.command.arguments ?? [],
-                        );
-                    }
-                }}
-            >
-                {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                <span className="truncate">{descriptor.label}</span>
-                {expanded && <span className="ml-auto">{items.length}</span>}
-            </button>
+        <section
+            className={cn(
+                'commit-history bg-surface',
+                scope
+                    ? 'file-history-section border-b border-border'
+                    : !expanded && 'sticky bottom-0 z-10',
+            )}
+        >
+            {scope ? (
+                <button
+                    type="button"
+                    className="file-history-row flex w-full cursor-pointer items-center gap-2 overflow-hidden border-0 bg-transparent p-2 text-left text-foreground hover:bg-elevated"
+                    aria-label={scope.tooltip ? `${scope.label}: ${scope.tooltip}` : scope.label}
+                    aria-expanded={expanded}
+                    title={scope.tooltip}
+                    onClick={toggleExpanded}
+                >
+                    <span className="flex shrink-0 items-center gap-1">
+                        {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                        <SourceControlIcon icon={{ id: 'git-commit', kind: 'theme' }} size={12} />
+                        <strong className="shrink-0 font-semibold whitespace-nowrap">
+                            {scope.label}
+                        </strong>
+                    </span>
+                    {scope.description && (
+                        <span className="ml-auto min-w-0 truncate text-[11px] text-muted">
+                            {scope.description}
+                        </span>
+                    )}
+                </button>
+            ) : (
+                <button
+                    type="button"
+                    className="flex h-7 w-full cursor-pointer items-center gap-1 border-0 bg-transparent px-2 text-left text-[10px] font-bold tracking-[0.06em] text-muted uppercase hover:text-foreground"
+                    aria-expanded={expanded}
+                    onClick={toggleExpanded}
+                >
+                    {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                    <span className="truncate">{descriptor.label}</span>
+                    {expanded && <span className="ml-auto">{items.length}</span>}
+                </button>
+            )}
             <DisclosureMotion animate expanded={expanded} kind="git-history">
                 {() => (
                     <div>
-                        <div className="border-y border-border p-1.5">
-                            <InputGroup appearance="workbench" size="dense">
-                                <Input
-                                    appearance="embedded"
-                                    className="flex-1 text-foreground"
-                                    aria-label={descriptor.pathInputLabel}
-                                    placeholder={descriptor.pathInputPlaceholder}
-                                    size="dense"
-                                    value={path}
-                                    onChange={(event) => setPath(event.currentTarget.value)}
-                                />
-                                {path.length > 0 && (
-                                    <Tooltip content={descriptor.clearPathLabel}>
-                                        <button
-                                            type="button"
-                                            className="grid size-5 shrink-0 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 text-muted hover:bg-elevated hover:text-foreground"
-                                            aria-label={descriptor.clearPathLabel}
-                                            onClick={() => setPath('')}
-                                        >
-                                            <X size={12} />
-                                        </button>
-                                    </Tooltip>
-                                )}
-                            </InputGroup>
-                        </div>
+                        {!scope && (
+                            <div className="border-y border-border p-1.5">
+                                <InputGroup appearance="workbench" size="dense">
+                                    <Input
+                                        appearance="embedded"
+                                        className="flex-1 text-foreground"
+                                        aria-label={descriptor.pathInputLabel}
+                                        placeholder={descriptor.pathInputPlaceholder}
+                                        size="dense"
+                                        value={path}
+                                        onChange={(event) => setPath(event.currentTarget.value)}
+                                    />
+                                    {path.length > 0 && (
+                                        <Tooltip content={descriptor.clearPathLabel}>
+                                            <button
+                                                type="button"
+                                                className="grid size-5 shrink-0 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 text-muted hover:bg-elevated hover:text-foreground"
+                                                aria-label={descriptor.clearPathLabel}
+                                                onClick={() => setPath('')}
+                                            >
+                                                <X size={12} />
+                                            </button>
+                                        </Tooltip>
+                                    )}
+                                </InputGroup>
+                            </div>
+                        )}
                         {error ? (
                             <div className="px-3 py-2 text-[11px] text-danger">{error}</div>
                         ) : loading && items.length === 0 ? (
@@ -97,7 +148,9 @@ export function SourceControlHistory({
                             </div>
                         ) : items.length === 0 ? (
                             <div className="px-3 py-2 text-[11px] text-muted">
-                                {descriptor.emptyMessage}
+                                {scope && !scope.path
+                                    ? scope.emptyMessage
+                                    : descriptor.emptyMessage}
                             </div>
                         ) : (
                             items.map((item) => (
@@ -115,11 +168,19 @@ export function SourceControlHistory({
                                                     selectedId === item.id && 'bg-elevated',
                                                 )}
                                                 aria-label={`${descriptor.itemAccessibilityLabelPrefix} ${item.label}`}
-                                                onClick={() =>
+                                                disabled={
+                                                    descriptor.itemActivation === 'action' &&
+                                                    !item.action
+                                                }
+                                                onClick={() => {
+                                                    if (descriptor.itemActivation === 'action') {
+                                                        if (item.action) runAction(item.action);
+                                                        return;
+                                                    }
                                                     setSelectedId((current) =>
                                                         current === item.id ? undefined : item.id,
-                                                    )
-                                                }
+                                                    );
+                                                }}
                                             >
                                                 <SourceControlHistoryAvatar
                                                     className="mt-0.5"
@@ -164,14 +225,15 @@ export function SourceControlHistory({
                                             </button>
                                         }
                                     />
-                                    {selectedId === item.id && (
-                                        <SourceControlHistoryDetails
-                                            descriptor={descriptor}
-                                            itemId={item.id}
-                                            path={scopePath}
-                                            runAction={runAction}
-                                        />
-                                    )}
+                                    {descriptor.itemActivation !== 'action' &&
+                                        selectedId === item.id && (
+                                            <SourceControlHistoryDetails
+                                                descriptor={descriptor}
+                                                itemId={item.id}
+                                                path={scopePath}
+                                                runAction={runAction}
+                                            />
+                                        )}
                                 </div>
                             ))
                         )}
@@ -180,7 +242,7 @@ export function SourceControlHistory({
                                 className="load-more-commits h-7 w-full gap-1.5 rounded-none text-[11px] text-muted hover:text-foreground"
                                 size="sm"
                                 variant="ghost"
-                                disabled={loading || path !== debouncedPath}
+                                disabled={loading || (!scope && path !== debouncedPath)}
                                 onClick={() => {
                                     // eslint-disable-next-line no-void -- loadPage owns its loading and error state
                                     void loadPage(nextOffset, false);

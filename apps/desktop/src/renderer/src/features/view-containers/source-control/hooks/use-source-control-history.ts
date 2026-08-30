@@ -1,3 +1,4 @@
+import type { Dispatch, SetStateAction } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { SourceControlHistoryDescriptor, SourceControlHistoryPage } from '@caxri/protocol';
@@ -9,11 +10,29 @@ import { useSourceControlClient } from '../../controlled-view-context';
 
 type SourceControlHistoryItem = SourceControlHistoryPage['items'][number];
 
-export function useSourceControlHistory(descriptor: SourceControlHistoryDescriptor) {
+export interface SourceControlHistoryScope {
+    kind: 'file';
+    path?: string;
+}
+
+export interface SourceControlHistoryExpansion {
+    expanded: boolean;
+    setExpanded: Dispatch<SetStateAction<boolean>>;
+}
+
+export function useSourceControlHistory(
+    descriptor: SourceControlHistoryDescriptor,
+    scope?: SourceControlHistoryScope,
+    expansion?: SourceControlHistoryExpansion,
+    isEnabled = true,
+) {
     const client = useSourceControlClient();
-    const [expanded, setExpanded] = useState(false);
+    const [localExpanded, setLocalExpanded] = useState(false);
+    const expanded = expansion?.expanded ?? localExpanded;
+    const setExpanded = expansion?.setExpanded ?? setLocalExpanded;
     const [path, setPath] = useState('');
-    const debouncedPath = useDebouncedValue(path, 200);
+    const debouncedInputPath = useDebouncedValue(path, 200);
+    const debouncedPath = scope?.kind === 'file' ? (scope.path ?? '') : debouncedInputPath;
     const [items, setItems] = useState<SourceControlHistoryItem[]>([]);
     const [nextOffset, setNextOffset] = useState<number>();
     const [selectedId, setSelectedId] = useState<string>();
@@ -21,6 +40,7 @@ export function useSourceControlHistory(descriptor: SourceControlHistoryDescript
     const [error, setError] = useState<string>();
     const activeRequest = useRef<AbortController | undefined>(undefined);
     const scopePath = debouncedPath.trim() || undefined;
+    const canLoad = isEnabled && (scope?.kind !== 'file' || scopePath !== undefined);
 
     const loadPage = useCallback(
         async (offset: number, shouldReplace: boolean) => {
@@ -37,6 +57,9 @@ export function useSourceControlHistory(descriptor: SourceControlHistoryDescript
                 const page = await client.historyPage(
                     {
                         historyId: descriptor.id,
+                        ...(descriptor.itemActivation && {
+                            itemActivation: descriptor.itemActivation,
+                        }),
                         offset,
                         pageSize: descriptor.pageSize,
                         revision: descriptor.revision!,
@@ -60,7 +83,7 @@ export function useSourceControlHistory(descriptor: SourceControlHistoryDescript
         [client, descriptor, scopePath],
     );
     useEffect(() => {
-        if (!expanded || !descriptor.revision) {
+        if (!canLoad || !expanded || !descriptor.revision) {
             activeRequest.current?.abort();
             activeRequest.current = undefined;
             return;
@@ -74,7 +97,7 @@ export function useSourceControlHistory(descriptor: SourceControlHistoryDescript
             activeRequest.current?.abort();
             activeRequest.current = undefined;
         };
-    }, [descriptor.revision, expanded, loadPage]);
+    }, [canLoad, descriptor.revision, expanded, loadPage]);
 
     return {
         debouncedPath,

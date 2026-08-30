@@ -4,6 +4,7 @@ import {
     extensionManifestSchema,
     extensionTreeViewStatesSchema,
     sourceControlActionResultSchema,
+    sourceControlHistoryPageSchema,
     sourceControlViewModelSchema,
     sourceControlViewStatesSchema,
     treeItemSchema,
@@ -517,10 +518,57 @@ describe('extension view contracts', () => {
             ],
             selectedModeId: 'primary',
             refreshAction: action,
+            fileHistory: {
+                label: 'File History',
+                description: 'README.md',
+                tooltip: '/private/project/README.md',
+                emptyMessage: 'Open a file to view its history.',
+                path: 'README.md',
+                history: {
+                    id: 'repository-1',
+                    label: 'File History',
+                    command: { id: 'publisher.fixture.historyPage' },
+                    pathInputLabel: 'History path',
+                    pathInputPlaceholder: 'Filter by path',
+                    clearPathLabel: 'Clear history path',
+                    loadingMessage: 'Loading file history...',
+                    emptyMessage: 'No commits found for this file.',
+                    loadMoreLabel: 'Load more',
+                    loadingMoreLabel: 'Loading more...',
+                    loadErrorMessage: 'Unable to load file history.',
+                    detailsLoadingMessage: 'Loading commit details...',
+                    detailsErrorMessage: 'Unable to load commit details.',
+                    detailsLabel: 'Commit details',
+                    detailsEmptyMessage: 'No changed files.',
+                    detailsTruncatedMessage: 'More changed files are not shown.',
+                    itemAccessibilityLabelPrefix: 'Commit',
+                    itemActivation: 'action' as const,
+                    pageSize: 25,
+                    revision: '7',
+                },
+            },
             providers: [],
         };
 
         expect(sourceControlViewModelSchema.parse(model)).toEqual(model);
+        expect(
+            sourceControlHistoryPageSchema.parse({
+                revision: '7',
+                items: [
+                    {
+                        id: 'commit-1',
+                        label: 'Update README',
+                        description: 'abc1234',
+                        timestamp: 1,
+                        tooltipTimestamp: 'January 1, 1970',
+                        author: 'Fixture Author',
+                        authorFallback: 'FA',
+                        decorations: [],
+                        action,
+                    },
+                ],
+            }).items[0]?.action,
+        ).toEqual(action);
         expect(
             sourceControlActionResultSchema.parse({
                 revision: '7',
