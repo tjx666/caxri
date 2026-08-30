@@ -28,6 +28,7 @@
     --color-success: var(--success);
     --color-warning: var(--warning);
     --color-danger: var(--danger);
+    --color-danger-foreground: var(--danger-foreground);
     --color-overlay: var(--overlay);
     --color-shadow: var(--shadow);
     --color-indicator: var(--indicator);
@@ -47,8 +48,9 @@
     --warning: #f1fa8c;
     --danger: #ff5555;
 
-    /* Derived roles re-resolve when `applyCssTheme` replaces the raw colors above. */
-    --accent-foreground: color-mix(in srgb, var(--background) 88%, var(--foreground));
+    /* `applyCssTheme` replaces these fallbacks with contrast-checked values for the active theme. */
+    --accent-foreground: #282a36;
+    --danger-foreground: #000000;
     --overlay: color-mix(in srgb, var(--background) 60%, transparent);
     --shadow: rgb(0 0 0 / 0.45);
     --indicator: color-mix(in srgb, var(--foreground) 45%, transparent);

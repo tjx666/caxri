@@ -163,6 +163,7 @@ function SettingsDialogView(controller: SettingsDialogController) {
                                     // eslint-disable-next-line no-void -- intentional floating-promise discard, importTheme() reports its own errors
                                     void controller.importTheme();
                                 }}
+                                onSelectBuiltin={controller.selectBuiltinTheme}
                             />
                         ))}
                 </ChromeTabPanel>

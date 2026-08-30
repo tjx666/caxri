@@ -21,7 +21,7 @@ const buttonVariants = cva(
                     'border-accent bg-accent text-accent-foreground enabled:hover:brightness-110',
                 secondary: 'border-border bg-elevated enabled:hover:bg-[var(--selection)]',
                 ghost: 'bg-transparent enabled:hover:bg-[var(--selection)]',
-                danger: 'border-danger bg-danger text-accent-foreground',
+                danger: 'border-danger bg-danger text-danger-foreground',
             },
             size: {
                 default: 'min-h-9 px-3',
