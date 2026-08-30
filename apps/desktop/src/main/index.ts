@@ -11,12 +11,7 @@ import type {
     ServerEvent,
 } from '@caxri/protocol';
 import { CaxriError, errorMessage, isMainRequest } from '@caxri/protocol';
-import {
-    installProcessErrorMonitor,
-    logEventCatalog,
-    readE2EAgentPolicy,
-    StructuredLogger,
-} from '@caxri/system';
+import { installProcessErrorMonitor, logEventCatalog, readE2EAgentPolicy } from '@caxri/system';
 import type { WebContents } from 'electron';
 import { app, BrowserWindow, dialog, Menu, powerMonitor, shell } from 'electron';
 
@@ -31,6 +26,7 @@ import { updateArgvConfig } from './argv-config';
 import { discardGitChangesPrompt, trashPrompt } from './confirmations';
 import { consoleErrorLogFields } from './console-error-fields';
 import { decideCrashRecovery } from './crash-policy';
+import { createDesktopLogger } from './desktop-logger';
 import { createDesktopOperationHandler } from './desktop-operations';
 import {
     configureDesktopProfile,
@@ -42,7 +38,6 @@ import { launchExternalEditor } from './external-editor';
 import { createGpuDiagnostics } from './gpu-diagnostics';
 import { createGpuRecoveryCoordinator, prepareGpuBoot } from './gpu-recovery';
 import { createElectronIpcCommandAdapter } from './ipc-command-adapter';
-import { resolveLogLevel } from './log-level';
 import { createMainMethodHandler } from './main-methods';
 import { buildAppMenuTemplate } from './menu';
 import { createMenuRefreshController } from './menu-refresh';
@@ -94,7 +89,8 @@ if (ownsProfileInstance) {
     let mainWindow: BrowserWindow | undefined;
     let mainRenderer: WebContents | undefined;
     let supervisor: DesktopServerConnection;
-    let mainLogger: StructuredLogger | undefined;
+    let mainLogger: ReturnType<typeof createDesktopLogger> | undefined;
+    const createMainLogger = () => createDesktopLogger(desktopProfile.logDirectory, app.isPackaged);
     const gpuDiagnostics = createGpuDiagnostics({
         app,
         logger: () => mainLogger,
@@ -140,13 +136,6 @@ if (ownsProfileInstance) {
         // here, so this is deliberately fire-and-forget rather than awaited.
         onMenuRefreshRequested: () => menuRefreshController.refresh(),
     });
-    function createMainLogger(): StructuredLogger {
-        return new StructuredLogger(
-            desktopProfile.logDirectory,
-            'desktop',
-            resolveLogLevel({ isPackaged: app.isPackaged }),
-        );
-    }
     function sendEvent(event: ServerEvent): void {
         eventRelay.send(event);
         agentNotifications?.observe(event);
