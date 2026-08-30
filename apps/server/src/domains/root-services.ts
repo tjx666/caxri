@@ -49,6 +49,7 @@ export async function acknowledgeFileMutation(
 export async function createRootServices({
     agentEnvironment,
     logger,
+    projectSearch,
     send,
     userDataPath,
 }: DomainDependencies) {
@@ -117,6 +118,7 @@ export async function createRootServices({
                 git.ignoredEntries(sessionId, directory, names),
             fileTreeExcludes: () => config.getSettings().value['files.exclude'],
             mutationJournalPath: join(userDataPath, 'file-operations.json'),
+            search: projectSearch,
             watchHub,
             // onRootUnavailable is a synchronous callback, so this cannot become await.
             onRootUnavailable: (sessionId) =>

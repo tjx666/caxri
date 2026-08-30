@@ -23,7 +23,13 @@ import {
 } from '../architecture-boundaries';
 
 const root = resolve(import.meta.dirname, '../..');
-const nativeDesktopDependencies = ['@parcel/watcher', 'better-sqlite3', 'electron', 'node-pty'];
+const nativeDesktopDependencies = [
+    '@parcel/watcher',
+    '@vscode/ripgrep-universal',
+    'better-sqlite3',
+    'electron',
+    'node-pty',
+];
 
 interface PackageManifest {
     bin?: unknown;
@@ -442,6 +448,9 @@ describe('pnpm workspace contract', () => {
                     `${extensionManifest.name}: native production dependency`,
                 ).not.toHaveProperty(dependency);
         }
+        expect(serverManifest.dependencies?.['@vscode/ripgrep-universal']).toBe('1.18.0');
+        expect(desktopManifest.dependencies ?? {}).not.toHaveProperty('@vscode/ripgrep-universal');
+        expect(rootManifest.devDependencies ?? {}).not.toHaveProperty('@vscode/ripgrep-universal');
     });
 
     it('keeps protocol source browser-safe and emitted ESM imports resolvable by Node.js', () => {

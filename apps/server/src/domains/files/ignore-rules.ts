@@ -6,7 +6,7 @@ import { sep } from 'node:path';
  * VCS metadata (`.git`, `.hg`, `.svn`) and dependency/build output directories are large, frequently-churning trees.
  * File-tree visibility is configured independently by `files.exclude`.
  */
-const TRAVERSAL_EXCLUDED_SEGMENTS = new Set([
+export const PROJECT_TRAVERSAL_EXCLUDED_SEGMENTS = [
     '.git',
     '.hg',
     '.svn',
@@ -20,7 +20,8 @@ const TRAVERSAL_EXCLUDED_SEGMENTS = new Set([
     'build',
     'out',
     'target',
-]);
+] as const;
+const TRAVERSAL_EXCLUDED_SEGMENTS = new Set<string>(PROJECT_TRAVERSAL_EXCLUDED_SEGMENTS);
 
 /**
  * File-name suffixes excluded from Project search and polling signatures.
@@ -29,7 +30,7 @@ const TRAVERSAL_EXCLUDED_SEGMENTS = new Set([
  * a WAL file is rewritten on nearly every transaction; surfacing or watching one would create constant listing/watcher
  * churn for no benefit to the user.
  */
-const TRAVERSAL_EXCLUDED_SUFFIXES = ['.db-wal'];
+export const PROJECT_TRAVERSAL_EXCLUDED_SUFFIXES = ['.db-wal'] as const;
 
 /**
  * True when bounded search or polling should skip a bare file or directory name.
@@ -37,7 +38,7 @@ const TRAVERSAL_EXCLUDED_SUFFIXES = ['.db-wal'];
 export function isTraversalExcludedName(name: string): boolean {
     return (
         TRAVERSAL_EXCLUDED_SEGMENTS.has(name) ||
-        TRAVERSAL_EXCLUDED_SUFFIXES.some((suffix) => name.endsWith(suffix))
+        PROJECT_TRAVERSAL_EXCLUDED_SUFFIXES.some((suffix) => name.endsWith(suffix))
     );
 }
 

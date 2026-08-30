@@ -30,6 +30,7 @@ export interface DomainDependencies {
     send: (event: ServerEvent) => void;
     startedAt?: number;
     pid?: number;
+    projectSearch?: { executablePath: string; workerPath: string };
     agentRefreshDelayMs?: number;
     terminal?: Omit<TerminalManagerOptions, 'execution'>;
     terminalExecution: TerminalExecutionPort;

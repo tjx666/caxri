@@ -17,6 +17,7 @@
         "@caxri/system": "workspace:*",
         "@caxri/utils": "workspace:*",
         "@parcel/watcher": "2.6.0",
+        "@vscode/ripgrep-universal": "1.18.0",
         "@xterm/addon-serialize": "0.15.0-beta.300",
         "@xterm/addon-unicode11": "0.10.0-beta.300",
         "@xterm/headless": "6.1.0-beta.302",

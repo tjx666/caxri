@@ -95,6 +95,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         createServices: options.createDomainServices,
         executable: options.executable,
         logger,
+        projectSearch: options.projectSearch,
         terminalExecution,
         userDataPath: lease.paths.userDataPath,
     });

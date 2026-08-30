@@ -90,13 +90,7 @@ export class FileService {
             (sessionId, paths) => this.watcher.noteGitIgnoreRulePaths(sessionId, paths),
             options.openDirectory,
         );
-        this.searcher = new SearchService(
-            resolveSessionPath,
-            (sessionId, path, signal) => this.read(sessionId, path, signal),
-            logger,
-            maxFileBytes,
-            options.search,
-        );
+        this.searcher = new SearchService(resolveSessionPath, logger, maxFileBytes, options.search);
         this.mutations = new FileMutationService(resolveSessionPath, logger, options.mutations);
     }
 
@@ -375,6 +369,10 @@ export class FileService {
     }
 
     async close(): Promise<void> {
-        await Promise.all([this.watcher.close(), this.mutationJournal.close()]);
+        await Promise.all([
+            this.searcher.close(),
+            this.watcher.close(),
+            this.mutationJournal.close(),
+        ]);
     }
 }

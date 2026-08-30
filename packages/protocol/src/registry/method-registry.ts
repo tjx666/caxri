@@ -34,8 +34,6 @@ import {
     fileDocumentSchema,
     fileEntrySchema,
     fileMutationOperationSchema,
-    fileSearchModeSchema,
-    fileSearchResultSchema,
     identifierSchema,
     keybindingConflictSchema,
     keybindingSchema,
@@ -57,6 +55,7 @@ import {
     updateStateSchema,
 } from '../domain/domain.js';
 import { editorNavigationTargetSchema } from '../domain/editor.js';
+import { fileSearchModeSchema, fileSearchResultSchema } from '../domain/file-search.js';
 import { gitInternalMethods, gitMethods } from '../domain/git-contract.js';
 import { projectIconSchema } from '../domain/project-customization.js';
 import { sessionRenameTitleSchema } from '../domain/session.js';

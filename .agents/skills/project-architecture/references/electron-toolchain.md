@@ -50,7 +50,8 @@ only product extensions; `package:e2e` rebuilds a separately manifested Server a
 The Electron `RunAsNode` fuse remains enabled only for the packaged CLI launcher. Server supervision
 uses `server/runtime/bin/node` from the standalone artifact; its Core, Runtime, Extension Host,
 lifecycle-hook bridge, and native dependencies never execute through Electron. Packaging validation
-hashes both Server copies and loads all three Server entrypoints using the pinned artifact runtime.
+hashes both Server copies, loads all Server process entrypoints using the pinned artifact runtime, and
+executes a real Project Search through the staged `server/runtime/bin/rg` and search Worker.
 
 The Desktop build consumes `@caxri/client` and `@caxri/protocol` through public package exports while
 leaving workspace links out of the packaged application. Main discovers and supervises the embedded
@@ -93,6 +94,13 @@ TypeScript 7 is the registry latest but does not ship a JavaScript API. Caxri fo
 builder copies only their selected runtime inputs and compatible prebuilds, preserves executable helper
 modes, and records every byte in the artifact manifest. The native spike loads all three with the
 artifact runtime, performs a real watcher subscription, opens SQLite, and spawns a PTY.
+
+`@vscode/ripgrep-universal` is also owned only by the Server workspace, but it is a build-time binary
+source rather than a runtime package import. The artifact builder selects the current platform and
+architecture explicitly, copies the executable to `runtime/bin/rg`, preserves mode `0755`, stages its
+upstream and wrapper licenses, and includes those files in artifact integrity receipts. Runtime code never searches `PATH` or
+imports the npm package; Server Core injects the absolute artifact path into the Files domain. macOS
+release validation must treat `rg` as a nested executable for signing and notarization.
 
 The private GitHub Release path runs on the repository-level Apple Silicon self-hosted runner and
 publishes an unsigned arm64 DMG for personal use. Only a pushed `main` commit whose subject exactly matches

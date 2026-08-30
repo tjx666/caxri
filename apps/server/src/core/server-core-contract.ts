@@ -22,6 +22,7 @@ export interface ServerCoreOptions {
     includeTestExtensions?: boolean;
     launchDesktop?: () => Promise<void>;
     logger?: StructuredLogger;
+    projectSearch?: { executablePath: string; workerPath: string };
     /**
      * Test seam; production creates the process-backed Terminal execution owner.
      */

@@ -25,6 +25,7 @@ test('Project search opens name results and reveals grouped content matches', as
         index === 79 ? 'const MagicNeedle = Token;' : `const line${index + 1} = ${index + 1};`,
     ).join('\n');
     await Promise.all([
+        writeFile(join(root, '000-pathological.txt'), `${'a'.repeat(48)}!\n`, 'utf8'),
         writeFile(join(root, 'src', 'target-name.ts'), source, 'utf8'),
         writeFile(join(root, 'src', 'target-name.test.ts'), 'MagicNeedle in test\n', 'utf8'),
         writeFile(join(root, 'docs', 'guide.md'), 'MagicNeedle in docs\n', 'utf8'),
@@ -164,6 +165,17 @@ test('Project search opens name results and reveals grouped content matches', as
         ).toBeVisible();
         await running.page.keyboard.press('Meta+Shift+F');
         await expect(contentSearch).toBeFocused();
+        await running.page
+            .getByRole('textbox', { name: 'Files to include' })
+            .fill('000-pathological.txt');
+        await running.page.getByRole('textbox', { name: 'Files to exclude' }).fill('');
+        await running.page.getByRole('button', { name: 'Use Regular Expression' }).click();
+        await contentSearch.fill('^(a|aa)+$');
+        await expect(running.page.locator('.project-search [role="status"]')).toContainText(
+            'Search timed out after scanning',
+            { timeout: 10_000 },
+        );
+        await expect(running.page.getByText('No results.')).toHaveCount(0);
         await searchButton.click();
         await expect(
             running.page.getByRole('textbox', { name: 'Search Project contents' }),
