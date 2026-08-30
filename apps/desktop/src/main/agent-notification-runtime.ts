@@ -76,7 +76,12 @@ export function createDesktopAgentNotifications({
             const nativeNotification = new Notification(notification);
             nativeNotification.on('click', onClick);
             nativeNotification.show();
-            return { close: () => nativeNotification.close() };
+            return {
+                close: () => {
+                    nativeNotification.removeListener('click', onClick);
+                    nativeNotification.close();
+                },
+            };
         },
     });
 }

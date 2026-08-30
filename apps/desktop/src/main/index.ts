@@ -766,7 +766,7 @@ if (ownsProfileInstance) {
                 logger: () => mainLogger,
                 supervisor,
             });
-            await agentNotifications.initialize();
+            void agentNotifications.initialize(); // eslint-disable-line no-void -- background-only startup state
             installIpc();
             processExplorer.installIpc();
             await menuRefreshController.refresh();

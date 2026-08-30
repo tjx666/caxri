@@ -1,4 +1,10 @@
-import type { AppSettings, BootstrapState, SessionRecord, TerminalRecord } from '@caxri/protocol';
+import type {
+    AppSettings,
+    BootstrapState,
+    ServerEvent,
+    SessionRecord,
+    TerminalRecord,
+} from '@caxri/protocol';
 import { defaultAppSettings } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -9,8 +15,9 @@ import type {
 import { createAgentNotificationCoordinator } from '../agent-notifications';
 
 function session(patch: Partial<SessionRecord> & Pick<SessionRecord, 'id'>): SessionRecord {
+    const { id, ...overrides } = patch;
     return {
-        id: patch.id,
+        id,
         projectId: 'project-1',
         workbenchProjectId: 'project-1',
         rootPath: '/project',
@@ -25,8 +32,9 @@ function session(patch: Partial<SessionRecord> & Pick<SessionRecord, 'id'>): Ses
         layoutVersion: 1,
         displayTitle: 'Investigate hooks',
         titleMode: 'automatic',
+        autoNamingState: 'active',
         primaryAgentTerminalId: 'terminal-1',
-        ...patch,
+        ...overrides,
     };
 }
 
@@ -62,7 +70,7 @@ function bootstrap(
         keybindingConflicts: [],
         theme: {},
         runtime: { status: 'ready', restartCount: 0 },
-    } as BootstrapState;
+    } as unknown as BootstrapState;
 }
 
 function harness(initial: SessionRecord) {
@@ -116,7 +124,7 @@ function harness(initial: SessionRecord) {
 const recordsChanged = {
     event: 'state.changed',
     payload: { kind: 'records', sessionIds: ['session-1'], terminalIds: [] },
-} as const;
+} satisfies ServerEvent;
 
 describe('Agent notification coordinator', () => {
     it('does not replay unread attention from the startup baseline', async () => {
@@ -206,6 +214,43 @@ describe('Agent notification coordinator', () => {
         expect(longTurn.shown[0]?.body).toBe('Claude Code completed a turn.');
     });
 
+    it('does not let a secondary Terminal submission reset the primary Agent turn duration', async () => {
+        const test = harness(
+            session({
+                id: 'session-1',
+                lastActivityState: 'running',
+                lastSessionActivityAt: 10_000,
+                lastSessionActivityReason: 'agent_started',
+            }),
+        );
+        await test.coordinator.initialize();
+        test.setSession(
+            session({
+                id: 'session-1',
+                lastActivityState: 'running',
+                lastSessionActivityAt: 50_000,
+                lastSessionActivityReason: 'user_submission',
+            }),
+        );
+        test.coordinator.observe(recordsChanged);
+        await test.coordinator.flush();
+
+        test.setSession(
+            session({
+                id: 'session-1',
+                attentionEpoch: 1,
+                hasUnread: true,
+                lastAttentionKind: 'completed',
+                lastSessionActivityAt: 70_000,
+                lastSessionActivityReason: 'agent_completed',
+            }),
+        );
+        test.coordinator.observe(recordsChanged);
+        await test.coordinator.flush();
+
+        expect(test.shown).toHaveLength(1);
+    });
+
     it('suppresses the selected foreground Session and routes a click to the exact source', async () => {
         const test = harness(session({ id: 'session-1' }));
         await test.coordinator.initialize();
@@ -275,6 +320,78 @@ describe('Agent notification coordinator', () => {
         test.coordinator.observe(recordsChanged);
         await test.coordinator.flush();
         expect(test.shown).toHaveLength(1);
+    });
+
+    it('fails closed immediately when refreshed notification settings cannot be loaded', async () => {
+        const initial = session({ id: 'session-1' });
+        let current = initial;
+        const closed: boolean[] = [];
+        const coordinator = createAgentNotificationCoordinator({
+            activateSession: () => Promise.resolve(),
+            isSessionVisible: () => false,
+            loadBootstrap: () => Promise.resolve(bootstrap(current)),
+            loadRecords: () => Promise.resolve({ sessions: [current], terminals: [terminal()] }),
+            loadSettings: () => Promise.reject(new Error('Host unavailable')),
+            showNotification: () => {
+                const index = closed.push(false) - 1;
+                return { close: () => (closed[index] = true) };
+            },
+        });
+        await coordinator.initialize();
+        current = session({
+            id: 'session-1',
+            attentionEpoch: 1,
+            hasUnread: true,
+            lastAttentionKind: 'waiting',
+        });
+        coordinator.observe(recordsChanged);
+        await coordinator.flush();
+
+        coordinator.observe({ event: 'settings.changed', payload: { source: '{}' } });
+        expect(closed).toEqual([true]);
+        await coordinator.flush();
+        expect(closed).toEqual([true]);
+    });
+
+    it('closes a delivered notification after a disabled reconnect with an unchanged epoch', async () => {
+        const initial = session({ id: 'session-1' });
+        let current = initial;
+        let settings = defaultAppSettings;
+        const closed: boolean[] = [];
+        const coordinator = createAgentNotificationCoordinator({
+            activateSession: () => Promise.resolve(),
+            isSessionVisible: () => false,
+            loadBootstrap: () => Promise.resolve(bootstrap(current, settings)),
+            loadRecords: () => Promise.resolve({ sessions: [current], terminals: [terminal()] }),
+            loadSettings: () => Promise.resolve(settings),
+            showNotification: () => {
+                const index = closed.push(false) - 1;
+                return { close: () => (closed[index] = true) };
+            },
+        });
+        await coordinator.initialize();
+        current = session({
+            id: 'session-1',
+            attentionEpoch: 1,
+            hasUnread: true,
+            lastAttentionKind: 'waiting',
+        });
+        coordinator.observe(recordsChanged);
+        await coordinator.flush();
+
+        settings = { ...defaultAppSettings, 'agents.notifications.enabled': false };
+        coordinator.observe({
+            event: 'host.connectionChanged',
+            payload: {
+                status: 'reconnected',
+                attempt: 1,
+                downtimeMs: 1,
+                isHostReplaced: false,
+            },
+        });
+        await coordinator.flush();
+
+        expect(closed).toEqual([true]);
     });
 
     it('does not show an in-flight notification after application disposal', async () => {
@@ -461,6 +578,51 @@ describe('Agent notification coordinator', () => {
         expect(loadRecords).not.toHaveBeenCalled();
     });
 
+    it('refreshes a Shell Terminal when the same record event promotes its Session to Agent', async () => {
+        const initial = session({ id: 'session-1', primaryAgentTerminalId: undefined });
+        const promoted = session({
+            id: 'session-1',
+            primaryAgentTerminalId: 'terminal-1',
+            attentionEpoch: 1,
+            hasUnread: true,
+            lastAttentionKind: 'waiting',
+        });
+        const promotedTerminal = terminal();
+        const loadRecords = vi.fn(() =>
+            Promise.resolve({ sessions: [promoted], terminals: [promotedTerminal] }),
+        );
+        const showNotification = vi.fn(() => ({ close: vi.fn() }));
+        const coordinator = createAgentNotificationCoordinator({
+            activateSession: () => Promise.resolve(),
+            isSessionVisible: () => false,
+            loadBootstrap: () =>
+                Promise.resolve({
+                    ...bootstrap(initial),
+                    terminals: [terminal({ kind: 'shell', provider: undefined })],
+                }),
+            loadRecords,
+            loadSettings: () => Promise.resolve(defaultAppSettings),
+            showNotification,
+        });
+        await coordinator.initialize();
+
+        coordinator.observe({
+            event: 'state.changed',
+            payload: {
+                kind: 'records',
+                sessionIds: ['session-1'],
+                terminalIds: ['terminal-1'],
+            },
+        });
+        await coordinator.flush();
+
+        expect(loadRecords).toHaveBeenCalledWith({
+            sessionIds: ['session-1'],
+            terminalIds: ['terminal-1'],
+        });
+        expect(showNotification).toHaveBeenCalledTimes(1);
+    });
+
     it('reports a startup reconciliation failure without throwing into Desktop startup', async () => {
         const onError = vi.fn();
         const coordinator = createAgentNotificationCoordinator({
@@ -476,5 +638,53 @@ describe('Agent notification coordinator', () => {
         await expect(coordinator.initialize()).resolves.toBeUndefined();
 
         expect(onError).toHaveBeenCalledWith(expect.any(Error));
+    });
+
+    it('retries a transient startup failure on the next state event', async () => {
+        const initial = session({ id: 'session-1' });
+        const loadBootstrap = vi
+            .fn<() => Promise<BootstrapState>>()
+            .mockRejectedValueOnce(new Error('Host unavailable'))
+            .mockResolvedValue(bootstrap(initial));
+        const coordinator = createAgentNotificationCoordinator({
+            activateSession: () => Promise.resolve(),
+            isSessionVisible: () => false,
+            loadBootstrap,
+            loadRecords: () => Promise.resolve({ sessions: [initial], terminals: [terminal()] }),
+            loadSettings: () => Promise.resolve(defaultAppSettings),
+            showNotification: vi.fn(),
+        });
+
+        await coordinator.initialize();
+        coordinator.observe(recordsChanged);
+        await coordinator.flush();
+
+        expect(loadBootstrap).toHaveBeenCalledTimes(2);
+    });
+
+    it('starts a fresh retry when a state event arrives during a failing startup load', async () => {
+        const initial = session({ id: 'session-1' });
+        const firstBootstrap = Promise.withResolvers<BootstrapState>();
+        const loadBootstrap = vi
+            .fn<() => Promise<BootstrapState>>()
+            .mockImplementationOnce(() => firstBootstrap.promise)
+            .mockResolvedValue(bootstrap(initial));
+        const coordinator = createAgentNotificationCoordinator({
+            activateSession: () => Promise.resolve(),
+            isSessionVisible: () => false,
+            loadBootstrap,
+            loadRecords: () => Promise.resolve({ sessions: [initial], terminals: [terminal()] }),
+            loadSettings: () => Promise.resolve(defaultAppSettings),
+            showNotification: vi.fn(),
+        });
+
+        const initialization = coordinator.initialize();
+        await vi.waitFor(() => expect(loadBootstrap).toHaveBeenCalledOnce());
+        coordinator.observe(recordsChanged);
+        firstBootstrap.reject(new Error('Host unavailable'));
+        await initialization;
+        await coordinator.flush();
+
+        expect(loadBootstrap).toHaveBeenCalledTimes(2);
     });
 });
