@@ -4,21 +4,144 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type * as ExecutablesModule from '../../../../executables';
+
+const mocks = vi.hoisted(() => ({
+    runExternalCommand: vi.fn<typeof ExecutablesModule.runExternalCommand>(),
+}));
+
+vi.mock('../../../../executables', async (importOriginal) => {
+    const actual = await importOriginal<typeof ExecutablesModule>();
+    const runExternalCommand: typeof actual.runExternalCommand = (
+        name,
+        arguments_,
+        options,
+        dependencies,
+    ) =>
+        mocks.runExternalCommand.getMockImplementation()
+            ? mocks.runExternalCommand(name, arguments_, options, dependencies)
+            : actual.runExternalCommand(name, arguments_, options, dependencies);
+    return { ...actual, runExternalCommand };
+});
+
+import type { AgentProviderSessionRenameContext } from '../../../contract';
 import { clearExecutableCache } from '../../../discovery';
 import { AgentService, createLocalAgentAdapters } from '../../../service';
-import { claudeProvider } from '..';
+import { claudeProvider, renameClaudeSession } from '..';
 
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
     clearExecutableCache();
+    mocks.runExternalCommand.mockReset();
     vi.unstubAllEnvs();
     const pendingCleanup = [...temporaryDirectories];
     temporaryDirectories.length = 0;
     await Promise.all(pendingCleanup.map((path) => rm(path, { recursive: true, force: true })));
 });
 
+function claudeRenameContext(
+    overrides: Partial<AgentProviderSessionRenameContext> = {},
+): AgentProviderSessionRenameContext {
+    return {
+        agentSessionId: 'claude-session-rename',
+        cwd: '/workspace/project',
+        displayTitle: 'Release readiness',
+        environment: {
+            homeDirectory: '/Users/tester',
+            variables: {
+                CLAUDE_CONFIG_DIR: '/tmp/claude-test-config',
+                PATH: '/opt/claude/bin:/usr/bin',
+            },
+        },
+        executable: '/opt/claude/bin/claude',
+        version: '2.1.251 (Claude Code)',
+        ...overrides,
+    };
+}
+
 describe('Claude Code provider', () => {
+    it('renames the exact native session with structured arguments and returns the provider-authoritative name', async () => {
+        mocks.runExternalCommand.mockResolvedValue({
+            stderr: '',
+            stdout: JSON.stringify({
+                is_error: false,
+                result: 'Session renamed to: Release readiness 2',
+                session_id: 'claude-session-rename',
+                subtype: 'success',
+                type: 'result',
+            }),
+        });
+
+        await expect(renameClaudeSession(claudeRenameContext())).resolves.toEqual({
+            displayTitle: 'Release readiness 2',
+        });
+        expect(mocks.runExternalCommand).toHaveBeenCalledOnce();
+        const [executable, arguments_, options, dependencies] =
+            mocks.runExternalCommand.mock.calls[0];
+        expect(executable).toBe('/opt/claude/bin/claude');
+        expect(arguments_).toEqual([
+            '--resume',
+            'claude-session-rename',
+            '--print',
+            '--output-format',
+            'json',
+            '/rename Release readiness',
+        ]);
+        expect(options).toMatchObject({
+            cwd: '/workspace/project',
+            maxBuffer: 64 * 1024,
+            signal: undefined,
+            timeout: 10_000,
+        });
+        expect(options.env).toMatchObject({
+            CLAUDE_CONFIG_DIR: '/tmp/claude-test-config',
+            HOME: '/Users/tester',
+            PATH: '/opt/claude/bin:/usr/bin',
+        });
+        expect(dependencies).toBeUndefined();
+    });
+
+    it.each(['2.1.231 (Claude Code)', '3.0.0 (Claude Code)'])(
+        'rejects Claude Code version %s outside the native rename contract',
+        async (version) => {
+            await expect(
+                renameClaudeSession(claudeRenameContext({ version })),
+            ).rejects.toMatchObject({ code: 'UNAVAILABLE' });
+            expect(mocks.runExternalCommand).not.toHaveBeenCalled();
+        },
+    );
+
+    it.each([
+        ['malformed output', 'not-json'],
+        [
+            'a rejected rename',
+            JSON.stringify({
+                is_error: true,
+                result: 'Session rename denied',
+                session_id: 'claude-session-rename',
+                subtype: 'error',
+                type: 'result',
+            }),
+        ],
+    ])('maps %s to UNAVAILABLE', async (_case, stdout) => {
+        mocks.runExternalCommand.mockResolvedValue({ stderr: '', stdout });
+
+        await expect(renameClaudeSession(claudeRenameContext())).rejects.toMatchObject({
+            code: 'UNAVAILABLE',
+        });
+    });
+
+    it('classifies a bounded Claude Code process timeout', async () => {
+        mocks.runExternalCommand.mockRejectedValue(
+            Object.assign(new Error('timed out'), { killed: true }),
+        );
+
+        await expect(renameClaudeSession(claudeRenameContext())).rejects.toMatchObject({
+            code: 'TIMEOUT',
+        });
+    });
+
     it('declares skills and compatibility command roots with Claude invocation syntax', () => {
         const roots = claudeProvider.actions?.roots(
             { projectRoot: '/repo', cwd: '/repo/packages/app' },

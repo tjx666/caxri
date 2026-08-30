@@ -5,13 +5,21 @@ import { join, resolve } from 'node:path';
 import type { AgentActivityState } from '@caxri/protocol';
 import { mapWithConcurrency } from '@caxri/system';
 
+import { runExternalCommand } from '../../../executables';
 import type {
     AgentEnvironment,
     AgentProviderDescriptor,
+    AgentProviderSessionRenameContext,
+    AgentSessionRenameResult,
     AgentSnapshotContext,
     LocalAgentState,
 } from '../../contract';
 import { canonicalPath, isOpaqueAgentSessionId, projectDirectories } from '../../contract';
+import {
+    agentCommandEnvironment,
+    assertAgentRenameVersion,
+    throwAgentRenameError,
+} from '../../rename';
 import { openSafeAgentTranscript } from '../../transcript-security';
 import { claudeHookAdapter } from './hooks';
 
@@ -32,6 +40,16 @@ const MAX_TRANSCRIPT_SCAN_BYTES_PER_READ = 4 * 1024 * 1024;
 const TRANSCRIPT_READ_CHUNK_BYTES = 64 * 1024;
 const MAX_TRANSCRIPT_TITLE_CACHES = 64;
 const MAX_LAST_PROMPT_TITLE_LENGTH = 80;
+/**
+ * Non-interactive `/rename` is the public write boundary. Repeating the same exact-session rename is idempotent on the
+ * supported CLI line, while the parsed result remains authoritative if provider behavior changes.
+ *
+ * @see https://code.claude.com/docs/en/commands
+ */
+const CLAUDE_RENAME_MINIMUM_VERSION = '2.1.232';
+const CLAUDE_RENAME_OUTPUT_BYTES = 64 * 1024;
+const CLAUDE_RENAME_TIMEOUT_MS = 10_000;
+const CLAUDE_RENAME_RESULT_PREFIX = 'Session renamed to:';
 
 interface TranscriptTitleCache {
     /**
@@ -40,6 +58,67 @@ interface TranscriptTitleCache {
     offset: number;
     lastPrompt?: string;
     title?: string;
+}
+
+interface ClaudeRenameResponse {
+    is_error?: unknown;
+    result?: unknown;
+    session_id?: unknown;
+    subtype?: unknown;
+    type?: unknown;
+}
+
+function parseClaudeRenameResponse(
+    stdout: string,
+    expectedSessionId: string,
+): AgentSessionRenameResult {
+    let response: ClaudeRenameResponse;
+    try {
+        response = JSON.parse(stdout.trim()) as ClaudeRenameResponse;
+    } catch {
+        throw new Error('Claude Code returned invalid rename output');
+    }
+    if (
+        response.type !== 'result' ||
+        response.subtype !== 'success' ||
+        response.is_error !== false ||
+        response.session_id !== expectedSessionId ||
+        typeof response.result !== 'string' ||
+        !response.result.startsWith(CLAUDE_RENAME_RESULT_PREFIX)
+    )
+        throw new Error('Claude Code rejected the Session rename');
+    const displayTitle = response.result.slice(CLAUDE_RENAME_RESULT_PREFIX.length).trim();
+    if (!displayTitle) throw new Error('Claude Code returned an empty Session name');
+    return { displayTitle };
+}
+
+export async function renameClaudeSession(
+    context: AgentProviderSessionRenameContext,
+): Promise<AgentSessionRenameResult> {
+    assertAgentRenameVersion('claude', context.version, CLAUDE_RENAME_MINIMUM_VERSION);
+    try {
+        const { stdout } = await runExternalCommand(
+            context.executable,
+            [
+                '--resume',
+                context.agentSessionId,
+                '--print',
+                '--output-format',
+                'json',
+                `/rename ${context.displayTitle}`,
+            ],
+            {
+                cwd: context.cwd,
+                env: agentCommandEnvironment(context.environment),
+                maxBuffer: CLAUDE_RENAME_OUTPUT_BYTES,
+                signal: context.signal,
+                timeout: CLAUDE_RENAME_TIMEOUT_MS,
+            },
+        );
+        return parseClaudeRenameResponse(stdout, context.agentSessionId);
+    } catch (error) {
+        throwAgentRenameError('claude', error, context.signal);
+    }
 }
 
 /**
@@ -361,6 +440,7 @@ export const claudeProvider: AgentProviderDescriptor = {
     id: 'claude',
     readState: (context, environment) =>
         readClaudeState(context, resolveClaudeConfigDirectory(environment)),
+    renameSession: renameClaudeSession,
     resumeArguments: (agentSessionId) => ['--resume', agentSessionId],
     transcriptBaseRoot: (environment) =>
         claudeTranscriptBaseRoot(resolveClaudeConfigDirectory(environment)),

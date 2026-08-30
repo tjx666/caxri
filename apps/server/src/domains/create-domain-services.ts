@@ -35,6 +35,7 @@ import { assertInsideRoot } from './path-security';
 import { ProjectStatusService } from './project-status';
 import { createRootServices } from './root-services';
 import { createServiceHandlers, mainOwned } from './service-handlers';
+import { SessionRenameService } from './session-rename';
 import { SessionSelectionQueue } from './session-selection';
 import type { TerminalWorkingDirectoryIdentity } from './terminal';
 import { ShellIntegrationService, TerminalManager, TerminalRestoreSupervisor } from './terminal';
@@ -85,6 +86,7 @@ export async function createDomainServices(
     const coordinator = new AgentCoordinator(database, agents, send, logger, {
         refreshDelayMs: dependencies.agentRefreshDelayMs,
     });
+    const sessionRenames = new SessionRenameService(database, agents, coordinator, send);
     const agentHooks = new AgentHookManager({
         environment: agentEnvironment,
         logger,
@@ -655,14 +657,8 @@ export async function createDomainServices(
                 });
             return result.session;
         },
-        'session.rename': ({ sessionId, displayTitle }) => {
-            const session = database.renameSession(sessionId, displayTitle);
-            send({
-                event: 'state.changed',
-                payload: { kind: 'records', sessionIds: [sessionId], terminalIds: [] },
-            });
-            return session;
-        },
+        'session.rename': ({ sessionId, displayTitle }, signal, finalizeDurably) =>
+            sessionRenames.rename(sessionId, displayTitle, signal, finalizeDurably),
         'session.archive': ({ sessionId }) => {
             terminalRestores.cancel(sessionId);
             const session = database.archiveSession(sessionId);

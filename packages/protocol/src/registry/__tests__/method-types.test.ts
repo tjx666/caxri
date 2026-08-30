@@ -20,6 +20,19 @@ describe('isCaxriMethod', () => {
     });
 });
 
+describe('session.rename parameters', () => {
+    it('rejects line breaks and control characters before a title can reach an Agent CLI', () => {
+        const schema = methods['session.rename'].params;
+
+        expect(() =>
+            schema.parse({ sessionId: 'session-1', displayTitle: 'First line\n/compact' }),
+        ).toThrow('Session name must be a single line without control characters');
+        expect(
+            schema.parse({ sessionId: 'session-1', displayTitle: '  Focused investigation  ' }),
+        ).toEqual({ sessionId: 'session-1', displayTitle: 'Focused investigation' });
+    });
+});
+
 describe('owner narrowing guards', () => {
     it('routes a desktop-owned method through isDesktopRequest/isMainRequest only', () => {
         const request = { method: 'processExplorer.open', params: {} } as CaxriRequest;
