@@ -180,8 +180,14 @@ describe('Agent adapter fallback', () => {
             }),
         );
         const service = createTestAgentService({
-            claude: { provider: 'claude', snapshot: claudeSnapshot },
-            codex: { provider: 'codex', snapshot: codexSnapshot },
+            claude: {
+                provider: 'claude',
+                snapshot: claudeSnapshot,
+            },
+            codex: {
+                provider: 'codex',
+                snapshot: codexSnapshot,
+            },
         });
 
         await expect(
@@ -195,5 +201,50 @@ describe('Agent adapter fallback', () => {
         ]);
         expect(claudeSnapshot).toHaveBeenCalledTimes(1);
         expect(codexSnapshot).toHaveBeenCalledTimes(1);
+    });
+
+    it('delegates session rename to the selected provider without changing its inputs or result', async () => {
+        const signal = new AbortController().signal;
+        const context = {
+            agentSessionId: 'codex-session-1',
+            cwd: '/project',
+            displayTitle: 'Requested title',
+            signal,
+        };
+        const renameSession = vi.fn<AgentAdapter['renameSession']>(() =>
+            Promise.resolve({ displayTitle: 'Provider title' }),
+        );
+        const claudeRenameSession = vi.fn<AgentAdapter['renameSession']>();
+        const snapshot = vi.fn<AgentAdapter['snapshot']>();
+        const service = createTestAgentService({
+            claude: { provider: 'claude', renameSession: claudeRenameSession, snapshot },
+            codex: { provider: 'codex', renameSession, snapshot },
+        });
+
+        await expect(service.renameSession('codex', context)).resolves.toEqual({
+            displayTitle: 'Provider title',
+        });
+        expect(renameSession).toHaveBeenCalledOnce();
+        expect(renameSession).toHaveBeenCalledWith(context);
+        expect(renameSession.mock.calls[0]?.[0]).toBe(context);
+        expect(renameSession.mock.calls[0]?.[0].signal).toBe(signal);
+        expect(claudeRenameSession).not.toHaveBeenCalled();
+    });
+
+    it('passes through provider session rename errors', async () => {
+        const error = new Error('rename failed');
+        const renameSession = vi.fn<AgentAdapter['renameSession']>(() => Promise.reject(error));
+        const snapshot = vi.fn<AgentAdapter['snapshot']>();
+        const service = createTestAgentService({
+            claude: { provider: 'claude', renameSession, snapshot },
+        });
+
+        await expect(
+            service.renameSession('claude', {
+                agentSessionId: 'claude-session-1',
+                cwd: '/project',
+                displayTitle: 'Requested title',
+            }),
+        ).rejects.toBe(error);
     });
 });

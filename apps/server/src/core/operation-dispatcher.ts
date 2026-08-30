@@ -16,6 +16,7 @@ import type { DomainHandlers } from '../domains/domain-services';
  */
 interface DomainOperationEnvelope {
     context?: unknown;
+    finalizeDurably?: <Result>(commit: () => Result) => Result;
     id: string;
     method: string;
     params: unknown;
@@ -71,8 +72,13 @@ export function createOperationDispatcher(
             const handler = handlers[request.method] as (
                 parameters: unknown,
                 signal: AbortSignal,
+                finalizeDurably?: <Result>(commit: () => Result) => Result,
             ) => Promise<unknown>;
-            const result = await handler(request.params, cancellation.signal);
+            const result = await handler(
+                request.params,
+                cancellation.signal,
+                envelope.finalizeDurably,
+            );
             if (cancellation.signal.aborted)
                 throw new CaxriError('CANCELLED', 'Runtime request was canceled');
             if (!UNLOGGED_METHODS.has(envelope.method)) {

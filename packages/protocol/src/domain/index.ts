@@ -9,6 +9,7 @@ export * from './logging.js';
 export * from './pane-layout.js';
 export * from './pane-layout-reducer.js';
 export * from './project-customization.js';
+export * from './session.js';
 export * from './terminal-file-link.js';
 export * from './terminal-link-fingerprint.js';
 export * from './terminal-reference.js';

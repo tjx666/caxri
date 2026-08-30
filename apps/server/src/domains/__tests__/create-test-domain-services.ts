@@ -6,6 +6,9 @@ import { vi } from 'vitest';
 import type { AgentAdapter } from '../agents/service';
 import { AgentService } from '../agents/service';
 
+type TestAgentAdapterOverride = Pick<AgentAdapter, 'provider'> &
+    Partial<Omit<AgentAdapter, 'provider'>>;
+
 /**
  * Creates the inert PTY used by domain-service tests that must not launch a login shell. Tests that need to emit PTY
  * data or exit events should keep a richer domain-local fake.
@@ -25,13 +28,18 @@ export function createFakePty(): IPty {
  * Prevents background Agent metadata probes from escaping hermetic domain-service tests.
  */
 export function createPendingAgentAdapters(
-    overrides: Partial<Record<AgentProvider, AgentAdapter>> = {},
+    overrides: Partial<Record<AgentProvider, TestAgentAdapterOverride>> = {},
 ): Record<AgentProvider, AgentAdapter> {
     const pending = new Promise<never>(() => {});
     return Object.fromEntries(
         agentProviderIds.map((provider) => [
             provider,
-            overrides[provider] ?? { provider, snapshot: () => pending },
+            {
+                provider,
+                renameSession: () => pending,
+                snapshot: () => pending,
+                ...overrides[provider],
+            },
         ]),
     ) as Record<AgentProvider, AgentAdapter>;
 }
@@ -40,7 +48,7 @@ export function createPendingAgentAdapters(
  * Keeps focused Agent tests exhaustive for the catalog without making every fixture restate inert providers.
  */
 export function createTestAgentService(
-    overrides: Partial<Record<AgentProvider, AgentAdapter>> = {},
+    overrides: Partial<Record<AgentProvider, TestAgentAdapterOverride>> = {},
     logger?: ConstructorParameters<typeof AgentService>[0],
 ): AgentService {
     return new AgentService(logger, createPendingAgentAdapters(overrides));

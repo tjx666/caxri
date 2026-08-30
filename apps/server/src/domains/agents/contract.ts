@@ -39,6 +39,26 @@ export interface LocalAgentState {
     usage?: Array<{ label: string; value: string }>;
 }
 
+export interface AgentSessionRenameContext {
+    agentSessionId: string;
+    cwd: string;
+    displayTitle: string;
+    signal?: AbortSignal;
+}
+
+export interface AgentSessionRenameResult {
+    /**
+     * The provider-authoritative name. Providers may add a suffix to keep native names unique.
+     */
+    displayTitle: string;
+}
+
+export interface AgentProviderSessionRenameContext extends AgentSessionRenameContext {
+    environment: AgentEnvironment;
+    executable: string;
+    version: string;
+}
+
 /**
  * Provider-agnostic inputs every `AgentProviderDescriptor` may consult to locate its own on-disk state. This is
  * intentionally generic (home directory, environment variables) so no provider-specific field ever needs to live here;
@@ -98,6 +118,11 @@ export interface AgentProviderDescriptor {
         context: AgentSnapshotContext,
         environment: AgentEnvironment,
     ): Promise<LocalAgentState | undefined>;
+    /**
+     * Sets the provider-owned conversation name through its supported public CLI boundary. Implementations must fail
+     * closed for unsupported versions and must never write provider-private persistence directly.
+     */
+    renameSession(context: AgentProviderSessionRenameContext): Promise<AgentSessionRenameResult>;
     /**
      * Structured argv for restoring one provider conversation. This is Server launch behavior, not a browser-safe
      * identity or capability contract.

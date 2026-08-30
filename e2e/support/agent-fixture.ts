@@ -63,13 +63,51 @@ function standardExecutableSource(
     definition: FakeAgentDefinition,
 ): string {
     const capture = definition.inputCapture;
-    return `#!${process.execPath}
+    return String.raw`#!${process.execPath}
+const childProcess = require('node:child_process');
 const fs = require('node:fs');
+const path = require('node:path');
+const provider = ${JSON.stringify(provider)};
 if (process.argv.includes('--version')) {
-  process.stdout.write(${JSON.stringify(`caxri-fake-${provider} 1.0.0\n`)});
+  process.stdout.write(${JSON.stringify(provider === 'codex' ? 'codex-cli 0.151.0\n' : '2.1.251 (Claude Code)\n')});
   process.exit(0);
 }
-function becomeReady() {
+const resumeIndex = process.argv.indexOf('--resume');
+const renameCommand = process.argv.at(-1) ?? '';
+if (provider === 'claude' && resumeIndex >= 0 && renameCommand.startsWith('/rename ')) {
+  process.stdout.write(JSON.stringify({
+    is_error: false,
+    result: 'Session renamed to: ' + renameCommand.slice('/rename '.length),
+    session_id: process.argv[resumeIndex + 1],
+    subtype: 'success',
+    type: 'result',
+  }));
+  process.exit(0);
+}
+const isCodexAppServer = provider === 'codex' && process.argv[2] === 'app-server' && process.argv[3] === '--stdio';
+if (isCodexAppServer) {
+  const quote = (value) => "'" + String(value).replaceAll("'", "''") + "'";
+  require('node:readline').createInterface({ input: process.stdin }).on('line', (line) => {
+    const message = JSON.parse(line);
+    if (message.id === 1) {
+      process.stdout.write(JSON.stringify({ id: 1, result: {} }) + '\n');
+      return;
+    }
+    if (message.id !== 2) return;
+    try {
+      const stateDirectory = process.env.CODEX_SQLITE_HOME;
+      const database = fs.readdirSync(stateDirectory).find((name) => /^state_\d+\.sqlite$/.test(name));
+      if (database) {
+        childProcess.execFileSync('/usr/bin/sqlite3', [
+          path.join(stateDirectory, database),
+          'UPDATE threads SET name = ' + quote(message.params.name) + ' WHERE id = ' + quote(message.params.threadId),
+        ]);
+      }
+    } catch {}
+    process.stdout.write(JSON.stringify({ id: 2, result: {} }) + '\n');
+  });
+} else {
+  function becomeReady() {
   process.stdin.setRawMode?.(true);
   process.stdin.resume();
   ${
@@ -87,7 +125,8 @@ function becomeReady() {
   }
   process.stdout.write(${JSON.stringify(definition.startupOutput ?? `Fake ${provider} ready\r\n`)});
 }
-${definition.readinessDelayMs ? `setTimeout(becomeReady, ${definition.readinessDelayMs});` : 'becomeReady();'}
+  ${definition.readinessDelayMs ? `setTimeout(becomeReady, ${definition.readinessDelayMs});` : 'becomeReady();'}
+}
 `;
 }
 
