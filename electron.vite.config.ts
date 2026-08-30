@@ -161,9 +161,10 @@ export default defineConfig(async ({ command }) => {
                     name: 'caxri-renderer-csp',
                     transformIndexHtml: {
                         /**
-                         * The instrumented entry must be selected before Vite discovers the HTML module graph. A
-                         * default post-order transform changes only emitted HTML and silently leaves `main.tsx` as the
-                         * bundled entry, so react-scan would never execute.
+                         * The react-scan entry must be selected before Vite discovers the HTML module graph. A default
+                         * post-order transform changes only emitted HTML and silently leaves `main.tsx` as the bundled
+                         * entry. React profiling alone deliberately keeps `main.tsx`: CI budgets must not include the
+                         * observer overhead of the optional attribution tool.
                          */
                         order: 'pre',
                         handler(html: string, context) {
@@ -174,8 +175,8 @@ export default defineConfig(async ({ command }) => {
                                 () => connectSource,
                             );
                             if (
-                                !context.path.endsWith('/index.html') ||
-                                (!isReactProfilingEnabled && !isRendererMonitoringEnabled)
+                                !isRendererMonitoringEnabled ||
+                                !context.path.endsWith('/index.html')
                             )
                                 return withCsp;
                             return withCsp.replace(

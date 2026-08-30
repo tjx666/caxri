@@ -17,7 +17,9 @@ description: Measure and protect Caxri startup, Server Core responsiveness, and 
    `CAXRI_BENCHMARK_EDITOR_DETOUR_FILE` that does not contain that text.
    For Renderer re-renders, frame gaps, Long Animation Frames, and interaction latency, run
    `bun run benchmark:renderer` and record `CAXRI_RENDERER_BENCHMARK`. The command owns its isolated
-   Project and uses a profiling React build with opt-in `react-scan/lite` attribution.
+   Project, uses a profiling React build without observer overhead, exercises every fixed Renderer
+   surface, and writes `test-results/receipts/renderer-performance.json`. Enable
+   `CAXRI_RENDERER_MONITORING=1` only for a separate local attribution run with `react-scan/lite`.
 3. Read the correlated Desktop Main, Server Core, Terminal Host, and Extension Host JSONL logs
    from the active runtime profile's `<userData>/logs/` directory. Use `app.ready`,
    `server_connection.attached`, `window.ready_to_show`, `server_core.ready`, `pty.spawned`,
@@ -32,7 +34,9 @@ description: Measure and protect Caxri startup, Server Core responsiveness, and 
    dependencies out of the terminal-first Renderer entry. Send live PTY output only to attached
    Renderer views; restore the bounded snapshot before replaying output buffered during attachment.
 6. Add a focused unit or integration test for the optimized boundary and extend the performance E2E
-   assertion when a regression can be observed there.
+   assertion when a regression can be observed there. Keep React render-count and total-duration
+   budgets per stable surface. Browser frame, Long Animation Frame, and Event Timing metrics remain
+   diagnostic unless a same-runner experiment proves a deterministic budget.
 7. Run `bun run check --lint --test --type`, the focused Electron workflow, and the benchmark
    again. Compare like-for-like repository, build mode, and executable. Reserve the full unit and
    E2E suites for release or CI parity.

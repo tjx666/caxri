@@ -123,6 +123,12 @@ changing workflow wiring.
   namespaced workers followed by `desktop-exclusive` with one worker on the same `m2-24`; a failed
   first pool does not suppress the second pool. The `workflow_dispatch` worker input stays bounded
   to 2–4 for frozen same-head comparisons.
+- Every successful E2E-running path, including `e2e-repair`, finishes with the fixed Renderer
+  performance scenario. That step rebuilds a profiling React Renderer after the production-build
+  suites, applies the per-surface budgets in
+  [`docs/renderer-performance.md`](renderer-performance.md), and uploads its machine-readable receipt.
+  `CI gate` requires the step output to be `success`; changing the gate, benchmark command, or
+  performance spec is protected retry configuration and therefore requires a full validation path.
 - Individually audited tests may move into a dedicated spec in the `parallelSafeSpecs` allowlist.
   Every unclassified spec remains desktop-exclusive, so each logical pool needs only one
   Playwright invocation.
@@ -152,7 +158,8 @@ state, and counts before comparing profiles. Report median end-to-end wall time,
 peak process-tree RSS, cache state, and every non-green attempt. Adopt a parallelism or concurrency
 change only when correctness and isolation stay green and self-hosted medians improve; otherwise
 restore control and record the rejection. `CAXRI_VALIDATION_ENV`, `CAXRI_CACHE_STATE`,
-`CAXRI_CI_METRIC`, and `CAXRI_E2E_MANIFEST` provide the machine-readable inputs for that report;
+`CAXRI_CI_METRIC`, `CAXRI_E2E_MANIFEST`, and `CAXRI_RENDERER_BENCHMARK` provide the machine-readable
+inputs for that report;
 the owning issue or PR records the candidate-specific samples and adoption decision.
 
 Before dispatch, freeze the sample count, dispatch order, expected minimum wall time from the most

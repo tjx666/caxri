@@ -33,12 +33,22 @@ async function expectWorkbenchRoot(
             return bootstrap.sessions.find((session) => session.id === sessionId)?.rootPath;
         })
         .toBe(rootPath);
-    const summary = await pageRequest<GitSummary>(page, 'git.summary', { sessionId });
-    expect(summary.isRepository).toBe(true);
-    expect(summary.repositories.find((repo) => repo.kind === 'primary')).toMatchObject({
-        branch,
-        rootPath,
-    });
+    /**
+     * Session persistence and Git summary refresh complete through separate request paths. Wait for both so a busy
+     * desktop runner cannot observe the new Session root with the preceding repository summary.
+     */
+    await expect
+        .poll(async () => {
+            const summary = await pageRequest<GitSummary>(page, 'git.summary', { sessionId });
+            return {
+                isRepository: summary.isRepository,
+                primary: summary.repositories.find((repo) => repo.kind === 'primary'),
+            };
+        })
+        .toMatchObject({
+            isRepository: true,
+            primary: { branch, rootPath },
+        });
 }
 
 test('authenticated Agent worktree provenance prompts, authorizes, and switches one Session', async () => {
