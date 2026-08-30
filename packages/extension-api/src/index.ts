@@ -8,6 +8,7 @@ export type {
     SourceControlActionResult,
     SourceControlChange,
     SourceControlCommandBinding,
+    SourceControlFileHistory,
     SourceControlGroup,
     SourceControlHistoryDescriptor,
     SourceControlHistoryDetails,

@@ -6,6 +6,8 @@ import type {
     GitSummary,
     SourceControlAction,
     SourceControlCommandBinding,
+    SourceControlFileHistory,
+    SourceControlHistoryDescriptor,
     SourceControlResource,
     SourceControlViewModel,
 } from 'caxri';
@@ -35,6 +37,7 @@ export interface ActionRegistration {
 export type RegisterSourceControlAction = (action: ActionRegistration) => SourceControlAction;
 
 interface BuildSourceControlViewModelOptions {
+    activeResource?: string;
     detailsByRepository?: ReadonlyMap<string, GitCommitDetails>;
     detailErrorsByRepository?: ReadonlyMap<string, true>;
     mode: GitSourceControlMode;
@@ -43,6 +46,7 @@ interface BuildSourceControlViewModelOptions {
     revision?: string;
     selectedCommitSha?: string;
     summary: GitSummary;
+    fileHistoryRepositories?: readonly GitRepositorySummary[];
 }
 
 function themeIcon(id: string) {
@@ -80,6 +84,95 @@ function fallbackRegisterAction(action: ActionRegistration): SourceControlAction
 
 function basename(path: string): string {
     return path.split('/').findLast(Boolean) ?? path;
+}
+
+function normalizeRepoPath(path: string): string {
+    const normalized = path.replaceAll('\\', '/');
+    return normalized === '/' ? normalized : normalized.replace(/\/+$/, '');
+}
+
+function trimTrailingPathSeparators(path: string): string {
+    return path === '/' ? path : path.replace(/\/+$/, '');
+}
+
+function historyDescriptor(
+    repo: GitRepositorySummary,
+    revision: string,
+    kind: 'file' | 'repository',
+): SourceControlHistoryDescriptor {
+    return {
+        id: repo.id,
+        label: kind === 'file' ? 'File History' : 'Commits',
+        command: {
+            id: 'caxri.git.history',
+            arguments: [repo.id],
+        },
+        pathInputLabel: `History path for ${repo.name}`,
+        pathInputPlaceholder: 'History path (optional)',
+        clearPathLabel: 'Clear history path',
+        loadingMessage: kind === 'file' ? 'Loading file history…' : 'Loading commits…',
+        emptyMessage: kind === 'file' ? 'No file history.' : 'No commits.',
+        loadMoreLabel: 'Load more commits',
+        loadingMoreLabel: 'Loading…',
+        loadErrorMessage:
+            kind === 'file' ? 'Unable to load file history' : 'Unable to load commits',
+        detailsLoadingMessage: 'Loading commit…',
+        detailsErrorMessage: 'Unable to load commit',
+        detailsLabel: 'Changed files',
+        detailsEmptyMessage: 'No files in this scope.',
+        detailsTruncatedMessage: 'File list truncated.',
+        itemAccessibilityLabelPrefix: 'Commit',
+        ...(kind === 'file' && { itemActivation: 'action' as const }),
+        pageSize: 5,
+        revision,
+    };
+}
+
+/**
+ * Performs only lexical selection because product extensions cannot import Node path APIs. It preserves backslashes,
+ * which are valid macOS filename characters. Git Runtime revalidates the repository and relative path before reading
+ * history, so this helper never acts as the security boundary.
+ */
+function relativeFilePath(rootPath: string, resource: string): string | undefined {
+    const root = trimTrailingPathSeparators(rootPath);
+    const candidate = trimTrailingPathSeparators(resource);
+    const prefix = root.endsWith('/') ? root : `${root}/`;
+    if (!root || !candidate.startsWith(prefix)) return;
+    const path = candidate.slice(prefix.length);
+    return path.length <= 4_096 ? path : undefined;
+}
+
+/**
+ * Associates the active file with the deepest discovered repository so a nested repository owns its own file history
+ * instead of leaking through the outer repository's path scope.
+ */
+function fileHistoryModel(
+    activeResource: string | undefined,
+    repositories: readonly GitRepositorySummary[],
+    revision: string,
+): SourceControlFileHistory | undefined {
+    const fallback = repositories.at(0);
+    if (!fallback) return;
+    const match = activeResource
+        ? repositories
+              .map((repo) => ({ path: relativeFilePath(repo.rootPath, activeResource), repo }))
+              .filter(
+                  (candidate): candidate is { path: string; repo: GitRepositorySummary } =>
+                      candidate.path !== undefined,
+              )
+              .toSorted((left, right) => right.repo.rootPath.length - left.repo.rootPath.length)[0]
+        : undefined;
+    const repo = match?.repo ?? fallback;
+    return {
+        label: 'File History',
+        emptyMessage: 'Open a file to view its history.',
+        history: historyDescriptor(repo, revision, 'file'),
+        ...(match && {
+            description: basename(match.path),
+            path: match.path,
+            tooltip: match.path,
+        }),
+    };
 }
 
 function decoration(file: GitFileStatus): SourceControlResource['decoration'] {
@@ -138,12 +231,11 @@ function submoduleIdsByPath(
     repo: GitRepositorySummary,
     repositories: readonly GitRepositorySummary[],
 ): ReadonlyMap<string, string> {
-    const normalize = (path: string): string => path.replaceAll('\\', '/').replace(/\/+$/, '');
-    const root = normalize(repo.rootPath);
+    const root = normalizeRepoPath(repo.rootPath);
     const result = new Map<string, string>();
     for (const candidate of repositories) {
         if (candidate.kind !== 'submodule' || candidate.id === repo.id) continue;
-        const candidateRoot = normalize(candidate.rootPath);
+        const candidateRoot = normalizeRepoPath(candidate.rootPath);
         if (candidateRoot.startsWith(`${root}/`))
             result.set(candidateRoot.slice(root.length + 1), candidate.id);
     }
@@ -261,6 +353,7 @@ function summaryErrorMessage(error: string | undefined): string {
 }
 
 export function buildSourceControlViewModel({
+    activeResource,
     detailsByRepository: detailsByRepo = new Map(),
     detailErrorsByRepository: detailErrorsByRepo = new Map(),
     mode,
@@ -269,12 +362,16 @@ export function buildSourceControlViewModel({
     revision = '0',
     selectedCommitSha,
     summary,
+    fileHistoryRepositories = summary.repositories,
 }: BuildSourceControlViewModelOptions): SourceControlViewModel {
     const emptyMessage = !summary.isRepository
         ? summaryErrorMessage(summary.error)
         : summary.repositories.length === 0
           ? 'No approved Git repositories found.'
           : undefined;
+    const fileHistory = summary.isRepository
+        ? fileHistoryModel(activeResource, fileHistoryRepositories, revision)
+        : undefined;
     return {
         revision,
         title: 'Source Control',
@@ -287,6 +384,7 @@ export function buildSourceControlViewModel({
             icon: themeIcon('refresh'),
             label: mode === 'pull-request' ? 'Refresh Pull Request' : 'Refresh Git',
         }),
+        ...(fileHistory && { fileHistory }),
         providers: summary.repositories.map((repo) => {
             const details = detailsByRepo.get(repo.id);
             const pullRequest = pullRequestsByRepo.get(repo.id);
@@ -409,30 +507,7 @@ export function buildSourceControlViewModel({
                     },
                 ],
                 ...(mode === 'working' && {
-                    history: {
-                        id: repo.id,
-                        label: 'Commits',
-                        command: {
-                            id: 'caxri.git.history',
-                            arguments: [repo.id],
-                        },
-                        pathInputLabel: `History path for ${repo.name}`,
-                        pathInputPlaceholder: 'History path (optional)',
-                        clearPathLabel: 'Clear history path',
-                        loadingMessage: 'Loading commits…',
-                        emptyMessage: 'No commits.',
-                        loadMoreLabel: 'Load more commits',
-                        loadingMoreLabel: 'Loading…',
-                        loadErrorMessage: 'Unable to load commits',
-                        detailsLoadingMessage: 'Loading commit…',
-                        detailsErrorMessage: 'Unable to load commit',
-                        detailsLabel: 'Changed files',
-                        detailsEmptyMessage: 'No files in this scope.',
-                        detailsTruncatedMessage: 'File list truncated.',
-                        itemAccessibilityLabelPrefix: 'Commit',
-                        pageSize: 5,
-                        revision,
-                    },
+                    history: historyDescriptor(repo, revision, 'repository'),
                 }),
             };
         }),

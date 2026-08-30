@@ -1,6 +1,7 @@
 import { Empty } from '../../../components/ui/empty';
 import type { SourceControlController } from './hooks/use-source-control-controller';
 import { SourceControlHeader } from './source-control-header';
+import { SourceControlHistory } from './source-control-history';
 import { SourceControlProviderSection } from './source-control-provider-section';
 
 export function SourceControlContent({ controller }: { controller: SourceControlController }) {
@@ -22,6 +23,22 @@ export function SourceControlContent({ controller }: { controller: SourceControl
                 aria-label={controller.model.accessibilityLabel}
                 inert={controller.isRefreshing}
             >
+                {controller.model.fileHistory && (
+                    <SourceControlHistory
+                        descriptor={controller.model.fileHistory.history}
+                        enabled={!controller.isRefreshing}
+                        expansion={{
+                            expanded: controller.fileHistoryExpanded,
+                            setExpanded: controller.setFileHistoryExpanded,
+                        }}
+                        key={JSON.stringify([
+                            controller.model.fileHistory.history.id,
+                            controller.model.fileHistory.path ?? null,
+                        ])}
+                        runAction={controller.runAction}
+                        scope={{ kind: 'file', ...controller.model.fileHistory }}
+                    />
+                )}
                 {controller.model.truncationMessage && (
                     <div
                         role="status"
