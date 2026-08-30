@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -15,6 +15,18 @@ test('Project search opens name results and reveals grouped content matches', as
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-project-search-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
+    const keybindingsPath = join(userData, 'config', 'keybindings.jsonc');
+    await mkdir(join(userData, 'config'), { recursive: true });
+    await writeFile(
+        keybindingsPath,
+        `[
+  // Simulate the released Inspector default persisted by an existing profile.
+  { "key": "cmd+o", "command": "project.create" },
+  { "key": "cmd+shift+f", "command": "inspector.searchFiles" },
+]
+`,
+        'utf8',
+    );
     await execFileAsync('mkdir', [
         '-p',
         join(root, 'src'),
@@ -84,6 +96,9 @@ test('Project search opens name results and reveals grouped content matches', as
         const nameSearch = running.page.getByRole('textbox', { name: 'Find Project files' });
         const modeSegments = running.page.locator('.search-mode-segments');
         await expect(nameSearch).toBeFocused();
+        const migratedKeybindings = await readFile(keybindingsPath, 'utf8');
+        expect(migratedKeybindings).toContain('"command": "secondarySidebar.searchFiles"');
+        expect(migratedKeybindings).not.toContain('"command": "inspector.searchFiles"');
         await expect(running.page.locator('[data-search-mode-icon="name"]')).toBeVisible();
         await expect(running.page.getByRole('textbox', { name: 'Files to include' })).toHaveCount(
             0,

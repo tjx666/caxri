@@ -11,6 +11,7 @@ export interface WorkbenchCoreCommandDefinition {
     title: string;
     category: string;
     description: string;
+    execution: 'viewCatalog';
     allowInEditable?: boolean;
     nativeMenu?: { menu: 'view'; group: number; order: number };
 }
@@ -31,6 +32,7 @@ export const filesCoreCommandDefinitions = [
         category: 'Secondary Side Bar',
         description: 'Show Files in the Secondary Side Bar',
         allowInEditable: true,
+        execution: 'viewCatalog',
     },
     {
         id: 'secondarySidebar.searchFiles',
@@ -38,6 +40,7 @@ export const filesCoreCommandDefinitions = [
         category: 'Secondary Side Bar',
         description: 'Search files in the selected Project',
         allowInEditable: true,
+        execution: 'viewCatalog',
         nativeMenu: { menu: 'view', group: 0, order: 0 },
     },
 ] as const satisfies readonly WorkbenchCoreCommandDefinition[];

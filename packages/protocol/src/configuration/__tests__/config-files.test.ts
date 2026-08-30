@@ -36,6 +36,19 @@ describe('reconcileDefaultKeybindings', () => {
         });
     });
 
+    it('replaces a command rename when the destination chord belongs to that exact old default', () => {
+        const previous = { key: 'cmd+shift+f', command: 'inspector.searchFiles' };
+        const current = { key: 'cmd+shift+f', command: 'secondarySidebar.searchFiles' };
+
+        expect(
+            reconcileDefaultKeybindings([previous], [{ type: 'replace', previous, current }]),
+        ).toEqual({
+            additions: [],
+            replacements: [{ index: 0, binding: current }],
+            value: [current],
+        });
+    });
+
     it('preserves custom bindings, occupied target chords, and ambiguous duplicate defaults', () => {
         const original = [
             { key: 'cmd+alt+p', command: 'pathBrowser.open' },

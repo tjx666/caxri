@@ -2,6 +2,7 @@ import { commandIds } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import type { DefaultKeybindingChange } from '../../configuration/config-files';
+import { reconcileDefaultKeybindings } from '../../configuration/config-files';
 import {
     commandDefinitions,
     defaultKeybindingChanges,
@@ -9,6 +10,8 @@ import {
     getNativeMenuCommandGroups,
     nativeMenuIds,
 } from '../command-catalog';
+import type { Keybinding } from '../domain';
+import { releasedDefaultKeybindingGenerations } from './default-keybinding-history.fixture';
 
 describe('command registry', () => {
     it('has unique IDs and owns every default keybinding command', () => {
@@ -107,6 +110,39 @@ describe('command registry', () => {
             ['session.selectPrevious', 'session.selectNext'],
             ['session.navigateBack', 'session.navigateForward'],
         ]);
+    });
+
+    it('migrates every released default generation to commands the current catalog can execute', () => {
+        const currentCommandIds = new Set<string>(commandDefinitions.map(({ id }) => id));
+
+        for (const generation of releasedDefaultKeybindingGenerations) {
+            const migrated = reconcileDefaultKeybindings(
+                generation.bindings,
+                defaultKeybindingChanges,
+            ).value;
+            const unknownCommands = migrated
+                .map(({ command }) => command)
+                .filter((command) => !currentCommandIds.has(command));
+            expect(unknownCommands, `unmigrated commands in ${generation.id}`).toEqual([]);
+        }
+        expect(releasedDefaultKeybindingGenerations.at(-1)?.bindings).toEqual(defaultKeybindings);
+    });
+
+    it('keeps every declared replacement executable in isolation', () => {
+        const releasedDefaults: Keybinding[] = [];
+        for (const { bindings } of releasedDefaultKeybindingGenerations)
+            releasedDefaults.push(...bindings);
+        for (const change of defaultKeybindingChanges) {
+            if (change.type !== 'replace') continue;
+            expect(
+                releasedDefaults,
+                `default migration has no released source for ${change.previous.command}`,
+            ).toContainEqual(change.previous);
+            expect(
+                reconcileDefaultKeybindings([change.previous], [change]).value,
+                `default migration does not replace ${change.previous.command}`,
+            ).toEqual([change.current]);
+        }
     });
 
     it('defines builtin chrome commands while extension commands remain Host-catalog data', () => {
