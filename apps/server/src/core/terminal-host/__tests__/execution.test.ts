@@ -637,6 +637,57 @@ describe('architecture-a3b-terminal-host: RemoteTerminalExecution', () => {
         await expect(execution.writeAcknowledged(terminal.id, 'recovered')).resolves.toBe(true);
     });
 
+    it('rejects input accepted while Terminal Host shutdown is in progress', async () => {
+        const { control, execution } = createExecution();
+        const shutdownStarted = Promise.withResolvers<void>();
+        const releaseShutdown = Promise.withResolvers<void>();
+        vi.spyOn(control, 'shutdown').mockImplementationOnce(async () => {
+            shutdownStarted.resolve();
+            await releaseShutdown.promise;
+            return [snapshot];
+        });
+        control.holdInputRequests = true;
+        await execution.attach(terminal.id);
+        await execution.reserve(terminal);
+        await execution.start({
+            args: [],
+            environment: {},
+            executable: '/bin/zsh',
+            initialSnapshot: null,
+            record: terminal,
+        });
+
+        const shutdown = execution.shutdown();
+        await shutdownStarted.promise;
+        const outcome = (async () => {
+            try {
+                await execution.writeAcknowledged(terminal.id, 'arrived during shutdown');
+                return { status: 'resolved' as const };
+            } catch (error) {
+                return { error, status: 'rejected' as const };
+            }
+        })();
+        await vi.waitFor(() =>
+            expect(
+                control.requests.filter(({ request }) => request.method === 'terminal.input'),
+            ).toHaveLength(1),
+        );
+
+        releaseShutdown.resolve();
+        await shutdown;
+        await expect(
+            Promise.race([
+                outcome,
+                new Promise<{ status: 'pending' }>((resolve) =>
+                    setImmediate(() => resolve({ status: 'pending' })),
+                ),
+            ]),
+        ).resolves.toMatchObject({
+            error: { code: 'UNAVAILABLE' },
+            status: 'rejected',
+        });
+    });
+
     it('rejects an oversized public input before sending a private request', async () => {
         const { control, execution } = createExecution();
         await execution.attach(terminal.id);

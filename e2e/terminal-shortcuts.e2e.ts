@@ -35,35 +35,6 @@ async function terminalIds(page: Page): Promise<string[]> {
     return state.terminals.map((terminal) => terminal.id);
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-/**
- * Agent paste policy is orthogonal to the Terminal transport under test. Newer builds can summarize long Agent pastes
- * before they reach the PTY, so disable that policy when the setting exists while keeping this regression runnable
- * against revisions from before the setting was introduced.
- */
-async function disableCodexPasteSummaryIfAvailable(page: Page): Promise<void> {
-    const current = await pageRequest<{ value: Record<string, unknown> }>(page, 'settings.get');
-    const providers = current.value['agents.providers'];
-    if (!isRecord(providers)) return;
-    const codex = providers.codex;
-    if (!isRecord(codex)) return;
-    const pasteSummary = codex.pasteSummary;
-    if (!isRecord(pasteSummary)) return;
-
-    await pageRequest(page, 'settings.update', {
-        source: JSON.stringify({
-            ...current.value,
-            'agents.providers': {
-                ...providers,
-                codex: { ...codex, pasteSummary: { ...pasteSummary, enabled: false } },
-            },
-        }),
-    });
-}
-
 /**
  * A tab whose Terminal the Runtime no longer owns renders an empty pane that no close reaches, so tab identity — not
  * tab count — is what proves the layout stayed consistent.
@@ -417,7 +388,6 @@ test('Codex Terminal preserves an oversized bracketed paste across private input
         testRootPath: root,
     });
     try {
-        await disableCodexPasteSummaryIfAvailable(running.page);
         await createProjectSession(running.page, 'codex');
         const input = running.page.locator('.xterm-helper-textarea');
         await expect(running.page.locator('.xterm-rows')).toContainText('FAKE_CODEX_READY');
