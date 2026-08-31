@@ -569,7 +569,7 @@ export class AgentCoordinator {
     observeLifecycleSignal(signal: AgentLifecycleSignal): boolean {
         if (this.launchIdsByTerminal.get(signal.terminalId) !== signal.launchId) return false;
         const terminal = this.database.getTerminal(signal.terminalId);
-        if (!terminal) return false;
+        if (!terminal || (signal.agentId && signal.phase === 'turnFinished')) return false;
         /**
          * Hook environment is inherited by every child of a Shell PTY so an alias-launched Agent can use it later. It
          * is not provider identity: only the independent foreground-process and metadata promotion paths may establish
