@@ -183,6 +183,47 @@ describe('Acceptance Agent fixtures', () => {
         );
     });
 
+    it('can expose unsent Terminal input through an explicit fixture receipt and echo', async () => {
+        const userDataDirectory = await mkdtemp(join(tmpdir(), 'caxri-acceptance-agent-fixture-'));
+        directories.push(userDataDirectory);
+        const fixture = await prepareAcceptanceAgentFixture({
+            fixtureId: 'agent-features-v1',
+            sourceEnvironment: { PATH: '/usr/bin:/bin' },
+            userDataDir: userDataDirectory,
+        });
+        const codexRoot = fixture.environment.CODEX_HOME!;
+        await writeFile(join(codexRoot, 'acceptance-echo-terminal-input'), '');
+        const child = spawn(fixture.executables.codex, [], {
+            env: fixture.environment,
+            stdio: ['pipe', 'pipe', 'pipe'],
+        });
+        let stdout = '';
+        child.stdout.setEncoding('utf8').on('data', (chunk: string) => {
+            stdout += chunk;
+        });
+        child.stderr.resume();
+        try {
+            await expect.poll(() => stdout).toContain('Fake codex Acceptance fixture ready');
+            child.stdin.write('SYNTHETIC_SUMMARY_WITHOUT_SUBMIT');
+            await expect.poll(() => stdout).toContain('SYNTHETIC_SUMMARY_WITHOUT_SUBMIT');
+            await expect
+                .poll(async () => readReceipts(codexRoot))
+                .toContainEqual({
+                    inputContainsPrivateMarker: false,
+                    kind: 'terminalChunk',
+                    length: 32,
+                    provider: 'codex',
+                });
+        } finally {
+            child.kill('SIGTERM');
+            await new Promise<void>((resolve) => child.once('close', () => resolve()));
+        }
+
+        expect((await readReceipts(codexRoot)).some(({ kind }) => kind === 'terminalInput')).toBe(
+            false,
+        );
+    });
+
     it('rejects paths, arbitrary names, and host provider fixture requests', async () => {
         const userDataDirectory = await mkdtemp(join(tmpdir(), 'caxri-acceptance-agent-fixture-'));
         directories.push(userDataDirectory);
