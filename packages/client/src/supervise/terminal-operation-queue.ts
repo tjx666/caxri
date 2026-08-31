@@ -1,4 +1,8 @@
-import { BINARY_STREAM_MAX_BUFFERED_BYTES, CaxriError } from '@caxri/protocol';
+import {
+    BINARY_STREAM_MAX_BUFFERED_BYTES,
+    BINARY_STREAM_MAX_TERMINAL_INPUT_BYTES,
+    CaxriError,
+} from '@caxri/protocol';
 
 export interface TerminalOperationLease {
     assertActive(): void;
@@ -11,9 +15,9 @@ interface TerminalOperationToken {
 }
 
 /**
- * Serializes lifecycle operations only while a Terminal has no stable persistent stream. Invalidating a Terminal
- * detaches new work from an old promise tail and makes every suspended operation fail before it can publish stale
- * state. Failures remain visible to their caller but never poison later operations for the same Terminal.
+ * Serializes Terminal operations through their authoritative reply. One maximum input plus a normal transport burst may
+ * be retained, while invalidation detaches new work from an old promise tail and fails every suspended operation.
+ * Caller-visible failures never poison later operations for the same Terminal.
  */
 export class TerminalOperationQueue {
     private queuedPayloadBytes = 0;
@@ -29,10 +33,6 @@ export class TerminalOperationQueue {
         };
         this.tokens.set(terminalId, token);
         return token;
-    }
-
-    has(terminalId: string): boolean {
-        return this.tails.has(terminalId);
     }
 
     /**
@@ -55,7 +55,9 @@ export class TerminalOperationQueue {
         if (
             retainedPayloadBytes < 0 ||
             !Number.isSafeInteger(retainedPayloadBytes) ||
-            this.queuedPayloadBytes + retainedPayloadBytes > BINARY_STREAM_MAX_BUFFERED_BYTES
+            retainedPayloadBytes > BINARY_STREAM_MAX_TERMINAL_INPUT_BYTES ||
+            this.queuedPayloadBytes + retainedPayloadBytes >
+                BINARY_STREAM_MAX_TERMINAL_INPUT_BYTES + BINARY_STREAM_MAX_BUFFERED_BYTES
         )
             return Promise.reject(
                 new CaxriError('CAPACITY', 'Terminal operation queue exceeded its byte budget'),

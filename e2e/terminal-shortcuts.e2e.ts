@@ -1,7 +1,10 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { Buffer } from 'node:buffer';
+import { createHash } from 'node:crypto';
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { MAX_TERMINAL_INPUT_LENGTH } from '@caxri/protocol';
 import { execFileAsync } from '@caxri/system';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
@@ -30,6 +33,35 @@ async function typeInTerminal(page: Page, terminalId: string, command: string): 
 async function terminalIds(page: Page): Promise<string[]> {
     const state = await pageRequest<{ terminals: Array<{ id: string }> }>(page, 'app.bootstrap');
     return state.terminals.map((terminal) => terminal.id);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Agent paste policy is orthogonal to the Terminal transport under test. Newer builds can summarize long Agent pastes
+ * before they reach the PTY, so disable that policy when the setting exists while keeping this regression runnable
+ * against revisions from before the setting was introduced.
+ */
+async function disableCodexPasteSummaryIfAvailable(page: Page): Promise<void> {
+    const current = await pageRequest<{ value: Record<string, unknown> }>(page, 'settings.get');
+    const providers = current.value['agents.providers'];
+    if (!isRecord(providers)) return;
+    const codex = providers.codex;
+    if (!isRecord(codex)) return;
+    const pasteSummary = codex.pasteSummary;
+    if (!isRecord(pasteSummary)) return;
+
+    await pageRequest(page, 'settings.update', {
+        source: JSON.stringify({
+            ...current.value,
+            'agents.providers': {
+                ...providers,
+                codex: { ...codex, pasteSummary: { ...pasteSummary, enabled: false } },
+            },
+        }),
+    });
 }
 
 /**
@@ -360,5 +392,60 @@ test('Codex Terminal maps input shortcuts and restores the clipboard on quit', a
             }
         }
         await removeQuitTestDirectory(testDirectory);
+    }
+});
+
+test('Codex Terminal preserves an oversized bracketed paste across private input frames', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-codex-oversized-paste-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    const capture = join(testDirectory, 'agent-input.raw');
+    await Promise.all([mkdir(root), writeFile(capture, '')]);
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: {
+            codex: {
+                startupOutput: '\u{1B}[?2004hFAKE_CODEX_READY\r\n',
+                inputCapture: { path: capture, encoding: 'raw' },
+            },
+        },
+    });
+    const running = await launchCaxri({
+        agentMode,
+        clipboard: true,
+        userDataDir: userData,
+        testRootPath: root,
+    });
+    try {
+        await disableCodexPasteSummaryIfAvailable(running.page);
+        await createProjectSession(running.page, 'codex');
+        const input = running.page.locator('.xterm-helper-textarea');
+        await expect(running.page.locator('.xterm-rows')).toContainText('FAKE_CODEX_READY');
+        await input.focus();
+
+        /**
+         * The emoji's surrogate pair straddles the first private-frame boundary after xterm adds its prefix.
+         */
+        const paste = `${'x'.repeat(MAX_TERMINAL_INPUT_LENGTH - 7)}🙂\nPASTE_END`;
+        /**
+         * Xterm normalizes clipboard line feeds to the carriage returns expected by a PTY.
+         */
+        const expected = Buffer.from(`\u{1B}[200~${paste.replaceAll('\n', '\r')}\u{1B}[201~`);
+        await running.clipboard.writeText(paste);
+        await input.press('Meta+V');
+
+        await expect.poll(async () => (await stat(capture)).size).toBe(expected.byteLength);
+        const captured = await readFile(capture);
+        expect(createHash('sha256').update(captured).digest('hex')).toBe(
+            createHash('sha256').update(expected).digest('hex'),
+        );
+        await expect(running.page.locator('[data-slot="toast"][data-kind="error"]')).toHaveCount(0);
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
     }
 });

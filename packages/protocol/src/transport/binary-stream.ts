@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { MAX_CONFIGURABLE_FILE_BYTES } from '../configuration/settings-spec.js';
 import {
     identifierSchema,
-    MAX_TERMINAL_INPUT_LENGTH,
+    MAX_TERMINAL_INPUT_PAYLOAD_LENGTH,
     pathSchema,
     terminalSnapshotSchema,
 } from '../domain/domain.js';
@@ -23,7 +23,7 @@ export const BINARY_STREAM_MAX_FILE_UPLOAD_BYTES = MAX_CONFIGURABLE_FILE_BYTES;
  * already accepts such non-NUL text files, so download framing must preserve that worst-case expansion.
  */
 export const BINARY_STREAM_MAX_FILE_CONTENT_BYTES = 3 * MAX_CONFIGURABLE_FILE_BYTES;
-export const BINARY_STREAM_MAX_TERMINAL_INPUT_BYTES = 4 * MAX_TERMINAL_INPUT_LENGTH;
+export const BINARY_STREAM_MAX_TERMINAL_INPUT_BYTES = 4 * MAX_TERMINAL_INPUT_PAYLOAD_LENGTH;
 export const BINARY_STREAM_MAX_TERMINAL_RESULT_BYTES = 4 * 1024 * 1024;
 export const BINARY_STREAM_MAX_REPLY_BYTES = 2 * 1024 * 1024;
 export const BINARY_STREAM_TICKET_TTL_MS = 10_000;

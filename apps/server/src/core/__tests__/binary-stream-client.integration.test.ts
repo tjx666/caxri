@@ -358,6 +358,7 @@ describe('architecture-a5-binary-streams: ServerClient integration', () => {
         const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-binary-reattach-order-'));
         const lease = await acquireServerProfile({ userDataPath, version: '1.0.0' });
         const slowInput = Promise.withResolvers<unknown>();
+        let shouldHoldInput = true;
         const requests: string[] = [];
         const server = new ControlServer({
             adapters: {
@@ -379,7 +380,15 @@ describe('architecture-a5-binary-streams: ServerClient integration', () => {
                         }
                         if (request.method === 'terminal.input') {
                             requests.push(`input:${request.params.data}`);
-                            return slowInput.promise;
+                            if (shouldHoldInput) {
+                                shouldHoldInput = false;
+                                return slowInput.promise;
+                            }
+                            return null;
+                        }
+                        if (request.method === 'terminal.resize') {
+                            requests.push('resize');
+                            return null;
                         }
                         throw new Error(`Unexpected method: ${request.method}`);
                     },
@@ -423,16 +432,30 @@ describe('architecture-a5-binary-streams: ServerClient integration', () => {
                 data: 'slow',
             });
             await vi.waitFor(() => expect(requests).toContain('input:slow'));
+            const laterInput = client.request('terminal.input', {
+                terminalId: 'terminal-1',
+                data: 'later',
+            });
+            const resize = client.request('terminal.resize', {
+                terminalId: 'terminal-1',
+                cols: 120,
+                rows: 40,
+            });
             const reattaching = client.request('terminal.attach', {
                 terminalId: 'terminal-1',
             });
 
             expect(attachAuthorizationCount).toBe(1);
+            expect(requests).toEqual(['attach', 'input:slow']);
             slowInput.resolve(null);
-            await expect(input).resolves.toBeNull();
+            await expect(Promise.all([input, laterInput, resize])).resolves.toEqual([
+                null,
+                null,
+                null,
+            ]);
             await expect(reattaching).resolves.toMatchObject({ terminalId: 'terminal-1' });
             expect(attachAuthorizationCount).toBe(2);
-            expect(requests).toEqual(['attach', 'input:slow', 'attach']);
+            expect(requests).toEqual(['attach', 'input:slow', 'input:later', 'resize', 'attach']);
         } finally {
             client?.close();
             await server.close();

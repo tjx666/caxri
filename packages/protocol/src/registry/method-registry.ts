@@ -37,7 +37,7 @@ import {
     identifierSchema,
     keybindingConflictSchema,
     keybindingSchema,
-    MAX_TERMINAL_INPUT_LENGTH,
+    MAX_TERMINAL_INPUT_PAYLOAD_LENGTH,
     movedFileEntrySchema,
     mutableFileEntrySchema,
     pathSchema,
@@ -424,7 +424,7 @@ export const methods = {
         ...terminalStreamControl,
         params: z.object({
             terminalId: identifierSchema,
-            data: z.string().max(MAX_TERMINAL_INPUT_LENGTH),
+            data: z.string().max(MAX_TERMINAL_INPUT_PAYLOAD_LENGTH),
         }),
         result: z.null(),
     },
