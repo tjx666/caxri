@@ -525,9 +525,9 @@ describe('AgentHookServer', () => {
                                 : description.includes('agentToolUseId') &&
                                     description.includes('path-like')
                                   ? 'invalidAgentToolUseId'
-                                : description.includes('agentTurnId')
-                                  ? 'invalidAgentTurnId'
-                                  : 'invalidSignal',
+                                  : description.includes('agentTurnId')
+                                    ? 'invalidAgentTurnId'
+                                    : 'invalidSignal',
                 });
             } finally {
                 await server.close();
