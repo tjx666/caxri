@@ -210,6 +210,11 @@ function rendererDiagnosticFields(diagnostic: TerminalRendererDiagnostic): LogFi
         contextLossCount: diagnostic.contextLossCount,
         redrawCount: diagnostic.redrawCount,
         recoveryResult: diagnostic.recoveryResult,
+        retryAttemptCount: diagnostic.retryAttemptCount,
+        retryDelayMs: diagnostic.retryDelayMs,
+        retryLimit: diagnostic.retryLimit,
+        retrySequenceId: diagnostic.retrySequenceId ?? null,
+        retryState: diagnostic.retryState,
         receivedBytes: diagnostic.receivedBytes,
         droppedBytes: diagnostic.droppedBytes,
         paneActive: diagnostic.paneActive,
@@ -238,6 +243,9 @@ function relatedRendererFields(
         relatedRendererTrigger: diagnostic.trigger,
         relatedRendererPreference: diagnostic.preference,
         relatedRendererContextLossCount: diagnostic.contextLossCount,
+        relatedRendererRetryAttemptCount: diagnostic.retryAttemptCount,
+        relatedRendererRetrySequenceId: diagnostic.retrySequenceId ?? null,
+        relatedRendererRetryState: diagnostic.retryState,
         relatedPaneActive: diagnostic.paneActive,
         relatedDocumentVisible: diagnostic.documentVisible,
         relatedDocumentFocused: diagnostic.documentFocused,
@@ -330,17 +338,25 @@ export function createGpuDiagnostics(options: GpuDiagnosticsOptions) {
         recentRendererDiagnostics.push({ diagnostic, receivedAt });
         if (recentRendererDiagnostics.length > MAX_RENDERER_DIAGNOSTICS)
             recentRendererDiagnostics.shift();
-        const correlated = recentGpuIncidents.findLast(
-            (incident) =>
-                receivedAt >= incident.occurredAt &&
-                receivedAt - incident.occurredAt <= CORRELATION_WINDOW_MS,
-        );
+        const explicitIncident = diagnostic.correlationId
+            ? recentGpuIncidents.findLast((incident) => incident.id === diagnostic.correlationId)
+            : undefined;
+        const correlated =
+            explicitIncident ??
+            recentGpuIncidents.findLast(
+                (incident) =>
+                    receivedAt >= incident.occurredAt &&
+                    receivedAt - incident.occurredAt <= CORRELATION_WINDOW_MS,
+            );
         const isFailure = [
             'webgl-context-loss',
             'webgl-load-failed',
             'atlas-clear-failed',
+            'webgl-retry-exhausted',
+            'webgl-retry-failed',
         ].includes(diagnostic.trigger);
-        if (!isFailure && !correlated) return;
+        const isRetry = diagnostic.trigger.startsWith('webgl-retry-');
+        if (!isFailure && !isRetry && !correlated) return;
         options
             .logger()
             ?.write(isFailure ? 'warn' : 'info', logEventCatalog.renderer.terminalRendererStatus, {
@@ -358,6 +374,11 @@ export function createGpuDiagnostics(options: GpuDiagnosticsOptions) {
                     rendererReason: diagnostic.reason,
                     rendererTrigger: diagnostic.trigger,
                     recoveryResult: diagnostic.recoveryResult,
+                    retryAttemptCount: diagnostic.retryAttemptCount,
+                    retryDelayMs: diagnostic.retryDelayMs,
+                    retryLimit: diagnostic.retryLimit,
+                    retrySequenceId: diagnostic.retrySequenceId ?? null,
+                    retryState: diagnostic.retryState,
                     receivedBytes: diagnostic.receivedBytes,
                     droppedBytes: diagnostic.droppedBytes,
                     terminalProcessRunning: diagnostic.terminalProcessRunning,
