@@ -14,6 +14,7 @@ import type { AgentLifecyclePhase, AgentLifecycleSignal } from './contract';
 import { agentLifecyclePhases } from './contract';
 
 const MAX_SIGNAL_BYTES = 4_096;
+const MAX_AGENT_ID_LENGTH = 256;
 const MAX_AGENT_SESSION_ID_LENGTH = 256;
 const MAX_AGENT_TOOL_USE_ID_LENGTH = 256;
 const MAX_AGENT_TURN_ID_LENGTH = 256;
@@ -61,6 +62,7 @@ type HookWirePacket = HookWireBridgeStarted | HookWireSignal;
 
 export type AgentHookSignalRejectionReason =
     | 'downstreamRejected'
+    | 'invalidAgentId'
     | 'invalidAgentSessionId'
     | 'invalidAgentToolUseId'
     | 'invalidAgentTurnId'
@@ -188,6 +190,14 @@ function parsePacket(
         return { packet: signal as unknown as HookWireBridgeStarted };
     if (signal.kind !== undefined) return { reason: 'invalidSignal' };
     if (
+        signal.agentId !== undefined &&
+        (typeof signal.agentId !== 'string' ||
+            signal.agentId.length > MAX_AGENT_ID_LENGTH ||
+            !isOpaqueAgentSessionId(signal.agentId))
+    ) {
+        return { reason: 'invalidAgentId' };
+    }
+    if (
         signal.agentSessionId !== undefined &&
         (typeof signal.agentSessionId !== 'string' ||
             signal.agentSessionId.length > MAX_AGENT_SESSION_ID_LENGTH ||
@@ -244,8 +254,8 @@ function packetDiagnosticFields(packet: HookWirePacket) {
 
 /**
  * Authenticated local signal boundary. Provider hooks can report only a phase, opaque PTY generation, bounded opaque
- * provider identifiers, and a worktree-create classification; prompt text and provider hook payloads never cross into
- * Caxri.
+ * provider identifiers, and a worktree-create classification; prompt text, tool arguments, tool results, and provider
+ * hook payloads never cross into Caxri.
  */
 export class AgentHookServer {
     private readonly launchesByToken = new Map<string, RegisteredLaunch>();

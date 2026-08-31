@@ -245,6 +245,10 @@ export function decideAgentLifecycleUpdate(
     ) {
         return undefined;
     }
+    if (phase === 'toolBatchFinished')
+        return session.lastActivityState === 'waiting'
+            ? { lastActivityState: 'running' }
+            : undefined;
     const lastActivityState: AgentActivityState =
         phase === 'turnStarted'
             ? 'running'

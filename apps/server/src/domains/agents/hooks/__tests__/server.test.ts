@@ -387,6 +387,19 @@ describe('AgentHookServer', () => {
                 }),
             ],
             [
+                'a path-like agentId',
+                JSON.stringify({
+                    protocolVersion: 1,
+                    schemaVersion: 2,
+                    launchId: 'l',
+                    terminalId: 't',
+                    provider: 'codex',
+                    phase: 'turnFinished',
+                    token: 'tok',
+                    agentId: '../outside',
+                }),
+            ],
+            [
                 'a non-string agentSessionId',
                 JSON.stringify({
                     protocolVersion: 1,
@@ -505,11 +518,13 @@ describe('AgentHookServer', () => {
                     reason:
                         description === 'invalid JSON'
                             ? 'invalidJson'
-                            : description.includes('agentSessionId')
-                              ? 'invalidAgentSessionId'
-                              : description.includes('agentToolUseId') &&
-                                  description.includes('path-like')
-                                ? 'invalidAgentToolUseId'
+                            : description.includes('agentId')
+                              ? 'invalidAgentId'
+                              : description.includes('agentSessionId')
+                                ? 'invalidAgentSessionId'
+                                : description.includes('agentToolUseId') &&
+                                    description.includes('path-like')
+                                  ? 'invalidAgentToolUseId'
                                 : description.includes('agentTurnId')
                                   ? 'invalidAgentTurnId'
                                   : 'invalidSignal',
@@ -592,6 +607,29 @@ describe('AgentHookServer', () => {
                         agentToolUseId: 'tool-use-9',
                         worktreeCreateIntent: true,
                     }),
+                );
+            } finally {
+                await server.close();
+            }
+        });
+
+        it('forwards a bounded subagent identifier without provider content', async () => {
+            const { server, socketPath, onSignal } = await createTestServer();
+            try {
+                const token = server.register('terminal-1', 'launch-1', 'codex');
+
+                const response = await send(
+                    socketPath,
+                    validPayload({
+                        token,
+                        agentId: 'agent-9',
+                        phase: 'toolBatchFinished',
+                    }),
+                );
+
+                expect(response).toBe('{"ok":true}\n');
+                expect(onSignal).toHaveBeenCalledWith(
+                    expect.objectContaining({ agentId: 'agent-9' }),
                 );
             } finally {
                 await server.close();
