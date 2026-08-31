@@ -52,8 +52,8 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         await dialog.getByRole('button', { name: 'Source' }).click();
         const settingsEditor = configSource(dialog, 'settings');
         /**
-         * Monaco virtualizes off-screen source lines, so wait for highlighted content without pinning the assertion to
-         * a setting whose position moves as the configuration schema grows.
+         * Monaco first paints plain source spans and applies token colors asynchronously. Wait for the observable
+         * highlighted state without pinning the assertion to a setting whose position moves as the schema grows.
          */
         await expect(settingsEditor.locator('.view-lines span').first()).toBeVisible();
         // The accessible name has to sit on Monaco's own textarea, the surface a screen reader
@@ -61,12 +61,16 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         // container above is located by `data-config-source` instead of by label.
         await expect(settingsEditor.getByLabel('settings.jsonc source')).toHaveCount(1);
 
-        const tokenColors = await settingsEditor
-            .locator('.view-lines span')
-            .evaluateAll((spans) => [
-                ...new Set(spans.map((span) => getComputedStyle(span).color)),
-            ]);
-        expect(tokenColors.length).toBeGreaterThan(1);
+        await expect
+            .poll(async () => {
+                const tokenColors = await settingsEditor
+                    .locator('.view-lines span')
+                    .evaluateAll((spans) => [
+                        ...new Set(spans.map((span) => getComputedStyle(span).color)),
+                    ]);
+                return tokenColors.length;
+            })
+            .toBeGreaterThan(1);
         await dialog.getByRole('button', { name: 'UI' }).click();
         await expect(dialog.getByLabel('Search settings')).toBeVisible();
         const defaultAgent = dialog.getByRole('combobox', {
