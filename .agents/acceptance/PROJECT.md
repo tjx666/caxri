@@ -83,8 +83,9 @@ Android, and iOS Simulator product surfaces.
 
 ### Android release acceptance
 
-The guarded cross-device path accepts only one explicit disposable emulator serial. It builds from
-current source, regenerates the native project, installs the release APK, clears only
+The guarded cross-device path accepts only one explicit disposable emulator serial. Before touching
+the device it requires a clean worktree at the frozen report commit. It regenerates the native
+project, installs the release APK, clears only
 `com.caxri.mobile`, and records report-bound lifecycle and result receipts:
 
 ```bash
@@ -97,8 +98,11 @@ CAXRI_MOBILE_ACCEPTANCE_CASE_ID="android-short-reply" \
 The plan item must use `surface: "mobile"`, `stateIsolation.mode: "isolated"`, and a matching
 `mobileDevice` object. Include
 `assets/android-short-reply-state-isolation.json` and
-`assets/android-short-reply-mobile-device.json` in `cases[].evidence`. Do not use this command on a
-physical device; its data reset is intentionally emulator-only.
+`assets/android-short-reply-mobile-device.json` and
+`assets/android-short-reply-result.json` in `cases[].evidence`. Every child command is bounded by a
+stage timeout and the overall run deadline. A clean retry atomically replaces its prior result
+receipts, and finalization binds them to the report commit and final lifecycle launch. Do not use
+this command on a physical device; its data reset is intentionally emulator-only.
 
 ### iOS Simulator build
 

@@ -11,6 +11,18 @@ export const CAXRI_ANDROID_PACKAGE = 'com.caxri.mobile';
 
 const DEVICE_DUMP_PATH = '/data/local/tmp/caxri-ui.xml';
 
+type AndroidAdbSpawn = (
+    command: string,
+    arguments_: string[],
+    options: {
+        encoding: 'utf8';
+        killSignal: 'SIGTERM';
+        maxBuffer: number;
+        shell: false;
+        timeout: number;
+    },
+) => { error?: unknown; status: number | null; stdout?: string };
+
 const androidAdbPath = (): string => {
     const androidSdkRoot: unknown = Reflect.get(process.env, 'ANDROID_SDK_ROOT');
     const androidHome: unknown = Reflect.get(process.env, 'ANDROID_HOME');
@@ -29,15 +41,27 @@ const androidAdbPath = (): string => {
  * Runs ADB with an argv array and deliberately excludes stdout/stderr from failures. Device output can contain
  * credentials, visible source, or Terminal content even when the requested command normally returns metadata.
  */
-export const runAndroidAdb = (serial: string, arguments_: string[]): string => {
-    const result = spawnSync(androidAdbPath(), ['-s', serial, ...arguments_], {
+export const runAndroidAdb = (
+    serial: string,
+    arguments_: string[],
+    options: { spawn?: AndroidAdbSpawn; timeoutMs?: number } = {},
+): string => {
+    const spawn: AndroidAdbSpawn = options.spawn ?? spawnSync;
+    const result = spawn(androidAdbPath(), ['-s', serial, ...arguments_], {
         encoding: 'utf8',
+        killSignal: 'SIGTERM',
         maxBuffer: 4 * 1024 * 1024,
         shell: false,
+        timeout: options.timeoutMs ?? 15_000,
     });
+    if (result.error) {
+        const code = (result.error as { code?: unknown }).code;
+        if (code === 'ETIMEDOUT') throw new Error('adb timed out');
+        throw new Error('adb failed to start');
+    }
     if (result.status !== 0)
         throw new Error(`adb failed with status ${result.status ?? 'unknown'}`);
-    return result.stdout.trim();
+    return typeof result.stdout === 'string' ? result.stdout.trim() : '';
 };
 
 /**

@@ -1,6 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
@@ -8,6 +8,7 @@ import { promisify } from 'node:util';
 
 import type { AppSettings, BootstrapState } from '@caxri/protocol';
 
+import { writeJsonAtomic } from '../scripts/atomic-json.ts';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
@@ -290,27 +291,26 @@ setTimeout(() => {
             contentType: 'application/json',
         });
         const resultReceipt = process.env.CAXRI_MOBILE_ACCEPTANCE_RESULT_RECEIPT;
-        if (resultReceipt)
-            await writeFile(
-                resultReceipt,
-                `${JSON.stringify(
-                    {
-                        channel: 'authenticated-encrypted-gateway',
-                        delivery: {
-                            count: 1,
-                            destination: 'main-agent-terminal',
-                            repeatDisabled: true,
-                            stateAfterReply: 'running',
-                        },
-                        projectScope: 'allowed-present-denied-absent',
-                        schemaVersion: 1,
-                        status: 'passed',
-                    },
-                    null,
-                    2,
-                )}\n`,
-                { encoding: 'utf8', flag: 'wx' },
-            );
+        if (resultReceipt) {
+            const launchId = process.env.CAXRI_MOBILE_ACCEPTANCE_LAUNCH_ID;
+            const sourceCommit = process.env.CAXRI_MOBILE_ACCEPTANCE_SOURCE_COMMIT;
+            if (!launchId || !sourceCommit)
+                throw new Error('Report-bound mobile Acceptance identity is incomplete');
+            await writeJsonAtomic(resultReceipt, {
+                channel: 'authenticated-encrypted-gateway',
+                delivery: {
+                    count: 1,
+                    destination: 'main-agent-terminal',
+                    repeatDisabled: true,
+                    stateAfterReply: 'running',
+                },
+                launchId,
+                projectScope: 'allowed-present-denied-absent',
+                schemaVersion: 1,
+                sourceCommit,
+                status: 'passed',
+            });
+        }
     } catch (error) {
         failure = error;
     } finally {
