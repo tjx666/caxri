@@ -174,6 +174,7 @@ describe('@caxri/protocol contract', () => {
         expect(isNonExpiringServerOperation('files.copy')).toBe(true);
         expect(isNonExpiringServerOperation('files.write')).toBe(true);
         expect(isNonExpiringServerOperation('agent.dispatch.waitInternal')).toBe(true);
+        expect(isNonExpiringServerOperation('terminal.input')).toBe(true);
         expect(isNonExpiringServerOperation('files.read')).toBe(false);
     });
 

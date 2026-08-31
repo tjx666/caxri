@@ -227,9 +227,16 @@ test('WebGL modes hot-switch and every Terminal recovers from one GPU process lo
         await expect(surfaces.nth(0)).toHaveAttribute('data-terminal-renderer', 'webgl');
         await expect(surfaces.nth(1)).toHaveAttribute('data-terminal-renderer', 'webgl');
         const runningBeforeLoss = await pageRequest<number>(running.page, 'terminal.runningCount');
+        /**
+         * Playwright escapes non-ASCII static text inside `String.raw`; runtime substitutions keep the PTY glyphs.
+         */
+        const continuityGlyphs = [0x75_4c, 0x1_f600].map((value) => String.fromCodePoint(value));
+        const atlasGlyphs = [0x25_03, 0xe0_a0, 0x25_88]
+            .map((value) => String.fromCodePoint(value))
+            .join(' ');
         await typeTerminal(
             running.page,
-            String.raw`printf 'WEBGL_CONTINUITY_界_😀\n'; for value in {1..160}; do printf 'atlas-%03d ┃  █\n' "$value"; done`,
+            String.raw`printf 'WEBGL_CONTINUITY_${continuityGlyphs.join('_')}\n'; for value in {1..160}; do printf 'atlas-%03d ${atlasGlyphs}\n' "$value"; done`,
         );
 
         const focusedTerminalId = await running.page

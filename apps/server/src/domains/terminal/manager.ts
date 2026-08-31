@@ -411,6 +411,14 @@ export class TerminalManager {
         return this.execution.write(terminalId, data);
     }
 
+    writeAcknowledged(
+        terminalId: string,
+        data: string,
+        abortSignal?: AbortSignal,
+    ): Promise<boolean> {
+        return this.execution.writeAcknowledged(terminalId, data, abortSignal);
+    }
+
     reconcileOutputRecoverySettings(): void {
         for (const terminal of this.database.listTerminals())
             this.execution.configureOutputRecovery(

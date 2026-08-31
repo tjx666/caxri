@@ -13,6 +13,11 @@ interface TerminalGlyphPixels {
 
 export async function createTerminalGlyphFixture(directory: string): Promise<string> {
     const output = join(directory, 'terminal-glyph-output.sh');
+    /**
+     * Playwright's TypeScript transform escapes a non-ASCII character inside a raw template, which makes the shell
+     * print the literal escape text instead of the glyph. A runtime substitution preserves the UTF-8 bytes.
+     */
+    const cjkGlyph = String.fromCodePoint(0x75_4c);
     await writeFile(
         output,
         String.raw`#!/bin/sh
@@ -26,9 +31,9 @@ if [ "$1" = ascii ]; then
   printf '%*sW\n' "$((cols - 1))" ''
 else
   for offset in 2 3 4 5 6 7 8 9 10 11 12; do
-    if [ "$offset" -lt "$((cols - 2))" ]; then printf '%*s界\n' "$((cols - 2 - offset))" ''; fi
+    if [ "$offset" -lt "$((cols - 2))" ]; then printf '%*s${cjkGlyph}\n' "$((cols - 2 - offset))" ''; fi
   done
-  printf '%*s界\n' "$((cols - 2))" ''
+  printf '%*s${cjkGlyph}\n' "$((cols - 2))" ''
 fi
 sleep 30
 `,

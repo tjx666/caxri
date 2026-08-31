@@ -1,7 +1,10 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { Buffer } from 'node:buffer';
+import { createHash } from 'node:crypto';
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { MAX_TERMINAL_INPUT_LENGTH } from '@caxri/protocol';
 import { execFileAsync } from '@caxri/system';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
@@ -360,5 +363,59 @@ test('Codex Terminal maps input shortcuts and restores the clipboard on quit', a
             }
         }
         await removeQuitTestDirectory(testDirectory);
+    }
+});
+
+test('Codex Terminal preserves an oversized bracketed paste across private input frames', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-codex-oversized-paste-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    const capture = join(testDirectory, 'agent-input.raw');
+    await Promise.all([mkdir(root), writeFile(capture, '')]);
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: {
+            codex: {
+                startupOutput: '\u{1B}[?2004hFAKE_CODEX_READY\r\n',
+                inputCapture: { path: capture, encoding: 'raw' },
+            },
+        },
+    });
+    const running = await launchCaxri({
+        agentMode,
+        clipboard: true,
+        userDataDir: userData,
+        testRootPath: root,
+    });
+    try {
+        await createProjectSession(running.page, 'codex');
+        const input = running.page.locator('.xterm-helper-textarea');
+        await expect(running.page.locator('.xterm-rows')).toContainText('FAKE_CODEX_READY');
+        await input.focus();
+
+        /**
+         * The emoji's surrogate pair straddles the first private-frame boundary after xterm adds its prefix.
+         */
+        const paste = `${'x'.repeat(MAX_TERMINAL_INPUT_LENGTH - 7)}🙂\nPASTE_END`;
+        /**
+         * Xterm normalizes clipboard line feeds to the carriage returns expected by a PTY.
+         */
+        const expected = Buffer.from(`\u{1B}[200~${paste.replaceAll('\n', '\r')}\u{1B}[201~`);
+        await running.clipboard.writeText(paste);
+        await input.press('Meta+V');
+
+        await expect.poll(async () => (await stat(capture)).size).toBe(expected.byteLength);
+        const captured = await readFile(capture);
+        expect(createHash('sha256').update(captured).digest('hex')).toBe(
+            createHash('sha256').update(expected).digest('hex'),
+        );
+        await expect(running.page.locator('[data-slot="toast"][data-kind="error"]')).toHaveCount(0);
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
     }
 });

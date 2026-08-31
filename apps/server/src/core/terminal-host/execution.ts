@@ -6,7 +6,11 @@ import type {
     TerminalResourceUsage,
     TerminalSnapshot,
 } from '@caxri/protocol';
-import { CaxriError, MAX_TERMINAL_INPUT_LENGTH } from '@caxri/protocol';
+import {
+    CaxriError,
+    MAX_TERMINAL_INPUT_LENGTH,
+    MAX_TERMINAL_INPUT_PAYLOAD_LENGTH,
+} from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
@@ -21,6 +25,8 @@ import type {
     TerminalHostRequest,
     TerminalHostScope,
 } from '../../terminal-host/protocol';
+import type { TerminalInputReceipt } from './input-queue';
+import { TerminalInputQueue } from './input-queue';
 
 interface RemoteTerminalIdentity {
     agent?: {
@@ -39,15 +45,6 @@ interface RemoteView {
     size?: { cols: number; rows: number };
 }
 
-interface RemoteInputQueue {
-    attachmentId: string;
-    chunks: string[];
-    completion?: Promise<void>;
-    head: number;
-    identity: RemoteTerminalIdentity;
-    queuedCharacters: number;
-}
-
 interface RemoteResizeQueue {
     completion?: Promise<void>;
     identity: RemoteTerminalIdentity;
@@ -62,9 +59,11 @@ type TerminalHostEvent = Exclude<
 
 /**
  * Bounds accepted-but-not-yet-delivered input while allowing short bursts to coalesce. The private protocol has a
- * stricter per-request limit, so each drain emits at most one public request's worth of text.
+ * stricter per-request limit, so each drain emits at most one private frame's worth of text.
  */
-const MAX_QUEUED_TERMINAL_INPUT_CHARACTERS = MAX_TERMINAL_INPUT_LENGTH * 4;
+const MAX_QUEUED_KEYBOARD_INPUT_CHARACTERS = MAX_TERMINAL_INPUT_LENGTH * 4;
+const MAX_QUEUED_TERMINAL_INPUT_CHARACTERS =
+    MAX_TERMINAL_INPUT_PAYLOAD_LENGTH + MAX_TERMINAL_INPUT_LENGTH * 4;
 
 export interface TerminalHostControl {
     onEvent(listener: (event: TerminalHostEvent) => void): () => void;
@@ -84,7 +83,7 @@ export interface TerminalHostControl {
 export class RemoteTerminalExecution extends EventTarget implements TerminalExecutionPort {
     private readonly generations = new Map<string, number>();
     private readonly identities = new Map<string, RemoteTerminalIdentity>();
-    private readonly inputQueues = new Map<string, RemoteInputQueue>();
+    private readonly inputQueues = new Map<string, TerminalInputQueue<RemoteTerminalIdentity>>();
     private readonly resizeQueues = new Map<string, RemoteResizeQueue>();
     private readonly views = new Map<string, RemoteView>();
 
@@ -182,7 +181,10 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
                 return;
             case 'terminal.exit': {
                 this.identities.delete(identity.record.id);
-                this.inputQueues.delete(identity.record.id);
+                this.retireInputQueue(
+                    identity.record.id,
+                    new CaxriError('UNAVAILABLE', 'Terminal exited before input completed'),
+                );
                 this.resizeQueues.delete(identity.record.id);
                 this.views.delete(identity.record.id);
                 const capture = event.snapshot
@@ -213,7 +215,11 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
             .map(({ record }) => record.id)
             .toArray();
         this.identities.clear();
-        this.inputQueues.clear();
+        for (const terminalId of this.inputQueues.keys())
+            this.retireInputQueue(
+                terminalId,
+                new CaxriError('UNAVAILABLE', 'Terminal Host exited before input completed'),
+            );
         this.resizeQueues.clear();
         if (terminalIds.length > 0)
             this.dispatchEvent(
@@ -226,46 +232,36 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         void this.observeBackground(promise, method, terminalId);
     }
 
-    private takeInputBatch(queue: RemoteInputQueue): { data: string; length: number } {
-        const chunks: string[] = [];
-        let batchLength = 0;
-        while (queue.head < queue.chunks.length) {
-            const chunk = queue.chunks[queue.head];
-            if (batchLength > 0 && batchLength + chunk.length > MAX_TERMINAL_INPUT_LENGTH) break;
-            queue.head += 1;
-            chunks.push(chunk);
-            batchLength += chunk.length;
-        }
-        return { data: chunks.join(''), length: batchLength };
-    }
-
-    private compactInputQueue(queue: RemoteInputQueue): void {
-        if (queue.head === queue.chunks.length) {
-            queue.chunks = [];
-            queue.head = 0;
-        } else if (queue.head >= 1_024) {
-            queue.chunks = queue.chunks.slice(queue.head);
-            queue.head = 0;
-        }
-    }
-
-    private async drainInput(queue: RemoteInputQueue): Promise<void> {
+    private async drainInput(queue: TerminalInputQueue<RemoteTerminalIdentity>): Promise<void> {
         const terminalId = queue.identity.record.id;
         try {
             await queue.identity.ready;
-            while (this.inputQueues.get(terminalId) === queue && queue.head < queue.chunks.length) {
-                const batch = this.takeInputBatch(queue);
+            while (this.inputQueues.get(terminalId) === queue && queue.hasPendingChunks) {
+                const batch = queue.takeBatch();
                 // eslint-disable-next-line no-await-in-loop -- Input ordering requires one private request in flight per Terminal.
-                await this.supervisor.request(
+                const result = (await this.supervisor.request(
                     { method: 'terminal.input', params: { data: batch.data } },
                     this.terminalScope(queue.identity, 'terminal.input', queue.attachmentId),
-                );
-                queue.queuedCharacters -= batch.length;
-                this.compactInputQueue(queue);
+                    queue.abortController.signal,
+                )) as { accepted: boolean };
+                if (!result.accepted)
+                    throw new CaxriError('UNAVAILABLE', 'Terminal exited before input completed');
+                if (this.inputQueues.get(terminalId) !== queue) return;
+                queue.acknowledge(batch);
             }
+        } catch (error) {
+            queue.reject(error);
+            throw error;
         } finally {
             if (this.inputQueues.get(terminalId) === queue) this.inputQueues.delete(terminalId);
         }
+    }
+
+    private retireInputQueue(terminalId: string, error: unknown): void {
+        const queue = this.inputQueues.get(terminalId);
+        if (!queue) return;
+        this.inputQueues.delete(terminalId);
+        queue.reject(error);
     }
 
     private async drainResize(queue: RemoteResizeQueue): Promise<void> {
@@ -326,6 +322,11 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         snapshot: TerminalSnapshot | null;
         wasAttached: boolean;
     }> {
+        if (identity.attachmentId && identity.attachmentId !== view.attachmentId)
+            this.retireInputQueue(
+                identity.record.id,
+                new CaxriError('CONFLICT', 'Terminal attachment changed before input completed'),
+            );
         identity.attachmentId = view.attachmentId;
         return (await this.supervisor.request(
             {
@@ -339,9 +340,55 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         )) as { snapshot: TerminalSnapshot | null; wasAttached: boolean };
     }
 
+    private acceptInput(
+        terminalId: string,
+        data: string,
+        maximumLength: number,
+        shouldAcknowledge = false,
+    ): {
+        accepted: boolean;
+        queue?: TerminalInputQueue<RemoteTerminalIdentity>;
+        receipt?: TerminalInputReceipt;
+    } {
+        const identity = this.identities.get(terminalId);
+        if (!identity?.processId || !identity.attachmentId) return { accepted: false };
+        if (data.length > maximumLength) return { accepted: false };
+        if (data.length === 0) return { accepted: true };
+        let queue = this.inputQueues.get(terminalId);
+        if (
+            queue &&
+            (queue.identity !== identity || queue.attachmentId !== identity.attachmentId)
+        ) {
+            this.retireInputQueue(
+                terminalId,
+                new CaxriError('CONFLICT', 'Terminal identity changed before input completed'),
+            );
+            queue = undefined;
+        }
+        if (!queue) {
+            queue = new TerminalInputQueue(identity.attachmentId, identity);
+            this.inputQueues.set(terminalId, queue);
+        }
+        const capacity =
+            shouldAcknowledge || queue.hasAcknowledgedInput
+                ? MAX_QUEUED_TERMINAL_INPUT_CHARACTERS
+                : MAX_QUEUED_KEYBOARD_INPUT_CHARACTERS;
+        if (queue.queuedCharacters + data.length > capacity)
+            throw new CaxriError('CAPACITY', 'Terminal input queue capacity exceeded');
+        const receipt = queue.enqueue(data, shouldAcknowledge);
+        if (!queue.completion) {
+            queue.completion = this.drainInput(queue);
+            this.background(queue.completion, 'terminal.input', terminalId);
+        }
+        return { accepted: true, queue, ...(receipt && { receipt }) };
+    }
+
     async reserve(record: TerminalRecord): Promise<void> {
         const previous = this.identities.get(record.id);
-        this.inputQueues.delete(record.id);
+        this.retireInputQueue(
+            record.id,
+            new CaxriError('CONFLICT', 'Terminal generation changed before input completed'),
+        );
         this.resizeQueues.delete(record.id);
         const generation = (this.generations.get(record.id) ?? 0) + 1;
         const identity: RemoteTerminalIdentity = {
@@ -437,32 +484,34 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
     }
 
     write(terminalId: string, data: string): boolean {
-        const identity = this.identities.get(terminalId);
-        if (!identity?.processId || !identity.attachmentId) return false;
-        if (data.length > MAX_TERMINAL_INPUT_LENGTH) return false;
-        if (data.length === 0) return true;
-        let queue = this.inputQueues.get(terminalId);
-        if (queue && (queue.identity !== identity || queue.attachmentId !== identity.attachmentId))
-            queue = undefined;
-        if (!queue) {
-            queue = {
-                attachmentId: identity.attachmentId,
-                chunks: [],
-                head: 0,
-                identity,
-                queuedCharacters: 0,
-            };
-            this.inputQueues.set(terminalId, queue);
+        return this.acceptInput(terminalId, data, MAX_TERMINAL_INPUT_LENGTH).accepted;
+    }
+
+    async writeAcknowledged(
+        terminalId: string,
+        data: string,
+        abortSignal?: AbortSignal,
+    ): Promise<boolean> {
+        if (abortSignal?.aborted)
+            throw new CaxriError('CANCELLED', 'Terminal input was cancelled before admission');
+        const result = this.acceptInput(terminalId, data, MAX_TERMINAL_INPUT_PAYLOAD_LENGTH, true);
+        if (!result.accepted) return false;
+        const { queue, receipt } = result;
+        if (!queue || !receipt) return true;
+        const cancel = (): void => {
+            if (this.inputQueues.get(terminalId) === queue && queue.hasReceipt(receipt))
+                this.retireInputQueue(
+                    terminalId,
+                    new CaxriError('CANCELLED', 'Terminal input was cancelled'),
+                );
+        };
+        abortSignal?.addEventListener('abort', cancel, { once: true });
+        try {
+            await receipt.completion.promise;
+            return true;
+        } finally {
+            abortSignal?.removeEventListener('abort', cancel);
         }
-        if (queue.queuedCharacters + data.length > MAX_QUEUED_TERMINAL_INPUT_CHARACTERS)
-            throw new CaxriError('CAPACITY', 'Terminal input queue capacity exceeded');
-        queue.chunks.push(data);
-        queue.queuedCharacters += data.length;
-        if (!queue.completion) {
-            queue.completion = this.drainInput(queue);
-            this.background(queue.completion, 'terminal.input', terminalId);
-        }
-        return true;
     }
 
     configureOutputRecovery(
@@ -704,8 +753,12 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         const snapshotByTerminal = new Map(
             snapshots.map((snapshot) => [snapshot.terminalId, snapshot]),
         );
+        for (const terminalId of this.inputQueues.keys())
+            this.retireInputQueue(
+                terminalId,
+                new CaxriError('UNAVAILABLE', 'Terminal shut down before input completed'),
+            );
         this.identities.clear();
-        this.inputQueues.clear();
         this.resizeQueues.clear();
         this.views.clear();
         return liveIds.map((terminalId) => ({

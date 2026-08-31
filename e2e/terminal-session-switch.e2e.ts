@@ -17,6 +17,13 @@ import {
 import { removeE2ETemporaryDirectory } from './support/worker-isolation.ts';
 
 test('Session switches preserve a cursor-addressed Terminal screen and its live PTY', async () => {
+    /**
+     * Playwright escapes non-ASCII static text inside `String.raw`; runtime substitutions keep the fixture glyphs.
+     */
+    const cjkGlyph = String.fromCodePoint(0x75_4c);
+    const combiningAcute = String.fromCodePoint(0x301);
+    const powerlineGlyph = String.fromCodePoint(0xe0_b0);
+    const facepalmGlyph = String.fromCodePoint(0x1_f926);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-session-switch-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -29,17 +36,17 @@ test('Session switches preserve a cursor-addressed Terminal screen and its live 
             String.raw`printf '\033[?1049h\033[2J\033[H'`,
             'cols=$(tput cols)',
             'rows=$(tput lines)',
-            String.raw`printf '\033[1;1HSESSION_SWITCH_TOP_界_é_'`,
+            String.raw`printf '\033[1;1HSESSION_SWITCH_TOP_${cjkGlyph}_e${combiningAcute}_${powerlineGlyph}'`,
             String.raw`printf '\033[4;1H'`,
             "printf '%*s' \"$cols\" '' | tr ' ' '-'",
-            String.raw`printf '\033[4;3HSESSION_SWITCH_RULE_界'`,
-            String.raw`printf '\033[8;5HSESSION_SWITCH_MIDDLE_界'`,
+            String.raw`printf '\033[4;3HSESSION_SWITCH_RULE_${cjkGlyph}'`,
+            String.raw`printf '\033[8;5HSESSION_SWITCH_MIDDLE_${cjkGlyph}'`,
             String.raw`printf '\033[10;1H'`,
-            String.raw`printf '%*s🤦X\rZ' "$((cols - 2))" ''`,
-            String.raw`printf '\033[%d;%dHSESSION_SWITCH_EDGE_界' "$((rows - 2))" "$((cols - 22))"`,
+            String.raw`printf '%*s${facepalmGlyph}X\rZ' "$((cols - 2))" ''`,
+            String.raw`printf '\033[%d;%dHSESSION_SWITCH_EDGE_${cjkGlyph}' "$((rows - 2))" "$((cols - 22))"`,
             `while [ ! -f '${backgroundTrigger}' ]; do sleep 0.05; done`,
             String.raw`awk 'BEGIN { for (i = 0; i < 120000; i += 1) printf "\033[2;1Hbackground-%06d", i }'`,
-            String.raw`printf '\033[12;5HSESSION_SWITCH_BACKGROUND_界'`,
+            String.raw`printf '\033[12;5HSESSION_SWITCH_BACKGROUND_${cjkGlyph}'`,
             'sleep 1',
             `printf complete > '${backgroundComplete}'`,
             'sleep 60',
