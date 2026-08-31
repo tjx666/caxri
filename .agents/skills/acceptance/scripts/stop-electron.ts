@@ -125,6 +125,7 @@ export async function stopElectron(
             .filter(({ role }) => role === 'server-core')
             .map((ownedProcess) => processKey(ownedProcess)),
     );
+    let isShutdownStarted = false;
     const captureCurrentProcesses = async (): Promise<void> => {
         const discoveredProcesses = await dependencies.discoverOwnedProcesses(
             runtime,
@@ -134,6 +135,7 @@ export async function stopElectron(
         if (discoveredServerCore) {
             const discoveredServerCoreKey = processKey(discoveredServerCore);
             if (
+                !isShutdownStarted &&
                 acceptedServerCoreKeys.size > 0 &&
                 !acceptedServerCoreKeys.has(discoveredServerCoreKey)
             ) {
@@ -162,6 +164,11 @@ export async function stopElectron(
             'Acceptance process ownership was never verified; runtime state and profile were preserved',
         );
     }
+    /**
+     * A verified Desktop can restart its detached Server while shutdown is in flight. Discovery still binds the new
+     * generation to this exact profile, so persist and stop it instead of stranding the profile after Electron exits.
+     */
+    isShutdownStarted = true;
 
     const signaledProcesses = new Set<string>();
     const signalOnce = async (
