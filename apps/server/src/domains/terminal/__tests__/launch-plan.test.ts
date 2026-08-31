@@ -30,7 +30,10 @@ describe('TerminalLaunchPlanner managed Agent launch', () => {
         const planner = new TerminalLaunchPlanner({
             agentEnvironment: () => Promise.resolve({ HOME: '/tmp', PATH: '/agent/bin' }),
             agentLaunchSettings: () => ({ executable: 'codex', args: ['--profile', 'focused'] }),
-            lifecycleEnvironment: () => ({ CAXRI_AGENT_ENDPOINT_TOKEN: 'agent-secret' }),
+            lifecycleEnvironment: () => ({
+                CAXRI_AGENT_ENDPOINT_TOKEN: 'agent-secret',
+                CAXRI_MANAGED_AGENT: '1',
+            }),
             logger: new StructuredLogger('/tmp/caxri-launch-plan-test-logs'),
             resolveExecutable: (kind) =>
                 Promise.resolve(kind === 'shell' ? '/bin/zsh' : '/usr/local/bin/codex'),
@@ -52,6 +55,7 @@ describe('TerminalLaunchPlanner managed Agent launch', () => {
                 executable: '/usr/local/bin/codex',
                 args: ['--profile', 'focused', 'resume', 'conversation-1'],
                 environment: {
+                    CAXRI_MANAGED_AGENT: '1',
                     CAXRI_AGENT_ENDPOINT_TOKEN: 'agent-secret',
                     COLORTERM: 'truecolor',
                     HOME: '/tmp',
@@ -61,6 +65,7 @@ describe('TerminalLaunchPlanner managed Agent launch', () => {
             },
         });
         expect(prepared.value.environment).not.toHaveProperty('CAXRI_AGENT_ENDPOINT_TOKEN');
+        expect(prepared.value.environment).not.toHaveProperty('CAXRI_MANAGED_AGENT');
         expect(shellIntegration).toHaveBeenCalledWith('/bin/zsh', expect.any(Object));
     });
 

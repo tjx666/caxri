@@ -87,6 +87,7 @@ describe('AgentEndpointLifecycle', () => {
                 recovery: defaultAgentOutputRecoverySettings,
             }),
         ).resolves.toMatchObject({
+            CAXRI_MANAGED_AGENT: '1',
             CAXRI_AGENT_ENDPOINT_HOST_ID: 'host-1',
             CAXRI_AGENT_ENDPOINT_ID: 'endpoint-1',
             CAXRI_AGENT_ENDPOINT_GENERATION: '1',
