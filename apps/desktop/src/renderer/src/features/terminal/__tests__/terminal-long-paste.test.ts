@@ -41,7 +41,9 @@ describe('long Terminal paste', () => {
         const expectedLaunchIds: string[] = [];
         const request = Promise.withResolvers<{
             agentLaunchId: string;
+            characterCount: number;
             filePath: string;
+            lineCount: number;
             status: 'summarized';
             summary: string;
         }>();
@@ -67,9 +69,11 @@ describe('long Terminal paste', () => {
         expect(pending).toEqual([true]);
         request.resolve({
             agentLaunchId: 'launch-1',
+            characterCount: 1_145,
             filePath: '/local/paste.txt',
+            lineCount: 3,
             status: 'summarized',
-            summary: 'Summary',
+            summary: 'Actual failure: command exited with code 42.\n- src/task.ts:17',
         });
         await vi.waitFor(() => expect(controller.isPending()).toBe(false));
 
@@ -78,13 +82,27 @@ describe('long Terminal paste', () => {
         expect(pasted).toEqual([
             formatLongPasteReference({
                 agentLaunchId: 'launch-1',
+                characterCount: 1_145,
                 filePath: '/local/paste.txt',
+                lineCount: 3,
                 status: 'summarized',
-                summary: 'Summary',
+                summary: 'Actual failure: command exited with code 42.\n- src/task.ts:17',
             }),
         ]);
         expect(pasted[0]).not.toContain('original original');
-        expect(pasted[0]).not.toMatch(/[\t\r\n]/u);
+        expect(pasted[0]).toBe(
+            [
+                '[Long paste saved locally]',
+                'Original file: "/local/paste.txt"',
+                'Original size: 3 lines, 1145 characters',
+                '',
+                'Summary:',
+                'Actual failure: command exited with code 42.',
+                '- src/task.ts:17',
+                '',
+                'Read the original file for exact details.',
+            ].join('\n'),
+        );
     });
 
     it('tags only the synchronous xterm paste emission with the expected Agent process', () => {
@@ -142,7 +160,9 @@ describe('long Terminal paste', () => {
         const clipboard = Promise.withResolvers<string>();
         const summary = Promise.withResolvers<{
             agentLaunchId: string;
+            characterCount: number;
             filePath: string;
+            lineCount: number;
             status: 'summarized';
             summary: string;
         }>();
@@ -169,7 +189,9 @@ describe('long Terminal paste', () => {
         expect(controller.isPending()).toBe(true);
         summary.resolve({
             agentLaunchId: 'launch-1',
+            characterCount: 19,
             filePath: '/local/paste.txt',
+            lineCount: 1,
             status: 'summarized',
             summary: 'Summary',
         });
@@ -180,11 +202,33 @@ describe('long Terminal paste', () => {
         expect(paste).toHaveBeenCalledWith(
             formatLongPasteReference({
                 agentLaunchId: 'launch-1',
+                characterCount: 19,
                 filePath: '/local/paste.txt',
+                lineCount: 1,
                 status: 'summarized',
                 summary: 'Summary',
             }),
             'launch-1',
+        );
+    });
+
+    it('formats the path-only fallback as readable lines with the original size', () => {
+        expect(
+            formatLongPasteReference({
+                agentLaunchId: 'launch-1',
+                characterCount: 2_048,
+                filePath: '/local/paste.txt',
+                lineCount: 1,
+                status: 'unavailable',
+            }),
+        ).toBe(
+            [
+                '[Long paste saved locally; summary unavailable]',
+                'Original file: "/local/paste.txt"',
+                'Original size: 1 line, 2048 characters',
+                '',
+                'Read the original file for the exact content.',
+            ].join('\n'),
         );
     });
 });

@@ -15,6 +15,7 @@ import { AsyncSemaphore, waitForSharedOperation } from '@caxri/system';
 import type { CaxriDatabase } from '../db';
 import {
     agentPasteSummaryCharacterLimit,
+    countAgentPasteLines,
     normalizeAgentPasteSummary,
 } from './paste-summary-generation';
 import type { AgentService } from './service';
@@ -157,6 +158,10 @@ export class LongPasteService {
 
         const now = this.now();
         const filePath = join(this.directory, pasteFileName(now, this.identifier()));
+        const originalSize = {
+            characterCount: parameters.content.length,
+            lineCount: countAgentPasteLines(parameters.content),
+        };
         await this.mutations.run(async () => {
             await mkdir(this.directory, { recursive: true, mode: 0o700 });
             await chmod(this.directory, 0o700);
@@ -202,12 +207,23 @@ export class LongPasteService {
                 ? {
                       agentLaunchId: initialAgentLaunchId,
                       filePath,
+                      ...originalSize,
                       status: 'summarized',
                       summary,
                   }
-                : { agentLaunchId: initialAgentLaunchId, filePath, status: 'unavailable' };
+                : {
+                      agentLaunchId: initialAgentLaunchId,
+                      filePath,
+                      ...originalSize,
+                      status: 'unavailable',
+                  };
         } catch {
-            result = { agentLaunchId: initialAgentLaunchId, filePath, status: 'unavailable' };
+            result = {
+                agentLaunchId: initialAgentLaunchId,
+                filePath,
+                ...originalSize,
+                status: 'unavailable',
+            };
         } finally {
             clearTimeout(summaryTimeout);
             signal?.removeEventListener('abort', relayAbort);

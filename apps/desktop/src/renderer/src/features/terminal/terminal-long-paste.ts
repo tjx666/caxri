@@ -13,10 +13,26 @@ export function shouldPrepareLongPaste(options: {
 
 export function formatLongPasteReference(result: TerminalLongPasteResult): string {
     const filePath = JSON.stringify(result.filePath);
+    const lines = `${result.lineCount} ${result.lineCount === 1 ? 'line' : 'lines'}`;
+    const characters = `${result.characterCount} ${result.characterCount === 1 ? 'character' : 'characters'}`;
+    const header = [
+        result.status === 'unavailable'
+            ? '[Long paste saved locally; summary unavailable]'
+            : '[Long paste saved locally]',
+        `Original file: ${filePath}`,
+        `Original size: ${lines}, ${characters}`,
+    ];
     if (result.status === 'unavailable')
-        return `[Long paste saved locally; summary unavailable] Original file: ${filePath}. Read the original file for the exact content.`;
-    const summary = result.summary.replaceAll(/[\t\r\n]+/gu, ' ');
-    return `[Long paste saved locally] Original file: ${filePath}. Summary: ${summary} Use the original file for exact errors, code, numbers, or instructions.`;
+        return [...header, '', 'Read the original file for the exact content.'].join('\n');
+    const summary = result.summary.replaceAll(/\r\n?/gu, '\n').trim();
+    return [
+        ...header,
+        '',
+        'Summary:',
+        summary,
+        '',
+        'Read the original file for exact details.',
+    ].join('\n');
 }
 
 interface TerminalLongPasteControllerOptions {

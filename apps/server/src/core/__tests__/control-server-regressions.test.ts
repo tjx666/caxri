@@ -299,7 +299,9 @@ describe('local Host transport regressions', () => {
                     await summaryRelease.promise;
                     return {
                         agentLaunchId: 'launch-1',
+                        characterCount: 1_025,
                         filePath: '/tmp/paste.txt',
+                        lineCount: 1,
                         status: 'unavailable',
                     };
                 }
@@ -339,7 +341,9 @@ describe('local Host transport regressions', () => {
         summaryRelease.resolve();
         await expect(summary).resolves.toEqual({
             agentLaunchId: 'launch-1',
+            characterCount: 1_025,
             filePath: '/tmp/paste.txt',
+            lineCount: 1,
             status: 'unavailable',
         });
     });

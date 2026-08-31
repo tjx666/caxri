@@ -164,7 +164,14 @@ process.stdin.on('end', () => {
             ]),
         );
         expect(arguments_.join(' ')).not.toContain('long paste fixture');
-        expect(await readFile(inputPath, 'utf8')).toContain('long paste fixture');
+        const generatedInput = await readFile(inputPath, 'utf8');
+        expect(generatedInput).toContain('long paste fixture');
+        expect(generatedInput).toContain(
+            'If the text is a log, build trace, test output, or diagnostic dump:',
+        );
+        expect(generatedInput).toContain(
+            'Drop timestamps, progress lines, successful steps, repeated warnings, duplicate frames, and status spam unless they are causal.',
+        );
         expect(await readFile(cwdPath, 'utf8')).not.toBe(projectDirectory);
         const exposure = JSON.parse(await readFile(exposurePath, 'utf8')) as {
             globalInstructions: string;
