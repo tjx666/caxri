@@ -43,10 +43,13 @@ files in the case evidence:
 - `assets/<case-id>-state-isolation.json`
 - `assets/<case-id>-mobile-device.json`
 - `assets/<case-id>-result.json`
+- `assets/<case-id>-android.png`
+- `assets/<case-id>-android.mp4`
 
 The receipts contain the report source commit, final lifecycle launch id, build hash, explicit
-emulator identity, cleanup state, and the observed user outcome. A clean retry replaces prior
-receipts atomically; report finalization rejects stale launch or commit identities. They exclude the
+emulator identity, cleanup state, observed user outcome, and the framebuffer artifact paths and
+SHA-256 values. A clean retry replaces prior receipts atomically; report finalization rejects stale
+launch, commit, device, source, or artifact identities. They exclude the
 pairing link, QR payload, reply text, Session identity, Terminal
 content, Project path, source, logs, and environment values. The runner writes this receipt from its
 cleanup path for `passed`, `failed`, and pre-launch `blocked` outcomes so a failed round can still be
@@ -75,6 +78,10 @@ Capture device pixels, not a crop of the Android Studio emulator window:
 ADB="$HOME/Library/Android/sdk/platform-tools/adb"
 "$ADB" -s "$SERIAL" exec-out screencap -p > "$ROUND_DIR/assets/android-state.png"
 ```
+
+The guarded release runner performs this capture itself and records the exact path and SHA-256 in
+the mobile device receipt. For a separately driven case, add the same device-bound artifact entry
+before finalization; a file extension alone is never accepted as Android evidence.
 
 Read the full-resolution screenshot before citing it. Check safe areas, system bars, clipping,
 overlap, keyboard coverage, selection state, target identity, and phone/tablet layout. Pair a touch

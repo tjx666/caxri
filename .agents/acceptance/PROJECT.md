@@ -99,10 +99,12 @@ The plan item must use `surface: "mobile"`, `stateIsolation.mode: "isolated"`, a
 `mobileDevice` object. Include
 `assets/android-short-reply-state-isolation.json` and
 `assets/android-short-reply-mobile-device.json` and
-`assets/android-short-reply-result.json` in `cases[].evidence`. Every child command is bounded by a
-stage timeout and the overall run deadline. A clean retry atomically replaces its prior result
-receipts, and finalization binds them to the report commit and final lifecycle launch. Do not use
-this command on a physical device; its data reset is intentionally emulator-only.
+`assets/android-short-reply-result.json`, plus the generated `-android.png` and `-android.mp4`, in
+`cases[].evidence`. The runner owns one bounded `screenrecord` process and captures the final PNG
+directly from the device framebuffer before cleanup. Every child command is bounded by a stage
+timeout and the overall run deadline. A clean retry atomically replaces its prior result receipts,
+and finalization binds them to the report commit and final lifecycle launch. Do not use this command
+on a physical device; its data reset is intentionally emulator-only.
 
 ### iOS Simulator build
 

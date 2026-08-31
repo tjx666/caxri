@@ -287,14 +287,29 @@ describe('Acceptance report scaffold', () => {
         ).rejects.toThrow('must be a direct regular file');
     });
 
-    it('rejects a case id that the isolated Electron launcher cannot own', async () => {
+    it('preserves an uppercase stable check id from the owning issue', async () => {
+        const directory = await reportDirectory();
+
+        await initialize(directory, {
+            plan: [{ ...plan[0], id: 'MOB-SEC-01' }],
+        });
+
+        const result = parseReport(await readFile(join(directory, 'result.json'), 'utf8'));
+        expect(result.plan[0]?.id).toBe('MOB-SEC-01');
+        expect(result.cases[0]?.id).toBe('MOB-SEC-01');
+    });
+
+    it('rejects case ids that differ only by ASCII letter case', async () => {
         const directory = await reportDirectory();
 
         await expect(
             initialize(directory, {
-                plan: [{ ...plan[0], id: 'ACC-274-MENU-HINT' }],
+                plan: [
+                    { ...plan[0], id: 'MOB-SEC-01' },
+                    { ...plan[0], id: 'mob-sec-01' },
+                ],
             }),
-        ).rejects.toThrow('Acceptance case id must use lowercase letters, digits, and hyphens');
+        ).rejects.toThrow('Duplicate plan id ignoring ASCII letter case: mob-sec-01');
     });
 
     it('reports an actionable error for generated TODO placeholders', async () => {

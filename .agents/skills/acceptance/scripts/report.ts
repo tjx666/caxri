@@ -26,7 +26,7 @@ import {
     validateExistingReportDirectory,
     writeJsonAtomically,
 } from './report-paths';
-import { isAcceptanceCaseId } from './runtime-state';
+import { assertUniqueAcceptanceCaseIds, isAcceptanceCaseId } from './runtime-state';
 import { validateHumanText, validateReportLanguage } from './validate-report';
 
 export type { RebindReportHeadInput } from './report-head';
@@ -65,7 +65,7 @@ const planItemSchema = z
         expected: z.string().min(1),
         fixturePreflight: z.literal('terminal').optional(),
         id: z.string().min(1).refine(isAcceptanceCaseId, {
-            message: 'Acceptance case id must use lowercase letters, digits, and hyphens',
+            message: 'Acceptance case id must use ASCII letters, numbers, and hyphens',
         }),
         method: z.string().min(1),
         mobileDevice: mobileDeviceSchema.optional(),
@@ -151,12 +151,6 @@ export interface FinalizeReportInput {
     conclusion?: string;
     directory: string;
     requirement: string;
-}
-function assertUniqueIds(items: Array<{ id: string }>, kind: string): void {
-    const duplicate = items.find(
-        (item, index) => items.findIndex(({ id }) => id === item.id) !== index,
-    );
-    if (duplicate) throw new Error(`Duplicate ${kind} id: ${duplicate.id}`);
 }
 function lifecycleEvidencePath(caseId: string): string {
     return `assets/${encodeURIComponent(caseId)}-state-isolation.json`;
@@ -351,7 +345,7 @@ async function assertFreshRound(directory: string): Promise<void> {
 export async function initializeReport(input: InitializeReportInput): Promise<string> {
     const directory = resolveReportDirectory(input.directory);
     const parsedPlan = normalizePlanLanguage(z.array(planItemSchema).min(1).parse(input.plan));
-    assertUniqueIds(parsedPlan, 'plan');
+    assertUniqueAcceptanceCaseIds(parsedPlan, 'plan');
     const requirement = validateHumanText(input.requirement, 'requirement');
     const title = validateHumanText(input.title, 'title');
     const entry = validateHumanText(input.entry, 'entry');
@@ -606,8 +600,8 @@ export async function finalizeReport(input: FinalizeReportInput) {
     }
     assertNoTodoCases(rawReport);
     const report = resultSchema.parse(rawReport);
-    assertUniqueIds(report.plan, 'plan');
-    assertUniqueIds(report.cases, 'case');
+    assertUniqueAcceptanceCaseIds(report.plan, 'plan');
+    assertUniqueAcceptanceCaseIds(report.cases, 'case');
 
     const planIds = report.plan.map(({ id }) => id);
     const caseIds = report.cases.map(({ id }) => id);

@@ -72,11 +72,12 @@ For every mobile case, including `fail` and `blocked`, include the report-bound
 `assets/<case-id>-mobile-device.json`; finalization checks its platform, app id, explicit device
 identity, source commit, final lifecycle launch id, and `passed | failed | blocked` status against
 the frozen case result. A `readonly_checkpoint` case carries its frozen checkpoint id instead of a
-lifecycle launch id. A case blocked
+lifecycle launch id. Its `artifacts` array must bind every cited mobile screenshot or recording by
+relative path, SHA-256, type, and matching Android or iOS Simulator framebuffer source. A case blocked
 before launch records the selected target and unavailable build identity without claiming the app
 ran. For the guarded
 Android reply case, the generated APK-hash/device receipt plus state-isolation
-and bounded-result receipts are the execution evidence; do not add a raw Playwright trace or device
-log. These artifacts
+and bounded-result receipts are the execution evidence; its generated PNG and MP4 are the visual and
+temporal evidence. Do not add a raw Playwright trace or device log. These artifacts
 support the real selected product surface; they do not create another surface or replace required
 visual/temporal evidence.

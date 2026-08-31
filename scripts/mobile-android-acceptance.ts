@@ -12,9 +12,15 @@ import {
     loadAcceptanceCasePlan,
     markCaseLifecycleReady,
 } from '../.agents/skills/acceptance/scripts/report';
+import type { MobileAcceptanceArtifact } from './mobile-acceptance-runtime';
 import {
     assertMobileAcceptanceSourceIdentity,
+    captureMobileAcceptanceCommand,
+    collectMobileAcceptanceArtifacts,
+    createMobileAcceptanceArtifact,
     runMobileAcceptanceCommand,
+    startMobileAcceptanceRecording,
+    writeMobileAcceptanceArtifact,
     writeMobileAcceptanceReceipt,
 } from './mobile-acceptance-runtime';
 
@@ -68,6 +74,9 @@ let reportDirectory: string | undefined;
 let caseId: string | undefined;
 let launchId: string | undefined;
 let sourceCommit: string | undefined;
+let screenshotPath: string | undefined;
+let videoPath: string | undefined;
+let remoteVideoPath: string | undefined;
 if (requestedReportDirectory && requestedCaseId) {
     const planned = await loadAcceptanceCasePlan(requestedReportDirectory, requestedCaseId);
     if (planned.item.surface !== 'mobile')
@@ -92,6 +101,9 @@ if (requestedReportDirectory && requestedCaseId) {
     sourceCommit = actualCommit.trim().toLowerCase();
     reportDirectory = planned.directory;
     caseId = requestedCaseId;
+    screenshotPath = join(reportDirectory, 'assets', `${encodeURIComponent(caseId)}-android.png`);
+    videoPath = join(reportDirectory, 'assets', `${encodeURIComponent(caseId)}-android.mp4`);
+    remoteVideoPath = `/data/local/tmp/caxri-acceptance-${process.pid}.mp4`;
     launchId = await beginCaseLifecycle(reportDirectory, {
         caseId,
         profileIdentity: `android-emulator:${serial}:com.caxri.mobile:${randomUUID()}`,
@@ -102,6 +114,8 @@ if (requestedReportDirectory && requestedCaseId) {
 let failure: unknown;
 let isCleanupCompleted = false;
 let isLifecycleReady = false;
+let recording: Awaited<ReturnType<typeof startMobileAcceptanceRecording>> | undefined;
+const artifacts: MobileAcceptanceArtifact[] = [];
 try {
     run('bun', ['run', 'build'], BUILD_TIMEOUT_MS);
     run(
@@ -119,6 +133,30 @@ try {
     if (reportDirectory && caseId && launchId) {
         await markCaseLifecycleReady(reportDirectory, { caseId, launchId });
         isLifecycleReady = true;
+        if (!remoteVideoPath) throw new Error('Android Acceptance recording path is missing');
+        recording = await startMobileAcceptanceRecording({
+            arguments: [
+                '-s',
+                serial,
+                'shell',
+                'screenrecord',
+                '--bit-rate',
+                '8000000',
+                '--time-limit',
+                '180',
+                remoteVideoPath,
+            ],
+            command: adb,
+            cwd: root,
+        });
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        if (
+            !/^\d+(?:\s+\d+)*$/u.test(
+                read(adb, ['-s', serial, 'shell', 'pidof', 'screenrecord'], DEVICE_TIMEOUT_MS),
+            )
+        ) {
+            throw new Error('Android Acceptance screen recording is not active');
+        }
     }
     run(
         'bunx',
@@ -142,6 +180,63 @@ try {
 } catch (error) {
     failure = error;
 } finally {
+    const activeRecording = recording;
+    const collected = await collectMobileAcceptanceArtifacts({
+        captureRecording:
+            activeRecording && videoPath && remoteVideoPath
+                ? async () => {
+                      await activeRecording.stop();
+                      run(
+                          adb,
+                          ['-s', serial, 'pull', remoteVideoPath, videoPath],
+                          DEVICE_TIMEOUT_MS,
+                          process.env,
+                          overallDeadlineMs,
+                      );
+                      if (!caseId) throw new Error('Android Acceptance recording case is missing');
+                      return createMobileAcceptanceArtifact(videoPath, {
+                          path: `assets/${encodeURIComponent(caseId)}-android.mp4`,
+                          source: 'android-framebuffer',
+                          type: 'video',
+                      });
+                  }
+                : undefined,
+        captureScreenshot:
+            screenshotPath && isLifecycleReady
+                ? async () => {
+                      if (!caseId) throw new Error('Android Acceptance screenshot case is missing');
+                      const screenshot = captureMobileAcceptanceCommand({
+                          arguments: ['-s', serial, 'exec-out', 'screencap', '-p'],
+                          command: adb,
+                          cwd: root,
+                          deadlineMs: overallDeadlineMs,
+                          timeoutMs: DEVICE_TIMEOUT_MS,
+                      });
+                      await writeMobileAcceptanceArtifact(screenshotPath, screenshot);
+                      return createMobileAcceptanceArtifact(screenshotPath, {
+                          path: `assets/${encodeURIComponent(caseId)}-android.png`,
+                          source: 'android-framebuffer',
+                          type: 'screenshot',
+                      });
+                  }
+                : undefined,
+        failure,
+    });
+    failure = collected.failure;
+    artifacts.push(...collected.artifacts);
+    if (recording && remoteVideoPath) {
+        try {
+            run(
+                adb,
+                ['-s', serial, 'shell', 'rm', '-f', remoteVideoPath],
+                DEVICE_TIMEOUT_MS,
+                process.env,
+                overallDeadlineMs,
+            );
+        } catch (error) {
+            failure ??= error;
+        }
+    }
     try {
         run(
             adb,
@@ -185,6 +280,7 @@ if (reportDirectory && caseId && launchId && sourceCommit) {
     );
     await writeMobileAcceptanceReceipt(receiptPath, {
         appId: 'com.caxri.mobile',
+        artifacts,
         build: { identity: apkSha256, mode: 'release' },
         caseId,
         cleanup: {

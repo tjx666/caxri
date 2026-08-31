@@ -67,7 +67,9 @@ platform, the installed build identity when available (otherwise `unavailable`),
 `passed`, `failed`, or `blocked` matching the case result. Bind the receipt to the frozen report
 commit and final state-isolation launch id, or to the frozen checkpoint id for
 `readonly_checkpoint`. A blocked receipt identifies the intended target; it must not claim that the
-application launched.
+application launched. Every cited Simulator screenshot or recording must also appear in the
+receipt's `artifacts` array with its relative path, SHA-256, media type, and
+`ios-simulator-framebuffer` source.
 
 ## Inspect, interact, and verify
 

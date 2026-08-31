@@ -1,3 +1,5 @@
+import { Buffer } from 'node:buffer';
+import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
@@ -24,6 +26,10 @@ const TEST_ROOT = join(
 const acceptanceRoots: string[] = [];
 const requirement = 'Caxri 移动端应安全连接并呈现配对的 Agent Sessions。';
 const reportCommit = 'a'.repeat(40);
+const VALID_PNG = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+    'base64',
+);
 const desktopPlan = {
     category: '终端布局',
     expected: '终端视口周围不出现应用背景色条。',
@@ -152,6 +158,7 @@ describe('Acceptance mobile report scaffold', () => {
                 join(directory, 'assets/android-short-reply-mobile-device.json'),
                 JSON.stringify({
                     appId: 'com.caxri.mobile',
+                    artifacts: [],
                     build: { identity: 'apk-sha256', mode: 'release' },
                     caseId: mobilePlan.id,
                     cleanup: { appData: 'cleared', desktopProfile: 'isolated-and-removed' },
@@ -235,11 +242,97 @@ describe('Acceptance mobile report scaffold', () => {
         };
         await Promise.all([
             writeFile(resultPath, `${JSON.stringify(result, null, 2)}\n`),
-            writeFile(join(directory, 'assets/android-pairing.png'), 'image'),
+            writeFile(join(directory, 'assets/android-pairing.png'), VALID_PNG),
         ]);
 
         await expect(finalizeReport({ directory, requirement })).rejects.toThrow(
             'must include its mobile device receipt',
+        );
+
+        const deviceEvidence = `assets/${caseId}-mobile-device.json`;
+        result.cases[0] = {
+            ...result.cases[0],
+            evidence: ['assets/android-pairing.png', deviceEvidence, lifecycle.evidence],
+        };
+        const receipt = {
+            appId: 'com.caxri.mobile',
+            artifacts: [],
+            build: { identity: 'apk-sha256', mode: 'release' },
+            caseId,
+            cleanup: { appData: 'cleared', desktopProfile: 'isolated-and-removed' },
+            device: { id: 'emulator-5554', kind: 'emulator', platform: 'android' },
+            launchId: lifecycle.launchId,
+            outcome: 'pairing-entry-observed',
+            schemaVersion: 1,
+            sourceCommit: reportCommit,
+            status: 'passed',
+        };
+        await Promise.all([
+            writeFile(resultPath, `${JSON.stringify(result, null, 2)}\n`),
+            writeFile(join(directory, deviceEvidence), JSON.stringify(receipt)),
+        ]);
+        await expect(finalizeReport({ directory, requirement })).rejects.toThrow(
+            'must bind mobile media evidence',
+        );
+
+        await writeFile(
+            join(directory, 'assets/android-pairing.png'),
+            Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x01]),
+        );
+        const malformedImage = await readFile(join(directory, 'assets/android-pairing.png'));
+        await writeFile(
+            join(directory, deviceEvidence),
+            JSON.stringify({
+                ...receipt,
+                artifacts: [
+                    {
+                        path: 'assets/android-pairing.png',
+                        sha256: createHash('sha256').update(malformedImage).digest('hex'),
+                        source: 'android-framebuffer',
+                        type: 'screenshot',
+                    },
+                ],
+            }),
+        );
+        await expect(finalizeReport({ directory, requirement })).rejects.toThrow('decodable PNG');
+
+        await writeFile(join(directory, 'assets/android-pairing.png'), VALID_PNG);
+
+        const image = await readFile(join(directory, 'assets/android-pairing.png'));
+        await writeFile(
+            join(directory, deviceEvidence),
+            JSON.stringify({
+                ...receipt,
+                artifacts: [
+                    {
+                        path: 'assets/android-pairing.png',
+                        sha256: createHash('sha256').update(image).digest('hex'),
+                        source: 'android-framebuffer',
+                        type: 'screenshot',
+                    },
+                ],
+            }),
+        );
+        await expect(finalizeReport({ directory, requirement })).resolves.toMatchObject({
+            summary: { verdict: 'pass' },
+        });
+
+        await writeFile(
+            join(directory, deviceEvidence),
+            JSON.stringify({
+                ...receipt,
+                artifacts: [
+                    {
+                        path: 'assets/android-pairing.png',
+                        sha256: '0'.repeat(64),
+                        source: 'android-framebuffer',
+                        type: 'screenshot',
+                    },
+                ],
+            }),
+        );
+        await expect(finalizeReport({ directory, requirement })).rejects.toThrow(
+            'mobile media evidence is not device-bound',
         );
     });
 
@@ -278,6 +371,7 @@ describe('Acceptance mobile report scaffold', () => {
         };
         const receipt = {
             appId: 'com.caxri.mobile',
+            artifacts: [],
             build: { identity: 'unavailable', mode: 'release' },
             caseId,
             cleanup: { appData: 'preserved', desktopProfile: 'not-started' },
@@ -340,6 +434,7 @@ describe('Acceptance mobile report scaffold', () => {
         };
         const receipt = {
             appId: 'com.caxri.mobile',
+            artifacts: [],
             build: { identity: 'ios-app-sha256', mode: 'release' },
             caseId,
             checkpointId,
