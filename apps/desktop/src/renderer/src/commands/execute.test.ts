@@ -1,4 +1,4 @@
-import type { BootstrapState, CommandId, PaneLayout } from '@caxri/protocol';
+import type { BootstrapState, CommandId, PaneLayout, ProcessState } from '@caxri/protocol';
 import {
     activePane,
     commandDefinitions as sharedCommandDefinitions,
@@ -49,7 +49,7 @@ function seedPaneLayout(paneLayout: PaneLayout): void {
  * Seeds the default command context with a content-free Agent Terminal whose outer shell remains alive independently
  * from its Agent child.
  */
-function seedAgentTerminal(lastAgentProcessState: 'running' | 'stopped' | undefined): void {
+function seedAgentTerminal(lastAgentProcessState: ProcessState | undefined): void {
     const paneLayout = createPaneLayout(
         { kind: 'terminal', terminalId: 'terminal-1' },
         () => 'tab-1',
@@ -203,6 +203,7 @@ describe('executeCommand', () => {
     it.each([
         { expected: true, lastAgentProcessState: 'running' as const },
         { expected: false, lastAgentProcessState: 'stopped' as const },
+        { expected: false, lastAgentProcessState: 'dead' as const },
         { expected: false, lastAgentProcessState: undefined },
     ])(
         'exposes Agent Actions=$expected when the Agent child state is $lastAgentProcessState',

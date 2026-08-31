@@ -300,22 +300,22 @@ export class CaxriDatabase {
         });
     }
 
-    /**
-     * Atomically reclassifies a live Agent Terminal onto a different provider after its foreground process confirms the
-     * user launched another agent in the same PTY. Session-level state is intentionally untouched: the Terminal remains
-     * the Session's primary Agent when it already was, and the coordinator's follow-up probe republishes the new
-     * provider's session identity and title.
-     */
-    switchAgentProvider(terminalId: string, provider: AgentProvider): boolean {
+    confirmForegroundAgentProvider(terminalId: string, provider: AgentProvider): boolean {
         return this.db.transaction(() => {
             const terminal = this.db.terminals.get(terminalId);
-            if (!terminal?.provider || terminal.provider === provider) return false;
+            if (!terminal?.provider) return false;
+            if (terminal.provider === provider)
+                return this.db.terminals.reactivateAgentProcess(terminalId, provider);
             return this.db.terminals.switchAgentProvider(
                 terminalId,
                 provider,
                 defaultTerminalTitle(provider),
             );
         });
+    }
+
+    revokeForegroundAgentProvider(terminalId: string, provider: AgentProvider): boolean {
+        return this.db.terminals.deactivateForegroundAgentProcess(terminalId, provider);
     }
 
     /**

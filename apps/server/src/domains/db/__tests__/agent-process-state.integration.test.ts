@@ -73,6 +73,30 @@ describe('Agent child-process state persistence', () => {
         database.close();
     });
 
+    it('reactivates only an inactive Agent whose provider and outer Shell still match', async () => {
+        const directory = await temporaryDirectory('caxri-db-reactivate-agent-');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'claude');
+        const terminalId = created.terminal!.id;
+        database.updateTerminalState(terminalId, 'running');
+
+        expect(database.confirmForegroundAgentProvider(terminalId, 'claude')).toBe(false);
+        database.updateAgentProcessState(terminalId, 'running');
+        expect(database.confirmForegroundAgentProvider(terminalId, 'claude')).toBe(false);
+        database.updateAgentProcessState(terminalId, 'dead');
+        expect(database.confirmForegroundAgentProvider(terminalId, 'claude')).toBe(true);
+        expect(database.getTerminal(terminalId)?.lastAgentProcessState).toBe('running');
+        expect(database.revokeForegroundAgentProvider(terminalId, 'codex')).toBe(false);
+        expect(database.revokeForegroundAgentProvider(terminalId, 'claude')).toBe(true);
+        expect(database.getTerminal(terminalId)?.lastAgentProcessState).toBe('stopped');
+
+        database.updateAgentProcessState(terminalId, 'dead');
+        database.updateTerminalState(terminalId, 'stopped');
+        expect(database.confirmForegroundAgentProvider(terminalId, 'claude')).toBe(false);
+        expect(database.getTerminal(terminalId)?.lastAgentProcessState).toBe('dead');
+        database.close();
+    });
+
     it.each([
         ['unclean', 'interrupted'],
         ['orderly', 'interrupted'],
