@@ -19,6 +19,7 @@ export const clipboardCapabilitySpecs = [
     'e2e/file-operations.e2e.ts',
     'e2e/settings.e2e.ts',
     'e2e/terminal-osc52-clipboard.e2e.ts',
+    'e2e/terminal-long-paste.e2e.ts',
     'e2e/terminal-search.e2e.ts',
     'e2e/terminal-selection.e2e.ts',
     'e2e/terminal-shortcuts.e2e.ts',

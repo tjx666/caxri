@@ -366,6 +366,12 @@ export class TerminalHostRuntime {
             }
             case 'terminal.input': {
                 const scope = this.requireTerminalScope(envelope);
+                if (
+                    request.params.expectedAgentLaunchId !== undefined &&
+                    this.identities.get(scope.terminalId)?.agentLaunchId !==
+                        request.params.expectedAgentLaunchId
+                )
+                    throw new CaxriError('CONFLICT', 'Managed Agent changed before Terminal input');
                 return { accepted: this.engine.write(scope.terminalId, request.params.data) };
             }
             case 'terminal.resize': {

@@ -419,6 +419,13 @@ export class TerminalManager {
         return this.execution.writeAcknowledged(terminalId, data, abortSignal);
     }
 
+    /**
+     * Checks and accepts a generated Agent input in one synchronous Server Core turn.
+     */
+    writeAgentExact(terminalId: string, data: string, expectedAgentLaunchId: string): boolean {
+        return this.execution.writeAgentExact(terminalId, data, expectedAgentLaunchId);
+    }
+
     reconcileOutputRecoverySettings(): void {
         for (const terminal of this.database.listTerminals())
             this.execution.configureOutputRecovery(
@@ -535,6 +542,10 @@ export class TerminalManager {
 
     agentProcessId(terminalId: string): number | undefined {
         return this.execution.agentProcessId(terminalId);
+    }
+
+    agentLaunchId(terminalId: string): string | undefined {
+        return this.execution.agentLaunchId(terminalId);
     }
 
     async waitForAgentRunning(terminalId: string, timeoutMs = 15_000): Promise<void> {

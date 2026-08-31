@@ -37,6 +37,7 @@ import {
 import { loadTerminalFonts } from './terminal-fonts';
 import { createTerminalImageAddon, registerTerminalImageAddon } from './terminal-images';
 import { registerTerminalClipboardHandlers, terminalKeyboardInput } from './terminal-keyboard';
+import { createTerminalLongPasteRuntime } from './terminal-long-paste';
 import { ControlledOsc52Clipboard } from './terminal-osc52-clipboard';
 import {
     detachTerminalQuietly,
@@ -78,6 +79,8 @@ interface TerminalPaneRuntimeOptions {
     gpuAcceleration: TerminalGpuAcceleration;
     githubRepositories: TerminalReferenceContext['githubRepositories'];
     imagePasteInput?: string;
+    longPasteEnabled: boolean;
+    longPasteThreshold: number;
     osc52ClipboardWrite: boolean;
     processState: ProcessState;
     projectRoot: string;
@@ -92,9 +95,8 @@ interface TerminalPaneRuntimeOptions {
     terminalTheme: ThemeTokens['terminal'] | undefined;
     wordSeparators: string;
 }
-/**
- * Owns the imperative xterm lifecycle so TerminalPane stays a small presentation component.
- */
+
+// Owns the imperative xterm lifecycle so TerminalPane stays a small presentation component.
 export function useTerminalPaneRuntime({
     canAcceptAgentInput,
     active,
@@ -106,6 +108,8 @@ export function useTerminalPaneRuntime({
     gpuAcceleration,
     githubRepositories,
     imagePasteInput,
+    longPasteEnabled,
+    longPasteThreshold,
     osc52ClipboardWrite,
     processState,
     projectRoot,
@@ -120,10 +124,7 @@ export function useTerminalPaneRuntime({
     const containerReference = useRef<HTMLDivElement>(null);
     const xtermReference = useRef<Terminal | undefined>(undefined);
     const fitAndResizeReference = useRef<(() => void) | undefined>(undefined);
-    /**
-     * Set by the mount effect below; the context menu's Paste action reads through this instead of capturing the
-     * imperative xterm instance directly, since the effect (re)runs per attach epoch.
-     */
+    // Context-menu Paste reads this effect-owned ref instead of capturing xterm across attach epochs.
     const pasteReference = useRef<(() => Promise<void>) | undefined>(undefined);
     const searchReference = useRef<SearchAddon | undefined>(undefined);
     const searchActiveReference = useRef(false);
@@ -131,6 +132,8 @@ export function useTerminalPaneRuntime({
     const replayReference = useRef<TerminalReplayCoordinator | undefined>(undefined);
     const rendererReference = useRef<TerminalRendererController | undefined>(undefined);
     const [fontsReady, setFontsReady] = useState(false);
+    const [longPasteState, setLongPasteState] = useState({ id: terminalId, pending: false });
+    const longPastePending = longPasteState.id === terminalId && longPasteState.pending;
     const [searchResults, setSearchResults] = useState<TerminalSearchResults>(emptySearchResults);
     const attachedEpochReference = useRef(attachEpoch);
     const previousProcessStateReference = useRef(processState);
@@ -145,6 +148,9 @@ export function useTerminalPaneRuntime({
         githubRepositories,
         imagePasteInput,
         isAgent: canAcceptAgentInput,
+        longPasteEnabled,
+        longPastePending,
+        longPasteThreshold,
         osc52ClipboardWrite,
         processState,
         projectRoot,
@@ -189,7 +195,7 @@ export function useTerminalPaneRuntime({
             allowProposedApi: true,
             convertEol: false,
             cursorBlink: true,
-            disableStdin: latest.processState !== 'running',
+            disableStdin: latest.processState !== 'running' || latest.longPastePending,
             fontFamily: latest.fontFamily,
             fontSize: latest.fontSize,
             /**
@@ -297,8 +303,24 @@ export function useTerminalPaneRuntime({
             updateTerminalProgress(terminalId, update);
         });
         const terminalLinks = registerTerminalPaneLinks(xterm, () => latestReference.current);
+        let isDisposed = false;
+        const longPasteRuntime = createTerminalLongPasteRuntime({
+            latest: () => latestReference.current,
+            onFailure: () => onError('Long paste could not be prepared'),
+            onPendingChange: (pending, shouldDisableStdin) => {
+                xterm.options.disableStdin = shouldDisableStdin;
+                setLongPasteState({ id: terminalId, pending });
+            },
+            paste: (text) => xterm.paste(text),
+            request: (content) =>
+                caxri.request('terminal.prepareLongPaste', { content, terminalId }),
+        });
+        const longPaste = longPasteRuntime.controller;
         xterm.attachCustomKeyEventHandler((event) => {
-            const input = terminalKeyboardInput(event, latestReference.current.canAcceptAgentInput);
+            const input = terminalKeyboardInput(
+                event,
+                latestReference.current.canAcceptAgentInput && !longPaste.isPending(),
+            );
             if (!input) return true;
             event.preventDefault();
             event.stopPropagation();
@@ -312,9 +334,9 @@ export function useTerminalPaneRuntime({
             getSelection: () => xterm.getSelection(),
             imagePasteInput: () => latestReference.current.imagePasteInput,
             pasteImage: (input) => xterm.input(input),
+            pasteText: (text) => longPaste.intercept(text),
         });
         xtermReference.current = xterm;
-        let isDisposed = false;
         const resizeController = new TerminalPaneResizeController({
             apply: ({ cols, rows }) => xterm.resize(cols, rows),
             current: () => ({ cols: xterm.cols, rows: xterm.rows }),
@@ -346,11 +368,11 @@ export function useTerminalPaneRuntime({
         );
         rendererReference.current = renderer;
         renderer.setPreference(latest.gpuAcceleration);
-
         const unregisterInputHandlers = registerTerminalInputHandlers(
             xterm,
             terminalId,
-            () => latestReference.current.processState === 'running',
+            () => latestReference.current.processState === 'running' && !longPaste.isPending(),
+            longPasteRuntime.expectedAgentLaunchId,
         );
         let isClipboardFailureReported = false;
         const selectionClipboard = new TerminalSelectionClipboard(
@@ -384,8 +406,7 @@ export function useTerminalPaneRuntime({
         const pasteFromClipboard = async (): Promise<void> => {
             if (latestReference.current.processState !== 'running') return;
             try {
-                const text = await navigator.clipboard.readText();
-                if (text) xterm.paste(text);
+                await longPaste.pasteFromClipboard(() => navigator.clipboard.readText());
             } catch (error) {
                 onError(errorMessage(error, 'Terminal paste failed'));
             }
@@ -532,6 +553,7 @@ export function useTerminalPaneRuntime({
         void initialize();
         return () => {
             isDisposed = true;
+            longPaste.dispose();
             delete container.dataset.terminalAttached;
             observer.disconnect();
             resizeSettler.dispose();
@@ -576,11 +598,9 @@ export function useTerminalPaneRuntime({
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps -- `latestReference` is a stable ref object, intentionally excluded
     }, [fontsReady, terminalId]);
-
     useEffect(() => {
         rendererReference.current?.setPreference(gpuAcceleration);
     }, [gpuAcceleration]);
-
     /**
      * `rendererReference` is undefined until the mount effect above finishes attaching, so a visibility event that
      * fires before then (or after disposal) safely no-ops here instead of racing the renderer's own lifecycle.
@@ -592,11 +612,9 @@ export function useTerminalPaneRuntime({
         rendererReference.current?.restoreVisible();
     }, []);
     useOnVisible(restoreRenderer, { includePageShow: true });
-
     useEffect(() => {
         if (processState !== 'running') clearTerminalProgress(terminalId);
     }, [processState, terminalId]);
-
     useEffect(() => {
         if (attachedEpochReference.current === attachEpoch) return;
         attachedEpochReference.current = attachEpoch;
@@ -634,7 +652,7 @@ export function useTerminalPaneRuntime({
         previousProcessStateReference.current = processState;
         if (!xterm) return;
         const isRunning = processState === 'running';
-        xterm.options.disableStdin = !isRunning;
+        xterm.options.disableStdin = !isRunning || longPastePending;
         reconcileTerminalProcessFocus({
             active,
             blur: () => xterm.blur(),
@@ -668,7 +686,7 @@ export function useTerminalPaneRuntime({
         // Effects cannot be async themselves; the failure path above already reports the error.
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void reattach();
-    }, [active, processState, terminalId]);
+    }, [active, longPastePending, processState, terminalId]);
 
     useEffect(() => {
         const xterm = xtermReference.current;
@@ -766,20 +784,18 @@ export function useTerminalPaneRuntime({
         [],
     );
     const focusTerminal = useCallback((): void => xtermReference.current?.focus(), []);
-
     const pasteFromClipboard = useCallback((): void => {
-        // This wrapper is called from sync command/menu handlers; the underlying paste already
-        // reports its own failure through onError.
+        // Sync command handlers float this promise; its own path reports failures through onError.
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void pasteReference.current?.();
     }, []);
-
     return {
         beginSearch,
         containerRef: containerReference,
         endSearch,
         find,
         focusTerminal,
+        longPastePending,
         pasteFromClipboard,
         searchResults,
     };

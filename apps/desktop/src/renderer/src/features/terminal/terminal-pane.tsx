@@ -180,6 +180,10 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
     const imagePasteInput = provider
         ? agentProviderCatalog[provider].imageInput?.terminalInput
         : undefined;
+    const longPasteEnabled = provider
+        ? (settings?.['agents.providers'][provider].pasteSummary.enabled ?? true)
+        : false;
+    const longPasteThreshold = settings?.['terminal.longPasteThreshold'] ?? 1_024;
     const canAcceptAgentInput = isAgentProcessRunning(terminal?.lastAgentProcessState);
     const terminalTheme = theme?.terminal;
 
@@ -193,6 +197,7 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         endSearch,
         find,
         focusTerminal,
+        longPastePending,
         pasteFromClipboard,
         searchResults,
     } = useTerminalPaneRuntime({
@@ -206,6 +211,8 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         gpuAcceleration,
         githubRepositories: referenceContext?.githubRepositories ?? [],
         imagePasteInput,
+        longPasteEnabled,
+        longPasteThreshold,
         osc52ClipboardWrite: isOsc52ClipboardWrite,
         processState,
         projectRoot: session?.rootPath ?? '',
@@ -355,6 +362,15 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
                 onOpenChange={linkPicker.onOpenChange}
                 onSelect={linkPicker.selectLink}
             />
+            {longPastePending && (
+                <div
+                    aria-live="polite"
+                    className="-ml-2 flex min-h-7 flex-none items-center gap-2 border-t border-border bg-surface px-2 text-[11px] text-muted"
+                    role="status"
+                >
+                    <Spinner size={14} /> Summarizing pasted text…
+                </div>
+            )}
             <TerminalRecoveryBar
                 failureReason={terminal?.failureReason}
                 processState={processState}

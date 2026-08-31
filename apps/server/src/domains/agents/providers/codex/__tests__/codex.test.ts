@@ -95,6 +95,97 @@ afterEach(async () => {
 });
 
 describe('Codex provider', () => {
+    it('uses the current low-cost Codex model and keeps long-paste content out of argv', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-codex-paste-summary-command-'));
+        temporaryDirectories.push(directory);
+        const executable = join(directory, 'codex.cjs');
+        const argumentsPath = join(directory, 'arguments.json');
+        const cwdPath = join(directory, 'cwd.txt');
+        const exposurePath = join(directory, 'exposure.json');
+        const inputPath = join(directory, 'input.txt');
+        const projectDirectory = join(directory, 'project');
+        const codexHome = join(directory, 'codex-home');
+        const projectMarker = join(projectDirectory, 'private-source.txt');
+        await Promise.all([mkdir(projectDirectory), mkdir(codexHome)]);
+        await Promise.all([
+            writeFile(projectMarker, 'PROJECT_SOURCE_MARKER'),
+            writeFile(join(codexHome, 'AGENTS.md'), 'GLOBAL_INSTRUCTION_MARKER'),
+        ]);
+        await writeFile(
+            executable,
+            String.raw`#!${process.execPath}
+const { readFileSync, writeFileSync } = require('node:fs');
+writeFileSync(${JSON.stringify(argumentsPath)}, JSON.stringify(process.argv.slice(2)));
+writeFileSync(${JSON.stringify(cwdPath)}, process.cwd());
+const readMarker = (path) => { try { return readFileSync(path, 'utf8'); } catch { return 'blocked'; } };
+writeFileSync(${JSON.stringify(exposurePath)}, JSON.stringify({
+    globalInstructions: readMarker(${JSON.stringify(join(codexHome, 'AGENTS.md'))}),
+    projectSource: readMarker(${JSON.stringify(projectMarker)}),
+}));
+let input = '';
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', (chunk) => { input += chunk; });
+process.stdin.on('end', () => {
+    writeFileSync(${JSON.stringify(inputPath)}, input);
+    process.stdout.write(JSON.stringify({
+        type: 'item.completed',
+        item: { type: 'agent_message', text: 'Compact paste summary' },
+    }) + '\n');
+});
+`,
+            'utf8',
+        );
+        await chmod(executable, 0o700);
+
+        await expect(
+            codexProvider.pasteSummary?.summarize({
+                cwd: projectDirectory,
+                environment: {
+                    homeDirectory: directory,
+                    variables: { CODEX_HOME: codexHome },
+                },
+                executable,
+                prompt: 'long paste fixture',
+                version: 'codex-cli 0.122.0',
+            }),
+        ).resolves.toBe('Compact paste summary');
+        const arguments_ = JSON.parse(await readFile(argumentsPath, 'utf8')) as string[];
+        expect(arguments_).toEqual(
+            expect.arrayContaining(['-m', 'gpt-5.6-luna', '--ephemeral', '--ignore-user-config']),
+        );
+        expect(arguments_).toEqual(
+            expect.arrayContaining([
+                '--disable',
+                'codex_hooks',
+                '--disable',
+                'shell_tool',
+                'project_doc_max_bytes=0',
+                'web_search="disabled"',
+            ]),
+        );
+        expect(arguments_.join(' ')).not.toContain('long paste fixture');
+        expect(await readFile(inputPath, 'utf8')).toContain('long paste fixture');
+        expect(await readFile(cwdPath, 'utf8')).not.toBe(projectDirectory);
+        const exposure = JSON.parse(await readFile(exposurePath, 'utf8')) as {
+            globalInstructions: string;
+            projectSource: string;
+        };
+        expect(exposure.globalInstructions).toBe('blocked');
+        expect(exposure.projectSource).toBe('blocked');
+    });
+
+    it('rejects Codex versions before the required low-cost generation flags were introduced', async () => {
+        await expect(
+            codexProvider.pasteSummary?.summarize({
+                cwd: '/project',
+                environment: { homeDirectory: '/missing', variables: {} },
+                executable: '/missing/codex',
+                prompt: 'long paste fixture',
+                version: 'codex-cli 0.121.9',
+            }),
+        ).rejects.toMatchObject({ code: 'UNAVAILABLE' });
+    });
+
     it('bounds provider state database candidates before synchronous probing', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-codex-state-budget-'));
         temporaryDirectories.push(directory);

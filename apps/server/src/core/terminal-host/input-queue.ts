@@ -2,12 +2,14 @@ import { MAX_TERMINAL_INPUT_LENGTH } from '@caxri/protocol';
 
 interface TerminalInputChunk {
     data: string;
+    expectedAgentLaunchId?: string;
     receipt?: TerminalInputReceipt;
 }
 
 export interface TerminalInputBatch {
     chunks: TerminalInputChunk[];
     data: string;
+    expectedAgentLaunchId?: string;
     length: number;
 }
 
@@ -92,13 +94,23 @@ export class TerminalInputQueue<Identity> {
         return true;
     }
 
-    enqueue(data: string, shouldAcknowledge: boolean): TerminalInputReceipt | undefined {
+    enqueue(
+        data: string,
+        shouldAcknowledge: boolean,
+        expectedAgentLaunchId?: string,
+    ): TerminalInputReceipt | undefined {
         const chunks = splitTerminalInput(data);
         const receipt = shouldAcknowledge
             ? { completion: Promise.withResolvers<void>(), remainingChunks: chunks.length }
             : undefined;
         if (receipt) this.receipts.add(receipt);
-        this.chunks.push(...chunks.map((chunk) => ({ data: chunk, ...(receipt && { receipt }) })));
+        this.chunks.push(
+            ...chunks.map((chunk) => ({
+                data: chunk,
+                ...(expectedAgentLaunchId && { expectedAgentLaunchId }),
+                ...(receipt && { receipt }),
+            })),
+        );
         this.queuedCharacters += data.length;
         return receipt;
     }
@@ -128,14 +140,21 @@ export class TerminalInputQueue<Identity> {
     takeBatch(): TerminalInputBatch {
         const chunks: TerminalInputChunk[] = [];
         let length = 0;
+        const expectedAgentLaunchId = this.chunks[this.head]?.expectedAgentLaunchId;
         while (this.head < this.chunks.length) {
             const chunk = this.chunks[this.head];
+            if (chunk.expectedAgentLaunchId !== expectedAgentLaunchId) break;
             if (length > 0 && length + chunk.data.length > MAX_TERMINAL_INPUT_LENGTH) break;
             this.head += 1;
             chunks.push(chunk);
             length += chunk.data.length;
         }
-        const batch = { chunks, data: chunks.map(({ data }) => data).join(''), length };
+        const batch = {
+            chunks,
+            data: chunks.map(({ data }) => data).join(''),
+            ...(expectedAgentLaunchId && { expectedAgentLaunchId }),
+            length,
+        };
         this.activeBatch = batch;
         return batch;
     }

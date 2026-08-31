@@ -68,7 +68,19 @@ export interface AgentSessionTitleGenerationContext {
     signal?: AbortSignal;
 }
 
+export interface AgentPasteSummaryGenerationContext {
+    cwd: string;
+    prompt: string;
+    signal?: AbortSignal;
+}
+
 interface AgentProviderSessionTitleGenerationContext extends AgentSessionTitleGenerationContext {
+    environment: AgentEnvironment;
+    executable: string;
+    version: string;
+}
+
+export interface AgentProviderPasteSummaryGenerationContext extends AgentPasteSummaryGenerationContext {
     environment: AgentEnvironment;
     executable: string;
     version: string;
@@ -145,6 +157,9 @@ export interface AgentProviderDescriptor {
             context: AgentSnapshotContext,
             environment: AgentEnvironment,
         ): Promise<AgentTitleSource | undefined>;
+    };
+    pasteSummary?: {
+        summarize(context: AgentProviderPasteSummaryGenerationContext): Promise<string>;
     };
     readState(
         context: AgentSnapshotContext,

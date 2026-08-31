@@ -14,12 +14,14 @@ import type {
     LocalAgentState,
 } from '../../contract';
 import { canonicalPath, projectDirectories } from '../../contract';
+import { AGENT_PASTE_SUMMARY_SYSTEM_INSTRUCTIONS } from '../../paste-summary-generation';
 import {
     agentCommandEnvironment,
     assertAgentRenameVersion,
     throwAgentRenameError,
 } from '../../rename';
 import { codexHookAdapter } from './hooks';
+import { generateCodexLowCostText } from './low-cost-generation';
 import { resolveCodexHome, resolveCodexStateDirectories } from './paths';
 import { findCodexStateDatabases } from './state-databases';
 
@@ -444,6 +446,15 @@ export const codexProvider: AgentProviderDescriptor = {
     },
     hooks: codexHookAdapter,
     id: 'codex',
+    pasteSummary: {
+        summarize: (context) =>
+            generateCodexLowCostText(
+                context,
+                AGENT_PASTE_SUMMARY_SYSTEM_INSTRUCTIONS,
+                'Long paste summary',
+                10_000,
+            ),
+    },
     readState: (context, environment) =>
         readCodexState(context, resolveCodexStateDirectories(environment)),
     renameSession: renameCodexSession,

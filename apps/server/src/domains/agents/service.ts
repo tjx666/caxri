@@ -14,6 +14,7 @@ import { logEventCatalog } from '@caxri/system';
 import { SingleFlight } from '../single-flight';
 import type {
     AgentEnvironment,
+    AgentPasteSummaryGenerationContext,
     AgentSessionRenameContext,
     AgentSessionRenameResult,
     AgentSessionTitleGenerationContext,
@@ -45,6 +46,7 @@ export interface AgentAdapter {
     readTitleSource?(context: AgentSnapshotContext): Promise<AgentTitleSource | undefined>;
     renameSession(context: AgentSessionRenameContext): Promise<AgentSessionRenameResult>;
     snapshot(context: AgentSnapshotContext): Promise<AgentSnapshot>;
+    summarizePaste?(context: AgentPasteSummaryGenerationContext): Promise<string>;
 }
 
 /**
@@ -72,6 +74,7 @@ function createCliAdapter(
 ): AgentAdapter {
     const providerDescriptor = agentProviders[provider];
     const naming = providerDescriptor.naming;
+    const pasteSummary = providerDescriptor.pasteSummary;
     return {
         provider,
         ...(naming && {
@@ -101,6 +104,28 @@ function createCliAdapter(
                 naming.readSource(context, environment),
             readTitleOwnership: (context: AgentSnapshotContext) =>
                 naming.readOwnership(context, environment),
+        }),
+        ...(pasteSummary && {
+            async summarizePaste(context: AgentPasteSummaryGenerationContext): Promise<string> {
+                const executable = await discoverExecutable(provider, launchSettings().executable);
+                if (!executable)
+                    throw new CaxriError(
+                        'UNAVAILABLE',
+                        `${agentProviderCatalog[provider].displayName} is not available`,
+                    );
+                const version = await readVersion(provider, executable);
+                if (!version)
+                    throw new CaxriError(
+                        'UNAVAILABLE',
+                        `${agentProviderCatalog[provider].displayName} version could not be verified`,
+                    );
+                return pasteSummary.summarize({
+                    ...context,
+                    environment,
+                    executable,
+                    version,
+                });
+            },
         }),
         async renameSession(context): Promise<AgentSessionRenameResult> {
             const executable = await discoverExecutable(provider, launchSettings().executable);
@@ -227,6 +252,20 @@ export class AgentService {
                   new CaxriError(
                       'UNAVAILABLE',
                       `${agentProviderCatalog[provider].displayName} automatic naming is unavailable`,
+                  ),
+              );
+    }
+
+    summarizePaste(
+        provider: AgentProvider,
+        context: AgentPasteSummaryGenerationContext,
+    ): Promise<string> {
+        return this.adapters[provider].summarizePaste
+            ? this.adapters[provider].summarizePaste(context)
+            : Promise.reject(
+                  new CaxriError(
+                      'UNAVAILABLE',
+                      `${agentProviderCatalog[provider].displayName} paste summaries are unavailable`,
                   ),
               );
     }

@@ -203,6 +203,26 @@ export function didPasteIntoTerminal(terminalId: string, data: string): boolean 
 }
 
 /**
+ * Every Renderer input path consults the mounted pane's live gate so commands and dialogs cannot bypass a pending
+ * long-paste lock. Missing gates preserve command behavior while a pane is still mounting.
+ */
+const inputGates = new Map<string, () => boolean>();
+
+export function registerTerminalInputGate(
+    terminalId: string,
+    canAcceptInput: () => boolean,
+): () => void {
+    inputGates.set(terminalId, canAcceptInput);
+    return () => {
+        if (inputGates.get(terminalId) === canAcceptInput) inputGates.delete(terminalId);
+    };
+}
+
+export function canSendTerminalInput(terminalId: string): boolean {
+    return inputGates.get(terminalId)?.() ?? true;
+}
+
+/**
  * Dialogs opened from a keyboard command have no DOM trigger for Radix to restore focus to. The mounted Terminal pane
  * therefore exposes its live xterm focus operation through the same ownership-safe registry used by clear and copy.
  */
@@ -270,6 +290,7 @@ export function navigateActiveTerminalCommand(
  * user reproduce an exact Terminal input sequence.
  */
 export function sendTerminalSequence(terminalId: string, text: string): void {
+    if (!canSendTerminalInput(terminalId)) return;
     // This is a sync command handler; tryCommand already routes any failure into a toast.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void tryCommand('Terminal input failed', () =>

@@ -14,6 +14,7 @@ import type {
     LocalAgentState,
 } from '../../contract';
 import { canonicalPath, isOpaqueAgentSessionId, projectDirectories } from '../../contract';
+import { AGENT_PASTE_SUMMARY_SYSTEM_INSTRUCTIONS } from '../../paste-summary-generation';
 import {
     agentCommandEnvironment,
     assertAgentRenameVersion,
@@ -21,6 +22,7 @@ import {
 } from '../../rename';
 import { openSafeAgentTranscript } from '../../transcript-security';
 import { claudeHookAdapter } from './hooks';
+import { generateClaudeLowCostText } from './low-cost-generation';
 import { claudeNaming } from './naming';
 import {
     claudeTranscriptBaseRoot,
@@ -377,6 +379,15 @@ export const claudeProvider: AgentProviderDescriptor = {
     hooks: claudeHookAdapter,
     id: 'claude',
     naming: claudeNaming,
+    pasteSummary: {
+        summarize: (context) =>
+            generateClaudeLowCostText(
+                context,
+                AGENT_PASTE_SUMMARY_SYSTEM_INSTRUCTIONS,
+                'Long paste summary',
+                10_000,
+            ),
+    },
     readState: (context, environment) =>
         readClaudeState(context, resolveClaudeConfigDirectory(environment)),
     renameSession: renameClaudeSession,

@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../../../lib/caxri', () => ({ caxri: { request: mocks.caxriRequest } }));
 
-import { didPasteIntoTerminal } from '../terminal-actions';
+import { canSendTerminalInput, didPasteIntoTerminal } from '../terminal-actions';
 import {
     detachTerminalQuietly,
     opaqueSearchColor,
@@ -111,9 +111,38 @@ describe('registerTerminalInputHandlers', () => {
 
         onData?.('ignored input');
 
+        expect(canSendTerminalInput('terminal-input-2')).toBe(false);
         expect(mocks.caxriRequest).not.toHaveBeenCalled();
         expect(didPasteIntoTerminal('terminal-input-2', '/repo/ignored')).toBe(false);
         expect(paste).not.toHaveBeenCalled();
+        unregister();
+        expect(canSendTerminalInput('terminal-input-2')).toBe(true);
+    });
+
+    it('tags a generated paste with the Agent process expected by the Server', async () => {
+        let onData: ((data: string) => void) | undefined;
+        const terminal = {
+            onData: vi.fn((handler: (data: string) => void) => {
+                onData = handler;
+                return { dispose: vi.fn() };
+            }),
+        } as unknown as Terminal;
+        const unregister = registerTerminalInputHandlers(
+            terminal,
+            'terminal-input-exact',
+            () => true,
+            () => 'launch-1',
+        );
+
+        onData?.('summary reference');
+
+        await vi.waitFor(() =>
+            expect(mocks.caxriRequest).toHaveBeenCalledWith('terminal.inputAgentExact', {
+                terminalId: 'terminal-input-exact',
+                data: 'summary reference',
+                expectedAgentLaunchId: 'launch-1',
+            }),
+        );
         unregister();
     });
 });

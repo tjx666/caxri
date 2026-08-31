@@ -241,6 +241,7 @@ describe('architecture-a3b-terminal-host: RemoteTerminalExecution', () => {
         const events = vi.fn();
         execution.onEvent(events);
         await execution.reserve(terminal);
+        await execution.attach(terminal.id, { cols: 100, rows: 30 });
         await execution.start({
             args: ['-l'],
             environment: { TERM: 'xterm-256color' },
@@ -299,12 +300,22 @@ describe('architecture-a3b-terminal-host: RemoteTerminalExecution', () => {
             processId: 4244,
         });
         expect(execution.agentProcessId(terminal.id)).toBe(4244);
+        expect(execution.agentLaunchId(terminal.id)).toBe('launch-1');
         expect(events).toHaveBeenLastCalledWith({
             type: 'agentStarted',
             terminalId: terminal.id,
             launchId: 'launch-1',
             processId: 4244,
         });
+
+        expect(execution.writeAgentExact(terminal.id, 'stale', 'stale-launch')).toBe(false);
+        expect(execution.writeAgentExact(terminal.id, 'summary', 'launch-1')).toBe(true);
+        await vi.waitFor(() =>
+            expect(control.requests.at(-1)?.request).toEqual({
+                method: 'terminal.input',
+                params: { data: 'summary', expectedAgentLaunchId: 'launch-1' },
+            }),
+        );
 
         expect(execution.signalAgentExact(terminal.id, 'stale-launch', 'SIGINT')).toBe(false);
         expect(execution.signalAgentExact(terminal.id, 'launch-1', 'SIGINT')).toBe(true);
@@ -332,6 +343,7 @@ describe('architecture-a3b-terminal-host: RemoteTerminalExecution', () => {
             signal: 'SIGINT',
         });
         expect(execution.agentProcessId(terminal.id)).toBeUndefined();
+        expect(execution.agentLaunchId(terminal.id)).toBeUndefined();
         expect(events).toHaveBeenLastCalledWith({
             type: 'agentExit',
             terminalId: terminal.id,

@@ -202,12 +202,55 @@ describe('architecture-a3b-terminal-host: TerminalHostRuntime', () => {
             launchId: 'launch-1',
             processId: 101,
         });
+        const inputScope = {
+            ...lifecycleScope,
+            capability: 'terminal.input',
+            attachmentId: 'attachment-1',
+        } as const;
+        await runtime.accept(
+            privateRequest(
+                {
+                    method: 'terminal.attach',
+                    params: { attachmentId: 'attachment-1' },
+                },
+                { ...inputScope, capability: 'terminal.view' },
+                'attach-agent-1',
+            ),
+        );
+        await runtime.accept(
+            privateRequest(
+                {
+                    method: 'terminal.input',
+                    params: { data: 'summary', expectedAgentLaunchId: 'launch-1' },
+                },
+                inputScope,
+                'input-agent-1',
+            ),
+        );
+        expect(engine.write).toHaveBeenCalledWith(terminal.id, 'summary');
         runtime.projectManagedAgentEvent({
             type: 'exited',
             terminalId: terminal.id,
             launchId: 'launch-1',
             exitCode: 0,
             signal: null,
+        });
+        await runtime.accept(
+            privateRequest(
+                {
+                    method: 'terminal.input',
+                    params: { data: 'stale', expectedAgentLaunchId: 'launch-1' },
+                },
+                inputScope,
+                'input-agent-stale',
+            ),
+        );
+        expect(engine.write).toHaveBeenCalledTimes(1);
+        expect(messages.at(-1)).toMatchObject({
+            type: 'reply',
+            id: 'input-agent-stale',
+            ok: false,
+            error: { code: 'CONFLICT' },
         });
         expect(messages).toContainEqual(
             expect.objectContaining({ event: 'terminal.agent.started', processId: 101 }),

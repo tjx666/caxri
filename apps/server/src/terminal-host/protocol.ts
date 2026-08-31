@@ -151,7 +151,12 @@ const terminalRequestSchemas = [
     z
         .object({
             method: z.literal('terminal.input'),
-            params: z.object({ data: z.string().max(MAX_TERMINAL_INPUT_LENGTH) }).strict(),
+            params: z
+                .object({
+                    data: z.string().max(MAX_TERMINAL_INPUT_LENGTH),
+                    expectedAgentLaunchId: identifierSchema.optional(),
+                })
+                .strict(),
         })
         .strict(),
     z
