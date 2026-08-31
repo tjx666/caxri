@@ -242,4 +242,158 @@ describe('Runtime Agent hook integration', () => {
             await runtime.close();
         }
     });
+
+    it('keeps a Claude Session running when only a subagent finishes', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-claude-subagent-'));
+        temporaryDirectories.push(directory);
+        const projectRoot = join(directory, 'project');
+        const claudeHome = join(directory, 'claude');
+        await mkdir(projectRoot);
+        const start = vi.spyOn(LocalTerminalExecution.prototype, 'start');
+        const send = vi.fn();
+        const runtime = await createTestDomainServices({
+            agentAdapters: createPendingAgentAdapters(),
+            agentEnvironment: {
+                homeDirectory: directory,
+                variables: { CLAUDE_CONFIG_DIR: claudeHome },
+            },
+            agentHooksPath: join(directory, 'shared-hooks'),
+            logger: new StructuredLogger(join(directory, 'logs')),
+            hookExecutable: process.execPath,
+            send,
+            terminal: {
+                resolveExecutable: (kind) =>
+                    Promise.resolve(kind === 'shell' ? '/bin/zsh' : '/bin/echo'),
+                spawn: vi.fn<typeof spawnPty>(() => createFakePty()),
+            },
+            userDataPath: join(directory, 'user-data'),
+        });
+
+        try {
+            const currentSettings = await runtime.handlers['settings.get']({});
+            await runtime.handlers['settings.update']({
+                source: JSON.stringify({
+                    ...currentSettings.value,
+                    'agents.providers': {
+                        ...currentSettings.value['agents.providers'],
+                        claude: {
+                            ...currentSettings.value['agents.providers'].claude,
+                            hooks: { enabled: true },
+                        },
+                    },
+                }),
+            });
+            const project = await runtime.handlers['project.create']({ rootPath: projectRoot });
+            const created = await runtime.handlers['session.create']({
+                projectId: project.id,
+                defaultAgent: 'claude',
+            });
+            const environment = start.mock.calls[0]?.[0].agent?.environment;
+            expect(environment).toMatchObject({
+                CAXRI_HOOK_TERMINAL_ID: created.terminal!.id,
+            });
+            const bridge = join(directory, 'shared-hooks', 'bin', 'caxri-agent-hook-bridge');
+
+            await execFileAsync(
+                bridge,
+                [
+                    '--source',
+                    'caxri',
+                    '--provider',
+                    'claude',
+                    '--phase',
+                    'turnStarted',
+                    '--schema',
+                    '7',
+                ],
+                { env: { ...process.env, ...environment } },
+            );
+            await expect
+                .poll(async () => {
+                    const records = await runtime.handlers['app.records']({
+                        sessionIds: [created.session.id],
+                        terminalIds: [],
+                    });
+                    return records.sessions[0];
+                })
+                .toMatchObject({
+                    attentionEpoch: 0,
+                    hasUnread: false,
+                    lastActivityState: 'running',
+                });
+
+            send.mockClear();
+            const subagentFinished = execFileAsync(
+                bridge,
+                [
+                    '--source',
+                    'caxri',
+                    '--provider',
+                    'claude',
+                    '--phase',
+                    'turnFinished',
+                    '--schema',
+                    '7',
+                    '--reply',
+                    'empty-json',
+                ],
+                { env: { ...process.env, ...environment } },
+            );
+            subagentFinished.child.stdin?.end(
+                JSON.stringify({ agent_id: 'subagent-1', session_id: 'claude-session' }),
+            );
+            expect((await subagentFinished).stdout).toBe('{}\n');
+
+            expect(
+                await runtime.handlers['app.records']({
+                    sessionIds: [created.session.id],
+                    terminalIds: [created.terminal!.id],
+                }),
+            ).toMatchObject({
+                sessions: [
+                    {
+                        attentionEpoch: 0,
+                        hasUnread: false,
+                        lastActivityState: 'running',
+                    },
+                ],
+                terminals: [{ agentSessionId: undefined }],
+            });
+            expect(send).not.toHaveBeenCalled();
+
+            const parentFinished = await execFileAsync(
+                bridge,
+                [
+                    '--source',
+                    'caxri',
+                    '--provider',
+                    'claude',
+                    '--phase',
+                    'turnFinished',
+                    '--schema',
+                    '7',
+                    '--reply',
+                    'empty-json',
+                ],
+                { env: { ...process.env, ...environment } },
+            );
+            expect(parentFinished.stdout).toBe('{}\n');
+            await expect
+                .poll(async () => {
+                    const records = await runtime.handlers['app.records']({
+                        sessionIds: [created.session.id],
+                        terminalIds: [],
+                    });
+                    return records.sessions[0];
+                })
+                .toMatchObject({
+                    attentionEpoch: 1,
+                    hasUnread: true,
+                    lastActivityState: 'completed',
+                    lastAttentionKind: 'completed',
+                });
+        } finally {
+            await runtime.close();
+        }
+    });
 });
