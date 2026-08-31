@@ -6,39 +6,27 @@ import type {
     BinaryStreamTicketGrant,
     CaxriMethod,
     FileDocument,
-    ServerControlEndpoint,
     TerminalSnapshot,
 } from '@caxri/protocol';
 import {
     BINARY_STREAM_MAX_BUFFERED_BYTES,
-    BINARY_STREAM_MAX_CHUNK_BYTES,
     BINARY_STREAM_MAX_FILE_CONTENT_BYTES,
     BINARY_STREAM_MAX_FILE_UPLOAD_BYTES,
     BINARY_STREAM_MAX_REPLY_BYTES,
     BINARY_STREAM_MAX_TERMINAL_RESULT_BYTES,
-    binaryStreamAuthorization,
     CaxriError,
-    decodeBinaryStreamFrame,
     fromWireError,
     isBinaryStreamMethod,
     isNonExpiringServerOperation,
     parseCaxriRequest,
     parseCaxriResult,
 } from '@caxri/protocol';
-import type { RawData } from 'ws';
-import WebSocket from 'ws';
 
-import type {
-    BinaryStreamClientOptions,
-    FrameAccumulator,
-} from './binary-stream-client-support.js';
+import type { BinaryStreamClientOptions } from './binary-stream-client-support.js';
 import {
-    ClientSocketWriter,
-    combine,
+    ClientBinarySocket,
     parseReply,
-    rawBytes,
     streamCloseError,
-    streamUrl,
 } from './binary-stream-client-support.js';
 import type { TerminalOperationLease } from './terminal-operation-queue.js';
 import { TerminalOperationQueue } from './terminal-operation-queue.js';
@@ -46,91 +34,6 @@ import { TerminalOperationQueue } from './terminal-operation-queue.js';
 interface TerminalDetachTransition {
     cancel(): void;
     complete(): void;
-}
-
-abstract class ClientBinarySocket {
-    private accumulator?: FrameAccumulator;
-    private isOpen = false;
-    private readonly opened = Promise.withResolvers<void>();
-    protected readonly socket: WebSocket;
-    protected readonly writer: ClientSocketWriter;
-
-    constructor(
-        endpoint: ServerControlEndpoint,
-        grant: BinaryStreamTicketGrant,
-        timeoutMs: number,
-    ) {
-        this.socket = new WebSocket(streamUrl(endpoint, grant.path), {
-            headers: { authorization: binaryStreamAuthorization(grant.ticket) },
-            maxPayload: BINARY_STREAM_MAX_CHUNK_BYTES + 16,
-        });
-        this.writer = new ClientSocketWriter(this.socket);
-        const timer = setTimeout(() => {
-            this.opened.reject(new CaxriError('TIMEOUT', 'Caxri Server stream timed out'));
-            this.socket.terminate();
-        }, timeoutMs);
-        this.socket.once('open', () => {
-            clearTimeout(timer);
-            this.isOpen = true;
-            this.opened.resolve();
-        });
-        this.socket.on('message', (data, isBinary) => this.receive(data, isBinary));
-        this.socket.once('close', (code, reason) => {
-            clearTimeout(timer);
-            if (!this.isOpen) this.opened.reject(streamCloseError(code, reason.toString()));
-            this.handleClose(code, reason.toString());
-        });
-        this.socket.on('error', () => {});
-    }
-
-    private receive(data: RawData, isBinary: boolean): void {
-        if (!isBinary) {
-            this.fail(new CaxriError('VALIDATION', 'Binary stream received a text frame'));
-            return;
-        }
-        try {
-            this.handleFrame(decodeBinaryStreamFrame(rawBytes(data)));
-        } catch (error) {
-            this.fail(error);
-        }
-    }
-
-    protected waitForOpen(): Promise<void> {
-        return this.opened.promise;
-    }
-
-    protected collect(frame: BinaryStreamFrame, maximumBytes: number): Uint8Array | undefined {
-        this.accumulator ??= {
-            byteLength: 0,
-            chunks: [],
-            kind: frame.kind,
-            sequence: frame.sequence,
-        };
-        if (this.accumulator.kind !== frame.kind || this.accumulator.sequence !== frame.sequence)
-            throw new CaxriError('VALIDATION', 'Binary stream frame group was interleaved');
-        this.accumulator.byteLength += frame.payload.byteLength;
-        if (this.accumulator.byteLength > maximumBytes)
-            throw new CaxriError('CAPACITY', 'Binary stream input exceeded its byte budget');
-        this.accumulator.chunks.push(frame.payload);
-        if (!frame.final) return;
-        const completed = combine(this.accumulator.chunks, this.accumulator.byteLength);
-        this.accumulator = undefined;
-        return completed;
-    }
-
-    protected assertNoPartialGroup(): void {
-        if (this.accumulator)
-            throw new CaxriError('VALIDATION', 'Binary stream frame group was interleaved');
-    }
-
-    protected close(): void {
-        if (this.socket.readyState === WebSocket.OPEN) this.socket.close(4000, 'completed');
-        else if (this.socket.readyState !== WebSocket.CLOSED) this.socket.terminate();
-    }
-
-    protected abstract fail(error: unknown): void;
-    protected abstract handleClose(code: number, reason: string): void;
-    protected abstract handleFrame(frame: BinaryStreamFrame): void;
 }
 
 interface PendingTerminalRequest {
@@ -638,6 +541,12 @@ export class BinaryStreamClient {
         if (request.method === 'terminal.input') {
             const payload = new TextEncoder().encode(request.params.data);
             const terminalId = request.params.terminalId;
+            const attached = this.terminals.get(terminalId);
+            if (attached && !this.terminalOperations.has(terminalId)) {
+                const releasePayload = this.terminalOperations.reserve(payload.byteLength);
+                // eslint-disable-next-line unicorn/prefer-await -- the reservation must span the asynchronous acknowledgement
+                return attached.input(payload).finally(releasePayload);
+            }
             return this.terminalOperations.run(
                 terminalId,
                 async (lease) => {
@@ -668,6 +577,9 @@ export class BinaryStreamClient {
         if (request.method !== 'terminal.resize')
             throw new CaxriError('VALIDATION', `Unsupported Terminal stream method: ${method}`);
         const terminalId = request.params.terminalId;
+        const attached = this.terminals.get(terminalId);
+        if (attached && !this.terminalOperations.has(terminalId))
+            return attached.resize(request.params.cols, request.params.rows);
         return this.terminalOperations.run(terminalId, async (lease) => {
             if (this.closed)
                 throw new CaxriError('UNAVAILABLE', 'Caxri Server binary streams are closed');
