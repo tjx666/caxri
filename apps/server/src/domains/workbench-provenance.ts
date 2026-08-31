@@ -36,6 +36,14 @@ interface PendingWorktreeCreation {
     rootPaths?: ReadonlySet<string>;
 }
 
+interface AttributableWorktreeCreation {
+    baseline: WorktreeProvenanceBaseline;
+    key: string;
+    ownerRoot: string;
+    pending: PendingWorktreeCreation;
+    rootPaths: ReadonlySet<string>;
+}
+
 interface AgentWorktreeAttributionOptions {
     addCandidate(input: { repositoryKey: string; rootPath: string; sessionId: string }): void;
     behavior(): NewWorktreeBehavior;
@@ -301,6 +309,58 @@ export class AgentWorktreeAttribution {
         }
     }
 
+    private async attributeRepository(
+        repoKey: string,
+        entries: readonly AttributableWorktreeCreation[],
+    ): Promise<void> {
+        let topology: GitWorktreeTopology;
+        try {
+            topology = await this.options.git.worktreeTopology(entries[0].ownerRoot);
+        } catch {
+            return;
+        }
+        if (topology.repositoryKey !== repoKey) return;
+        const live = entries.filter(
+            ({ baseline, key, pending }) =>
+                !pending.ambiguous &&
+                this.pendingCreations.get(key) === pending &&
+                this.provenanceBaselines.get(launchKey(baseline)) === baseline,
+        );
+        if (live.length !== 1) return;
+        const [{ baseline, key, pending, rootPaths }] = live;
+        const additions = topology.worktrees.filter(({ rootPath }) => !rootPaths.has(rootPath));
+        if (additions.length !== 1) return;
+        const [addition] = additions;
+        if (this.options.behavior() === 'ignore') return;
+        const authorized = this.options.database.findProjectByRootPath(addition.rootPath);
+        if (authorized && this.options.behavior() === 'continueWhenAuthorized') {
+            try {
+                await this.options.selectAuthorized(
+                    baseline.sessionId,
+                    authorized.id,
+                    () =>
+                        !pending.ambiguous &&
+                        this.pendingCreations.get(key) === pending &&
+                        this.provenanceBaselines.get(launchKey(baseline)) === baseline,
+                );
+            } catch {
+                // A retired launch or a changed topology makes the observed intent inert.
+            }
+            return;
+        }
+        if (
+            pending.ambiguous ||
+            this.pendingCreations.get(key) !== pending ||
+            this.provenanceBaselines.get(launchKey(baseline)) !== baseline
+        )
+            return;
+        this.options.addCandidate({
+            repositoryKey: topology.repositoryKey,
+            rootPath: addition.rootPath,
+            sessionId: baseline.sessionId,
+        });
+    }
+
     /**
      * Converts paired hook intent into one candidate only when the current launch, durable ownership, and one forced
      * Git topology delta agree. Multiple tool outcomes or additions in one repository batch are ambiguous and inert.
@@ -308,16 +368,7 @@ export class AgentWorktreeAttribution {
     private async attribute(keys: readonly string[]): Promise<void> {
         this.prunePendingCreations();
         const consumed = new Map<string, PendingWorktreeCreation>();
-        const groups = new Map<
-            string,
-            Array<{
-                baseline: WorktreeProvenanceBaseline;
-                key: string;
-                pending: PendingWorktreeCreation;
-                ownerRoot: string;
-                rootPaths: ReadonlySet<string>;
-            }>
-        >();
+        const groups = new Map<string, AttributableWorktreeCreation[]>();
         try {
             for (const key of keys) {
                 const pending = this.pendingCreations.get(key);
@@ -347,58 +398,16 @@ export class AgentWorktreeAttribution {
                 groups.set(baseline.repositoryKey, entries);
             }
 
-            for (const [repoKey, entries] of groups) {
-                let topology: GitWorktreeTopology;
-                try {
-                    // eslint-disable-next-line no-await-in-loop -- one authoritative read per repository group.
-                    topology = await this.options.git.worktreeTopology(entries[0].ownerRoot);
-                } catch {
-                    continue;
-                }
-                if (topology.repositoryKey !== repoKey) continue;
-                const live = entries.filter(
-                    ({ baseline, key, pending }) =>
-                        !pending.ambiguous &&
-                        this.pendingCreations.get(key) === pending &&
-                        this.provenanceBaselines.get(launchKey(baseline)) === baseline,
-                );
-                if (live.length !== 1) continue;
-                const [{ baseline, key, pending, rootPaths }] = live;
-                const additions = topology.worktrees.filter(
-                    ({ rootPath }) => !rootPaths.has(rootPath),
-                );
-                if (additions.length !== 1) continue;
-                const [addition] = additions;
-                if (this.options.behavior() === 'ignore') continue;
-                const authorized = this.options.database.findProjectByRootPath(addition.rootPath);
-                if (authorized && this.options.behavior() === 'continueWhenAuthorized') {
-                    try {
-                        // eslint-disable-next-line no-await-in-loop -- selection remains ordered with topology attribution.
-                        await this.options.selectAuthorized(
-                            baseline.sessionId,
-                            authorized.id,
-                            () =>
-                                !pending.ambiguous &&
-                                this.pendingCreations.get(key) === pending &&
-                                this.provenanceBaselines.get(launchKey(baseline)) === baseline,
-                        );
-                    } catch {
-                        // A retired launch or a changed topology makes the observed intent inert.
-                    }
-                    continue;
-                }
-                if (
-                    pending.ambiguous ||
-                    this.pendingCreations.get(key) !== pending ||
-                    this.provenanceBaselines.get(launchKey(baseline)) !== baseline
-                )
-                    continue;
-                this.options.addCandidate({
-                    repositoryKey: topology.repositoryKey,
-                    rootPath: addition.rootPath,
-                    sessionId: baseline.sessionId,
-                });
-            }
+            /**
+             * Keep forced Git reads serialized without placing an `await` inside the repository loop.
+             */
+            /* eslint-disable unicorn/prefer-await -- the promise chain preserves bounded serial Git reads. */
+            await [...groups].reduce<Promise<void>>(
+                (pending, [repoKey, entries]) =>
+                    pending.then(() => this.attributeRepository(repoKey, entries)),
+                Promise.resolve(),
+            );
+            /* eslint-enable unicorn/prefer-await */
         } finally {
             for (const [key, pending] of consumed)
                 if (this.pendingCreations.get(key) === pending) this.pendingCreations.delete(key);
