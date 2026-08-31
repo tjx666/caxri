@@ -114,7 +114,7 @@ describe('Claude Code provider', () => {
         });
     });
 
-    it('sends title prompt content only through stdin to the low-cost model', async () => {
+    it('sends low-cost prompt content only through stdin', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-claude-naming-command-'));
         temporaryDirectories.push(directory);
         const executable = join(directory, 'claude.cjs');
@@ -165,7 +165,7 @@ process.stdin.on('end', () => {
                 prompt: 'long paste fixture',
                 version: '2.1.251 (Claude Code)',
             }),
-        ).resolves.toBe('🧭 Claude naming lifecycle');
+        ).resolves.toBe('Claude Naming Lifecycle');
         expect(JSON.parse(await readFile(argumentsPath, 'utf8'))).toEqual(
             expect.arrayContaining(['--model', 'haiku', '--no-session-persistence']),
         );
