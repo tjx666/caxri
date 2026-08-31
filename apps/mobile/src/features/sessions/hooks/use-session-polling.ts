@@ -53,6 +53,9 @@ export const useSessionPolling = () => {
     const { request, status } = useMobileClient();
     const [sections, setSections] = useState<MobileSessionSections>(emptySections);
     const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const [hasLoaded, setHasLoaded] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
     const loading = useRef(false);
     const pendingSections = useRef<MobileSessionSections | null>(null);
     const touchingList = useRef(false);
@@ -65,15 +68,22 @@ export const useSessionPolling = () => {
     const refresh = useCallback(async (): Promise<void> => {
         if (status !== 'connected' || loading.current) return;
         loading.current = true;
+        setIsLoading(true);
         try {
-            const next = await loadMobileSessionSections({
+            const result = await loadMobileSessionSections({
                 dashboard: () => request('mobile.dashboard'),
             });
-            if (!next) return;
-            if (touchingList.current) pendingSections.current = next;
-            else commitSections(next);
+            if (result.status === 'error') {
+                setError('Unable to load Sessions.');
+                return;
+            }
+            setError(null);
+            setHasLoaded(true);
+            if (touchingList.current) pendingSections.current = result.sections;
+            else commitSections(result.sections);
         } finally {
             loading.current = false;
+            setIsLoading(false);
         }
     }, [commitSections, request, status]);
 
@@ -101,7 +111,10 @@ export const useSessionPolling = () => {
             touchingList.current = true;
         },
         entries: useMemo(() => flattenMobileSessionSections(sections), [sections]),
+        error,
         finishListInteraction,
+        hasLoaded,
+        isLoading,
         refresh,
         sections,
         selected: sessions.find((session) => session.id === selectedId) ?? null,

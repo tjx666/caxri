@@ -11,11 +11,11 @@ import {
     View,
 } from 'react-native';
 
-import type { TerminalPreview } from '@caxri/protocol';
 import { MOBILE_SHORT_REPLY_MAX_BYTES } from '@caxri/protocol';
 
 import type { MobileTheme } from '../../../theme/tokens';
 import { useShortReply } from '../hooks/use-short-reply';
+import type { TerminalPreviewViewState } from '../hooks/use-terminal-preview';
 import type { MobileSessionItem } from '../session-model';
 import { terminalPreviewFallback } from '../session-model';
 
@@ -51,6 +51,17 @@ const styles = StyleSheet.create({
     detailTitle: { fontSize: 22, fontWeight: '700', letterSpacing: -0.4, lineHeight: 28 },
     preview: { borderRadius: 14, borderWidth: 1, maxHeight: 320, minHeight: 180 },
     previewContent: { flexGrow: 1, padding: 16 },
+    previewError: {
+        alignItems: 'center',
+        borderRadius: 12,
+        borderWidth: 1,
+        flexDirection: 'row',
+        gap: 12,
+        justifyContent: 'space-between',
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+    },
+    previewErrorText: { flex: 1, fontSize: 13, lineHeight: 18 },
     previewHeading: {
         alignItems: 'center',
         flexDirection: 'row',
@@ -62,6 +73,8 @@ const styles = StyleSheet.create({
         fontSize: 15,
         lineHeight: 22,
     },
+    previewRetry: { justifyContent: 'center', minHeight: 44, paddingHorizontal: 8 },
+    previewRetryLabel: { fontSize: 14, fontWeight: '700' },
     reason: { flex: 1, fontSize: 12, lineHeight: 18 },
     sectionTitle: { fontSize: 11, fontWeight: '800', letterSpacing: 0.8 },
     sendButton: {
@@ -80,18 +93,19 @@ export const SessionDetail = ({
     isConnected,
     onBack,
     onRefresh,
-    preview,
+    previewState,
     session,
     theme,
 }: {
     isConnected: boolean;
     onBack?: () => void;
     onRefresh: () => Promise<void>;
-    preview: TerminalPreview | null;
+    previewState: TerminalPreviewViewState;
     session: MobileSessionItem;
     theme: MobileTheme;
 }) => {
     const previewScroll = useRef<ScrollView>(null);
+    const { error: previewError, isLoading: previewLoading, preview, refresh } = previewState;
     const { byteLength, canSend, disabledReason, draft, send, sendError, sending, updateDraft } =
         useShortReply({ isConnected, onRefresh, session });
 
@@ -136,6 +150,34 @@ export const SessionDetail = ({
                         </Text>
                     ) : null}
                 </View>
+                {previewError ? (
+                    <View
+                        style={[
+                            styles.previewError,
+                            { backgroundColor: theme.surface, borderColor: theme.border },
+                        ]}
+                    >
+                        <Text
+                            accessibilityRole="alert"
+                            style={[styles.previewErrorText, { color: theme.text }]}
+                        >
+                            {previewError}
+                            {preview ? ' Showing the last known output.' : ''}
+                        </Text>
+                        <Pressable
+                            accessibilityRole="button"
+                            accessibilityState={{ disabled: previewLoading }}
+                            disabled={previewLoading}
+                            onPress={refresh}
+                            style={[styles.previewRetry, { opacity: previewLoading ? 0.5 : 1 }]}
+                            testID="terminal-preview-retry"
+                        >
+                            <Text style={[styles.previewRetryLabel, { color: theme.primary }]}>
+                                Retry
+                            </Text>
+                        </Pressable>
+                    </View>
+                ) : null}
                 <ScrollView
                     ref={previewScroll}
                     contentContainerStyle={styles.previewContent}
@@ -155,7 +197,11 @@ export const SessionDetail = ({
                     >
                         {preview === null
                             ? session.primaryAgentTerminalId
-                                ? 'Loading the latest Agent output…'
+                                ? previewLoading
+                                    ? 'Loading the latest Agent output…'
+                                    : previewError
+                                      ? 'Latest Agent output could not be loaded.'
+                                      : 'Output is unavailable.'
                                 : 'This Session has no primary Agent output.'
                             : preview.content ||
                               (preview.availability === 'unavailable'

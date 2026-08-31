@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import type { TerminalPreview } from '@caxri/protocol';
 
@@ -6,6 +6,41 @@ import type { MobileConnectionStatus } from '../../connection/connection-state';
 import { useMobileClient } from '../../connection/mobile-client-provider';
 
 const POLL_INTERVAL_MS = 2_500;
+const PREVIEW_ERROR = 'Unable to load the latest output.';
+
+export interface TerminalPreviewLoadState {
+    error: string | null;
+    isLoading: boolean;
+    preview: TerminalPreview | null;
+    terminalId: string;
+}
+
+export interface TerminalPreviewViewState {
+    error: string | null;
+    isLoading: boolean;
+    preview: TerminalPreview | null;
+    refresh: () => void;
+}
+
+export const loadingTerminalPreviewState = (
+    current: TerminalPreviewLoadState | null,
+    terminalId: string,
+): TerminalPreviewLoadState => ({
+    error: current?.terminalId === terminalId ? current.error : null,
+    isLoading: true,
+    preview: current?.terminalId === terminalId ? current.preview : null,
+    terminalId,
+});
+
+export const failedTerminalPreviewState = (
+    current: TerminalPreviewLoadState | null,
+    terminalId: string,
+): TerminalPreviewLoadState => ({
+    error: PREVIEW_ERROR,
+    isLoading: false,
+    preview: current?.terminalId === terminalId ? current.preview : null,
+    terminalId,
+});
 
 export const shouldPollTerminalPreview = ({
     status,
@@ -23,12 +58,11 @@ export const useTerminalPreview = ({
 }: {
     terminalId: string | null;
     visible: boolean;
-}): TerminalPreview | null => {
+}): TerminalPreviewViewState => {
     const { request, status } = useMobileClient();
-    const [previewState, setPreviewState] = useState<{
-        preview: TerminalPreview;
-        terminalId: string;
-    } | null>(null);
+    const [previewState, setPreviewState] = useState<TerminalPreviewLoadState | null>(null);
+    const [retryAttempt, setRetryAttempt] = useState(0);
+    const refresh = useCallback((): void => setRetryAttempt((attempt) => attempt + 1), []);
 
     useEffect(() => {
         if (terminalId === null || !shouldPollTerminalPreview({ status, terminalId, visible }))
@@ -39,11 +73,24 @@ export const useTerminalPreview = ({
         const loadPreview = async (): Promise<void> => {
             if (isLoading) return;
             isLoading = true;
+            if (isActive)
+                setPreviewState((current) =>
+                    loadingTerminalPreviewState(current, activeTerminalId),
+                );
             try {
                 const next = await request('terminal.preview', { terminalId: activeTerminalId });
-                if (isActive) setPreviewState({ preview: next, terminalId: activeTerminalId });
+                if (isActive)
+                    setPreviewState({
+                        error: null,
+                        isLoading: false,
+                        preview: next,
+                        terminalId: activeTerminalId,
+                    });
             } catch {
-                // The preserved Session state and connection banner already explain transient failures.
+                if (isActive)
+                    setPreviewState((current) =>
+                        failedTerminalPreviewState(current, activeTerminalId),
+                    );
             } finally {
                 isLoading = false;
             }
@@ -58,9 +105,16 @@ export const useTerminalPreview = ({
             isActive = false;
             clearInterval(interval);
         };
-    }, [request, status, terminalId, visible]);
+    }, [request, retryAttempt, status, terminalId, visible]);
 
-    return terminalId !== null && previewState?.terminalId === terminalId
-        ? previewState.preview
-        : null;
+    const isMatching = terminalId !== null && previewState?.terminalId === terminalId;
+    return {
+        error: isMatching ? previewState.error : null,
+        isLoading:
+            isMatching && previewState.isLoading
+                ? true
+                : shouldPollTerminalPreview({ status, terminalId, visible }) && !isMatching,
+        preview: isMatching ? previewState.preview : null,
+        refresh,
+    };
 };
