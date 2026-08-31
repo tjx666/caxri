@@ -16,9 +16,9 @@ const FORMATTING_OPTIONS: FormattingOptions = {
     tabSize: 2,
 };
 /**
- * The provider deadline includes shell and Electron-as-Node startup in addition to the bridge's 250 ms stdin and 750 ms
- * socket budgets. Keep explicit startup headroom so a cold bridge is not killed before it can identify a resumed
- * session.
+ * The provider deadline includes shell and Electron-as-Node startup in addition to the bridge's stdin and socket
+ * budgets. The socket budget also covers the bounded PreToolUse topology capture. Keep explicit startup headroom so a
+ * cold bridge is not killed before it can identify a resumed session.
  */
 const HOOK_STARTUP_HEADROOM_MS = 2_000;
 const HOOK_TIMEOUT_SECONDS = Math.ceil(

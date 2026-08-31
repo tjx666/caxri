@@ -73,13 +73,13 @@ describe('Agent provider hook configuration adapters', () => {
         const installed = install(claudeHookAdapter, 'settings', source, 'claude');
 
         expect(
-            claudeHookAdapter.inspect(new Map([['settings', installed]]), desired('claude', 4))
+            claudeHookAdapter.inspect(new Map([['settings', installed]]), desired('claude', 6))
                 .status,
         ).toEqual({ kind: 'current' });
 
         const removed = claudeHookAdapter.remove(
             new Map([['settings', installed]]),
-            desired('claude', 4),
+            desired('claude', 6),
         )[0].source;
         expect(JSON.parse(removed)).toEqual(foreign);
     });
@@ -131,43 +131,43 @@ describe('Agent provider hook configuration adapters', () => {
 
     it('updates only stale Caxri entries and leaves a newer Codex schema untouched', () => {
         const current = install(codexHookAdapter, 'hooks', '{}\n', 'codex');
-        const stale = current.replaceAll('--schema 6', '--schema 5');
+        const stale = current.replaceAll('--schema 8', '--schema 7');
         expect(
             codexHookAdapter.inspect(
                 new Map([
                     ['hooks', stale],
                     ['config', undefined],
                 ]),
-                desired('codex', 6),
+                desired('codex', 8),
             ).status,
-        ).toEqual({ kind: 'stale', installedSchema: 5 });
+        ).toEqual({ kind: 'stale', installedSchema: 7 });
 
         const updated = codexHookAdapter.render(
             new Map([
                 ['hooks', stale],
                 ['config', undefined],
             ]),
-            desired('codex', 6),
+            desired('codex', 8),
         )[0].source;
-        expect(updated).not.toContain('--schema 5');
+        expect(updated).not.toContain('--schema 7');
 
-        const newer = updated.replaceAll('--schema 6', '--schema 7');
+        const newer = updated.replaceAll('--schema 8', '--schema 9');
         expect(
             codexHookAdapter.inspect(
                 new Map([
                     ['hooks', newer],
                     ['config', undefined],
                 ]),
-                desired('codex', 6),
+                desired('codex', 8),
             ).status,
-        ).toEqual({ kind: 'newer', installedSchema: 7 });
+        ).toEqual({ kind: 'newer', installedSchema: 9 });
         expect(
             codexHookAdapter.remove(
                 new Map([
                     ['hooks', newer],
                     ['config', undefined],
                 ]),
-                desired('codex', 6),
+                desired('codex', 8),
             ),
         ).toHaveLength(0);
     });
@@ -175,13 +175,13 @@ describe('Agent provider hook configuration adapters', () => {
     it.each([
         {
             adapter: codexHookAdapter,
-            previousSchema: 5,
+            previousSchema: 7,
             provider: 'codex' as const,
             target: 'hooks',
         },
         {
             adapter: claudeHookAdapter,
-            previousSchema: 3,
+            previousSchema: 5,
             provider: 'claude' as const,
             target: 'settings',
         },
@@ -223,7 +223,24 @@ describe('Agent provider hook configuration adapters', () => {
         expect(installed.hooks.SessionStart[0].hooks[0].command).toContain(
             '--phase sessionIdentified',
         );
-        expect(installed.hooks.SessionStart[0].hooks[0].timeout).toBe(3);
+        expect(installed.hooks.SessionStart[0].hooks[0].timeout).toBe(5);
+    });
+
+    it('installs paired Bash hooks and a Claude failure cleanup hook', () => {
+        const codex = JSON.parse(install(codexHookAdapter, 'hooks', '{}\n', 'codex')) as {
+            hooks: Record<string, Array<{ matcher?: string }>>;
+        };
+        const claude = JSON.parse(install(claudeHookAdapter, 'settings', '{}\n', 'claude')) as {
+            hooks: Record<string, Array<{ matcher?: string }>>;
+        };
+
+        expect(codex.hooks.PreToolUse).toEqual([expect.objectContaining({ matcher: '^Bash$' })]);
+        expect(codex.hooks.PostToolUse).toEqual([expect.objectContaining({ matcher: '^Bash$' })]);
+        expect(claude.hooks.PreToolUse).toEqual([expect.objectContaining({ matcher: '^Bash$' })]);
+        expect(claude.hooks.PostToolUse).toEqual([expect.objectContaining({ matcher: '^Bash$' })]);
+        expect(claude.hooks.PostToolUseFailure).toEqual([
+            expect.objectContaining({ matcher: '^Bash$' }),
+        ]);
     });
 
     it('refuses to merge Codex hooks.json with inline config.toml hooks', () => {

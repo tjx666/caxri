@@ -40,65 +40,6 @@ function server(result: unknown, commands: string[]): CliServerClient {
 }
 
 describe('CLI Agent commands', () => {
-    it('reports one exact worktree path through the authenticated Agent Endpoint', async () => {
-        const endpointEnvironment = {
-            CAXRI_AGENT_ENDPOINT_HOST_ID: 'a'.repeat(32),
-            CAXRI_AGENT_ENDPOINT_ID: 'endpoint-1',
-            CAXRI_AGENT_ENDPOINT_GENERATION: '2',
-            CAXRI_AGENT_ENDPOINT_TOKEN: 'ab'.repeat(32),
-            CAXRI_USER_DATA_DIR: '/profiles/agent',
-        };
-        const client = server({ status: 'accepted', action: 'candidate' }, [
-            'agent.worktree.created',
-        ]);
-        client.welcome = {
-            protocolVersion: CAXRI_PROTOCOL_VERSION,
-            principal: {
-                kind: 'agent',
-                id: 'agent:endpoint-1',
-                endpointId: 'endpoint-1',
-                generation: 2,
-                projectIds: ['project-1'],
-            },
-            capabilities: ['worktrees.report'],
-            commands: ['agent.worktree.created'],
-        };
-
-        await expect(
-            runCli(['agent', 'worktree', 'created', '/projects/repo-worktree', '--json'], {
-                connect: () => Promise.resolve(client),
-                environment: endpointEnvironment,
-                io: io().io,
-            }),
-        ).resolves.toBe(0);
-        expect(client.request).toHaveBeenCalledWith('agent.worktree.created', {
-            rootPath: '/projects/repo-worktree',
-        });
-
-        const denied = io();
-        const connect = vi.fn();
-        await expect(
-            runCli(['agent', 'worktree', 'created', '/projects/repo-worktree', '--json'], {
-                connect,
-                environment: {},
-                io: denied.io,
-            }),
-        ).resolves.toBe(5);
-        expect(connect).not.toHaveBeenCalled();
-        expect(denied.stderr()).toContain('directly managed Caxri Agent Endpoint credential');
-
-        const stale = io();
-        client.serverVersion = '0.0.1';
-        await expect(
-            runCli(['agent', 'worktree', 'created', '/projects/repo-worktree', '--json'], {
-                connect: () => Promise.resolve(client),
-                environment: endpointEnvironment,
-                io: stale.io,
-            }),
-        ).resolves.toBe(4);
-        expect(stale.stderr()).toContain('CLI version bundled with the active Caxri Host');
-    });
-
     it('keeps dispatch waits Agent-capable while rejecting human steer from Agent credentials', async () => {
         const endpointEnvironment = {
             CAXRI_AGENT_ENDPOINT_HOST_ID: 'a'.repeat(32),

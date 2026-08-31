@@ -4,11 +4,11 @@ import { join } from 'node:path';
 import { atomicWrite } from '../../atomic-file';
 
 const BRIDGE_RECEIPT_TIMEOUT_MS = 250;
-const BRIDGE_SOCKET_TIMEOUT_MS = 750;
+const BRIDGE_SOCKET_TIMEOUT_MS = 2_000;
 const BRIDGE_STDIN_TIMEOUT_MS = 250;
 export const AGENT_HOOK_BRIDGE_MAX_DELIVERY_MS = BRIDGE_STDIN_TIMEOUT_MS + BRIDGE_SOCKET_TIMEOUT_MS;
 
-const BRIDGE_SCRIPT = `'use strict';
+const BRIDGE_SCRIPT = String.raw`'use strict';
 const net = require('node:net');
 // The shell wrapper maps these private exit codes to fixed diagnostics so runtime paths and arbitrary child stderr
 // never escape the bridge boundary.
@@ -46,8 +46,119 @@ function reportBridgeStarted() {
   socket.on('data', () => {});
   socket.on('error', () => {});
 }
-// Providers pipe a JSON payload on stdin. Only opaque session and turn identifiers are extracted so prompt and
-// response content never cross this boundary.
+// Providers pipe a JSON payload on stdin. Only opaque session, turn, and tool identifiers plus a bounded
+// worktree-create classification are extracted, so commands, output, prompts, and responses never cross this boundary.
+function splitShellSegments(command) {
+  const segments = [];
+  let segment = '';
+  let quote;
+  let escaped = false;
+  for (let index = 0; index < command.length; index += 1) {
+    const character = command[index];
+    if (escaped) {
+      segment += character;
+      escaped = false;
+      continue;
+    }
+    if (character === '\\' && quote !== "'") {
+      segment += character;
+      escaped = true;
+      continue;
+    }
+    if (quote) {
+      segment += character;
+      if (character === quote) quote = undefined;
+      continue;
+    }
+    if (character === "'" || character === '"') {
+      quote = character;
+      segment += character;
+      continue;
+    }
+    const separator = character === ';' || character === '\n' || character === '\r' ||
+      character === '(' || character === ')' || character === '|' ||
+      (character === '&' && command[index + 1] === '&');
+    if (!separator) {
+      segment += character;
+      continue;
+    }
+    if (segment.trim()) segments.push(segment);
+    segment = '';
+    if ((character === '|' && command[index + 1] === '|') ||
+        (character === '&' && command[index + 1] === '&')) index += 1;
+  }
+  if (segment.trim()) segments.push(segment);
+  return segments;
+}
+function tokenizeShellSegment(segment) {
+  const tokens = [];
+  let token = '';
+  let quote;
+  let escaped = false;
+  const finish = () => {
+    if (token) tokens.push(token);
+    token = '';
+  };
+  for (const character of segment) {
+    if (escaped) {
+      token += character;
+      escaped = false;
+    } else if (character === '\\' && quote !== "'") {
+      escaped = true;
+    } else if (quote) {
+      if (character === quote) quote = undefined;
+      else token += character;
+    } else if (character === "'" || character === '"') {
+      quote = character;
+    } else if (/\s/u.test(character)) {
+      finish();
+    } else {
+      token += character;
+    }
+  }
+  finish();
+  return tokens;
+}
+function basename(token) {
+  return token.slice(token.lastIndexOf('/') + 1);
+}
+function findCommandIndex(tokens) {
+  let index = 0;
+  while (/^[A-Za-z_][A-Za-z0-9_]*=/u.test(tokens[index] ?? '')) index += 1;
+  for (let wrappers = 0; wrappers < 4; wrappers += 1) {
+    const command = basename(tokens[index] ?? '');
+    if (command === 'command' || command === 'sudo' || command === 'rtk') {
+      index += 1;
+      continue;
+    }
+    if (command === 'env') {
+      index += 1;
+      while (/^[A-Za-z_][A-Za-z0-9_]*=/u.test(tokens[index] ?? '')) index += 1;
+      continue;
+    }
+    break;
+  }
+  return index;
+}
+function segmentCreatesWorktree(segment) {
+  const tokens = tokenizeShellSegment(segment);
+  let index = findCommandIndex(tokens);
+  if (basename(tokens[index] ?? '') !== 'git') return false;
+  index += 1;
+  const optionsWithValues = new Set(['-C', '-c', '--exec-path', '--git-dir', '--namespace', '--super-prefix', '--work-tree']);
+  while (index < tokens.length && tokens[index].startsWith('-')) {
+    const option = tokens[index];
+    index += 1;
+    if (optionsWithValues.has(option)) index += 1;
+  }
+  return tokens[index] === 'worktree' && tokens[index + 1] === 'add';
+}
+function hasWorktreeCreateIntent(payload) {
+  if (!['shellToolStarted', 'shellToolFinished', 'shellToolFailed'].includes(signal.phase)) return false;
+  const command = payload && payload.tool_input && payload.tool_input.command;
+  if (typeof command !== 'string' || command.length === 0 || command.length > 32768) return false;
+  return splitShellSegments(command).some(segmentCreatesWorktree);
+}
 function readIdentifiers(callback) {
   let source = '';
   let done = false;
@@ -55,15 +166,20 @@ function readIdentifiers(callback) {
     if (done) return;
     done = true;
     let sessionId;
+    let toolUseId;
     let turnId;
+    let worktreeCreateIntent = false;
     try {
       const payload = JSON.parse(source);
       const value = payload && (payload.session_id ?? payload.sessionId);
       if (typeof value === 'string' && value.length > 0 && value.length <= 256) sessionId = value;
       const turnValue = payload && (payload.turn_id ?? payload.turnId);
       if (typeof turnValue === 'string' && turnValue.length > 0 && turnValue.length <= 256) turnId = turnValue;
+      const toolValue = payload && (payload.tool_use_id ?? payload.toolUseId);
+      if (typeof toolValue === 'string' && toolValue.length > 0 && toolValue.length <= 256) toolUseId = toolValue;
+      worktreeCreateIntent = hasWorktreeCreateIntent(payload);
     } catch {}
-    callback({ sessionId, turnId });
+    callback({ sessionId, toolUseId, turnId, worktreeCreateIntent });
   };
   // Stdin may be an interactive TTY when a human runs the bridge by hand; never wait on it.
   const timer = setTimeout(finish, ${BRIDGE_STDIN_TIMEOUT_MS});
@@ -82,9 +198,11 @@ if (!hasAnyLaunchContext) {
   process.exitCode = exitCodes.launchContextUnavailable;
 } else {
 if (process.env.CAXRI_HOOK_RECEIPTS === '1') reportBridgeStarted();
-readIdentifiers(({ sessionId, turnId }) => {
+readIdentifiers(({ sessionId, toolUseId, turnId, worktreeCreateIntent }) => {
   if (sessionId) signal.agentSessionId = sessionId;
+  if (toolUseId && worktreeCreateIntent) signal.agentToolUseId = toolUseId;
   if (turnId) signal.agentTurnId = turnId;
+  if (worktreeCreateIntent) signal.worktreeCreateIntent = true;
   const socket = net.createConnection(socketPath);
   let response = '';
   let settled = false;
@@ -122,7 +240,7 @@ readIdentifiers(({ sessionId, turnId }) => {
 }
 `;
 
-const BRIDGE_VERSION = 9;
+const BRIDGE_VERSION = 11;
 
 const BRIDGE_WRAPPER = String.raw`#!/bin/sh
 bridge_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)

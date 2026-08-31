@@ -117,7 +117,6 @@ interface AgentFixturePaths {
     cancel?: string;
     endpoint: string;
     wait?: string;
-    worktreeReport?: string;
 }
 
 function createAgentEndpointFixture(paths: AgentFixturePaths): CreateDomainServices {
@@ -180,11 +179,6 @@ function createAgentEndpointFixture(paths: AgentFixturePaths): CreateDomainServi
                           projects: [{ id: 'project-1', displayTitle: 'Project' }],
                       },
             'terminal.close': () => null,
-            'session.workbenchRoot.reportCreated': async (parameters) => {
-                if (paths.worktreeReport)
-                    await writeFile(paths.worktreeReport, JSON.stringify(parameters));
-                return { status: 'accepted', action: 'candidate' } as const;
-            },
             'agent.dispatch.startInternal': ({ dispatchId }) => dispatchReceipt(dispatchId),
             'agent.dispatch.statusInternal': ({ dispatchId }) => dispatchReceipt(dispatchId),
             'agent.dispatch.waitInternal': async ({ waitId }) => {
@@ -416,12 +410,10 @@ describe('Server Core application', () => {
         const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-headless-agent-endpoint-'));
         directories.push(userDataPath);
         const endpointFixturePath = join(userDataPath, 'endpoint-fixture.json');
-        const worktreeReportFixturePath = join(userDataPath, 'worktree-report.json');
         const app = await startServerCore({
             commit: 'test',
             createDomainServices: createAgentEndpointFixture({
                 endpoint: endpointFixturePath,
-                worktreeReport: worktreeReportFixturePath,
             }),
             userDataPath,
             version: '1.0.0',
@@ -447,18 +439,6 @@ describe('Server Core application', () => {
         });
         await expect(agent.request('agent.list')).resolves.toMatchObject({
             agents: [expect.objectContaining({ ref: endpoint.ref })],
-        });
-        await expect(
-            agent.request('agent.worktree.created', { rootPath: '/projects/created-worktree' }),
-        ).resolves.toEqual({ status: 'accepted', action: 'candidate' });
-        expect(JSON.parse(await readFile(worktreeReportFixturePath, 'utf8'))).toMatchObject({
-            endpoint: {
-                ref: endpoint.ref,
-                projectId: 'project-1',
-                sessionId: 'session-1',
-                terminalId: 'terminal-1',
-            },
-            rootPath: '/projects/created-worktree',
         });
         expect(agent.welcome.commands).toContain('agent.dispatch.status');
         expect(agent.welcome.commands).not.toContain('agent.dispatch.start');

@@ -2,10 +2,6 @@ import { randomUUID } from 'node:crypto';
 import { lstat, realpath } from 'node:fs/promises';
 
 import type {
-    AgentEndpointRef as AgentEndpointReference,
-    AgentEndpointSummary,
-    AgentProvider,
-    AgentWorktreeCreatedResult,
     NewWorktreeBehavior,
     ServerEvent,
     SessionRecord,
@@ -20,12 +16,12 @@ import type { CaxriDatabase } from './db';
 import type { DomainHandlers } from './domain-services';
 import type { GitService, GitWorktreeTopology } from './git';
 import { SingleFlight } from './single-flight';
-import { BoundedSerialBatcher } from './workbench-provenance';
+import type { WorktreeProvenanceScope } from './workbench-provenance';
+import { AgentWorktreeAttribution, BoundedSerialBatcher } from './workbench-provenance';
 
 const CANDIDATE_TTL_MS = 10 * 60_000;
 const MAX_CANDIDATES = 256;
 const MAX_PENDING_DELETION_VALIDATIONS = 256;
-const MAX_PROVENANCE_BASELINES = 256;
 const SHELL_VALIDATION_SETTLE_MS = 100;
 const workbenchRootLogEvents = logEventCatalog.workbenchRoot;
 
@@ -36,20 +32,6 @@ interface WorkbenchCandidate {
     rootPath: string;
     sessionId: string;
     state: 'pending' | 'claimed';
-}
-
-interface WorktreeProvenanceScope {
-    projectId: string;
-    provider: AgentProvider;
-    ref: AgentEndpointReference;
-    sessionId: string;
-    terminalId: string;
-}
-
-interface WorktreeProvenanceBaseline extends WorktreeProvenanceScope {
-    reportedPaths: ReadonlySet<string>;
-    repositoryKey: string;
-    rootPaths: ReadonlySet<string>;
 }
 
 type TopologyValidation =
@@ -67,10 +49,6 @@ interface WorkbenchRootServiceOptions {
     logger: StructuredLogger;
 }
 
-function endpointKey(reference: AgentEndpointReference): string {
-    return JSON.stringify([reference.hostId, reference.endpointId, reference.generation]);
-}
-
 function isSameWorkbenchBinding(
     left: ReturnType<CaxriDatabase['getSessionWorkbenchBinding']>,
     right: ReturnType<CaxriDatabase['getSessionWorkbenchBinding']>,
@@ -84,20 +62,31 @@ function isSameWorkbenchBinding(
 }
 
 /**
- * Owns the only bridge from authenticated Agent Endpoint provenance to authoritative Git worktree topology. A
- * discovered path remains inert until the exact Endpoint generation reports it and the pre-launch baseline proves it is
- * new in the owning repository.
+ * Owns the bridge from authenticated, generation-scoped Agent hooks to authoritative Git worktree topology. The hook
+ * reports only bounded command intent and an opaque tool id; a path remains inert until paired before/after topology
+ * reads prove one unique addition.
  */
 export class WorkbenchRootService {
     private readonly candidates = new Map<string, WorkbenchCandidate>();
     private readonly deletionValidations: BoundedSerialBatcher<string>;
-    private readonly provenanceBaselines = new Map<string, WorktreeProvenanceBaseline>();
     private readonly topologyReads = new SingleFlight<string, GitWorktreeTopology>();
+    private readonly worktreeAttribution: AgentWorktreeAttribution;
     private closed = false;
     private queue: Promise<void> = Promise.resolve();
     private onRootChanged?: (sessionId: string) => void;
 
     constructor(private readonly options: WorkbenchRootServiceOptions) {
+        this.worktreeAttribution = new AgentWorktreeAttribution({
+            addCandidate: (input) => this.addCandidate(input),
+            behavior: () => this.options.behavior(),
+            database: this.options.database,
+            git: this.options.git,
+            logger: this.options.logger,
+            runQueued: (run) => this.runQueued(run),
+            selectAuthorized: async (sessionId, projectId, isStillAuthorized) => {
+                await this.select(sessionId, projectId, 'selected', isStillAuthorized);
+            },
+        });
         this.deletionValidations = new BoundedSerialBatcher({
             capacity: MAX_PENDING_DELETION_VALIDATIONS,
             delayMs: SHELL_VALIDATION_SETTLE_MS,
@@ -139,10 +128,9 @@ export class WorkbenchRootService {
                         : undefined
                     : await this.loadTopology(owner.rootPath);
                 if (!topology) throw new Error('Workbench topology is unavailable');
-                if (topology.worktrees.every((worktree) => worktree.rootPath !== active.rootPath)) {
-                    this.forgetReportedPath(topology.repositoryKey, active.rootPath);
+                if (topology.worktrees.every((worktree) => worktree.rootPath !== active.rootPath))
                     reason = 'topology_removed';
-                } else {
+                else {
                     const identity = await this.rootIdentity(active.rootPath);
                     if (
                         identity.device !== binding.rootDevice ||
@@ -171,8 +159,8 @@ export class WorkbenchRootService {
     }
 
     /**
-     * Reassigns the queue synchronously so baseline and report operations cannot both consume the same pre-report
-     * topology. The returned task retains its own failure while the durable queue logs and continues.
+     * Reassigns the queue synchronously so launch baselines and paired tool snapshots remain ordered. The returned task
+     * retains its own failure while the durable queue logs and continues.
      */
     private runQueued<T>(run: () => Promise<T>): Promise<T> {
         if (this.closed)
@@ -195,26 +183,6 @@ export class WorkbenchRootService {
             });
         /* eslint-enable unicorn/prefer-await */
         return result;
-    }
-
-    private rememberBaseline(baseline: WorktreeProvenanceBaseline): void {
-        const key = endpointKey(baseline.ref);
-        this.provenanceBaselines.delete(key);
-        this.provenanceBaselines.set(key, baseline);
-        while (this.provenanceBaselines.size > MAX_PROVENANCE_BASELINES) {
-            const oldest = this.provenanceBaselines.keys().next().value;
-            if (!oldest) break;
-            this.provenanceBaselines.delete(oldest);
-        }
-    }
-
-    private forgetReportedPath(repoKey: string, rootPath: string): void {
-        for (const [key, baseline] of this.provenanceBaselines)
-            if (baseline.repositoryKey === repoKey && baseline.reportedPaths.has(rootPath)) {
-                const reportedPaths = new Set(baseline.reportedPaths);
-                reportedPaths.delete(rootPath);
-                this.provenanceBaselines.set(key, { ...baseline, reportedPaths });
-            }
     }
 
     private addCandidate(input: {
@@ -335,182 +303,37 @@ export class WorkbenchRootService {
 
     /**
      * Captures the owning repository before the prepared Agent generation can spawn and create a worktree. A failed
-     * structured Git read leaves no baseline, so later reports fail closed without blocking the Agent launch.
+     * structured Git read leaves no baseline, so later hook intent fails closed without blocking the Agent launch.
      */
-    async primeAgentEndpoint(scope: WorktreeProvenanceScope): Promise<boolean> {
-        return this.runQueued(async () => {
-            this.retireTerminal(scope.terminalId);
-            const terminal = this.options.database.getTerminal(scope.terminalId);
-            const session = this.options.database.getSession(scope.sessionId);
-            const owner = this.options.database.getProject(scope.projectId);
-            if (
-                !terminal ||
-                !session ||
-                !owner ||
-                terminal.sessionId !== scope.sessionId ||
-                terminal.provider !== scope.provider ||
-                session.projectId !== scope.projectId
-            )
-                return false;
-            const startedAt = performance.now();
-            try {
-                const topology = await this.loadTopology(owner.rootPath);
-                const currentTerminal = this.options.database.getTerminal(scope.terminalId);
-                const currentSession = this.options.database.getSession(scope.sessionId);
-                if (
-                    !currentTerminal ||
-                    !currentSession ||
-                    currentTerminal.sessionId !== scope.sessionId ||
-                    currentTerminal.provider !== scope.provider ||
-                    currentSession.projectId !== scope.projectId
-                )
-                    return false;
-                this.rememberBaseline({
-                    ...scope,
-                    reportedPaths: new Set(),
-                    repositoryKey: topology.repositoryKey,
-                    rootPaths: new Set(topology.worktrees.map(({ rootPath }) => rootPath)),
-                });
-                this.options.logger.write('debug', workbenchRootLogEvents.provenancePrimed, {
-                    durationMs: performance.now() - startedAt,
-                    fields: {
-                        generation: scope.ref.generation,
-                        terminalId: scope.terminalId,
-                        worktreeCount: topology.worktrees.length,
-                    },
-                });
-                return true;
-            } catch (error) {
-                this.options.logger.write('debug', workbenchRootLogEvents.provenanceUnavailable, {
-                    durationMs: performance.now() - startedAt,
-                    fields: {
-                        error: errorMessage(error, 'unknown'),
-                        terminalId: scope.terminalId,
-                    },
-                });
-                return false;
-            }
-        });
-    }
-
-    /**
-     * Accepts one exact path only when the authenticated generation, pre-launch baseline, live database scope, and a
-     * forced structured Git topology read all agree. No repository delta or Agent-running signal can enter this path.
-     */
-    async reportCreatedWorktree(
-        endpoint: AgentEndpointSummary,
-        rootPath: string,
-        isCurrentEndpoint: () => boolean,
-    ): Promise<AgentWorktreeCreatedResult> {
-        return this.runQueued(async () => {
-            if (!isCurrentEndpoint()) return { status: 'ignored', reason: 'endpoint_unavailable' };
-            const key = endpointKey(endpoint.ref);
-            const baseline = this.provenanceBaselines.get(key);
-            if (!baseline) return { status: 'ignored', reason: 'baseline_missing' };
-            if (
-                baseline.projectId !== endpoint.projectId ||
-                baseline.provider !== endpoint.provider ||
-                baseline.sessionId !== endpoint.sessionId ||
-                baseline.terminalId !== endpoint.terminalId
-            )
-                return { status: 'ignored', reason: 'scope_mismatch' };
-            const terminal = this.options.database.getTerminal(endpoint.terminalId);
-            const session = this.options.database.getSession(endpoint.sessionId);
-            const owner = this.options.database.getProject(endpoint.projectId);
-            if (
-                !terminal ||
-                !session ||
-                !owner ||
-                terminal.sessionId !== endpoint.sessionId ||
-                terminal.provider !== endpoint.provider ||
-                session.projectId !== endpoint.projectId
-            )
-                return { status: 'ignored', reason: 'scope_mismatch' };
-            let canonical: string;
-            try {
-                canonical = await realpath(rootPath);
-            } catch {
-                return { status: 'ignored', reason: 'path_not_canonical' };
-            }
-            if (canonical !== rootPath) return { status: 'ignored', reason: 'path_not_canonical' };
-            if (baseline.rootPaths.has(canonical) || baseline.reportedPaths.has(canonical))
-                return { status: 'ignored', reason: 'path_preexisting' };
-            let topology: GitWorktreeTopology;
-            try {
-                topology = await this.loadTopology(owner.rootPath);
-            } catch {
-                return { status: 'ignored', reason: 'topology_unavailable' };
-            }
-            if (!isCurrentEndpoint()) return { status: 'ignored', reason: 'endpoint_unavailable' };
-            if (this.provenanceBaselines.get(key) !== baseline)
-                return { status: 'ignored', reason: 'baseline_missing' };
-            const currentTerminal = this.options.database.getTerminal(endpoint.terminalId);
-            const currentSession = this.options.database.getSession(endpoint.sessionId);
-            if (
-                !currentTerminal ||
-                !currentSession ||
-                currentTerminal.sessionId !== endpoint.sessionId ||
-                currentTerminal.provider !== endpoint.provider ||
-                currentSession.projectId !== endpoint.projectId
-            )
-                return { status: 'ignored', reason: 'scope_mismatch' };
-            if (topology.repositoryKey !== baseline.repositoryKey)
-                return { status: 'ignored', reason: 'repository_mismatch' };
-            if (
-                topology.worktrees.filter((worktree) => worktree.rootPath === canonical).length !==
-                1
-            )
-                return { status: 'ignored', reason: 'path_not_linked' };
-            this.rememberBaseline({
-                ...baseline,
-                reportedPaths: new Set([...baseline.reportedPaths, canonical]),
-            });
-            if (this.options.behavior() === 'ignore')
-                return { status: 'ignored', reason: 'behavior_ignored' };
-            const authorized = this.options.database.findProjectByRootPath(canonical);
-            if (authorized && this.options.behavior() === 'continueWhenAuthorized') {
-                try {
-                    await this.select(
-                        endpoint.sessionId,
-                        authorized.id,
-                        'selected',
-                        isCurrentEndpoint,
-                    );
-                    return { status: 'accepted', action: 'selected' };
-                } catch {
-                    return {
-                        status: 'ignored',
-                        reason: isCurrentEndpoint()
-                            ? 'topology_unavailable'
-                            : 'endpoint_unavailable',
-                    };
-                }
-            }
-            this.addCandidate({
-                repositoryKey: topology.repositoryKey,
-                rootPath: canonical,
-                sessionId: endpoint.sessionId,
-            });
-            return { status: 'accepted', action: 'candidate' };
-        });
+    async primeAgentLaunch(scope: WorktreeProvenanceScope): Promise<boolean> {
+        return this.worktreeAttribution.prime(scope);
     }
 
     retireTerminal(terminalId: string): void {
-        for (const [key, baseline] of this.provenanceBaselines)
-            if (baseline.terminalId === terminalId) this.provenanceBaselines.delete(key);
+        this.worktreeAttribution.retireTerminal(terminalId);
+    }
+
+    async observeShellToolStarted(signal: AgentLifecycleSignal): Promise<boolean> {
+        return this.worktreeAttribution.observeStarted(signal);
     }
 
     /**
-     * Revalidates only a previously selected non-owner root. This content-free timing boundary can return a Session to
-     * its owner after deletion, but it never records a baseline, discovers an addition, or emits a candidate.
+     * Revalidates deletion after every successful Bash tool and attributes creation only when this outcome pairs with
+     * the exact classified PreToolUse snapshot. The hook never reports a path or result content.
      */
     observeShellToolFinished(signal: AgentLifecycleSignal): boolean {
+        if (!this.worktreeAttribution.observeFinished(signal)) return false;
         const terminal = this.options.database.getTerminal(signal.terminalId);
-        if (!terminal || terminal.provider !== signal.provider) return false;
+        if (!terminal) return false;
         const session = this.options.database.getSession(terminal.sessionId);
         if (!session) return false;
-        if (session.workbenchProjectId === session.projectId) return true;
-        return this.deletionValidations.schedule(session.id);
+        if (session.workbenchProjectId !== session.projectId)
+            this.deletionValidations.schedule(session.id);
+        return true;
+    }
+
+    observeShellToolFailed(signal: AgentLifecycleSignal): boolean {
+        return this.worktreeAttribution.observeFailed(signal);
     }
 
     async listOptions(sessionId: string): Promise<WorkbenchRootOption[]> {
@@ -731,8 +554,8 @@ export class WorkbenchRootService {
      */
     async close(): Promise<void> {
         this.closed = true;
+        this.worktreeAttribution.close();
         this.deletionValidations.close();
-        this.provenanceBaselines.clear();
         this.candidates.clear();
         await this.queue;
     }
@@ -749,7 +572,6 @@ type WorkbenchRootHandlers = Pick<
     | 'session.workbenchCandidate.cancel'
     | 'session.workbenchCandidate.claim'
     | 'session.workbenchRoot.authorizeSelection'
-    | 'session.workbenchRoot.reportCreated'
     | 'session.workbenchRoots'
 >;
 
@@ -759,7 +581,6 @@ type WorkbenchRootHandlers = Pick<
 export function createWorkbenchRootHandlers(
     service: WorkbenchRootService,
     mainOwned: (method: 'session.authorizeWorkbenchRoot' | 'session.continueInWorktree') => never,
-    isCurrentEndpoint: (endpoint: AgentEndpointSummary) => boolean,
 ): WorkbenchRootHandlers {
     return {
         'session.authorizeWorkbenchRoot': () => mainOwned('session.authorizeWorkbenchRoot'),
@@ -781,8 +602,6 @@ export function createWorkbenchRootHandlers(
         },
         'session.workbenchRoot.authorizeSelection': ({ sessionId, rootPath }) =>
             service.authorizeSelection(sessionId, rootPath),
-        'session.workbenchRoot.reportCreated': ({ endpoint, rootPath }) =>
-            service.reportCreatedWorktree(endpoint, rootPath, () => isCurrentEndpoint(endpoint)),
         'session.validateWorkbenchRoots': async ({ sessionId }) => {
             await service.validate(sessionId);
             return null;

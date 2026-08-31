@@ -39,18 +39,4 @@ describe('agent-endpoint-contract command params', () => {
             }).success,
         ).toBe(false);
     });
-
-    it('requires a generation-scoped capability and one path for worktree provenance', () => {
-        const method = agentEndpointMethods['agent.worktree.created'];
-        expect(method.requiredCapabilities).toEqual(['worktrees.report']);
-        expect(method.effect).toBe('write');
-        expect(method.params.safeParse({ rootPath: '/projects/worktree' }).success).toBe(true);
-        expect(method.params.safeParse({}).success).toBe(false);
-        expect(
-            method.result.safeParse({ status: 'ignored', reason: 'baseline_missing' }).success,
-        ).toBe(true);
-        expect(method.result.safeParse({ status: 'accepted', action: 'candidate' }).success).toBe(
-            true,
-        );
-    });
 });

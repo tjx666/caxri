@@ -11,7 +11,9 @@ const bindings = [
     { event: 'UserPromptSubmit', phase: 'turnStarted' },
     { event: 'PermissionRequest', phase: 'attentionRequested' },
     { event: 'Stop', phase: 'turnFinished', reply: 'emptyJson' },
+    { event: 'PreToolUse', matcher: '^Bash$', phase: 'shellToolStarted' },
     { event: 'PostToolUse', matcher: '^Bash$', phase: 'shellToolFinished' },
+    { event: 'PostToolUseFailure', matcher: '^Bash$', phase: 'shellToolFailed' },
 ] as const;
 
 function claudeHome(homeDirectory: string, configured: string | undefined): string {
@@ -41,7 +43,7 @@ function disabledHookPolicy(source: string | undefined): string | undefined {
 
 export const claudeHookAdapter: AgentHookAdapter = {
     bindings,
-    schemaVersion: 4,
+    schemaVersion: 6,
     autoNamingConflict: (documents) => {
         const source = settingsSource(documents);
         return source && /(?:auto-session-name|session-title-rename)\.js/u.test(source)
