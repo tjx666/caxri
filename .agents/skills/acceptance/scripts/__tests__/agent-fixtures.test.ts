@@ -240,7 +240,7 @@ describe('Acceptance Agent fixtures', () => {
         );
     });
 
-    it('drives Claude naming over stdin and rejects a Caxri Codex naming call', async () => {
+    it('drives Claude naming and Codex paste summaries while rejecting a Codex naming call', async () => {
         const userDataDirectory = await mkdtemp(join(tmpdir(), 'caxri-acceptance-agent-fixture-'));
         directories.push(userDataDirectory);
         const fixture = await prepareAcceptanceAgentFixture({
@@ -264,6 +264,14 @@ describe('Acceptance Agent fixtures', () => {
                 'CAXRI_ACCEPTANCE_PRIVATE_CODEX',
             ),
         ).rejects.toThrow('Fixture exited with 7');
+        await expect(
+            runFixture(
+                fixture.executables.codex,
+                ['exec', '--skip-git-repo-check', '-'],
+                fixture.environment,
+                'Summarize the pasted text as a compact navigation aid for a coding agent.\n\nCAXRI_ACCEPTANCE_PRIVATE_CODEX',
+            ),
+        ).resolves.toContain('Codex paste summary');
 
         await expect(readReceipts(fixture.environment.CLAUDE_CONFIG_DIR!)).resolves.toContainEqual(
             expect.objectContaining({
@@ -273,7 +281,14 @@ describe('Acceptance Agent fixtures', () => {
             }),
         );
         await expect(readReceipts(fixture.environment.CODEX_HOME!)).resolves.toContainEqual(
-            expect.objectContaining({ kind: 'unexpectedCodexNamingCall' }),
+            expect.objectContaining({ kind: 'unexpectedCodexTextGeneration' }),
+        );
+        await expect(readReceipts(fixture.environment.CODEX_HOME!)).resolves.toContainEqual(
+            expect.objectContaining({
+                argumentContainsPrivateInput: false,
+                inputContainsPrivateMarker: true,
+                kind: 'generate',
+            }),
         );
     });
 });
