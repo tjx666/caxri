@@ -20,6 +20,19 @@ interface RecoverySettingsSnapshot {
     continueDelayMs: number;
 }
 
+interface RecoveryOutputChunk {
+    delayMs: number;
+    text: string;
+}
+
+const DEFAULT_RECOVERY_OUTPUT: RecoveryOutputChunk[] = [
+    { delayMs: 25, text: 'API Error: The response stopped \u{1B}[31marriv' },
+    {
+        delayMs: 50,
+        text: 'ing. The response above may be incomplete.\u{1B}[0m\r\n* Cogitated for 21m 52s',
+    },
+];
+
 async function claudeRecoverySettings(page: Page): Promise<RecoverySettingsSnapshot> {
     const settings = await pageRequest<{
         value: {
@@ -37,7 +50,10 @@ async function capturedInputHex(path: string): Promise<string> {
     }
 }
 
-function claudeRecoveryFixture(inputPath: string): string {
+function claudeRecoveryFixture(
+    inputPath: string,
+    outputChunks: readonly RecoveryOutputChunk[] = DEFAULT_RECOVERY_OUTPUT,
+): string {
     return String.raw`#!${process.execPath}
 const fs = require('node:fs');
 if (process.argv.includes('--version')) {
@@ -55,8 +71,10 @@ process.stdin.on('data', (chunk) => {
   }
 });
 process.stdout.write('RECOVERY_FIXTURE_READY\r\n');
-setTimeout(() => process.stdout.write('API Error: The response stopped \x1b[31marriv'), 25);
-setTimeout(() => process.stdout.write('ing. The response above may be incomplete.\x1b[0m\r\n* Cogitated for 21m 52s'), 50);
+const outputChunks = ${JSON.stringify(outputChunks)};
+for (const chunk of outputChunks) {
+  setTimeout(() => process.stdout.write(chunk.text), chunk.delayMs);
+}
 `;
 }
 
@@ -78,7 +96,7 @@ test('matched parsed Agent output sends delayed Esc and continue when recovery i
         const dialog = running.page.getByRole('dialog');
         await revealSettingsSection(dialog, 'Claude Code');
         await dialog.getByRole('switch', { name: 'Claude Code network error recovery' }).check();
-        const patterns = dialog.getByLabel('Claude Code ending output patterns');
+        const patterns = dialog.getByLabel('Claude Code additional ending output patterns');
         await patterns.fill(
             'API Error: The response stopped arriving. The response above may be incomplete.',
         );
@@ -130,6 +148,79 @@ test('matched parsed Agent output sends delayed Esc and continue when recovery i
         ).toBeVisible();
         await running.page.getByRole('button', { name: 'Open Settings' }).click();
         await expect(running.page.getByRole('dialog')).toBeVisible();
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('Claude Code capacity stop uses the built-in recovery rule with no custom pattern', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-claude-capacity-recovery-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    const inputPath = join(testDirectory, 'claude-input');
+    await mkdir(root, { recursive: true });
+    const capacityMessage = 'Selected model is at capacity. Please try a different model.';
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: {
+            claude: {
+                executableSource: claudeRecoveryFixture(inputPath, [
+                    {
+                        delayMs: 25,
+                        text: '\u{1B}[33m⚠ Selected model is at capa',
+                    },
+                    {
+                        delayMs: 50,
+                        text: 'city. Please try a different model.\u{1B}[0m\r\n❯',
+                    },
+                ]),
+            },
+        },
+    });
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        await running.page.keyboard.press('Meta+,');
+        const dialog = running.page.getByRole('dialog');
+        await revealSettingsSection(dialog, 'Claude Code');
+        await dialog.getByRole('switch', { name: 'Claude Code network error recovery' }).check();
+        await expect(
+            dialog.getByLabel('Claude Code additional ending output patterns'),
+        ).toHaveValue('');
+        await expect(
+            dialog.getByText('No additional patterns configured.', { exact: true }),
+        ).toBeVisible();
+
+        const settleDelay = dialog.getByLabel('Claude Code Wait before Esc');
+        await settleDelay.fill('250');
+        await settleDelay.blur();
+        const continueDelay = dialog.getByLabel('Claude Code Wait before Continue');
+        await continueDelay.fill('250');
+        await continueDelay.blur();
+        await expect
+            .poll(() => claudeRecoverySettings(running.page))
+            .toEqual({
+                enabled: true,
+                patterns: [],
+                settleDelayMs: 250,
+                continueDelayMs: 250,
+            });
+        await dialog.getByRole('button', { name: 'Close' }).click();
+
+        await createProjectSession(running.page, 'claude');
+        await expect(running.page.locator('.xterm-rows')).toContainText(capacityMessage);
+        await expect.poll(() => capturedInputHex(inputPath)).toBe('1b636f6e74696e75650d');
+        await expect(running.page.locator('.xterm-rows')).toContainText('RECOVERY_INPUT_RECEIVED');
+        await expect(
+            running.page.getByText(
+                'Sent Esc and continue to Claude Code after a matched recovery rule.',
+                { exact: true },
+            ),
+        ).toBeVisible();
     } finally {
         try {
             await running.app.close();

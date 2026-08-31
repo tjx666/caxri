@@ -3,6 +3,8 @@ import type { StructuredLogger } from '@caxri/system';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AgentOutputRecovery } from '../output-recovery';
+import { ensureLiveOutputRecovery, hasConfiguredOutputRecovery } from '../output-recovery-manager';
+import type { LiveTerminal } from '../types';
 
 function enabledSettings(): AgentOutputRecoverySettings {
     return {
@@ -59,8 +61,16 @@ afterEach(() => vi.useRealTimers());
 
 describe('AgentOutputRecovery', () => {
     it('stays inert until the provider setting is explicitly enabled', async () => {
+        const capacityMessage = '⚠ Selected model is at capacity. Please try a different model.';
         const fixture = createRecovery({
-            settings: { ...enabledSettings(), enabled: false },
+            provider: 'claude',
+            settings: { ...enabledSettings(), enabled: false, patterns: [] },
+            tail: () =>
+                Promise.resolve({
+                    beforeCursorLine: capacityMessage,
+                    cursorLine: '❯',
+                    full: `${capacityMessage}\n❯`,
+                }),
         });
 
         fixture.recovery.observeOutput();
@@ -85,7 +95,141 @@ describe('AgentOutputRecovery', () => {
         expect(fixture.write.mock.calls).toEqual([['\u{1B}'], ['continue\r']]);
         expect(fixture.onStatus).toHaveBeenCalledWith('recovered');
         expect(fixture.loggerWrite).toHaveBeenCalledWith('info', 'pty.output_recovery_completed', {
-            fields: { provider: 'codex', ruleIndex: 0, terminalId: 'terminal-1' },
+            fields: {
+                provider: 'codex',
+                ruleIndex: 0,
+                ruleSource: 'custom',
+                terminalId: 'terminal-1',
+            },
+        });
+    });
+
+    it('recovers a Claude Code capacity stop without requiring a custom pattern', async () => {
+        const capacityMessage = '⚠ Selected model is at capacity. Please try a different model.';
+        const fixture = createRecovery({
+            provider: 'claude',
+            settings: { ...enabledSettings(), patterns: [] },
+            tail: () =>
+                Promise.resolve({
+                    beforeCursorLine: capacityMessage,
+                    cursorLine: '❯',
+                    full: `${capacityMessage}\n❯`,
+                }),
+        });
+
+        fixture.recovery.observeOutput();
+        await vi.advanceTimersByTimeAsync(550);
+
+        expect(fixture.write.mock.calls).toEqual([['\u{1B}'], ['continue\r']]);
+        expect(fixture.onStatus).toHaveBeenCalledWith('recovered');
+        expect(fixture.loggerWrite).toHaveBeenCalledWith('info', 'pty.output_recovery_completed', {
+            fields: {
+                provider: 'claude',
+                ruleIndex: 0,
+                ruleSource: 'builtin',
+                terminalId: 'terminal-1',
+            },
+        });
+    });
+
+    it.each([
+        {
+            name: 'another provider',
+            provider: 'codex' as const,
+            tail: '⚠ Selected model is at capacity. Please try a different model.',
+        },
+        {
+            name: 'a partial message',
+            provider: 'claude' as const,
+            tail: '⚠ Selected model is at capacity.',
+        },
+        {
+            name: 'newer progress',
+            provider: 'claude' as const,
+            tail: '⚠ Selected model is at capacity. Please try a different model.\nWorking',
+        },
+    ])('does not treat $name as the Claude capacity stop', async ({ provider, tail }) => {
+        const fixture = createRecovery({
+            provider,
+            settings: { ...enabledSettings(), patterns: [] },
+            tail: () => Promise.resolve({ beforeCursorLine: tail, cursorLine: '', full: tail }),
+        });
+
+        fixture.recovery.observeOutput();
+        await vi.advanceTimersByTimeAsync(550);
+
+        expect(fixture.write).not.toHaveBeenCalled();
+        expect(fixture.onStatus).not.toHaveBeenCalled();
+    });
+
+    it('does not treat the capacity text typed into the Claude composer as a built-in stop', async () => {
+        const capacityMessage = 'Selected model is at capacity. Please try a different model.';
+        const composerLine = `❯ ${capacityMessage}`;
+        const fixture = createRecovery({
+            provider: 'claude',
+            settings: { ...enabledSettings(), patterns: [] },
+            tail: () =>
+                Promise.resolve({
+                    beforeCursorLine: '',
+                    cursorLine: composerLine,
+                    full: composerLine,
+                }),
+        });
+
+        fixture.recovery.observeOutput();
+        await vi.advanceTimersByTimeAsync(550);
+
+        expect(fixture.write).not.toHaveBeenCalled();
+        expect(fixture.onStatus).not.toHaveBeenCalled();
+    });
+
+    it('does not treat a submitted prompt ending in the full capacity warning as a built-in stop', async () => {
+        const capacityWarning = '⚠ Selected model is at capacity. Please try a different model.';
+        const submittedPrompt = `❯ ${capacityWarning}`;
+        const durationLine = '* Cogitated for 1s';
+        const fixture = createRecovery({
+            provider: 'claude',
+            settings: { ...enabledSettings(), patterns: [] },
+            tail: () =>
+                Promise.resolve({
+                    beforeCursorLine: submittedPrompt,
+                    cursorLine: durationLine,
+                    full: `${submittedPrompt}\n${durationLine}`,
+                }),
+        });
+
+        fixture.recovery.observeOutput();
+        await vi.advanceTimersByTimeAsync(550);
+
+        expect(fixture.write).not.toHaveBeenCalled();
+        expect(fixture.onStatus).not.toHaveBeenCalled();
+    });
+
+    it('prefers an identical custom pattern without duplicating a built-in recovery', async () => {
+        const capacityMessage = 'Selected model is at capacity. Please try a different model.';
+        const capacityWarning = `⚠ ${capacityMessage}`;
+        const fixture = createRecovery({
+            provider: 'claude',
+            settings: { ...enabledSettings(), patterns: [capacityMessage] },
+            tail: () =>
+                Promise.resolve({
+                    beforeCursorLine: capacityWarning,
+                    cursorLine: '❯',
+                    full: `${capacityWarning}\n❯`,
+                }),
+        });
+
+        fixture.recovery.observeOutput();
+        await vi.advanceTimersByTimeAsync(550);
+
+        expect(fixture.write.mock.calls).toEqual([['\u{1B}'], ['continue\r']]);
+        expect(fixture.loggerWrite).toHaveBeenCalledWith('info', 'pty.output_recovery_completed', {
+            fields: {
+                provider: 'claude',
+                ruleIndex: 0,
+                ruleSource: 'custom',
+                terminalId: 'terminal-1',
+            },
         });
     });
 
@@ -253,5 +397,41 @@ describe('AgentOutputRecovery', () => {
             ['recovered'],
             ['rate-limited'],
         ]);
+    });
+});
+
+describe('output recovery ownership', () => {
+    it('treats an enabled Claude built-in rule as configured with no custom patterns', () => {
+        const claudeSettings = { ...enabledSettings(), patterns: [] };
+
+        expect(
+            hasConfiguredOutputRecovery((provider) =>
+                provider === 'claude'
+                    ? claudeSettings
+                    : { ...enabledSettings(), enabled: false, patterns: [] },
+            ),
+        ).toBe(true);
+    });
+
+    it('creates the per-Terminal recovery owner for an enabled Claude built-in rule', () => {
+        const settings = { ...enabledSettings(), patterns: [] };
+        const live = {
+            record: { id: 'terminal-1' },
+            screen: { textTail: vi.fn() },
+        } as unknown as LiveTerminal;
+
+        const recovery = ensureLiveOutputRecovery(live, {
+            emit: vi.fn(),
+            getSettings: () => settings,
+            isCurrent: () => true,
+            logger: { write: vi.fn() } as unknown as StructuredLogger,
+            provider: 'claude',
+            write: vi.fn(() => true),
+        });
+
+        expect(recovery).toBeInstanceOf(AgentOutputRecovery);
+        expect(live.outputRecovery).toBe(recovery);
+        expect(live.outputRecoveryProvider).toBe('claude');
+        recovery?.dispose();
     });
 });

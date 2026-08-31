@@ -2,7 +2,7 @@ import type { AgentOutputRecoverySettings, AgentProvider, ServerEvent } from '@c
 import { agentProviderIds } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
-import { AgentOutputRecovery } from './output-recovery';
+import { AgentOutputRecovery, hasEnabledOutputRecoveryRules } from './output-recovery';
 import type { LiveTerminal } from './types';
 
 interface LiveOutputRecoveryOptions {
@@ -21,7 +21,7 @@ export function hasConfiguredOutputRecovery(
         getSettings &&
         agentProviderIds.some((provider) => {
             const settings = getSettings(provider);
-            return settings.enabled && settings.patterns.length > 0;
+            return hasEnabledOutputRecoveryRules(provider, settings);
         }),
     );
 }
@@ -36,7 +36,11 @@ export function ensureLiveOutputRecovery(
 ): AgentOutputRecovery | undefined {
     const settings =
         options.provider && options.getSettings ? options.getSettings(options.provider) : undefined;
-    if (!options.provider || !settings?.enabled || settings.patterns.length === 0) {
+    if (
+        !settings ||
+        !options.provider ||
+        !hasEnabledOutputRecoveryRules(options.provider, settings)
+    ) {
         live.outputRecovery?.dispose();
         live.outputRecovery = undefined;
         live.outputRecoveryProvider = undefined;

@@ -158,8 +158,9 @@ function providerRows(provider: AgentProvider): SettingRowDescriptor[] {
             id: `agents.${provider}.recovery`,
             title: 'Network error recovery',
             description:
-                'After the parsed Terminal output ends with one of your patterns, waits, sends ' +
-                'Esc, then waits again and submits continue. Disabled by default.',
+                'After parsed Terminal output ends with a built-in provider rule or one of your ' +
+                'additional patterns, waits, sends Esc, then waits again and submits continue. ' +
+                'Disabled by default.',
             binding: { type: 'provider-recovery', provider },
             haystack: lower([
                 'network error recovery',
