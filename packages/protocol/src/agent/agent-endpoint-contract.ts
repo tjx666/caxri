@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { agentProviderSchema, identifierSchema, pathSchema } from '../domain/domain.js';
+import { agentProviderSchema, identifierSchema } from '../domain/domain.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 import { capabilitySchema } from '../transport/principal.js';
@@ -82,27 +82,6 @@ export const agentListResultSchema = z.object({
 
 const endpointTargetParametersSchema = z.object({ endpoint: agentEndpointRefSchema });
 
-export const agentWorktreeCreatedResultSchema = z.discriminatedUnion('status', [
-    z.object({
-        status: z.literal('accepted'),
-        action: z.enum(['candidate', 'selected']),
-    }),
-    z.object({
-        status: z.literal('ignored'),
-        reason: z.enum([
-            'baseline_missing',
-            'behavior_ignored',
-            'endpoint_unavailable',
-            'path_not_canonical',
-            'path_not_linked',
-            'path_preexisting',
-            'repository_mismatch',
-            'scope_mismatch',
-            'topology_unavailable',
-        ]),
-    }),
-]);
-
 export const agentEndpointMethods = {
     'agent.context': {
         ...commandPolicy('server', 'read', ['agents.read']),
@@ -113,11 +92,6 @@ export const agentEndpointMethods = {
         ...commandPolicy('server', 'read', ['agents.read']),
         params: noParameters,
         result: agentListResultSchema,
-    },
-    'agent.worktree.created': {
-        ...commandPolicy('server', 'write', ['worktrees.report']),
-        params: z.object({ rootPath: pathSchema }),
-        result: agentWorktreeCreatedResultSchema,
     },
     'agent.grants': {
         ...commandPolicy('server', 'read', ['agents.grant']),
@@ -151,4 +125,3 @@ export type AgentMessagingNextAction = z.infer<typeof agentMessagingNextActionSc
 export type AgentMessagingCapability = z.infer<typeof agentMessagingCapabilitySchema>;
 export type AgentGrantPolicy = z.infer<typeof agentGrantPolicySchema>;
 export type AgentContextResult = z.infer<typeof agentContextResultSchema>;
-export type AgentWorktreeCreatedResult = z.infer<typeof agentWorktreeCreatedResultSchema>;

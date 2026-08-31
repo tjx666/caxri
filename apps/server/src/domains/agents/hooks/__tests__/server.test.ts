@@ -59,8 +59,12 @@ async function send(socketPath: string, payload: string): Promise<string> {
 }
 
 async function createTestServer(
-    onSignal: (signal: AgentLifecycleSignal) => AgentHookSignalDisposition = vi.fn<
-        (signal: AgentLifecycleSignal) => AgentHookSignalDisposition
+    onSignal: (
+        signal: AgentLifecycleSignal,
+    ) => AgentHookSignalDisposition | Promise<AgentHookSignalDisposition> = vi.fn<
+        (
+            signal: AgentLifecycleSignal,
+        ) => AgentHookSignalDisposition | Promise<AgentHookSignalDisposition>
     >(() => 'accepted'),
 ) {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-hook-server-'));
@@ -275,6 +279,23 @@ describe('AgentHookServer', () => {
                 await server.close();
             }
         });
+
+        it('waits for asynchronous downstream provenance before acknowledging the hook', async () => {
+            const pending = Promise.withResolvers<AgentHookSignalDisposition>();
+            const onSignal = vi.fn(() => pending.promise);
+            const { server, socketPath } = await createTestServer(onSignal);
+            try {
+                const token = server.register('terminal-1', 'launch-1', 'codex');
+                const response = send(socketPath, validPayload({ token }));
+                await vi.waitFor(() => expect(onSignal).toHaveBeenCalledOnce());
+
+                pending.resolve('accepted');
+
+                await expect(response).resolves.toBe('{"ok":true}\n');
+            } finally {
+                await server.close();
+            }
+        });
     });
 
     describe('parseSignal()', () => {
@@ -417,6 +438,59 @@ describe('AgentHookServer', () => {
                     agentTurnId: '../outside',
                 }),
             ],
+            [
+                'a false worktreeCreateIntent',
+                JSON.stringify({
+                    protocolVersion: 1,
+                    schemaVersion: 2,
+                    launchId: 'l',
+                    terminalId: 't',
+                    provider: 'codex',
+                    phase: 'shellToolFinished',
+                    token: 'tok',
+                    worktreeCreateIntent: false,
+                }),
+            ],
+            [
+                'worktreeCreateIntent on a non-shell phase',
+                JSON.stringify({
+                    protocolVersion: 1,
+                    schemaVersion: 2,
+                    launchId: 'l',
+                    terminalId: 't',
+                    provider: 'codex',
+                    phase: 'turnFinished',
+                    token: 'tok',
+                    worktreeCreateIntent: true,
+                }),
+            ],
+            [
+                'worktreeCreateIntent without agentToolUseId',
+                JSON.stringify({
+                    protocolVersion: 1,
+                    schemaVersion: 2,
+                    launchId: 'l',
+                    terminalId: 't',
+                    provider: 'codex',
+                    phase: 'shellToolStarted',
+                    token: 'tok',
+                    worktreeCreateIntent: true,
+                }),
+            ],
+            [
+                'a path-like agentToolUseId',
+                JSON.stringify({
+                    protocolVersion: 1,
+                    schemaVersion: 2,
+                    launchId: 'l',
+                    terminalId: 't',
+                    provider: 'codex',
+                    phase: 'shellToolStarted',
+                    token: 'tok',
+                    agentToolUseId: '../outside',
+                    worktreeCreateIntent: true,
+                }),
+            ],
         ])('rejects a signal that is %s', async (description, payload) => {
             const { server, socketPath, onDiagnostic, onSignal } = await createTestServer();
             try {
@@ -433,9 +507,12 @@ describe('AgentHookServer', () => {
                             ? 'invalidJson'
                             : description.includes('agentSessionId')
                               ? 'invalidAgentSessionId'
-                              : description.includes('agentTurnId')
-                                ? 'invalidAgentTurnId'
-                                : 'invalidSignal',
+                              : description.includes('agentToolUseId') &&
+                                  description.includes('path-like')
+                                ? 'invalidAgentToolUseId'
+                                : description.includes('agentTurnId')
+                                  ? 'invalidAgentTurnId'
+                                  : 'invalidSignal',
                 });
             } finally {
                 await server.close();
@@ -487,6 +564,34 @@ describe('AgentHookServer', () => {
                 expect(response).toBe('{"ok":true}\n');
                 expect(onSignal).toHaveBeenCalledWith(
                     expect.objectContaining({ agentTurnId: 'provider-turn-9' }),
+                );
+            } finally {
+                await server.close();
+            }
+        });
+
+        it('forwards only paired tool identity and worktree-create intent on a Bash hook', async () => {
+            const { server, socketPath, onSignal } = await createTestServer();
+            try {
+                const token = server.register('terminal-1', 'launch-1', 'codex');
+
+                const response = await send(
+                    socketPath,
+                    validPayload({
+                        phase: 'shellToolFinished',
+                        token,
+                        agentToolUseId: 'tool-use-9',
+                        worktreeCreateIntent: true,
+                    }),
+                );
+
+                expect(response).toBe('{"ok":true}\n');
+                expect(onSignal).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        phase: 'shellToolFinished',
+                        agentToolUseId: 'tool-use-9',
+                        worktreeCreateIntent: true,
+                    }),
                 );
             } finally {
                 await server.close();

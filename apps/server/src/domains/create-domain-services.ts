@@ -110,18 +110,34 @@ export async function createDomainServices(
                 terminal.provider,
                 launchId,
             );
-            if (!launch || terminal.kind === 'shell' || !dependencies.agentEndpoints)
-                return hookEnvironment;
+            if (!launch || terminal.kind === 'shell') return hookEnvironment;
             const session = database.getSession(terminal.sessionId);
             if (!session) throw new CaxriError('CONFLICT', 'Agent Session no longer exists');
-            const endpointEnvironment = await provenance.prepareAgentWorkbenchProvenance({
-                endpoints: dependencies.agentEndpoints,
-                launchId,
-                projectId: session.projectId,
-                settings: configuration.getSettings().value['agents.providers'][terminal.kind],
+            const providerSettings =
+                configuration.getSettings().value['agents.providers'][terminal.kind];
+            /**
+             * A launch with no active provider-hook context can never report a paired tool boundary. Avoid placing a
+             * forced Git topology read on every Agent launch when hooks are disabled or unavailable.
+             */
+            if (providerSettings.hooks.enabled && hookEnvironment.CAXRI_HOOK_TOKEN)
+                await provenance.primeAgentWorkbenchProvenance({
+                    launchId,
+                    projectId: session.projectId,
+                    terminal,
+                    workbenchRoots,
+                });
+            if (!dependencies.agentEndpoints) return hookEnvironment;
+            const endpointEnvironment = await dependencies.agentEndpoints.environment(
                 terminal,
-                workbenchRoots,
-            });
+                session.projectId,
+                providerSettings,
+                launchId,
+            );
+            if (!dependencies.agentEndpoints.preparedEndpointForTerminal(terminal.id))
+                throw new CaxriError(
+                    'UNAVAILABLE',
+                    'Agent Endpoint generation was not prepared before launch',
+                );
             return {
                 ...hookEnvironment,
                 ...endpointEnvironment,
@@ -429,7 +445,6 @@ export async function createDomainServices(
         'viewContainers.viewOperation': () => mainOwned('viewContainers.viewOperation'),
         'agent.context': () => mainOwned('agent.context'),
         'agent.list': () => mainOwned('agent.list'),
-        'agent.worktree.created': () => mainOwned('agent.worktree.created'),
         'agent.grants': () => mainOwned('agent.grants'),
         'agent.grant': () => mainOwned('agent.grant'),
         'agent.revoke': () => mainOwned('agent.revoke'),
@@ -492,9 +507,7 @@ export async function createDomainServices(
         'gpu.testInjectContextLoss': () => mainOwned('gpu.testInjectContextLoss'),
         'processExplorer.open': () => mainOwned('processExplorer.open'),
         'dialog.selectDirectory': () => mainOwned('dialog.selectDirectory'),
-        ...createWorkbenchRootHandlers(workbenchRoots, mainOwned, (endpoint) =>
-            provenance.isCurrentAgentWorkbenchEndpoint(dependencies.agentEndpoints, endpoint),
-        ),
+        ...createWorkbenchRootHandlers(workbenchRoots, mainOwned),
         ...createTerminalMoveHandler(terminalMoveDependencies),
         'editor.confirmDiscard': () => mainOwned('editor.confirmDiscard'),
         'diagnostics.export': () => mainOwned('diagnostics.export'),

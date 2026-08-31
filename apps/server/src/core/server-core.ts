@@ -321,18 +321,6 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                     return agentEndpoints.context(context);
                 case 'agent.list':
                     return { agents: agentEndpoints.list(context) };
-                case 'agent.worktree.created': {
-                    if (context.principal.kind !== 'agent')
-                        throw new CaxriError(
-                            'FORBIDDEN',
-                            'Worktree provenance requires an Agent Endpoint principal',
-                        );
-                    const endpoint = agentEndpoints.context(context).endpoint;
-                    return forwardDomainOperation({
-                        method: 'session.workbenchRoot.reportCreated',
-                        params: { endpoint, rootPath: request.params.rootPath },
-                    });
-                }
                 case 'agent.grants':
                     return { grants: agentEndpoints.grants(request.params.endpoint) };
                 case 'agent.grant':

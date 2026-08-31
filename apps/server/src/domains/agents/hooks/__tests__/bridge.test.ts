@@ -39,7 +39,7 @@ describe('stageAgentHookBridge', () => {
         ]);
         expect(wrapperSource).toContain('#!/bin/sh');
         expect(bridgeScript).toContain("require('node:net')");
-        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 9 });
+        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 11 });
         expect(wrapperStats.mode & 0o777).toBe(0o700);
     });
 
@@ -111,7 +111,7 @@ describe('stageAgentHookBridge', () => {
             readFile(bridgePath, 'utf8'),
             readFile(join(binDirectory, 'bridge.cjs'), 'utf8'),
         ]);
-        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 9 });
+        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 11 });
         expect(wrapperSource).toContain('#!/bin/sh');
         expect(scriptSource).toContain("require('node:net')");
     });
@@ -236,6 +236,124 @@ describe('stageAgentHookBridge', () => {
             expect(packets).toHaveLength(1);
             expect(packets[0]).not.toHaveProperty('kind');
             expect(packets[0]).toMatchObject({ agentSessionId: 'opaque-session' });
+        } finally {
+            await new Promise<void>((resolve) => server.close(() => resolve()));
+        }
+    });
+
+    it('classifies a Bash worktree creation before execution without forwarding command or tool output', async () => {
+        const sharedPath = await sharedDirectory();
+        const bridgePath = await stageAgentHookBridge(sharedPath);
+        const socketPath = join(sharedPath, 'worktree.sock');
+        const packets: Array<Record<string, unknown>> = [];
+        const server = createServer((socket) => {
+            socket.setEncoding('utf8');
+            let source = '';
+            socket.on('data', (chunk: string) => {
+                source += chunk;
+            });
+            socket.on('end', () => {
+                packets.push(JSON.parse(source) as Record<string, unknown>);
+                socket.end('{"ok":true}\n');
+            });
+        });
+        server.listen(socketPath);
+        await once(server, 'listening');
+
+        try {
+            const invocation = execFileAsync(
+                bridgePath,
+                ['--provider', 'codex', '--phase', 'shellToolStarted', '--schema', '8'],
+                {
+                    env: {
+                        CAXRI_HOOK_LAUNCH_ID: 'worktree-launch',
+                        CAXRI_HOOK_RUNTIME: process.execPath,
+                        CAXRI_HOOK_SOCKET: socketPath,
+                        CAXRI_HOOK_TERMINAL_ID: 'worktree-terminal',
+                        CAXRI_HOOK_TOKEN: 'worktree-token',
+                        PATH: process.env.PATH,
+                    },
+                },
+            );
+            invocation.child.stdin?.end(
+                JSON.stringify({
+                    session_id: 'opaque-session',
+                    tool_input: {
+                        command: 'git -C /repo worktree add /repo-feature feature/test',
+                    },
+                    tool_response: 'private terminal output',
+                    tool_use_id: 'tool-call-1',
+                }),
+            );
+            await invocation;
+
+            expect(packets).toHaveLength(1);
+            expect(packets[0]).toMatchObject({
+                agentSessionId: 'opaque-session',
+                agentToolUseId: 'tool-call-1',
+                worktreeCreateIntent: true,
+            });
+            expect(packets[0]).not.toHaveProperty('tool_input');
+            expect(packets[0]).not.toHaveProperty('tool_response');
+            expect(JSON.stringify(packets[0])).not.toContain('/repo');
+            expect(JSON.stringify(packets[0])).not.toContain('private terminal output');
+        } finally {
+            await new Promise<void>((resolve) => server.close(() => resolve()));
+        }
+    });
+
+    it.each([
+        ['git worktree add ../feature feature/test', true],
+        ['git -C "/repo with spaces" worktree add ../feature feature/test', true],
+        ['cd /repo && rtk git worktree add ../feature feature/test', true],
+        ['env GIT_CONFIG_NOSYSTEM=1 /usr/bin/git --no-pager worktree add ../feature', true],
+        ['echo "git worktree add /private/path"', false],
+        ["printf 'git worktree add /private/path'", false],
+        ['git worktree remove /private/path', false],
+        ['git status && echo git worktree add /private/path', false],
+    ])('classifies only an executed git worktree add command: %s', async (command, expected) => {
+        const sharedPath = await sharedDirectory();
+        const bridgePath = await stageAgentHookBridge(sharedPath);
+        const socketPath = join(sharedPath, 'classification.sock');
+        const packets: Array<Record<string, unknown>> = [];
+        const server = createServer((socket) => {
+            socket.setEncoding('utf8');
+            let source = '';
+            socket.on('data', (chunk: string) => {
+                source += chunk;
+            });
+            socket.on('end', () => {
+                packets.push(JSON.parse(source) as Record<string, unknown>);
+                socket.end('{"ok":true}\n');
+            });
+        });
+        server.listen(socketPath);
+        await once(server, 'listening');
+
+        try {
+            const invocation = execFileAsync(
+                bridgePath,
+                ['--provider', 'codex', '--phase', 'shellToolFinished', '--schema', '8'],
+                {
+                    env: {
+                        CAXRI_HOOK_LAUNCH_ID: 'classification-launch',
+                        CAXRI_HOOK_RUNTIME: process.execPath,
+                        CAXRI_HOOK_SOCKET: socketPath,
+                        CAXRI_HOOK_TERMINAL_ID: 'classification-terminal',
+                        CAXRI_HOOK_TOKEN: 'classification-token',
+                        PATH: process.env.PATH,
+                    },
+                },
+            );
+            invocation.child.stdin?.end(
+                JSON.stringify({ tool_input: { command }, tool_use_id: 'classified-tool-use' }),
+            );
+            await invocation;
+
+            expect(packets).toHaveLength(1);
+            expect(packets[0]?.worktreeCreateIntent === true).toBe(expected);
+            expect(packets[0]?.agentToolUseId).toBe(expected ? 'classified-tool-use' : undefined);
+            expect(JSON.stringify(packets[0])).not.toContain(command);
         } finally {
             await new Promise<void>((resolve) => server.close(() => resolve()));
         }

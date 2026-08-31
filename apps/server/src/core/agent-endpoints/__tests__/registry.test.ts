@@ -67,7 +67,6 @@ describe('AgentEndpointRegistry', () => {
             generation: endpoint.ref.generation,
             token: TOKEN,
         });
-        expect(authenticated.capabilities).toContain('worktrees.report');
         expect(authenticated).toMatchObject({
             principal: {
                 kind: 'agent',

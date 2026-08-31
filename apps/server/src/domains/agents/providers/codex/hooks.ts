@@ -18,6 +18,7 @@ const bindings = [
     { event: 'UserPromptSubmit', phase: 'turnStarted' },
     { event: 'PermissionRequest', phase: 'attentionRequested' },
     { event: 'Stop', phase: 'turnFinished', reply: 'emptyJson' },
+    { event: 'PreToolUse', matcher: '^Bash$', phase: 'shellToolStarted' },
     { event: 'PostToolUse', matcher: '^Bash$', phase: 'shellToolFinished' },
     { event: 'PreCompact', phase: 'compactionStarted' },
     { event: 'PostCompact', phase: 'compactionFinished' },
@@ -68,7 +69,7 @@ function hooksSource(documents: AgentHookDocuments): string | undefined {
 
 export const codexHookAdapter: AgentHookAdapter = {
     bindings,
-    schemaVersion: 6,
+    schemaVersion: 8,
     autoNamingConflict: (documents) =>
         /auto-thread-name\.js/u.test(hooksSource(documents) ?? '')
             ? 'Existing automatic naming hook detected. Caxri left it unchanged; disable it to avoid duplicate model calls.'
