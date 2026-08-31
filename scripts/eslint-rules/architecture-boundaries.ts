@@ -146,6 +146,7 @@ function isAllowedTransition(importer: string, specifier: string): boolean {
 }
 
 function isBrowserConsumer(path: string): boolean {
+    if (isTestSource(path)) return false;
     return (
         isBrowserSafePackageSource(path) ||
         isPathInside('apps/desktop/src/renderer', path) ||

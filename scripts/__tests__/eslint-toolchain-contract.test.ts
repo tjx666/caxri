@@ -246,6 +246,36 @@ describe('shared ESLint preset toolchain contract', () => {
             ).toContain('caxri/architecture-boundaries');
     });
 
+    it('allows static contract tests to inspect browser source with Node APIs', async () => {
+        const results = await Promise.all([
+            lintSource(
+                'apps/desktop/src/renderer/__tests__/source-contract.test.ts',
+                "import { readFile } from 'node:fs/promises'; void readFile;",
+            ),
+            lintSource(
+                'apps/mobile/src/__tests__/source-contract.test.ts',
+                "import { readFile } from 'node:fs/promises'; void readFile;",
+            ),
+        ]);
+
+        for (const result of results)
+            expect(result.messages.map(({ ruleId }) => ruleId)).not.toContain(
+                'caxri/architecture-boundaries',
+            );
+    });
+
+    it('ignores Expo native build output during repository lint', async () => {
+        const eslint = new ESLint({ cwd: root });
+        const androidOutput = resolve(root, 'apps/mobile/android/build/generated.js');
+        const iosOutput = resolve(root, 'apps/mobile/ios/Pods/generated.js');
+        const ignored = await Promise.all([
+            eslint.isPathIgnored(androidOutput),
+            eslint.isPathIgnored(iosOutput),
+        ]);
+
+        expect(ignored).toEqual([true, true]);
+    });
+
     it('keeps every shared browser-unsafe dependency out of Renderer source', async () => {
         const results = await Promise.all(
             ['ws', '@parcel/watcher'].map((specifier) =>

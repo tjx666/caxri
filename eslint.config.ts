@@ -47,6 +47,12 @@ export default defineConfig(
         'release.noindex',
         'node_modules',
         /**
+         * Expo prebuild output is native generated code. Local Android and iOS builds recreate these gitignored roots;
+         * repository lint must inspect the config plugins that produce them, not Gradle, CocoaPods, or Xcode output.
+         */
+        'apps/mobile/android/**',
+        'apps/mobile/ios/**',
+        /**
          * Generated Go and Acceptance evidence can contain temporary TypeScript outside tsconfig.
          */
         '.records/**',

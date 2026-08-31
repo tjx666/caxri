@@ -135,7 +135,7 @@ const MobilePairingCard = ({
                     value={pairing.pairingLink}
                 />
             ) : (
-                <div className="text-black/60 flex size-[152px] items-center justify-center text-[12px]">
+                <div className="text-black/60 flex size-38 items-center justify-center text-[12px]">
                     Expired
                 </div>
             )}

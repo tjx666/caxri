@@ -2,12 +2,8 @@ import { z } from 'zod';
 
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
-import {
-    identifierSchema,
-    terminalPreviewSchema,
-    terminalResourceUsageSchema,
-    terminalSnapshotSchema,
-} from './domain.js';
+import { identifierSchema, terminalResourceUsageSchema, terminalSnapshotSchema } from './domain.js';
+import { terminalPreviewSchema } from './terminal-preview.js';
 
 const serverRead = commandPolicy('server', 'read');
 
