@@ -1,13 +1,14 @@
 # Acceptance Repair Loop
 
 Call the Skill tool with "acceptance" for the detailed report and evidence
-protocol. Caxri has one product surface for this workflow: isolated macOS
-Electron desktop.
+protocol. Caxri uses isolated macOS Electron desktop and explicitly selected Android/iOS mobile
+surfaces. A companion workflow may require both, while each check names the reviewer-facing
+`desktop` or `mobile` surface.
 
 ## Before the first round
 
-1. Read `.agents/acceptance/PROJECT.md` and resolve its current build, CDP, and
-   isolated-profile commands.
+1. Read `.agents/acceptance/PROJECT.md` and resolve the current build, device, capture, and
+   state-isolation commands for every planned surface.
 2. Confirm LobeHub CLI authentication.
 3. Assemble a bounded planner packet containing the original business
    requirement, admitted issue bodies, their UX and Acceptance sections, stable
@@ -48,7 +49,9 @@ content in Simplified Chinese as required by the Acceptance report reference.
 
 ## Evidence policy
 
-- Use the real desktop surface for every user-visible claim.
+- Use the real selected product surface for every user-visible claim. Cross-device checks may
+  include desktop supporting evidence while remaining `surface: "mobile"` when the mobile outcome
+  is what the reviewer decides.
 - Use a screenshot for settled layout or state and inspect the image before
   citing it.
 - Use GIF or video for streaming, animation, loading, replay, timers, or any
@@ -74,7 +77,7 @@ be ingested:
 Do not publish every focused test failure from implementation. The immutable
 history begins when the Acceptance plan is frozen and round execution starts.
 
-Before Terminal or visual capture, run the Acceptance fixture preflight. It
+Before a Terminal fixture capture, run the Acceptance fixture preflight. It
 uses terminal cell width rather than UTF-16 length and verifies generation,
 first grid marker, DOM rows, grid dimensions, and both border columns. A failed
 preflight is `fixture_blocked`; it is never a product verdict.
@@ -124,8 +127,8 @@ On rejection:
 On acceptance, merge only the exact accepted PR head. A conflict resolution or
 any other code change requires review and a new Acceptance round.
 
-When the frozen issue set has no Caxri product or desktop claim, an explicit
+When the frozen issue set has no Caxri product-surface claim, an explicit
 user instruction may waive Acceptance for one exact head. Record the reason and
 head, transition `delivery → acceptance_handoff`, generate the report, and skip
-the desktop planner/round. The waiver does not bypass review, CI, report,
+the surface planner/round. The waiver does not bypass review, CI, report,
 finalization, merge, or issue-state gates.

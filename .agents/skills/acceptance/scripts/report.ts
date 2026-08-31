@@ -29,12 +29,12 @@ import { isAcceptanceCaseId } from './runtime-state';
 import { validateHumanText, validateReportLanguage } from './validate-report';
 
 export type { RebindReportHeadInput } from './report-head';
-
 const CASE_STATUSES = ['pass', 'fail', 'blocked'] as const;
+const PRODUCT_SURFACES = ['desktop', 'mobile'] as const;
 const DEFAULT_CONCLUSIONS = {
-    fail: '当前 PR 头提交未满足全部计划中的桌面验收项。',
-    partial: '当前 PR 头提交的桌面验收尚未全部完成。',
-    pass: '当前 PR 头提交满足全部计划中的桌面验收项。',
+    fail: '当前 PR 头提交未满足全部计划中的验收项。',
+    partial: '当前 PR 头提交的验收尚未全部完成。',
+    pass: '当前 PR 头提交满足全部计划中的验收项。',
 } as const;
 const REQUIRED_EVIDENCE_TYPES = [
     'screenshot',
@@ -44,7 +44,6 @@ const REQUIRED_EVIDENCE_TYPES = [
     'markdown',
     'dom_snapshot',
 ] as const;
-
 const requiredEvidenceSchema = z.union([
     z.enum(REQUIRED_EVIDENCE_TYPES),
     z.object({ hint: z.string().optional(), type: z.enum(REQUIRED_EVIDENCE_TYPES) }),
@@ -58,20 +57,44 @@ const stateIsolationSchema = z.discriminatedUnion('mode', [
         profileId: z.string().min(1),
     }),
 ]);
-const planItemSchema = z.looseObject({
-    agentFixture: z.enum(acceptanceAgentFixtureIds).optional(),
-    category: z.string().min(1),
-    expected: z.string().min(1),
-    fixturePreflight: z.literal('terminal').optional(),
-    id: z.string().min(1).refine(isAcceptanceCaseId, {
-        message: 'Acceptance case id must use lowercase letters, digits, and hyphens',
-    }),
-    method: z.string().min(1),
-    requiredEvidence: z.array(requiredEvidenceSchema).min(1),
-    stateIsolation: stateIsolationSchema.default({ mode: 'isolated' }),
-    title: z.string().min(1),
-    verifier: z.enum(['agent', 'program', 'llm']).default('agent'),
+const mobileDeviceSchema = z.object({
+    appId: z.literal('com.caxri.mobile'),
+    deviceId: z.string().trim().min(1).max(200),
+    platform: z.enum(['android', 'ios']),
 });
+const planItemSchema = z
+    .looseObject({
+        agentFixture: z.enum(acceptanceAgentFixtureIds).optional(),
+        category: z.string().min(1),
+        expected: z.string().min(1),
+        fixturePreflight: z.literal('terminal').optional(),
+        id: z.string().min(1).refine(isAcceptanceCaseId, {
+            message: 'Acceptance case id must use lowercase letters, digits, and hyphens',
+        }),
+        method: z.string().min(1),
+        mobileDevice: mobileDeviceSchema.optional(),
+        requiredEvidence: z.array(requiredEvidenceSchema).min(1),
+        stateIsolation: stateIsolationSchema.default({ mode: 'isolated' }),
+        surface: z.enum(PRODUCT_SURFACES).default('desktop'),
+        title: z.string().min(1),
+        verifier: z.enum(['agent', 'program', 'llm']).default('agent'),
+    })
+    .superRefine((item, context) => {
+        if (item.surface === 'mobile' && !item.mobileDevice) {
+            context.addIssue({
+                code: 'custom',
+                message: 'A mobile Acceptance case must declare mobileDevice',
+                path: ['mobileDevice'],
+            });
+        }
+        if (item.surface === 'desktop' && item.mobileDevice) {
+            context.addIssue({
+                code: 'custom',
+                message: 'A desktop Acceptance case cannot declare mobileDevice',
+                path: ['mobileDevice'],
+            });
+        }
+    });
 const evidenceSchema = z.union([z.string().min(1), z.looseObject({ path: z.string().min(1) })]);
 const caseSchema = z.looseObject({
     category: z.string().min(1),
@@ -80,7 +103,7 @@ const caseSchema = z.looseObject({
     name: z.string().min(1),
     observation: z.string().min(1),
     status: z.enum(CASE_STATUSES),
-    surface: z.literal('desktop'),
+    surface: z.enum(PRODUCT_SURFACES),
 });
 const resultSchema = z.looseObject({
     cases: z.array(caseSchema).min(1),
@@ -88,7 +111,7 @@ const resultSchema = z.looseObject({
     plan: z.array(planItemSchema).min(1),
     requirement: z.string().min(1),
     summary: z.looseObject({ conclusion: z.string().optional() }).optional(),
-    surfaces: z.array(z.literal('desktop')).min(1),
+    surfaces: z.array(z.enum(PRODUCT_SURFACES)).min(1),
     title: z.string().min(1),
 });
 
@@ -100,7 +123,6 @@ type RequiredEvidenceType = (typeof REQUIRED_EVIDENCE_TYPES)[number];
 type OptionValue = string | true;
 type Options = Record<string, OptionValue>;
 export type StateIsolation = z.infer<typeof stateIsolationSchema>;
-
 const lifecycleLaunchSchema = z.object({
     cleanupCompleted: z.boolean(),
     cleanupRequested: z.boolean(),
@@ -116,6 +138,20 @@ const caseLifecycleReceiptSchema = z.object({
     profileIdentity: z.string().min(1),
     schemaVersion: z.literal(1),
     stateIsolation: stateIsolationSchema,
+});
+const mobileDeviceReceiptSchema = z.object({
+    appId: z.literal('com.caxri.mobile'),
+    build: z.object({ identity: z.string().min(1), mode: z.string().min(1) }),
+    caseId: z.string().min(1),
+    cleanup: z.object({ appData: z.enum(['cleared', 'preserved']), desktopProfile: z.string() }),
+    device: z.object({
+        id: z.string().min(1),
+        kind: z.string().min(1),
+        platform: z.enum(['android', 'ios']),
+    }),
+    outcome: z.string().min(1),
+    schemaVersion: z.literal(1),
+    status: z.enum(['passed', 'failed', 'blocked']),
 });
 type CaseLifecycleReceipt = z.infer<typeof caseLifecycleReceiptSchema>;
 export interface InitializeReportInput {
@@ -134,22 +170,21 @@ export interface FinalizeReportInput {
     directory: string;
     requirement: string;
 }
-
 function assertUniqueIds(items: Array<{ id: string }>, kind: string): void {
     const duplicate = items.find(
         (item, index) => items.findIndex(({ id }) => id === item.id) !== index,
     );
     if (duplicate) throw new Error(`Duplicate ${kind} id: ${duplicate.id}`);
 }
-
 function lifecycleEvidencePath(caseId: string): string {
     return `assets/${encodeURIComponent(caseId)}-state-isolation.json`;
 }
-
 function preflightEvidencePath(caseId: string): string {
     return `assets/${encodeURIComponent(caseId)}-fixture-preflight.json`;
 }
-
+function mobileDeviceEvidencePath(caseId: string): string {
+    return `assets/${encodeURIComponent(caseId)}-mobile-device.json`;
+}
 export async function loadAcceptanceCasePlan(
     reportDirectory: string,
     caseId: string,
@@ -163,7 +198,6 @@ export async function loadAcceptanceCasePlan(
     if (!item) throw new Error(`Acceptance case ${caseId} is not present in the frozen plan`);
     return { commit, directory, item };
 }
-
 export function validateAcceptanceCaseLaunch(
     stateIsolation: StateIsolation,
     input: { caseMode: 'isolated' | 'restart'; cleanupReusable: boolean; reuseUserData: boolean },
@@ -362,14 +396,14 @@ export async function initializeReport(input: InitializeReportInput): Promise<st
 
     const result = {
         ...(input.branch && { branch: input.branch }),
-        cases: parsedPlan.map(({ category, id, title }) => ({
+        cases: parsedPlan.map(({ category, id, surface, title }) => ({
             category,
             evidence: [],
             id,
             name: title,
             observation: '',
             status: 'TODO',
-            surface: 'desktop',
+            surface,
         })),
         ...(input.commit && { commit: input.commit }),
         createdAt: new Date().toISOString(),
@@ -377,7 +411,7 @@ export async function initializeReport(input: InitializeReportInput): Promise<st
         plan: parsedPlan,
         ...(input.pullRequest && { pullRequest: { number: input.pullRequest } }),
         requirement,
-        surfaces: ['desktop'],
+        surfaces: [...new Set(parsedPlan.map(({ surface }) => surface))],
         title,
     };
     const notes = '本轮暂无补充说明。\n';
@@ -448,7 +482,6 @@ async function validateEvidenceFile(directory: string, evidence: string): Promis
     if (!metadata.isFile()) throw new Error(`Evidence path is not a file: ${evidence}`);
     return evidenceTypeForPath(evidence);
 }
-
 function requiredEvidenceTypes(plan: PlanItem): RequiredEvidenceType[] {
     return plan.requiredEvidence.map((evidence) =>
         typeof evidence === 'string' ? evidence : evidence.type,
@@ -499,7 +532,7 @@ async function validateCaseLifecycleEvidence(
     if (plan.stateIsolation.mode === 'isolated') {
         const readyLaunches = receipt.launches.filter(({ ready }) => ready);
         if (
-            readyLaunches.length === 0 ||
+            (acceptanceCase.status === 'pass' && readyLaunches.length === 0) ||
             receipt.launches.some(
                 ({ cleanupCompleted, cleanupRequested }) => !cleanupRequested || !cleanupCompleted,
             )
@@ -523,6 +556,31 @@ async function validateCaseLifecycleEvidence(
         !finalReadyLaunch.cleanupCompleted
     ) {
         throw new Error(`Case ${plan.id} restart profile lifecycle is incomplete`);
+    }
+}
+
+async function validateMobileDeviceEvidence(
+    directory: string,
+    plan: PlanItem,
+    acceptanceCase: AcceptanceCase,
+): Promise<void> {
+    if (plan.surface !== 'mobile') return;
+    const expectedDevice = plan.mobileDevice;
+    if (!expectedDevice) throw new Error(`Case ${plan.id} is missing its mobile device plan`);
+    const evidence = mobileDeviceEvidencePath(plan.id);
+    if (acceptanceCase.evidence.every((item) => evidencePath(item) !== evidence)) {
+        throw new Error(`Case ${plan.id} must include its mobile device receipt`);
+    }
+    const rawReceipt: unknown = JSON.parse(await readFile(join(directory, evidence), 'utf8'));
+    const receipt = mobileDeviceReceiptSchema.parse(rawReceipt);
+    if (
+        receipt.caseId !== plan.id ||
+        receipt.device.id !== expectedDevice.deviceId ||
+        receipt.device.platform !== expectedDevice.platform ||
+        receipt.status !==
+            ({ blocked: 'blocked', fail: 'failed', pass: 'passed' } as const)[acceptanceCase.status]
+    ) {
+        throw new Error(`Case ${plan.id} mobile device receipt does not match the frozen plan`);
     }
 }
 
@@ -570,8 +628,14 @@ export async function finalizeReport(input: FinalizeReportInput) {
 
     for (const [index, item] of report.cases.entries()) {
         const planned = report.plan[index];
-        if (item.name !== planned.title || item.category !== planned.category) {
-            throw new Error(`Case ${item.id} title and category must match the frozen plan`);
+        if (
+            item.name !== planned.title ||
+            item.category !== planned.category ||
+            item.surface !== planned.surface
+        ) {
+            throw new Error(
+                `Case ${item.id} title, category, and surface must match the frozen plan`,
+            );
         }
         const actualTypes = new Set<string>();
         for (const evidence of item.evidence) {
@@ -599,6 +663,8 @@ export async function finalizeReport(input: FinalizeReportInput) {
         });
         // eslint-disable-next-line no-await-in-loop
         await validateCaseLifecycleEvidence(directory, planned, item);
+        // eslint-disable-next-line no-await-in-loop
+        await validateMobileDeviceEvidence(directory, planned, item);
     }
 
     await validateReportMediaEvidence({

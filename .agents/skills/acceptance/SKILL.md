@@ -1,20 +1,20 @@
 ---
 name: acceptance
 description: >
-  Verify Caxri deliveries on the real macOS Electron desktop surface, capture
-  visually inspected evidence through CDP, and publish immutable review rounds
-  with the LobeHub CLI. Use when Caxri work must prove user-visible behavior,
-  generate an acceptance report, respond to acceptance feedback, or re-verify a
-  repair. This project-local skill is strictly limited to Caxri's macOS Electron
-  desktop product surface.
+  Verify Caxri deliveries on the real macOS Electron desktop, Android, and iOS
+  Simulator product surfaces; capture visually inspected evidence; and publish
+  immutable review rounds with the LobeHub CLI. Use when Caxri work must prove
+  user-visible behavior, generate an acceptance report, respond to acceptance
+  feedback, or re-verify a repair.
 ---
 
 # Caxri Acceptance
 
 Builders may produce delivery evidence, but only a separate human review may accept or reject it.
-Treat macOS Electron desktop as the only product surface. Use focused tests, build output, logs, or
-probes as supporting evidence, never as substitutes for the real desktop path when the claim is
-user-visible.
+Choose `desktop` or `mobile` per planned claim. Use focused tests, build output, logs, or probes as
+supporting evidence, never as substitutes for the real product surface when the claim is
+user-visible. A cross-device workflow may use both surfaces, but each check names the surface whose
+user outcome it asks a reviewer to decide.
 
 ## Boundaries
 
@@ -25,6 +25,13 @@ user-visible.
   executables, environment authority, and host Agent providers remain forbidden. Never capture real
   Agent Terminal output or transcripts. The manual real-Agent smoke and the `debug` skill's
   controlled probe are supporting workflows, not Acceptance evidence.
+- Select every mobile target explicitly. Never use an ambiguous `booted` Simulator or implicit ADB
+  device after selection, never erase a user-owned Simulator, and never clear, uninstall, lock,
+  unlock, reboot, or stop a physical device unless the current request explicitly authorizes that
+  exact action. Acceptance cannot bypass a device lock screen or OS trust prompt.
+- Treat pairing links, QR codes, keys, tokens, visible Terminal output, Agent transcripts, Session
+  names, Project paths, and raw mobile accessibility trees as private. Do not capture or upload
+  them. Use the repository's sanitized semantic and result receipts instead.
 - A resident Caxri dev app is normal and must remain usable. `start-electron.ts` gives each
   Acceptance launch its own temporary macOS app bundle identity; never ask the developer to stop
   their app or fall back to global app-name, frontmost-window, or coordinate targeting.
@@ -53,12 +60,16 @@ user-visible.
   complete-real-path wording does not.
 - Read every screenshot or recording before citing it. A file existing is not evidence that the
   expected UI rendered.
-- Keep focused regression tests separate from acceptance evidence. Tests prove a contract; the
-  desktop round proves the delivered user experience.
-- Keep desktop evidence at the user-observable boundary. Do not use repeated injections,
+- Keep focused regression tests, lint, type checks, builds, and CI status separate from acceptance
+  checks. They are delivery preconditions and may appear as one narrative line; acceptance checks
+  are outcomes a person can accept or reject.
+- Keep evidence at the user-observable boundary. Do not use repeated injections,
   screenshots, or timing guesses to claim an internal callback order that the UI cannot expose;
-  prove the visible before/after outcome on the desktop and use the smallest focused test or log
+  prove the visible before/after outcome on the selected surface and use the smallest focused test or log
   receipt for the internal ordering contract.
+- Simulator and emulator captures can prove layout, navigation, touch semantics, pairing, and
+  bounded replies. They cannot prove physical-device thermal, energy, haptic, camera, radio, or
+  release-performance quality. Name those checks as physical-device work or mark them `blocked`.
 - Do not call `accept` or `reject` as the builder.
 
 ## Prepare
@@ -75,14 +86,18 @@ user-visible.
    Simplified Chinese. The scaffold freezes it in the acceptance root so every later round must
    reuse the exact same requirement.
 4. Author `plan[]` before testing. Give each check a stable id tied to the owning GitHub issue and
-   declare its expected behavior, required evidence, and `stateIsolation`. The scaffold defaults
-   every case to `isolated`; use `readonly_checkpoint` only for an explicitly immutable checkpoint,
+   declare its `surface` (`desktop` or `mobile`), expected behavior, required evidence, and
+   `stateIsolation`. The scaffold defaults omitted surfaces to `desktop` and every case to
+   `isolated`; use `readonly_checkpoint` only for an explicitly immutable checkpoint,
    and use `restart` only with one named profile whose final launch owns cleanup. Write all
    human-facing report prose in Simplified Chinese; keep machine ids, code identifiers, branches,
    commits, commands, and artifact paths in English. For every temporal check, name the observable
    start marker, end marker, and stop condition before launching. If the claimed ordering has no
-   observable desktop marker, split the evidence into a desktop outcome and a focused supporting
+   observable product marker, split the evidence into a user outcome and a focused supporting
    contract instead of starting an open-ended experiment.
+   Every mobile item also declares `mobileDevice` with `platform`, exact `deviceId`, and
+   `appId: "com.caxri.mobile"`; finalization requires a matching
+   `assets/<case-id>-mobile-device.json` receipt.
 5. Run the report scaffold's `init` command with the frozen plan. It creates a fresh round
    directory containing case placeholders, `report.md`, and `assets/`. Inside Go use
    `.records/go/<run-id>/acceptance/round-<n>/`; for standalone verification use
@@ -91,9 +106,11 @@ user-visible.
 Read [references/report.md](references/report.md) before authoring the report and
 [references/evidence.md](references/evidence.md) before capturing artifacts.
 
-## Execute the desktop round
+## Execute the selected surface
 
-1. Pass the pre-launch boundary above, then build and launch from the adapter. Run every
+### macOS Electron desktop
+
+1. Pass the desktop pre-launch boundary above, then build and launch from the adapter. Run every
    state-mutating case in a fresh launch with `--report-dir <round> --case-id <stable-id>`. Only a
    declared restart case may use `--case-mode restart --reuse-user-data`; its final launch must
    pass `--cleanup-reused-user-data`. A case whose plan declares `agentFixture` must also pass the
@@ -121,6 +138,29 @@ Read [references/report.md](references/report.md) before authoring the report an
    remains visible; never delete one to make coverage look complete.
 5. Report failures honestly. Once round execution starts, a product failure, blocked environment,
    invalid screenshot, or missing evidence is part of that round's observed result.
+
+### Android
+
+1. Use a disposable emulator for the automated encrypted pairing and short-reply path. Follow
+   [surfaces/android.md](surfaces/android.md) and the exact command in
+   `.agents/acceptance/PROJECT.md`. Pass the round directory and stable case id so the guarded
+   runner records build identity, isolation, cleanup, and its sanitized result receipt.
+2. Use a physical Android device only for explicitly planned visual, camera, radio, accessibility,
+   or release-performance checks. Keep it unlocked and authorized through user action; never reset
+   its app data as a fallback for an emulator-only case.
+3. Capture device pixels with ADB and inspect them. Use sanitized `testID` semantics to choose a
+   control and prove the postcondition; never upload the raw UIAutomator XML.
+
+### iOS Simulator
+
+1. Follow [surfaces/ios-simulator.md](surfaces/ios-simulator.md). Select one UDID, build the current
+   native binary, and preserve Xcode/runtime/build identity before citing device evidence.
+2. Use `simctl` for lifecycle and framebuffer capture. Use AXe or another already-installed native
+   Simulator Accessibility/HID command-line driver for taps and gestures. Do not install a driver
+   without authorization and do not treat macOS host-window clicks as native touch proof.
+3. If no installed driver can express or observe the planned interaction, mark that case `blocked`.
+   A clean launch screenshot may still support a narrower static-layout check, but cannot replace
+   the blocked gesture or cross-device workflow.
 
 ## Publish immutable rounds
 
@@ -160,13 +200,16 @@ Before every follow-up, read current server state and actionable feedback using 
 
 Copy any cited Main or Runtime log excerpts into the round assets before stopping because the
 isolated user-data directory is temporary. Stop only the Electron process started for this round.
+Clear only the Android package data owned by a disposable acceptance emulator. Terminate or
+uninstall only the app instance owned by a disposable iOS acceptance Simulator; leave user-owned
+emulators, Simulators, and physical devices running.
 Keep local reports under `.records/` and expose only the stable production acceptance URL in the
 user handoff. The latest round must show complete required-evidence coverage before the delivery
 can wait for human acceptance. When Go owns the delivery, return the published round to Go; the Go
 ledger, not the Acceptance report, owns the compact workflow-observation summary shown beside that
 URL.
 
-After the owned desktop has stopped, record only verified, reusable project learnings using the
+After owned product processes have stopped, record only verified, reusable project learnings using the
 routing rules in `.agents/acceptance/PROJECT.md`: a mistake that cost a run belongs in
 `common-mistakes.md`, a reusable probe or mock belongs in `probe-mock-patterns.md`, and an
 environment or fixture fact belongs in the matching project reference. Do not turn a one-off
@@ -176,11 +219,16 @@ editing the learning log.
 ## Reference map
 
 - Electron workflow: [surfaces/electron.md](surfaces/electron.md)
+- Android workflow: [surfaces/android.md](surfaces/android.md)
+- iOS Simulator workflow: [surfaces/ios-simulator.md](surfaces/ios-simulator.md)
 - CDP commands: [references/agent-browser.md](references/agent-browser.md)
 - Evidence rules: [references/evidence.md](references/evidence.md)
 - Native dialogs: [references/native-dialogs.md](references/native-dialogs.md)
 - Report schema: [references/report.md](references/report.md)
 - Temporal capture: [references/recording-cdp.md](references/recording-cdp.md)
+- Android temporal capture: [references/recording-android.md](references/recording-android.md)
+- iOS Simulator temporal capture:
+  [references/recording-ios-simulator.md](references/recording-ios-simulator.md)
 - Project mistakes: [../../acceptance/common-mistakes.md](../../acceptance/common-mistakes.md)
 - Project probe/mock patterns:
   [../../acceptance/probe-mock-patterns.md](../../acceptance/probe-mock-patterns.md)

@@ -1,18 +1,19 @@
-# Caxri desktop evidence contract
+# Caxri evidence contract
 
-Every Caxri Acceptance case uses the `desktop` surface and stores its artifacts
-inside the current immutable round's `assets/` directory.
+Every Caxri Acceptance case names either the `desktop` or `mobile` surface and stores its artifacts
+inside the current immutable round's `assets/` directory. A cross-device delivery may include both,
+but each case belongs to the surface whose user outcome it asks the reviewer to decide.
 
 ## Evidence media
 
-| Type           | Use when                                                                                     |
-| -------------- | -------------------------------------------------------------------------------------------- |
-| `screenshot`   | Settled Renderer state, layout, styling, or visual hierarchy is the claim                    |
-| `dom_snapshot` | Renderer structure or accessible content supports the visual observation                     |
-| `gif`          | A short transition or state change is the claim                                              |
-| `video`        | A longer interaction, streaming sequence, or multi-step flow needs continuous proof          |
-| `text`         | Focused command output, logs, or computed observations support a non-visual desktop behavior |
-| `markdown`     | Structured reasoning or a concise human-readable analysis supports the observation           |
+| Type           | Use when                                                                                         |
+| -------------- | ------------------------------------------------------------------------------------------------ |
+| `screenshot`   | Settled desktop or device state, layout, styling, or visual hierarchy is the claim               |
+| `dom_snapshot` | Desktop Renderer structure supports the visual observation                                       |
+| `gif`          | A short transition or state change is the claim                                                  |
+| `video`        | A longer interaction, streaming sequence, or multi-step flow needs continuous proof              |
+| `text`         | Focused command output, sanitized receipts, or computed observations support non-visual behavior |
+| `markdown`     | Structured reasoning or a concise human-readable analysis supports the observation               |
 
 The `requiredEvidence` declaration is binding. A final screenshot cannot replace
 a required temporal recording, and prose cannot replace a required screenshot.
@@ -38,6 +39,15 @@ report artifact; serialize the smallest relevant Renderer subtree by following
   attached to multiple passing cases.
 - Never upload credentials, cookies, tokens, private user data, unrelated host
   windows, notifications, or a developer's resident Caxri state.
+- Pairing links and QR payloads are credentials. Mobile raw accessibility trees can also contain
+  Terminal previews, Session names, Project paths, keyboard suggestions, or pairing data; use
+  Caxri's sanitized Android semantic/result receipts and review iOS hierarchy text before citing it.
+- Never include a complete `caxri://` pairing URL, QR image, device credential, X25519 key, AES-GCM
+  nonce, token, or secret-like value in evidence paths, files, observations, or `report.md`. Do not
+  upload unfiltered ADB `logcat` or Simulator logs. Prefer allowlisted receipts; if private material
+  entered a capture, invalidate it and rerun the isolated case instead of editing it into a pass.
+- Capture mobile screenshots and recordings from the device framebuffer. Android Studio or
+  Simulator host-window crops include unrelated chrome and do not prove native device pixels.
 - Native sheets and app-modal windows are manual evidence by default. Do not capture or interact with
   them; hand the exact checklist to the user. The narrow exception in
   [native-dialogs.md](native-dialogs.md) requires an explicit current user request.
@@ -48,7 +58,7 @@ report artifact; serialize the smallest relevant Renderer subtree by following
   genuinely non-visual claims.
 - Retain source frames while a derived GIF or video is awaiting review.
 
-## Non-visual desktop behavior
+## Non-visual behavior
 
 When terminal, Runtime, IPC, persistence, or security behavior cannot be proven
 by pixels alone, attach two separate `text` artifacts:
@@ -58,5 +68,12 @@ by pixels alone, attach two separate `text` artifacts:
 2. an execution artifact containing the exact command or interaction, relevant
    raw observations, exit or status values, and their mapping to the expectation.
 
-These artifacts support the real Electron path; they do not create another
-product surface.
+For every mobile case, including `fail` and `blocked`, include the report-bound
+`assets/<case-id>-mobile-device.json`; finalization checks its platform, app id, explicit device
+identity, and `passed | failed | blocked` status against the frozen case result. A case blocked
+before launch records the selected target and unavailable build identity without claiming the app
+ran. For the guarded
+Android reply case, the generated APK-hash/device receipt plus state-isolation
+receipt is the execution evidence; do not add a raw Playwright trace or device log. These artifacts
+support the real selected product surface; they do not create another surface or replace required
+visual/temporal evidence.
