@@ -53,6 +53,27 @@ export interface AgentSessionRenameResult {
     displayTitle: string;
 }
 
+export interface AgentTitleSource {
+    assistantMessages: string[];
+    byteLength: number;
+    currentProviderTitle?: string;
+    gitBranch?: string;
+    providerTitleState: 'absent' | 'explicit' | 'unknown';
+    userMessages: string[];
+}
+
+export interface AgentSessionTitleGenerationContext {
+    cwd: string;
+    prompt: string;
+    signal?: AbortSignal;
+}
+
+interface AgentProviderSessionTitleGenerationContext extends AgentSessionTitleGenerationContext {
+    environment: AgentEnvironment;
+    executable: string;
+    version: string;
+}
+
 export interface AgentProviderSessionRenameContext extends AgentSessionRenameContext {
     environment: AgentEnvironment;
     executable: string;
@@ -114,6 +135,17 @@ export interface AgentProviderDescriptor {
     actions?: AgentActionDiscoveryAdapter;
     hooks?: AgentHookAdapter;
     id: AgentProvider;
+    naming?: {
+        generateTitle(context: AgentProviderSessionTitleGenerationContext): Promise<string>;
+        readOwnership(
+            context: AgentSnapshotContext,
+            environment: AgentEnvironment,
+        ): Promise<Pick<AgentTitleSource, 'currentProviderTitle' | 'providerTitleState'>>;
+        readSource(
+            context: AgentSnapshotContext,
+            environment: AgentEnvironment,
+        ): Promise<AgentTitleSource | undefined>;
+    };
     readState(
         context: AgentSnapshotContext,
         environment: AgentEnvironment,

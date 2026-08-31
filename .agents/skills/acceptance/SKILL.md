@@ -20,10 +20,11 @@ user-visible.
 
 - Exercise Caxri in an isolated Electron instance. Never drive the developer's resident app or real
   user-data directory.
-- Acceptance forces Agent discovery to `blocked` and uses deterministic fake fixtures for
-  Agent-facing UI. It never invokes a host Agent provider or captures real Agent Terminal output or
-  transcripts. The manual real-Agent smoke and the `debug` skill's controlled probe are supporting
-  workflows, not Acceptance evidence.
+- Acceptance forces Agent discovery to `blocked` unless the frozen case plan declares a
+  repository-owned fake Agent fixture. Pass that exact fixture id to the launcher; arbitrary
+  executables, environment authority, and host Agent providers remain forbidden. Never capture real
+  Agent Terminal output or transcripts. The manual real-Agent smoke and the `debug` skill's
+  controlled probe are supporting workflows, not Acceptance evidence.
 - A resident Caxri dev app is normal and must remain usable. `start-electron.ts` gives each
   Acceptance launch its own temporary macOS app bundle identity; never ask the developer to stop
   their app or fall back to global app-name, frontmost-window, or coordinate targeting.
@@ -95,8 +96,11 @@ Read [references/report.md](references/report.md) before authoring the report an
 1. Pass the pre-launch boundary above, then build and launch from the adapter. Run every
    state-mutating case in a fresh launch with `--report-dir <round> --case-id <stable-id>`. Only a
    declared restart case may use `--case-mode restart --reuse-user-data`; its final launch must
-   pass `--cleanup-reused-user-data`. Confirm the CDP target is the Caxri renderer, not DevTools
-   or a stale resident build.
+   pass `--cleanup-reused-user-data`. A case whose plan declares `agentFixture` must also pass the
+   same id through `--agent-fixture`; include the generated Agent fixture receipt in that case's
+   evidence. Every launch uses isolated HOME, XDG directories, provider homes, and shell PATH with
+   blocked Agent shims; the declared fixture replaces only those blocked Agent targets. Confirm the
+   CDP target is the Caxri renderer, not DevTools or a stale resident build.
 2. Drive the smallest real user path that proves each plan item. Follow
    [surfaces/electron.md](surfaces/electron.md). Stop before a native sheet or app-modal window and
    hand that step to the user unless the current request explicitly authorizes agent verification;

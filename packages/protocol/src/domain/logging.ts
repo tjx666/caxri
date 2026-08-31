@@ -6,6 +6,7 @@ import { z } from 'zod';
  */
 export const logEventCatalog = {
     agent: {
+        autoNamingFailed: 'agent.auto_naming_failed',
         integrationReconcileFailed: 'agent.integration_reconcile_failed',
         probe: 'agent.probe',
         probeFailed: 'agent.probe_failed',
@@ -24,6 +25,9 @@ export const logEventCatalog = {
         signalFailed: 'agent_hooks.signal_failed',
         signalIgnored: 'agent_hooks.signal_ignored',
         signalRejected: 'agent_hooks.signal_rejected',
+    },
+    agentNotifications: {
+        operationFailed: 'agent_notifications.operation_failed',
     },
     app: {
         childProcessGone: 'app.child_process_gone',

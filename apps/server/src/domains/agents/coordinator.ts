@@ -581,6 +581,10 @@ export class AgentCoordinator {
         this.hookAuthoritativeLaunchIds.delete(terminalId);
     }
 
+    isCurrentTerminalLaunch(terminalId: string, launchId: string): boolean {
+        return this.launchIdsByTerminal.get(terminalId) === launchId;
+    }
+
     /**
      * Ends lifecycle authority for a retired PTY before a replacement generation can start.
      */
@@ -744,9 +748,6 @@ export class AgentCoordinator {
         return this.probe(terminalId);
     }
 
-    /**
-     * Keeps a Session title current when its primary Agent Terminal changed or was promoted.
-     */
     probeSessionPrimaryAgent(sessionId: string): void {
         const session = this.database.getSession(sessionId);
         if (session?.primaryAgentTerminalId) this.probeTerminal(session.primaryAgentTerminalId);

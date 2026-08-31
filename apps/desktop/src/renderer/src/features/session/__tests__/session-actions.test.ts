@@ -52,6 +52,7 @@ import {
     didReorderProject,
     didSelectSession,
     moveTerminalToNewSession,
+    resumeAutomaticSessionNaming,
     selectAdjacentSession,
     selectProject,
 } from '../session-actions';
@@ -184,6 +185,18 @@ describe('Session actions', () => {
             targetIndex: 2,
         });
         expect(mocks.tryCommand.mock.calls[0]?.[2]).toBeUndefined();
+    });
+
+    it('resumes automatic Session naming and refreshes the Workbench', async () => {
+        resumeAutomaticSessionNaming('session-1');
+        await mocks.tryCommand.mock.results[0]?.value;
+
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('session.resumeAutomaticNaming', {
+            sessionId: 'session-1',
+        });
+        expect(mocks.tryCommand.mock.calls[0]?.[2]).toEqual({
+            refresh: mocks.refreshWorkbench,
+        });
     });
 
     it('cleans up stores and queries when Session deletion is confirmed', async () => {

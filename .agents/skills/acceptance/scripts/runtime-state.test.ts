@@ -283,6 +283,12 @@ describe('Acceptance runtime ownership', () => {
             expect(
                 profiles.every(({ acceptanceCase }) => acceptanceCase?.mode === 'isolated'),
             ).toBe(true);
+            expect(
+                profiles.every(
+                    ({ acceptanceCase }) =>
+                        acceptanceCase?.requiresTerminalFixturePreflight === true,
+                ),
+            ).toBe(true);
         } finally {
             await Promise.all(profiles.map((profile) => removeOwnedUserData(profile)));
         }
@@ -291,5 +297,18 @@ describe('Acceptance runtime ownership', () => {
                 expect(access(userDataDir)).rejects.toMatchObject({ code: 'ENOENT' }),
             ),
         );
+    });
+
+    it('records an explicit non-Terminal frame-capture plan without weakening the default', async () => {
+        const profile = await prepareAcceptanceUserData({
+            caseId: 'non-terminal-recording',
+            cleanupReusable: false,
+            requiresTerminalFixturePreflight: false,
+        });
+        try {
+            expect(profile.acceptanceCase?.requiresTerminalFixturePreflight).toBe(false);
+        } finally {
+            await removeOwnedUserData(profile);
+        }
     });
 });

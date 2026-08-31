@@ -569,6 +569,59 @@ describe('AgentHookManager', () => {
         }
     });
 
+    it('preserves an existing automatic naming hook and exposes the conflict in health', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-hooks-auto-name-'));
+        temporaryDirectories.push(directory);
+        const codexHome = join(directory, 'codex');
+        const hooksPath = join(codexHome, 'hooks.json');
+        await mkdir(codexHome, { recursive: true });
+        await writeFile(
+            hooksPath,
+            JSON.stringify({
+                hooks: {
+                    Stop: [
+                        {
+                            hooks: [
+                                {
+                                    type: 'command',
+                                    command: join(codexHome, 'hooks', 'auto-thread-name.js'),
+                                },
+                            ],
+                        },
+                    ],
+                },
+            }),
+            'utf8',
+        );
+        const settings = structuredClone(defaultAgentProviderSettings);
+        settings.codex.hooks.enabled = true;
+        settings.codex.naming.enabled = true;
+        const manager = new AgentHookManager({
+            environment: { homeDirectory: directory, variables: { CODEX_HOME: codexHome } },
+            logger: new StructuredLogger(join(directory, 'logs')),
+            onAuthorityLost: vi.fn(),
+            onLaunchEnded: vi.fn(),
+            onLaunchStarted: vi.fn(),
+            onSignal: vi.fn(() => true),
+            hookExecutable: process.execPath,
+            send: vi.fn(),
+            sharedPath: join(directory, 'shared'),
+            userDataPath: join(directory, 'profile'),
+        });
+
+        try {
+            await manager.initialize(settings);
+
+            expect(manager.hasAutoNamingConflict('codex')).toBe(true);
+            const namingHealth = manager.getHealth().codex.automaticNaming;
+            expect(namingHealth?.kind).toBe('blocked');
+            expect(namingHealth?.message).toContain('left it unchanged');
+            expect(await readFile(hooksPath, 'utf8')).toContain('auto-thread-name.js');
+        } finally {
+            await manager.close();
+        }
+    });
+
     it('rejects an oversized Codex hook config before any adapter can inspect or rewrite it', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-hooks-oversized-'));
         temporaryDirectories.push(directory);

@@ -33,6 +33,13 @@ describe('isRowModified', () => {
         });
         expect(isRowModified(toggle, { settings: current })).toBe(true);
 
+        const naming = { type: 'provider-toggle', provider: 'codex', field: 'naming' } as const;
+        expect(isRowModified(naming, { settings: current })).toBe(false);
+        current['agents.providers'] = withProviderField(current, 'codex', {
+            naming: { enabled: true },
+        });
+        expect(isRowModified(naming, { settings: current })).toBe(true);
+
         const launch = { type: 'provider-launch', provider: 'codex', field: 'args' } as const;
         expect(isRowModified(launch, { settings: current })).toBe(false);
         current['agents.providers'] = withProviderField(current, 'codex', {

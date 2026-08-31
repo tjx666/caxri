@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseE2EPool, parseSpecPaths } from '../run-e2e-repair';
+import { resolveE2EClipboardPolicy } from '../../e2e/support/worker-isolation';
+import {
+    createParallelSafeRepairEnvironment,
+    parseE2EPool,
+    parseSpecPaths,
+    resolveOwnedRunnerTemporaryDirectory,
+} from '../run-e2e-repair';
 
 describe('focused E2E repair argv', () => {
     it('accepts only unique repository E2E spec paths', () => {
@@ -25,5 +31,52 @@ describe('focused E2E repair argv', () => {
         expect(parseE2EPool('parallel-safe')).toBe('parallel-safe');
         expect(parseE2EPool('desktop-exclusive')).toBe('desktop-exclusive');
         expect(() => parseE2EPool('unknown')).toThrow('CI_E2E_POOL');
+    });
+
+    it('keeps serial repetitions inside the parallel-safe pool policy', () => {
+        const environment = createParallelSafeRepairEnvironment(
+            {
+                CAXRI_DESKTOP_COORDINATOR_TOKEN: 'stale-desktop-token',
+                CAXRI_E2E_COORDINATOR_TOKEN: 'stale-e2e-token',
+            },
+            'current-e2e-token',
+            'test-results/e2e-repair-serial',
+            '/private/tmp/cxr-abcd12',
+        );
+
+        expect(environment).toMatchObject({
+            CAXRI_E2E_COORDINATOR_TOKEN: 'current-e2e-token',
+            CAXRI_E2E_OUTPUT_DIR: 'test-results/e2e-repair-serial',
+            CAXRI_E2E_POOL: 'parallel-safe',
+            TEMP: '/private/tmp/cxr-abcd12',
+            TMP: '/private/tmp/cxr-abcd12',
+            TMPDIR: '/private/tmp/cxr-abcd12',
+        });
+        expect(environment.CAXRI_DESKTOP_COORDINATOR_TOKEN).toBeUndefined();
+        expect(resolveE2EClipboardPolicy(environment, false)).toEqual({
+            protectClipboard: false,
+        });
+    });
+
+    it('keeps hosted repair data inside the runner-owned temporary root', () => {
+        const owner = 'caxri-33324692364-1-e2e';
+        expect(
+            resolveOwnedRunnerTemporaryDirectory({
+                CAXRI_RUNNER_OWNER: owner,
+                TMPDIR: `/private/tmp/${owner}`,
+            }),
+        ).toBe(`/private/tmp/${owner}`);
+        expect(
+            resolveOwnedRunnerTemporaryDirectory({ TMPDIR: '/private/tmp/local' }),
+        ).toBeUndefined();
+    });
+
+    it('rejects a hosted temporary root outside its declared owner', () => {
+        expect(() =>
+            resolveOwnedRunnerTemporaryDirectory({
+                CAXRI_RUNNER_OWNER: 'caxri-33324692364-1-e2e',
+                TMPDIR: '/private/tmp/foreign',
+            }),
+        ).toThrow('runner-owned TMPDIR');
     });
 });

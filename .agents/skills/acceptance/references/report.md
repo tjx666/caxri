@@ -51,6 +51,7 @@ contains:
     "expected": "终端视口周围不出现应用背景色条",
     "requiredEvidence": ["screenshot", "dom_snapshot"],
     "fixturePreflight": "terminal",
+    "agentFixture": "agent-features-v1",
     "stateIsolation": { "mode": "isolated" }
   }
 ]
@@ -119,6 +120,11 @@ For isolated and restart cases, include the adapter-generated
 `assets/<case-id>-state-isolation.json`; finalization requires completed cleanup and, for restart,
 one exact profile identity across launches. A plan with `fixturePreflight: terminal` must also
 include the ready `assets/<case-id>-fixture-preflight.json` receipt.
+
+A plan may declare the fixed `agentFixture: "agent-features-v1"` only when the case needs fake
+Claude Code or Codex processes. Launch with the matching `--agent-fixture` value and include
+`assets/<case-id>-agent-fixture.json` in the case evidence. Finalization requires the receipt to
+match the frozen id and every fixture launch to have completed owned-profile cleanup.
 
 An isolated case may retry after a ready launch when setup, fixture preflight, or evidence capture
 fails. Stop and fully clean the previous launch first, then start again with a fresh isolated

@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 
 import { z } from 'zod';
 
+import { validateAgentFixtureEvidence } from './agent-fixture-lifecycle';
+import { acceptanceAgentFixtureIds } from './agent-fixtures';
 import {
     createTerminalFixturePreflightReceipt,
     terminalFixturePreflightReceiptSchema,
@@ -57,6 +59,7 @@ const stateIsolationSchema = z.discriminatedUnion('mode', [
     }),
 ]);
 const planItemSchema = z.looseObject({
+    agentFixture: z.enum(acceptanceAgentFixtureIds).optional(),
     category: z.string().min(1),
     expected: z.string().min(1),
     fixturePreflight: z.literal('terminal').optional(),
@@ -115,7 +118,6 @@ const caseLifecycleReceiptSchema = z.object({
     stateIsolation: stateIsolationSchema,
 });
 type CaseLifecycleReceipt = z.infer<typeof caseLifecycleReceiptSchema>;
-
 export interface InitializeReportInput {
     branch?: string;
     commit?: string;
@@ -589,6 +591,12 @@ export async function finalizeReport(input: FinalizeReportInput) {
         // see the evidence-file validation loop above for the same rationale.
         // eslint-disable-next-line no-await-in-loop
         await validateFixturePreflightEvidence(directory, planned, item);
+        // eslint-disable-next-line no-await-in-loop
+        await validateAgentFixtureEvidence(directory, {
+            caseId: planned.id,
+            evidencePaths: item.evidence.map(evidencePath),
+            fixtureId: planned.agentFixture,
+        });
         // eslint-disable-next-line no-await-in-loop
         await validateCaseLifecycleEvidence(directory, planned, item);
     }

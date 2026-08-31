@@ -60,8 +60,8 @@ test('Agent Commands & Skills stays discoverable, describes its target, and pres
         .run(
             'agent-actions-session',
             canonicalRoot,
+            'Private first prompt',
             'Codex action thread',
-            null,
             Date.now() + 60_000,
             Date.now() + 60_000,
             0,

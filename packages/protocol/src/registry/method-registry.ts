@@ -106,6 +106,11 @@ export const MAX_FILE_BROWSE_ENTRIES = MAX_PATH_BROWSER_ENTRIES;
 export const MAX_FILE_LIST_ENTRIES = 1_024;
 
 const settingsResult = z.object({ value: appSettingsSchema, source: configSourceSchema });
+const sessionIdWrite = {
+    ...serverWrite,
+    params: z.object({ sessionId: identifierSchema }),
+    result: sessionRecordSchema,
+};
 const keybindingsResult = z.object({
     value: z.array(keybindingSchema).max(MAX_KEYBINDINGS),
     source: configSourceSchema,
@@ -395,16 +400,9 @@ export const methods = {
         }),
         result: sessionRecordSchema,
     },
-    'session.archive': {
-        ...serverWrite,
-        params: z.object({ sessionId: identifierSchema }),
-        result: sessionRecordSchema,
-    },
-    'session.unarchive': {
-        ...serverWrite,
-        params: z.object({ sessionId: identifierSchema }),
-        result: sessionRecordSchema,
-    },
+    'session.resumeAutomaticNaming': sessionIdWrite,
+    'session.archive': sessionIdWrite,
+    'session.unarchive': sessionIdWrite,
     'session.updateState': {
         ...serverWrite,
         params: sessionStateSchema,

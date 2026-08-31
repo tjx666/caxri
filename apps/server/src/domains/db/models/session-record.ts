@@ -2,6 +2,7 @@ import type {
     AgentActivityState,
     SessionActivityReason,
     SessionAttentionKind,
+    SessionAutoNamingState,
     SessionRecord,
     SessionTitleMode,
 } from '@caxri/protocol';
@@ -31,6 +32,7 @@ export const sessionSelection = {
     layoutVersion: sessions.layoutVersion,
     displayTitle: sessions.displayTitle,
     titleMode: sessions.titleMode,
+    autoNamingState: sessions.autoNamingState,
 };
 
 interface SessionJoinRow {
@@ -51,6 +53,7 @@ interface SessionJoinRow {
     layoutVersion: number;
     displayTitle: string;
     titleMode: string;
+    autoNamingState: string;
 }
 
 export function mapSession(row: SessionJoinRow): SessionRecord {
@@ -73,5 +76,6 @@ export function mapSession(row: SessionJoinRow): SessionRecord {
         layoutVersion: row.layoutVersion,
         displayTitle: row.displayTitle,
         titleMode: row.titleMode as SessionTitleMode,
+        autoNamingState: row.autoNamingState as SessionAutoNamingState,
     };
 }

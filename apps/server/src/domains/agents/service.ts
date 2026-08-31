@@ -16,7 +16,9 @@ import type {
     AgentEnvironment,
     AgentSessionRenameContext,
     AgentSessionRenameResult,
+    AgentSessionTitleGenerationContext,
     AgentSnapshotContext,
+    AgentTitleSource,
 } from './contract';
 import { defaultAgentEnvironment, processStateToAgentActivity } from './contract';
 import { discoverExecutable, readVersion } from './discovery';
@@ -35,7 +37,12 @@ function reliableAttentionKind(
  * version probing on top of a descriptor, so it is the unit that `AgentService` actually snapshots.
  */
 export interface AgentAdapter {
+    generateSessionTitle?(context: AgentSessionTitleGenerationContext): Promise<string>;
     provider: AgentProvider;
+    readTitleOwnership?(
+        context: AgentSnapshotContext,
+    ): Promise<Pick<AgentTitleSource, 'currentProviderTitle' | 'providerTitleState'>>;
+    readTitleSource?(context: AgentSnapshotContext): Promise<AgentTitleSource | undefined>;
     renameSession(context: AgentSessionRenameContext): Promise<AgentSessionRenameResult>;
     snapshot(context: AgentSnapshotContext): Promise<AgentSnapshot>;
 }
@@ -63,8 +70,38 @@ function createCliAdapter(
     environment: AgentEnvironment,
     launchSettings: () => AgentLaunchSettings,
 ): AgentAdapter {
+    const providerDescriptor = agentProviders[provider];
+    const naming = providerDescriptor.naming;
     return {
         provider,
+        ...(naming && {
+            async generateSessionTitle(
+                context: AgentSessionTitleGenerationContext,
+            ): Promise<string> {
+                const executable = await discoverExecutable(provider, launchSettings().executable);
+                if (!executable)
+                    throw new CaxriError(
+                        'UNAVAILABLE',
+                        `${agentProviderCatalog[provider].displayName} is not available`,
+                    );
+                const version = await readVersion(provider, executable);
+                if (!version)
+                    throw new CaxriError(
+                        'UNAVAILABLE',
+                        `${agentProviderCatalog[provider].displayName} version could not be verified`,
+                    );
+                return naming.generateTitle({
+                    ...context,
+                    environment,
+                    executable,
+                    version,
+                });
+            },
+            readTitleSource: (context: AgentSnapshotContext) =>
+                naming.readSource(context, environment),
+            readTitleOwnership: (context: AgentSnapshotContext) =>
+                naming.readOwnership(context, environment),
+        }),
         async renameSession(context): Promise<AgentSessionRenameResult> {
             const executable = await discoverExecutable(provider, launchSettings().executable);
             if (!executable)
@@ -78,7 +115,7 @@ function createCliAdapter(
                     'UNAVAILABLE',
                     `${agentProviderCatalog[provider].displayName} version could not be verified`,
                 );
-            return agentProviders[provider].renameSession({
+            return providerDescriptor.renameSession({
                 ...context,
                 environment,
                 executable,
@@ -89,7 +126,7 @@ function createCliAdapter(
             const observedAt = Date.now();
             const [executable, localState] = await Promise.all([
                 discoverExecutable(provider, launchSettings().executable),
-                agentProviders[provider].readState(context, environment),
+                providerDescriptor.readState(context, environment),
             ]);
             const version = executable ? await readVersion(provider, executable) : undefined;
             return {
@@ -150,5 +187,47 @@ export class AgentService {
         context: AgentSessionRenameContext,
     ): Promise<AgentSessionRenameResult> {
         return this.adapters[provider].renameSession(context);
+    }
+
+    readTitleSource(
+        provider: AgentProvider,
+        context: AgentSnapshotContext,
+    ): Promise<AgentTitleSource | undefined> {
+        return this.adapters[provider].readTitleSource
+            ? this.adapters[provider].readTitleSource(context)
+            : Promise.reject(
+                  new CaxriError(
+                      'UNAVAILABLE',
+                      `${agentProviderCatalog[provider].displayName} automatic naming is unavailable`,
+                  ),
+              );
+    }
+
+    readTitleOwnership(
+        provider: AgentProvider,
+        context: AgentSnapshotContext,
+    ): Promise<Pick<AgentTitleSource, 'currentProviderTitle' | 'providerTitleState'>> {
+        return this.adapters[provider].readTitleOwnership
+            ? this.adapters[provider].readTitleOwnership(context)
+            : Promise.reject(
+                  new CaxriError(
+                      'UNAVAILABLE',
+                      `${agentProviderCatalog[provider].displayName} automatic naming is unavailable`,
+                  ),
+              );
+    }
+
+    generateSessionTitle(
+        provider: AgentProvider,
+        context: AgentSessionTitleGenerationContext,
+    ): Promise<string> {
+        return this.adapters[provider].generateSessionTitle
+            ? this.adapters[provider].generateSessionTitle(context)
+            : Promise.reject(
+                  new CaxriError(
+                      'UNAVAILABLE',
+                      `${agentProviderCatalog[provider].displayName} automatic naming is unavailable`,
+                  ),
+              );
     }
 }

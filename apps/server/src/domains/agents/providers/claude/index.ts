@@ -7,7 +7,6 @@ import { mapWithConcurrency } from '@caxri/system';
 
 import { runExternalCommand } from '../../../executables';
 import type {
-    AgentEnvironment,
     AgentProviderDescriptor,
     AgentProviderSessionRenameContext,
     AgentSessionRenameResult,
@@ -22,6 +21,13 @@ import {
 } from '../../rename';
 import { openSafeAgentTranscript } from '../../transcript-security';
 import { claudeHookAdapter } from './hooks';
+import { claudeNaming } from './naming';
+import {
+    claudeTranscriptBaseRoot,
+    claudeTranscriptPath,
+    claudeTranscriptRoot,
+    resolveClaudeConfigDirectory,
+} from './paths';
 
 interface ClaudeSessionMetadata {
     cwd?: unknown;
@@ -39,7 +45,6 @@ const MAX_CONCURRENT_CLAUDE_READS = 8;
 const MAX_TRANSCRIPT_SCAN_BYTES_PER_READ = 4 * 1024 * 1024;
 const TRANSCRIPT_READ_CHUNK_BYTES = 64 * 1024;
 const MAX_TRANSCRIPT_TITLE_CACHES = 64;
-const MAX_LAST_PROMPT_TITLE_LENGTH = 80;
 /**
  * Non-interactive `/rename` is the public write boundary. Repeating the same exact-session rename is idempotent on the
  * supported CLI line, while the parsed result remains authoritative if provider behavior changes.
@@ -56,7 +61,6 @@ interface TranscriptTitleCache {
      * Byte offset of the first unconsumed transcript byte; scans resume here on the next poll.
      */
     offset: number;
-    lastPrompt?: string;
     title?: string;
 }
 
@@ -127,44 +131,6 @@ export async function renameClaudeSession(
  */
 const transcriptTitleCaches = new Map<string, TranscriptTitleCache>();
 
-/**
- * Mirrors Claude Code's own project-directory encoding of a session cwd (every non-alphanumeric character becomes `-`).
- */
-function claudeProjectDirectoryName(cwd: string): string {
-    return cwd.replaceAll(/[^a-z0-9]/gi, '-');
-}
-
-/**
- * The single source for a session transcript's on-disk location; the title scanner and the transcript-viewer capability
- * must never derive it independently.
- */
-function claudeTranscriptPath(configDirectory: string, cwd: string, sessionId: string): string {
-    return join(claudeTranscriptRoot(configDirectory, cwd), `${sessionId}.jsonl`);
-}
-
-function claudeTranscriptRoot(configDirectory: string, cwd: string): string {
-    return join(claudeTranscriptBaseRoot(configDirectory), claudeProjectDirectoryName(cwd));
-}
-
-function claudeTranscriptBaseRoot(configDirectory: string): string {
-    return join(configDirectory, 'projects');
-}
-
-/**
- * Reduces a raw prompt to a Claude Code-style resume-list label: first non-empty line, bounded length.
- */
-function promptTitle(prompt: string): string | undefined {
-    const firstLine = prompt
-        .split('\n')
-        .map((line) => line.trim())
-        .find(Boolean);
-    if (!firstLine) return undefined;
-    const characters = [...firstLine];
-    return characters.length > MAX_LAST_PROMPT_TITLE_LENGTH
-        ? `${characters.slice(0, MAX_LAST_PROMPT_TITLE_LENGTH).join('')}…`
-        : firstLine;
-}
-
 function scanTranscriptLine(line: string, cache: TranscriptTitleCache): void {
     if (line.includes('"aiTitle"')) {
         try {
@@ -178,27 +144,12 @@ function scanTranscriptLine(line: string, cache: TranscriptTitleCache): void {
             Partial or malformed lines are skipped; a later append re-delivers them complete.
             */
         }
-        return;
-    }
-    if (!line.includes('"lastPrompt"')) return;
-    try {
-        const record = JSON.parse(line) as { lastPrompt?: unknown; type?: unknown };
-        if (record.type === 'last-prompt' && typeof record.lastPrompt === 'string') {
-            const prompt = promptTitle(record.lastPrompt);
-            if (prompt) cache.lastPrompt = prompt;
-        }
-    } catch {
-        /*
-        Partial or malformed lines are skipped; a later append re-delivers them complete.
-        */
     }
 }
 
 /**
- * Reads the human-meaningful titles from the matched session's own transcript: the AI-generated title
- * (`{"type":"ai-title"}` records) and the resume-list fallback prompt (`{"type":"last-prompt"}` records). Claude Code
- * keeps both only in the project transcript — the live-session metadata `name` is merely derived from the working
- * directory — so this is the only source that mirrors Claude Code's own `/resume` list labels.
+ * Reads only Claude Code's generated title from the matched Session transcript. Raw prompts are intentionally excluded
+ * because this title also reaches Caxri persistence and native operating-system notifications.
  */
 async function readTranscriptTitles(
     configDirectory: string,
@@ -225,8 +176,7 @@ async function readTranscriptTitles(
         if (!opened) return cache;
         const { handle, stats } = opened;
         try {
-            if (stats.size < cache.offset)
-                Object.assign(cache, { lastPrompt: undefined, offset: 0, title: undefined });
+            if (stats.size < cache.offset) Object.assign(cache, { offset: 0, title: undefined });
             const chunk = Buffer.allocUnsafe(TRANSCRIPT_READ_CHUNK_BYTES);
             let scanned = 0;
             let remainder = Buffer.alloc(0);
@@ -302,9 +252,7 @@ function claudeStatus(value: unknown): AgentActivityState | undefined {
 }
 
 /**
- * Resolves the display title for a matched session with Claude Code's own `/resume` list precedence: an explicitly set
- * live-session name wins, then the transcript's AI-generated title, then the latest submitted prompt, and only then the
- * directory-derived name.
+ * Resolves the display title without ever promoting a raw prompt into Caxri persistence or an OS notification.
  */
 async function resolveClaudeTitle(
     metadata: ClaudeSessionMetadata,
@@ -319,7 +267,6 @@ async function resolveClaudeTitle(
             metadata.sessionId,
         );
         if (transcript.title) return transcript.title;
-        if (transcript.lastPrompt) return transcript.lastPrompt;
     }
     return name || undefined;
 }
@@ -396,15 +343,6 @@ async function readClaudeState(
     };
 }
 
-/**
- * Resolves Claude Code's config directory from generic environment inputs, honoring its override var.
- */
-function resolveClaudeConfigDirectory(environment: AgentEnvironment): string {
-    // `||` (not `??`) is deliberate: `CLAUDE_CONFIG_DIR=''` is not a usable override path either.
-    // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- empty string is not a valid override path either
-    return environment.variables.CLAUDE_CONFIG_DIR || join(environment.homeDirectory, '.claude');
-}
-
 export const claudeProvider: AgentProviderDescriptor = {
     actions: {
         roots: (context, environment) => {
@@ -438,6 +376,7 @@ export const claudeProvider: AgentProviderDescriptor = {
     },
     hooks: claudeHookAdapter,
     id: 'claude',
+    naming: claudeNaming,
     readState: (context, environment) =>
         readClaudeState(context, resolveClaudeConfigDirectory(environment)),
     renameSession: renameClaudeSession,

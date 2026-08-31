@@ -5,7 +5,6 @@ import { isAbsolute, join, relative } from 'node:path';
 import process from 'node:process';
 
 import type {
-    AgentProvider,
     BootstrapState,
     PersistedWindowState,
     TerminalKind,
@@ -20,13 +19,7 @@ import {
 import { logEventCatalog } from '@caxri/system';
 
 import { AgentDispatchService, createAgentCommandHandlers } from './agent-dispatch';
-import {
-    AgentCoordinator,
-    AgentHookManager,
-    AgentService,
-    createLocalAgentAdapters,
-    defaultAgentEnvironment,
-} from './agents';
+import { createAgentRuntime } from './agent-runtime';
 import { createBackgroundTasks } from './background-tasks';
 import { DiagnosticsService } from './diagnostics';
 import type { DomainDependencies, DomainHandlers, DomainServices } from './domain-services';
@@ -35,7 +28,6 @@ import { assertInsideRoot } from './path-security';
 import { ProjectStatusService } from './project-status';
 import { createRootServices } from './root-services';
 import { createServiceHandlers, mainOwned } from './service-handlers';
-import { SessionRenameService } from './session-rename';
 import { SessionSelectionQueue } from './session-selection';
 import type { TerminalWorkingDirectoryIdentity } from './terminal';
 import { ShellIntegrationService, TerminalManager, TerminalRestoreSupervisor } from './terminal';
@@ -73,55 +65,25 @@ export async function createDomainServices(
                 }),
             );
     });
-    const agentLaunchSettings = (provider: AgentProvider) =>
-        configuration.getSettings().value['agents.providers'][provider].launch;
-    const agentOutputRecoverySettings = (provider: AgentProvider) =>
-        configuration.getSettings().value['agents.providers'][provider].recovery;
-    const agentEnvironment = dependencies.agentEnvironment ?? defaultAgentEnvironment();
-    const agents = new AgentService(
+    const agentRuntime = await createAgentRuntime({
+        configuration,
+        database,
+        dependencies,
         logger,
-        dependencies.agentAdapters ??
-            createLocalAgentAdapters(agentEnvironment, agentLaunchSettings),
-    );
-    const coordinator = new AgentCoordinator(database, agents, send, logger, {
-        refreshDelayMs: dependencies.agentRefreshDelayMs,
-    });
-    const sessionRenames = new SessionRenameService(database, agents, coordinator, send);
-    const agentHooks = new AgentHookManager({
-        environment: agentEnvironment,
-        logger,
-        onAuthorityLost: (provider) => coordinator.resetHookAuthority(provider),
-        onLaunchEnded: (terminalId) => coordinator.endTerminalLaunch(terminalId),
-        onLaunchStarted: (terminalId, launchId) =>
-            coordinator.beginTerminalLaunch(terminalId, launchId),
-        onSignal: (signal) =>
-            provenance.didHandleAgentLifecycleSignal(coordinator, workbenchRoots, signal),
-        hookExecutable: dependencies.hookExecutable ?? process.execPath,
         send,
-        sharedPath: dependencies.agentHooksPath,
         userDataPath,
         watchHub,
+        workbenchRoots,
     });
-    await agentHooks.initialize(configuration.getSettings().value['agents.providers']);
-    let agentSettingsReconcile = Promise.resolve();
-    const unsubscribeHookSettings = configuration.subscribeSettings((settings) => {
-        /**
-         * Preserve setting-update order so a slow probe cannot restore authority after disable.
-         */
-        agentSettingsReconcile = (async () => {
-            try {
-                await agentSettingsReconcile;
-            } catch (error: unknown) {
-                logger.write('warn', logEventCatalog.agent.integrationReconcileFailed, {
-                    fields: { error: errorMessage(error, 'unknown') },
-                });
-            }
-            await Promise.all([
-                agentHooks.reconcile(settings['agents.providers']),
-                dependencies.agentEndpoints?.reconcile(settings['agents.providers']),
-            ]);
-        })();
-    });
+    const {
+        agentEnvironment,
+        agentHooks,
+        agentLaunchSettings,
+        agentOutputRecoverySettings,
+        coordinator,
+        sessionAutoNaming,
+        sessionRenames,
+    } = agentRuntime;
     let shellIntegration: ShellIntegrationService | undefined;
     try {
         shellIntegration = await ShellIntegrationService.create(userDataPath);
@@ -435,14 +397,13 @@ export async function createDomainServices(
         if (isClosed) return;
         isClosed = true;
         terminalRestores.close();
+        await sessionAutoNaming.close();
         coordinator.close();
         unsubscribeTerminalSettings();
         await terminals.shutdown('orderly');
         dispatchService.close();
         await workbenchRoots.close();
-        unsubscribeHookSettings();
-        await agentSettingsReconcile;
-        await agentHooks.close();
+        await agentRuntime.close();
         await dependencies.agentEndpoints?.close();
         await files.close();
         await configuration.close();
@@ -602,6 +563,7 @@ export async function createDomainServices(
             ];
             for (const session of ownedSessions) {
                 terminalRestores.forget(session.id);
+                sessionAutoNaming.forgetSession(session.id);
                 coordinator.forgetSession(session.id);
                 transcripts.forgetSession(session.id);
                 terminals.terminateSession(session.id);
@@ -668,10 +630,15 @@ export async function createDomainServices(
                 });
             return result.session;
         },
-        'session.rename': ({ sessionId, displayTitle }, signal, finalizeDurably) =>
-            sessionRenames.rename(sessionId, displayTitle, signal, finalizeDurably),
+        'session.rename': ({ sessionId, displayTitle }, signal, finalizeDurably) => {
+            sessionAutoNaming.pauseSession(sessionId);
+            return sessionRenames.rename(sessionId, displayTitle, signal, finalizeDurably);
+        },
+        'session.resumeAutomaticNaming': ({ sessionId }) =>
+            sessionAutoNaming.resumeSession(sessionId),
         'session.archive': ({ sessionId }) => {
             terminalRestores.cancel(sessionId);
+            sessionAutoNaming.forgetSession(sessionId);
             const session = database.archiveSession(sessionId);
             watchSessionInBackground(selectedSessionId());
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.archive' } });
@@ -687,6 +654,7 @@ export async function createDomainServices(
         },
         'session.delete': ({ sessionId }) => {
             terminalRestores.forget(sessionId);
+            sessionAutoNaming.forgetSession(sessionId);
             coordinator.forgetSession(sessionId);
             transcripts.forgetSession(sessionId);
             terminals.terminateSession(sessionId);
@@ -718,6 +686,7 @@ export async function createDomainServices(
         },
         'terminal.close': ({ terminalId }) => {
             const sessionId = database.getTerminal(terminalId)?.sessionId;
+            sessionAutoNaming.forgetTerminal(terminalId);
             coordinator.forgetTerminal(terminalId);
             transcripts.forgetTerminal(terminalId);
             terminals.close(terminalId);
@@ -756,6 +725,7 @@ export async function createDomainServices(
             introspection.records.terminal(query, principal),
         'terminal.terminateAll': async () => {
             terminalRestores.close();
+            await sessionAutoNaming.close();
             coordinator.close();
             await terminals.shutdown('terminate');
             return null;
@@ -764,7 +734,7 @@ export async function createDomainServices(
             acknowledgeFileMutation,
             agentEnvironment,
             agentHooks,
-            awaitAgentSettingsReconcile: () => agentSettingsReconcile,
+            awaitAgentSettingsReconcile: agentRuntime.awaitSettingsReconcile,
             configuration,
             database,
             emit: send,

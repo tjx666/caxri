@@ -10,6 +10,7 @@ import type { AgentProviderSessionRenameContext } from '../../../contract';
 import { clearExecutableCache } from '../../../discovery';
 import { AgentService, createLocalAgentAdapters } from '../../../service';
 import { codexProvider, renameCodexSession } from '..';
+import { findCodexStateDatabases, MAX_CODEX_STATE_DATABASES } from '../state-databases';
 
 const temporaryDirectories: string[] = [];
 
@@ -94,6 +95,200 @@ afterEach(async () => {
 });
 
 describe('Codex provider', () => {
+    it('reads the exact rollout and excludes injected harness context from naming', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-codex-naming-source-'));
+        temporaryDirectories.push(directory);
+        const codexHome = join(directory, 'codex');
+        const sqliteHome = join(codexHome, 'sqlite');
+        const rolloutDirectory = join(codexHome, 'sessions', '2026', '08', '30');
+        const threadId = 'thread-naming-1';
+        const rolloutPath = join(rolloutDirectory, `rollout-2026-08-30-${threadId}.jsonl`);
+        await Promise.all([
+            mkdir(sqliteHome, { recursive: true }),
+            mkdir(rolloutDirectory, { recursive: true }),
+        ]);
+        await writeFile(
+            rolloutPath,
+            [
+                {
+                    type: 'response_item',
+                    payload: {
+                        type: 'message',
+                        role: 'user',
+                        content: [
+                            {
+                                type: 'input_text',
+                                text: '# AGENTS.md instructions for /private/path',
+                            },
+                            { type: 'input_text', text: 'Implement automatic naming' },
+                        ],
+                    },
+                },
+                {
+                    type: 'response_item',
+                    payload: {
+                        type: 'message',
+                        role: 'assistant',
+                        content: [{ type: 'output_text', text: 'I will inspect provider state.' }],
+                    },
+                },
+            ]
+                .map((record) => JSON.stringify(record))
+                .join('\n'),
+            'utf8',
+        );
+        const database = new Database(join(sqliteHome, 'state_1.sqlite'));
+        database.exec(
+            'CREATE TABLE threads (id TEXT PRIMARY KEY, title TEXT, name TEXT, git_branch TEXT, rollout_path TEXT)',
+        );
+        database
+            .prepare('INSERT INTO threads VALUES (?, ?, ?, ?, ?)')
+            .run(threadId, 'Derived title', 'Manual Codex title', 'feat/auto-name', rolloutPath);
+        database.close();
+
+        const source = await codexProvider.naming?.readSource(
+            { agentSessionId: threadId, rootPath: directory },
+            { homeDirectory: directory, variables: { CODEX_HOME: codexHome } },
+        );
+
+        expect(source).toMatchObject({
+            assistantMessages: ['I will inspect provider state.'],
+            currentProviderTitle: 'Manual Codex title',
+            gitBranch: 'feat/auto-name',
+            providerTitleState: 'explicit',
+            userMessages: ['Implement automatic naming'],
+        });
+        expect(JSON.stringify(source)).not.toContain('AGENTS.md');
+        expect(JSON.stringify(source)).not.toContain('/private/path');
+    });
+
+    it('uses the current low-cost Codex model and keeps prompt content out of argv', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-codex-naming-command-'));
+        temporaryDirectories.push(directory);
+        const executable = join(directory, 'codex.cjs');
+        const argumentsPath = join(directory, 'arguments.json');
+        const cwdPath = join(directory, 'cwd.txt');
+        const exposurePath = join(directory, 'exposure.json');
+        const inputPath = join(directory, 'input.txt');
+        const projectDirectory = join(directory, 'project');
+        const codexHome = join(directory, 'codex-home');
+        const projectMarker = join(projectDirectory, 'private-source.txt');
+        await Promise.all([mkdir(projectDirectory), mkdir(codexHome)]);
+        await Promise.all([
+            writeFile(projectMarker, 'PROJECT_SOURCE_MARKER'),
+            writeFile(join(codexHome, 'AGENTS.md'), 'GLOBAL_INSTRUCTION_MARKER'),
+        ]);
+        await writeFile(
+            executable,
+            String.raw`#!${process.execPath}
+const { readFileSync, writeFileSync } = require('node:fs');
+writeFileSync(${JSON.stringify(argumentsPath)}, JSON.stringify(process.argv.slice(2)));
+writeFileSync(${JSON.stringify(cwdPath)}, process.cwd());
+const readMarker = (path) => { try { return readFileSync(path, 'utf8'); } catch { return 'blocked'; } };
+writeFileSync(${JSON.stringify(exposurePath)}, JSON.stringify({
+    globalInstructions: readMarker(${JSON.stringify(join(codexHome, 'AGENTS.md'))}),
+    projectSource: readMarker(${JSON.stringify(projectMarker)}),
+}));
+let input = '';
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', (chunk) => { input += chunk; });
+process.stdin.on('end', () => {
+    writeFileSync(${JSON.stringify(inputPath)}, input);
+    process.stdout.write(JSON.stringify({
+        type: 'item.completed',
+        item: { type: 'agent_message', text: '🧭 Codex naming lifecycle' },
+    }) + '\n');
+});
+`,
+            'utf8',
+        );
+        await chmod(executable, 0o700);
+
+        await expect(
+            codexProvider.naming?.generateTitle({
+                cwd: projectDirectory,
+                environment: {
+                    homeDirectory: directory,
+                    variables: { CODEX_HOME: codexHome },
+                },
+                executable,
+                prompt: 'private transcript excerpt',
+                version: 'codex-cli 0.122.0',
+            }),
+        ).resolves.toBe('🧭 Codex naming lifecycle');
+        const arguments_ = JSON.parse(await readFile(argumentsPath, 'utf8')) as string[];
+        expect(arguments_).toEqual(
+            expect.arrayContaining(['-m', 'gpt-5.6-luna', '--ephemeral', '--ignore-user-config']),
+        );
+        expect(arguments_).toEqual(
+            expect.arrayContaining([
+                '--disable',
+                'codex_hooks',
+                '--disable',
+                'shell_tool',
+                'project_doc_max_bytes=0',
+                'web_search="disabled"',
+            ]),
+        );
+        expect(arguments_.join(' ')).not.toContain('private transcript excerpt');
+        expect(await readFile(inputPath, 'utf8')).toContain('private transcript excerpt');
+        expect(await readFile(cwdPath, 'utf8')).not.toBe(projectDirectory);
+        const exposure = JSON.parse(await readFile(exposurePath, 'utf8')) as {
+            globalInstructions: string;
+            projectSource: string;
+        };
+        expect(exposure.globalInstructions).toBe('blocked');
+        expect(exposure.projectSource).toBe('blocked');
+    });
+
+    it('rejects Codex versions before the required naming flags were introduced', async () => {
+        await expect(
+            codexProvider.naming?.generateTitle({
+                cwd: '/project',
+                environment: { homeDirectory: '/missing', variables: {} },
+                executable: '/missing/codex',
+                prompt: 'private transcript excerpt',
+                version: 'codex-cli 0.121.9',
+            }),
+        ).rejects.toMatchObject({ code: 'UNAVAILABLE' });
+    });
+
+    it('bounds provider state database candidates before synchronous probing', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-codex-state-budget-'));
+        temporaryDirectories.push(directory);
+        await Promise.all(
+            Array.from({ length: MAX_CODEX_STATE_DATABASES + 12 }, (_, index) =>
+                writeFile(join(directory, `state_${index}.sqlite`), ''),
+            ),
+        );
+
+        const candidates = await findCodexStateDatabases([directory]);
+
+        expect(candidates).toHaveLength(MAX_CODEX_STATE_DATABASES);
+        expect(candidates[0]).toBe(
+            join(directory, `state_${MAX_CODEX_STATE_DATABASES + 11}.sqlite`),
+        );
+    });
+
+    it('preserves configured Codex state-root priority before database recency', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-codex-state-priority-'));
+        temporaryDirectories.push(directory);
+        const configured = join(directory, 'configured');
+        const fallback = join(directory, 'fallback');
+        await Promise.all([mkdir(configured), mkdir(fallback)]);
+        await Promise.all([
+            writeFile(join(configured, 'state_1.sqlite'), ''),
+            writeFile(join(fallback, 'state_999.sqlite'), ''),
+        ]);
+
+        const candidates = await findCodexStateDatabases([configured, fallback]);
+
+        expect(candidates).toEqual([
+            join(configured, 'state_1.sqlite'),
+            join(fallback, 'state_999.sqlite'),
+        ]);
+    });
+
     it('renames a thread through the app-server protocol and ignores fragmented notifications', async () => {
         const fixture = await createCodexAppServerFixture();
 
@@ -272,6 +467,18 @@ describe('Codex provider', () => {
         );
 
         await expect(
+            service.snapshot('codex', {
+                agentSessionId: 'codex-session-older',
+                rootPath: root,
+                processState: 'running',
+                startedAt,
+            }),
+        ).resolves.toMatchObject({
+            sessionId: 'codex-session-older',
+            title: undefined,
+        });
+
+        await expect(
             service.snapshot('codex', { rootPath: root, processState: 'running', startedAt }),
         ).resolves.toMatchObject({
             available: true,
@@ -339,7 +546,7 @@ describe('Codex provider', () => {
             attentionKind: 'completed',
             sessionId: 'codex-session-older',
             status: 'completed',
-            title: '$debug https://github.com/example/project/issues/1',
+            title: undefined,
             usage: [{ label: 'Tokens', value: '42' }],
         });
 

@@ -42,6 +42,12 @@ function disabledHookPolicy(source: string | undefined): string | undefined {
 export const claudeHookAdapter: AgentHookAdapter = {
     bindings,
     schemaVersion: 4,
+    autoNamingConflict: (documents) => {
+        const source = settingsSource(documents);
+        return source && /(?:auto-session-name|session-title-rename)\.js/u.test(source)
+            ? 'Existing automatic naming hook detected. Caxri left it unchanged; disable it to avoid duplicate model calls.'
+            : undefined;
+    },
     configTargets: (environment) => [
         {
             id: SETTINGS_TARGET,

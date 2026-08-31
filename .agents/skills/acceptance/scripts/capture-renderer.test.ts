@@ -11,6 +11,7 @@ import {
     captureScreenshot,
     parseCaptureOptions,
     requireCapturePreflight,
+    requiresRuntimeTerminalFixturePreflight,
     resolveOwnedCapturePort,
     selectRendererTarget,
 } from './capture-renderer';
@@ -154,12 +155,22 @@ describe('Acceptance Renderer capture', () => {
         ).toMatchObject({ command: 'frames', count: 8, intervalMs: 100, port: 9222 });
     });
 
-    it('requires and enforces fixture preflight before frame capture', async () => {
-        expect(() => parseCaptureOptions(['frames', '--out-dir', './frames'])).toThrow(
-            '--fixture-preflight is required',
-        );
+    it('requires and enforces fixture preflight for Terminal fixture frame capture', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-capture-preflight-'));
         temporaryDirectories.push(directory);
+        const optionsWithoutPreflight = parseCaptureOptions([
+            'frames',
+            '--out-dir',
+            join(directory, 'missing-preflight-frames'),
+            '--count',
+            '1',
+        ]);
+        if (optionsWithoutPreflight === 'help' || optionsWithoutPreflight.command !== 'frames') {
+            throw new Error('Expected frame options');
+        }
+        await expect(captureFrames(optionsWithoutPreflight, 9222)).rejects.toThrow(
+            '--fixture-preflight is required for a terminal fixture frame capture',
+        );
         const path = join(directory, 'fixture.json');
         await writeFile(
             path,
@@ -198,6 +209,34 @@ describe('Acceptance Renderer capture', () => {
         await expect(requireCapturePreflight(path)).rejects.toThrow(
             'does not match its observed fixture',
         );
+    });
+
+    it('captures non-Terminal temporal evidence when the frozen launch plan opts out', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-non-terminal-frame-capture-'));
+        temporaryDirectories.push(directory);
+        const outDirectory = join(directory, 'frames');
+        const options = parseCaptureOptions(['frames', '--out-dir', outDirectory, '--count', '1']);
+        if (options === 'help' || options.command !== 'frames') {
+            throw new Error('Expected frame options');
+        }
+
+        await captureFrames(
+            options,
+            9222,
+            () =>
+                Promise.resolve({
+                    close: () => {},
+                    request: <T>(method: string): Promise<T> =>
+                        Promise.resolve(
+                            (method === 'Page.captureScreenshot'
+                                ? { data: Buffer.from('frame-data').toString('base64') }
+                                : {}) as T,
+                        ),
+                }),
+            false,
+        );
+
+        expect(await readFile(join(outDirectory, 'frame_000000.png'), 'utf8')).toBe('frame-data');
     });
 
     it('selects the Caxri Renderer instead of DevTools', () => {
@@ -242,6 +281,23 @@ describe('Acceptance Renderer capture', () => {
         expect(() => resolveOwnedCapturePort(9222, 9333)).toThrow(
             'does not match owned Acceptance port',
         );
+    });
+
+    it('fails closed for old runtime receipts and only skips preflight after an explicit opt-out', () => {
+        expect(requiresRuntimeTerminalFixturePreflight(undefined)).toBe(true);
+        expect(
+            requiresRuntimeTerminalFixturePreflight({
+                id: 'old-runtime',
+                mode: 'isolated',
+            }),
+        ).toBe(true);
+        expect(
+            requiresRuntimeTerminalFixturePreflight({
+                id: 'non-terminal-recording',
+                mode: 'isolated',
+                requiresTerminalFixturePreflight: false,
+            }),
+        ).toBe(false);
     });
 
     it('bounds frame count before capture starts', () => {

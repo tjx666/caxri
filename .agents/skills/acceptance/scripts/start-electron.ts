@@ -6,7 +6,7 @@ import { basename, dirname, join, relative, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-import { assertBuildOutputsFresh } from '@caxri/system';
+import { assertBuildOutputsFresh, e2eAgentEnvironmentKeys } from '@caxri/system';
 
 import type { DesktopLeaseHandle } from '../../switch-worktree/scripts/desktop-lease';
 import {
@@ -15,6 +15,14 @@ import {
     releaseDesktopLease,
     transferDesktopLease,
 } from '../../switch-worktree/scripts/desktop-lease';
+import {
+    beginAgentFixtureLifecycle,
+    completeAgentFixtureLifecycle,
+} from './agent-fixture-lifecycle';
+import {
+    prepareAcceptanceAgentEnvironment,
+    validateAcceptanceAgentFixture,
+} from './agent-fixtures';
 import { assertAcceptanceBuildCommit } from './build-identity';
 import { prepareMacosAcceptanceApp, waitForMacosAcceptanceProcess } from './macos-app-identity';
 import {
@@ -101,6 +109,7 @@ type OptionValue = string | true;
 type ParsedOptions = Partial<Record<string, OptionValue[]>>;
 
 interface ElectronLaunchSpecInput {
+    agentEnvironment?: NodeJS.ProcessEnv;
     electronPath?: string;
     environment?: NodeJS.ProcessEnv;
     port: number;
@@ -201,6 +210,7 @@ function help(): string {
 Options:
   --port N               CDP port (default: 9222)
   --test-root PATH       Project root selected in Caxri; repeat to queue roots (default: repository root)
+  --agent-fixture ID     Plan-declared, repository-owned fake Agent fixture
   --native-dialog        Explicit-current-request exception: use the real macOS picker
   --case-id ID           Stable lowercase id for this isolated Acceptance case
   --report-dir DIR       Frozen round containing this case plan and lifecycle evidence
@@ -215,6 +225,7 @@ Options:
  * Keeps the executable, structured argv, and isolated environment in one testable launch contract.
  */
 export function createElectronLaunchSpec({
+    agentEnvironment,
     electronPath = ELECTRON_PATH,
     environment = process.env,
     port,
@@ -230,9 +241,8 @@ export function createElectronLaunchSpec({
      */
     const isolatedEnvironment = { ...environment };
     for (const key of [
+        ...e2eAgentEnvironmentKeys(),
         'CAXRI_E2E_AGENT_HOOKS',
-        'CAXRI_E2E_AGENT_MODE',
-        'CAXRI_E2E_AGENT_PROVIDER',
         'CAXRI_REAL_AGENT_E2E',
         'CAXRI_REAL_AGENT_OK',
     ])
@@ -244,9 +254,9 @@ export function createElectronLaunchSpec({
             cwd: projectRoot,
             env: {
                 ...isolatedEnvironment,
+                ...(agentEnvironment ?? { CAXRI_E2E_AGENT_MODE: 'blocked' }),
                 CAXRI_ACCEPTANCE: '1',
                 CAXRI_E2E: '1',
-                CAXRI_E2E_AGENT_MODE: 'blocked',
                 CAXRI_E2E_WINDOW_MODE: 'visible',
                 ...(useTestRootFixture && {
                     CAXRI_TEST_ROOT_PATH: testRootPath,
@@ -508,6 +518,7 @@ async function main(): Promise<void> {
     const reuseUserDataDirectory = stringOption(options, 'reuse-user-data');
     const isCleanupReusable = hasBooleanOption(options, 'cleanup-reused-user-data');
     const isUseNativeDialog = hasBooleanOption(options, 'native-dialog');
+    const requestedAgentFixture = stringOption(options, 'agent-fixture');
     if (isUseNativeDialog) assertNativeDialogAuthorization();
 
     let desktopLease = await acquireDesktopLease(PROJECT_ROOT, 'Acceptance');
@@ -545,6 +556,11 @@ async function main(): Promise<void> {
         );
         const testRootPath = testRootPaths[0];
         const plannedCase = await loadAcceptanceCasePlan(reportDirectory, caseId);
+        validateAcceptanceAgentFixture(
+            caseId,
+            plannedCase.item.agentFixture,
+            requestedAgentFixture,
+        );
         assertAcceptanceBuildCommit({
             builtMainSource: await readFile(BUILT_MAIN_PATH, 'utf8'),
             reportCommit: plannedCase.commit,
@@ -561,9 +577,11 @@ async function main(): Promise<void> {
             caseMode,
             cleanupReusable: isCleanupReusable,
             profileId,
+            requiresTerminalFixturePreflight: plannedCase.item.fixturePreflight === 'terminal',
             reuseUserDataDir: reuseUserDataDirectory,
         });
         let lifecycleLaunchId: string;
+        let agentFixtureLaunchId: string | undefined;
         let hasVerifiedOwnedProcesses = false;
         let isPreserveOwnedRuntimeState =
             shouldPreserveInheritedRuntimeState(inheritedOwnedProcesses);
@@ -580,8 +598,17 @@ async function main(): Promise<void> {
             }
             throw error;
         }
-
         try {
+            const agentEnvironment = await prepareAcceptanceAgentEnvironment({
+                fixtureId: requestedAgentFixture,
+                userDataDir,
+            });
+            if (requestedAgentFixture) {
+                agentFixtureLaunchId = await beginAgentFixtureLifecycle(plannedCase.directory, {
+                    caseId,
+                    fixtureId: requestedAgentFixture,
+                });
+            }
             desktopLease = await beginDesktopLeaseHandoff(desktopLease);
             const acceptanceApp = await prepareMacosAcceptanceApp({
                 caseId,
@@ -589,6 +616,7 @@ async function main(): Promise<void> {
                 userDataDir,
             });
             const launch = createMacosAcceptanceLaunchSpec({
+                agentEnvironment,
                 appPath: acceptanceApp.appPath,
                 port,
                 testRootPath,
@@ -738,12 +766,23 @@ async function main(): Promise<void> {
                     isCleanupCompleted = ownedUserData;
                 }
             } finally {
-                await completeCaseLifecycle(plannedCase.directory, {
-                    caseId,
-                    cleanupCompleted: isCleanupCompleted,
-                    cleanupRequested: ownedUserData,
-                    launchId: lifecycleLaunchId,
-                });
+                try {
+                    await completeCaseLifecycle(plannedCase.directory, {
+                        caseId,
+                        cleanupCompleted: isCleanupCompleted,
+                        cleanupRequested: ownedUserData,
+                        launchId: lifecycleLaunchId,
+                    });
+                } finally {
+                    if (agentFixtureLaunchId) {
+                        await completeAgentFixtureLifecycle(plannedCase.directory, {
+                            caseId,
+                            cleanupCompleted: isCleanupCompleted,
+                            launchId: agentFixtureLaunchId,
+                            sharedProfile: plannedCase.item.stateIsolation.mode === 'restart',
+                        });
+                    }
+                }
             }
         }
     } finally {

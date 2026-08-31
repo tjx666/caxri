@@ -54,6 +54,9 @@ const agentHooksSettingsSchema = z
 const agentMessagingSettingsSchema = z
     .object({ enabled: z.boolean().default(true) })
     .default({ enabled: true });
+const agentNamingSettingsSchema = z
+    .object({ enabled: z.boolean().default(false) })
+    .default({ enabled: false });
 const agentOutputRecoverySettingsSchema = z
     .object({
         enabled: z.boolean(),
@@ -86,6 +89,7 @@ const agentProviderSettingsSchema = z.object({
     hooks: agentHooksSettingsSchema,
     launch: agentLaunchSettingsSchema,
     messaging: agentMessagingSettingsSchema,
+    naming: agentNamingSettingsSchema,
     recovery: agentOutputRecoverySettingsSchema,
 });
 
@@ -144,6 +148,10 @@ export const appSettingsSchema = z.object({
     'workbench.fontFamily': nullableStringField(spec['workbench.fontFamily']),
     'workbench.externalEditor': nullableStringField(spec['workbench.externalEditor']),
     'agents.providers': agentProvidersSchema,
+    'agents.notifications.enabled': booleanField(spec['agents.notifications.enabled']),
+    'agents.notifications.completionThresholdSeconds': integerField(
+        spec['agents.notifications.completionThresholdSeconds'],
+    ),
     'git.fetchGitHubAvatars': booleanField(spec['git.fetchGitHubAvatars']),
     'security.trustedDomains': trustedDomainsSchema,
     'terminal.defaultWorkingDirectory': nullableStringField(
