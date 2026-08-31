@@ -4,6 +4,7 @@ import type { IDisposable, ITerminalAddon } from '@xterm/xterm';
 
 export type TerminalGpuAcceleration = AppSettings['terminal.gpuAcceleration'];
 export type TerminalRendererMode = 'dom' | 'webgl';
+export type TerminalRendererRedrawIntent = 'content-only' | 'grid-sync';
 export type TerminalRendererReason =
     'active' | 'context-loss' | 'disabled' | 'disposed' | 'load-failed' | 'unsupported';
 export type TerminalRendererTrigger =
@@ -77,7 +78,7 @@ export class TerminalRendererController {
 
     constructor(
         private readonly host: TerminalRendererHost,
-        private readonly redraw: () => void,
+        private readonly redraw: (intent: TerminalRendererRedrawIntent) => void,
         private readonly onStatus: (status: TerminalRendererStatus) => void,
         private readonly webgl2Available = isWebgl2Available,
         private readonly createWebglAddon: WebglAddonFactory = () => new WebglAddon(),
@@ -94,7 +95,7 @@ export class TerminalRendererController {
         trigger: Extract<TerminalRendererTrigger, 'atlas-clear-failed' | 'webgl-context-loss'>,
     ): void {
         this.disposeWebgl();
-        this.redrawTerminal();
+        this.redrawTerminal('grid-sync');
         this.publish(reason, trigger);
     }
 
@@ -110,8 +111,8 @@ export class TerminalRendererController {
         }
     }
 
-    private redrawTerminal(): void {
-        this.redraw();
+    private redrawTerminal(intent: TerminalRendererRedrawIntent): void {
+        this.redraw(intent);
         this.redrawCount += 1;
     }
 
@@ -141,7 +142,7 @@ export class TerminalRendererController {
         if (target === 'dom') {
             const wasWebgl = Boolean(this.webgl);
             this.disposeWebgl();
-            if (wasWebgl) this.redrawTerminal();
+            if (wasWebgl) this.redrawTerminal('grid-sync');
             this.publish(preference === 'off' ? 'disabled' : 'unsupported', 'preference-change');
             return;
         }
@@ -155,6 +156,7 @@ export class TerminalRendererController {
             this.webgl = addon;
             this.lossDisposable = addon.onContextLoss(() => this.handleContextLoss());
             this.host.loadAddon(addon);
+            this.redrawTerminal('grid-sync');
             this.publish('active', 'preference-change');
         } catch {
             this.lossDisposable?.dispose();
@@ -165,7 +167,7 @@ export class TerminalRendererController {
             } catch {
                 // A partially activated addon must still fail closed to xterm's DOM renderer.
             }
-            this.redrawTerminal();
+            this.redrawTerminal('grid-sync');
             this.publish('load-failed', 'webgl-load-failed');
         }
     }
@@ -182,7 +184,7 @@ export class TerminalRendererController {
             this.fallback('load-failed', 'atlas-clear-failed');
             return;
         }
-        this.redrawTerminal();
+        this.redrawTerminal('content-only');
         this.publish(this.webgl ? 'active' : this.status.reason, 'visibility-restore');
     }
 
@@ -197,7 +199,7 @@ export class TerminalRendererController {
         const isHadWebgl = Boolean(this.webgl);
         this.disposeWebgl();
         try {
-            this.redrawTerminal();
+            this.redrawTerminal(isHadWebgl ? 'grid-sync' : 'content-only');
         } catch {
             this.publish(
                 isHadWebgl ? 'context-loss' : (this.status?.reason ?? 'disabled'),

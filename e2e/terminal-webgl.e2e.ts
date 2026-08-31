@@ -15,6 +15,10 @@ import {
     typeTerminal,
     waitForNewTerminalId,
 } from './support/helpers.ts';
+import {
+    createTerminalGlyphFixture,
+    terminalEdgeGlyphEvidence,
+} from './support/terminal-glyph-evidence.ts';
 
 type GpuPreference = 'Auto' | 'On' | 'Off';
 
@@ -102,6 +106,56 @@ async function applyGpuPreference(page: Page, preference: GpuPreference): Promis
     await dialog.getByRole('button', { name: 'Close', exact: true }).click();
 }
 
+/**
+ * Verifies the Renderer-owned xterm grid against the live shell's PTY grid after a renderer transition. Reading only
+ * `data-terminal-grid` would miss the GPU fallback bug where xterm changed locally without sending terminal.resize.
+ */
+async function waitForSynchronizedTerminalGrid(page: Page, terminalId: string): Promise<string> {
+    const pane = page.locator(`.terminal-pane[data-terminal-id="${terminalId}"]`);
+    const surface = pane.locator('.terminal-surface');
+    const input = pane.locator('.xterm-helper-textarea');
+    const rows = pane.locator('.xterm-rows');
+    const marker = `CAXRI_WEBGL_GRID_${Date.now()}_`;
+    const probe = String.raw`printf '${marker}%sx%s\n' "$(tput cols)" "$(tput lines)"`;
+    let candidate: string | undefined;
+    let matchingSamples = 0;
+    let synchronizedGrid: string | undefined;
+
+    await expect(surface).toHaveAttribute('data-terminal-attached', 'true');
+    await expect
+        .poll(async () => {
+            await input.focus();
+            await input.pressSequentially(probe);
+            await input.press('Enter');
+            const [rendererGrid, terminalText] = await Promise.all([
+                surface.evaluate(
+                    (element) => (element as HTMLElement).dataset.terminalGrid ?? null,
+                ),
+                rows.textContent(),
+            ]);
+            const ptyGrid = (terminalText ?? '')
+                .matchAll(new RegExp(String.raw`${marker}(\d+x\d+)`, 'g'))
+                .toArray()
+                .at(-1)?.[1];
+            if (!rendererGrid || rendererGrid !== ptyGrid) {
+                candidate = undefined;
+                matchingSamples = 0;
+                return false;
+            }
+            if (rendererGrid === candidate) matchingSamples += 1;
+            else {
+                candidate = rendererGrid;
+                matchingSamples = 1;
+            }
+            if (matchingSamples < 3) return false;
+            synchronizedGrid = rendererGrid;
+            return true;
+        })
+        .toBe(true);
+
+    return synchronizedGrid!;
+}
+
 test('WebGL modes hot-switch and every Terminal recovers from one GPU process loss', async () => {
     allowE2EErrors([
         { source: 'desktop', event: 'gpu.process_gone', code: 'GPU_PROCESS_GONE', count: 1 },
@@ -109,6 +163,7 @@ test('WebGL modes hot-switch and every Terminal recovers from one GPU process lo
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-webgl-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
+    const glyphOutput = await createTerminalGlyphFixture(testDirectory);
     await mkdir(root);
 
     const running = await launchCaxri({
@@ -221,11 +276,32 @@ test('WebGL modes hot-switch and every Terminal recovers from one GPU process lo
         await expect
             .poll(() => pageRequest<number>(running.page, 'terminal.runningCount'))
             .toBe(runningBeforeLoss);
+        const synchronizedGrids = [
+            await waitForSynchronizedTerminalGrid(running.page, terminalId),
+            await waitForSynchronizedTerminalGrid(running.page, secondTerminalId),
+        ];
+        expect(synchronizedGrids.every((grid) => /^\d+x\d+$/u.test(grid))).toBe(true);
         await expect(secondRows).toContainText('atlas-160');
         await expect(firstRows).toContainText('FIRST_PANE_SCROLLBACK');
 
         await typeTerminal(running.page, String.raw`printf 'AFTER_WEBGL_FALLBACK\n'`);
         await expect(secondRows).toContainText('AFTER_WEBGL_FALLBACK');
+        for (const id of [terminalId, secondTerminalId]) {
+            // eslint-disable-next-line no-await-in-loop -- one pane must finish its shell fixture before focus moves.
+            const { alignedAscii, alignedCjk } = await terminalEdgeGlyphEvidence(
+                running.app,
+                running.page,
+                id,
+                glyphOutput,
+            );
+            const evidence = JSON.stringify({ alignedAscii, alignedCjk, terminalId: id });
+            expect(alignedAscii.edge.foregroundPixels, evidence).toBeGreaterThanOrEqual(
+                alignedAscii.reference.foregroundPixels * 0.95,
+            );
+            expect(alignedCjk.edge.foregroundPixels, evidence).toBeGreaterThanOrEqual(
+                alignedCjk.reference.foregroundPixels * 0.95,
+            );
+        }
     } finally {
         try {
             await running.app.close();

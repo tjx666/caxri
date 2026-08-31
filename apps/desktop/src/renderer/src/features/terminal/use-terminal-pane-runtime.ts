@@ -334,8 +334,12 @@ export function useTerminalPaneRuntime({
         });
         const renderer = new TerminalRendererController(
             xterm,
-            () => {
-                resizeController.fitLocal();
+            (intent) => {
+                /**
+                 * DOM and WebGL can measure different cell grids. Route renderer changes through the paused resize
+                 * settler so snapshot replay finishes before xterm and its PTY receive the new grid together.
+                 */
+                if (intent === 'grid-sync') scheduleResize();
                 xterm.refresh(0, xterm.rows - 1);
             },
             (status) => rendererObserver.publish(status),

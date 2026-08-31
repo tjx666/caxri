@@ -274,15 +274,6 @@ export class TerminalPaneResizeController {
         void this.request(result.size);
     }
 
-    fitLocal(): void {
-        const result = this.fit();
-        if (result)
-            this.tracker.sample(result.size, {
-                localApplied: result.localApplied,
-                requestSent: false,
-            });
-    }
-
     fitInitial(): TerminalSize | undefined {
         const result = this.fit();
         if (!result) return undefined;
