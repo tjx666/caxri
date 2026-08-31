@@ -224,6 +224,54 @@ describe('Acceptance Agent fixtures', () => {
         );
     });
 
+    it('waits for managed hooks before starting the initial fixture turn', async () => {
+        const userDataDirectory = await mkdtemp(join(tmpdir(), 'caxri-acceptance-agent-fixture-'));
+        directories.push(userDataDirectory);
+        const fixture = await prepareAcceptanceAgentFixture({
+            fixtureId: 'agent-features-v1',
+            sourceEnvironment: { PATH: '/usr/bin:/bin' },
+            userDataDir: userDataDirectory,
+        });
+        const codexRoot = fixture.environment.CODEX_HOME!;
+        const child = spawn(fixture.executables.codex, [], {
+            env: fixture.environment,
+            stdio: ['pipe', 'pipe', 'pipe'],
+        });
+        let stdout = '';
+        child.stdout.setEncoding('utf8').on('data', (chunk: string) => {
+            stdout += chunk;
+        });
+        child.stderr.resume();
+        try {
+            await expect.poll(() => stdout).toContain('Fake codex Acceptance fixture ready');
+            await new Promise((resolve) => setTimeout(resolve, 700));
+            expect(await readReceipts(codexRoot)).not.toContainEqual(
+                expect.objectContaining({ kind: 'fixtureError' }),
+            );
+
+            const hook = { hooks: [{ command: '/usr/bin/true' }] };
+            await writeFile(
+                join(codexRoot, 'hooks.json'),
+                JSON.stringify({
+                    hooks: { SessionStart: [hook], Stop: [hook], UserPromptSubmit: [hook] },
+                }),
+            );
+            await expect
+                .poll(
+                    async () =>
+                        (await readReceipts(codexRoot)).filter(({ kind }) => kind === 'hook')
+                            .length,
+                )
+                .toBe(3);
+            expect(await readReceipts(codexRoot)).not.toContainEqual(
+                expect.objectContaining({ kind: 'fixtureError' }),
+            );
+        } finally {
+            child.kill('SIGTERM');
+            await new Promise<void>((resolve) => child.once('close', () => resolve()));
+        }
+    });
+
     it('rejects paths, arbitrary names, and host provider fixture requests', async () => {
         const userDataDirectory = await mkdtemp(join(tmpdir(), 'caxri-acceptance-agent-fixture-'));
         directories.push(userDataDirectory);
