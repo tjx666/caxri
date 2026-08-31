@@ -41,6 +41,10 @@ const ACTIVE_WEBGL_STATUS: TerminalRendererStatus = {
     reason: 'active',
     recoveryResult: 'not-requested',
     redrawCount: 0,
+    retryAttemptCount: 0,
+    retryDelayMs: null,
+    retryLimit: 3,
+    retryState: 'idle',
     trigger: 'preference-change',
 };
 
@@ -50,6 +54,11 @@ const LOCAL_FALLBACK_STATUS: TerminalRendererStatus = {
     reason: 'context-loss',
     recoveryResult: 'not-requested',
     redrawCount: 1,
+    retryAttemptCount: 0,
+    retryDelayMs: 1_000,
+    retryLimit: 3,
+    retrySequenceId: '5bb3b253-1200-427b-88b3-83f70d21f360',
+    retryState: 'scheduled',
     trigger: 'webgl-context-loss',
 };
 
@@ -59,6 +68,11 @@ const GLOBAL_RECOVERY_STATUS: TerminalRendererStatus = {
     reason: 'context-loss',
     recoveryResult: 'dom-restored',
     redrawCount: 1,
+    retryAttemptCount: 0,
+    retryDelayMs: 1_000,
+    retryLimit: 3,
+    retrySequenceId: '5bb3b253-1200-427b-88b3-83f70d21f360',
+    retryState: 'scheduled',
     trigger: 'gpu-process-recovery',
 };
 
@@ -68,6 +82,10 @@ const CORRELATED_ALREADY_DOM_STATUS: TerminalRendererStatus = {
     reason: 'disabled',
     recoveryResult: 'already-dom',
     redrawCount: 0,
+    retryAttemptCount: 0,
+    retryDelayMs: null,
+    retryLimit: 3,
+    retryState: 'idle',
     trigger: 'gpu-process-recovery',
 };
 

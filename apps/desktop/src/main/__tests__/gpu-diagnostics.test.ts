@@ -26,6 +26,10 @@ function rendererDiagnostic(
         documentFocused: true,
         terminalFocused: true,
         recoveryResult: 'not-requested' as const,
+        retryAttemptCount: 0,
+        retryDelayMs: null,
+        retryLimit: 3 as const,
+        retryState: 'idle' as const,
         receivedBytes: 120,
         droppedBytes: 0,
         ...overrides,
@@ -248,6 +252,75 @@ describe('GPU diagnostics', () => {
         );
 
         expect(harness.write).not.toHaveBeenCalled();
+    });
+
+    it('preserves an explicit GPU incident correlation for delayed WebGL retry diagnostics', () => {
+        const harness = createHarness();
+        harness.diagnostics.recordGpuProcessGone({
+            type: 'GPU',
+            reason: 'abnormal-exit',
+            exitCode: 8704,
+        });
+        harness.setNow(61_000);
+
+        harness.diagnostics.recordRendererDiagnostic(
+            rendererDiagnostic({
+                correlationId: 'gpu-incident-1',
+                contextLossCount: 1,
+                diagnosticId: 'renderer-diagnostic-2',
+                mode: 'webgl',
+                reason: 'active',
+                retryAttemptCount: 1,
+                retryDelayMs: null,
+                retrySequenceId: '5bb3b253-1200-427b-88b3-83f70d21f360',
+                retryState: 'succeeded',
+                trigger: 'webgl-retry-succeeded',
+            }),
+        );
+
+        const retryStatus = harness.write.mock.calls.find(
+            ([, event]) => event === logEventCatalog.renderer.terminalRendererStatus,
+        );
+        expect(retryStatus?.[0]).toBe('info');
+        expect(retryStatus?.[2]).toMatchObject({
+            correlationId: 'gpu-incident-1',
+            fields: {
+                retryAttemptCount: 1,
+                retrySequenceId: '5bb3b253-1200-427b-88b3-83f70d21f360',
+                retryState: 'succeeded',
+            },
+        });
+        expect(harness.write).toHaveBeenCalledWith(
+            'info',
+            logEventCatalog.gpu.recovery,
+            expect.objectContaining({ correlationId: 'gpu-incident-1' }),
+        );
+    });
+
+    it('records an uncorrelated WebGL retry cancellation', () => {
+        const harness = createHarness();
+
+        harness.diagnostics.recordRendererDiagnostic(
+            rendererDiagnostic({
+                mode: 'dom',
+                reason: 'context-loss',
+                retryAttemptCount: 0,
+                retrySequenceId: '5bb3b253-1200-427b-88b3-83f70d21f360',
+                retryState: 'cancelled',
+                trigger: 'webgl-retry-cancelled',
+            }),
+        );
+
+        const retryStatus = harness.write.mock.calls.find(
+            ([, event]) => event === logEventCatalog.renderer.terminalRendererStatus,
+        );
+        expect(retryStatus?.[0]).toBe('info');
+        expect(retryStatus?.[2]).toMatchObject({
+            fields: {
+                retryState: 'cancelled',
+                trigger: 'webgl-retry-cancelled',
+            },
+        });
     });
 
     it('bounds completed snapshot identities with the retained incident window', async () => {

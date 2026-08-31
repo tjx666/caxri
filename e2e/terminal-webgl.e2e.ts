@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -27,6 +27,69 @@ const GPU_RESTART_STUB_KEY = '__caxriE2EGpuRestartStub';
 interface GpuRestartStubState {
     didQuit: boolean;
     didRelaunch: boolean;
+}
+
+interface StructuredLogRecord {
+    correlationId?: string;
+    event: string;
+    fields?: Record<string, unknown>;
+}
+
+interface ResizeReceiptBaseline {
+    desktopRecordCount: number;
+}
+
+async function readStructuredLog(path: string): Promise<StructuredLogRecord[]> {
+    try {
+        const content = await readFile(path, 'utf8');
+        const completeContent = content.endsWith('\n')
+            ? content
+            : content.slice(0, content.lastIndexOf('\n') + 1);
+        return completeContent
+            .trim()
+            .split('\n')
+            .filter(Boolean)
+            .map((line) => JSON.parse(line) as StructuredLogRecord);
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+        throw error;
+    }
+}
+
+/**
+ * Requires a fresh Renderer receipt after recovery, then compares it with the Terminal Host's latest applied grid. The
+ * Host intentionally emits no new receipt when recovery preserves the existing PTY dimensions.
+ */
+async function waitForSynchronizedResizeReceipts(
+    userData: string,
+    terminalId: string,
+    expectedGrid: string,
+    baseline: ResizeReceiptBaseline,
+): Promise<void> {
+    const [expectedCols, expectedRows] = expectedGrid.split('x').map(Number);
+    await expect
+        .poll(async () => {
+            const [allDesktopRecords, hostRecords] = await Promise.all([
+                readStructuredLog(join(userData, 'logs', 'desktop.jsonl')),
+                readStructuredLog(join(userData, 'logs', 'terminal-host.jsonl')),
+            ]);
+            const desktopRecords = allDesktopRecords.slice(baseline.desktopRecordCount);
+            const isExpectedGrid = (record: StructuredLogRecord): boolean =>
+                record.fields?.terminalId === terminalId &&
+                record.fields.finalCols === expectedCols &&
+                record.fields.finalRows === expectedRows;
+            const latestHostResize = hostRecords.findLast(
+                (record) =>
+                    record.event === 'pty.resize_burst' && record.fields?.terminalId === terminalId,
+            );
+            return (
+                desktopRecords.some(
+                    (record) =>
+                        record.event === 'renderer.terminal_resize_burst' && isExpectedGrid(record),
+                ) && Boolean(latestHostResize && isExpectedGrid(latestHostResize))
+            );
+        })
+        .toBe(true);
 }
 
 async function stubGpuSafeModeRestart(app: E2EApp): Promise<void> {
@@ -117,44 +180,58 @@ async function waitForSynchronizedTerminalGrid(page: Page, terminalId: string): 
     const rows = pane.locator('.xterm-rows');
     const marker = `CAXRI_WEBGL_GRID_${Date.now()}_`;
     let candidate: string | undefined;
+    const lastObservation: { ptyGrid?: string; rendererGrid: string | null } = {
+        rendererGrid: null,
+    };
     let matchingSamples = 0;
     let probeSequence = 0;
     let synchronizedGrid: string | undefined;
 
     await expect(surface).toHaveAttribute('data-terminal-attached', 'true');
-    await expect
-        .poll(async () => {
-            const sampleMarker = `${marker}${probeSequence}_`;
-            probeSequence += 1;
-            const probe = String.raw`printf '${sampleMarker}%sx%s\n' "$(tput cols)" "$(tput lines)"`;
-            await input.focus();
-            await input.pressSequentially(probe);
-            await input.press('Enter');
-            await expect(rows).toContainText(new RegExp(String.raw`${sampleMarker}\d+x\d+`, 'u'));
-            const [rendererGrid, terminalText] = await Promise.all([
-                surface.evaluate(
-                    (element) => (element as HTMLElement).dataset.terminalGrid ?? null,
-                ),
-                rows.textContent(),
-            ]);
-            const ptyGrid = (terminalText ?? '').match(
-                new RegExp(String.raw`${sampleMarker}(\d+x\d+)`, 'u'),
-            )?.[1];
-            if (!rendererGrid || rendererGrid !== ptyGrid) {
-                candidate = undefined;
-                matchingSamples = 0;
-                return false;
-            }
-            if (rendererGrid === candidate) matchingSamples += 1;
-            else {
-                candidate = rendererGrid;
-                matchingSamples = 1;
-            }
-            if (matchingSamples < 3) return false;
-            synchronizedGrid = rendererGrid;
-            return true;
-        })
-        .toBe(true);
+    try {
+        await expect
+            .poll(async () => {
+                const sampleMarker = `${marker}${probeSequence}_`;
+                probeSequence += 1;
+                const probe = String.raw`printf '${sampleMarker}%sx%s\n' "$(tput cols)" "$(tput lines)"`;
+                await input.focus();
+                await input.pressSequentially(probe);
+                await input.press('Enter');
+                await expect(rows).toContainText(
+                    new RegExp(String.raw`${sampleMarker}\d+x\d+`, 'u'),
+                );
+                const [rendererGrid, terminalText] = await Promise.all([
+                    surface.evaluate(
+                        (element) => (element as HTMLElement).dataset.terminalGrid ?? null,
+                    ),
+                    rows.textContent(),
+                ]);
+                const ptyGrid = (terminalText ?? '').match(
+                    new RegExp(String.raw`${sampleMarker}(\d+x\d+)`, 'u'),
+                )?.[1];
+                lastObservation.rendererGrid = rendererGrid;
+                lastObservation.ptyGrid = ptyGrid;
+                if (!rendererGrid || rendererGrid !== ptyGrid) {
+                    candidate = undefined;
+                    matchingSamples = 0;
+                    return false;
+                }
+                if (rendererGrid === candidate) matchingSamples += 1;
+                else {
+                    candidate = rendererGrid;
+                    matchingSamples = 1;
+                }
+                if (matchingSamples < 3) return false;
+                synchronizedGrid = rendererGrid;
+                return true;
+            })
+            .toBe(true);
+    } catch (error) {
+        throw new Error(
+            `Terminal grid did not converge (renderer=${lastObservation.rendererGrid ?? 'missing'}, pty=${lastObservation.ptyGrid ?? 'missing'})`,
+            { cause: error },
+        );
+    }
 
     return synchronizedGrid!;
 }
@@ -242,11 +319,27 @@ test('WebGL modes hot-switch and every Terminal recovers from one GPU process lo
         const focusedTerminalId = await running.page
             .locator('.terminal-pane:has(.xterm-helper-textarea:focus)')
             .getAttribute('data-terminal-id');
+        const desktopRecordsBeforeLoss = await readStructuredLog(
+            join(userData, 'logs', 'desktop.jsonl'),
+        );
+        const resizeReceiptBaseline: ResizeReceiptBaseline = {
+            desktopRecordCount: desktopRecordsBeforeLoss.length,
+        };
         const incident = await pageRequest<{ correlationId: string }>(
             running.page,
             'gpu.testInjectContextLoss',
         );
         expect(incident.correlationId).toMatch(/^[0-9a-f-]{36}$/u);
+        await expect(surfaces.nth(0)).toHaveAttribute('data-terminal-renderer', 'dom');
+        await expect(surfaces.nth(1)).toHaveAttribute('data-terminal-renderer', 'dom');
+        await expect(surfaces.nth(0)).toHaveAttribute(
+            'data-terminal-renderer-retry-state',
+            'scheduled',
+        );
+        await expect(surfaces.nth(1)).toHaveAttribute(
+            'data-terminal-renderer-retry-state',
+            'scheduled',
+        );
         /**
          * Main and both mounted Terminals observe the same correlated GPU incident. The coordinator must collapse those
          * three signals into one transient, actionable notification before the durable renderer state is checked.
@@ -260,19 +353,21 @@ test('WebGL modes hot-switch and every Terminal recovers from one GPU process lo
             running.page.getByRole('button', { name: 'Restart in GPU Safe Mode' }),
         ).toHaveCount(1);
         await expect(recoveryNotification).toHaveCount(0, { timeout: 6_000 });
-        await expect(surfaces.nth(0)).toHaveAttribute('data-terminal-renderer', 'dom', {
+        await expect(surfaces.nth(0)).toHaveAttribute('data-terminal-renderer', 'webgl', {
             timeout: 8_000,
         });
-        await expect(surfaces.nth(1)).toHaveAttribute('data-terminal-renderer', 'dom', {
+        await expect(surfaces.nth(1)).toHaveAttribute('data-terminal-renderer', 'webgl', {
             timeout: 8_000,
         });
+        await expect(surfaces.nth(0)).toHaveAttribute('data-terminal-renderer-reason', 'active');
+        await expect(surfaces.nth(1)).toHaveAttribute('data-terminal-renderer-reason', 'active');
         await expect(surfaces.nth(0)).toHaveAttribute(
-            'data-terminal-renderer-reason',
-            'context-loss',
+            'data-terminal-renderer-retry-state',
+            'succeeded',
         );
         await expect(surfaces.nth(1)).toHaveAttribute(
-            'data-terminal-renderer-reason',
-            'context-loss',
+            'data-terminal-renderer-retry-state',
+            'succeeded',
         );
         await expect(firstPane).toHaveAttribute('data-terminal-id', terminalId);
         await expect(
@@ -286,6 +381,58 @@ test('WebGL modes hot-switch and every Terminal recovers from one GPU process lo
         await expect
             .poll(() => pageRequest<number>(running.page, 'terminal.runningCount'))
             .toBe(runningBeforeLoss);
+        let retryRecords: StructuredLogRecord[] = [];
+        await expect
+            .poll(async () => {
+                const records = await readStructuredLog(join(userData, 'logs', 'desktop.jsonl'));
+                retryRecords = records.filter(
+                    (record) =>
+                        record.event === 'renderer.terminal_renderer_status' &&
+                        record.correlationId === incident.correlationId,
+                );
+                return [terminalId, secondTerminalId].every((id) => {
+                    const triggers = new Set(
+                        retryRecords
+                            .filter((record) => record.fields?.terminalId === id)
+                            .map((record) => record.fields?.trigger),
+                    );
+                    return (
+                        triggers.has('gpu-process-recovery') &&
+                        triggers.has('webgl-retry-attempt') &&
+                        triggers.has('webgl-retry-succeeded')
+                    );
+                });
+            })
+            .toBe(true);
+        const retryReceipt = JSON.stringify(retryRecords);
+        expect(retryReceipt).not.toContain('WEBGL_CONTINUITY');
+        expect(retryReceipt).not.toContain('FIRST_PANE_SCROLLBACK');
+        expect(retryReceipt).not.toContain('AFTER_WEBGL_FALLBACK');
+        for (const record of retryRecords) {
+            expect(record.fields).not.toHaveProperty('terminalOutput');
+            expect(record.fields).not.toHaveProperty('command');
+            expect(record.fields).not.toHaveProperty('path');
+            expect(record.fields).not.toHaveProperty('environment');
+        }
+
+        const recoveredGrids = await Promise.all(
+            [terminalId, secondTerminalId].map(async (id) => {
+                const grid = await running.page
+                    .locator(`.terminal-pane[data-terminal-id="${id}"] .terminal-surface`)
+                    .getAttribute('data-terminal-grid');
+                if (!grid || !/^\d+x\d+$/u.test(grid))
+                    throw new Error(`Recovered Terminal ${id} has no bounded grid receipt`);
+                await waitForSynchronizedResizeReceipts(userData, id, grid, resizeReceiptBaseline);
+                return grid;
+            }),
+        );
+        expect(recoveredGrids).toHaveLength(2);
+
+        /**
+         * WebGL renders to a canvas, so `.xterm-rows` exists only after switching back to DOM. Keep the original live
+         * shell probe from #515 here while the structured receipts above prove the WebGL recovery transition itself.
+         */
+        await applyGpuPreference(running.page, 'Off');
         const synchronizedGrids = [
             await waitForSynchronizedTerminalGrid(running.page, terminalId),
             await waitForSynchronizedTerminalGrid(running.page, secondTerminalId),
@@ -294,8 +441,8 @@ test('WebGL modes hot-switch and every Terminal recovers from one GPU process lo
         await expect(secondRows).toContainText('atlas-160');
         await expect(firstRows).toContainText('FIRST_PANE_SCROLLBACK');
 
-        await typeTerminal(running.page, String.raw`printf 'AFTER_WEBGL_FALLBACK\n'`);
-        await expect(secondRows).toContainText('AFTER_WEBGL_FALLBACK');
+        await typeTerminal(running.page, String.raw`printf 'AFTER_WEBGL_RECOVERY\n'`);
+        await expect(secondRows).toContainText('AFTER_WEBGL_RECOVERY');
         for (const id of [terminalId, secondTerminalId]) {
             // eslint-disable-next-line no-await-in-loop -- one pane must finish its shell fixture before focus moves.
             const { alignedAscii, alignedCjk } = await terminalEdgeGlyphEvidence(
