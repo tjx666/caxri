@@ -21,7 +21,7 @@ const bindings = [
      *
      * @see https://code.claude.com/docs/en/hooks#permissionrequest-input
      * @see https://code.claude.com/docs/en/hooks#posttoolbatch
-    */
+     */
     { event: 'PostToolBatch', phase: 'toolBatchFinished' },
 ] as const;
 
