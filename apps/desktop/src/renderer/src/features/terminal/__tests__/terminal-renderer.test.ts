@@ -107,11 +107,14 @@ describe('TerminalRendererController', () => {
         const harness = createHarness();
         harness.controller.setPreference('on');
         expect(harness.host.loadAddon).toHaveBeenCalledWith(harness.addon);
+        expect(harness.redraw).toHaveBeenLastCalledWith('grid-sync');
         expect(harness.statuses.at(-1)).toMatchObject({ mode: 'webgl', reason: 'active' });
 
+        harness.redraw.mockClear();
         harness.controller.setPreference('off');
         expect(harness.addon.dispose).toHaveBeenCalledTimes(1);
         expect(harness.redraw).toHaveBeenCalledTimes(1);
+        expect(harness.redraw).toHaveBeenCalledWith('grid-sync');
         expect(harness.statuses.at(-1)).toMatchObject({ mode: 'dom', reason: 'disabled' });
     });
 
@@ -121,6 +124,7 @@ describe('TerminalRendererController', () => {
 
         expect(harness.addon.dispose).toHaveBeenCalledTimes(1);
         expect(harness.redraw).toHaveBeenCalledTimes(1);
+        expect(harness.redraw).toHaveBeenCalledWith('grid-sync');
         expect(harness.statuses.at(-1)).toMatchObject({
             contextLossCount: 0,
             mode: 'dom',
@@ -132,11 +136,13 @@ describe('TerminalRendererController', () => {
     it('falls back on context loss without reloading the addon or touching another lifecycle', () => {
         const harness = createHarness();
         harness.controller.setPreference('on');
+        harness.redraw.mockClear();
         harness.addon.loseContext();
 
         expect(harness.host.loadAddon).toHaveBeenCalledTimes(1);
         expect(harness.addon.dispose).toHaveBeenCalledTimes(1);
         expect(harness.redraw).toHaveBeenCalledTimes(1);
+        expect(harness.redraw).toHaveBeenCalledWith('grid-sync');
         expect(harness.statuses.at(-1)).toMatchObject({
             contextLossCount: 1,
             mode: 'dom',
@@ -148,12 +154,14 @@ describe('TerminalRendererController', () => {
     it('rebuilds every enabled WebGL Terminal into DOM after a GPU process recovery request', () => {
         const harness = createHarness();
         harness.controller.setPreference('on');
+        harness.redraw.mockClear();
 
         const recovery = harness.controller.recoverFromGpuProcessLoss();
 
         expect(recovery).toBe('dom-restored');
         expect(harness.addon.dispose).toHaveBeenCalledTimes(1);
         expect(harness.redraw).toHaveBeenCalledTimes(1);
+        expect(harness.redraw).toHaveBeenCalledWith('grid-sync');
         expect(harness.statuses.at(-1)).toMatchObject({
             mode: 'dom',
             reason: 'context-loss',
@@ -170,6 +178,7 @@ describe('TerminalRendererController', () => {
         expect(recovery).toBe('already-dom');
         expect(harness.host.loadAddon).not.toHaveBeenCalled();
         expect(harness.redraw).toHaveBeenCalledTimes(1);
+        expect(harness.redraw).toHaveBeenCalledWith('content-only');
         expect(harness.statuses.at(-1)).toMatchObject({
             mode: 'dom',
             reason: 'disabled',
@@ -180,14 +189,16 @@ describe('TerminalRendererController', () => {
     it('clears the texture atlas and redraws after the window becomes visible', () => {
         const harness = createHarness();
         harness.controller.setPreference('auto');
+        harness.redraw.mockClear();
         harness.controller.restoreVisible();
 
         expect(harness.addon.clearTextureAtlas).toHaveBeenCalledTimes(1);
         expect(harness.redraw).toHaveBeenCalledTimes(1);
+        expect(harness.redraw).toHaveBeenCalledWith('content-only');
         expect(harness.statuses.at(-1)).toMatchObject({
             mode: 'webgl',
             reason: 'active',
-            redrawCount: 1,
+            redrawCount: 2,
             trigger: 'visibility-restore',
         });
     });
@@ -195,6 +206,7 @@ describe('TerminalRendererController', () => {
     it('identifies an atlas-clear failure separately from an initial WebGL load failure', () => {
         const harness = createHarness();
         harness.controller.setPreference('auto');
+        harness.redraw.mockClear();
         harness.addon.clearTextureAtlas.mockImplementationOnce(() => {
             throw new Error('GPU atlas unavailable');
         });
@@ -202,6 +214,7 @@ describe('TerminalRendererController', () => {
         harness.controller.restoreVisible();
 
         expect(harness.addon.dispose).toHaveBeenCalledTimes(1);
+        expect(harness.redraw).toHaveBeenCalledWith('grid-sync');
         expect(harness.statuses.at(-1)).toMatchObject({
             mode: 'dom',
             reason: 'load-failed',

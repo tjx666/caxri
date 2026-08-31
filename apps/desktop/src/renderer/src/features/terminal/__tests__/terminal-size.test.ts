@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
     didTerminalSizeChange,
+    TerminalPaneResizeController,
     TerminalResizeBurstTracker,
     TerminalResizeSettler,
     terminalSizeWithScrollbarGutter,
@@ -26,6 +27,32 @@ describe('Terminal scrollbar gutter', () => {
 });
 
 describe('Terminal resize deduplication', () => {
+    it('applies a renderer-driven grid change and synchronizes it with the running PTY once', () => {
+        let current = { cols: 135, rows: 59 };
+        const apply = vi.fn((size: { cols: number; rows: number }) => {
+            current = size;
+        });
+        const request = vi.fn(() => Promise.resolve());
+        const controller = new TerminalPaneResizeController({
+            apply,
+            current: () => current,
+            fitted: vi.fn(),
+            isRunning: () => true,
+            propose: () => ({ cols: 131, rows: 59 }),
+            request,
+            terminalId: 'terminal-gpu-recovery',
+        });
+        controller.confirmSent({ cols: 135, rows: 59 });
+
+        controller.fitAndResize();
+        controller.fitAndResize();
+
+        expect(apply).toHaveBeenCalledOnce();
+        expect(apply).toHaveBeenCalledWith({ cols: 130, rows: 59 });
+        expect(request).toHaveBeenCalledOnce();
+        expect(request).toHaveBeenCalledWith({ cols: 130, rows: 59 });
+    });
+
     it('suppresses an unchanged grid while preserving either dimension change', () => {
         expect(didTerminalSizeChange(undefined, { cols: 100, rows: 30 })).toBe(true);
         expect(didTerminalSizeChange({ cols: 100, rows: 30 }, { cols: 100, rows: 30 })).toBe(false);
