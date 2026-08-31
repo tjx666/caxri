@@ -7,7 +7,9 @@ export const agentLifecyclePhases = [
     'turnStarted',
     'attentionRequested',
     'turnFinished',
+    'shellToolStarted',
     'shellToolFinished',
+    'shellToolFailed',
     'compactionStarted',
     'compactionFinished',
 ] as const;
@@ -26,10 +28,20 @@ export interface AgentLifecycleSignal {
      * turn whose completion signal may have been lost.
      */
     agentTurnId?: string;
+    /**
+     * Provider-native tool invocation identifier used only to pair one Bash PreToolUse signal with its outcome. It is
+     * opaque, bounded, and never joined to Terminal output or transcripts.
+     */
+    agentToolUseId?: string;
     launchId: string;
     phase: AgentLifecyclePhase;
     provider: AgentProvider;
     terminalId: string;
+    /**
+     * The bridge saw a bounded Bash command directly invoke `git worktree add`. The command and its output never cross
+     * the hook boundary; Server Core must pair its before/after hooks and prove one unique structured Git addition.
+     */
+    worktreeCreateIntent?: true;
 }
 
 export interface AgentHookBinding {

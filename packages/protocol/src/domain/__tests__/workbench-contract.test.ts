@@ -64,31 +64,4 @@ describe('workbenchInternalMethods', () => {
             }).success,
         ).toBe(true);
     });
-
-    it('requires the Host-injected Endpoint summary for a creation report', () => {
-        const parameters = workbenchInternalMethods['session.workbenchRoot.reportCreated'].params;
-        expect(parameters.safeParse({ rootPath: '/private/project' }).success).toBe(false);
-        expect(
-            parameters.safeParse({
-                endpoint: {
-                    ref: { hostId: 'host-1', endpointId: 'endpoint-1', generation: 1 },
-                    projectId: 'project-1',
-                    sessionId: 'session-1',
-                    terminalId: 'terminal-1',
-                    provider: 'codex',
-                    name: 'Codex',
-                    permissionClass: 'standard',
-                    messaging: {
-                        deliveryMode: 'pull',
-                        health: 'ready',
-                        reason: 'pull_ready',
-                        checkedAt: 1,
-                        nextAction: 'use_pull',
-                    },
-                    expiresAt: 2,
-                },
-                rootPath: '/private/project',
-            }).success,
-        ).toBe(true);
-    });
 });

@@ -55,7 +55,9 @@ describe('alerter notification adapter', () => {
 
     it('routes a helper click and removes the delivered notification on close', async () => {
         const processes: Array<ReturnType<typeof fakeProcess>> = [];
-        const spawnProcess = vi.fn(() => {
+        const spawnProcess = vi.fn<
+            (executable: string, arguments_: readonly string[]) => ChildProcess
+        >(() => {
             const process = fakeProcess();
             processes.push(process);
             return process.child;

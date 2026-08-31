@@ -15,7 +15,13 @@ import { agentLifecyclePhases } from './contract';
 
 const MAX_SIGNAL_BYTES = 4_096;
 const MAX_AGENT_SESSION_ID_LENGTH = 256;
+const MAX_AGENT_TOOL_USE_ID_LENGTH = 256;
 const MAX_AGENT_TURN_ID_LENGTH = 256;
+const SHELL_TOOL_PHASES = new Set<AgentLifecyclePhase>([
+    'shellToolStarted',
+    'shellToolFinished',
+    'shellToolFailed',
+]);
 /**
  * Bounds the sweep by profile-owned candidates rather than by position in the directory. The previous bound counted
  * every entry in the temp directory and stopped at 4096, which made reclamation depend on where the socket happened to
@@ -56,6 +62,7 @@ type HookWirePacket = HookWireBridgeStarted | HookWireSignal;
 export type AgentHookSignalRejectionReason =
     | 'downstreamRejected'
     | 'invalidAgentSessionId'
+    | 'invalidAgentToolUseId'
     | 'invalidAgentTurnId'
     | 'invalidJson'
     | 'invalidSignal'
@@ -196,6 +203,22 @@ function parsePacket(
     ) {
         return { reason: 'invalidAgentTurnId' };
     }
+    if (
+        signal.agentToolUseId !== undefined &&
+        (typeof signal.agentToolUseId !== 'string' ||
+            signal.agentToolUseId.length > MAX_AGENT_TOOL_USE_ID_LENGTH ||
+            !isOpaqueAgentSessionId(signal.agentToolUseId) ||
+            !SHELL_TOOL_PHASES.has(signal.phase))
+    ) {
+        return { reason: 'invalidAgentToolUseId' };
+    }
+    if (
+        signal.worktreeCreateIntent !== undefined &&
+        (signal.worktreeCreateIntent !== true || !SHELL_TOOL_PHASES.has(signal.phase))
+    )
+        return { reason: 'invalidSignal' };
+    if ((signal.worktreeCreateIntent === true) !== (signal.agentToolUseId !== undefined))
+        return { reason: 'invalidSignal' };
     return { packet: signal as unknown as HookWireSignal };
 }
 
@@ -220,8 +243,9 @@ function packetDiagnosticFields(packet: HookWirePacket) {
 }
 
 /**
- * Authenticated local signal boundary. Provider hooks can report only a phase, opaque PTY generation, and an opaque
- * provider session identifier; prompt text and provider hook payloads never cross into Caxri.
+ * Authenticated local signal boundary. Provider hooks can report only a phase, opaque PTY generation, bounded opaque
+ * provider identifiers, and a worktree-create classification; prompt text and provider hook payloads never cross into
+ * Caxri.
  */
 export class AgentHookServer {
     private readonly launchesByToken = new Map<string, RegisteredLaunch>();
@@ -233,7 +257,9 @@ export class AgentHookServer {
         /**
          * Separates an irrelevant authenticated signal from a downstream processing failure.
          */
-        private readonly onSignal: (signal: AgentLifecycleSignal) => AgentHookSignalDisposition,
+        private readonly onSignal: (
+            signal: AgentLifecycleSignal,
+        ) => AgentHookSignalDisposition | Promise<AgentHookSignalDisposition>,
         private readonly onDiagnostic: (diagnostic: AgentHookSignalDiagnostic) => void = () => {},
     ) {}
 
@@ -241,35 +267,36 @@ export class AgentHookServer {
         socket.setEncoding('utf8');
         let source = '';
         let isSettled = false;
-        const settle = (diagnostic: AgentHookSignalDiagnostic): void => {
-            if (isSettled) return;
+        const didSettle = (diagnostic: AgentHookSignalDiagnostic): boolean => {
+            if (isSettled) return false;
             isSettled = true;
             this.onDiagnostic(diagnostic);
+            return true;
         };
-        socket.setTimeout(1_000, () => {
-            settle({ outcome: 'rejected', reason: 'transportTimeout' });
+        socket.setTimeout(2_500, () => {
+            didSettle({ outcome: 'rejected', reason: 'transportTimeout' });
             socket.destroy();
         });
         socket.on('data', (chunk: string) => {
             if (isSettled) return;
             source += chunk;
             if (Buffer.byteLength(source, 'utf8') > MAX_SIGNAL_BYTES) {
-                settle({ outcome: 'rejected', reason: 'payloadTooLarge' });
+                didSettle({ outcome: 'rejected', reason: 'payloadTooLarge' });
                 socket.destroy();
             }
         });
-        socket.on('end', () => {
+        socket.on('end', async () => {
             if (isSettled) return;
             const parsed = parsePacket(source);
             if ('reason' in parsed) {
-                settle({ outcome: 'rejected', reason: parsed.reason });
+                didSettle({ outcome: 'rejected', reason: parsed.reason });
                 socket.end('{"ok":false}\n');
                 return;
             }
             const { packet } = parsed;
             const rejectionReason = this.authorizationRejection(packet);
             if (rejectionReason) {
-                settle({
+                didSettle({
                     ...packetDiagnosticFields(packet),
                     outcome: 'rejected',
                     reason: rejectionReason,
@@ -278,21 +305,29 @@ export class AgentHookServer {
                 return;
             }
             if (packet.kind === 'bridgeStarted') {
-                settle({ ...packetDiagnosticFields(packet), outcome: 'started' });
+                didSettle({ ...packetDiagnosticFields(packet), outcome: 'started' });
                 socket.end('{"ok":true}\n');
                 return;
             }
             const signal = packet;
-            const disposition = this.onSignal(signal);
-            settle(
-                disposition === 'rejected'
-                    ? {
-                          ...diagnosticFields(signal),
-                          outcome: 'rejected',
-                          reason: 'downstreamRejected',
-                      }
-                    : { ...diagnosticFields(signal), outcome: disposition },
-            );
+            let disposition: AgentHookSignalDisposition;
+            try {
+                disposition = await this.onSignal(signal);
+            } catch {
+                disposition = 'rejected';
+            }
+            if (
+                !didSettle(
+                    disposition === 'rejected'
+                        ? {
+                              ...diagnosticFields(signal),
+                              outcome: 'rejected',
+                              reason: 'downstreamRejected',
+                          }
+                        : { ...diagnosticFields(signal), outcome: disposition },
+                )
+            )
+                return;
             socket.end(
                 disposition === 'accepted'
                     ? '{"ok":true}\n'
@@ -302,7 +337,7 @@ export class AgentHookServer {
             );
         });
         socket.on('error', () => {
-            settle({ outcome: 'rejected', reason: 'transportError' });
+            didSettle({ outcome: 'rejected', reason: 'transportError' });
         });
     }
 
@@ -321,7 +356,9 @@ export class AgentHookServer {
     async start(): Promise<void> {
         if (this.server) return;
         await rm(this.socketPath, { force: true });
-        const server = createServer((socket) => this.accept(socket));
+        // Async PreToolUse provenance must finish before the acknowledgement, so keep the writable half open after the
+        // bridge finishes sending its payload. Every accept path explicitly ends or destroys the socket.
+        const server = createServer({ allowHalfOpen: true }, (socket) => this.accept(socket));
         this.server = server;
         try {
             await new Promise<void>((resolve, reject) => {

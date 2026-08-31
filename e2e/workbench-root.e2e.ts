@@ -51,7 +51,7 @@ async function expectWorkbenchRoot(
         });
 }
 
-test('authenticated Agent worktree provenance prompts, authorizes, and switches one Session', async () => {
+test('Agent Bash hook attribution prompts, authorizes, and switches one Session', async () => {
     const createdDirectory = await mkdtemp(join(tmpdir(), 'caxri-workbench-hook-e2e-'));
     const testDirectory = await realpath(createdDirectory);
     const userData = join(testDirectory, 'user-data');
@@ -70,12 +70,17 @@ if (process.argv.includes('--version')) {
   process.stdout.write('codex 0.147.0\n');
   process.exit(0);
 }
-function signalShellToolFinished() {
+function signalShellTool(event, command) {
   const hooks = JSON.parse(fs.readFileSync(path.join(process.env.CODEX_HOME, 'hooks.json'), 'utf8'));
-  const group = hooks.hooks.PostToolUse.find((candidate) => candidate.matcher === '^Bash$');
+  const group = hooks.hooks[event].find((candidate) => candidate.matcher === '^Bash$');
   childProcess.execFileSync('/bin/sh', ['-c', group.hooks[0].command], {
     env: process.env,
-    input: '{}',
+    input: JSON.stringify({
+      session_id: 'workbench-e2e-session',
+      tool_input: { command },
+      tool_response: 'private fixture output',
+      tool_use_id: 'workbench-operation-' + step,
+    }),
   });
 }
 let step = 0;
@@ -83,18 +88,19 @@ process.stdin.setRawMode?.(true);
 process.stdin.on('data', () => {
   step += 1;
   if (step === 1) {
+    signalShellTool('PreToolUse', 'git worktree add -b feature/workbench ../worktree');
     childProcess.execFileSync('git', ['worktree', 'add', '-b', 'feature/workbench', ${JSON.stringify(worktree)}], { cwd: ${JSON.stringify(root)} });
     fs.writeFileSync(path.join(${JSON.stringify(worktree)}, 'worktree-only.txt'), 'worktree context\n');
-    signalShellToolFinished();
-    childProcess.execFileSync(process.env.CAXRI_CLI_PATH, ['agent', 'worktree', 'created', ${JSON.stringify(worktree)}, '--json'], { env: process.env });
+    signalShellTool('PostToolUse', 'git worktree add -b feature/workbench ../worktree');
   } else if (step === 2) {
+    signalShellTool('PreToolUse', 'git worktree remove --force ../worktree');
     childProcess.execFileSync('git', ['worktree', 'remove', '--force', ${JSON.stringify(worktree)}], { cwd: ${JSON.stringify(root)} });
-    signalShellToolFinished();
+    signalShellTool('PostToolUse', 'git worktree remove --force ../worktree');
   } else if (step === 3) {
+    signalShellTool('PreToolUse', 'git worktree add ../worktree feature/workbench');
     childProcess.execFileSync('git', ['worktree', 'add', ${JSON.stringify(worktree)}, 'feature/workbench'], { cwd: ${JSON.stringify(root)} });
     fs.writeFileSync(path.join(${JSON.stringify(worktree)}, 'worktree-only.txt'), 'worktree context restored\n');
-    signalShellToolFinished();
-    childProcess.execFileSync(process.env.CAXRI_CLI_PATH, ['agent', 'worktree', 'created', ${JSON.stringify(worktree)}, '--json'], { env: process.env });
+    signalShellTool('PostToolUse', 'git worktree add ../worktree feature/workbench');
   } else {
     return;
   }

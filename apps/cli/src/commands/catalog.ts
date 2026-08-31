@@ -182,15 +182,6 @@ function endpointReference(source: string | undefined) {
     return { hostId, endpointId, generation };
 }
 
-function createdWorktree(tokens: readonly string[]): Record<string, string> {
-    if (tokens.length !== 1)
-        throw new CaxriError(
-            'VALIDATION',
-            'agent worktree created requires one canonical absolute path',
-        );
-    return { rootPath: tokens[0] };
-}
-
 function agentGrant(tokens: readonly string[]): Record<string, unknown> {
     if (tokens.length < 2)
         throw new CaxriError('VALIDATION', 'agent grant requires an Endpoint ref and policy');
@@ -484,16 +475,6 @@ export const CLI_COMMANDS = [
                 throw new CaxriError('VALIDATION', 'agent control stop requires one Endpoint ref');
             return { endpoint: endpointReference(tokens[0]) };
         },
-    },
-    {
-        kind: 'remote',
-        path: ['agent', 'worktree', 'created'],
-        method: 'agent.worktree.created',
-        summary: 'Report one worktree created by this exact Agent generation.',
-        usage: '<canonical-absolute-path>',
-        parseParams: createdWorktree,
-        requiresAgentEndpoint: true,
-        requiresServerVersionMatch: true,
     },
     {
         kind: 'remote',

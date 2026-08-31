@@ -80,7 +80,6 @@ export const effectfulCommandRecovery = {
     'agent.control.interrupt': 'durable',
     'agent.control.stop': 'durable',
     'terminal.send': 'durable',
-    'agent.worktree.created': 'durable',
     'agent.grant': 'durable',
     'agent.revoke': 'durable',
     'agent.message.send': 'durable',

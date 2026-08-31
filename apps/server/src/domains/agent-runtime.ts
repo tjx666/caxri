@@ -100,8 +100,8 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
             sessionAutoNaming.forgetTerminal(terminalId);
             coordinator.beginTerminalLaunch(terminalId, launchId);
         },
-        onSignal: (signal) => {
-            const handled = provenance.didHandleAgentLifecycleSignal(
+        onSignal: async (signal) => {
+            const handled = await provenance.handleAgentLifecycleSignal(
                 coordinator,
                 workbenchRoots,
                 signal,

@@ -298,6 +298,7 @@ describe('AgentHookManager', () => {
             expect(hooks.SessionStart).toHaveLength(1);
             expect(hooks.PermissionRequest).toHaveLength(1);
             expect(hooks.Stop).toHaveLength(1);
+            expect(hooks.PreToolUse).toEqual([expect.objectContaining({ matcher: '^Bash$' })]);
             expect(hooks.PostToolUse).toEqual([expect.objectContaining({ matcher: '^Bash$' })]);
             expect(hooks.PreCompact).toHaveLength(1);
             expect(hooks.PostCompact).toHaveLength(1);
@@ -315,7 +316,7 @@ describe('AgentHookManager', () => {
                     '--phase',
                     'turnFinished',
                     '--schema',
-                    '6',
+                    '8',
                 ],
                 {
                     env: {
@@ -337,7 +338,7 @@ describe('AgentHookManager', () => {
                     '--phase',
                     'turnFinished',
                     '--schema',
-                    '6',
+                    '8',
                     '--reply',
                     'empty-json',
                 ],
@@ -348,7 +349,7 @@ describe('AgentHookManager', () => {
             expect(manager.getHealth().codex.kind).toBe('active');
 
             /**
-             * A provider hook payload on stdin contributes only its opaque session and turn identifiers.
+             * A provider hook payload contributes only opaque identifiers and bounded local classifications.
              */
             const payloadInvocation = execFileAsync(
                 bridge,
@@ -360,7 +361,7 @@ describe('AgentHookManager', () => {
                     '--phase',
                     'turnStarted',
                     '--schema',
-                    '6',
+                    '8',
                 ],
                 { env: { ...process.env, ...environment } },
             );
@@ -391,7 +392,7 @@ describe('AgentHookManager', () => {
                     '--phase',
                     'turnStarted',
                     '--schema',
-                    '6',
+                    '8',
                 ],
                 { env: { ...process.env, ...environment } },
             );
@@ -408,7 +409,7 @@ describe('AgentHookManager', () => {
                     '--phase',
                     'sessionIdentified',
                     '--schema',
-                    '6',
+                    '8',
                 ],
                 { env: { ...process.env, ...environment } },
             );
@@ -482,7 +483,7 @@ describe('AgentHookManager', () => {
                     '--phase',
                     'turnFinished',
                     '--schema',
-                    '6',
+                    '8',
                 ],
                 { env: { ...process.env, ...environment } },
             );
@@ -677,7 +678,7 @@ describe('AgentHookManager', () => {
                                 {
                                     type: 'command',
                                     command:
-                                        "'/newer/bridge' --source caxri --provider codex --phase turnFinished --schema 7",
+                                        "'/newer/bridge' --source caxri --provider codex --phase turnFinished --schema 9",
                                     timeout: 1,
                                 },
                             ],

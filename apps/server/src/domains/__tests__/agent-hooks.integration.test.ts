@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createTestDomainServices } from '../../__tests__/support/domain-services';
 import { LocalTerminalExecution } from '../../__tests__/support/local-terminal-execution';
+import { GitService } from '../git';
 import { createFakePty, createPendingAgentAdapters } from './create-test-domain-services';
 
 const temporaryDirectories: string[] = [];
@@ -21,6 +22,43 @@ afterEach(async () => {
 });
 
 describe('Runtime Agent hook integration', () => {
+    it('does not read worktree topology for an Agent launch when provider hooks are disabled', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-hook-disabled-'));
+        temporaryDirectories.push(directory);
+        const projectRoot = join(directory, 'project');
+        await mkdir(projectRoot);
+        const topology = vi.spyOn(GitService.prototype, 'worktreeTopology');
+        const runtime = await createTestDomainServices({
+            agentAdapters: createPendingAgentAdapters(),
+            agentEnvironment: { homeDirectory: directory, variables: {} },
+            agentHooksPath: join(directory, 'shared-hooks'),
+            logger: new StructuredLogger(join(directory, 'logs')),
+            hookExecutable: process.execPath,
+            send: () => {},
+            terminal: {
+                resolveExecutable: (kind) =>
+                    Promise.resolve(kind === 'shell' ? '/bin/zsh' : '/bin/echo'),
+                spawn: vi.fn<typeof spawnPty>(() => createFakePty()),
+            },
+            userDataPath: join(directory, 'user-data'),
+        });
+
+        try {
+            const project = await runtime.handlers['project.create']({ rootPath: projectRoot });
+            topology.mockClear();
+
+            const created = await runtime.handlers['session.create']({
+                projectId: project.id,
+                defaultAgent: 'codex',
+            });
+
+            expect(created.terminal).toMatchObject({ lastProcessState: 'running' });
+            expect(topology).not.toHaveBeenCalled();
+        } finally {
+            await runtime.close();
+        }
+    });
+
     it('projects authenticated Codex compaction without turning it into Session attention', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-hook-unread-'));
         temporaryDirectories.push(directory);
@@ -115,7 +153,7 @@ describe('Runtime Agent hook integration', () => {
                     '--phase',
                     'compactionStarted',
                     '--schema',
-                    '6',
+                    '8',
                 ],
                 { env: { ...process.env, ...environment } },
             );
@@ -147,7 +185,7 @@ describe('Runtime Agent hook integration', () => {
                     '--phase',
                     'compactionFinished',
                     '--schema',
-                    '6',
+                    '8',
                 ],
                 { env: { ...process.env, ...environment } },
             );
@@ -171,7 +209,7 @@ describe('Runtime Agent hook integration', () => {
                     '--phase',
                     'turnFinished',
                     '--schema',
-                    '6',
+                    '8',
                     '--reply',
                     'empty-json',
                 ],

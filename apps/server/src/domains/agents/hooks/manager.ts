@@ -68,7 +68,7 @@ interface AgentHookManagerOptions {
     onAuthorityLost: (provider: AgentProvider) => void;
     onLaunchEnded: (terminalId: string) => void;
     onLaunchStarted: (terminalId: string, launchId: string) => void;
-    onSignal: (signal: AgentLifecycleSignal) => boolean;
+    onSignal: (signal: AgentLifecycleSignal) => boolean | Promise<boolean>;
     hookExecutable: string;
     send: (event: ServerEvent) => void;
     sharedPath?: string;
@@ -623,10 +623,10 @@ export class AgentHookManager {
             this.server = new AgentHookServer(
                 socketPath,
                 schemaVersions,
-                (signal) => {
+                async (signal) => {
                     if (!this.settings?.[signal.provider].hooks.enabled) return 'ignored';
                     try {
-                        const isAccepted = this.options.onSignal(signal);
+                        const isAccepted = await this.options.onSignal(signal);
                         if (isAccepted) this.markActive(signal.provider);
                         return isAccepted ? 'accepted' : 'ignored';
                     } catch (error) {
