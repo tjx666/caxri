@@ -22,7 +22,8 @@ separate layers:
 5. The Desktop Renderer measures one named UI scenario at a time using browser observers, frame
    timestamps, and stable React Profiler boundaries. It sends only the bounded finished aggregate to
    authenticated Main IPC, which persists `renderer.performance_scenario` as flat structured-log
-   fields. Optional `react-scan/lite` attribution exists only in opt-in monitoring/profiling builds.
+   fields. Component-level fiber trees are outside the diagnostic contract because their timings are
+   not additive and their metadata does not meet the fixed-label privacy boundary.
 
 ## Bounds and failure isolation
 
@@ -35,9 +36,9 @@ separate layers:
 - logging, sampling, and publication failures are best-effort and cannot fail a command, recovery,
   shutdown, or product process;
 - there is no local or remote exporter in the implemented foundation.
-- Renderer scenarios retain at most 20,001 frame timestamps, 10,000 React Profiler samples, 20,000
-  optional component samples, 2,000 Long Animation Frames, and 2,000 interactions, and automatically
-  finish after two minutes.
+- Renderer scenarios retain at most 20,001 frame timestamps, 10,000 React Profiler samples, 100 fixed
+  request samples, 2,000 Long Animation Frames, and 2,000 interactions, and automatically finish after
+  two minutes.
 
 Runtime validation occurs again immediately before manifest persistence. This keeps TypeScript escape
 hatches or malformed internal input from writing unknown fields, dynamic metric labels, or unnormalized
@@ -50,8 +51,7 @@ Agent transcripts, credentials, environment values, or secret-like settings. Cor
 bounded opaque identities. Metrics contain fixed labels and numeric aggregates only. The read-only
 classifier consumes fixed probe states and never reads product payloads.
 Renderer performance receipts additionally reject DOM text, paths, source locations, props, state, and
-arbitrary action or surface labels. Optional component names use a short allowlisted character set;
-unsafe names are discarded and mark the aggregate as truncated.
+arbitrary action, surface, request, or component labels.
 
 ## Deferred public surfaces
 

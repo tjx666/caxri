@@ -6,6 +6,10 @@ const mocks = vi.hoisted(() => ({
     dropSessions: vi.fn(),
     getBootstrap: vi.fn(),
     getSelectedSession: vi.fn(),
+    registerSessionSelectionConvergence: vi.fn(() => ({
+        cancel: vi.fn(),
+        promise: Promise.resolve(),
+    })),
     refreshWorkbench: vi.fn(() => Promise.resolve()),
     removeSessionQueries: vi.fn(),
     tryCommand: vi.fn(
@@ -37,6 +41,7 @@ vi.mock('../../../stores/session-view', () => ({
 }));
 vi.mock('../../../stores/toasts', () => ({ tryCommand: mocks.tryCommand }));
 vi.mock('../../../stores/workbench', () => ({
+    registerSessionSelectionConvergence: mocks.registerSessionSelectionConvergence,
     refreshWorkbench: mocks.refreshWorkbench,
     useWorkbenchStore: { getState: () => ({ bootstrap: undefined }) },
 }));
@@ -45,6 +50,7 @@ import {
     deleteSelectedSession,
     deleteSession,
     didReorderProject,
+    didSelectSession,
     moveTerminalToNewSession,
     selectAdjacentSession,
     selectProject,
@@ -57,6 +63,7 @@ describe('Session actions', () => {
         mocks.dropSessions.mockClear();
         mocks.getBootstrap.mockReset();
         mocks.getSelectedSession.mockReset();
+        mocks.registerSessionSelectionConvergence.mockClear();
         mocks.refreshWorkbench.mockClear();
         mocks.removeSessionQueries.mockClear();
         mocks.tryCommand.mockClear();
@@ -109,6 +116,29 @@ describe('Session actions', () => {
         expect(mocks.caxriRequest).toHaveBeenCalledWith('session.select', {
             sessionId: 'newer',
         });
+        expect(mocks.tryCommand.mock.calls[0]?.[2]).toBeUndefined();
+    });
+
+    it('registers and awaits event-driven convergence around a Session selection', async () => {
+        const convergence = Promise.withResolvers<void>();
+        const cancel = vi.fn();
+        mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-2' });
+        mocks.registerSessionSelectionConvergence.mockReturnValueOnce({
+            cancel,
+            promise: convergence.promise,
+        });
+
+        const selected = didSelectSession('session-2');
+        await vi.waitFor(() => expect(mocks.caxriRequest).toHaveBeenCalledOnce());
+
+        expect(mocks.registerSessionSelectionConvergence.mock.invocationCallOrder[0]).toBeLessThan(
+            mocks.caxriRequest.mock.invocationCallOrder[0],
+        );
+        await expect(Promise.race([selected, Promise.resolve('pending')])).resolves.toBe('pending');
+
+        convergence.resolve();
+        await expect(selected).resolves.toBe(true);
+        expect(cancel).not.toHaveBeenCalled();
     });
 
     it('walks adjacent Sessions in visible Project and activity order', async () => {
