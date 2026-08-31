@@ -39,7 +39,7 @@ describe('stageAgentHookBridge', () => {
         ]);
         expect(wrapperSource).toContain('#!/bin/sh');
         expect(bridgeScript).toContain("require('node:net')");
-        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 11 });
+        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 12 });
         expect(wrapperStats.mode & 0o777).toBe(0o700);
     });
 
@@ -111,7 +111,7 @@ describe('stageAgentHookBridge', () => {
             readFile(bridgePath, 'utf8'),
             readFile(join(binDirectory, 'bridge.cjs'), 'utf8'),
         ]);
-        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 11 });
+        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 12 });
         expect(wrapperSource).toContain('#!/bin/sh');
         expect(scriptSource).toContain("require('node:net')");
     });
@@ -230,12 +230,104 @@ describe('stageAgentHookBridge', () => {
                     },
                 },
             );
-            invocation.child.stdin?.end(JSON.stringify({ session_id: 'opaque-session' }));
+            invocation.child.stdin?.end(
+                JSON.stringify({
+                    agent_id: 'agent-opaque',
+                    session_id: 'opaque-session',
+                }),
+            );
             await invocation;
 
             expect(packets).toHaveLength(1);
             expect(packets[0]).not.toHaveProperty('kind');
-            expect(packets[0]).toMatchObject({ agentSessionId: 'opaque-session' });
+            expect(packets[0]).toMatchObject({
+                agentId: 'agent-opaque',
+                agentSessionId: 'opaque-session',
+            });
+        } finally {
+            await new Promise<void>((resolve) => server.close(() => resolve()));
+        }
+    });
+
+    it('delivers a tool-batch phase even when provider results exceed the payload read bound', async () => {
+        const sharedPath = await sharedDirectory();
+        const bridgePath = await stageAgentHookBridge(sharedPath);
+        const socketPath = join(sharedPath, 'large-batch.sock');
+        const packets: Array<Record<string, unknown>> = [];
+        const server = createServer((socket) => {
+            socket.setEncoding('utf8');
+            let source = '';
+            socket.on('data', (chunk: string) => {
+                source += chunk;
+            });
+            socket.on('end', () => {
+                packets.push(JSON.parse(source) as Record<string, unknown>);
+                socket.end('{"ok":true}\n');
+            });
+        });
+        server.listen(socketPath);
+        await once(server, 'listening');
+
+        try {
+            const invocation = execFileAsync(
+                bridgePath,
+                ['--provider', 'claude', '--phase', 'toolBatchFinished', '--schema', '5'],
+                {
+                    env: {
+                        CAXRI_HOOK_LAUNCH_ID: 'large-batch-launch',
+                        CAXRI_HOOK_RUNTIME: process.execPath,
+                        CAXRI_HOOK_SOCKET: socketPath,
+                        CAXRI_HOOK_TERMINAL_ID: 'large-batch-terminal',
+                        CAXRI_HOOK_TOKEN: 'large-batch-token',
+                        PATH: process.env.PATH,
+                    },
+                },
+            );
+            invocation.child.stdin?.end(
+                JSON.stringify(
+                    {
+                        agent_id: 'must-not-leak-after-bound',
+                        tool_calls: [{ tool_response: 'private-result'.repeat(8_000) }],
+                    },
+                    null,
+                    2,
+                ),
+            );
+            await invocation;
+
+            const mainInvocation = execFileAsync(
+                bridgePath,
+                ['--provider', 'claude', '--phase', 'toolBatchFinished', '--schema', '5'],
+                {
+                    env: {
+                        CAXRI_HOOK_LAUNCH_ID: 'large-main-batch-launch',
+                        CAXRI_HOOK_RUNTIME: process.execPath,
+                        CAXRI_HOOK_SOCKET: socketPath,
+                        CAXRI_HOOK_TERMINAL_ID: 'large-main-batch-terminal',
+                        CAXRI_HOOK_TOKEN: 'large-main-batch-token',
+                        PATH: process.env.PATH,
+                    },
+                },
+            );
+            mainInvocation.child.stdin?.end(
+                JSON.stringify({
+                    tool_calls: [
+                        {
+                            agent_id: 'nested-content-must-not-become-scope',
+                            tool_response: 'private-result'.repeat(8_000),
+                        },
+                    ],
+                }),
+            );
+            await mainInvocation;
+
+            expect(packets).toHaveLength(2);
+            expect(packets[0]).toMatchObject({ phase: 'toolBatchFinished' });
+            expect(packets[0]).toMatchObject({ agentId: 'must-not-leak-after-bound' });
+            expect(JSON.stringify(packets[0])).not.toContain('private-result');
+            expect(packets[1]).toMatchObject({ phase: 'toolBatchFinished' });
+            expect(packets[1]).not.toHaveProperty('agentId');
+            expect(JSON.stringify(packets[1])).not.toContain('nested-content');
         } finally {
             await new Promise<void>((resolve) => server.close(() => resolve()));
         }

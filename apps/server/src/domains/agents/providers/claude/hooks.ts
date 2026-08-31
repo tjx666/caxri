@@ -14,6 +14,15 @@ const bindings = [
     { event: 'PreToolUse', matcher: '^Bash$', phase: 'shellToolStarted' },
     { event: 'PostToolUse', matcher: '^Bash$', phase: 'shellToolFinished' },
     { event: 'PostToolUseFailure', matcher: '^Bash$', phase: 'shellToolFailed' },
+    /**
+     * Claude Code exposes no event immediately after a human grants permission. The matching tool result is the first
+     * reliable public boundary that proves the turn resumed. PermissionRequest deliberately omits `tool_use_id`, while
+     * PostToolBatch fires once only after every parallel call resolves; `agent_id` isolates inherited subagent hooks.
+     *
+     * @see https://code.claude.com/docs/en/hooks#permissionrequest-input
+     * @see https://code.claude.com/docs/en/hooks#posttoolbatch
+    */
+    { event: 'PostToolBatch', phase: 'toolBatchFinished' },
 ] as const;
 
 function claudeHome(homeDirectory: string, configured: string | undefined): string {
@@ -43,7 +52,7 @@ function disabledHookPolicy(source: string | undefined): string | undefined {
 
 export const claudeHookAdapter: AgentHookAdapter = {
     bindings,
-    schemaVersion: 6,
+    schemaVersion: 7,
     autoNamingConflict: (documents) => {
         const source = settingsSource(documents);
         return source && /(?:auto-session-name|session-title-rename)\.js/u.test(source)

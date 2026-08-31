@@ -71,15 +71,22 @@ describe('Agent provider hook configuration adapters', () => {
         };
         const source = `${JSON.stringify(foreign, null, 2)}\n`;
         const installed = install(claudeHookAdapter, 'settings', source, 'claude');
+        const installedHooks = (
+            JSON.parse(installed) as unknown as { hooks: Record<string, unknown[]> }
+        ).hooks;
 
         expect(
-            claudeHookAdapter.inspect(new Map([['settings', installed]]), desired('claude', 6))
+            claudeHookAdapter.inspect(new Map([['settings', installed]]), desired('claude', 7))
                 .status,
         ).toEqual({ kind: 'current' });
+        expect(installedHooks.PostToolUse).toHaveLength(1);
+        expect(installedHooks.PostToolUse[0]).toMatchObject({ matcher: '^Bash$' });
+        expect(installedHooks.PostToolBatch).toHaveLength(1);
+        expect(installedHooks.PostToolUseFailure).toHaveLength(1);
 
         const removed = claudeHookAdapter.remove(
             new Map([['settings', installed]]),
-            desired('claude', 6),
+            desired('claude', 7),
         )[0].source;
         expect(JSON.parse(removed)).toEqual(foreign);
     });
@@ -181,7 +188,7 @@ describe('Agent provider hook configuration adapters', () => {
         },
         {
             adapter: claudeHookAdapter,
-            previousSchema: 5,
+            previousSchema: 6,
             provider: 'claude' as const,
             target: 'settings',
         },

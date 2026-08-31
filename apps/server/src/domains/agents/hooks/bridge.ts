@@ -46,7 +46,7 @@ function reportBridgeStarted() {
   socket.on('data', () => {});
   socket.on('error', () => {});
 }
-// Providers pipe a JSON payload on stdin. Only opaque session, turn, and tool identifiers plus a bounded
+// Providers pipe a JSON payload on stdin. Only opaque session, turn, subagent, and tool identifiers plus a bounded
 // worktree-create classification are extracted, so commands, output, prompts, and responses never cross this boundary.
 function splitShellSegments(command) {
   const segments = [];
@@ -162,15 +162,30 @@ function hasWorktreeCreateIntent(payload) {
 function readIdentifiers(callback) {
   let source = '';
   let done = false;
+  function prefixString(keys) {
+    let commonEnd = source.length;
+    for (const marker of ['"tool_calls"', '"tool_input"', '"tool_response"', '"permission_suggestions"']) {
+      const index = source.indexOf(marker);
+      if (index >= 0 && index < commonEnd) commonEnd = index;
+    }
+    const common = source.slice(0, commonEnd);
+    for (const key of keys) {
+      const match = common.match(new RegExp('(?:^|[,{])\\s*"' + key + '"\\s*:\\s*"([a-zA-Z0-9_.-]{1,256})"'));
+      if (match) return match[1];
+    }
+  }
   const finish = () => {
     if (done) return;
     done = true;
+    let agentId;
     let sessionId;
     let toolUseId;
     let turnId;
     let worktreeCreateIntent = false;
     try {
       const payload = JSON.parse(source);
+      const agentValue = payload && (payload.agent_id ?? payload.agentId);
+      if (typeof agentValue === 'string' && agentValue.length > 0 && agentValue.length <= 256) agentId = agentValue;
       const value = payload && (payload.session_id ?? payload.sessionId);
       if (typeof value === 'string' && value.length > 0 && value.length <= 256) sessionId = value;
       const turnValue = payload && (payload.turn_id ?? payload.turnId);
@@ -178,8 +193,14 @@ function readIdentifiers(callback) {
       const toolValue = payload && (payload.tool_use_id ?? payload.toolUseId);
       if (typeof toolValue === 'string' && toolValue.length > 0 && toolValue.length <= 256) toolUseId = toolValue;
       worktreeCreateIntent = hasWorktreeCreateIntent(payload);
-    } catch {}
-    callback({ sessionId, toolUseId, turnId, worktreeCreateIntent });
+    } catch {
+      // Common hook fields precede event-specific tool input/results. A large payload is intentionally truncated, but
+      // these bounded opaque identifiers remain recoverable without retaining or parsing provider content.
+      agentId = prefixString(['agent_id', 'agentId']);
+      sessionId = prefixString(['session_id', 'sessionId']);
+      turnId = prefixString(['turn_id', 'turnId']);
+    }
+    callback({ agentId, sessionId, toolUseId, turnId, worktreeCreateIntent });
   };
   // Stdin may be an interactive TTY when a human runs the bridge by hand; never wait on it.
   const timer = setTimeout(finish, ${BRIDGE_STDIN_TIMEOUT_MS});
@@ -187,7 +208,7 @@ function readIdentifiers(callback) {
   process.stdin.setEncoding('utf8');
   process.stdin.on('data', (chunk) => {
     source += chunk;
-    if (source.length > 65536) { source = ''; clearTimeout(timer); finish(); }
+    if (source.length > 65536) { source = source.slice(0, 65536); clearTimeout(timer); finish(); }
   });
   process.stdin.on('end', () => { clearTimeout(timer); finish(); });
   process.stdin.on('error', () => { clearTimeout(timer); finish(); });
@@ -198,7 +219,8 @@ if (!hasAnyLaunchContext) {
   process.exitCode = exitCodes.launchContextUnavailable;
 } else {
 if (process.env.CAXRI_HOOK_RECEIPTS === '1') reportBridgeStarted();
-readIdentifiers(({ sessionId, toolUseId, turnId, worktreeCreateIntent }) => {
+readIdentifiers(({ agentId, sessionId, toolUseId, turnId, worktreeCreateIntent }) => {
+  if (agentId) signal.agentId = agentId;
   if (sessionId) signal.agentSessionId = sessionId;
   if (toolUseId && worktreeCreateIntent) signal.agentToolUseId = toolUseId;
   if (turnId) signal.agentTurnId = turnId;
@@ -240,7 +262,7 @@ readIdentifiers(({ sessionId, toolUseId, turnId, worktreeCreateIntent }) => {
 }
 `;
 
-const BRIDGE_VERSION = 11;
+const BRIDGE_VERSION = 12;
 
 const BRIDGE_WRAPPER = String.raw`#!/bin/sh
 bridge_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
