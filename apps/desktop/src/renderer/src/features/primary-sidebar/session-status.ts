@@ -14,12 +14,13 @@ type SessionStatusSource = Pick<
 
 /**
  * Projects the detailed Agent lifecycle into the single status slot shared by Session lists. Attention outranks current
- * work because it represents an event the user has not acknowledged; a seen-but-still-waiting Agent remains visible
- * without animation.
+ * work because it represents an event the user has not acknowledged; a seen-but-still-waiting background Agent remains
+ * visible without animation.
  */
 export function sessionStatus(
     session: SessionStatusSource,
     agentOperation?: AgentOperation,
+    isCurrentSession = false,
 ): SessionStatus {
     const currentActivity = sessionActivityPresentation(session.lastActivityState, agentOperation);
 
@@ -38,7 +39,12 @@ export function sessionStatus(
         };
     }
 
-    if (session.lastActivityState === 'waiting') {
+    /**
+     * The current Session already exposes its waiting reason in the visible Terminal. Keeping the same yellow dot after
+     * its unread generation is acknowledged makes the row look perpetually unread, while background waiting Sessions
+     * still need a durable status cue.
+     */
+    if (!isCurrentSession && session.lastActivityState === 'waiting') {
         return {
             ariaLabel: `Needs attention. ${currentActivity.ariaLabel}`,
             emphasis: 'persistent',
