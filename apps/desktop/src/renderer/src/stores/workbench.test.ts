@@ -26,7 +26,12 @@ vi.mock('../lib/caxri', () => ({
 
 import { useSessionViewStore } from './session-view';
 import { useToastStore } from './toasts';
-import { refreshWorkbench, subscribeWorkbenchEvents, useWorkbenchStore } from './workbench';
+import {
+    refreshWorkbench,
+    registerSessionSelectionConvergence,
+    subscribeWorkbenchEvents,
+    useWorkbenchStore,
+} from './workbench';
 
 function eventHandlers() {
     return { onCommand: vi.fn(), onDesktopOpen: vi.fn() };
@@ -315,6 +320,41 @@ describe('workbench Runtime events', () => {
 
         await vi.waitFor(() => expect(mocks.request).toHaveBeenCalledTimes(1));
         expect(mocks.request.mock.calls[0]?.[0]).toBe('app.bootstrap');
+        unsubscribe();
+    });
+
+    it('holds a Session selection until its delayed event-driven snapshot converges', async () => {
+        const bootstrapRequest = Promise.withResolvers<BootstrapState>();
+        mocks.request.mockImplementation((method: unknown) => {
+            if (method === 'app.bootstrap') return bootstrapRequest.promise;
+            return Promise.reject(new Error(`Unexpected method: ${String(method)}`));
+        });
+        const unsubscribe = subscribeWorkbenchEvents(eventHandlers());
+        const convergence = registerSessionSelectionConvergence();
+
+        await expect(Promise.race([convergence.promise, Promise.resolve('pending')])).resolves.toBe(
+            'pending',
+        );
+        mocks.emit({
+            event: 'state.changed',
+            payload: { kind: 'full', reason: 'session.select' },
+        });
+        await vi.waitFor(() => expect(mocks.request).toHaveBeenCalledTimes(1));
+        await expect(Promise.race([convergence.promise, Promise.resolve('pending')])).resolves.toBe(
+            'pending',
+        );
+
+        bootstrapRequest.resolve({
+            configurationErrors: [],
+            selectedSessionId: 'session-2',
+            sessions: [{ id: 'session-2' }],
+            sessionStates: [],
+            terminals: [],
+        } as unknown as BootstrapState);
+        await convergence.promise;
+
+        expect(mocks.request).toHaveBeenCalledTimes(1);
+        expect(useWorkbenchStore.getState().bootstrap?.selectedSessionId).toBe('session-2');
         unsubscribe();
     });
 

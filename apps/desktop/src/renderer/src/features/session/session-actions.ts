@@ -8,7 +8,7 @@ import { clearPendingSession, useDialogStore } from '../../stores/dialogs';
 import { getBootstrap, getSelectedSession, selectSelectedProject } from '../../stores/selectors';
 import { useSessionViewStore } from '../../stores/session-view';
 import { tryCommand } from '../../stores/toasts';
-import { refreshWorkbench } from '../../stores/workbench';
+import { refreshWorkbench, registerSessionSelectionConvergence } from '../../stores/workbench';
 import { beginRendererPerformanceRequest } from '../renderer-performance/controller';
 import { activeSessionsInSidebarOrder } from './session-activity-order';
 import type { PendingSessionMruSelection } from './session-mru-switcher-state';
@@ -23,9 +23,11 @@ const mruNavigationState: { pendingSelection?: PendingSessionMruSelection } = {}
 
 /**
  * `session.select` publishes a full `state.changed` event before returning its result. That event is the convergence
- * path; adding `tryCommand`'s explicit refresh would queue a second full `app.bootstrap` behind the event refresh.
+ * path; register before sending so delayed Preload event replay still settles history after the event-driven snapshot,
+ * without queueing a second full `app.bootstrap` behind it.
  */
 async function didRequestSelection(sessionId: string): Promise<boolean> {
+    const convergence = registerSessionSelectionConvergence();
     const finishPerformanceRequest = beginRendererPerformanceRequest('session.select');
     const selected = await tryCommand('Session selection failed', async () => {
         try {
@@ -34,7 +36,12 @@ async function didRequestSelection(sessionId: string): Promise<boolean> {
             finishPerformanceRequest();
         }
     });
-    return selected !== undefined;
+    if (selected === undefined) {
+        convergence.cancel();
+        return false;
+    }
+    await convergence.promise;
+    return true;
 }
 
 /**
