@@ -69,6 +69,9 @@ type SessionStateFailureMode = 'retain' | 'rollback';
 const bootstrapRead = { inFlight: undefined as Promise<void> | undefined };
 const queuedRead = { current: undefined as Promise<void> | undefined };
 const recordRefresh = { inFlight: undefined as Promise<void> | undefined };
+const sessionSelectionConvergence = {
+    pending: [] as Array<{ resolve: () => void }>,
+};
 const pendingSessionRecordIds = new Set<string>();
 const pendingTerminalRecordIds = new Set<string>();
 const configErrors = { reported: false };
@@ -466,6 +469,35 @@ function applyStateChange(
     return scheduleRecordRefresh();
 }
 
+/**
+ * Registers before `session.select` is sent, then resolves after that command's event-driven snapshot finishes. The
+ * queue preserves the Runtime's serialized selection order even while Preload is replaying buffered events, and keeps
+ * the command path from scheduling a duplicate `app.bootstrap`.
+ */
+export function registerSessionSelectionConvergence(): {
+    cancel: () => void;
+    promise: Promise<void>;
+} {
+    const completion = Promise.withResolvers<void>();
+    const pending = { resolve: completion.resolve };
+    sessionSelectionConvergence.pending.push(pending);
+    return {
+        cancel: () => {
+            const index = sessionSelectionConvergence.pending.indexOf(pending);
+            if (index !== -1) sessionSelectionConvergence.pending.splice(index, 1);
+        },
+        promise: completion.promise,
+    };
+}
+
+function resolveNextSessionSelectionConvergence(refresh: Promise<void>): void {
+    const pending = sessionSelectionConvergence.pending.shift();
+    if (!pending) return;
+    // Fire-and-forget: both outcomes release the command; refreshWorkbench reports its own failure to the user.
+    // eslint-disable-next-line no-void -- the registered command owns the completion promise, not this continuation
+    void refresh.then(() => pending.resolve()).catch(() => pending.resolve());
+}
+
 async function runLoadBootstrap(): Promise<void> {
     const terminalReadSequence = beginTerminalRead();
     const finishPerformanceRequest = beginRendererPerformanceRequest('app.bootstrap');
@@ -565,11 +597,16 @@ export interface WorkbenchEventHandlers {
 export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () => void {
     return caxri.onEvent((event) => {
         switch (event.event) {
-            case 'state.changed':
+            case 'state.changed': {
+                const refresh = applyStateChange(event.payload);
+                if (event.payload.kind === 'full' && event.payload.reason === 'session.select') {
+                    resolveNextSessionSelectionConvergence(refresh);
+                }
                 // Fire-and-forget: applyStateChange() catches its own Server request failures.
                 // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-                void applyStateChange(event.payload);
+                void refresh;
                 return;
+            }
             case 'runtime.status': {
                 const payload = event.payload;
                 if (payload.status === 'ready') {
