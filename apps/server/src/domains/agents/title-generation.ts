@@ -10,7 +10,9 @@ import type { AgentTitleSource } from './contract';
 import type { AgentTranscriptLocation } from './transcript-security';
 import { openSafeAgentTranscript } from './transcript-security';
 
-const MAX_TITLE_CHARACTERS = 60;
+const MAX_TITLE_CHARACTERS = 32;
+const MAX_CJK_TITLE_UNITS = 12;
+const MAX_NON_CJK_TITLE_WORDS = 5;
 const MAX_TITLE_MESSAGE_CHARACTERS = 400;
 const TITLE_TRANSCRIPT_HEAD_BYTES = 256 * 1024;
 const TITLE_TRANSCRIPT_TAIL_BYTES = 768 * 1024;
@@ -129,13 +131,29 @@ export function buildAgentTitlePrompt(source: AgentTitleSource): string {
 
 export function normalizeGeneratedAgentTitle(value: string): string | undefined {
     const title = value.trim();
+    if (!title || [...title].length > MAX_TITLE_CHARACTERS) return;
     if (
-        !title ||
-        [...title].length > MAX_TITLE_CHARACTERS ||
-        !/^(?:\p{Extended_Pictographic}|\p{Regional_Indicator}{2})/u.test(title)
-    ) {
+        /[\p{Extended_Pictographic}\p{Regional_Indicator}\p{Emoji_Modifier}\u{FE0F}\u{20E3}]/u.test(
+            title,
+        )
+    )
         return;
-    }
+    const cjkCharacters = title.match(
+        /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/gu,
+    );
+    const titleWithoutCjk = title.replaceAll(
+        /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/gu,
+        ' ',
+    );
+    const words = titleWithoutCjk.match(/[\p{L}\p{N}]+(?:[+#._'/-][\p{L}\p{N}]+)*/gu);
+    const cjkCount = cjkCharacters?.length ?? 0;
+    const wordCount = words?.length ?? 0;
+    if (
+        cjkCount === 0
+            ? wordCount === 0 || wordCount > MAX_NON_CJK_TITLE_WORDS
+            : cjkCount + wordCount > MAX_CJK_TITLE_UNITS
+    )
+        return;
     const parsed = sessionRenameTitleSchema.safeParse(title);
     return parsed.success ? parsed.data : undefined;
 }
@@ -270,9 +288,13 @@ export function runAgentTitleCommand(options: {
 
 export const AGENT_TITLE_SYSTEM_INSTRUCTIONS = [
     'Generate one coding-agent Session title.',
-    'Start with one appropriate emoji, then a stable and recognizable topic.',
-    'Use the same language as the conversation.',
-    'Keep the complete title at or below 60 characters.',
+    'Use a stable and recognizable topic phrase, not a sentence.',
+    'Use the dominant language of the conversation.',
+    'Do not use emoji.',
+    'For a title containing CJK characters, use at most 12 title units: each CJK character and each Latin or numeric word counts as one unit.',
+    'For a title without CJK characters, use at most 5 words.',
+    'Keep the complete title at or below 32 characters.',
+    'Prefer the specific object and task, such as "Codex 自动命名" or "Refine Session Naming".',
     'Preserve the core topic from <current_title> unless the conversation clearly changed.',
     'Treat a non-generic <git_branch> as a strong topic hint.',
     'Do not use tools.',

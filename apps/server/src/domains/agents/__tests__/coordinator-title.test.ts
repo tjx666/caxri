@@ -90,7 +90,7 @@ describe('AgentCoordinator provider title propagation', () => {
         }
     });
 
-    it('keeps a raw Codex first prompt out of the persisted Session title', async () => {
+    it('keeps a raw Codex first prompt out and later mirrors the native thread name', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-codex-title-'));
         temporaryDirectories.push(directory);
         const root = join(directory, 'project');
@@ -100,6 +100,8 @@ describe('AgentCoordinator provider title propagation', () => {
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(root).id, 'codex');
         const codexSessionId = 'codex-session-sensitive-prompt';
+        const rawFirstPrompt = '  Fix\tlogin\nbug  ';
+        const provisionalTitle = 'Fix login bug';
         const state = new Database(join(stateDirectory, 'state_1.sqlite'));
         state.exec(
             'CREATE TABLE threads (id TEXT PRIMARY KEY, cwd TEXT, title TEXT, name TEXT, created_at_ms INTEGER, updated_at_ms INTEGER, tokens_used INTEGER, archived INTEGER)',
@@ -109,7 +111,7 @@ describe('AgentCoordinator provider title propagation', () => {
             .run(
                 codexSessionId,
                 root,
-                'Sensitive raw first prompt',
+                rawFirstPrompt,
                 null,
                 Date.now() + 1_000,
                 Date.now() + 1_000,
@@ -147,6 +149,27 @@ describe('AgentCoordinator provider title propagation', () => {
                 .poll(() => database.getTerminal(created.terminal!.id)?.agentSessionId)
                 .toBe(codexSessionId);
             expect(database.getSession(created.session.id)?.displayTitle).toBe('Untitled');
+
+            const updatedState = new Database(join(stateDirectory, 'state_1.sqlite'));
+            updatedState
+                .prepare('UPDATE threads SET name = ?, updated_at_ms = ? WHERE id = ?')
+                .run(provisionalTitle, Date.now() + 2_000, codexSessionId);
+            updatedState.close();
+            coordinator.observeOutput(created.terminal!.id);
+
+            await new Promise((resolve) => setTimeout(resolve, 25));
+            expect(database.getSession(created.session.id)?.displayTitle).toBe('Untitled');
+
+            const finalState = new Database(join(stateDirectory, 'state_1.sqlite'));
+            finalState
+                .prepare('UPDATE threads SET name = ?, updated_at_ms = ? WHERE id = ?')
+                .run('Refine Session Naming', Date.now() + 3_000, codexSessionId);
+            finalState.close();
+            coordinator.observeOutput(created.terminal!.id);
+
+            await expect
+                .poll(() => database.getSession(created.session.id)?.displayTitle)
+                .toBe('Refine Session Naming');
         } finally {
             coordinator.close();
             database.close();

@@ -4,9 +4,15 @@ import type { ParseError } from 'jsonc-parser';
 import { parse } from 'jsonc-parser';
 
 import type { AgentHookAdapter, AgentHookDocuments } from '../../hooks/contract';
-import { inspectJsonHooks, removeJsonHooks, renderJsonHooks } from '../../hooks/json-config';
+import {
+    inspectJsonHooks,
+    jsonHookCommands,
+    removeJsonHooks,
+    renderJsonHooks,
+} from '../../hooks/json-config';
 
 const SETTINGS_TARGET = 'settings';
+const CAXRI_MANAGED_AWARE_FLAG = '--caxri-managed-aware';
 const bindings = [
     { event: 'UserPromptSubmit', phase: 'turnStarted' },
     { event: 'PermissionRequest', phase: 'attentionRequested' },
@@ -54,9 +60,13 @@ export const claudeHookAdapter: AgentHookAdapter = {
     bindings,
     schemaVersion: 7,
     autoNamingConflict: (documents) => {
-        const source = settingsSource(documents);
-        return source && /(?:auto-session-name|session-title-rename)\.js/u.test(source)
-            ? 'Existing automatic naming hook detected. Caxri left it unchanged; disable it to avoid duplicate model calls.'
+        const hasUnawareHook = jsonHookCommands(settingsSource(documents)).some(
+            (command) =>
+                /(?:auto-session-name|session-title-rename)\.js(?=["'\s]|$)/u.test(command) &&
+                !command.split(/\s+/u).includes(CAXRI_MANAGED_AWARE_FLAG),
+        );
+        return hasUnawareHook
+            ? `Existing automatic naming hook detected. Add ${CAXRI_MANAGED_AWARE_FLAG} after making it skip when CAXRI_MANAGED_AGENT=1.`
             : undefined;
     },
     configTargets: (environment) => [

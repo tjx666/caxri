@@ -570,12 +570,12 @@ describe('AgentHookManager', () => {
         }
     });
 
-    it('preserves an existing automatic naming hook and exposes the conflict in health', async () => {
+    it('preserves an unaware Claude naming hook and exposes the conflict in health', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-hooks-auto-name-'));
         temporaryDirectories.push(directory);
-        const codexHome = join(directory, 'codex');
-        const hooksPath = join(codexHome, 'hooks.json');
-        await mkdir(codexHome, { recursive: true });
+        const claudeHome = join(directory, '.claude');
+        const hooksPath = join(claudeHome, 'settings.json');
+        await mkdir(claudeHome, { recursive: true });
         await writeFile(
             hooksPath,
             JSON.stringify({
@@ -585,7 +585,7 @@ describe('AgentHookManager', () => {
                             hooks: [
                                 {
                                     type: 'command',
-                                    command: join(codexHome, 'hooks', 'auto-thread-name.js'),
+                                    command: join(claudeHome, 'hooks', 'session-title-rename.js'),
                                 },
                             ],
                         },
@@ -595,10 +595,10 @@ describe('AgentHookManager', () => {
             'utf8',
         );
         const settings = structuredClone(defaultAgentProviderSettings);
-        settings.codex.hooks.enabled = true;
-        settings.codex.naming.enabled = true;
+        settings.claude.hooks.enabled = true;
+        settings.claude.naming.enabled = true;
         const manager = new AgentHookManager({
-            environment: { homeDirectory: directory, variables: { CODEX_HOME: codexHome } },
+            environment: { homeDirectory: directory, variables: {} },
             logger: new StructuredLogger(join(directory, 'logs')),
             onAuthorityLost: vi.fn(),
             onLaunchEnded: vi.fn(),
@@ -613,11 +613,11 @@ describe('AgentHookManager', () => {
         try {
             await manager.initialize(settings);
 
-            expect(manager.hasAutoNamingConflict('codex')).toBe(true);
-            const namingHealth = manager.getHealth().codex.automaticNaming;
+            expect(manager.hasAutoNamingConflict('claude')).toBe(true);
+            const namingHealth = manager.getHealth().claude.automaticNaming;
             expect(namingHealth?.kind).toBe('blocked');
-            expect(namingHealth?.message).toContain('left it unchanged');
-            expect(await readFile(hooksPath, 'utf8')).toContain('auto-thread-name.js');
+            expect(namingHealth?.message).toContain('--caxri-managed-aware');
+            expect(await readFile(hooksPath, 'utf8')).toContain('session-title-rename.js');
         } finally {
             await manager.close();
         }

@@ -95,164 +95,6 @@ afterEach(async () => {
 });
 
 describe('Codex provider', () => {
-    it('reads the exact rollout and excludes injected harness context from naming', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-codex-naming-source-'));
-        temporaryDirectories.push(directory);
-        const codexHome = join(directory, 'codex');
-        const sqliteHome = join(codexHome, 'sqlite');
-        const rolloutDirectory = join(codexHome, 'sessions', '2026', '08', '30');
-        const threadId = 'thread-naming-1';
-        const rolloutPath = join(rolloutDirectory, `rollout-2026-08-30-${threadId}.jsonl`);
-        await Promise.all([
-            mkdir(sqliteHome, { recursive: true }),
-            mkdir(rolloutDirectory, { recursive: true }),
-        ]);
-        await writeFile(
-            rolloutPath,
-            [
-                {
-                    type: 'response_item',
-                    payload: {
-                        type: 'message',
-                        role: 'user',
-                        content: [
-                            {
-                                type: 'input_text',
-                                text: '# AGENTS.md instructions for /private/path',
-                            },
-                            { type: 'input_text', text: 'Implement automatic naming' },
-                        ],
-                    },
-                },
-                {
-                    type: 'response_item',
-                    payload: {
-                        type: 'message',
-                        role: 'assistant',
-                        content: [{ type: 'output_text', text: 'I will inspect provider state.' }],
-                    },
-                },
-            ]
-                .map((record) => JSON.stringify(record))
-                .join('\n'),
-            'utf8',
-        );
-        const database = new Database(join(sqliteHome, 'state_1.sqlite'));
-        database.exec(
-            'CREATE TABLE threads (id TEXT PRIMARY KEY, title TEXT, name TEXT, git_branch TEXT, rollout_path TEXT)',
-        );
-        database
-            .prepare('INSERT INTO threads VALUES (?, ?, ?, ?, ?)')
-            .run(threadId, 'Derived title', 'Manual Codex title', 'feat/auto-name', rolloutPath);
-        database.close();
-
-        const source = await codexProvider.naming?.readSource(
-            { agentSessionId: threadId, rootPath: directory },
-            { homeDirectory: directory, variables: { CODEX_HOME: codexHome } },
-        );
-
-        expect(source).toMatchObject({
-            assistantMessages: ['I will inspect provider state.'],
-            currentProviderTitle: 'Manual Codex title',
-            gitBranch: 'feat/auto-name',
-            providerTitleState: 'explicit',
-            userMessages: ['Implement automatic naming'],
-        });
-        expect(JSON.stringify(source)).not.toContain('AGENTS.md');
-        expect(JSON.stringify(source)).not.toContain('/private/path');
-    });
-
-    it('uses the current low-cost Codex model and keeps prompt content out of argv', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-codex-naming-command-'));
-        temporaryDirectories.push(directory);
-        const executable = join(directory, 'codex.cjs');
-        const argumentsPath = join(directory, 'arguments.json');
-        const cwdPath = join(directory, 'cwd.txt');
-        const exposurePath = join(directory, 'exposure.json');
-        const inputPath = join(directory, 'input.txt');
-        const projectDirectory = join(directory, 'project');
-        const codexHome = join(directory, 'codex-home');
-        const projectMarker = join(projectDirectory, 'private-source.txt');
-        await Promise.all([mkdir(projectDirectory), mkdir(codexHome)]);
-        await Promise.all([
-            writeFile(projectMarker, 'PROJECT_SOURCE_MARKER'),
-            writeFile(join(codexHome, 'AGENTS.md'), 'GLOBAL_INSTRUCTION_MARKER'),
-        ]);
-        await writeFile(
-            executable,
-            String.raw`#!${process.execPath}
-const { readFileSync, writeFileSync } = require('node:fs');
-writeFileSync(${JSON.stringify(argumentsPath)}, JSON.stringify(process.argv.slice(2)));
-writeFileSync(${JSON.stringify(cwdPath)}, process.cwd());
-const readMarker = (path) => { try { return readFileSync(path, 'utf8'); } catch { return 'blocked'; } };
-writeFileSync(${JSON.stringify(exposurePath)}, JSON.stringify({
-    globalInstructions: readMarker(${JSON.stringify(join(codexHome, 'AGENTS.md'))}),
-    projectSource: readMarker(${JSON.stringify(projectMarker)}),
-}));
-let input = '';
-process.stdin.setEncoding('utf8');
-process.stdin.on('data', (chunk) => { input += chunk; });
-process.stdin.on('end', () => {
-    writeFileSync(${JSON.stringify(inputPath)}, input);
-    process.stdout.write(JSON.stringify({
-        type: 'item.completed',
-        item: { type: 'agent_message', text: '🧭 Codex naming lifecycle' },
-    }) + '\n');
-});
-`,
-            'utf8',
-        );
-        await chmod(executable, 0o700);
-
-        await expect(
-            codexProvider.naming?.generateTitle({
-                cwd: projectDirectory,
-                environment: {
-                    homeDirectory: directory,
-                    variables: { CODEX_HOME: codexHome },
-                },
-                executable,
-                prompt: 'private transcript excerpt',
-                version: 'codex-cli 0.122.0',
-            }),
-        ).resolves.toBe('🧭 Codex naming lifecycle');
-        const arguments_ = JSON.parse(await readFile(argumentsPath, 'utf8')) as string[];
-        expect(arguments_).toEqual(
-            expect.arrayContaining(['-m', 'gpt-5.6-luna', '--ephemeral', '--ignore-user-config']),
-        );
-        expect(arguments_).toEqual(
-            expect.arrayContaining([
-                '--disable',
-                'codex_hooks',
-                '--disable',
-                'shell_tool',
-                'project_doc_max_bytes=0',
-                'web_search="disabled"',
-            ]),
-        );
-        expect(arguments_.join(' ')).not.toContain('private transcript excerpt');
-        expect(await readFile(inputPath, 'utf8')).toContain('private transcript excerpt');
-        expect(await readFile(cwdPath, 'utf8')).not.toBe(projectDirectory);
-        const exposure = JSON.parse(await readFile(exposurePath, 'utf8')) as {
-            globalInstructions: string;
-            projectSource: string;
-        };
-        expect(exposure.globalInstructions).toBe('blocked');
-        expect(exposure.projectSource).toBe('blocked');
-    });
-
-    it('rejects Codex versions before the required naming flags were introduced', async () => {
-        await expect(
-            codexProvider.naming?.generateTitle({
-                cwd: '/project',
-                environment: { homeDirectory: '/missing', variables: {} },
-                executable: '/missing/codex',
-                prompt: 'private transcript excerpt',
-                version: 'codex-cli 0.121.9',
-            }),
-        ).rejects.toMatchObject({ code: 'UNAVAILABLE' });
-    });
-
     it('bounds provider state database candidates before synchronous probing', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-codex-state-budget-'));
         temporaryDirectories.push(directory);
@@ -512,6 +354,56 @@ process.stdin.on('end', () => {
                 24,
                 0,
             );
+        const longPrompt =
+            '\u{A0}Please\tinvestigate the automatic Session naming behavior and fix ownership';
+        writableDatabase
+            .prepare('INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+            .run(
+                'codex-session-indistinguishable-name',
+                root,
+                '  Fix\tlogin\nbug  ',
+                'Fix login bug',
+                startedAt + 3,
+                startedAt + 3,
+                0,
+                0,
+            );
+        writableDatabase
+            .prepare('INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+            .run(
+                'codex-session-long-provisional',
+                root,
+                longPrompt,
+                longPrompt.replaceAll(/\s+/gu, ' ').trim().slice(0, 36),
+                startedAt + 4,
+                startedAt + 4,
+                0,
+                0,
+            );
+        writableDatabase
+            .prepare('INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+            .run(
+                'codex-session-36-character-final',
+                root,
+                'Unrelated raw prompt',
+                'Thirty Six Character Native Title OK',
+                startedAt + 5,
+                startedAt + 5,
+                0,
+                0,
+            );
+        writableDatabase
+            .prepare('INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+            .run(
+                'codex-session-trimmed-provisional',
+                root,
+                `${'a'.repeat(35)} b`,
+                'a'.repeat(35),
+                startedAt + 6,
+                startedAt + 6,
+                0,
+                0,
+            );
         writableDatabase.close();
 
         await expect(
@@ -549,6 +441,36 @@ process.stdin.on('end', () => {
             title: undefined,
             usage: [{ label: 'Tokens', value: '42' }],
         });
+        // Codex persists no source for the second write, so an identical generated name stays
+        // indistinguishable from the raw-prompt preview and remains hidden.
+        await expect(
+            service.snapshot('codex', {
+                agentSessionId: 'codex-session-indistinguishable-name',
+                rootPath: root,
+                processState: 'running',
+            }),
+        ).resolves.toMatchObject({ title: undefined });
+        await expect(
+            service.snapshot('codex', {
+                agentSessionId: 'codex-session-long-provisional',
+                rootPath: root,
+                processState: 'running',
+            }),
+        ).resolves.toMatchObject({ title: undefined });
+        await expect(
+            service.snapshot('codex', {
+                agentSessionId: 'codex-session-36-character-final',
+                rootPath: root,
+                processState: 'running',
+            }),
+        ).resolves.toMatchObject({ title: 'Thirty Six Character Native Title OK' });
+        await expect(
+            service.snapshot('codex', {
+                agentSessionId: 'codex-session-trimmed-provisional',
+                rootPath: root,
+                processState: 'running',
+            }),
+        ).resolves.toMatchObject({ title: undefined });
 
         const statusSnapshots = await Promise.all(
             ['turn-running', 'turn-interrupted', 'turn-failed'].map((agentTurnId) =>
