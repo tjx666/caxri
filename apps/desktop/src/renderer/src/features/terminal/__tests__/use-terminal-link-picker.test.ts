@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import type { TerminalLinkPickerState } from '../hooks/use-terminal-link-picker';
+import { terminalLinkPickerReducer } from '../hooks/use-terminal-link-picker';
 import type { TerminalDetectedLink } from '../terminal-links';
-import type { TerminalLinkPickerState } from '../use-terminal-link-picker';
-import { terminalLinkPickerReducer } from '../use-terminal-link-picker';
 
 const initialState: TerminalLinkPickerState = {
     isOpen: false,

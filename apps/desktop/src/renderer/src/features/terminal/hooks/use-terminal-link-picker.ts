@@ -3,9 +3,9 @@ import { useCallback, useEffect, useReducer, useRef } from 'react';
 import {
     createTerminalLinkScanner,
     registerTerminalLinkPickerHandler,
-} from './terminal-link-actions';
-import type { TerminalLinkScanStatus } from './terminal-link-scanner';
-import type { TerminalDetectedLink } from './terminal-links';
+} from '../terminal-link-actions';
+import type { TerminalLinkScanStatus } from '../terminal-link-scanner';
+import type { TerminalDetectedLink } from '../terminal-links';
 
 export interface TerminalLinkPickerState {
     isOpen: boolean;

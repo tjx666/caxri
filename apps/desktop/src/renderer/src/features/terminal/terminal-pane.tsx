@@ -19,6 +19,8 @@ import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
 import { useSelectedSession, useSettings, useTerminal, useTheme } from '../../stores/selectors';
 import { useWorkbenchStore } from '../../stores/workbench';
+import { useTerminalLinkPicker } from './hooks/use-terminal-link-picker';
+import { useTerminalPaneRuntime } from './hooks/use-terminal-pane-runtime';
 import {
     activateTerminal,
     clearActiveTerminal,
@@ -42,8 +44,6 @@ import {
     terminalSearchReducer,
 } from './terminal-search';
 import { TerminalSearchBar } from './terminal-search-bar';
-import { useTerminalLinkPicker } from './use-terminal-link-picker';
-import { useTerminalPaneRuntime } from './use-terminal-pane-runtime';
 
 interface TerminalPaneProperties {
     active: boolean;
