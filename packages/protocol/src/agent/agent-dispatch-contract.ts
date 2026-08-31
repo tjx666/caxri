@@ -113,6 +113,10 @@ function hasUnsafeTerminalControl(value: string): boolean {
 
 export const terminalSendParametersSchema = z.strictObject({
     terminalId: identifierSchema,
+    /**
+     * Optional optimistic fence used by a remote companion replying to one exact attention event.
+     */
+    attentionEpoch: z.number().int().nonnegative().optional(),
     text: z
         .string()
         .min(1)

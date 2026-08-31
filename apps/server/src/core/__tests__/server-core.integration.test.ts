@@ -444,6 +444,7 @@ describe('Server Core application', () => {
         expect(agent.welcome.commands).not.toContain('agent.dispatch.start');
         expect(agent.welcome.commands).not.toContain('agent.control.interrupt');
         expect(agent.welcome.commands).not.toContain('terminal.send');
+        expect(agent.welcome.commands).not.toContain('terminal.preview');
         await expect(
             agent.request('agent.dispatch.status', { dispatchId: 'dispatch-readable' }),
         ).resolves.toMatchObject({ dispatchId: 'dispatch-readable', projectId: 'project-1' });
@@ -504,6 +505,9 @@ describe('Server Core application', () => {
                 text: 'agent must not steer',
                 enter: true,
             }),
+        ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+        await expect(
+            agent.request('terminal.preview', { terminalId: 'terminal-1' }),
         ).rejects.toMatchObject({ code: 'FORBIDDEN' });
         await expect(
             operator.request('terminal.send', {

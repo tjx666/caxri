@@ -108,8 +108,10 @@ describe('isRowModified', () => {
 describe('isRowResettable / rowResetAction', () => {
     it('excludes navigation and health rows from reset', () => {
         expect(isRowResettable({ type: 'archived-sessions' })).toBe(false);
+        expect(isRowResettable({ type: 'mobile-access' })).toBe(false);
         expect(isRowResettable({ type: 'provider-skill-health', provider: 'codex' })).toBe(false);
         expect(rowResetAction({ type: 'archived-sessions' }, settings())).toBeUndefined();
+        expect(rowResetAction({ type: 'mobile-access' }, settings())).toBeUndefined();
     });
 
     it('resets a scalar setting to its shipped default', () => {

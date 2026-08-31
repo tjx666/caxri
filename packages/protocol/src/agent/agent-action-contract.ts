@@ -1,3 +1,4 @@
+import { sortedCopy } from '@caxri/utils';
 import { z } from 'zod';
 
 import { agentProviderSchema, identifierSchema } from '../domain/domain.js';
@@ -100,7 +101,7 @@ export function mergeAgentActions(
             source: current?.source ?? 'custom',
         });
     }
-    const sorted = merged.values().toArray().toSorted(compareActions);
+    const sorted = sortedCopy(merged.values(), compareActions);
     if (sorted.length <= MAX_AGENT_ACTIONS) return sorted;
 
     const userInvocations = new Set(
@@ -109,7 +110,7 @@ export function mergeAgentActions(
         ),
     );
     const defaultInvocations = new Set(defaults.map((action) => action.invocation));
-    return [
+    const limited = [
         ...sorted.filter((action) => userInvocations.has(action.invocation)),
         ...sorted.filter(
             (action) =>
@@ -121,9 +122,8 @@ export function mergeAgentActions(
                 !userInvocations.has(action.invocation) &&
                 !defaultInvocations.has(action.invocation),
         ),
-    ]
-        .slice(0, MAX_AGENT_ACTIONS)
-        .toSorted(compareActions);
+    ].slice(0, MAX_AGENT_ACTIONS);
+    return sortedCopy(limited, compareActions);
 }
 
 export const agentActionListResultSchema = z.strictObject({

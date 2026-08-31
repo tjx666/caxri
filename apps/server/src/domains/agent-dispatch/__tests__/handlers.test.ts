@@ -50,4 +50,112 @@ describe('Agent command handlers', () => {
         expect(signalAgentExact).toHaveBeenCalledWith('terminal-1', 'launch-1', 'SIGINT');
         expect(signalExact).not.toHaveBeenCalled();
     });
+
+    it('accepts a reply only while the exact waiting attention generation is still current', () => {
+        const write = vi.fn(() => true);
+        const writeAgent = vi.fn(() => true);
+        const session = {
+            id: 'session-1',
+            primaryAgentTerminalId: 'terminal-1',
+            lastActivityState: 'waiting',
+            attentionEpoch: 3,
+        };
+        const consumeSessionAttentionReply = vi.fn(
+            (_sessionId: string, _terminalId: string, attentionEpoch: number) => {
+                if (
+                    session.lastActivityState !== 'waiting' ||
+                    session.attentionEpoch !== attentionEpoch
+                )
+                    return false;
+                session.lastActivityState = 'running';
+                return true;
+            },
+        );
+        const handlers = createAgentCommandHandlers({
+            coordinator: { observeInput: vi.fn(() => false) } as unknown as AgentCoordinator,
+            database: {
+                getTerminal: vi.fn(() => ({
+                    id: 'terminal-1',
+                    sessionId: 'session-1',
+                    kind: 'codex',
+                })),
+                getSession: vi.fn(() => session),
+                consumeSessionAttentionReply,
+                releaseSessionAttentionReply: vi.fn(() => true),
+            } as unknown as CaxriDatabase,
+            dispatch: {} as AgentDispatchService,
+            emit: vi.fn(),
+            mainOwned: () => {
+                throw new Error('Unexpected public handler call');
+            },
+            terminals: {
+                processId: vi.fn(() => 4_242),
+                write,
+                writeAgent,
+            } as unknown as TerminalManager,
+        });
+
+        expect(
+            handlers['terminal.sendInternal']({
+                terminalId: 'terminal-1',
+                text: 'Continue',
+                enter: true,
+                attentionEpoch: 3,
+            }),
+        ).toMatchObject({ accepted: true, terminalId: 'terminal-1' });
+        expect(() =>
+            handlers['terminal.sendInternal']({
+                terminalId: 'terminal-1',
+                text: 'Stale reply',
+                enter: true,
+                attentionEpoch: 3,
+            }),
+        ).toThrow('Agent attention changed before the reply was accepted');
+        expect(consumeSessionAttentionReply).toHaveBeenCalledOnce();
+        expect(write).not.toHaveBeenCalled();
+        expect(writeAgent).toHaveBeenCalledOnce();
+    });
+
+    it('releases the attention claim when the PTY input queue rejects synchronously', () => {
+        const releaseSessionAttentionReply = vi.fn(() => true);
+        const handlers = createAgentCommandHandlers({
+            coordinator: { observeInput: vi.fn(() => false) } as unknown as AgentCoordinator,
+            database: {
+                getTerminal: vi.fn(() => ({
+                    id: 'terminal-1',
+                    sessionId: 'session-1',
+                    kind: 'codex',
+                })),
+                getSession: vi.fn(() => ({
+                    id: 'session-1',
+                    primaryAgentTerminalId: 'terminal-1',
+                    lastActivityState: 'waiting',
+                    attentionEpoch: 3,
+                })),
+                consumeSessionAttentionReply: vi.fn(() => true),
+                releaseSessionAttentionReply,
+            } as unknown as CaxriDatabase,
+            dispatch: {} as AgentDispatchService,
+            emit: vi.fn(),
+            mainOwned: () => {
+                throw new Error('Unexpected public handler call');
+            },
+            terminals: {
+                processId: vi.fn(() => 4_242),
+                writeAgent: vi.fn(() => {
+                    throw new Error('input queue is full');
+                }),
+            } as unknown as TerminalManager,
+        });
+
+        expect(() =>
+            handlers['terminal.sendInternal']({
+                terminalId: 'terminal-1',
+                text: 'Continue',
+                enter: true,
+                attentionEpoch: 3,
+            }),
+        ).toThrow('input queue is full');
+        expect(releaseSessionAttentionReply).toHaveBeenCalledWith('session-1', 'terminal-1', 3);
+    });
 });

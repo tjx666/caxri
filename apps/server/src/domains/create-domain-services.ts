@@ -400,10 +400,8 @@ export async function createDomainServices(
                 payload: { kind: 'records', sessionIds: [], terminalIds: restoredTerminalIds },
             });
     }
-
     const { restoreInterruptedTerminalsInBackground, watchSessionInBackground } =
         createBackgroundTasks(logger, files, restoreInterruptedTerminals);
-
     const dispatchService = new AgentDispatchService({
         database,
         coordinator,
@@ -417,7 +415,6 @@ export async function createDomainServices(
     agentDispatchState.service = dispatchService;
     dispatchService.initialize();
     const sessionSelections = new SessionSelectionQueue();
-
     let isClosed = false;
     async function close(): Promise<void> {
         if (isClosed) return;
@@ -491,6 +488,14 @@ export async function createDomainServices(
         }),
         'host.status': () => mainOwned('host.status'),
         'host.stop': () => mainOwned('host.stop'),
+        'mobile.access.status': () => mainOwned('mobile.access.status'),
+        'mobile.access.enable': () => mainOwned('mobile.access.enable'),
+        'mobile.access.disable': () => mainOwned('mobile.access.disable'),
+        'mobile.pairing.create': () => mainOwned('mobile.pairing.create'),
+        'mobile.device.list': () => mainOwned('mobile.device.list'),
+        'mobile.dashboard': () => mainOwned('mobile.dashboard'),
+        'mobile.device.revoke': () => mainOwned('mobile.device.revoke'),
+        'mobile.device.revoke.apply': () => mainOwned('mobile.device.revoke.apply'),
         'desktop.status': () => mainOwned('desktop.status'),
         'desktop.focus': () => mainOwned('desktop.focus'),
         'desktop.openPath': () => mainOwned('desktop.openPath'),
@@ -748,6 +753,7 @@ export async function createDomainServices(
             terminals,
         }),
         'terminal.snapshot': ({ terminalId }) => terminals.snapshot(terminalId),
+        'terminal.preview': ({ terminalId }) => terminals.preview(terminalId),
         'terminal.runningCount': ({ sessionId }) => terminals.runningCount(sessionId),
         'terminal.resources': ({ terminalId }) => terminals.resources(terminalId),
         'terminal.query': () => mainOwned('terminal.query'),

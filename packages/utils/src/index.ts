@@ -13,3 +13,4 @@ export * from './grid-burst.js';
 export * from './path-basename.js';
 export * from './redaction.js';
 export * from './relative-time.js';
+export * from './sorted-copy.js';

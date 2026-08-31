@@ -3,6 +3,9 @@ dist/
 release/
 release.noindex/
 node_modules/
+apps/mobile/.expo/
+apps/mobile/android/
+apps/mobile/ios/
 logs/
 test-results/
 playwright-report/

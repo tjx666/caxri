@@ -225,6 +225,27 @@ describe('shared ESLint preset toolchain contract', () => {
         );
     });
 
+    it('rejects platform imports across both mobile runtime roots', async () => {
+        const cases = [
+            ['apps/mobile/src/node-prefixed-import.ts', 'node:fs'],
+            ['apps/mobile/app/node-bare-import.ts', 'fs'],
+            ['apps/mobile/src/electron-import.ts', 'electron'],
+            ['apps/mobile/app/node-pty-import.ts', 'node-pty'],
+            ['apps/mobile/src/sqlite-import.ts', 'better-sqlite3'],
+            ['apps/mobile/app/watcher-import.ts', '@parcel/watcher'],
+            ['apps/mobile/src/web-socket-package-import.ts', 'ws'],
+        ] as const;
+        const results = await Promise.all(
+            cases.map(([path, specifier]) => lintSource(path, `import '${specifier}';`)),
+        );
+
+        for (const [index, result] of results.entries())
+            expect(
+                result.messages.map(({ ruleId }) => ruleId),
+                cases[index]?.[0],
+            ).toContain('caxri/architecture-boundaries');
+    });
+
     it('keeps every shared browser-unsafe dependency out of Renderer source', async () => {
         const results = await Promise.all(
             ['ws', '@parcel/watcher'].map((specifier) =>

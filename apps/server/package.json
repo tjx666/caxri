@@ -13,6 +13,7 @@
     },
     "dependencies": {
         "@caxri/agent-skills": "workspace:*",
+        "@caxri/mobile-transport": "workspace:*",
         "@caxri/protocol": "workspace:*",
         "@caxri/system": "workspace:*",
         "@caxri/utils": "workspace:*",

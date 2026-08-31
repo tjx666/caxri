@@ -37,7 +37,7 @@ function splitTerminalInput(data: string): string[] {
 }
 
 /**
- * Owns bounded private chunks and per-public-input acknowledgements for one Terminal attachment.
+ * Owns bounded private chunks and per-public-input acknowledgements for one attachment or managed-Agent route.
  */
 export class TerminalInputQueue<Identity> {
     private activeBatch?: TerminalInputBatch;
@@ -50,9 +50,13 @@ export class TerminalInputQueue<Identity> {
     queuedCharacters = 0;
 
     constructor(
-        readonly attachmentId: string,
+        readonly attachmentId: string | undefined,
         readonly identity: Identity,
-    ) {}
+        readonly agentLaunchId?: string,
+    ) {
+        if ((attachmentId === undefined) === (agentLaunchId === undefined))
+            throw new Error('Terminal input queue requires exactly one input route');
+    }
 
     private acknowledgeReceipt(receipt: TerminalInputReceipt): void {
         receipt.remainingChunks -= 1;

@@ -100,14 +100,24 @@ describe('dirty layer report', () => {
                 [
                     'apps/desktop/src/renderer/src/app.tsx',
                     'apps/server/src/core/server-core.ts',
+                    'apps/mobile/src/features/sessions/session-model.ts',
                     'apps/cli/src/application.ts',
                     'packages/client/src/index.ts',
+                    'packages/mobile-transport/src/index.ts',
                     'packages/system/src/index.ts',
                 ],
                 true,
             ),
         ).toEqual({
-            layers: ['Renderer', 'Server Core', 'System', 'Shared', 'CLI'],
+            layers: [
+                'Renderer',
+                'Server Core',
+                'Mobile',
+                'System',
+                'Shared',
+                'Mobile Transport',
+                'CLI',
+            ],
             suggestedGates: ['bun run doctor:changed', 'bun run knip'],
         });
     });

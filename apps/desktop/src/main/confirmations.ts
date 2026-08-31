@@ -96,6 +96,22 @@ export function deleteSessionPrompt(title: string, runningTerminals: number): Me
     return deletePrompt('Session', title, runningTerminals, 'The selected folder');
 }
 
+export function revokeMobileDevicePrompt(device: {
+    displayName: string;
+    platform: 'android' | 'ios';
+}): MessageBoxOptions {
+    const platform = device.platform === 'ios' ? 'iOS' : 'Android';
+    return {
+        type: 'warning',
+        title: 'Revoke Mobile Device',
+        message: `Revoke '${device.displayName}'?`,
+        detail: `This ${platform} device immediately loses access to Caxri. To reconnect it, you must pair it again. Projects and files are not affected.`,
+        buttons: ['Revoke Device', 'Cancel'],
+        defaultId: 1,
+        cancelId: 1,
+    };
+}
+
 /**
  * Discarding working-tree changes is the one Git action that destroys work with no reflog or Trash to recover from, so
  * the detail always states what is lost and whether recovery exists.

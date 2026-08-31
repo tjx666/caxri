@@ -146,7 +146,12 @@ function isAllowedTransition(importer: string, specifier: string): boolean {
 }
 
 function isBrowserConsumer(path: string): boolean {
-    return isBrowserSafePackageSource(path) || isPathInside('apps/desktop/src/renderer', path);
+    return (
+        isBrowserSafePackageSource(path) ||
+        isPathInside('apps/desktop/src/renderer', path) ||
+        isPathInside('apps/mobile/app', path) ||
+        isPathInside('apps/mobile/src', path)
+    );
 }
 
 function isPlatformClientTarget(specifier: string, resolvedTarget: string | undefined): boolean {
@@ -195,7 +200,7 @@ const rule: Rule.RuleModule = {
             packagePrivateImport:
                 "Import '{{specifier}}' bypasses package '{{target}}' exports; use a reviewed public package export.",
             browserUnsafeImport:
-                "Browser-safe package source must not import '{{specifier}}'; move platform code behind an explicit environment-specific boundary.",
+                "Browser runtime source must not import '{{specifier}}'; move platform code behind an explicit environment-specific boundary.",
             forbiddenPackageDependency:
                 "'{{importer}}' must not depend on package '{{target}}' in the current ownership graph.",
             platformClientImport:
@@ -230,7 +235,7 @@ const rule: Rule.RuleModule = {
                 return;
             }
 
-            if (isBrowserSafePackageSource(importer) && isBrowserUnsafeSpecifier(specifier)) {
+            if (isBrowserConsumer(importer) && isBrowserUnsafeSpecifier(specifier)) {
                 context.report({ node, messageId: 'browserUnsafeImport', data: { specifier } });
                 return;
             }

@@ -1,19 +1,20 @@
+import { sortedCopy } from '@caxri/utils';
+
 /**
  * Canonical chord normalization shared by dispatch, editing, and conflict detection.
  */
 export function normalizeShortcut(value: string): string {
-    return value
+    const parts = value
         .toLowerCase()
         .replaceAll('command', 'cmd')
         .split('+')
-        .map((part) => part.trim())
-        .toSorted((a, b) => {
-            const order = ['cmd', 'ctrl', 'alt', 'shift'];
-            const left = order.indexOf(a);
-            const right = order.indexOf(b);
-            return (left === -1 ? 99 : left) - (right === -1 ? 99 : right);
-        })
-        .join('+');
+        .map((part) => part.trim());
+    return sortedCopy(parts, (a, b) => {
+        const order = ['cmd', 'ctrl', 'alt', 'shift'];
+        const left = order.indexOf(a);
+        const right = order.indexOf(b);
+        return (left === -1 ? 99 : left) - (right === -1 ? 99 : right);
+    }).join('+');
 }
 
 const MODIFIER_SYMBOLS: Record<string, string> = {

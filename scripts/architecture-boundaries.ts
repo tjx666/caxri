@@ -2,7 +2,7 @@ type TopologyMigrationBatch = 'A2b' | 'A2c' | 'A2d' | 'A2e' | 'A2f';
 
 export interface AppBoundary {
     allowedPackages: ReadonlyArray<PackageBoundary['id']>;
-    id: 'cli' | 'desktop' | 'server';
+    id: 'cli' | 'desktop' | 'mobile' | 'server';
     root: `apps/${string}`;
     packageNames: readonly string[];
     testAllowedPackages?: ReadonlyArray<PackageBoundary['id']>;
@@ -10,7 +10,14 @@ export interface AppBoundary {
 
 export interface PackageBoundary {
     allowedPackages: ReadonlyArray<PackageBoundary['id']>;
-    id: 'agent-skills' | 'client' | 'extension-api' | 'protocol' | 'system' | 'utils';
+    id:
+        | 'agent-skills'
+        | 'client'
+        | 'extension-api'
+        | 'mobile-transport'
+        | 'protocol'
+        | 'system'
+        | 'utils';
     root: `packages/${string}`;
     packageNames: readonly string[];
     publicSubpaths: readonly string[];
@@ -54,10 +61,24 @@ export const appBoundaries: readonly AppBoundary[] = [
         allowedPackages: ['client', 'protocol', 'system', 'utils'],
     },
     {
+        id: 'mobile',
+        root: 'apps/mobile',
+        packageNames: ['@caxri/mobile'],
+        allowedPackages: ['mobile-transport', 'protocol'],
+        testAllowedPackages: ['utils'],
+    },
+    {
         id: 'server',
         root: 'apps/server',
         packageNames: ['@caxri/server'],
-        allowedPackages: ['agent-skills', 'extension-api', 'protocol', 'system', 'utils'],
+        allowedPackages: [
+            'agent-skills',
+            'extension-api',
+            'mobile-transport',
+            'protocol',
+            'system',
+            'utils',
+        ],
         testAllowedPackages: ['client'],
     },
     {
@@ -89,6 +110,14 @@ export const packageBoundaries: readonly PackageBoundary[] = [
         browserSafe: true,
         allowedPackages: ['protocol', 'utils'],
         browserUnsafeSourceRoots: ['packages/client/src/supervise'],
+    },
+    {
+        id: 'mobile-transport',
+        root: 'packages/mobile-transport',
+        packageNames: ['@caxri/mobile-transport'],
+        publicSubpaths: ['.'],
+        browserSafe: true,
+        allowedPackages: [],
     },
     {
         id: 'protocol',

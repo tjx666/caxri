@@ -8,6 +8,7 @@ import { runWithObservationContext, StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { TerminalHostRequestEnvelope } from '../../../terminal-host/protocol';
+import { TERMINAL_HOST_PROTOCOL_VERSION } from '../../../terminal-host/protocol';
 import { TerminalHostSupervisor } from '../supervisor';
 
 const bootId = 'b'.repeat(32);
@@ -69,7 +70,7 @@ async function becomeReady(child: FakeChild, supervisor: TerminalHostSupervisor)
         type: 'event',
         event: 'host.ready',
         bootId,
-        protocolVersion: 1,
+        protocolVersion: TERMINAL_HOST_PROTOCOL_VERSION,
         appVersion: '0.0.18',
         buildId: 'build-1',
         commit: 'deadbeef',

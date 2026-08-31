@@ -53,6 +53,7 @@ export function isRowModified(binding: SettingRowBinding, context: SettingsValue
         case 'hardware-acceleration':
             return argvConfig !== undefined && !argvConfig.hardwareAcceleration;
         case 'archived-sessions':
+        case 'mobile-access':
         case 'provider-skill-health':
             return false;
     }
@@ -62,7 +63,7 @@ export function isRowModified(binding: SettingRowBinding, context: SettingsValue
  * Rows that only navigate or report health have nothing to reset.
  */
 export function isRowResettable(binding: SettingRowBinding): boolean {
-    return binding.type !== 'archived-sessions' && binding.type !== 'provider-skill-health';
+    return !['archived-sessions', 'mobile-access', 'provider-skill-health'].includes(binding.type);
 }
 
 /**
@@ -142,6 +143,7 @@ export function rowResetAction(
         case 'hardware-acceleration':
             return { kind: 'argv', changes: { hardwareAcceleration: true } };
         case 'archived-sessions':
+        case 'mobile-access':
         case 'provider-skill-health':
             return undefined;
     }

@@ -96,13 +96,75 @@ export function createAgentCommandHandlers(
         }),
         'agent.control.interruptInternal': ({ endpoint }) => signalAgent(endpoint, 'SIGINT'),
         'agent.control.stopInternal': ({ endpoint }) => signalAgent(endpoint, 'SIGHUP'),
-        'terminal.sendInternal': ({ enter, terminalId, text }) => {
+        'terminal.sendInternal': ({ attentionEpoch, enter, terminalId, text }) => {
+            let claimedSessionId: string | undefined;
+            if (attentionEpoch !== undefined) {
+                const terminal = options.database.getTerminal(terminalId);
+                const session = terminal
+                    ? options.database.getSession(terminal.sessionId)
+                    : undefined;
+                if (
+                    !session ||
+                    !terminal ||
+                    terminal.kind === 'shell' ||
+                    session.primaryAgentTerminalId !== terminalId ||
+                    session.lastActivityState !== 'waiting' ||
+                    session.attentionEpoch !== attentionEpoch
+                )
+                    throw new CaxriError(
+                        'CONFLICT',
+                        'Agent attention changed before the reply was accepted',
+                    );
+                if (
+                    !options.database.consumeSessionAttentionReply(
+                        session.id,
+                        terminalId,
+                        attentionEpoch,
+                    )
+                )
+                    throw new CaxriError(
+                        'CONFLICT',
+                        'Agent attention changed before the reply was accepted',
+                    );
+                claimedSessionId = session.id;
+            }
             const data = `${text}${enter ? '\r' : ''}`;
             const isRunning = options.terminals.processId(terminalId) !== undefined;
-            if (!options.terminals.write(terminalId, data))
+            let didWrite: boolean;
+            try {
+                didWrite =
+                    attentionEpoch === undefined
+                        ? options.terminals.write(terminalId, data)
+                        : options.terminals.writeAgent(terminalId, data);
+            } catch (error) {
+                if (claimedSessionId && attentionEpoch !== undefined)
+                    options.database.releaseSessionAttentionReply(
+                        claimedSessionId,
+                        terminalId,
+                        attentionEpoch,
+                    );
+                throw error;
+            }
+            if (!didWrite) {
+                if (claimedSessionId && attentionEpoch !== undefined)
+                    options.database.releaseSessionAttentionReply(
+                        claimedSessionId,
+                        terminalId,
+                        attentionEpoch,
+                    );
                 throw new CaxriError('UNAVAILABLE', 'Terminal is no longer running');
-            if (isRunning && options.coordinator.observeInput(terminalId, data))
-                recordUserSubmission(terminalId);
+            }
+            const observed = isRunning && options.coordinator.observeInput(terminalId, data);
+            if (claimedSessionId)
+                options.emit({
+                    event: 'state.changed',
+                    payload: {
+                        kind: 'records',
+                        sessionIds: [claimedSessionId],
+                        terminalIds: [],
+                    },
+                });
+            else if (observed) recordUserSubmission(terminalId);
             return {
                 terminalId,
                 accepted: true,

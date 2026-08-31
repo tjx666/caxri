@@ -141,6 +141,11 @@ export class LocalTerminalExecution extends EventTarget implements TerminalExecu
         );
     }
 
+    writeAgent(terminalId: string, data: string): boolean {
+        if (!this.agents.has(terminalId)) return false;
+        return this.engine.write(terminalId, data);
+    }
+
     configureOutputRecovery(): void {
         this.engine.reconcileOutputRecoverySettings();
     }
@@ -170,6 +175,10 @@ export class LocalTerminalExecution extends EventTarget implements TerminalExecu
 
     snapshot(terminalId: string): Promise<TerminalSnapshot | null> {
         return this.engine.snapshot(terminalId);
+    }
+
+    textTail(terminalId: string, maximumCharacters: number): Promise<string | null> {
+        return this.engine.textTail(terminalId, maximumCharacters);
     }
 
     detachView(terminalId: string): void {

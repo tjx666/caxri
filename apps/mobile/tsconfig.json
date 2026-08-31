@@ -1,0 +1,18 @@
+{
+    "extends": "expo/tsconfig.base",
+    "compilerOptions": {
+        "allowImportingTsExtensions": true,
+        "strict": true,
+        "types": ["node"]
+    },
+    "include": [
+        "app/**/*.ts",
+        "app/**/*.tsx",
+        "plugins/**/*.ts",
+        "scripts/**/*.ts",
+        "src/**/*.ts",
+        "src/**/*.tsx",
+        ".expo/types/**/*.ts",
+        "expo-env.d.ts"
+    ]
+}
