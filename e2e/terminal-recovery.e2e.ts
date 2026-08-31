@@ -435,6 +435,12 @@ test('normal exit stays neutral and restart preserves one durable Terminal', asy
 });
 
 test('stopped Terminal snapshots restore at their source grid before fitting a changed pane width', async () => {
+    /**
+     * Playwright escapes non-ASCII static text inside `String.raw`; runtime substitutions keep the fixture glyphs.
+     */
+    const cjkMiddle = String.fromCodePoint(0x4e_2d);
+    const cjkBoundary = String.fromCodePoint(0x75_4c);
+    const cjkGreeting = `${String.fromCodePoint(0x4f_60)}${String.fromCodePoint(0x59_7d)}_${cjkBoundary}`;
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-stopped-grid-restore-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -446,12 +452,12 @@ rows=$(tput lines)
 horizontal=$(printf '%*s' "$((cols - 2))" '' | tr ' ' '-')
 printf '\033[?1049h\033[2J\033[H'
 printf '\033[1;1H+%s+' "$horizontal"
-printf '\033[2;1H|SNAPSHOT_GRID_%sx%s_中' "$cols" "$rows"
+printf '\033[2;1H|SNAPSHOT_GRID_%sx%s_${cjkMiddle}' "$cols" "$rows"
 printf '\033[2;%sH|' "$cols"
-printf '\033[3;1H|ASCII_CJK_你好_界'
+printf '\033[3;1H|ASCII_CJK_${cjkGreeting}'
 printf '\033[3;%sH|' "$cols"
 printf '\033[%s;1H+%s+' "$rows" "$horizontal"
-printf '\033[4;5HCURSOR_MARK_界'
+printf '\033[4;5HCURSOR_MARK_${cjkBoundary}'
 `,
         'utf8',
     );
