@@ -6,24 +6,20 @@ import process from 'node:process';
 import type { AppSettings } from '@caxri/protocol';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
-import { allowE2EErrors, expect, test } from './support/fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires the first test argument to use object destructuring
 test('long Agent paste saves the original and inserts only a low-cost summary and path', async ({}) => {
-    allowE2EErrors([
-        {
-            source: 'server-core',
-            event: 'ipc.request_failed',
-            code: 'CONFLICT',
-            count: 1,
-        },
-    ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-long-paste-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
     const inputCapture = join(testDirectory, 'agent-input.txt');
     const summaryCapture = join(testDirectory, 'summary-call.json');
+    /**
+     * Releases the second summary only after the test has switched away from its owning Terminal.
+     */
+    const summaryRelease = join(testDirectory, 'summary-release');
     await Promise.all([mkdir(root, { recursive: true }), writeFile(inputCapture, '')]);
     const agentMode = await createFakeAgentMode({
         userDataDir: userData,
@@ -40,16 +36,27 @@ if (process.argv.includes('--ephemeral')) {
   process.stdin.on('data', (chunk) => { inputLength += chunk.length; });
   process.stdin.on('end', () => {
     const modelIndex = process.argv.indexOf('-m');
+    /** The first call proves the happy path; hold follow-ups so Terminal switching is deterministic. */
+    const waitsForRelease = fs.existsSync(${JSON.stringify(summaryCapture)});
     fs.writeFileSync(${JSON.stringify(summaryCapture)}, JSON.stringify({
       inputLength,
       model: process.argv[modelIndex + 1],
+      pid: process.pid,
     }));
-    setTimeout(() => {
+    const emitSummary = () => {
       process.stdout.write(JSON.stringify({
         type: 'item.completed',
         item: { type: 'agent_message', text: 'E2E_SUMMARY_SENTINEL' },
       }) + '\n');
-    }, 1000);
+    };
+    if (!waitsForRelease) setTimeout(emitSummary, 1000);
+    else {
+      const releaseTimer = setInterval(() => {
+        if (!fs.existsSync(${JSON.stringify(summaryRelease)})) return;
+        clearInterval(releaseTimer);
+        emitSummary();
+      }, 25);
+    }
   });
 } else {
   process.stdin.setRawMode?.(true);
@@ -137,12 +144,13 @@ if (process.argv.includes('--ephemeral')) {
         const summaryCall = JSON.parse(await readFile(summaryCapture, 'utf8')) as {
             inputLength: number;
             model: string;
+            pid: number;
         };
         expect(summaryCall.model).toBe('gpt-5.6-luna');
         expect(summaryCall.inputLength).toBeGreaterThan(original.length);
 
-        const abandoned = `LONG_PASTE_SWITCH_SENTINEL\n${'y'.repeat(1_100)}`;
-        await running.clipboard.writeText(abandoned);
+        const switched = `LONG_PASTE_SWITCH_SENTINEL\n${'y'.repeat(1_100)}`;
+        await running.clipboard.writeText(switched);
         await input.focus();
         await input.press('Meta+V');
         await expect(status).toBeVisible();
@@ -150,8 +158,36 @@ if (process.argv.includes('--ephemeral')) {
         await expect(status).toBeHidden();
         await expect(secondTab).toHaveAttribute('aria-selected', 'true');
         await firstTab.click();
-        await expect(status).toBeHidden();
         await expect(firstTab).toHaveAttribute('aria-selected', 'true');
+        await expect(status).toBeHidden();
+        await expect
+            .poll(async () => {
+                const followup = JSON.parse(await readFile(summaryCapture, 'utf8')) as {
+                    pid: number;
+                };
+                return followup.pid;
+            })
+            .not.toBe(summaryCall.pid);
+        const followup = JSON.parse(await readFile(summaryCapture, 'utf8')) as { pid: number };
+        await writeFile(summaryRelease, 'release');
+        /**
+         * Wait for the provider process to exit so application cleanup cannot race the abandoned request.
+         */
+        await expect
+            .poll(() => {
+                try {
+                    process.kill(followup.pid, 0);
+                    return true;
+                } catch {
+                    return false;
+                }
+            })
+            .toBe(false);
+        await pageRequest(running.page, 'terminal.runningCount');
+        expect((await readFile(inputCapture, 'utf8')).split('E2E_SUMMARY_SENTINEL')).toHaveLength(
+            2,
+        );
+        expect(await readFile(inputCapture, 'utf8')).not.toContain('LONG_PASTE_SWITCH_SENTINEL');
     } finally {
         await running.app.close();
         await rm(testDirectory, { recursive: true, force: true });
