@@ -12,6 +12,7 @@ import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { cn } from '../../lib/utilities';
 import {
     archiveSession,
+    canResumeAutomaticSessionNaming,
     didSelectSession,
     resumeAutomaticSessionNaming,
 } from '../session/session-actions';
@@ -167,7 +168,7 @@ function ActiveSessionRow({
                     trigger={sessionCard}
                 />
             )}
-            {(session.autoNamingState === 'stopped' || session.titleMode === 'manual') && (
+            {canResumeAutomaticSessionNaming(session, terminal) && (
                 <Tooltip content="Resume automatic naming">
                     <button
                         type="button"

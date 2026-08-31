@@ -10,6 +10,11 @@ describe('agentProviderCatalog capabilities', () => {
             terminalInput: '\u{16}',
         });
     });
+
+    it('declares exactly one automatic Session naming owner per provider', () => {
+        expect(agentProviderCatalog.claude.automaticSessionNaming).toBe('caxri');
+        expect(agentProviderCatalog.codex.automaticSessionNaming).toBe('native');
+    });
 });
 
 describe('defaultAgentProviderSettings', () => {

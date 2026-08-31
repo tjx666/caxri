@@ -130,7 +130,7 @@ process.stdin.setEncoding('utf8');
 process.stdin.on('data', (chunk) => { input += chunk; });
 process.stdin.on('end', () => {
     writeFileSync(${JSON.stringify(inputPath)}, input);
-    process.stdout.write('🧭 Claude naming lifecycle');
+    process.stdout.write('Claude Naming Lifecycle');
 });
 `,
             'utf8',
@@ -145,11 +145,12 @@ process.stdin.on('end', () => {
                 prompt: 'private transcript excerpt',
                 version: '2.1.251 (Claude Code)',
             }),
-        ).resolves.toBe('🧭 Claude naming lifecycle');
+        ).resolves.toBe('Claude Naming Lifecycle');
         const arguments_ = JSON.parse(await readFile(argumentsPath, 'utf8')) as string[];
         expect(arguments_).toEqual(
             expect.arrayContaining(['--model', 'haiku', '--no-session-persistence']),
         );
+        expect(arguments_[arguments_.indexOf('--system-prompt') + 1]).toContain('Do not use emoji');
         expect(arguments_.join(' ')).not.toContain('private transcript excerpt');
         expect(await readFile(inputPath, 'utf8')).toBe('private transcript excerpt');
     });

@@ -6,7 +6,7 @@ import type {
     SessionRecord,
     TerminalRecord,
 } from '@caxri/protocol';
-import { CaxriError } from '@caxri/protocol';
+import { agentProviderCatalog, CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { AsyncSemaphore, logEventCatalog } from '@caxri/system';
 
@@ -115,6 +115,7 @@ export class SessionAutoNamingService {
             terminal.provider !== trigger.provider ||
             terminal.agentSessionId !== trigger.agentSessionId ||
             !this.options.isCurrentLaunch(trigger.terminalId, trigger.launchId) ||
+            agentProviderCatalog[trigger.provider].automaticSessionNaming !== 'caxri' ||
             !providerSettings.naming.enabled ||
             !providerSettings.hooks.enabled ||
             this.options.hasForeignHookConflict(trigger.provider)
@@ -323,6 +324,7 @@ export class SessionAutoNamingService {
             return;
         }
         if (!terminal.provider || !terminal.agentSessionId) return;
+        if (agentProviderCatalog[terminal.provider].automaticSessionNaming !== 'caxri') return;
         const slot = this.slot(session.id);
         slot.revision += 1;
         slot.controller?.abort();
@@ -353,6 +355,20 @@ export class SessionAutoNamingService {
 
     async resumeSession(sessionId: string): Promise<SessionRecord> {
         this.invalidateSession(sessionId);
+        const session = this.database.getSession(sessionId);
+        if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
+        const terminal = session.primaryAgentTerminalId
+            ? this.database.getTerminal(session.primaryAgentTerminalId)
+            : undefined;
+        if (
+            !terminal?.provider ||
+            agentProviderCatalog[terminal.provider].automaticSessionNaming !== 'caxri'
+        ) {
+            throw new CaxriError(
+                'CONFLICT',
+                'Caxri does not own automatic naming for this Session',
+            );
+        }
         const resumed = await this.renames.resumeAutomaticNaming(sessionId);
         if (!resumed) throw new CaxriError('NOT_FOUND', 'Session not found');
         return resumed;

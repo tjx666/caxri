@@ -140,6 +140,15 @@ describe('Acceptance Agent fixtures', () => {
         expect(hookReceipts.filter(({ event }) => event === 'SessionStart')).toHaveLength(1);
         expect(hookReceipts.filter(({ event }) => event === 'UserPromptSubmit')).toHaveLength(2);
         expect(hookReceipts.filter(({ event }) => event === 'Stop')).toHaveLength(2);
+        expect(
+            (await readReceipts(codexRoot)).filter(({ kind }) => kind === 'providerNativeTitle'),
+        ).toHaveLength(2);
+        const database = join(fixture.environment.CODEX_SQLITE_HOME!, 'state_9.sqlite');
+        const nativeTitle = await execFileAsync('/usr/bin/sqlite3', [
+            database,
+            'SELECT name FROM threads LIMIT 1;',
+        ]);
+        expect(String(nativeTitle.stdout).trim()).toBe('Codex Resumed Naming');
     });
 
     it('rejects paths, arbitrary names, and host provider fixture requests', async () => {
@@ -158,7 +167,7 @@ describe('Acceptance Agent fixtures', () => {
         );
     });
 
-    it('drives both provider naming boundaries without putting private context in argv', async () => {
+    it('drives Claude naming over stdin and rejects a Caxri Codex naming call', async () => {
         const userDataDirectory = await mkdtemp(join(tmpdir(), 'caxri-acceptance-agent-fixture-'));
         directories.push(userDataDirectory);
         const fixture = await prepareAcceptanceAgentFixture({
@@ -173,7 +182,7 @@ describe('Acceptance Agent fixtures', () => {
                 fixture.environment,
                 'CAXRI_ACCEPTANCE_PRIVATE_CLAUDE',
             ),
-        ).resolves.toBe('🧭 Claude automatic naming');
+        ).resolves.toBe('Claude Automatic Naming');
         await expect(
             runFixture(
                 fixture.executables.codex,
@@ -181,26 +190,17 @@ describe('Acceptance Agent fixtures', () => {
                 fixture.environment,
                 'CAXRI_ACCEPTANCE_PRIVATE_CODEX',
             ),
-        ).resolves.toContain('🧭 Codex automatic naming');
+        ).rejects.toThrow('Fixture exited with 7');
 
-        await Promise.all(
-            [fixture.environment.CLAUDE_CONFIG_DIR!, fixture.environment.CODEX_HOME!].map(
-                async (root) => {
-                    const receipts = (
-                        await readFile(join(root, 'acceptance-receipts.jsonl'), 'utf8')
-                    )
-                        .trim()
-                        .split('\n')
-                        .map((line) => JSON.parse(line) as Record<string, unknown>);
-                    expect(receipts).toContainEqual(
-                        expect.objectContaining({
-                            argumentContainsPrivateInput: false,
-                            inputContainsPrivateMarker: true,
-                            kind: 'generate',
-                        }),
-                    );
-                },
-            ),
+        await expect(readReceipts(fixture.environment.CLAUDE_CONFIG_DIR!)).resolves.toContainEqual(
+            expect.objectContaining({
+                argumentContainsPrivateInput: false,
+                inputContainsPrivateMarker: true,
+                kind: 'generate',
+            }),
+        );
+        await expect(readReceipts(fixture.environment.CODEX_HOME!)).resolves.toContainEqual(
+            expect.objectContaining({ kind: 'unexpectedCodexNamingCall' }),
         );
     });
 });

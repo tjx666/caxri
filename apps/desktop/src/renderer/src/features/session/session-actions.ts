@@ -1,4 +1,5 @@
-import type { TerminalKind } from '@caxri/protocol';
+import type { SessionRecord, TerminalKind, TerminalRecord } from '@caxri/protocol';
+import { agentProviderCatalog } from '@caxri/protocol';
 
 import type { SessionMruShortcutInvocation } from '../../commands/registry';
 import { caxri } from '../../lib/caxri';
@@ -20,6 +21,18 @@ import type { SessionNavigationDirection } from './session-navigation-history';
 import { useSessionNavigationHistoryStore } from './session-navigation-history';
 
 const mruNavigationState: { pendingSelection?: PendingSessionMruSelection } = {};
+
+export function canResumeAutomaticSessionNaming(
+    session: Pick<SessionRecord, 'autoNamingState' | 'titleMode'>,
+    terminal?: Pick<TerminalRecord, 'provider'>,
+): boolean {
+    const provider = terminal?.provider;
+    return (
+        (session.autoNamingState === 'stopped' || session.titleMode === 'manual') &&
+        provider !== undefined &&
+        agentProviderCatalog[provider].automaticSessionNaming === 'caxri'
+    );
+}
 
 /**
  * `session.select` publishes a full `state.changed` event before returning its result. That event is the convergence

@@ -17,6 +17,7 @@ import {
 import {
     archiveSession,
     beginSessionCreation,
+    canResumeAutomaticSessionNaming,
     resumeAutomaticSessionNaming,
     selectProject,
 } from '../session/session-actions';
@@ -194,7 +195,10 @@ export function PrimarySidebar() {
                 row?.kind === 'session' ? sessions.find((item) => item.id === row.id) : undefined;
             if (
                 session &&
-                (session.autoNamingState === 'stopped' || session.titleMode === 'manual')
+                canResumeAutomaticSessionNaming(
+                    session,
+                    terminals.find((item) => item.id === session.primaryAgentTerminalId),
+                )
             ) {
                 event.preventDefault();
                 resumeAutomaticSessionNaming(session.id);

@@ -91,7 +91,7 @@ describe('Agent provider hook configuration adapters', () => {
         expect(JSON.parse(removed)).toEqual(foreign);
     });
 
-    it('detects the existing global automatic naming hooks without removing them', () => {
+    it('blocks only Claude naming hooks that do not declare the Caxri-managed guard', () => {
         const claudeSource = jsonSource({
             Stop: [
                 {
@@ -119,15 +119,39 @@ describe('Agent provider hook configuration adapters', () => {
 
         expect(
             claudeHookAdapter.autoNamingConflict?.(new Map([['settings', claudeSource]])),
-        ).toContain('left it unchanged');
+        ).toContain('--caxri-managed-aware');
+        const doubleQuotedClaudeSource = claudeSource.replace(
+            '/Users/example/.claude/hooks/auto-session-name.js',
+            String.raw`node \"/Users/example/.claude/hooks/auto-session-name.js\"`,
+        );
         expect(
-            codexHookAdapter.autoNamingConflict?.(
-                new Map([
-                    ['hooks', codexSource],
-                    ['config', undefined],
-                ]),
+            claudeHookAdapter.autoNamingConflict?.(
+                new Map([['settings', doubleQuotedClaudeSource]]),
             ),
-        ).toContain('left it unchanged');
+        ).toContain('--caxri-managed-aware');
+        const singleQuotedClaudeSource = claudeSource.replace(
+            '/Users/example/.claude/hooks/auto-session-name.js',
+            "node '/Users/example/.claude/hooks/auto-session-name.js'",
+        );
+        expect(
+            claudeHookAdapter.autoNamingConflict?.(
+                new Map([['settings', singleQuotedClaudeSource]]),
+            ),
+        ).toContain('--caxri-managed-aware');
+        const awareClaudeSource = claudeSource.replace(
+            '/Users/example/.claude/hooks/auto-session-name.js',
+            String.raw`node \"/Users/example/.claude/hooks/auto-session-name.js\" --caxri-managed-aware`,
+        );
+        const awareClaudeDocuments = new Map([['settings', awareClaudeSource]]);
+        expect(claudeHookAdapter.autoNamingConflict?.(awareClaudeDocuments)).toBeUndefined();
+        const mixedClaudeSource = claudeSource.replace(
+            '"hooks": [',
+            '"hooks": [{"type":"command","command":"auto-session-name.js --caxri-managed-aware"},',
+        );
+        expect(
+            claudeHookAdapter.autoNamingConflict?.(new Map([['settings', mixedClaudeSource]])),
+        ).toContain('--caxri-managed-aware');
+        expect('autoNamingConflict' in codexHookAdapter).toBe(false);
         expect(install(claudeHookAdapter, 'settings', claudeSource, 'claude')).toContain(
             'auto-session-name.js',
         );
