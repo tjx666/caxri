@@ -77,6 +77,7 @@ describe('@caxri/protocol contract', () => {
         expect(errorCodes).toContain('FORBIDDEN');
         expect(capabilityIds).toContain('desktop.window');
         expect(capabilityIds).toContain('terminals.steer');
+        expect(capabilityIds).toContain('terminals.preview');
         const welcome = protocolWelcomeSchema.parse({
             protocolVersion: 2,
             principal: desktop.principal,
@@ -386,6 +387,8 @@ describe('transport-neutral dispatcher', () => {
                 ...secretFields,
             }),
             principalProjectionSchemas.session.parse({
+                attentionEpoch: 0,
+                hasUnread: false,
                 id: 'session-1',
                 projectId: 'project-1',
                 displayTitle: 'Session',

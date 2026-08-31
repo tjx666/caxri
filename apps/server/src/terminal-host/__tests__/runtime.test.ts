@@ -10,7 +10,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { TerminalExecutionStart } from '../engine/engine';
 import type { TerminalHostMessage, TerminalHostRequestEnvelope } from '../protocol';
-import { terminalHostRequestEnvelopeSchema } from '../protocol';
+import { TERMINAL_HOST_PROTOCOL_VERSION, terminalHostRequestEnvelopeSchema } from '../protocol';
 import type { ManagedAgentExecutionOwner, TerminalExecutionOwner } from '../runtime';
 import { TerminalHostRuntime } from '../runtime';
 
@@ -38,7 +38,7 @@ function privateRequest(
 ): TerminalHostRequestEnvelope {
     return terminalHostRequestEnvelopeSchema.parse({
         type: 'request',
-        protocolVersion: 1,
+        protocolVersion: TERMINAL_HOST_PROTOCOL_VERSION,
         id,
         ...(observation && { observation }),
         bootId,

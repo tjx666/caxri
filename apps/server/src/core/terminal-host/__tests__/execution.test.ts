@@ -325,6 +325,19 @@ describe('architecture-a3b-terminal-host: RemoteTerminalExecution', () => {
             }),
         );
 
+        expect(execution.writeAgent(terminal.id, 'Continue\r')).toBe(true);
+        await vi.waitFor(() =>
+            expect(control.requests.at(-1)?.request).toEqual({
+                method: 'terminal.agent.input',
+                params: { data: 'Continue\r', launchId: 'launch-1' },
+            }),
+        );
+        expect(control.requests.at(-1)?.scope).toMatchObject({
+            capability: 'terminal.agent.input',
+            terminalId: terminal.id,
+        });
+        expect(control.requests.at(-1)?.scope).not.toHaveProperty('attachmentId');
+
         expect(execution.signalAgentExact(terminal.id, 'stale-launch', 'SIGINT')).toBe(false);
         expect(execution.signalAgentExact(terminal.id, 'launch-1', 'SIGINT')).toBe(true);
         await vi.waitFor(() =>

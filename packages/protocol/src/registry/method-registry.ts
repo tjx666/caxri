@@ -49,7 +49,6 @@ import {
     sessionStateSchema,
     terminalKindSchema,
     terminalRecordSchema,
-    terminalResourceUsageSchema,
     terminalSnapshotSchema,
     themeTokensSchema,
     updateStateSchema,
@@ -64,6 +63,7 @@ import {
     terminalFileLinkAmbiguousResultSchema,
 } from '../domain/terminal-file-link.js';
 import { terminalLongPasteMethods } from '../domain/terminal-long-paste.js';
+import { terminalReadMethods } from '../domain/terminal-read-contract.js';
 import { terminalReferenceMethods } from '../domain/terminal-reference-contract.js';
 import {
     extensionCommandIdSchema,
@@ -75,6 +75,7 @@ import {
     viewIdSchema,
 } from '../domain/views.js';
 import { workbenchInternalMethods, workbenchMethods } from '../domain/workbench-contract.js';
+import { mobileInternalMethods, mobileMethods } from '../mobile/mobile-contract.js';
 import { eventRecoveryRequestSchema, eventRecoverySchema } from '../transport/event-journal.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
@@ -153,6 +154,7 @@ export const methods = {
     ...agentEndpointMethods,
     ...agentInboxMethods,
     ...businessMethods,
+    ...mobileMethods,
     ...workbenchMethods,
     ...pathBrowserMethods,
     ...extensionViewMethods,
@@ -386,7 +388,7 @@ export const methods = {
         result: sessionRecordSchema,
     },
     'session.markRead': {
-        ...serverWrite,
+        ...commandPolicy('server', 'write', ['sessions.write']),
         params: z.object({
             sessionId: identifierSchema,
             attentionEpoch: z.number().int().nonnegative(),
@@ -496,21 +498,7 @@ export const methods = {
         ]),
     },
     ...terminalReferenceMethods,
-    'terminal.snapshot': {
-        ...serverRead,
-        params: z.object({ terminalId: identifierSchema }),
-        result: terminalSnapshotSchema.nullable(),
-    },
-    'terminal.runningCount': {
-        ...serverRead,
-        params: z.object({ sessionId: identifierSchema.optional() }).default({}),
-        result: z.number(),
-    },
-    'terminal.resources': {
-        ...serverRead,
-        params: z.object({ terminalId: identifierSchema }),
-        result: terminalResourceUsageSchema.nullable(),
-    },
+    ...terminalReadMethods,
     /**
      * Null when the Terminal has no bound Agent session or its provider keeps no on-disk transcript. The Runtime
      * derives the path itself from the Terminal's durable identity, so the Renderer never submits a filesystem path for
@@ -693,6 +681,7 @@ export const internalMethods = {
     ...agentDispatchInternalMethods,
     ...businessInternalMethods,
     ...gitInternalMethods,
+    ...mobileInternalMethods,
     ...workbenchInternalMethods,
     'app.windowState.get': {
         ...serverRead,

@@ -1,0 +1,447 @@
+import { Buffer } from 'node:buffer';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { createConnection } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import type { HandshakeTranscript } from '@caxri/mobile-transport';
+import {
+    decodeHex,
+    deriveMobileSessionKeys,
+    encodeHex,
+    handshakeConfirmation,
+    isHandshakeConfirmationValid,
+    MOBILE_TRANSPORT_VERSION,
+    mobileClientConfirmationSchema,
+    mobilePairingResultSchema,
+    mobilePublicKey,
+    mobileSealedFrameSchema,
+    mobileServerHelloSchema,
+    openMobileFrame,
+    parseMobilePairingLink,
+    sealMobileFrame,
+} from '@caxri/mobile-transport';
+import type { CommandAdapter } from '@caxri/protocol';
+import { CAXRI_PROTOCOL_VERSION, methods } from '@caxri/protocol';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { ClientOptions } from 'ws';
+import WebSocket from 'ws';
+
+import { MobileDeviceRegistry } from '../device-registry';
+import {
+    isMobileGatewayMethodAllowed,
+    MOBILE_GATEWAY_ALLOWED_METHODS,
+    MobileGateway,
+    selectMobileGatewayAddress,
+} from '../gateway';
+
+const temporaryDirectories: string[] = [];
+
+async function registryFixture() {
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-mobile-gateway-'));
+    temporaryDirectories.push(directory);
+    let byte = 1;
+    return MobileDeviceRegistry.open({
+        directory,
+        path: join(directory, 'mobile-devices.json'),
+        now: () => 1_788_106_000_000 + byte,
+        random: (bytes) => new Uint8Array(bytes).fill(byte++),
+    });
+}
+
+function nextMessage(socket: WebSocket): Promise<unknown> {
+    return new Promise((resolve, reject) => {
+        socket.once('error', reject);
+        socket.once('message', (data) => {
+            if (!Buffer.isBuffer(data)) {
+                reject(new TypeError('Expected a buffered WebSocket message'));
+                return;
+            }
+            resolve(JSON.parse(data.toString('utf8')) as unknown);
+        });
+    });
+}
+
+function openSocket(url: string, options?: ClientOptions) {
+    const socket = new WebSocket(url, options);
+    return new Promise<WebSocket>((resolve, reject) => {
+        socket.once('open', () => resolve(socket));
+        socket.once('error', reject);
+    });
+}
+
+afterEach(async () => {
+    const paths = [...temporaryDirectories];
+    temporaryDirectories.length = 0;
+    await Promise.all(paths.map((path) => rm(path, { recursive: true, force: true })));
+});
+
+describe('MobileGateway', () => {
+    it('keeps a closed default allowlist when the public method registry grows', () => {
+        expect(MOBILE_GATEWAY_ALLOWED_METHODS).toEqual([
+            'mobile.dashboard',
+            'session.markRead',
+            'terminal.preview',
+            'terminal.send',
+        ]);
+        for (const method of Object.keys(methods) as Array<keyof typeof methods>)
+            expect(isMobileGatewayMethodAllowed(method)).toBe(
+                MOBILE_GATEWAY_ALLOWED_METHODS.includes(
+                    method as (typeof MOBILE_GATEWAY_ALLOWED_METHODS)[number],
+                ),
+            );
+    });
+
+    it('selects only a private non-loopback IPv4 interface', () => {
+        expect(
+            selectMobileGatewayAddress({
+                lo0: [
+                    {
+                        address: '127.0.0.1',
+                        netmask: '255.0.0.0',
+                        family: 'IPv4',
+                        mac: '00:00:00:00:00:00',
+                        internal: true,
+                        cidr: '127.0.0.1/8',
+                    },
+                ],
+                en0: [
+                    {
+                        address: '192.168.1.5',
+                        netmask: '255.255.255.0',
+                        family: 'IPv4',
+                        mac: '00:00:00:00:00:01',
+                        internal: false,
+                        cidr: '192.168.1.5/24',
+                    },
+                ],
+            }),
+        ).toBe('192.168.1.5');
+        expect(() =>
+            selectMobileGatewayAddress({
+                en0: [
+                    {
+                        address: '203.0.113.8',
+                        netmask: '255.255.255.0',
+                        family: 'IPv4',
+                        mac: '00:00:00:00:00:01',
+                        internal: false,
+                        cidr: '203.0.113.8/24',
+                    },
+                ],
+            }),
+        ).toThrow('No private IPv4 network');
+    });
+
+    it('prefers a physical macOS interface over a lexically earlier VPN address', () => {
+        expect(
+            selectMobileGatewayAddress({
+                utun4: [
+                    {
+                        address: '10.0.0.2',
+                        netmask: '255.255.255.0',
+                        family: 'IPv4',
+                        mac: '00:00:00:00:00:02',
+                        internal: false,
+                        cidr: '10.0.0.2/24',
+                    },
+                ],
+                en0: [
+                    {
+                        address: '192.168.1.5',
+                        netmask: '255.255.255.0',
+                        family: 'IPv4',
+                        mac: '00:00:00:00:00:01',
+                        internal: false,
+                        cidr: '192.168.1.5/24',
+                    },
+                ],
+            }),
+        ).toBe('192.168.1.5');
+    });
+
+    it('reuses the persisted endpoint port after mobile access is toggled', async () => {
+        const registry = await registryFixture();
+        const gateway = new MobileGateway({
+            adapters: { server: { invoke: vi.fn() } },
+            bootId: 'b'.repeat(32),
+            protocolIdentity: { serverId: 'a'.repeat(32), stateEpoch: 'c'.repeat(32) },
+            registry,
+            selectAddress: () => '127.0.0.1',
+        });
+        const first = await gateway.enable();
+        await gateway.disable();
+        const second = await gateway.enable();
+        expect(second.port).toBe(first.port);
+        await gateway.close();
+    });
+
+    it('owns and closes a pre-upgrade TCP connection when mobile access is disabled', async () => {
+        const registry = await registryFixture();
+        const gateway = new MobileGateway({
+            adapters: { server: { invoke: vi.fn() } },
+            bootId: 'b'.repeat(32),
+            protocolIdentity: { serverId: 'a'.repeat(32), stateEpoch: 'c'.repeat(32) },
+            registry,
+            selectAddress: () => '127.0.0.1',
+        });
+        const enabled = await gateway.enable();
+        if (!enabled.port) throw new Error('Mobile gateway did not publish a port');
+        const socket = createConnection({ host: '127.0.0.1', port: enabled.port });
+        await new Promise<void>((resolve, reject) => {
+            socket.once('connect', resolve);
+            socket.once('error', reject);
+        });
+        const closed = new Promise<void>((resolve) => socket.once('close', () => resolve()));
+
+        await gateway.disable();
+
+        await closed;
+    });
+
+    it('closes a reconnect handshake that uses the wrong device credential before ready', async () => {
+        const registry = await registryFixture();
+        const paired = await registry.pair({
+            displayName: 'Credential test tablet',
+            platform: 'android',
+            projectIds: ['project-1'],
+        });
+        let gatewayByte = 100;
+        const gateway = new MobileGateway({
+            adapters: { server: { invoke: vi.fn() } },
+            bootId: 'b'.repeat(32),
+            protocolIdentity: { serverId: 'a'.repeat(32), stateEpoch: 'c'.repeat(32) },
+            random: (bytes) => new Uint8Array(bytes).fill(gatewayByte++),
+            registry,
+            selectAddress: () => '127.0.0.1',
+        });
+        const enabled = await gateway.enable();
+        const socket = await openSocket(`ws://${enabled.address}:${enabled.port}/mobile`, {
+            origin: `http://${enabled.address}:${enabled.port}`,
+        });
+        try {
+            const clientSecret = decodeHex('41'.repeat(32));
+            const clientPublicKey = mobilePublicKey(clientSecret);
+            const clientNonce = decodeHex('51'.repeat(32));
+            const challengeMessage = nextMessage(socket);
+            socket.send(
+                JSON.stringify({
+                    type: 'hello',
+                    version: MOBILE_TRANSPORT_VERSION,
+                    mode: 'connect',
+                    deviceId: paired.device.deviceId,
+                    generation: paired.device.generation,
+                    clientPublicKey: encodeHex(clientPublicKey),
+                    clientNonce: encodeHex(clientNonce),
+                }),
+            );
+            const challenge = mobileServerHelloSchema.parse(await challengeMessage);
+            const transcript: HandshakeTranscript = {
+                mode: 'connect',
+                serverId: 'a'.repeat(32),
+                principalId: `paired-device:${paired.device.deviceId}`,
+                connectionId: decodeHex(challenge.connectionId, 16),
+                clientPublicKey,
+                serverPublicKey: decodeHex(challenge.serverPublicKey, 32),
+                clientNonce,
+                serverNonce: decodeHex(challenge.serverNonce, 32),
+            };
+            const wrongKeys = deriveMobileSessionKeys({
+                localSecretKey: clientSecret,
+                peerPublicKey: transcript.serverPublicKey,
+                presharedKey: decodeHex('ff'.repeat(32)),
+                transcript,
+            });
+            expect(
+                isHandshakeConfirmationValid(
+                    decodeHex(challenge.confirmation, 32),
+                    wrongKeys,
+                    'server',
+                ),
+            ).toBe(false);
+
+            const closedWithoutReady = new Promise<void>((resolve, reject) => {
+                const timer = setTimeout(
+                    () => reject(new Error('Wrong-credential connection stayed open')),
+                    1_000,
+                );
+                socket.once('message', () => {
+                    clearTimeout(timer);
+                    reject(new Error('Wrong-credential connection received a ready frame'));
+                });
+                socket.once('close', () => {
+                    clearTimeout(timer);
+                    resolve();
+                });
+            });
+            const wrongConfirmation = mobileClientConfirmationSchema.parse({
+                type: 'confirm',
+                version: MOBILE_TRANSPORT_VERSION,
+                connectionId: challenge.connectionId,
+                confirmation: encodeHex(handshakeConfirmation(wrongKeys, 'client')),
+            });
+            socket.send(JSON.stringify(wrongConfirmation));
+            await expect(closedWithoutReady).resolves.toBeUndefined();
+        } finally {
+            socket.close();
+            await gateway.close();
+        }
+    });
+
+    it('pairs over encrypted frames, rejects methods outside the allowlist, and revokes the live generation', async () => {
+        const registry = await registryFixture();
+        const invoke = vi.fn<CommandAdapter['invoke']>((request) => {
+            if (request.method !== 'mobile.dashboard')
+                throw new Error('Unexpected allowed request');
+            return {
+                sessions: [],
+                total: 0,
+                truncated: false,
+            };
+        });
+        let gatewayByte = 100;
+        const gateway = new MobileGateway({
+            adapters: { server: { invoke } },
+            bootId: 'b'.repeat(32),
+            protocolIdentity: { serverId: 'a'.repeat(32), stateEpoch: 'c'.repeat(32) },
+            random: (bytes) => new Uint8Array(bytes).fill(gatewayByte++),
+            registry,
+            selectAddress: () => '127.0.0.1',
+        });
+        expect(gateway.status()).toMatchObject({ enabled: false, pendingPairingCount: 0 });
+        const enabled = await gateway.enable();
+        const pairing = gateway.createPairing(['project-1']);
+        const link = parseMobilePairingLink(pairing.pairingLink);
+        const gatewayUrl = `ws://${enabled.address}:${enabled.port}/mobile`;
+        await expect(openSocket(gatewayUrl, { origin: 'https://example.com' })).rejects.toThrow();
+        const socket = await openSocket(gatewayUrl, {
+            origin: `http://${enabled.address}:${enabled.port}`,
+        });
+
+        const clientSecret = decodeHex('21'.repeat(32));
+        const clientPublicKey = mobilePublicKey(clientSecret);
+        const clientNonce = decodeHex('31'.repeat(32));
+        const challengeMessage = nextMessage(socket);
+        socket.send(
+            JSON.stringify({
+                type: 'hello',
+                version: MOBILE_TRANSPORT_VERSION,
+                mode: 'pair',
+                pairingId: link.pairingId,
+                displayName: 'Test tablet',
+                platform: 'android',
+                clientPublicKey: encodeHex(clientPublicKey),
+                clientNonce: encodeHex(clientNonce),
+            }),
+        );
+        const challenge = mobileServerHelloSchema.parse(await challengeMessage);
+        const transcript: HandshakeTranscript = {
+            mode: 'pair',
+            serverId: link.serverId,
+            principalId: `paired-device:${challenge.deviceId}`,
+            connectionId: decodeHex(challenge.connectionId, 16),
+            clientPublicKey,
+            serverPublicKey: decodeHex(challenge.serverPublicKey, 32),
+            clientNonce,
+            serverNonce: decodeHex(challenge.serverNonce, 32),
+        };
+        const keys = deriveMobileSessionKeys({
+            localSecretKey: clientSecret,
+            peerPublicKey: transcript.serverPublicKey,
+            presharedKey: decodeHex(link.secret, 32),
+            transcript,
+        });
+        const serverConfirmation = decodeHex(challenge.confirmation, 32);
+        expect(isHandshakeConfirmationValid(serverConfirmation, keys, 'server')).toBe(true);
+
+        const pairedFrameMessage = nextMessage(socket);
+        const clientConfirmation = handshakeConfirmation(keys, 'client');
+        const confirmationFrame = mobileClientConfirmationSchema.parse({
+            type: 'confirm',
+            version: MOBILE_TRANSPORT_VERSION,
+            connectionId: challenge.connectionId,
+            confirmation: encodeHex(clientConfirmation),
+        });
+        socket.send(JSON.stringify(confirmationFrame));
+        const pairedFrame = mobileSealedFrameSchema.parse(await pairedFrameMessage);
+        const pairedPlaintext = openMobileFrame(
+            keys.serverToClient,
+            {
+                connectionId: transcript.connectionId,
+                counter: pairedFrame.counter,
+                deviceId: challenge.deviceId,
+                direction: 'server-to-client',
+            },
+            decodeHex(pairedFrame.ciphertext),
+        );
+        const pairedSource = new TextDecoder().decode(pairedPlaintext);
+        const paired = mobilePairingResultSchema.parse(JSON.parse(pairedSource));
+        expect(paired).toMatchObject({ deviceId: challenge.deviceId, projectIds: ['project-1'] });
+
+        const sendRequest = async (counter: number, request: unknown) => {
+            const replyMessage = nextMessage(socket);
+            const requestSource = JSON.stringify(request);
+            const requestPlaintext = new TextEncoder().encode(requestSource);
+            const requestCiphertext = sealMobileFrame(
+                keys.clientToServer,
+                {
+                    connectionId: transcript.connectionId,
+                    counter,
+                    deviceId: paired.deviceId,
+                    direction: 'client-to-server',
+                },
+                requestPlaintext,
+            );
+            const requestFrame = {
+                type: 'sealed',
+                version: MOBILE_TRANSPORT_VERSION,
+                connectionId: challenge.connectionId,
+                counter,
+                ciphertext: encodeHex(requestCiphertext),
+            };
+            socket.send(JSON.stringify(requestFrame));
+            const frame = mobileSealedFrameSchema.parse(await replyMessage);
+            const replyPlaintext = openMobileFrame(
+                keys.serverToClient,
+                {
+                    connectionId: transcript.connectionId,
+                    counter: frame.counter,
+                    deviceId: paired.deviceId,
+                    direction: 'server-to-client',
+                },
+                decodeHex(frame.ciphertext),
+            );
+            const replySource = new TextDecoder().decode(replyPlaintext);
+            return JSON.parse(replySource) as unknown;
+        };
+
+        await expect(
+            sendRequest(0, {
+                protocolVersion: CAXRI_PROTOCOL_VERSION,
+                id: 'forbidden-1',
+                method: 'settings.inspect',
+                params: {},
+            }),
+        ).resolves.toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } });
+        await expect(
+            sendRequest(1, {
+                protocolVersion: CAXRI_PROTOCOL_VERSION,
+                id: 'allowed-1',
+                method: 'mobile.dashboard',
+                params: {},
+            }),
+        ).resolves.toMatchObject({
+            ok: true,
+            result: { sessions: [], total: 0, truncated: false },
+        });
+        expect(invoke).toHaveBeenCalledOnce();
+
+        const closed = new Promise<void>((resolve) => socket.once('close', () => resolve()));
+        await gateway.revoke(paired.deviceId, paired.generation);
+        await closed;
+        expect(() => registry.currentPrincipal(paired.deviceId, paired.generation)).toThrow(
+            'Paired device authorization is unavailable',
+        );
+        await gateway.close();
+    });
+});

@@ -28,6 +28,7 @@ import { EnumControl } from './enum-control';
 import { FilesExcludeEditor } from './files-exclude-editor';
 import { IntegerControl } from './integer-control';
 import { automaticNamingHealthLabel, hookHealthLabel } from './provider-health';
+import { MobileAccessForm } from './mobile-access-form';
 import { ProviderRecoveryEditor } from './provider-recovery-editor';
 import { ProviderSkillHealth } from './provider-skill-health';
 import type { SettingRowDescriptor } from './settings-registry';
@@ -59,6 +60,7 @@ function isFullWidthRow(row: SettingRowDescriptor): boolean {
     if (row.binding.type === 'setting') return settingsSpecByKey[row.binding.key].kind === 'string';
     return [
         'files-exclude',
+        'mobile-access',
         'provider-actions',
         'provider-launch',
         'provider-recovery',
@@ -415,6 +417,8 @@ function rowControl(properties: SettingRowProperties): {
                     </Button>
                 ),
             };
+        case 'mobile-access':
+            return { control: <MobileAccessForm /> };
         case 'remote-debugging':
             return {
                 labelFor: controlId,

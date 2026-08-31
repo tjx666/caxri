@@ -107,8 +107,8 @@ idempotency policy, Zod parameter/result schemas, and an optional principal proj
 negotiation welcome identifies the authenticated principal and enumerates granted capabilities and
 supported commands, so callers can query support without inferring it from errors. Desktop bridge
 imports consume the owning `packages/protocol` public export; no other tree may define a second method
-or schema table. Protocol source is grouped behind six domain barrels:
-`agent`, `configuration`, `desktop`, `domain`, `registry`, and `transport`; the package root is the
+or schema table. Protocol source is grouped behind seven domain barrels:
+`agent`, `configuration`, `desktop`, `domain`, `mobile`, `registry`, and `transport`; the package root is the
 only public package entrypoint. Do not add or remove one of those domains without updating this
 reference and `scripts/__tests__/workspace-contract.test.ts`.
 
@@ -118,6 +118,16 @@ consumers.
 
 `packages/utils` is browser-safe and free of runtime dependencies. It holds pure functions only.
 Domain types, protocol schemas, and React code never move there.
+
+`packages/mobile-transport` is the browser-safe cryptographic and wire-format boundary shared by
+native mobile clients and the Server gateway. It cannot import Node.js, Electron, native Desktop
+packages, or application source. Its public package root is the only supported entrypoint.
+
+`apps/mobile` is the Expo and React Native companion application. Its `app/` and `src/` runtime graph
+may import only `@caxri/mobile-transport` and `@caxri/protocol`; tests may additionally consume
+browser-safe pure utilities. Runtime type-checking exposes only ECMAScript plus worker-safe Web APIs,
+excluding both Node.js ambient types and browser document/window globals that React Native does not
+provide. Node-powered Expo plugins and build scripts remain outside that runtime configuration.
 
 The shared dispatcher validates protocol version, command, parameters, principal, capabilities,
 owner availability, and results before it returns `{ protocolVersion, ok, result | error }`. Read

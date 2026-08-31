@@ -17,6 +17,7 @@ export const desktopServerOperationIds = [
     'diagnostics.exportPath',
     'git.discard.preflight',
     'git.discard.apply',
+    'mobile.device.revoke.apply',
     'files.authorizeTrash',
     'files.authorizeOpen',
     'terminal.fileLink.resolve',

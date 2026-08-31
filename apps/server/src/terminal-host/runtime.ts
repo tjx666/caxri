@@ -54,6 +54,7 @@ export interface TerminalExecutionOwner {
     shutdown(): Array<{ terminalId: string; capture: Promise<TerminalSnapshot> }>;
     signalExact(terminalId: string, expectedProcessId: number, signal: string): boolean;
     snapshot(terminalId: string): Promise<TerminalSnapshot | null>;
+    textTail?(terminalId: string, maximumCharacters: number): Promise<string | null>;
     start(input: TerminalExecutionStart): number;
     waitForAttachedSize(terminalId: string, timeoutMs: number): Promise<void>;
     write(terminalId: string, data: string): boolean;
@@ -374,6 +375,10 @@ export class TerminalHostRuntime {
                     throw new CaxriError('CONFLICT', 'Managed Agent changed before Terminal input');
                 return { accepted: this.engine.write(scope.terminalId, request.params.data) };
             }
+            case 'terminal.agent.input': {
+                const scope = this.requireTerminalScope(envelope);
+                return { accepted: this.engine.write(scope.terminalId, request.params.data) };
+            }
             case 'terminal.resize': {
                 const scope = this.requireTerminalScope(envelope);
                 return {
@@ -400,6 +405,17 @@ export class TerminalHostRuntime {
             case 'terminal.snapshot': {
                 const scope = this.requireTerminalScope(envelope);
                 return { snapshot: await this.engine.snapshot(scope.terminalId) };
+            }
+            case 'terminal.textTail': {
+                const scope = this.requireTerminalScope(envelope);
+                return {
+                    tail: this.engine.textTail
+                        ? await this.engine.textTail(
+                              scope.terminalId,
+                              request.params.maximumCharacters,
+                          )
+                        : null,
+                };
             }
             case 'terminal.waitForAttachedSize': {
                 const scope = this.requireTerminalScope(envelope);

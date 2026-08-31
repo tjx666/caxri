@@ -63,6 +63,7 @@ describe('projectListForPrincipal', () => {
             kind: 'paired-device',
             id: 'device-1',
             deviceId: 'device-1',
+            generation: 1,
             projectIds: ['project-1', 'project-2'],
         };
         const result = projectListForPrincipal(value, pairedDevice);

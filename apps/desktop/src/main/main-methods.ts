@@ -10,6 +10,7 @@ import {
     discardGitChangesPrompt,
     externalLinkChoice,
     externalLinkPrompt,
+    revokeMobileDevicePrompt,
     trashPrompt,
     unsavedChangesChoice,
     unsavedChangesPrompt,
@@ -186,6 +187,23 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 );
                 if (result.response !== 0) return { canceled: true };
                 return supervisor.request('session.delete', { sessionId });
+            }
+            case 'mobile.device.revoke': {
+                const device = (await supervisor.request('mobile.device.list')).devices.find(
+                    (candidate) =>
+                        candidate.deviceId === request.params.deviceId &&
+                        candidate.revokedAt === undefined,
+                );
+                if (!device) throw new CaxriError('NOT_FOUND', 'Paired device not found');
+                const result = await dialog.showMessageBox(
+                    mainWindow!,
+                    revokeMobileDevicePrompt(device),
+                );
+                if (result.response !== 0) return { canceled: true };
+                return supervisor.request('mobile.device.revoke.apply', {
+                    deviceId: device.deviceId,
+                    expectedGeneration: device.generation,
+                });
             }
             case 'theme.import': {
                 const result = await dialog.showOpenDialog(mainWindow!, {

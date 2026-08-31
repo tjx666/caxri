@@ -8,6 +8,7 @@ import {
     requestIdFromEnvelope,
 } from '../dispatcher';
 import { CaxriError } from '../errors';
+import type { CommandExecutionContext } from '../principal';
 
 const desktop = {
     capabilities: ['desktop'],
@@ -94,6 +95,38 @@ describe('createCommandDispatcher receipt capacity', () => {
                 desktop,
             ),
         ).resolves.toMatchObject({ ok: true });
+    });
+});
+
+describe('createCommandDispatcher paired-device generations', () => {
+    it('does not replay an idempotent command receipt across a revoked generation', async () => {
+        const invoke = vi.fn(() => ({
+            terminalId: 'terminal-1',
+            accepted: true as const,
+            byteLength: 5,
+            enter: true,
+        }));
+        const dispatch = createCommandDispatcher({ server: { invoke } });
+        const command = request('reply-1', 'terminal.send', {
+            terminalId: 'terminal-1',
+            text: 'Hello',
+            enter: true,
+        });
+        const context = (generation: number): CommandExecutionContext => ({
+            capabilities: ['terminals.steer'],
+            principal: {
+                kind: 'paired-device',
+                id: 'paired-device:device-1',
+                deviceId: 'device-1',
+                generation,
+                projectIds: ['project-1'],
+            },
+        });
+
+        await expect(dispatch(command, context(1))).resolves.toMatchObject({ ok: true });
+        await expect(dispatch(command, context(1))).resolves.toMatchObject({ ok: true });
+        await expect(dispatch(command, context(2))).resolves.toMatchObject({ ok: true });
+        expect(invoke).toHaveBeenCalledTimes(2);
     });
 });
 

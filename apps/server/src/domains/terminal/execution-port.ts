@@ -92,6 +92,7 @@ export interface TerminalExecutionPort {
     signalAgentExact(terminalId: string, expectedLaunchId: string, signal: string): boolean;
     signalExact(terminalId: string, expectedProcessId: number, signal: string): boolean;
     snapshot(terminalId: string): Promise<TerminalSnapshot | null>;
+    textTail?(terminalId: string, maximumCharacters: number): Promise<string | null>;
     start(input: TerminalExecutionLaunch): Promise<number>;
     terminateSession(sessionId: string, terminalIds: readonly string[]): string[];
     /**
@@ -113,4 +114,5 @@ export interface TerminalExecutionPort {
         abortSignal?: AbortSignal,
     ): Promise<boolean>;
     writeAgentExact(terminalId: string, data: string, expectedAgentLaunchId: string): boolean;
+    writeAgent(terminalId: string, data: string): boolean;
 }

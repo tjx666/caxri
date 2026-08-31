@@ -1,3 +1,5 @@
+import { sortedCopy } from '@caxri/utils';
+
 import type { DefaultKeybindingChange } from '../configuration/config-files.js';
 import {
     filesCoreCommandDefinitions,
@@ -420,14 +422,15 @@ export function getCommandDefinition(id: string): CommandDefinition {
  * Returns command-backed native-menu groups in their declared presentation order.
  */
 export function getNativeMenuCommandGroups(menu: NativeMenuId): CommandDefinition[][] {
-    const placed = commandDefinitions
-        .filter((command) => command.nativeMenu?.menu === menu)
-        .toSorted((a, b) => {
+    const placed = sortedCopy(
+        commandDefinitions.filter((command) => command.nativeMenu?.menu === menu),
+        (a, b) => {
             const aPlacement = a.nativeMenu;
             const bPlacement = b.nativeMenu;
             if (!aPlacement || !bPlacement) return 0;
             return aPlacement.group - bPlacement.group || aPlacement.order - bPlacement.order;
-        });
+        },
+    );
     const groups: CommandDefinition[][] = [];
     for (const command of placed) {
         const group = command.nativeMenu?.group;

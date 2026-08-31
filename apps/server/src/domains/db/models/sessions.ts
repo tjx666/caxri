@@ -31,6 +31,7 @@ import {
     sessionState as sessionStateTable,
     terminals,
 } from '../schema';
+import { didConsumeAttentionReply, didReleaseAttentionReply } from './attention-replies';
 import {
     effectiveWorkbenchProjectId,
     mapSession,
@@ -571,6 +572,14 @@ export class SessionsModel {
                 )
                 .run().changes === 1
         );
+    }
+
+    consumeAttentionReply(id: string, terminalId: string, attentionEpoch: number): boolean {
+        return didConsumeAttentionReply(this.database, id, terminalId, attentionEpoch);
+    }
+
+    releaseAttentionReply(id: string, terminalId: string, attentionEpoch: number): boolean {
+        return didReleaseAttentionReply(this.database, id, terminalId, attentionEpoch);
     }
 
     rename(id: string, displayTitle: string): boolean {
