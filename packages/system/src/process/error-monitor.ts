@@ -30,10 +30,14 @@ interface BufferedProcessError {
         code: string;
         errorType: string;
         origin: NodeJS.UncaughtExceptionOrigin;
+        validationIssues?: string;
     };
 }
 
 const MAX_BUFFERED_PROCESS_ERRORS = 8;
+const MAX_REPORTED_VALIDATION_ISSUES = 5;
+const MAX_VALIDATION_PATH_SEGMENTS = 8;
+const MAX_VALIDATION_ISSUES_LENGTH = 512;
 const processErrorEvents = {
     'desktop': {
         uncaughtException: logEventCatalog.desktop.uncaughtException,
@@ -57,6 +61,47 @@ const processErrorEvents = {
 >;
 function errorType(error: unknown): string {
     return error instanceof Error ? error.name : typeof error;
+}
+
+/**
+ * Retains only path shape because Zod paths do not distinguish schema field names from dynamic record keys. Even an
+ * identifier-looking segment may therefore contain user data or a credential name.
+ */
+function validationIssues(error: unknown): string | undefined {
+    try {
+        if (!(error instanceof Error) || error.name !== 'ZodError') return undefined;
+        const rawIssues: unknown = (error as Error & { issues?: unknown }).issues;
+        if (!Array.isArray(rawIssues)) return undefined;
+        return rawIssues
+            .slice(0, MAX_REPORTED_VALIDATION_ISSUES)
+            .map((issue) => {
+                if (typeof issue !== 'object' || issue === null) return 'unknown:unknown';
+                const issueRecord = issue as Record<string, unknown>;
+                const rawPath: unknown = issueRecord.path;
+                const path = Array.isArray(rawPath)
+                    ? rawPath
+                          .slice(0, MAX_VALIDATION_PATH_SEGMENTS)
+                          .map((segment) => {
+                              if (typeof segment === 'number') return '*';
+                              return typeof segment === 'string' ? '<field>' : '<key>';
+                          })
+                          .join('.')
+                    : 'unknown';
+                const rawCode: unknown = issueRecord.code;
+                const code =
+                    typeof rawCode === 'string' && /^[a-z][a-z_]{0,63}$/.test(rawCode)
+                        ? rawCode
+                        : 'unknown';
+                return `${path || 'root'}:${code}`;
+            })
+            .join(',')
+            .slice(0, MAX_VALIDATION_ISSUES_LENGTH);
+    } catch {
+        /**
+         * Fatal-error observation must remain passive even for a malformed cross-realm Zod-shaped error.
+         */
+        return undefined;
+    }
 }
 
 /**
@@ -87,6 +132,7 @@ export function installProcessErrorMonitor(options: ProcessErrorMonitorOptions):
     };
     const listener = (error: unknown, origin: NodeJS.UncaughtExceptionOrigin): void => {
         const isRejection = origin === 'unhandledRejection';
+        const validationIssueSummary = validationIssues(error);
         const record: BufferedProcessError = {
             event: isRejection
                 ? processErrorEvents[options.processName].unhandledRejection
@@ -95,6 +141,7 @@ export function installProcessErrorMonitor(options: ProcessErrorMonitorOptions):
                 code: isRejection ? 'UNHANDLED_REJECTION' : 'UNCAUGHT_EXCEPTION',
                 errorType: errorType(error),
                 origin,
+                ...(validationIssueSummary && { validationIssues: validationIssueSummary }),
             },
         };
         if (!didWrite(record) && buffered.length < MAX_BUFFERED_PROCESS_ERRORS)

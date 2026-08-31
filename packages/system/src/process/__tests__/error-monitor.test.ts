@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 
+import { serverEventSchema, sourceControlViewStatesSchema } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ProcessErrorTarget, ProcessErrorWriter } from '../error-monitor';
@@ -12,6 +13,59 @@ function createWriter() {
 }
 
 describe('installProcessErrorMonitor', () => {
+    it('records bounded Zod issue path shapes and codes without rejected values', () => {
+        // eslint-disable-next-line unicorn/prefer-event-target -- Matches Node's process error surface.
+        const target = new EventEmitter();
+        const writer = createWriter();
+        const monitor = installProcessErrorMonitor({
+            processName: 'server-core',
+            target: target as ProcessErrorTarget,
+        });
+        monitor.attach(writer);
+        const parsed = serverEventSchema.safeParse({
+            event: 'files.changed',
+            payload: {
+                sessionId: 'session-1',
+                workbenchProjectId: 'project-1',
+                changes: Array.from({ length: 513 }, (_, index) => ({
+                    path: `/private/source-${index}.txt`,
+                    kind: 'update',
+                })),
+                overflow: false,
+            },
+        });
+        if (parsed.success) throw new Error('Expected fixture validation to fail');
+
+        target.emit('uncaughtExceptionMonitor', parsed.error, 'uncaughtException');
+
+        expect(writer.write).toHaveBeenCalledWith('error', 'server_core.uncaught_exception', {
+            fields: {
+                code: 'UNCAUGHT_EXCEPTION',
+                errorType: 'ZodError',
+                origin: 'uncaughtException',
+                validationIssues: '<field>.<field>:too_big',
+            },
+        });
+        expect(JSON.stringify(writer.write.mock.calls)).not.toContain('/private/source-');
+    });
+
+    it('does not expose dynamic record keys through Zod issue paths', () => {
+        // eslint-disable-next-line unicorn/prefer-event-target -- Matches Node's process error surface.
+        const target = new EventEmitter();
+        const writer = createWriter();
+        const monitor = installProcessErrorMonitor({
+            processName: 'server-core',
+            target: target as ProcessErrorTarget,
+        });
+        monitor.attach(writer);
+        const parsed = sourceControlViewStatesSchema.safeParse({ privateCredentialName: {} });
+        if (parsed.success) throw new Error('Expected fixture validation to fail');
+
+        target.emit('uncaughtExceptionMonitor', parsed.error, 'uncaughtException');
+
+        expect(JSON.stringify(writer.write.mock.calls)).not.toContain('privateCredentialName');
+    });
+
     it('buffers an early fault until the structured logger is available', () => {
         // Node's `process` (the real production target) is an EventEmitter exposing
         // `uncaughtExceptionMonitor`, which has no EventTarget equivalent; the test double must

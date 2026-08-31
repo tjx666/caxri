@@ -2,7 +2,7 @@ import { lstat, readdir } from 'node:fs/promises';
 import { basename, isAbsolute, relative, resolve } from 'node:path';
 
 import type { FileChange, ServerEvent } from '@caxri/protocol';
-import { errorMessage } from '@caxri/protocol';
+import { errorMessage, MAX_FILE_CHANGES_PER_EVENT } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog, mapWithConcurrency } from '@caxri/system';
 import type parcelWatcher from '@parcel/watcher';
@@ -18,7 +18,7 @@ import {
     WATCHER_EXCLUDE_PATTERNS,
 } from './ignore-rules';
 
-const MAX_PENDING_WATCH_EVENTS = 5_000;
+const MAX_PENDING_WATCH_EVENTS = MAX_FILE_CHANGES_PER_EVENT;
 const MAX_POLLED_DIRECTORIES = 64;
 const MAX_RECENT_CHANGE_FINGERPRINTS = 5_000;
 const WATCH_BATCH_DELAY_MS = 75;
