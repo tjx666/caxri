@@ -46,7 +46,8 @@ async function writeClaudeMetadata(
     await writeFile(join(configDirectory, 'trigger'), String(Date.now()), 'utf8');
 }
 
-test('Session attention persists until the selected Session is visibly focused', async () => {
+// eslint-disable-next-line no-empty-pattern -- Playwright requires the fixture argument to use object destructuring.
+test('Session attention persists until the selected Session is visibly focused', async ({}, testInfo) => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-attention-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -360,8 +361,11 @@ setInterval(() => {
         const selectedStatus = running.page.locator(
             `[data-session-id="${firstSession.id}"] .session-status`,
         );
-        await expect(selectedStatus).toHaveAttribute('data-session-status', 'attention');
-        await expect(selectedStatus).toHaveAttribute('data-attention-emphasis', 'persistent');
+        await expect(selectedStatus).toHaveAttribute('data-session-status', 'default');
+        await expect(selectedStatus).not.toHaveAttribute('data-attention-emphasis');
+        await running.page.screenshot({
+            path: testInfo.outputPath('selected-session-attention-cleared.png'),
+        });
 
         await pageRequest(running.page, 'session.select', { sessionId: secondSessionId });
         await expect

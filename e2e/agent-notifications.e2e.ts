@@ -1,7 +1,9 @@
-import { mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
+
+import type { AppSettings, BootstrapState } from '@caxri/protocol';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
@@ -14,6 +16,31 @@ import {
 } from './support/helpers.ts';
 
 const SESSION_TITLE = 'Background notification source';
+
+async function waitForReceipt(path: string): Promise<void> {
+    await expect
+        .poll(async () => {
+            const receipt = await readFileIfPresent(path);
+            if (receipt === 'failed') throw new Error('Fake Claude hook invocation failed');
+            return receipt;
+        })
+        .toBe('done');
+}
+
+async function readFileIfPresent(path: string): Promise<string> {
+    try {
+        return await readFile(path, 'utf8');
+    } catch (error) {
+        if (
+            typeof error === 'object' &&
+            error !== null &&
+            'code' in error &&
+            error.code === 'ENOENT'
+        )
+            return '';
+        throw error;
+    }
+}
 
 async function writeClaudeMetadata(
     configDirectory: string,
@@ -238,6 +265,168 @@ setInterval(() => {
                 }),
             )
             .toEqual({ minimized: false, visible: true });
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during cleanup.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires the first test argument to use object destructuring
+test('a Claude subagent completion keeps the Session running without unread attention or a notification', async ({}, testInfo) => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-subagent-notification-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    const config = join(userData, 'e2e-agents', 'claude');
+    await mkdir(root, { recursive: true });
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: {
+            claude: {
+                executableSource: String.raw`#!${process.execPath}
+const childProcess = require('node:child_process');
+const fs = require('node:fs');
+const path = require('node:path');
+if (process.argv.includes('--version')) {
+  process.stdout.write('2.1.251 (Claude Code)\n');
+  process.exit(0);
+}
+const config = process.env.CLAUDE_CONFIG_DIR;
+function invokeHook(event, payload) {
+  const settings = JSON.parse(fs.readFileSync(path.join(config, 'settings.json'), 'utf8'));
+  const group = settings.hooks[event][0];
+  childProcess.execFileSync('/bin/sh', ['-c', group.hooks[0].command], {
+    env: process.env,
+    input: JSON.stringify(payload),
+  });
+}
+const actions = [
+  ['turn-started', 'UserPromptSubmit', {}],
+  ['subagent-finished', 'Stop', { agent_id: 'subagent-1' }],
+  ['parent-finished', 'Stop', {}],
+];
+setInterval(() => {
+  for (const [name, event, payload] of actions) {
+    const trigger = path.join(config, name);
+    if (!fs.existsSync(trigger)) continue;
+    fs.rmSync(trigger);
+    try {
+      invokeHook(event, payload);
+      fs.writeFileSync(trigger + '.receipt', 'done');
+    } catch {
+      fs.writeFileSync(trigger + '.receipt', 'failed');
+    }
+  }
+}, 25);
+process.stdin.setRawMode?.(true);
+process.stdin.resume();
+process.stdout.write('Fake Claude subagent lifecycle ready\r\n');
+`,
+            },
+        },
+    });
+    const running = await launchCaxri({
+        agentMode,
+        env: { CAXRI_E2E_AGENT_HOOKS: '1' },
+        testRootPath: root,
+        userDataDir: userData,
+    });
+
+    try {
+        const current = await pageRequest<{ value: AppSettings }>(running.page, 'settings.get');
+        const settings = structuredClone(current.value);
+        settings['agents.providers'].claude.hooks.enabled = true;
+        settings['agents.providers'].claude.naming.enabled = false;
+        settings['agents.notifications.enabled'] = true;
+        settings['agents.notifications.completionThresholdSeconds'] = 0;
+        await pageRequest(running.page, 'settings.update', {
+            source: JSON.stringify(settings, null, 2),
+        });
+        await expect
+            .poll(() => readFileIfPresent(join(config, 'settings.json')))
+            .toContain('UserPromptSubmit');
+
+        await running.app.evaluate(({ Notification }) => {
+            type RecordedNotification = InstanceType<typeof Notification>;
+            const state = globalThis as typeof globalThis & {
+                __caxriAgentNotifications?: RecordedNotification[];
+            };
+            state.__caxriAgentNotifications = [];
+            Notification.isSupported = () => true;
+            Notification.prototype.show = function show(): void {
+                // eslint-disable-next-line unicorn/no-this-outside-of-class -- prototype test seam
+                state.__caxriAgentNotifications?.push(this);
+            };
+        });
+
+        const sourceSessionId = await createProjectSession(running.page, 'claude');
+        await expect(running.page.locator('.xterm-rows')).toContainText(
+            'Fake Claude subagent lifecycle ready',
+        );
+        await writeFile(join(config, 'turn-started'), '', 'utf8');
+        await waitForReceipt(join(config, 'turn-started.receipt'));
+        const sourceRow = running.page.locator(`[data-session-id="${sourceSessionId}"]`);
+        const sourceStatus = sourceRow.locator('.session-status');
+        await expect(sourceStatus).toHaveAttribute('data-session-status', 'running');
+        await expect(sourceStatus).toHaveAccessibleName('Working. The Agent is running.');
+
+        await createAdditionalShellSession(running.page);
+        await writeFile(join(config, 'subagent-finished'), '', 'utf8');
+        await waitForReceipt(join(config, 'subagent-finished.receipt'));
+
+        const afterSubagent = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
+        expect(
+            afterSubagent.sessions.find((session) => session.id === sourceSessionId),
+        ).toMatchObject({
+            attentionEpoch: 0,
+            hasUnread: false,
+            lastActivityState: 'running',
+        });
+        await expect(sourceStatus).toHaveAttribute('data-session-status', 'running');
+        expect(
+            await running.app.evaluate(() => {
+                const state = globalThis as typeof globalThis & {
+                    __caxriAgentNotifications?: unknown[];
+                };
+                return state.__caxriAgentNotifications?.length ?? 0;
+            }),
+        ).toBe(0);
+        await running.page.screenshot({
+            path: testInfo.outputPath('subagent-finished-session-still-running.png'),
+        });
+
+        await writeFile(join(config, 'parent-finished'), '', 'utf8');
+        await waitForReceipt(join(config, 'parent-finished.receipt'));
+        await expect
+            .poll(async () => {
+                const bootstrap = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
+                return bootstrap.sessions.find((session) => session.id === sourceSessionId);
+            })
+            .toMatchObject({
+                attentionEpoch: 1,
+                hasUnread: true,
+                lastActivityState: 'completed',
+                lastAttentionKind: 'completed',
+            });
+        await expect(sourceStatus).toHaveAttribute('data-session-status', 'attention');
+        await expect
+            .poll(() =>
+                running.app.evaluate(() => {
+                    interface RecordedNotification {
+                        body: string;
+                    }
+                    const state = globalThis as typeof globalThis & {
+                        __caxriAgentNotifications?: RecordedNotification[];
+                    };
+                    return (state.__caxriAgentNotifications ?? []).map(
+                        (notification) => notification.body,
+                    );
+                }),
+            )
+            .toEqual(['Claude Code completed a turn.']);
     } finally {
         try {
             await running.app.close();

@@ -31,7 +31,8 @@ export interface AgentLifecycleSignal {
     agentTurnId?: string;
     /**
      * Provider-native subagent identifier. The main Agent omits it; matching this scope prevents a nested Agent's
-     * completed tool batch from clearing attention requested by another Agent sharing the Terminal.
+     * completed tool batch from clearing another scope's attention and its completion from settling the parent
+     * Session.
      */
     agentId?: string;
     /**
