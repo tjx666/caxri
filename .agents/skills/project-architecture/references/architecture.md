@@ -182,6 +182,10 @@ changes request the full bootstrap convergence snapshot; steady-state Terminal a
 events carry typed Session/Terminal identities and use the bounded `app.records` read so they never
 resend the whole application graph. An unrecognized state-change scope normalizes to the full
 convergence path.
+An invalid internal event is rejected inside the Server Core listener before it can reach a structured control or
+journal boundary. The rejection records only its known event name plus bounded schema paths, codes, and array counts,
+then emits the existing full unknown-state invalidation so connected clients converge without crashing Server Core or
+exposing the rejected payload.
 
 Server Core resolves that table through one composition root. `createServerDomainService(deps)`
 constructs and wires every domain service from injected dependencies (data directory, logger, event
@@ -345,6 +349,9 @@ and can be restarted. In-flight Agent CLI discovery is revalidated against durab
 registered, so closing a Terminal or deleting its Session cannot create an orphan process.
 
 Interrupted-Terminal recovery is supervised by one Server Core-wide four-spawn budget. Selecting a Session invalidates queued restore work from the previous selection, and the selected generation is revalidated after executable discovery immediately before PTY spawn. A visible interrupted Terminal retains the receiving Renderer grid before restore, starts its PTY and parsed screen at that grid when possible, and performs one ordered live-screen reattach after the record becomes `running`; this removes any remaining attach/spawn race without relying on a later ResizeObserver event. Startup Agent metadata probes are limited to the selected Session; another Session is probed when selected rather than during boot.
+The visible-grid wait resolves as stale work when its restore generation is canceled across both in-process and private
+Terminal Host execution adapters; it must leave the durable Terminal `interrupted`, never convert an ordinary Session
+switch into `failed` / `spawn_failed`.
 
 Exited Terminals retain their final output and reserve a compact recovery row beneath the xterm viewport, never over it. A zero exit without a signal is neutral; startup failures and signal or non-zero exits use a danger state. Surface actions, the command palette, and `Command+Shift+R` restart the same durable Terminal record, so recovery cannot create a duplicate tab or PTY identity. Restarting a bound Agent Terminal resumes its correlated provider session by default; only the separate `Start New Agent Session` action clears that binding and starts fresh, while Shell restarts always remain fresh.
 

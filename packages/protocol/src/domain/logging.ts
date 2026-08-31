@@ -186,6 +186,7 @@ export const logEventCatalog = {
         clientCount: 'server_core.client_count',
         commandReceipt: 'server_core.command_receipt',
         domainsReady: 'server_core.domains_ready',
+        eventRejected: 'server_core.event_rejected',
         eventRecovery: 'server_core.event_recovery',
         ready: 'server_core.ready',
         recoveryReady: 'server_core.recovery_ready',
