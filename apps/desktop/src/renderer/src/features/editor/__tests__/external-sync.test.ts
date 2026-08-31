@@ -210,6 +210,79 @@ describe('subscribeExternalDocumentSync', () => {
         unsubscribe();
     });
 
+    it('rechecks every open document after watcher overflow', async () => {
+        const paths = ['/project/first.ts', '/project/second.ts'] as const;
+        useWorkbenchStore.setState((state) => ({
+            bootstrap: {
+                ...state.bootstrap!,
+                sessionStates: state.bootstrap!.sessionStates.map((current) =>
+                    current.sessionId === 'session-1'
+                        ? {
+                              ...current,
+                              paneLayout: {
+                                  root: {
+                                      type: 'pane',
+                                      id: 'pane-1',
+                                      tabs: paths.map((path) => ({
+                                          id: `tab-${path}`,
+                                          resource: { kind: 'file', path },
+                                      })),
+                                      activeTabId: `tab-${paths[0]}`,
+                                  },
+                                  activePaneId: 'pane-1',
+                              },
+                          }
+                        : current,
+                ),
+            },
+        }));
+        for (const path of paths)
+            useSessionViewStore.getState().cacheDocument('session-1', {
+                path,
+                content: 'cached content',
+                dirty: false,
+                mtimeMs: 1,
+                size: 14,
+            });
+        for (const path of paths)
+            mocks.request.mockImplementationOnce(() =>
+                Promise.resolve({
+                    path,
+                    content: `disk content for ${path}`,
+                    dirty: false,
+                    mtimeMs: 2,
+                    size: 20,
+                }),
+            );
+        const unsubscribe = subscribeExternalDocumentSync();
+
+        mocks.state.handler?.({
+            event: 'files.changed',
+            payload: {
+                sessionId: 'session-1',
+                workbenchProjectId: 'project-1',
+                overflow: true,
+                changes: [{ kind: 'update', path: paths[0] }],
+            },
+        });
+
+        await vi.waitFor(() => {
+            expect(mocks.request).toHaveBeenCalledTimes(2);
+            for (const path of paths)
+                expect(getSessionDocuments('session-1', 'project-1')?.[path]).toMatchObject({
+                    content: `disk content for ${path}`,
+                    dirty: false,
+                });
+        });
+        for (const path of paths) {
+            expect(mocks.request).toHaveBeenCalledWith('files.read', {
+                sessionId: 'session-1',
+                path,
+            });
+        }
+        unsubscribe();
+    });
+
     it('keeps the external-reload notice on screen because it can discard unsaved work', async () => {
         useSessionViewStore.getState().cacheDocument('session-1', {
             path: '/project/first.ts',

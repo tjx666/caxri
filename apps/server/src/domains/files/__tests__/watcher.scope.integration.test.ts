@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { ServerEvent } from '@caxri/protocol';
+import { durableServerEventSchema } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import type parcelWatcher from '@parcel/watcher';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -25,6 +26,50 @@ function pendingScope(service: FileService) {
 }
 
 describe('File watcher scopes', () => {
+    it('bounds native change bursts to the durable event contract', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-file-watch-bounded-batch-'));
+        temporaryDirectories.push(directory);
+        const root = join(directory, 'project');
+        await mkdir(root);
+        const canonicalRoot = await realpath(root);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const project = database.createProject(root);
+        const session = database.createSession(project.id, 'shell').session;
+        const events: ServerEvent[] = [];
+        let callback: Parameters<typeof parcelWatcher.subscribe>[1] | undefined;
+        const subscribe: typeof parcelWatcher.subscribe = (_root, onEvents) => {
+            callback = onEvents;
+            return Promise.resolve({ unsubscribe: () => Promise.resolve() });
+        };
+        const service = new FileService(
+            database,
+            (event) => events.push(event),
+            new StructuredLogger(join(directory, 'logs')),
+            () => 1024,
+            { subscribe },
+        );
+
+        await service.watchSession(session.id);
+        callback!(
+            null,
+            Array.from({ length: 513 }, (_, index) => ({
+                path: join(canonicalRoot, `deleted-${index}.txt`),
+                type: 'delete' as const,
+            })),
+        );
+
+        await expect
+            .poll(() => events.filter((event) => event.event === 'files.changed'))
+            .toHaveLength(1);
+        const batch = events.find((event) => event.event === 'files.changed')!;
+        expect(durableServerEventSchema.safeParse(batch).success).toBe(true);
+        expect(batch.payload.changes).toHaveLength(512);
+        expect(batch.payload.overflow).toBe(true);
+
+        await service.close();
+        database.close();
+    });
+
     it('separates pending batches when Sessions sharing a Project switch source', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-file-watch-shared-project-'));
         temporaryDirectories.push(directory);

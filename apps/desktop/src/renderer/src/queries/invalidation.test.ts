@@ -157,6 +157,59 @@ describe('subscribeRuntimeQueryInvalidation', () => {
         unsubscribe();
     });
 
+    it('invalidates every Files listing in the affected Workbench Project after watcher overflow', () => {
+        vi.useFakeTimers();
+        const queryClient = new QueryClient();
+        const firstBrowse = [
+            'files.browse',
+            { sessionId: 'session-a', directory: '/project/src' },
+        ] as const;
+        const firstList = [
+            'files.list',
+            { sessionId: 'session-a', directory: '/project/docs' },
+        ] as const;
+        const siblingList = [
+            'files.list',
+            { sessionId: 'session-b', directory: '/project/tests' },
+        ] as const;
+        const unrelatedList = [
+            'files.list',
+            { sessionId: 'session-other', directory: '/other' },
+        ] as const;
+        for (const key of [firstBrowse, firstList, siblingList, unrelatedList])
+            queryClient.setQueryData(key, { entries: [] });
+        useWorkbenchStore.setState({
+            bootstrap: {
+                selectedSessionId: 'session-a',
+                sessions: [
+                    { id: 'session-a', workbenchProjectId: 'project-p' },
+                    { id: 'session-b', workbenchProjectId: 'project-p' },
+                    { id: 'session-other', workbenchProjectId: 'project-other' },
+                ],
+                sessionStates: [],
+                terminals: [],
+            } as unknown as BootstrapState,
+        });
+        const unsubscribe = subscribeRuntimeQueryInvalidation(queryClient);
+
+        mocks.state.handler?.({
+            event: 'files.changed',
+            payload: {
+                sessionId: 'session-a',
+                workbenchProjectId: 'project-p',
+                overflow: true,
+                changes: [{ path: '/project/src/observed.ts', kind: 'update' }],
+            },
+        });
+        vi.advanceTimersByTime(150);
+
+        expect(queryClient.getQueryState(firstBrowse)?.isInvalidated).toBe(true);
+        expect(queryClient.getQueryState(firstList)?.isInvalidated).toBe(true);
+        expect(queryClient.getQueryState(siblingList)?.isInvalidated).toBe(true);
+        expect(queryClient.getQueryState(unrelatedList)?.isInvalidated).toBe(false);
+        unsubscribe();
+    });
+
     it('invalidates Git queries for every Session named in a git.changed event, without debouncing', () => {
         const queryClient = new QueryClient();
         queryClient.setQueryData(['git.summary', { sessionId: 'session-a' }], { status: 'clean' });

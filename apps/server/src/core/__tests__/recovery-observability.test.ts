@@ -1,7 +1,12 @@
+import type { ServerEvent } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { describe, expect, it, vi } from 'vitest';
 
-import { logDurableReceipt, logDurableRecovery } from '../recovery-observability';
+import {
+    logDurableReceipt,
+    logDurableRecovery,
+    prepareServerEventForDelivery,
+} from '../recovery-observability';
 
 function createLogger() {
     const write = vi.fn<StructuredLogger['write']>();
@@ -10,6 +15,92 @@ function createLogger() {
 }
 
 describe('recovery observability', () => {
+    it('rejects invalid domain events with bounded content-free validation evidence', () => {
+        const { logger, write } = createLogger();
+        const event = {
+            event: 'files.changed',
+            payload: {
+                sessionId: 'session-1',
+                workbenchProjectId: 'project-1',
+                changes: Array.from({ length: 513 }, (_, index) => ({
+                    path: `/private/source-${index}.txt`,
+                    kind: 'update',
+                })),
+                overflow: false,
+            },
+        } satisfies ServerEvent;
+
+        expect(prepareServerEventForDelivery(logger, event)).toEqual({
+            event: 'state.changed',
+            payload: { kind: 'full', reason: 'unknown' },
+        });
+        expect(write).toHaveBeenCalledWith('error', 'server_core.event_rejected', {
+            fields: {
+                arraySizes: 'payload.changes=513',
+                eventName: 'files.changed',
+                issueCount: 1,
+                issues: 'payload.changes:too_big',
+            },
+        });
+        expect(JSON.stringify(write.mock.calls)).not.toContain('/private/source-');
+    });
+
+    it('keeps a rejected event non-fatal when the diagnostic sink fails', () => {
+        const write = vi.fn(() => {
+            throw new Error('log unavailable');
+        });
+        const logger = { write } as unknown as StructuredLogger;
+        const event = {
+            event: 'files.changed',
+            payload: {
+                sessionId: 'session-1',
+                workbenchProjectId: 'project-1',
+                changes: Array.from({ length: 513 }, () => ({
+                    path: '/private/source.txt',
+                    kind: 'update' as const,
+                })),
+                overflow: false,
+            },
+        } satisfies ServerEvent;
+
+        expect(prepareServerEventForDelivery(logger, event)).toEqual({
+            event: 'state.changed',
+            payload: { kind: 'full', reason: 'unknown' },
+        });
+        expect(write).toHaveBeenCalledOnce();
+    });
+
+    it('accepts valid high-frequency terminal output without diagnostics', () => {
+        const { logger, write } = createLogger();
+        const event = {
+            event: 'terminal.output',
+            payload: { terminalId: 'terminal-1', data: 'opaque output' },
+        } satisfies ServerEvent;
+
+        expect(prepareServerEventForDelivery(logger, event)).toEqual(event);
+        expect(write).not.toHaveBeenCalled();
+    });
+
+    it('rejects malformed terminal output before binary delivery', () => {
+        const { logger, write } = createLogger();
+        const event = {
+            event: 'terminal.output',
+            payload: { terminalId: 'terminal-1', data: 42 },
+        } as unknown as ServerEvent;
+
+        expect(prepareServerEventForDelivery(logger, event)).toEqual({
+            event: 'state.changed',
+            payload: { kind: 'full', reason: 'unknown' },
+        });
+        expect(write).toHaveBeenCalledWith('error', 'server_core.event_rejected', {
+            fields: {
+                eventName: 'terminal.output',
+                issueCount: 1,
+                issues: 'payload.data:invalid_type',
+            },
+        });
+    });
+
     it('records receipt outcomes without command parameters or replies', () => {
         const { logger, write } = createLogger();
 

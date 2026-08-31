@@ -146,12 +146,10 @@ function createExecution(): {
     const directory = mkdtempSync(join(tmpdir(), 'caxri-remote-terminal-execution-'));
     temporaryDirectories.push(directory);
     const control = new FakeTerminalHostControl();
+    const logger = new StructuredLogger(join(directory, 'logs'), 'server-core');
     return {
         control,
-        execution: new RemoteTerminalExecution(
-            control,
-            new StructuredLogger(join(directory, 'logs'), 'server-core'),
-        ),
+        execution: new RemoteTerminalExecution(control, logger),
     };
 }
 

@@ -36,7 +36,11 @@ import type { ExtensionService } from './extensions/service';
 import { acquireServerProfile } from './profile';
 import { ProviderMessagingAdapterRegistry } from './provider-messaging/registry';
 import { createServerRecoveryJournal } from './recovery-journal';
-import { logDurableReceipt, logDurableRecovery } from './recovery-observability';
+import {
+    logDurableReceipt,
+    logDurableRecovery,
+    prepareServerEventForDelivery,
+} from './recovery-observability';
 import { principalRequestKey, RequestCancellationRegistry } from './request-cancellation';
 import type { ServerCore, ServerCoreOptions } from './server-core-contract';
 import { createTerminalExecution } from './terminal-host/create-execution';
@@ -198,7 +202,8 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
     const recoveryJournal = createServerRecoveryJournal(recoverySnapshot, (observation) =>
         logDurableRecovery(logger, observation),
     );
-    const deliver = (event: ServerEvent, persistedEnvelope?: ProtocolEventEnvelope): void => {
+    const deliver = (candidate: ServerEvent, persistedEnvelope?: ProtocolEventEnvelope): void => {
+        const event = prepareServerEventForDelivery(logger, candidate);
         if (event.event === 'terminal.exit')
             agentEndpoints.retireTerminal(event.payload.terminalId);
         else if (event.event === 'runtime.status')

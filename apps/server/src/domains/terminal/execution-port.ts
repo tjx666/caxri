@@ -93,6 +93,10 @@ export interface TerminalExecutionPort {
     snapshot(terminalId: string): Promise<TerminalSnapshot | null>;
     start(input: TerminalExecutionLaunch): Promise<number>;
     terminateSession(sessionId: string, terminalIds: readonly string[]): string[];
+    /**
+     * An abort resolves the attachment wait; the caller then revalidates its restore generation and leaves stale work
+     * interrupted. Transport adapters must not turn that expected cancellation into a launch failure.
+     */
     waitForAttachedSize(
         terminalId: string,
         timeoutMs: number,
