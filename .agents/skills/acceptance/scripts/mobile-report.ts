@@ -9,37 +9,47 @@ export const mobileDeviceSchema = z.object({
     platform: z.enum(['android', 'ios']),
 });
 
-const mobileDeviceReceiptSchema = z.object({
-    appId: z.literal('com.caxri.mobile'),
-    build: z.object({ identity: z.string().min(1), mode: z.string().min(1) }),
-    caseId: z.string().min(1),
-    cleanup: z.object({ appData: z.enum(['cleared', 'preserved']), desktopProfile: z.string() }),
-    device: z.object({
-        id: z.string().min(1),
-        kind: z.string().min(1),
-        platform: z.enum(['android', 'ios']),
-    }),
-    launchId: z.string().min(1),
-    outcome: z.string().min(1),
-    schemaVersion: z.literal(1),
-    sourceCommit: z.string().regex(/^[0-9a-f]{7,64}$/iu),
-    status: z.enum(['passed', 'failed', 'blocked']),
-});
+const mobileEvidenceBindingSchema = z.union([
+    z.object({ launchId: z.string().min(1) }),
+    z.object({ checkpointId: z.string().min(1) }),
+]);
 
-const mobileResultReceiptSchema = z.object({
-    channel: z.literal('authenticated-encrypted-gateway'),
-    delivery: z.object({
-        count: z.literal(1),
-        destination: z.literal('main-agent-terminal'),
-        repeatDisabled: z.literal(true),
-        stateAfterReply: z.literal('running'),
-    }),
-    launchId: z.string().min(1),
-    projectScope: z.literal('allowed-present-denied-absent'),
-    schemaVersion: z.literal(1),
-    sourceCommit: z.string().regex(/^[0-9a-f]{7,64}$/iu),
-    status: z.literal('passed'),
-});
+const mobileDeviceReceiptSchema = z
+    .object({
+        appId: z.literal('com.caxri.mobile'),
+        build: z.object({ identity: z.string().min(1), mode: z.string().min(1) }),
+        caseId: z.string().min(1),
+        cleanup: z.object({
+            appData: z.enum(['cleared', 'preserved']),
+            desktopProfile: z.string(),
+        }),
+        device: z.object({
+            id: z.string().min(1),
+            kind: z.string().min(1),
+            platform: z.enum(['android', 'ios']),
+        }),
+        outcome: z.string().min(1),
+        schemaVersion: z.literal(1),
+        sourceCommit: z.string().regex(/^[0-9a-f]{7,64}$/iu),
+        status: z.enum(['passed', 'failed', 'blocked']),
+    })
+    .and(mobileEvidenceBindingSchema);
+
+const mobileResultReceiptSchema = z
+    .object({
+        channel: z.literal('authenticated-encrypted-gateway'),
+        delivery: z.object({
+            count: z.literal(1),
+            destination: z.literal('main-agent-terminal'),
+            repeatDisabled: z.literal(true),
+            stateAfterReply: z.literal('running'),
+        }),
+        projectScope: z.literal('allowed-present-denied-absent'),
+        schemaVersion: z.literal(1),
+        sourceCommit: z.string().regex(/^[0-9a-f]{7,64}$/iu),
+        status: z.literal('passed'),
+    })
+    .and(mobileEvidenceBindingSchema);
 
 const mobileDeviceEvidencePath = (caseId: string): string =>
     `assets/${encodeURIComponent(caseId)}-mobile-device.json`;
@@ -48,15 +58,15 @@ const mobileResultEvidencePath = (caseId: string): string =>
     `assets/${encodeURIComponent(caseId)}-result.json`;
 
 /**
- * Binds mobile evidence to the frozen target, report source, and final isolated launch.
+ * Binds mobile evidence to the frozen target, report source, and declared isolation identity.
  */
 export async function validateMobileEvidence(input: {
     caseId: string;
     device: z.infer<typeof mobileDeviceSchema>;
     directory: string;
     evidencePaths: string[];
+    evidenceBinding: z.infer<typeof mobileEvidenceBindingSchema>;
     expectedStatus: z.infer<typeof mobileDeviceReceiptSchema>['status'];
-    finalLaunchId: string | undefined;
     reportCommit: string | undefined;
 }): Promise<void> {
     const deviceEvidence = mobileDeviceEvidencePath(input.caseId);
@@ -69,7 +79,8 @@ export async function validateMobileEvidence(input: {
     if (
         !input.reportCommit ||
         deviceReceipt.caseId !== input.caseId ||
-        deviceReceipt.launchId !== input.finalLaunchId ||
+        JSON.stringify(mobileEvidenceBindingSchema.parse(deviceReceipt)) !==
+            JSON.stringify(input.evidenceBinding) ||
         deviceReceipt.sourceCommit !== input.reportCommit ||
         deviceReceipt.device.id !== input.device.deviceId ||
         deviceReceipt.device.platform !== input.device.platform ||
@@ -86,7 +97,8 @@ export async function validateMobileEvidence(input: {
     );
     const resultReceipt = mobileResultReceiptSchema.parse(rawResultReceipt);
     if (
-        resultReceipt.launchId !== input.finalLaunchId ||
+        JSON.stringify(mobileEvidenceBindingSchema.parse(resultReceipt)) !==
+            JSON.stringify(input.evidenceBinding) ||
         resultReceipt.sourceCommit !== input.reportCommit
     ) {
         throw new Error(`Case ${input.caseId} mobile result receipt is stale`);

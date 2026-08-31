@@ -80,9 +80,10 @@ Every mobile plan item also freezes its exact target:
 
 Its case evidence must include `assets/<case-id>-mobile-device.json`. Finalization parses that
 receipt and rejects a different platform, app id, device id, report commit, or final lifecycle
-launch. When `assets/<case-id>-result.json` is cited, finalization binds it to the same commit and
-launch. This binds screenshots and behavior to the selected target instead of an ambient emulator,
-Simulator, stale install, or prior retry.
+launch. For `readonly_checkpoint`, it instead requires the frozen checkpoint id and no lifecycle
+receipt. When `assets/<case-id>-result.json` is cited, finalization binds it to the same commit and
+isolation identity. This binds screenshots and behavior to the selected target instead of an
+ambient emulator, Simulator, stale install, or prior retry.
 
 Create the round scaffold only after the plan is frozen:
 

@@ -304,4 +304,68 @@ describe('Acceptance mobile report scaffold', () => {
             'mobile device receipt does not match the frozen plan',
         );
     });
+
+    it('finalizes a readonly iOS checkpoint without a lifecycle launch receipt', async () => {
+        const directory = await reportDirectory();
+        const caseId = 'ios-static-layout';
+        const checkpointId = 'ios-simulator-static-layout-1';
+        const mobilePlan = {
+            category: '移动端布局',
+            expected: 'iOS 模拟器静态布局不发生裁切。',
+            id: caseId,
+            method: '在指定 iOS 模拟器检查不改变产品状态的静态布局。',
+            mobileDevice: {
+                appId: 'com.caxri.mobile',
+                deviceId: 'simulator-udid',
+                platform: 'ios',
+            },
+            requiredEvidence: ['text'],
+            stateIsolation: { checkpointId, mode: 'readonly_checkpoint' },
+            surface: 'mobile',
+            title: 'iOS 模拟器静态布局',
+            verifier: 'agent',
+        } satisfies InitializeReportInput['plan'][number];
+        await initialize(directory, [mobilePlan]);
+        const resultPath = join(directory, 'result.json');
+        const result = parseReport(await readFile(resultPath, 'utf8'));
+        const deviceEvidence = `assets/${caseId}-mobile-device.json`;
+        result.cases[0] = {
+            category: mobilePlan.category,
+            evidence: [deviceEvidence, 'assets/ios-static-layout.txt'],
+            id: caseId,
+            name: mobilePlan.title,
+            observation: '指定 iOS 模拟器的静态布局没有裁切。',
+            status: 'pass',
+            surface: 'mobile',
+        };
+        const receipt = {
+            appId: 'com.caxri.mobile',
+            build: { identity: 'ios-app-sha256', mode: 'release' },
+            caseId,
+            checkpointId,
+            cleanup: { appData: 'preserved', desktopProfile: 'not-used' },
+            device: { id: 'simulator-udid', kind: 'simulator', platform: 'ios' },
+            outcome: 'static-layout-observed-without-product-mutation',
+            schemaVersion: 1,
+            sourceCommit: reportCommit,
+            status: 'passed',
+        };
+        await Promise.all([
+            writeFile(resultPath, `${JSON.stringify(result, null, 2)}\n`),
+            writeFile(join(directory, deviceEvidence), JSON.stringify(receipt)),
+            writeFile(join(directory, 'assets/ios-static-layout.txt'), 'Static layout observed.'),
+        ]);
+
+        await expect(finalizeReport({ directory, requirement })).resolves.toMatchObject({
+            summary: { verdict: 'pass' },
+        });
+
+        await writeFile(
+            join(directory, deviceEvidence),
+            JSON.stringify({ ...receipt, checkpointId: 'stale-checkpoint' }),
+        );
+        await expect(finalizeReport({ directory, requirement })).rejects.toThrow(
+            'mobile device receipt does not match the frozen plan',
+        );
+    });
 });
