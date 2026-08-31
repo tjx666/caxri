@@ -16,20 +16,8 @@ sources must move in lockstep. The workspace and CLI artifact contract tests fai
 they diverge, or when a bundled extension rejects the new Desktop version:
 
 ```bash
-pnpm version patch --no-git-tag-version --no-git-checks
+bun run release:prepare -- patch # also accepts minor, major, or an explicit newer SemVer
 version="$(node -p 'require("./package.json").version')"
-(cd apps/desktop && npm version "${version}" --no-git-tag-version)
-(cd apps/server && npm version "${version}" --no-git-tag-version)
-(cd apps/cli && npm version "${version}" --no-git-tag-version)
-(cd packages/agent-skills && npm version "${version}" --no-git-tag-version)
-(cd packages/client && npm version "${version}" --no-git-tag-version)
-(cd packages/extension-api && npm version "${version}" --no-git-tag-version)
-for extension in fixture git status; do
-  (cd "extensions/${extension}" && npm version "${version}" --no-git-tag-version)
-  (cd "extensions/${extension}" && npm pkg set "engines.caxri=^${version}")
-done
-sed -i '' "s/CLI_VERSION = '.*'/CLI_VERSION = '${version}'/" apps/cli/src/version.ts
-sed -i '' "s/SKILL_BUNDLE_VERSION = '.*'/SKILL_BUNDLE_VERSION = '${version}'/" packages/agent-skills/src/version.ts
 git add package.json packages/agent-skills/package.json packages/agent-skills/src/version.ts \
   packages/client/package.json packages/extension-api/package.json apps/cli/package.json \
   apps/cli/src/version.ts apps/desktop/package.json apps/server/package.json \
@@ -37,6 +25,12 @@ git add package.json packages/agent-skills/package.json packages/agent-skills/sr
 git commit -m "release: v${version}"
 git push origin main
 ```
+
+The preparation command refuses a dirty worktree, a branch other than `main`, or a local `main`
+that does not match its configured upstream. It validates every current version source before
+writing, updates all coupled manifests, extension compatibility ranges, and TypeScript constants,
+and restores already-written files if a later write fails. It never commits, tags, pushes, or
+publishes; those remain explicit steps because the release commit triggers remote publication.
 
 CI rejects the release path unless its self-hosted gates and full macOS E2E suite pass. The
 downstream workflow then rejects a release when the commit subject and package version differ, or

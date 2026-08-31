@@ -39,6 +39,10 @@ beyond the packaged application itself.
 
 ## GitHub Release
 
+- Prepare the version from a clean, synchronized `main` with
+  `bun run release:prepare -- <major|minor|patch|version>`. The repository-owned command validates
+  and updates every coupled manifest, bundled extension engine range, and TypeScript version
+  source. It intentionally stops before commit, push, tag, or publication.
 - `.github/workflows/release.yml` is the only remote release path. An exact
   `release: v<package-version>` commit pushed to `main` must satisfy the release preparation in
   `RELEASING.md` and the exact-release CI profile in `docs/ci-performance.md`. Only a successful CI
