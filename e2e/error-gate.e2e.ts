@@ -139,7 +139,7 @@ errorGateSelfTest(
     async ({}, testInfo) => {
         await expectGateFailure(
             testInfo,
-            'Unexpected E2E errors: desktop/ipc.request_failed/NOT_FOUND x1, server-core/ipc.request_failed/NOT_FOUND x1',
+            'Unexpected E2E errors: desktop/ipc.request_failed/NOT_FOUND x1, server-core/ipc.request_failed/NOT_FOUND x1 [methods: terminal.restart]',
             () =>
                 observeIpcFailure(
                     testInfo,
