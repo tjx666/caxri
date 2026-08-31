@@ -12,6 +12,7 @@ const CONTINUE = 'continue\r';
 
 type RecoveryPhase = 'idle' | 'settling' | 'waiting-continue';
 type RecoveryCancelReason = 'disposed' | 'settings-changed' | 'user-input';
+type RecoveryRuleSource = 'builtin' | 'custom';
 
 type AgentOutputRecoveryStatus = 'recovered' | 'rate-limited';
 
@@ -30,19 +31,43 @@ export interface AgentOutputRecoveryOptions {
 interface MatchingRule {
     index: number;
     pattern: string;
+    source: RecoveryRuleSource;
 }
 
 /**
- * Cursor chrome is provider-owned output syntax. A new provider must explicitly choose a reviewed omission pattern or
- * `undefined`; it must never inherit Claude Code's matcher.
+ * Reviewed provider-owned stops can recover across application upgrades without becoming frozen user settings. The
+ * explicit recovery toggle still authorizes every automatic write, and future providers must choose their own rules.
  */
-const CURSOR_LINE_OMISSION_PATTERNS: Record<AgentProvider, RegExp | undefined> = {
-    claude: /^[^a-z\d]*cogitated for (?:\d+\s*[hms]\s*)+$/iu,
-    codex: undefined,
+const BUILTIN_RECOVERY_PATTERNS: Record<AgentProvider, readonly string[]> = {
+    claude: ['⚠ Selected model is at capacity. Please try a different model.'],
+    codex: [],
+};
+
+/**
+ * Cursor chrome is provider-owned output syntax. A new provider must explicitly choose reviewed omission patterns or an
+ * empty list; it must never inherit Claude Code's matcher.
+ */
+const CURSOR_LINE_OMISSION_PATTERNS: Record<AgentProvider, readonly RegExp[]> = {
+    claude: [/^[^a-z\d]*cogitated for (?:\d+\s*[hms]\s*)+$/iu, /^❯$/u],
+    codex: [],
 };
 
 function settingsSignature(settings: AgentOutputRecoverySettings): string {
     return JSON.stringify(settings);
+}
+
+/**
+ * Keeps the engine hot-path gate, per-Terminal owner, and state machine on one rule-availability decision. A built-in
+ * rule must never be shadowed by an upstream check that knows only about user-authored settings.
+ */
+export function hasEnabledOutputRecoveryRules(
+    provider: AgentProvider,
+    settings: AgentOutputRecoverySettings,
+): boolean {
+    return (
+        settings.enabled &&
+        (settings.patterns.length > 0 || BUILTIN_RECOVERY_PATTERNS[provider].length > 0)
+    );
 }
 
 function matchingRule(
@@ -50,21 +75,49 @@ function matchingRule(
     patterns: readonly string[],
     provider: AgentProvider,
 ): MatchingRule | undefined {
-    const normalizedTails = [tail.full.trimEnd().toLowerCase()];
+    const fullTail = tail.full.trimEnd().toLowerCase();
+    const beforeCursorLine = tail.beforeCursorLine.trimEnd().toLowerCase();
+    const lastLineBeforeCursor = beforeCursorLine.split('\n').at(-1)?.trim() ?? '';
+    const mayOmitCursorLine = CURSOR_LINE_OMISSION_PATTERNS[provider].some((pattern) =>
+        pattern.test(tail.cursorLine.trim()),
+    );
+    const customTails = [fullTail];
     /**
-     * Claude Code leaves this completed duration chrome on the active cursor line after the preceding API error. Only
-     * this narrow, content-free shape may be ignored; dropping an arbitrary cursor line could mistake historical errors
-     * for the latest output while an Agent is visibly making progress.
+     * Claude Code leaves either completed duration chrome or its empty `❯` composer prompt on the active cursor line
+     * after a recoverable stop. Only these narrow, content-free shapes may be ignored; dropping an arbitrary cursor
+     * line could mistake historical errors for the latest output while an Agent is visibly making progress.
      */
-    if (CURSOR_LINE_OMISSION_PATTERNS[provider]?.test(tail.cursorLine.trim()))
-        normalizedTails.push(tail.beforeCursorLine.trimEnd().toLowerCase());
-    for (const [index, pattern] of patterns.entries()) {
-        const normalizedPattern = pattern.trim().toLowerCase();
-        if (
-            normalizedPattern &&
-            normalizedTails.some((normalizedTail) => normalizedTail.endsWith(normalizedPattern))
-        )
-            return { index, pattern: normalizedPattern };
+    if (mayOmitCursorLine) customTails.push(beforeCursorLine);
+    const groups: ReadonlyArray<{
+        normalizedTails: readonly string[];
+        patterns: readonly string[];
+        source: RecoveryRuleSource;
+    }> = [
+        { normalizedTails: customTails, patterns, source: 'custom' },
+        /**
+         * Built-in rules describe provider-owned output, so require that output above reviewed, content-free cursor
+         * chrome and an exact provider-owned line. Suffix matching would also accept a user submitting the same public
+         * text as a prompt before Claude replaces the composer with duration chrome.
+         */
+        {
+            normalizedTails: mayOmitCursorLine ? [lastLineBeforeCursor] : [],
+            patterns: BUILTIN_RECOVERY_PATTERNS[provider],
+            source: 'builtin',
+        },
+    ];
+    for (const group of groups) {
+        for (const [index, pattern] of group.patterns.entries()) {
+            const normalizedPattern = pattern.trim().toLowerCase();
+            if (
+                normalizedPattern &&
+                group.normalizedTails.some((normalizedTail) =>
+                    group.source === 'builtin'
+                        ? normalizedTail === normalizedPattern
+                        : normalizedTail.endsWith(normalizedPattern),
+                )
+            )
+                return { index, pattern: normalizedPattern, source: group.source };
+        }
     }
     return;
 }
@@ -90,8 +143,7 @@ export class AgentOutputRecovery {
     private currentSettings(signature?: string): AgentOutputRecoverySettings | undefined {
         const settings = this.options.getSettings();
         if (
-            !settings.enabled ||
-            settings.patterns.length === 0 ||
+            !hasEnabledOutputRecoveryRules(this.options.provider, settings) ||
             (signature !== undefined && settingsSignature(settings) !== signature)
         )
             return;
@@ -192,12 +244,12 @@ export class AgentOutputRecovery {
         this.phase = 'waiting-continue';
         this.timer = setTimeout(() => {
             this.timer = undefined;
-            this.sendContinue(signature, rule.index);
+            this.sendContinue(signature, rule);
         }, settings.continueDelayMs);
         this.timer.unref();
     }
 
-    private sendContinue(signature: string, ruleIndex: number): void {
+    private sendContinue(signature: string, rule: MatchingRule): void {
         if (
             this.disposed ||
             this.phase !== 'waiting-continue' ||
@@ -214,7 +266,8 @@ export class AgentOutputRecovery {
             fields: {
                 terminalId: this.options.terminalId,
                 provider: this.options.provider,
-                ruleIndex,
+                ruleIndex: rule.index,
+                ruleSource: rule.source,
             },
         });
         this.options.onStatus('recovered');
