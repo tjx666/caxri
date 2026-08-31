@@ -40,6 +40,7 @@ const snapshot: TerminalSnapshot = {
     updatedAt: 2,
 };
 const temporaryDirectories: string[] = [];
+const temporaryLoggers: StructuredLogger[] = [];
 
 class FakeTerminalHostControl implements TerminalHostControl {
     private readonly eventListeners = new Set<(event: HostEvent) => void>();
@@ -147,16 +148,23 @@ function createExecution(): {
     temporaryDirectories.push(directory);
     const control = new FakeTerminalHostControl();
     const logger = new StructuredLogger(join(directory, 'logs'), 'server-core');
+    temporaryLoggers.push(logger);
     return {
         control,
         execution: new RemoteTerminalExecution(control, logger),
     };
 }
 
-afterEach(() => {
-    for (const directory of temporaryDirectories)
-        rmSync(directory, { force: true, recursive: true });
+/**
+ * Flushes background failure observations before removing their temporary log directories.
+ */
+afterEach(async () => {
+    const pendingLoggers = [...temporaryLoggers];
+    temporaryLoggers.length = 0;
+    await Promise.all(pendingLoggers.map((logger) => logger.flush()));
+    const pendingDirectories = [...temporaryDirectories];
     temporaryDirectories.length = 0;
+    for (const directory of pendingDirectories) rmSync(directory, { force: true, recursive: true });
 });
 
 describe('architecture-a3b-terminal-host: RemoteTerminalExecution', () => {
