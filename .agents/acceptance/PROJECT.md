@@ -2,10 +2,11 @@
 
 ## 1. Project summary
 
-Caxri is a macOS-first Electron desktop workbench. Electron Main owns windows
-and lifecycle, Preload exposes the typed `window.caxri` bridge, the Renderer owns
-the UI, and the detached Server Core owns PTYs, Git, files, SQLite, settings,
-and agent adapters. Acceptance uses the real macOS Electron desktop surface.
+Caxri is a macOS-first Electron workbench with an Expo/React Native mobile companion. Electron Main
+owns desktop windows and lifecycle, Preload exposes the typed `window.caxri` bridge, the Renderer
+owns desktop UI, and the detached Server Core owns PTYs, Git, files, SQLite, settings, Agent
+adapters, mobile access, and the encrypted mobile gateway. Acceptance uses the real macOS Electron,
+Android, and iOS Simulator product surfaces.
 
 ## 2. Environment
 
@@ -76,7 +77,47 @@ and agent adapters. Acceptance uses the real macOS Electron desktop surface.
 - **CDP resolution:** read `port` and `cdpUrl` from the runtime file or from the
   JSON readiness line printed by the start script. Do not assume another Caxri
   instance uses the same port.
-- **Required services:** none beyond the local Caxri Desktop and detached Server processes.
+- **Required services:** none beyond the local Caxri Desktop, detached Server processes, and the
+  explicitly selected native device for a mobile case. Mobile acceptance never uses a cloud Expo
+  or EAS account.
+
+### Android release acceptance
+
+The guarded cross-device path accepts only one explicit disposable emulator serial. It builds from
+current source, regenerates the native project, installs the release APK, clears only
+`com.caxri.mobile`, and records report-bound lifecycle and result receipts:
+
+```bash
+CAXRI_MOBILE_ACCEPTANCE_SERIAL=emulator-5554 \
+CAXRI_MOBILE_ACCEPTANCE_REPORT_DIR="$REPORT_DIR" \
+CAXRI_MOBILE_ACCEPTANCE_CASE_ID="android-short-reply" \
+  bun run test:e2e:mobile:android
+```
+
+The plan item must use `surface: "mobile"`, `stateIsolation.mode: "isolated"`, and a matching
+`mobileDevice` object. Include
+`assets/android-short-reply-state-isolation.json` and
+`assets/android-short-reply-mobile-device.json` in `cases[].evidence`. Do not use this command on a
+physical device; its data reset is intentionally emulator-only.
+
+### iOS Simulator build
+
+Use one explicit Simulator UDID and do not start another Metro process:
+
+```bash
+bun run --cwd apps/mobile ios -- --device <simulator-udid> --no-bundler
+xcrun simctl launch --terminate-running-process <simulator-udid> com.caxri.mobile
+```
+
+When Expo config or native plugins changed, first run:
+
+```bash
+bun run --cwd apps/mobile prebuild:ios -- --clean
+```
+
+`xcode-select -p` must resolve to the full Xcode Developer directory and CocoaPods must already be
+installed. Acceptance may report either prerequisite as missing but must not install or switch
+developer tools without explicit authorization.
 
 ## 3. Auth
 
@@ -119,6 +160,27 @@ project settings, use the same self-test and treat `command not found` as a miss
   explicit-user-request exception only; never infer authorization from a general Acceptance run.
 - **Resident app:** never attach to or close a developer-owned Caxri instance.
 
+### Android
+
+- **Lifecycle and full reply path:** use the guarded release acceptance command above on a
+  disposable emulator.
+- **Semantic inspection:** `bun run --cwd apps/mobile android:device semantics --serial <serial>`.
+- **Interaction:** `bun run --cwd apps/mobile android:device tap --serial <serial> --check-id <id>`.
+- **Evidence:** ADB device screenshot plus sanitized semantic/result receipts. Never retain or
+  upload raw UIAutomator XML.
+- **Physical devices:** user-owned and opt-in. The user unlocks and authorizes the device; Acceptance
+  does not clear package data, uninstall, reboot, stop, or change its settings.
+
+### iOS Simulator
+
+- **Lifecycle and capture:** `xcrun simctl` with one explicit UDID.
+- **Interaction:** an already-installed native Accessibility/HID CLI such as AXe, or a repository
+  XCUITest driver. Host-window clicks are smoke checks only.
+- **Evidence:** Simulator framebuffer screenshot/video plus Accessibility hierarchy before/after
+  when the hierarchy is safe. Do not upload any artifact containing pairing data or private content.
+- **Ownership:** never erase a user-owned Simulator. A mutating acceptance case needs a Simulator
+  explicitly designated as disposable and documented app-container cleanup.
+
 ## 5. Project probes and navigation
 
 - **CDP ready:** `curl --fail --silent http://127.0.0.1:<port>/json/version`.
@@ -140,10 +202,20 @@ project settings, use the same self-test and treat `command not found` as a miss
   `--agent-fixture`; never expose a host Claude Code or Codex installation to Acceptance.
 - **Quick navigation:** no hidden app-state mutation contract exists. Prefer the
   shortest user-visible path or a committed E2E fixture helper.
+- **Android device identity:**
+  `bun run --cwd apps/mobile android:device inspect --serial <explicit-adb-serial>`.
+- **Android semantic state:**
+  `bun run --cwd apps/mobile android:device semantics --serial <explicit-adb-serial>`.
+- **iOS devices:** `xcrun simctl list devices booted --json`; choose one UDID and stop using
+  `booted` in later commands.
+- **iOS toolchain:** `xcodebuild -version`, `xcode-select -p`, and `command -v pod`.
+- **iOS native driver:** probe `command -v axe`, then `idb` and `idb_companion`; missing tools block
+  interaction evidence rather than authorizing installation.
 
 ## 6. Known constraints
 
-- Run Acceptance on macOS against the isolated Electron desktop app.
+- Run Acceptance on macOS. Desktop cases use an isolated Electron app; mobile cases use the exact
+  Android emulator, physical device, or iOS Simulator declared in the plan and evidence.
 - A stale `out/` bundle invalidates screenshots. Build before launch and restart
   after Desktop Main, Preload, Renderer, or Server changes; Renderer reload alone is insufficient.
   A commit created after the last build is stale even when file mtimes appear
@@ -159,6 +231,16 @@ project settings, use the same self-test and treat `command not found` as a miss
   contain plausible DOM text.
 - Do not resize the Electron window after the scenario begins unless resizing is
   the behavior under test; it can invalidate state and evidence.
+- The Android release round intentionally accepts only `emulator-<number>` serials. Wi-Fi and USB
+  physical-device serials are supported by diagnostic helpers, not by the destructive data-reset
+  runner.
+- Phase one reconnects only to Mac addresses captured during pairing. A DHCP or network change can
+  require **Forget** and re-pair; do not report that documented limitation as an acceptance harness
+  failure.
+- Emulator and Simulator observations are not physical-device release-performance evidence. Use
+  `docs/mobile/PERFORMANCE.md` and a named physical device for such a criterion.
+- Pairing links and QR codes are credentials. If one appears in a screenshot, raw hierarchy, log,
+  or recording, invalidate the artifact and capture a fresh isolated case.
 
 ## 7. Project learning log
 
@@ -174,6 +256,8 @@ method:
   desktop ownership, lifecycle, build freshness, and focus facts.
 - [`references/fixtures.md`](references/fixtures.md): Project roots,
   state isolation, and deterministic fixture contracts.
+- [`references/mobile-runtime.md`](references/mobile-runtime.md): native toolchains, explicit device
+  ownership, build freshness, pairing privacy, and mobile cleanup facts.
 
 The reusable Acceptance workflow remains in `.agents/skills/acceptance/`;
 project-specific observations belong here so the skill does not become an
