@@ -25,6 +25,7 @@ describe('defaultAgentProviderSettings', () => {
             expect(defaultAgentProviderSettings[provider].launch.args).toEqual([]);
             expect(defaultAgentProviderSettings[provider].hooks.enabled).toBe(false);
             expect(defaultAgentProviderSettings[provider].messaging.enabled).toBe(true);
+            expect(defaultAgentProviderSettings[provider].naming.enabled).toBe(false);
             expect(defaultAgentProviderSettings[provider].recovery).toEqual({
                 enabled: false,
                 patterns: [],

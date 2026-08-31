@@ -91,10 +91,12 @@
                 // structure contract enforces this architecture rule.
                 "files": [
                     "apps/server/src/core/create-domain-service.ts",
+                    "apps/server/src/domains/agent-runtime.ts",
                     "apps/server/src/domains/bootstrap-service-handlers.ts",
                     "apps/server/src/domains/bootstrap.ts",
                     "apps/server/src/domains/create-domain-services.ts",
                     "apps/server/src/domains/service-handlers.ts",
+                    "apps/server/src/domains/session-auto-naming.ts",
                     "apps/server/src/domains/terminal/index.ts",
                 ],
                 "rules": ["react-doctor/no-barrel-import"],

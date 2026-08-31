@@ -3,6 +3,7 @@ import type { ChildProcess } from 'node:child_process';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { DesktopLeaseHandle } from '../../../switch-worktree/scripts/desktop-lease';
+import { validateAcceptanceAgentFixture } from '../agent-fixtures';
 import {
     createElectronStopController,
     createMacosAcceptanceLaunchController,
@@ -188,6 +189,51 @@ describe('Acceptance Electron launcher seams', () => {
                 stdio: 'inherit',
             },
         });
+    });
+
+    it('accepts only a plan-bound fake Agent environment', () => {
+        expect(() =>
+            validateAcceptanceAgentFixture('agent-case', undefined, 'agent-features-v1'),
+        ).toThrow('Acceptance case agent-case does not declare an Agent fixture');
+        expect(() =>
+            validateAcceptanceAgentFixture('agent-case', 'agent-features-v1', undefined),
+        ).toThrow('Acceptance case agent-case requires --agent-fixture agent-features-v1');
+        expect(() =>
+            validateAcceptanceAgentFixture('agent-case', 'agent-features-v1', 'agent-features-v1'),
+        ).not.toThrow();
+
+        const launch = createElectronLaunchSpec({
+            agentEnvironment: {
+                CAXRI_E2E_AGENT_HOOKS: '1',
+                CAXRI_E2E_AGENT_MODE: 'fake',
+                CAXRI_E2E_FAKE_CLAUDE_EXECUTABLE: '/owned/claude',
+                HOME: '/owned/home',
+                PATH: '/owned/bin:/usr/bin',
+            },
+            electronPath: '/repo/node_modules/.bin/electron',
+            environment: {
+                CAXRI_E2E_AGENT_MODE: 'real',
+                CAXRI_E2E_AGENT_PROVIDER: 'codex',
+                CAXRI_REAL_AGENT_OK: '1',
+                HOME: '/developer/home',
+                PATH: '/developer/bin',
+            },
+            port: 9333,
+            projectRoot: '/repo',
+            testRootPath: '/project-one',
+            testRootPaths: ['/project-one'],
+            userDataDir: '/tmp/caxri-acceptance-user-case',
+        });
+
+        expect(launch.options.env).toMatchObject({
+            CAXRI_E2E_AGENT_HOOKS: '1',
+            CAXRI_E2E_AGENT_MODE: 'fake',
+            CAXRI_E2E_FAKE_CLAUDE_EXECUTABLE: '/owned/claude',
+            HOME: '/owned/home',
+            PATH: '/owned/bin:/usr/bin',
+        });
+        expect(launch.options.env).not.toHaveProperty('CAXRI_E2E_AGENT_PROVIDER');
+        expect(launch.options.env).not.toHaveProperty('CAXRI_REAL_AGENT_OK');
     });
 
     it('rejects the real native dialog boundary without current-request user authorization', () => {

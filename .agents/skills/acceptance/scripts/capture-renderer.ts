@@ -9,6 +9,7 @@ import {
     createTerminalFixturePreflightReceipt,
     terminalFixturePreflightReceiptSchema,
 } from './fixture-preflight';
+import type { RuntimeState } from './runtime-state';
 import { isOwnedRuntime, runtimeStateSchema } from './runtime-state';
 
 interface CdpTarget {
@@ -20,7 +21,7 @@ interface CdpTarget {
 interface FrameOptions {
     command: 'frames';
     count: number;
-    fixturePreflight: string;
+    fixturePreflight?: string;
     intervalMs: number;
     outDir: string;
     port?: number;
@@ -53,7 +54,7 @@ const CDP_TIMEOUT_MS = 10_000;
 const HELP = `Capture the owned isolated Caxri Renderer through CDP.
 
 Usage:
-  capture-renderer.ts frames --out-dir DIR --fixture-preflight FIXTURE_JSON [--port PORT] [--url-contains TEXT] [--count 40] [--interval-ms 250]
+  capture-renderer.ts frames --out-dir DIR [--fixture-preflight FIXTURE_JSON] [--port PORT] [--url-contains TEXT] [--count 40] [--interval-ms 250]
   capture-renderer.ts dom --output FILE --selector SELECTOR [--port PORT] [--url-contains TEXT]
   capture-renderer.ts screenshot --output FILE [--port PORT] [--url-contains TEXT]
 `;
@@ -131,11 +132,10 @@ export function parseCaptureOptions(arguments_: string[]): CaptureOptions | 'hel
     const outputDirectory = values.get('--out-dir');
     if (!outputDirectory) throw new Error('--out-dir is required');
     const fixturePreflight = values.get('--fixture-preflight');
-    if (!fixturePreflight) throw new Error('--fixture-preflight is required for frame capture');
     return {
         command,
         count: boundedPositiveInteger(values.get('--count') ?? '40', '--count', MAX_FRAME_COUNT),
-        fixturePreflight: resolve(fixturePreflight),
+        fixturePreflight: fixturePreflight ? resolve(fixturePreflight) : undefined,
         intervalMs: boundedPositiveInteger(
             values.get('--interval-ms') ?? '250',
             '--interval-ms',
@@ -201,6 +201,12 @@ export function resolveOwnedCapturePort(runtimePort: number, requestedPort?: num
         );
     }
     return runtimePort;
+}
+
+export function requiresRuntimeTerminalFixturePreflight(
+    acceptanceCase: RuntimeState['acceptanceCase'],
+): boolean {
+    return acceptanceCase?.requiresTerminalFixturePreflight !== false;
 }
 
 class CdpClient {
@@ -319,8 +325,12 @@ export async function captureFrames(
     options: FrameOptions,
     port: number,
     connectClient: CaptureConnector = connect,
+    requiresTerminalFixturePreflight = true,
 ): Promise<void> {
-    await requireCapturePreflight(options.fixturePreflight);
+    if (requiresTerminalFixturePreflight && !options.fixturePreflight) {
+        throw new Error('--fixture-preflight is required for a terminal fixture frame capture');
+    }
+    if (options.fixturePreflight) await requireCapturePreflight(options.fixturePreflight);
     await mkdir(options.outDir, { recursive: true });
     const existingFrames = (await readdir(options.outDir)).filter((name) =>
         /^frame_\d+\.png$/.test(name),
@@ -425,8 +435,16 @@ async function main(): Promise<void> {
         throw new Error('Acceptance runtime state does not belong to a live owned process');
     }
     const port = resolveOwnedCapturePort(runtime.port, options.port);
-    if (options.command === 'frames') await captureFrames(options, port);
-    else if (options.command === 'dom') await captureDom(options, port);
+    if (options.command === 'frames') {
+        /**
+         * Old or unscoped runtime receipts fail closed. Only a launcher that read the frozen case plan may explicitly
+         * prove that this temporal claim does not use a Terminal fixture and therefore needs no grid preflight.
+         */
+        const requiresTerminalFixturePreflight = requiresRuntimeTerminalFixturePreflight(
+            runtime.acceptanceCase,
+        );
+        await captureFrames(options, port, connect, requiresTerminalFixturePreflight);
+    } else if (options.command === 'dom') await captureDom(options, port);
     else await captureScreenshot(options, port);
 }
 

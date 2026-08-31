@@ -15,6 +15,7 @@ const acceptanceCaseModeSchema = z.enum(['isolated', 'restart']);
 const acceptanceCaseSchema = z.object({
     id: z.string().min(1),
     mode: acceptanceCaseModeSchema,
+    requiresTerminalFixturePreflight: z.boolean().optional(),
 });
 const ownedProcessRoleSchema = z.enum(['server-core', 'extension-host']);
 const ownedProcessSchema = z.object({
@@ -66,6 +67,7 @@ interface PrepareUserDataOptions {
     caseMode?: z.infer<typeof acceptanceCaseModeSchema>;
     cleanupReusable: boolean;
     profileId?: string;
+    requiresTerminalFixturePreflight?: boolean;
     reuseUserDataDir?: string;
 }
 
@@ -117,6 +119,7 @@ export async function prepareAcceptanceUserData({
     caseMode = 'isolated',
     cleanupReusable,
     profileId,
+    requiresTerminalFixturePreflight = true,
     reuseUserDataDir,
 }: PrepareUserDataOptions): Promise<
     Pick<RuntimeState, 'acceptanceCase' | 'ownedUserData' | 'userDataDir'>
@@ -130,7 +133,11 @@ export async function prepareAcceptanceUserData({
             throw new Error('A restart Acceptance case requires --reuse-user-data');
         }
         return {
-            acceptanceCase: { id: normalizedCaseId, mode: 'isolated' },
+            acceptanceCase: {
+                id: normalizedCaseId,
+                mode: 'isolated',
+                requiresTerminalFixturePreflight,
+            },
             ownedUserData: true,
             userDataDir: await mkdtemp(join(tmpdir(), profilePrefix(normalizedCaseId))),
         };
@@ -144,7 +151,11 @@ export async function prepareAcceptanceUserData({
         normalizeCaseId(profileId ?? normalizedCaseId),
     );
     return {
-        acceptanceCase: { id: normalizedCaseId, mode: 'restart' },
+        acceptanceCase: {
+            id: normalizedCaseId,
+            mode: 'restart',
+            requiresTerminalFixturePreflight,
+        },
         ownedUserData: cleanupReusable,
         userDataDir: candidate,
     };

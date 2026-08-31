@@ -28,3 +28,18 @@ A controlled Main dialog response can prove product behavior before and after
 the native boundary. It cannot prove the title, layout, controls, or interaction
 of the macOS dialog itself. Keep that distinction explicit in the plan and final
 report.
+
+## FX4. Agent behavior uses a plan-bound process fixture
+
+Every Acceptance launch replaces the host HOME, XDG directories, Agent provider homes, and shell
+PATH with isolated profile-owned paths, and blocked Agent shims are the default. When the case plan
+declares the fixed `agent-features-v1` fixture and the launch passes the same id with
+`--agent-fixture`, the launcher replaces only the blocked Claude Code and Codex targets with fixed
+fake executables. The fakes exercise
+the real PTY, hook, metadata, and provider rename boundaries; they do not inject Main or Runtime
+events. Arbitrary executable paths, source, environment overrides, and host provider state are not
+fixture inputs.
+
+The generated `assets/<case-id>-agent-fixture.json` receipt binds the launch to the frozen fixture
+and records whether its owned profile was cleaned. Include it in the case evidence; report
+finalization rejects a missing, mismatched, or incompletely cleaned receipt.

@@ -44,3 +44,19 @@ serializes the paths into `CAXRI_TEST_ROOT_PATHS`; Main consumes one path per
 request and retains the final root after the queue is exhausted. This lets the
 real authorization and Project flow run without falling through to native UI.
 Use a fresh isolated case profile when the sequence mutates state.
+
+## Exercise Agent lifecycle behavior through fixed fake processes
+
+**Situation:** A desktop case needs Claude Code or Codex discovery, hooks, terminal interaction,
+metadata, or provider-side renaming without using the developer's installed provider or data.
+
+**Does not work:** Injecting a Main or Runtime Agent event, accepting an arbitrary executable path,
+or inheriting host provider homes. Those paths either bypass the product boundary or expose private
+state.
+
+**Works:** Declare `"agentFixture": "agent-features-v1"` in the frozen plan and launch the case
+with `--agent-fixture agent-features-v1`. Drive the fake from its real Session terminal using the
+fixture commands documented in `.agents/skills/acceptance/scripts/agent-fixtures.ts`. The process
+emits real provider hooks and metadata changes while keeping provider homes inside the owned
+profile. Use the desktop result as primary evidence and the generated fixture receipt as audit
+evidence; never cite its terminal output or synthetic transcript as product evidence.

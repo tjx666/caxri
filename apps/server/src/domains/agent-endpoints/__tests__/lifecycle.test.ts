@@ -83,6 +83,7 @@ describe('AgentEndpointLifecycle', () => {
                 hooks: { enabled: false },
                 launch: { executable: 'codex', args: [] },
                 messaging: { enabled: true },
+                naming: { enabled: false },
                 recovery: defaultAgentOutputRecoverySettings,
             }),
         ).resolves.toMatchObject({
@@ -123,6 +124,7 @@ describe('AgentEndpointLifecycle', () => {
                 hooks: { enabled: false },
                 launch: { executable: '/bin/zsh', args: [] },
                 messaging: { enabled: true },
+                naming: { enabled: false },
                 recovery: defaultAgentOutputRecoverySettings,
             }),
         ).resolves.toEqual({});
@@ -210,6 +212,7 @@ describe('AgentEndpointLifecycle', () => {
             hooks: { enabled: false },
             launch: { executable: 'codex', args: [] },
             messaging: { enabled: true },
+            naming: { enabled: false },
             recovery: defaultAgentOutputRecoverySettings,
         };
         await lifecycle.environment(terminal(), 'project-1', settings);
@@ -248,6 +251,7 @@ describe('AgentEndpointLifecycle', () => {
             hooks: { enabled: false },
             launch: { executable: 'codex', args: [] },
             messaging: { enabled: true },
+            naming: { enabled: false },
             recovery: defaultAgentOutputRecoverySettings,
         };
 

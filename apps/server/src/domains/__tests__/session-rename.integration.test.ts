@@ -244,4 +244,176 @@ describe('Session rename', () => {
             database.close();
         }
     });
+
+    it('serializes automatic and manual provider renames so the manual title wins', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-session-auto-rename-queue-'));
+        temporaryDirectories.push(directory);
+        const projectRoot = join(directory, 'project');
+        await mkdir(projectRoot);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(
+            database.createProject(projectRoot).id,
+            'codex',
+            projectRoot,
+        );
+        database.rebindAgentSession(created.terminal!.id, 'codex', 'agent-session-1');
+        const automaticProviderResult = Promise.withResolvers<{ displayTitle: string }>();
+        const renameSession = vi
+            .fn()
+            .mockImplementationOnce(() => automaticProviderResult.promise)
+            .mockResolvedValueOnce({ displayTitle: 'Manual title' });
+        const agents = new AgentService(
+            undefined,
+            createPendingAgentAdapters({
+                codex: {
+                    provider: 'codex',
+                    renameSession,
+                    snapshot: () => new Promise<never>(() => {}),
+                },
+            }),
+        );
+        const coordinator = new AgentCoordinator(
+            database,
+            agents,
+            () => {},
+            new StructuredLogger(join(directory, 'logs')),
+        );
+        const service = new SessionRenameService(database, agents, coordinator, () => {});
+
+        try {
+            const automatic = service.renameAutomatically(
+                created.session.id,
+                '🧭 Automatic title',
+                () => true,
+            );
+            await vi.waitFor(() => expect(renameSession).toHaveBeenCalledOnce());
+            const manual = service.rename(created.session.id, 'Manual title');
+            expect(renameSession).toHaveBeenCalledOnce();
+
+            automaticProviderResult.resolve({ displayTitle: '🧭 Automatic title' });
+            await expect(automatic).resolves.toBe('🧭 Automatic title');
+            await expect(manual).resolves.toMatchObject({
+                autoNamingState: 'stopped',
+                displayTitle: 'Manual title',
+                titleMode: 'manual',
+            });
+            expect(renameSession).toHaveBeenNthCalledWith(
+                1,
+                expect.objectContaining({ displayTitle: '🧭 Automatic title' }),
+            );
+            expect(renameSession).toHaveBeenNthCalledWith(
+                2,
+                expect.objectContaining({ displayTitle: 'Manual title' }),
+            );
+            expect(database.sessionNaming.get(created.session.id)).toEqual({
+                state: 'stopped',
+            });
+        } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
+
+    it('drops an automatic rename when its provider binding changes during ownership verification', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-session-auto-rename-guard-'));
+        temporaryDirectories.push(directory);
+        const projectRoot = join(directory, 'project');
+        await mkdir(projectRoot);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(
+            database.createProject(projectRoot).id,
+            'codex',
+            projectRoot,
+        );
+        database.rebindAgentSession(created.terminal!.id, 'codex', 'agent-session-a');
+        const ownership = Promise.withResolvers<boolean>();
+        const ownershipGuard = vi.fn(() => ownership.promise);
+        const renameSession = vi.fn(() => Promise.resolve({ displayTitle: 'Must not apply' }));
+        const agents = new AgentService(
+            undefined,
+            createPendingAgentAdapters({
+                codex: {
+                    provider: 'codex',
+                    renameSession,
+                    snapshot: () => new Promise<never>(() => {}),
+                },
+            }),
+        );
+        const coordinator = new AgentCoordinator(
+            database,
+            agents,
+            () => {},
+            new StructuredLogger(join(directory, 'logs')),
+        );
+        const service = new SessionRenameService(database, agents, coordinator, () => {});
+
+        try {
+            const automatic = service.renameAutomatically(
+                created.session.id,
+                '🧭 Automatic title',
+                () =>
+                    database.getTerminal(created.terminal!.id)?.agentSessionId ===
+                    'agent-session-a',
+                undefined,
+                ownershipGuard,
+            );
+            await vi.waitFor(() => expect(ownershipGuard).toHaveBeenCalledOnce());
+            database.rebindAgentSession(created.terminal!.id, 'codex', 'agent-session-b');
+            ownership.resolve(true);
+
+            await expect(automatic).resolves.toBeUndefined();
+            expect(renameSession).not.toHaveBeenCalled();
+        } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
+
+    it('serializes Resume before a newer manual rename so the manual intent wins', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-session-resume-queue-'));
+        temporaryDirectories.push(directory);
+        const projectRoot = join(directory, 'project');
+        await mkdir(projectRoot);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(
+            database.createProject(projectRoot).id,
+            'codex',
+            projectRoot,
+        );
+        database.rebindAgentSession(created.terminal!.id, 'codex', 'agent-session-1');
+        database.renameSession(created.session.id, 'Initial manual title');
+        const agents = new AgentService(
+            undefined,
+            createPendingAgentAdapters({
+                codex: {
+                    provider: 'codex',
+                    renameSession: () => Promise.resolve({ displayTitle: 'Newer manual title' }),
+                    snapshot: () => new Promise<never>(() => {}),
+                },
+            }),
+        );
+        const coordinator = new AgentCoordinator(
+            database,
+            agents,
+            () => {},
+            new StructuredLogger(join(directory, 'logs')),
+        );
+        const service = new SessionRenameService(database, agents, coordinator, () => {});
+
+        try {
+            const resume = service.resumeAutomaticNaming(created.session.id);
+            const manual = service.rename(created.session.id, 'Newer manual title');
+
+            await expect(resume).resolves.toMatchObject({ autoNamingState: 'active' });
+            await expect(manual).resolves.toMatchObject({
+                autoNamingState: 'stopped',
+                displayTitle: 'Newer manual title',
+                titleMode: 'manual',
+            });
+            expect(database.sessionNaming.get(created.session.id)).toEqual({ state: 'stopped' });
+        } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
 });
