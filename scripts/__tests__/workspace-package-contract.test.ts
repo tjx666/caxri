@@ -17,6 +17,8 @@ import { promisify } from 'node:util';
 import { satisfies } from 'semver';
 import { describe, expect, it } from 'vitest';
 
+import { discoverReleaseManifestPaths } from '../../.agents/skills/release/scripts/prepare-release';
+
 interface ReleaseManifest {
     engines?: { caxri: string };
     version: string;
@@ -327,10 +329,14 @@ describe('workspace package manifests', () => {
 
     it('keeps release version preparation aligned with current extension workspaces', async () => {
         const instructions = await readFile(join(workspaceRoot, 'RELEASING.md'), 'utf8');
+        const releaseManifestPaths = await discoverReleaseManifestPaths(workspaceRoot);
 
-        expect(instructions).toContain('for extension in fixture git status; do');
+        expect(instructions).toContain('bun run release:prepare -- patch');
         expect(instructions).toContain('extensions/{fixture,git,status}/package.json');
-        expect(instructions).not.toContain('extensions/{files,');
+        for (const extension of ['fixture', 'git', 'status']) {
+            expect(releaseManifestPaths).toContain(`extensions/${extension}/package.json`);
+        }
+        expect(releaseManifestPaths).not.toContain('extensions/files/package.json');
     });
 
     it('keeps Files in Workbench Core instead of an extension workspace', async () => {

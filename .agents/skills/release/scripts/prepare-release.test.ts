@@ -1,0 +1,162 @@
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+
+import { afterEach, describe, expect, it } from 'vitest';
+
+import type {GitReader} from './prepare-release';
+import {
+    assertReleaseSource,
+    prepareRelease,
+    runPrepareRelease
+} from './prepare-release';
+
+const temporaryDirectories: string[] = [];
+const manifests = [
+    'package.json',
+    'apps/cli/package.json',
+    'apps/desktop/package.json',
+    'apps/server/package.json',
+    'packages/agent-skills/package.json',
+    'packages/client/package.json',
+    'packages/extension-api/package.json',
+    'extensions/fixture/package.json',
+    'extensions/git/package.json',
+    'extensions/status/package.json',
+];
+const extensions = new Set([
+    'extensions/fixture/package.json',
+    'extensions/git/package.json',
+    'extensions/status/package.json',
+]);
+
+async function fixture(overrides: Record<string, string> = {}): Promise<string> {
+    const cwd = await mkdtemp(join(tmpdir(), 'caxri-prepare-release-'));
+    temporaryDirectories.push(cwd);
+    const sources: Record<string, string> = {
+        'apps/cli/src/version.ts': "export const CLI_VERSION = '0.0.24';\n",
+        'packages/agent-skills/src/version.ts':
+            "export const SKILL_BUNDLE_VERSION = '0.0.24';\n",
+    };
+    for (const path of manifests) {
+        sources[path] = `${JSON.stringify(
+            {
+                name: path,
+                version: '0.0.24',
+                ...(extensions.has(path) && { engines: { caxri: '^0.0.24' } }),
+            },
+            undefined,
+            4,
+        )}\n`;
+    }
+
+    await Promise.all(
+        Object.entries({ ...sources, ...overrides }).map(async ([path, source]) => {
+            const absolutePath = join(cwd, path);
+            await mkdir(dirname(absolutePath), { recursive: true });
+            await writeFile(absolutePath, source, 'utf8');
+        }),
+    );
+    return cwd;
+}
+
+afterEach(async () => {
+    const paths = [...temporaryDirectories];
+    temporaryDirectories.length = 0;
+    await Promise.all(paths.map((path) => rm(path, { force: true, recursive: true })));
+});
+
+function cleanMainGit(overrides: Record<string, string> = {}): GitReader {
+    return async (arguments_) => {
+        const key = arguments_.join(' ');
+        return (
+            overrides[key] ??
+            {
+                'branch --show-current': 'main',
+                'rev-parse HEAD': 'release-head',
+                'rev-parse @{upstream}': 'release-head',
+                'status --porcelain --untracked-files=all': '',
+            }[key] ??
+            ''
+        );
+    };
+}
+
+describe('release version preparation', () => {
+    it('updates every coupled version source and extension engine range', async () => {
+        const cwd = await fixture();
+
+        const result = await prepareRelease(cwd, 'patch');
+
+        expect(result).toMatchObject({
+            previousVersion: '0.0.24',
+            version: '0.0.25',
+        });
+        expect(result.changedPaths).toHaveLength(12);
+        const updatedManifests = await Promise.all(
+            manifests.map(async (path) => ({
+                manifest: JSON.parse(await readFile(join(cwd, path), 'utf8')) as {
+                    engines?: { caxri?: string };
+                    version: string;
+                },
+                path,
+            })),
+        );
+        for (const { manifest, path } of updatedManifests) {
+            expect(manifest.version, path).toBe('0.0.25');
+            if (extensions.has(path)) expect(manifest.engines?.caxri, path).toBe('^0.0.25');
+        }
+        await expect(readFile(join(cwd, 'apps/cli/src/version.ts'), 'utf8')).resolves.toContain(
+            "CLI_VERSION = '0.0.25'",
+        );
+        await expect(
+            readFile(join(cwd, 'packages/agent-skills/src/version.ts'), 'utf8'),
+        ).resolves.toContain("SKILL_BUNDLE_VERSION = '0.0.25'");
+    });
+
+    it('validates all current sources before writing any changes', async () => {
+        const mismatchedManifest = `${JSON.stringify(
+            { engines: { caxri: '^0.0.23' }, version: '0.0.24' },
+            undefined,
+            4,
+        )}\n`;
+        const cwd = await fixture({ 'extensions/status/package.json': mismatchedManifest });
+        const originalRoot = await readFile(join(cwd, 'package.json'), 'utf8');
+
+        await expect(prepareRelease(cwd, 'patch')).rejects.toThrow('engines.caxri');
+        await expect(readFile(join(cwd, 'package.json'), 'utf8')).resolves.toBe(originalRoot);
+    });
+
+    it('requires a clean, synchronized main branch before the CLI mutates files', async () => {
+        const cwd = await fixture();
+
+        await expect(
+            assertReleaseSource(cwd, cleanMainGit({ 'branch --show-current': 'feature' })),
+        ).rejects.toThrow('requires main');
+        await expect(
+            assertReleaseSource(
+                cwd,
+                cleanMainGit({ 'status --porcelain --untracked-files=all': ' M package.json' }),
+            ),
+        ).rejects.toThrow('clean worktree');
+        await expect(
+            assertReleaseSource(cwd, cleanMainGit({ 'rev-parse @{upstream}': 'remote-head' })),
+        ).rejects.toThrow('match its upstream');
+
+        await expect(runPrepareRelease(['0.0.25'], cwd, cleanMainGit())).resolves.toMatchObject({
+            version: '0.0.25',
+        });
+        await expect(runPrepareRelease([], cwd, cleanMainGit())).rejects.toThrow('Usage');
+    });
+
+    it('rejects malformed, unchanged, and older explicit versions', async () => {
+        const malformed = await fixture();
+        await expect(prepareRelease(malformed, 'next')).rejects.toThrow('major, minor, patch');
+
+        const unchanged = await fixture();
+        await expect(prepareRelease(unchanged, '0.0.24')).rejects.toThrow('must be newer');
+
+        const older = await fixture();
+        await expect(prepareRelease(older, '0.0.23')).rejects.toThrow('must be newer');
+    });
+});
