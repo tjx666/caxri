@@ -31,9 +31,11 @@ report.
 
 ## FX4. Agent behavior uses a plan-bound process fixture
 
-Agent discovery is blocked unless the case plan declares the fixed `agent-features-v1` fixture and
-the launch passes the same id with `--agent-fixture`. The launcher creates fake Claude Code and
-Codex executables, shell shims, and provider state beneath the isolated profile. The fakes exercise
+Every Acceptance launch replaces the host HOME, XDG directories, Agent provider homes, and shell
+PATH with isolated profile-owned paths, and blocked Agent shims are the default. When the case plan
+declares the fixed `agent-features-v1` fixture and the launch passes the same id with
+`--agent-fixture`, the launcher replaces only the blocked Claude Code and Codex targets with fixed
+fake executables. The fakes exercise
 the real PTY, hook, metadata, and provider rename boundaries; they do not inject Main or Runtime
 events. Arbitrary executable paths, source, environment overrides, and host provider state are not
 fixture inputs.

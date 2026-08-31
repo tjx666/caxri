@@ -779,6 +779,7 @@ async function main(): Promise<void> {
                             caseId,
                             cleanupCompleted: isCleanupCompleted,
                             launchId: agentFixtureLaunchId,
+                            sharedProfile: plannedCase.item.stateIsolation.mode === 'restart',
                         });
                     }
                 }

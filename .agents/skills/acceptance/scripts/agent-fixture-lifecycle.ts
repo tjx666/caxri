@@ -29,6 +29,14 @@ function agentFixtureEvidencePath(caseId: string): string {
     return `assets/${encodeURIComponent(caseId)}-agent-fixture.json`;
 }
 
+async function readAgentFixtureReceipt(path: string): Promise<AgentFixtureReceipt> {
+    const metadata = await lstat(path);
+    if (metadata.isSymbolicLink() || !metadata.isFile()) {
+        throw new Error('Acceptance Agent fixture receipt must be a direct regular file');
+    }
+    return agentFixtureReceiptSchema.parse(JSON.parse(await readFile(path, 'utf8')));
+}
+
 export async function beginAgentFixtureLifecycle(
     reportDirectory: string,
     input: { caseId: string; fixtureId: string },
@@ -39,11 +47,7 @@ export async function beginAgentFixtureLifecycle(
     const path = join(directory, agentFixtureEvidencePath(input.caseId));
     let receipt: AgentFixtureReceipt;
     try {
-        const metadata = await lstat(path);
-        if (metadata.isSymbolicLink() || !metadata.isFile()) {
-            throw new Error('Acceptance Agent fixture receipt must be a direct regular file');
-        }
-        receipt = agentFixtureReceiptSchema.parse(JSON.parse(await readFile(path, 'utf8')));
+        receipt = await readAgentFixtureReceipt(path);
         if (receipt.caseId !== input.caseId || receipt.fixtureId !== input.fixtureId) {
             throw new Error('Acceptance Agent fixture receipt does not match the frozen case');
         }
@@ -74,22 +78,28 @@ export async function beginAgentFixtureLifecycle(
 
 export async function completeAgentFixtureLifecycle(
     reportDirectory: string,
-    input: { caseId: string; cleanupCompleted: boolean; launchId: string },
+    input: {
+        caseId: string;
+        cleanupCompleted: boolean;
+        launchId: string;
+        sharedProfile: boolean;
+    },
     completedAt = new Date().toISOString(),
 ): Promise<void> {
     const directory = await validateExistingReportDirectory(reportDirectory);
     const path = join(directory, agentFixtureEvidencePath(input.caseId));
-    const receipt = agentFixtureReceiptSchema.parse(JSON.parse(await readFile(path, 'utf8')));
+    const receipt = await readAgentFixtureReceipt(path);
     const launch = receipt.launches.find(({ id }) => id === input.launchId);
     if (!launch || launch.completedAt)
         throw new Error('Acceptance Agent fixture launch is not pending');
     /**
-     * A restart case shares one fixture root, so its final profile cleanup covers every prior launch.
+     * A restart case shares one fixture root, so its final profile cleanup covers every prior launch. An isolated retry
+     * owns a fresh profile and must never retroactively claim that an earlier profile was cleaned.
      */
-    if (input.cleanupCompleted) {
+    if (input.cleanupCompleted && input.sharedProfile) {
         for (const item of receipt.launches) item.cleanupCompleted = true;
     } else {
-        launch.cleanupCompleted = false;
+        launch.cleanupCompleted = input.cleanupCompleted;
     }
     launch.completedAt = completedAt;
     await writeJsonAtomically(path, receipt);
@@ -108,8 +118,7 @@ export async function validateAgentFixtureEvidence(
     if (!input.evidencePaths.includes(evidence)) {
         throw new Error(`Case ${input.caseId} must include its Agent fixture receipt`);
     }
-    const receiptContents = await readFile(join(directory, evidence), 'utf8');
-    const receipt = agentFixtureReceiptSchema.parse(JSON.parse(receiptContents));
+    const receipt = await readAgentFixtureReceipt(join(directory, evidence));
     if (
         receipt.caseId !== input.caseId ||
         receipt.fixtureId !== input.fixtureId ||
