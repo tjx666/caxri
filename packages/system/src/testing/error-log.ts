@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { isLogProcess, logProcesses } from '@caxri/protocol';
+import { isCaxriMethod, isLogProcess, logProcesses } from '@caxri/protocol';
 
 import type { E2EErrorEvent, E2EErrorSource } from './error-policy.js';
 
@@ -32,6 +32,7 @@ function errorFromLog(record: StructuredErrorRecord): E2EErrorEvent | undefined 
     if (typeof record.event !== 'string') return undefined;
     if (record.level !== 'error' && record.level !== 'fatal' && !fatalLogEvents.has(record.event))
         return undefined;
+    const method = record.fields?.method;
     return {
         source: record.process,
         event: record.event,
@@ -39,6 +40,7 @@ function errorFromLog(record: StructuredErrorRecord): E2EErrorEvent | undefined 
             typeof record.fields?.code === 'string'
                 ? record.fields.code
                 : fallbackCode(record.event),
+        ...(typeof method === 'string' && isCaxriMethod(method) && { method }),
     };
 }
 

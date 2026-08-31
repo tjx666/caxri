@@ -12,7 +12,9 @@ const record = (
     level: 'error' | 'info',
     event: string,
     code?: string,
-) => `${JSON.stringify({ process, level, event, fields: code ? { code } : undefined })}\n`;
+    method?: string,
+) =>
+    `${JSON.stringify({ process, level, event, fields: code ? { code, ...(method && { method }) } : undefined })}\n`;
 
 describe('E2E structured log collection', () => {
     it('collects rotated and active Desktop and Server Core logs in chronological order', async () => {
@@ -35,6 +37,7 @@ describe('E2E structured log collection', () => {
                     'error',
                     'server_core.late_failure',
                     'SERVER_CORE_LATE_FAILURE',
+                    'app.records',
                 ),
             ),
         ]);
@@ -58,10 +61,11 @@ describe('E2E structured log collection', () => {
                     source: 'server-core',
                     event: 'server_core.late_failure',
                     code: 'SERVER_CORE_LATE_FAILURE',
+                    method: 'app.records',
                 },
             ]);
             expect(() => assertE2EErrorPolicy(errors, [])).toThrow(
-                'Unexpected E2E errors: desktop/desktop.early_failure/DESKTOP_EARLY_FAILURE x1, server-core/server_core.late_failure/SERVER_CORE_LATE_FAILURE x1',
+                'Unexpected E2E errors: desktop/desktop.early_failure/DESKTOP_EARLY_FAILURE x1, server-core/server_core.late_failure/SERVER_CORE_LATE_FAILURE x1 [methods: app.records]',
             );
         } finally {
             await rm(userDataDirectory, { recursive: true, force: true });

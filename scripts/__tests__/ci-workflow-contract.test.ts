@@ -293,6 +293,11 @@ describe('CI workflow contract', () => {
         expect(packageManifest.scripts['benchmark:renderer']).toContain(
             'CAXRI_RENDERER_BENCHMARK=1',
         );
+        expect(packageManifest.scripts['benchmark:renderer']).toContain(
+            'CAXRI_E2E_OUTPUT_DIR=test-results/renderer-performance',
+        );
+        expect(workflow.match(/if-no-files-found: error/gu)).toHaveLength(5);
+        expect(workflow).not.toContain('if-no-files-found: ignore');
         expect(workflow).toContain('name: CI gate');
         expect(workflow).toContain('needs: [retry-policy, checks, e2e]');
         expect(workflow).toContain(
