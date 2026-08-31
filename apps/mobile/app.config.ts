@@ -1,5 +1,10 @@
-import { draculaTheme } from '@caxri/protocol';
 import type { ConfigContext, ExpoConfig } from 'expo/config';
+
+/**
+ * Expo evaluates this config before workspace packages are built in a clean checkout. Keep the native splash value
+ * self-contained; app-config.test.ts guards its parity with the protocol theme.
+ */
+const MOBILE_SPLASH_BACKGROUND = '#282a36';
 
 export default function createExpoConfig({ config }: ConfigContext): ExpoConfig {
     return {
@@ -10,7 +15,6 @@ export default function createExpoConfig({ config }: ConfigContext): ExpoConfig 
         orientation: 'default',
         scheme: 'caxri',
         userInterfaceStyle: 'dark',
-        newArchEnabled: true,
         ios: {
             bundleIdentifier: 'com.caxri.mobile',
             supportsTablet: true,
@@ -33,7 +37,7 @@ export default function createExpoConfig({ config }: ConfigContext): ExpoConfig 
             [
                 'expo-splash-screen',
                 {
-                    backgroundColor: draculaTheme.colors.background,
+                    backgroundColor: MOBILE_SPLASH_BACKGROUND,
                 },
             ],
         ],
