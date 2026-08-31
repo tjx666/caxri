@@ -547,18 +547,25 @@ async function validateMobileDeviceEvidence(
     if (plan.surface !== 'mobile') return;
     const expectedDevice = plan.mobileDevice;
     if (!expectedDevice) throw new Error(`Case ${plan.id} is missing its mobile device plan`);
-    const lifecyclePath = join(directory, lifecycleEvidencePath(plan.id));
-    const lifecycle: unknown = JSON.parse(await readFile(lifecyclePath, 'utf8'));
-    const finalLaunchId = caseLifecycleReceiptSchema.parse(lifecycle).launches.at(-1)?.id;
+    let evidenceBinding: { checkpointId: string } | { launchId: string };
+    if (plan.stateIsolation.mode === 'readonly_checkpoint') {
+        evidenceBinding = { checkpointId: plan.stateIsolation.checkpointId };
+    } else {
+        const lifecyclePath = join(directory, lifecycleEvidencePath(plan.id));
+        const lifecycle: unknown = JSON.parse(await readFile(lifecyclePath, 'utf8'));
+        const finalLaunchId = caseLifecycleReceiptSchema.parse(lifecycle).launches.at(-1)?.id;
+        if (!finalLaunchId) throw new Error(`Case ${plan.id} lifecycle has no launch`);
+        evidenceBinding = { launchId: finalLaunchId };
+    }
     await validateMobileEvidence({
         caseId: plan.id,
         device: expectedDevice,
         directory,
+        evidenceBinding,
         evidencePaths: acceptanceCase.evidence.map(evidencePath),
         expectedStatus: ({ blocked: 'blocked', fail: 'failed', pass: 'passed' } as const)[
             acceptanceCase.status
         ],
-        finalLaunchId,
         reportCommit,
     });
 }

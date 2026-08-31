@@ -97,8 +97,9 @@ user outcome it asks a reviewer to decide.
    contract instead of starting an open-ended experiment.
    Every mobile item also declares `mobileDevice` with `platform`, exact `deviceId`, and
    `appId: "com.caxri.mobile"`; finalization requires a matching
-   `assets/<case-id>-mobile-device.json` receipt bound to the frozen commit and final lifecycle
-   launch. A cited `assets/<case-id>-result.json` receipt must carry the same identities.
+   `assets/<case-id>-mobile-device.json` receipt bound to the frozen commit and declared isolation
+   identity: the final lifecycle launch, or the frozen checkpoint id for `readonly_checkpoint`. A
+   cited `assets/<case-id>-result.json` receipt must carry the same identities.
 5. Run the report scaffold's `init` command with the frozen plan. It creates a fresh round
    directory containing case placeholders, `report.md`, and `assets/`. Inside Go use
    `.records/go/<run-id>/acceptance/round-<n>/`; for standalone verification use
