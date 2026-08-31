@@ -12,6 +12,13 @@ from another shell:
 
 ```bash
 FRAME_DIR=$(mktemp -d)
+# Non-Terminal temporal evidence:
+bun run .agents/skills/acceptance/scripts/capture-renderer.ts frames \
+  --out-dir "$FRAME_DIR" \
+  --count 40 \
+  --interval-ms 250
+
+# A plan that declares fixturePreflight: terminal adds the validated receipt:
 bun run .agents/skills/acceptance/scripts/capture-renderer.ts frames \
   --out-dir "$FRAME_DIR" \
   --fixture-preflight "$FIXTURE_PREFLIGHT_RECEIPT" \
@@ -25,10 +32,16 @@ DevTools and ambiguous targets, and refuses to overwrite an existing frame
 sequence. For a secondary window such as Process Explorer, add
 `--url-contains process-explorer.html`.
 
-`--fixture-preflight` is mandatory and points to the receipt written by
+`--fixture-preflight` is mandatory only when the frozen case plan declares
+`fixturePreflight: terminal`; the launcher records that requirement in the owned runtime receipt and
+frame capture otherwise fails closed. For a Terminal fixture, it points to the receipt written by
 `fixture-preflight.ts --output`. The receipt preserves the observed fixture generation, first grid
 marker, DOM row count, grid size, rendered lines, and ready/blocked result. The capture helper
 refuses capture before the first frame when that receipt is blocked.
+
+An Agent fixture replaces a blocked Agent executable; it does not by itself claim Terminal grid
+layout. Declare the Terminal preflight separately whenever the evidence depends on rendered grid
+content.
 
 Keep the default 40-frame, 250 ms sequence unless the interaction itself needs a
 different bound. Four frames at this interval encode to a one-second clip and do
