@@ -1,8 +1,7 @@
 #!/usr/bin/env bun
 
-import { spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
@@ -13,6 +12,11 @@ import {
     loadAcceptanceCasePlan,
     markCaseLifecycleReady,
 } from '../.agents/skills/acceptance/scripts/report';
+import {
+    assertMobileAcceptanceSourceIdentity,
+    runMobileAcceptanceCommand,
+    writeMobileAcceptanceReceipt,
+} from './mobile-acceptance-runtime';
 
 const root = resolve(import.meta.dirname, '..');
 const adb = join(homedir(), 'Library', 'Android', 'sdk', 'platform-tools', 'adb');
@@ -27,22 +31,43 @@ if (Boolean(requestedReportDirectory) !== Boolean(requestedCaseId))
         'CAXRI_MOBILE_ACCEPTANCE_REPORT_DIR and CAXRI_MOBILE_ACCEPTANCE_CASE_ID must be set together',
     );
 
-const run = (command: string, arguments_: string[], environment = process.env): void => {
-    // oxlint-disable-next-line node/no-sync -- The guarded acceptance stages must finish in exact order before the next starts.
-    const result = spawnSync(command, arguments_, {
+const OVERALL_TIMEOUT_MS = 20 * 60_000;
+const CLEANUP_RESERVE_MS = 60_000;
+const BUILD_TIMEOUT_MS = 10 * 60_000;
+const E2E_TIMEOUT_MS = 5 * 60_000;
+const DEVICE_TIMEOUT_MS = 30_000;
+const SOURCE_TIMEOUT_MS = 10_000;
+const overallDeadlineMs = Date.now() + OVERALL_TIMEOUT_MS;
+const activeDeadlineMs = overallDeadlineMs - CLEANUP_RESERVE_MS;
+const run = (
+    command: string,
+    arguments_: string[],
+    timeoutMs: number,
+    environment = process.env,
+    deadlineMs = activeDeadlineMs,
+): string =>
+    runMobileAcceptanceCommand({
+        arguments: arguments_,
+        command,
         cwd: root,
-        env: environment,
-        shell: false,
-        stdio: 'inherit',
+        deadlineMs,
+        environment,
+        timeoutMs,
     });
-    if (result.error) throw result.error;
-    if (result.status !== 0)
-        throw new Error(`${command} failed with status ${result.status ?? 'unknown'}`);
-};
+const read = (command: string, arguments_: string[], timeoutMs: number): string =>
+    runMobileAcceptanceCommand({
+        arguments: arguments_,
+        captureOutput: true,
+        command,
+        cwd: root,
+        deadlineMs: activeDeadlineMs,
+        timeoutMs,
+    });
 
 let reportDirectory: string | undefined;
 let caseId: string | undefined;
 let launchId: string | undefined;
+let sourceCommit: string | undefined;
 if (requestedReportDirectory && requestedCaseId) {
     const planned = await loadAcceptanceCasePlan(requestedReportDirectory, requestedCaseId);
     if (planned.item.surface !== 'mobile')
@@ -54,6 +79,17 @@ if (requestedReportDirectory && requestedCaseId) {
         throw new Error('The guarded Android acceptance target must match the frozen mobileDevice');
     if (planned.item.stateIsolation.mode !== 'isolated')
         throw new Error('The guarded Android acceptance case must use isolated state');
+    const actualCommit = read('git', ['rev-parse', 'HEAD'], SOURCE_TIMEOUT_MS);
+    assertMobileAcceptanceSourceIdentity({
+        actualCommit,
+        plannedCommit: planned.commit,
+        status: read(
+            'git',
+            ['status', '--porcelain', '--untracked-files=normal'],
+            SOURCE_TIMEOUT_MS,
+        ),
+    });
+    sourceCommit = actualCommit.trim().toLowerCase();
     reportDirectory = planned.directory;
     caseId = requestedCaseId;
     launchId = await beginCaseLifecycle(reportDirectory, {
@@ -67,20 +103,19 @@ let failure: unknown;
 let isCleanupCompleted = false;
 let isLifecycleReady = false;
 try {
-    run('bun', ['run', 'build']);
-    run('bun', ['run', '--cwd', 'apps/mobile', 'prebuild:android', '--', '--clean']);
-    run('bun', [
-        'run',
-        '--cwd',
-        'apps/mobile',
-        'android',
-        '--',
-        '--build-only',
-        '--variant',
-        'release',
-    ]);
-    run(adb, ['-s', serial, 'install', '-r', releaseApk]);
-    run(adb, ['-s', serial, 'shell', 'pm', 'clear', 'com.caxri.mobile']);
+    run('bun', ['run', 'build'], BUILD_TIMEOUT_MS);
+    run(
+        'bun',
+        ['run', '--cwd', 'apps/mobile', 'prebuild:android', '--', '--clean'],
+        BUILD_TIMEOUT_MS,
+    );
+    run(
+        'bun',
+        ['run', '--cwd', 'apps/mobile', 'android', '--', '--build-only', '--variant', 'release'],
+        BUILD_TIMEOUT_MS,
+    );
+    run(adb, ['-s', serial, 'install', '-r', releaseApk], DEVICE_TIMEOUT_MS);
+    run(adb, ['-s', serial, 'shell', 'pm', 'clear', 'com.caxri.mobile'], DEVICE_TIMEOUT_MS);
     if (reportDirectory && caseId && launchId) {
         await markCaseLifecycleReady(reportDirectory, { caseId, launchId });
         isLifecycleReady = true;
@@ -88,6 +123,7 @@ try {
     run(
         'bunx',
         ['--bun', 'playwright', 'test', 'e2e/mobile-short-reply.e2e.ts', '--reporter=line'],
+        E2E_TIMEOUT_MS,
         {
             ...process.env,
             CAXRI_MOBILE_ACCEPTANCE_BUILD_MODE: 'release',
@@ -98,6 +134,8 @@ try {
                         'assets',
                         `${encodeURIComponent(caseId)}-result.json`,
                     ),
+                    CAXRI_MOBILE_ACCEPTANCE_LAUNCH_ID: launchId,
+                    CAXRI_MOBILE_ACCEPTANCE_SOURCE_COMMIT: sourceCommit,
                 }),
         },
     );
@@ -105,7 +143,13 @@ try {
     failure = error;
 } finally {
     try {
-        run(adb, ['-s', serial, 'shell', 'pm', 'clear', 'com.caxri.mobile']);
+        run(
+            adb,
+            ['-s', serial, 'shell', 'pm', 'clear', 'com.caxri.mobile'],
+            DEVICE_TIMEOUT_MS,
+            process.env,
+            overallDeadlineMs,
+        );
         isCleanupCompleted = true;
     } catch (error) {
         failure ??= error;
@@ -124,7 +168,7 @@ try {
     }
 }
 
-if (reportDirectory && caseId) {
+if (reportDirectory && caseId && launchId && sourceCommit) {
     let apkSha256 = 'unavailable';
     try {
         apkSha256 = createHash('sha256')
@@ -139,32 +183,26 @@ if (reportDirectory && caseId) {
         'assets',
         `${encodeURIComponent(caseId)}-mobile-device.json`,
     );
-    await writeFile(
-        receiptPath,
-        `${JSON.stringify(
-            {
-                appId: 'com.caxri.mobile',
-                build: { identity: apkSha256, mode: 'release' },
-                caseId,
-                cleanup: {
-                    appData: isCleanupCompleted ? 'cleared' : 'preserved',
-                    desktopProfile: 'managed-by-isolated-e2e',
-                },
-                device: { id: serial, kind: 'emulator', platform: 'android' },
-                outcome:
-                    status === 'passed'
-                        ? 'one-bounded-reply-reached-the-waiting-agent'
-                        : status === 'failed'
-                          ? 'acceptance-run-failed-after-device-ready'
-                          : 'acceptance-run-blocked-before-device-ready',
-                schemaVersion: 1,
-                status,
-            },
-            null,
-            2,
-        )}\n`,
-        { encoding: 'utf8', flag: 'wx' },
-    );
+    await writeMobileAcceptanceReceipt(receiptPath, {
+        appId: 'com.caxri.mobile',
+        build: { identity: apkSha256, mode: 'release' },
+        caseId,
+        cleanup: {
+            appData: isCleanupCompleted ? 'cleared' : 'preserved',
+            desktopProfile: 'managed-by-isolated-e2e',
+        },
+        device: { id: serial, kind: 'emulator', platform: 'android' },
+        launchId,
+        outcome:
+            status === 'passed'
+                ? 'one-bounded-reply-reached-the-waiting-agent'
+                : status === 'failed'
+                  ? 'acceptance-run-failed-after-device-ready'
+                  : 'acceptance-run-blocked-before-device-ready',
+        schemaVersion: 1,
+        sourceCommit,
+        status,
+    });
     console.log(JSON.stringify({ acceptanceReceipt: receiptPath, status }));
 }
 

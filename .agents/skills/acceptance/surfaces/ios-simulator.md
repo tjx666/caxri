@@ -64,8 +64,9 @@ disposable and a recorded app-container cleanup; otherwise mark it `blocked`.
 
 Every outcome still needs `assets/<case-id>-mobile-device.json`. Record the frozen UDID and iOS
 platform, the installed build identity when available (otherwise `unavailable`), cleanup state, and
-`passed`, `failed`, or `blocked` matching the case result. A blocked receipt identifies the intended
-target; it must not claim that the application launched.
+`passed`, `failed`, or `blocked` matching the case result. Bind the receipt to the frozen report
+commit and final state-isolation launch id. A blocked receipt identifies the intended target; it must
+not claim that the application launched.
 
 ## Inspect, interact, and verify
 

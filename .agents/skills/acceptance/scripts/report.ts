@@ -13,11 +13,7 @@ import {
     terminalFixturePreflightReceiptSchema,
 } from './fixture-preflight';
 import { validateReportMediaEvidence } from './media-integrity';
-import {
-    mobileDeviceEvidencePath,
-    mobileDeviceReceiptSchema,
-    mobileDeviceSchema,
-} from './mobile-report';
+import { mobileDeviceSchema, validateMobileEvidence } from './mobile-report';
 import type { RebindReportHeadInput } from './report-head';
 import { rebindReportDocument } from './report-head';
 import { reportCliHelp } from './report-help';
@@ -546,25 +542,25 @@ async function validateMobileDeviceEvidence(
     directory: string,
     plan: PlanItem,
     acceptanceCase: AcceptanceCase,
+    reportCommit: string | undefined,
 ): Promise<void> {
     if (plan.surface !== 'mobile') return;
     const expectedDevice = plan.mobileDevice;
     if (!expectedDevice) throw new Error(`Case ${plan.id} is missing its mobile device plan`);
-    const evidence = mobileDeviceEvidencePath(plan.id);
-    if (acceptanceCase.evidence.every((item) => evidencePath(item) !== evidence)) {
-        throw new Error(`Case ${plan.id} must include its mobile device receipt`);
-    }
-    const rawReceipt: unknown = JSON.parse(await readFile(join(directory, evidence), 'utf8'));
-    const receipt = mobileDeviceReceiptSchema.parse(rawReceipt);
-    if (
-        receipt.caseId !== plan.id ||
-        receipt.device.id !== expectedDevice.deviceId ||
-        receipt.device.platform !== expectedDevice.platform ||
-        receipt.status !==
-            ({ blocked: 'blocked', fail: 'failed', pass: 'passed' } as const)[acceptanceCase.status]
-    ) {
-        throw new Error(`Case ${plan.id} mobile device receipt does not match the frozen plan`);
-    }
+    const lifecyclePath = join(directory, lifecycleEvidencePath(plan.id));
+    const lifecycle: unknown = JSON.parse(await readFile(lifecyclePath, 'utf8'));
+    const finalLaunchId = caseLifecycleReceiptSchema.parse(lifecycle).launches.at(-1)?.id;
+    await validateMobileEvidence({
+        caseId: plan.id,
+        device: expectedDevice,
+        directory,
+        evidencePaths: acceptanceCase.evidence.map(evidencePath),
+        expectedStatus: ({ blocked: 'blocked', fail: 'failed', pass: 'passed' } as const)[
+            acceptanceCase.status
+        ],
+        finalLaunchId,
+        reportCommit,
+    });
 }
 
 function summaryFor(cases: AcceptanceCase[], conclusion?: string) {
@@ -590,6 +586,9 @@ export async function finalizeReport(input: FinalizeReportInput) {
         readFile(notesPath, 'utf8'),
     ]);
     const rawReport: unknown = JSON.parse(rawResult);
+    const reportCommit = z
+        .object({ commit: z.string().trim().min(1).optional() })
+        .parse(rawReport).commit;
     const storedRequirement = z.object({ requirement: z.string() }).parse(rawReport).requirement;
     const requirement = validateHumanText(input.requirement, 'requirement');
     if (
@@ -647,7 +646,7 @@ export async function finalizeReport(input: FinalizeReportInput) {
         // eslint-disable-next-line no-await-in-loop
         await validateCaseLifecycleEvidence(directory, planned, item);
         // eslint-disable-next-line no-await-in-loop
-        await validateMobileDeviceEvidence(directory, planned, item);
+        await validateMobileDeviceEvidence(directory, planned, item, reportCommit);
     }
 
     await validateReportMediaEvidence({

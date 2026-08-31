@@ -23,6 +23,7 @@ const TEST_ROOT = join(
 );
 const acceptanceRoots: string[] = [];
 const requirement = 'Caxri 移动端应安全连接并呈现配对的 Agent Sessions。';
+const reportCommit = 'a'.repeat(40);
 const desktopPlan = {
     category: '终端布局',
     expected: '终端视口周围不出现应用背景色条。',
@@ -51,6 +52,7 @@ async function reportDirectory(): Promise<string> {
 
 async function initialize(directory: string, plan: InitializeReportInput['plan']) {
     return initializeReport({
+        commit: reportCommit,
         directory,
         entry: '在指定移动设备上执行隔离验收。',
         plan,
@@ -63,7 +65,7 @@ async function writeIsolatedLifecycle(
     directory: string,
     caseId: string,
     isReady = true,
-): Promise<string> {
+): Promise<{ evidence: string; launchId: string }> {
     const launchId = await beginCaseLifecycle(directory, {
         caseId,
         profileIdentity: `profile-${caseId}`,
@@ -76,7 +78,10 @@ async function writeIsolatedLifecycle(
         cleanupRequested: true,
         launchId,
     });
-    return `assets/${encodeURIComponent(caseId)}-state-isolation.json`;
+    return {
+        evidence: `assets/${encodeURIComponent(caseId)}-state-isolation.json`,
+        launchId,
+    };
 }
 
 afterEach(async () => {
@@ -115,7 +120,11 @@ describe('Acceptance mobile report scaffold', () => {
         const mobileLifecycle = await writeIsolatedLifecycle(directory, mobilePlan.id);
         result.cases[0] = {
             category: desktopPlan.category,
-            evidence: ['assets/terminal.png', 'assets/terminal-dom.html', desktopLifecycle],
+            evidence: [
+                'assets/terminal.png',
+                'assets/terminal-dom.html',
+                desktopLifecycle.evidence,
+            ],
             id: desktopPlan.id,
             name: desktopPlan.title,
             observation: '终端视口周围没有露出应用背景。',
@@ -124,7 +133,11 @@ describe('Acceptance mobile report scaffold', () => {
         };
         result.cases[1] = {
             category: mobilePlan.category,
-            evidence: ['assets/android-short-reply-mobile-device.json', mobileLifecycle],
+            evidence: [
+                'assets/android-short-reply-mobile-device.json',
+                'assets/android-short-reply-result.json',
+                mobileLifecycle.evidence,
+            ],
             id: mobilePlan.id,
             name: mobilePlan.title,
             observation: '发布构建完成配对，并将一次短回复送达等待中的 Agent Session。',
@@ -144,7 +157,26 @@ describe('Acceptance mobile report scaffold', () => {
                     cleanup: { appData: 'cleared', desktopProfile: 'isolated-and-removed' },
                     device: { id: 'emulator-5554', kind: 'emulator', platform: 'android' },
                     outcome: 'one-bounded-reply-reached-the-waiting-agent',
+                    launchId: mobileLifecycle.launchId,
                     schemaVersion: 1,
+                    sourceCommit: reportCommit,
+                    status: 'passed',
+                }),
+            ),
+            writeFile(
+                join(directory, 'assets/android-short-reply-result.json'),
+                JSON.stringify({
+                    channel: 'authenticated-encrypted-gateway',
+                    delivery: {
+                        count: 1,
+                        destination: 'main-agent-terminal',
+                        repeatDisabled: true,
+                        stateAfterReply: 'running',
+                    },
+                    launchId: mobileLifecycle.launchId,
+                    projectScope: 'allowed-present-denied-absent',
+                    schemaVersion: 1,
+                    sourceCommit: reportCommit,
                     status: 'passed',
                 }),
             ),
@@ -154,6 +186,19 @@ describe('Acceptance mobile report scaffold', () => {
         expect(finalized.surfaces).toEqual(['desktop', 'mobile']);
         expect(finalized.cases.map(({ surface }) => surface)).toEqual(['desktop', 'mobile']);
         expect(finalized.summary.conclusion).toBe('当前 PR 头提交满足全部计划中的验收项。');
+
+        const resultReceiptPath = join(directory, 'assets/android-short-reply-result.json');
+        const resultReceipt = JSON.parse(await readFile(resultReceiptPath, 'utf8')) as Record<
+            string,
+            unknown
+        >;
+        await writeFile(
+            resultReceiptPath,
+            JSON.stringify({ ...resultReceipt, launchId: 'stale-launch' }),
+        );
+        await expect(finalizeReport({ directory, requirement })).rejects.toThrow(
+            'mobile result receipt is stale',
+        );
     });
 
     it('rejects a mobile case without its report-bound device receipt', async () => {
@@ -181,7 +226,7 @@ describe('Acceptance mobile report scaffold', () => {
         const lifecycle = await writeIsolatedLifecycle(directory, caseId);
         result.cases[0] = {
             category: mobilePlan.category,
-            evidence: ['assets/android-pairing.png', lifecycle],
+            evidence: ['assets/android-pairing.png', lifecycle.evidence],
             id: caseId,
             name: mobilePlan.title,
             observation: 'Android 发布构建显示了配对入口。',
@@ -224,7 +269,7 @@ describe('Acceptance mobile report scaffold', () => {
         const deviceEvidence = `assets/${caseId}-mobile-device.json`;
         result.cases[0] = {
             category: mobilePlan.category,
-            evidence: [deviceEvidence, lifecycle],
+            evidence: [deviceEvidence, lifecycle.evidence],
             id: caseId,
             name: mobilePlan.title,
             observation: '当前环境没有可用的原生触摸驱动，交互验收被阻断。',
@@ -238,7 +283,9 @@ describe('Acceptance mobile report scaffold', () => {
             cleanup: { appData: 'preserved', desktopProfile: 'not-started' },
             device: { id: 'simulator-udid', kind: 'simulator', platform: 'ios' },
             outcome: 'acceptance-run-blocked-before-device-ready',
+            launchId: lifecycle.launchId,
             schemaVersion: 1,
+            sourceCommit: reportCommit,
             status: 'blocked',
         };
         await Promise.all([

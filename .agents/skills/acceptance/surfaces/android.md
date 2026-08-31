@@ -32,17 +32,22 @@ CAXRI_MOBILE_ACCEPTANCE_CASE_ID="android-short-reply" \
   bun run test:e2e:mobile:android
 ```
 
-The guarded runner builds current Desktop artifacts, regenerates Android native sources, creates and
-installs a release APK, verifies the non-debuggable package, clears only `com.caxri.mobile` before
+The guarded runner first requires a clean source tree at the frozen report commit, then builds
+Desktop artifacts, regenerates Android native sources, creates and installs a release APK, verifies
+the non-debuggable package, clears only `com.caxri.mobile` before
 and after the case, launches an isolated Desktop/Server fixture, pairs through the encrypted gateway,
-and sends one fixed bounded reply. It never uses ambient Metro or a stale APK. Include both generated
+and sends one fixed bounded reply. Stage and overall deadlines bound every child command. It never
+uses ambient Metro or a stale APK. Include all generated
 files in the case evidence:
 
 - `assets/<case-id>-state-isolation.json`
 - `assets/<case-id>-mobile-device.json`
+- `assets/<case-id>-result.json`
 
-The result receipt contains build hash, explicit emulator identity, cleanup state, and the observed
-user outcome. It excludes the pairing link, QR payload, reply text, Session identity, Terminal
+The receipts contain the report source commit, final lifecycle launch id, build hash, explicit
+emulator identity, cleanup state, and the observed user outcome. A clean retry replaces prior
+receipts atomically; report finalization rejects stale launch or commit identities. They exclude the
+pairing link, QR payload, reply text, Session identity, Terminal
 content, Project path, source, logs, and environment values. The runner writes this receipt from its
 cleanup path for `passed`, `failed`, and pre-launch `blocked` outcomes so a failed round can still be
 finalized honestly.
