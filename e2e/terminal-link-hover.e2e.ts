@@ -24,14 +24,15 @@ test('Terminal links delay contextual hover hints and reserve the pointer cursor
         await createShellSession(running.page);
         const fileLink = 'src/example.ts:2';
         const url = 'https://example.com/hover-link';
+        const urlLine = `PR example#18958 (${url})(目标 canary)。`;
         const oscBrowserLabel = 'OSC browser';
         const oscEditorLabel = 'OSC editor';
         const oscFileUrl = pathToFileURL(join(sourceDirectory, 'example.ts')).href;
         await typeTerminal(
             running.page,
-            String.raw`printf '%s\n' '${fileLink}' '${url}'; printf '\033]8;;https://example.com/osc-link\007${oscBrowserLabel}\033]8;;\007\n'; printf '\033]8;;${oscFileUrl}\007${oscEditorLabel}\033]8;;\007\n'`,
+            String.raw`printf '%s\n' '${fileLink}' '${urlLine}'; printf '\033]8;;https://example.com/osc-link\007${oscBrowserLabel}\033]8;;\007\n'; printf '\033]8;;${oscFileUrl}\007${oscEditorLabel}\033]8;;\007\n'`,
         );
-        await expect(running.page.locator('.xterm-rows')).toContainText(url);
+        await expect(running.page.locator('.xterm-rows')).toContainText(urlLine);
         await expect(running.page.locator('.terminal-command-status')).toHaveText(
             'Command completed successfully.',
         );
@@ -56,6 +57,12 @@ test('Terminal links delay contextual hover hints and reserve the pointer cursor
 
         const urlBounds = await hoverTerminalLink(running.page, url);
         await expect(hint).toHaveText('⌘ click to open in browser');
+        await expect(
+            running.page
+                .locator('.xterm-rows span[style*="text-decoration: underline"]')
+                .filter({ hasText: url })
+                .last(),
+        ).toHaveText(url);
         const urlHintBounds = await hint.boundingBox();
         if (!urlHintBounds) throw new Error('Terminal URL hint bounds are unavailable');
         expect(urlHintBounds.y + urlHintBounds.height).toBeLessThanOrEqual(urlBounds.y);

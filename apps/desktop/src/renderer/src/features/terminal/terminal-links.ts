@@ -122,13 +122,9 @@ export interface TerminalLinkRegistration {
 
 type ClosingBracket = ')' | ']' | '}';
 
-function closingBracket(value: string): ClosingBracket | undefined {
-    return [')', ']', '}'].includes(value) ? (value as ClosingBracket) : undefined;
-}
-
 /**
  * Maps each opening/closing bracket character to the closer it affects and the amount by which it shifts that closer's
- * outstanding count, so `trimToken` can update `bracketExcess` without a `switch`/`break` inside its loop.
+ * outstanding count, so `trimToken` can preserve balanced wrappers in one bounded scan.
  */
 const BRACKET_EXCESS_ADJUSTMENTS: Partial<Record<string, readonly [ClosingBracket, number]>> = {
     '(': [')', -1],
@@ -145,24 +141,22 @@ function trimToken(raw: string): { endOffset: number; startOffset: number; text:
     while (startOffset < endOffset && LEADING_WRAPPERS.has(raw[startOffset])) startOffset += 1;
     const bracketExcess: Record<ClosingBracket, number> = { ')': 0, ']': 0, '}': 0 };
     /**
-     * Count each bracket once so a maximal token with many trailing closers stays linear.
+     * Keep balanced URL/path brackets, but stop at the first unmatched closer so adjacent wrapper prose stays outside.
      */
     for (let index = startOffset; index < endOffset; index += 1) {
         const adjustment = BRACKET_EXCESS_ADJUSTMENTS[raw[index]];
         if (adjustment) {
             const [closer, delta] = adjustment;
+            if (delta > 0 && bracketExcess[closer] === 0) {
+                endOffset = index;
+                break;
+            }
             bracketExcess[closer] += delta;
         }
     }
     while (startOffset < endOffset) {
         const last = raw[endOffset - 1];
         if (TRAILING_PUNCTUATION.has(last)) {
-            endOffset -= 1;
-            continue;
-        }
-        const closing = closingBracket(last);
-        if (closing && bracketExcess[closing] > 0) {
-            bracketExcess[closing] -= 1;
             endOffset -= 1;
             continue;
         }
