@@ -238,12 +238,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
                 const result = (await this.supervisor.request(
                     {
                         method: 'terminal.input',
-                        params: {
-                            data: batch.data,
-                            ...(batch.expectedAgentLaunchId && {
-                                expectedAgentLaunchId: batch.expectedAgentLaunchId,
-                            }),
-                        },
+                        params: batch.params,
                     },
                     this.terminalScope(queue.identity, 'terminal.input', queue.attachmentId),
                     queue.abortController.signal,
@@ -519,32 +514,20 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         if (!result.accepted) return false;
         const { queue, receipt } = result;
         if (!queue || !receipt) return true;
-        const cancel = (): void => {
-            if (this.inputQueues.get(terminalId) === queue && queue.hasReceipt(receipt))
+        await queue.waitForReceipt(receipt, abortSignal, () => {
+            if (this.inputQueues.get(terminalId) === queue)
                 this.retireInputQueue(
                     terminalId,
                     new CaxriError('CANCELLED', 'Terminal input was cancelled'),
                 );
-        };
-        abortSignal?.addEventListener('abort', cancel, { once: true });
-        try {
-            await receipt.completion.promise;
-            return true;
-        } finally {
-            abortSignal?.removeEventListener('abort', cancel);
-        }
+        });
+        return true;
     }
 
-    writeAgentExact(terminalId: string, data: string, expectedAgentLaunchId: string): boolean {
-        if (this.identities.get(terminalId)?.agent?.launchId !== expectedAgentLaunchId)
-            return false;
-        return this.acceptInput(
-            terminalId,
-            data,
-            MAX_TERMINAL_INPUT_LENGTH,
-            false,
-            expectedAgentLaunchId,
-        ).accepted;
+    writeAgentExact(terminalId: string, data: string, launchId: string): boolean {
+        if (this.identities.get(terminalId)?.agent?.launchId !== launchId) return false;
+        return this.acceptInput(terminalId, data, MAX_TERMINAL_INPUT_LENGTH, false, launchId)
+            .accepted;
     }
 
     configureOutputRecovery(

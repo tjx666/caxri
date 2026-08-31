@@ -11,6 +11,7 @@ export interface TerminalInputBatch {
     data: string;
     expectedAgentLaunchId?: string;
     length: number;
+    params: { data: string; expectedAgentLaunchId?: string };
 }
 
 export interface TerminalInputReceipt {
@@ -129,6 +130,22 @@ export class TerminalInputQueue<Identity> {
         return true;
     }
 
+    async waitForReceipt(
+        receipt: TerminalInputReceipt,
+        abortSignal: AbortSignal | undefined,
+        cancel: () => void,
+    ): Promise<void> {
+        const abort = (): void => {
+            if (this.hasReceipt(receipt)) cancel();
+        };
+        abortSignal?.addEventListener('abort', abort, { once: true });
+        try {
+            await receipt.completion.promise;
+        } finally {
+            abortSignal?.removeEventListener('abort', abort);
+        }
+    }
+
     reject(error: unknown): void {
         this.abortController.abort();
         this.activeBatch = undefined;
@@ -149,11 +166,14 @@ export class TerminalInputQueue<Identity> {
             chunks.push(chunk);
             length += chunk.data.length;
         }
+        const data = chunks.map((chunk) => chunk.data).join('');
+        const parameters = { data, ...(expectedAgentLaunchId && { expectedAgentLaunchId }) };
         const batch = {
             chunks,
-            data: chunks.map(({ data }) => data).join(''),
+            data,
             ...(expectedAgentLaunchId && { expectedAgentLaunchId }),
             length,
+            params: parameters,
         };
         this.activeBatch = batch;
         return batch;
