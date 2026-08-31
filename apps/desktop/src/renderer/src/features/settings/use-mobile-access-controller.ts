@@ -11,11 +11,12 @@ export interface MobilePairingState {
     pairingLink: string;
 }
 
-interface MobileAccessState {
+export interface MobileAccessState {
     busy: boolean;
     copied: boolean;
     devices: MobileDeviceSummary[];
     error?: string;
+    loadState: 'error' | 'loading' | 'ready';
     now: number;
     pairing?: MobilePairingState;
     projects: ProjectQueryResult['projects'];
@@ -23,7 +24,7 @@ interface MobileAccessState {
     status?: MobileAccessStatus;
 }
 
-type MobileAccessAction =
+export type MobileAccessAction =
     | {
           devices: MobileDeviceSummary[];
           projects: ProjectQueryResult['projects'];
@@ -46,18 +47,21 @@ type MobileAccessAction =
           type: 'pairing-created';
       }
     | { isEnabled: boolean; status: MobileAccessStatus; type: 'access-applied' }
-    | { isChecked: boolean; projectId: string; type: 'project-toggled' };
+    | { isChecked: boolean; projectId: string; type: 'project-toggled' }
+    | { type: 'load-failed' }
+    | { type: 'load-started' };
 
-const initialState: MobileAccessState = {
+export const initialMobileAccessState: MobileAccessState = {
     busy: false,
     copied: false,
     devices: [],
+    loadState: 'loading',
     now: 0,
     projects: [],
     selectedProjectIds: new Set(),
 };
 
-const mobileAccessReducer = (
+export const mobileAccessReducer = (
     state: MobileAccessState,
     action: MobileAccessAction,
 ): MobileAccessState => {
@@ -67,6 +71,7 @@ const mobileAccessReducer = (
                 ...state,
                 devices: action.devices,
                 error: undefined,
+                loadState: 'ready',
                 projects: action.projects,
                 selectedProjectIds:
                     state.selectedProjectIds.size > 0
@@ -84,6 +89,14 @@ const mobileAccessReducer = (
             return { ...state, copied: action.copied };
         case 'set-error':
             return { ...state, error: action.error };
+        case 'load-failed':
+            return {
+                ...state,
+                error: 'Unable to load mobile access.',
+                loadState: 'error',
+            };
+        case 'load-started':
+            return { ...state, error: undefined, loadState: 'loading' };
         case 'pairing-polled':
             return {
                 ...state,
@@ -115,9 +128,10 @@ const mobileAccessReducer = (
 };
 
 export const useMobileAccessController = () => {
-    const [state, dispatch] = useReducer(mobileAccessReducer, initialState);
+    const [state, dispatch] = useReducer(mobileAccessReducer, initialMobileAccessState);
 
     const load = useCallback(async (): Promise<void> => {
+        dispatch({ type: 'load-started' });
         try {
             const [status, devices, projects] = await Promise.all([
                 caxri.request('mobile.access.status'),
@@ -131,7 +145,7 @@ export const useMobileAccessController = () => {
                 type: 'loaded',
             });
         } catch {
-            dispatch({ error: 'Unable to load mobile access.', type: 'set-error' });
+            dispatch({ type: 'load-failed' });
         }
     }, []);
 
@@ -288,6 +302,7 @@ export const useMobileAccessController = () => {
         createPairing,
         isPairingActive: state.pairing !== undefined && state.pairing.expiresAt > state.now,
         projectAccessByDevice,
+        reload: load,
         revoke,
         toggleProject: (projectId: string, isChecked: boolean): void =>
             dispatch({ isChecked, projectId, type: 'project-toggled' }),

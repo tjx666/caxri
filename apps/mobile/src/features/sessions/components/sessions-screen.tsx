@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { BackHandler, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import {
+    ActivityIndicator,
+    BackHandler,
+    Pressable,
+    StyleSheet,
+    Text,
+    useWindowDimensions,
+    View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { ListRenderItemInfo } from '@shopify/flash-list';
@@ -25,6 +33,16 @@ const styles = StyleSheet.create({
     empty: { alignItems: 'center', flex: 1, gap: 8, justifyContent: 'center', padding: 28 },
     emptyBody: { fontSize: 14, lineHeight: 21, textAlign: 'center' },
     emptyTitle: { fontSize: 17, fontWeight: '700' },
+    errorBanner: {
+        alignItems: 'center',
+        borderBottomWidth: 1,
+        flexDirection: 'row',
+        gap: 12,
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+    },
+    errorBannerText: { flex: 1, fontSize: 13, lineHeight: 18 },
     forgetButton: { justifyContent: 'center', minHeight: 48, paddingHorizontal: 8 },
     forgetLabel: { fontSize: 14, fontWeight: '600' },
     groupHeader: {
@@ -49,6 +67,8 @@ const styles = StyleSheet.create({
     listPane: { minWidth: 0 },
     listSubtitle: { fontSize: 13, marginTop: 3 },
     listTitle: { fontSize: 22, fontWeight: '700', letterSpacing: -0.5 },
+    retryButton: { justifyContent: 'center', minHeight: 44, paddingHorizontal: 8 },
+    retryLabel: { fontSize: 14, fontWeight: '700' },
     phoneListPane: { flex: 1 },
     safeArea: { flex: 1 },
     split: { flex: 1, flexDirection: 'row' },
@@ -73,7 +93,10 @@ export const SessionsScreen = () => {
     const {
         beginListInteraction,
         entries,
+        error,
         finishListInteraction,
+        hasLoaded,
+        isLoading,
         refresh,
         sections,
         selected,
@@ -121,6 +144,9 @@ export const SessionsScreen = () => {
         },
         [selectSession],
     );
+    const retrySessions = useCallback(async (): Promise<void> => {
+        await refresh();
+    }, [refresh]);
 
     const renderSessionEntry = useCallback(
         ({ item }: ListRenderItemInfo<SessionListEntry>) =>
@@ -170,6 +196,32 @@ export const SessionsScreen = () => {
                     <Text style={[styles.forgetLabel, { color: theme.muted }]}>Forget</Text>
                 </Pressable>
             </View>
+            {hasLoaded && error ? (
+                <View
+                    accessibilityLiveRegion="polite"
+                    style={[
+                        styles.errorBanner,
+                        { backgroundColor: theme.surface, borderColor: theme.border },
+                    ]}
+                >
+                    <Text
+                        accessibilityRole="alert"
+                        style={[styles.errorBannerText, { color: theme.text }]}
+                    >
+                        {error} Showing the last known state.
+                    </Text>
+                    <Pressable
+                        accessibilityRole="button"
+                        accessibilityState={{ disabled: isLoading }}
+                        disabled={isLoading}
+                        onPress={retrySessions}
+                        style={[styles.retryButton, { opacity: isLoading ? 0.5 : 1 }]}
+                        testID="session-list-retry"
+                    >
+                        <Text style={[styles.retryLabel, { color: theme.primary }]}>Retry</Text>
+                    </Pressable>
+                </View>
+            ) : null}
             {sections.truncated ? (
                 <View style={[styles.limitBanner, { borderColor: theme.border }]}>
                     <Text style={[styles.limitBannerText, { color: theme.muted }]}>
@@ -178,7 +230,45 @@ export const SessionsScreen = () => {
                     </Text>
                 </View>
             ) : null}
-            {entries.length === 0 ? (
+            {!hasLoaded ? (
+                <View
+                    style={styles.empty}
+                    testID={error ? 'session-list-error' : 'session-list-loading'}
+                >
+                    {error ? (
+                        <>
+                            <Text
+                                accessibilityRole="alert"
+                                style={[styles.emptyTitle, { color: theme.text }]}
+                            >
+                                Unable to load Sessions
+                            </Text>
+                            <Text style={[styles.emptyBody, { color: theme.muted }]}>
+                                Check the Mac connection, then try again.
+                            </Text>
+                            <Pressable
+                                accessibilityRole="button"
+                                accessibilityState={{ disabled: isLoading }}
+                                disabled={isLoading}
+                                onPress={retrySessions}
+                                style={styles.retryButton}
+                                testID="session-list-initial-retry"
+                            >
+                                <Text style={[styles.retryLabel, { color: theme.primary }]}>
+                                    Retry
+                                </Text>
+                            </Pressable>
+                        </>
+                    ) : (
+                        <>
+                            <ActivityIndicator color={theme.primary} size="small" />
+                            <Text style={[styles.emptyBody, { color: theme.muted }]}>
+                                Loading Sessions…
+                            </Text>
+                        </>
+                    )}
+                </View>
+            ) : entries.length === 0 ? (
                 <View style={styles.empty} testID="session-list-empty">
                     <Text style={[styles.emptyTitle, { color: theme.text }]}>
                         No active Sessions
@@ -218,7 +308,7 @@ export const SessionsScreen = () => {
                         isConnected={isFresh}
                         onBack={() => setPhoneDetail(false)}
                         onRefresh={refresh}
-                        preview={preview}
+                        previewState={preview}
                         session={selected}
                         theme={theme}
                     />
@@ -234,7 +324,7 @@ export const SessionsScreen = () => {
                             key={mobileSessionDraftKey(selected)}
                             isConnected={isFresh}
                             onRefresh={refresh}
-                            preview={preview}
+                            previewState={preview}
                             session={selected}
                             theme={theme}
                         />
