@@ -77,8 +77,7 @@ export interface TerminalHostControl {
 }
 
 /**
- * Process-backed execution port. It preserves synchronous hot-path acceptance from cached identities while every
- * private request remains ordered and authenticated by {@link TerminalHostControl}.
+ * Process-backed execution port with synchronous cached hot paths and authenticated request ordering.
  */
 export class RemoteTerminalExecution extends EventTarget implements TerminalExecutionPort {
     private readonly generations = new Map<string, number>();
@@ -184,6 +183,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
                 this.retireInputQueue(
                     identity.record.id,
                     new CaxriError('UNAVAILABLE', 'Terminal exited before input completed'),
+                    true,
                 );
                 this.resizeQueues.delete(identity.record.id);
                 this.views.delete(identity.record.id);
@@ -215,11 +215,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
             .map(({ record }) => record.id)
             .toArray();
         this.identities.clear();
-        for (const terminalId of this.inputQueues.keys())
-            this.retireInputQueue(
-                terminalId,
-                new CaxriError('UNAVAILABLE', 'Terminal Host exited before input completed'),
-            );
+        this.retireAllInputQueues('Terminal Host exited before input completed');
         this.resizeQueues.clear();
         if (terminalIds.length > 0)
             this.dispatchEvent(
@@ -246,8 +242,8 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
                 )) as { accepted: boolean };
                 if (!result.accepted)
                     throw new CaxriError('UNAVAILABLE', 'Terminal exited before input completed');
+                if (queue.settleAcceptedBatch(batch)) return;
                 if (this.inputQueues.get(terminalId) !== queue) return;
-                queue.acknowledge(batch);
             }
         } catch (error) {
             queue.reject(error);
@@ -257,11 +253,21 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         }
     }
 
-    private retireInputQueue(terminalId: string, error: unknown): void {
+    private retireInputQueue(
+        terminalId: string,
+        error: unknown,
+        canFinishActiveBatch = false,
+    ): void {
         const queue = this.inputQueues.get(terminalId);
         if (!queue) return;
         this.inputQueues.delete(terminalId);
+        if (canFinishActiveBatch && queue.deferRejectionUntilActiveBatchSettles(error)) return;
         queue.reject(error);
+    }
+
+    private retireAllInputQueues(message: string): void {
+        const error = new CaxriError('UNAVAILABLE', message);
+        for (const terminalId of this.inputQueues.keys()) this.retireInputQueue(terminalId, error);
     }
 
     private async drainResize(queue: RemoteResizeQueue): Promise<void> {
@@ -466,21 +472,27 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         }
     }
 
-    waitForAttachedSize(
+    async waitForAttachedSize(
         terminalId: string,
         timeoutMs: number,
         abortSignal?: AbortSignal,
     ): Promise<void> {
         const identity = this.identities.get(terminalId);
-        if (!identity) return Promise.resolve();
-        return (async () => {
-            await identity.ready;
+        if (!identity) return;
+        await identity.ready;
+        try {
             await this.supervisor.request(
                 { method: 'terminal.waitForAttachedSize', params: { timeoutMs } },
                 this.terminalScope(identity, 'terminal.view'),
                 abortSignal,
             );
-        })();
+        } catch (error) {
+            /**
+             * Normalize the IPC rejection only when the caller aborted its stale restore.
+             */
+            if (!abortSignal?.aborted) throw error;
+            if (!(error instanceof CaxriError) || error.code !== 'CANCELLED') throw error;
+        }
     }
 
     write(terminalId: string, data: string): boolean {
@@ -753,11 +765,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         const snapshotByTerminal = new Map(
             snapshots.map((snapshot) => [snapshot.terminalId, snapshot]),
         );
-        for (const terminalId of this.inputQueues.keys())
-            this.retireInputQueue(
-                terminalId,
-                new CaxriError('UNAVAILABLE', 'Terminal shut down before input completed'),
-            );
+        this.retireAllInputQueues('Terminal shut down before input completed');
         this.identities.clear();
         this.resizeQueues.clear();
         this.views.clear();
