@@ -87,6 +87,10 @@ export interface AgentProviderSettings {
  */
 export interface AgentProviderCatalogEntry {
     /**
+     * Declares the single authority that generates automatic Session names for this provider.
+     */
+    automaticSessionNaming: 'caxri' | 'native';
+    /**
      * Human-readable name shown in the Renderer (e.g. Settings, Create Session dialog).
      */
     displayName: string;
@@ -105,11 +109,13 @@ export interface AgentProviderCatalogEntry {
 
 export const agentProviderCatalog = {
     claude: {
+        automaticSessionNaming: 'caxri',
         displayName: 'Claude Code',
         executableName: 'claude',
         imageInput: undefined,
     },
     codex: {
+        automaticSessionNaming: 'native',
         displayName: 'Codex',
         executableName: 'codex',
         imageInput: { kind: 'systemClipboardPaste', terminalInput: '\u{16}' },

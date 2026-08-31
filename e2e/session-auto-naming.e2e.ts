@@ -30,7 +30,7 @@ function namingCallArguments(contents: string): string[] {
 }
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires the first test argument to use object destructuring
-test('Claude Code applies an automatic native Session title after Stop', async ({}) => {
+test('Claude Code applies a Caxri-generated Session title after Stop', async ({}) => {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-claude-auto-name-e2e-'));
     const userData = join(directory, 'user-data');
     const root = join(directory, 'project');
@@ -73,7 +73,7 @@ if (process.argv.includes('--print') && process.argv.includes('--model')) {
       arguments: process.argv.slice(2),
       hasPrivatePrompt: input.includes('Implement lifecycle-safe automatic naming'),
     }) + '\n');
-    process.stdout.write('🧭 Claude automatic naming');
+    process.stdout.write('Claude Automatic Naming');
   });
 } else {
 fs.mkdirSync(path.dirname(metadataPath), { recursive: true });
@@ -132,12 +132,12 @@ process.stdout.write('Fake Claude automatic naming ready\r\n');
         const sessionId = await createProjectSession(running.page, 'claude');
 
         await expect(running.page.locator('.session-card strong')).toHaveText(
-            '🧭 Claude automatic naming',
+            'Claude Automatic Naming',
         );
         const bootstrap = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
         expect(bootstrap.sessions.find((session) => session.id === sessionId)).toMatchObject({
             autoNamingState: 'active',
-            displayTitle: '🧭 Claude automatic naming',
+            displayTitle: 'Claude Automatic Naming',
             titleMode: 'automatic',
         });
         const modelCalls = await readFile(
@@ -156,7 +156,7 @@ process.stdout.write('Fake Claude automatic naming ready\r\n');
 });
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires the first test argument to use object destructuring
-test('Codex applies an automatic native thread name and lets manual ownership resume', async ({}) => {
+test('Codex applies a native thread name and keeps manual ownership explicit', async ({}) => {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-codex-auto-name-e2e-'));
     const userData = join(directory, 'user-data');
     const root = join(directory, 'project');
@@ -176,19 +176,8 @@ if (process.argv.includes('--version')) {
   process.exit(0);
 }
 if (process.argv[2] === 'exec') {
-  let input = '';
-  process.stdin.setEncoding('utf8');
-  process.stdin.on('data', (chunk) => { input += chunk; });
-  process.stdin.on('end', () => {
-    fs.appendFileSync(path.join(process.env.CODEX_HOME, 'naming-calls.jsonl'), JSON.stringify({
-      arguments: process.argv.slice(2),
-      hasPrivatePrompt: input.includes('Implement immediate Codex thread naming'),
-    }) + '\n');
-    process.stdout.write(JSON.stringify({
-      type: 'item.completed',
-      item: { type: 'agent_message', text: '🧭 Codex automatic naming' },
-    }) + '\n');
-  });
+  fs.writeFileSync(path.join(process.env.CODEX_HOME, 'unexpected-naming-call'), 'called');
+  process.exit(7);
 } else {
 const databasePath = path.join(process.env.CODEX_SQLITE_HOME, 'state_9.sqlite');
 if (process.argv[2] === 'app-server' && process.argv[3] === '--stdio') {
@@ -246,7 +235,13 @@ function invokeHook(event) {
 setTimeout(() => {
   invokeHook('SessionStart');
   invokeHook('UserPromptSubmit');
-  setTimeout(() => invokeHook('Stop'), 100);
+  setTimeout(() => {
+    childProcess.execFileSync('/usr/bin/sqlite3', [
+      databasePath,
+      'UPDATE threads SET name = ' + quote('Codex Native Naming') + ' WHERE id = ' + quote(threadId),
+    ]);
+    invokeHook('Stop');
+  }, 100);
 }, 250);
 process.stdin.resume();
 process.stdout.write('Fake Codex automatic naming ready\r\n');
@@ -271,7 +266,7 @@ process.stdout.write('Fake Codex automatic naming ready\r\n');
         const sessionId = await createProjectSession(running.page, 'codex');
 
         await expect(running.page.locator('.session-card strong')).toHaveText(
-            '🧭 Codex automatic naming',
+            'Codex Native Naming',
         );
         await pageRequest(running.page, 'session.rename', {
             displayTitle: 'Manual title wins',
@@ -285,27 +280,22 @@ process.stdout.write('Fake Codex automatic naming ready\r\n');
         });
 
         const row = running.page.locator(`.session-card[data-session-id="${sessionId}"]`);
+        await expect(
+            running.page.getByRole('button', {
+                name: `Resume automatic naming for Manual title wins`,
+            }),
+        ).toHaveCount(0);
         await row.focus();
         await row.press('r');
-        await expect
-            .poll(async () => {
-                bootstrap = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
-                return bootstrap.sessions.find((session) => session.id === sessionId)
-                    ?.autoNamingState;
-            })
-            .toBe('active');
-        expect(bootstrap.sessions.find((session) => session.id === sessionId)?.titleMode).toBe(
-            'automatic',
-        );
-        const modelCalls = await readFile(
-            join(userData, 'e2e-agents', 'codex', 'naming-calls.jsonl'),
-            'utf8',
-        );
-        expect(modelCalls.trim().split('\n')).toHaveLength(1);
-        expect(modelCalls).toContain('"hasPrivatePrompt":true');
-        expect(namingCallArguments(modelCalls).join(' ')).not.toContain(
-            'Implement immediate Codex thread naming',
-        );
+        bootstrap = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
+        expect(bootstrap.sessions.find((session) => session.id === sessionId)).toMatchObject({
+            autoNamingState: 'stopped',
+            displayTitle: 'Manual title wins',
+            titleMode: 'manual',
+        });
+        await expect(
+            readFile(join(userData, 'e2e-agents', 'codex', 'unexpected-naming-call'), 'utf8'),
+        ).rejects.toMatchObject({ code: 'ENOENT' });
     } finally {
         await running.app.close();
         await rm(directory, { recursive: true, force: true });

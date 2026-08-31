@@ -159,6 +159,34 @@ function installedOwnedEntries(
     return installed;
 }
 
+/**
+ * Returns only command strings from a valid provider `hooks` tree. Provider adapters use this narrow projection to
+ * classify known personal integrations without scanning unrelated settings values.
+ */
+export function jsonHookCommands(source: string | undefined): string[] {
+    const document = parseDocument(source);
+    if (!document) return [];
+    const hooks = record(document.hooks);
+    if (!hooks || malformedHookTree(document)) return [];
+    const commands: string[] = [];
+    for (const groupsValue of Object.values(hooks)) {
+        if (!Array.isArray(groupsValue)) continue;
+        commands.push(...jsonHookCommandsFromGroups(groupsValue));
+    }
+    return commands;
+}
+
+function jsonHookCommandsFromGroups(groups: unknown[]): string[] {
+    return groups.flatMap((groupValue) => {
+        const handlers = record(groupValue)?.hooks;
+        if (!Array.isArray(handlers)) return [];
+        return handlers.flatMap((handlerValue) => {
+            const command = record(handlerValue)?.command;
+            return typeof command === 'string' ? [command] : [];
+        });
+    });
+}
+
 function isSameJson(left: unknown, right: unknown): boolean {
     return JSON.stringify(left) === JSON.stringify(right);
 }

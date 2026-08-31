@@ -97,8 +97,8 @@ const currentTitle = (sessionId) => {
   }
 };
 const generatedTitle = (count) => provider === 'claude'
-  ? (count === 1 ? '🧭 Claude automatic naming' : '🛡️ Claude resumed naming')
-  : (count === 1 ? '🧭 Codex automatic naming' : '🛡️ Codex resumed naming');
+  ? (count === 1 ? 'Claude Automatic Naming' : 'Claude Resumed Naming')
+  : (count === 1 ? 'Codex Native Naming' : 'Codex Resumed Naming');
 
 const resumeIndex = process.argv.indexOf('--resume');
 const renameCommand = process.argv.at(-1) ?? '';
@@ -121,7 +121,11 @@ if (provider === 'claude' && resumeIndex >= 0 && renameCommand.startsWith('/rena
 
 const isClaudeGeneration = provider === 'claude' && process.argv.includes('--print') && process.argv.includes('--model');
 const isCodexGeneration = provider === 'codex' && process.argv[2] === 'exec';
-if (isClaudeGeneration || isCodexGeneration) {
+if (isCodexGeneration) {
+  appendReceipt({ kind: 'unexpectedCodexNamingCall' });
+  process.exit(7);
+}
+if (isClaudeGeneration) {
   let input = '';
   process.stdin.setEncoding('utf8');
   process.stdin.on('data', (chunk) => { input += chunk; });
@@ -139,8 +143,7 @@ if (isClaudeGeneration || isCodexGeneration) {
     });
     const finish = () => {
       if (mode.kind === 'fail') process.exit(7);
-      if (provider === 'claude') process.stdout.write(title || generatedTitle(count));
-      else process.stdout.write(JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', text: title || generatedTitle(count) } }) + '\n');
+      process.stdout.write(title || generatedTitle(count));
     };
     if (mode.kind === 'hold') waitForRelease(finish);
     else finish();
@@ -239,7 +242,27 @@ const startTurn = (topic, includePrivate = false) => {
 };
 const finishTurn = () => {
   setClaudeStatus('completed');
-  invokeHook('Stop');
+  const notifyFinished = () => invokeHook('Stop');
+  if (provider !== 'codex') {
+    notifyFinished();
+    return;
+  }
+  const mode = consumeMode();
+  const count = nextCount();
+  const title = mode.kind === 'same' ? currentTitle(sessionId) : (mode.title ?? generatedTitle(count));
+  const applyNativeTitle = () => {
+    if (mode.kind !== 'fail' && title) {
+      const database = path.join(sqliteRoot, 'state_9.sqlite');
+      childProcess.execFileSync('/usr/bin/sqlite3', [
+        database,
+        'UPDATE threads SET name = ' + quote(title) + ' WHERE id = ' + quote(sessionId),
+      ]);
+      appendReceipt({ kind: 'providerNativeTitle', sessionIdHash: sessionId.length, title });
+    }
+    notifyFinished();
+  };
+  if (mode.kind === 'hold') waitForRelease(applyNativeTitle);
+  else applyNativeTitle();
 };
 const requestAttention = () => {
   setClaudeStatus('idle');

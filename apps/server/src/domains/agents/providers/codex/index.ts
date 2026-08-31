@@ -20,7 +20,6 @@ import {
     throwAgentRenameError,
 } from '../../rename';
 import { codexHookAdapter } from './hooks';
-import { codexNaming } from './naming';
 import { resolveCodexHome, resolveCodexStateDirectories } from './paths';
 import { findCodexStateDatabases } from './state-databases';
 
@@ -220,6 +219,10 @@ interface CodexThreadRow {
     tokens_used?: number;
 }
 
+const CODEX_PROVISIONAL_TITLE_CHARACTERS = 36;
+const CODEX_SQLITE_WHITESPACE =
+    'char(9,10,11,12,13,32,133,160,5760,8192,8193,8194,8195,8196,8197,8198,8199,8200,8201,8202,8232,8233,8239,8287,12288)';
+
 interface CodexTurnRow {
     status: string;
 }
@@ -298,9 +301,21 @@ async function readCodexState(
                     : columns.has('updated_at')
                       ? 'updated_at * 1000'
                       : undefined;
-            // `threads.title` is Codex's raw first prompt. Only its explicit `name` is safe to project into Caxri or
-            // a native notification, where the title can be visible outside the application and on the lock screen.
-            const titleExpression = columns.has('name') ? "NULLIF(TRIM(name), '')" : 'NULL';
+            /**
+             * `threads.title` is Codex's raw first prompt. The recursive CTE reproduces Codex's whitespace
+             * normalization inside SQLite and returns NULL when `name` is still the provisional first-prompt prefix.
+             * The raw prompt therefore never crosses into Server Core, where a projected title could reach a native
+             * notification or the lock screen. Codex persists no provenance for the two writes, so a generated title
+             * identical to the provisional prefix remains suppressed: privacy takes precedence over that ambiguous
+             * display case.
+             *
+             * @see https://github.com/openai/codex/blob/09f4c4506874e75e25b967d51844cb699086e124/codex-rs/tui/src/app/thread_routing.rs#L1828-L1880
+             */
+            const titleExpression =
+                columns.has('name') && columns.has('title')
+                    ? `NULLIF(TRIM(name, ${CODEX_SQLITE_WHITESPACE}), '')`
+                    : 'NULL';
+            const firstPromptExpression = columns.has('title') ? 'title' : 'NULL';
             const tokens = columns.has('tokens_used') ? ', tokens_used' : '';
             const archived = columns.has('archived') ? 'archived = 0 AND ' : '';
             const session = context.agentSessionId ? 'id = ? AND ' : '';
@@ -320,7 +335,53 @@ async function readCodexState(
             const placeholders = requestedRoots.map(() => '?').join(', ');
             const row = database
                 .prepare(
-                    `SELECT id, ${titleExpression} AS title${tokens} FROM threads WHERE ${archived}${session}${excluded}${started}cwd IN (${placeholders}) ORDER BY ${order} LIMIT 1`,
+                    `WITH RECURSIVE
+                        selected AS (
+                            SELECT id, ${titleExpression} AS candidate_title, ${firstPromptExpression} AS first_prompt${tokens}
+                            FROM threads
+                            WHERE ${archived}${session}${excluded}${started}cwd IN (${placeholders})
+                            ORDER BY ${order}
+                            LIMIT 1
+                        ),
+                        normalized_prompt(remaining, normalized, separator_pending) AS (
+                            SELECT ltrim(COALESCE(first_prompt, ''), ${CODEX_SQLITE_WHITESPACE}), '', 0
+                            FROM selected
+                            UNION ALL
+                            SELECT
+                                CASE
+                                    WHEN instr(${CODEX_SQLITE_WHITESPACE}, substr(remaining, 1, 1)) > 0
+                                        THEN ltrim(remaining, ${CODEX_SQLITE_WHITESPACE})
+                                    ELSE substr(remaining, 2)
+                                END,
+                                CASE
+                                    WHEN instr(${CODEX_SQLITE_WHITESPACE}, substr(remaining, 1, 1)) > 0
+                                        THEN normalized
+                                    ELSE normalized || CASE
+                                        WHEN separator_pending = 1 AND normalized <> '' THEN ' '
+                                        ELSE ''
+                                    END || substr(remaining, 1, 1)
+                                END,
+                                CASE
+                                    WHEN instr(${CODEX_SQLITE_WHITESPACE}, substr(remaining, 1, 1)) > 0 THEN 1
+                                    ELSE 0
+                                END
+                            FROM normalized_prompt
+                            WHERE remaining <> '' AND length(normalized) < ${CODEX_PROVISIONAL_TITLE_CHARACTERS}
+                        )
+                    SELECT id,
+                        CASE
+                            WHEN candidate_title = (
+                                SELECT trim(
+                                    substr(normalized, 1, ${CODEX_PROVISIONAL_TITLE_CHARACTERS}),
+                                    ${CODEX_SQLITE_WHITESPACE}
+                                )
+                                FROM normalized_prompt
+                                ORDER BY length(normalized) DESC, length(remaining) ASC
+                                LIMIT 1
+                            ) THEN NULL
+                            ELSE candidate_title
+                        END AS title${tokens}
+                    FROM selected`,
                 )
                 .get(
                     ...(context.agentSessionId ? [context.agentSessionId] : []),
@@ -340,11 +401,10 @@ async function readCodexState(
         }
     }
     if (!selectedRow) return undefined;
-    const explicitTitle = selectedRow.title?.trim();
     return {
         sessionId: selectedRow.id,
         status: await readCodexTurnStatus(context, stateDirectories),
-        title: explicitTitle === '' ? undefined : explicitTitle,
+        title: selectedRow.title?.trim(),
         usage:
             typeof selectedRow.tokens_used === 'number' && selectedRow.tokens_used > 0
                 ? [{ label: 'Tokens', value: selectedRow.tokens_used.toLocaleString('en-US') }]
@@ -384,7 +444,6 @@ export const codexProvider: AgentProviderDescriptor = {
     },
     hooks: codexHookAdapter,
     id: 'codex',
-    naming: codexNaming,
     readState: (context, environment) =>
         readCodexState(context, resolveCodexStateDirectories(environment)),
     renameSession: renameCodexSession,
