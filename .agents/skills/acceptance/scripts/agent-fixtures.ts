@@ -274,8 +274,20 @@ const requestAttention = () => {
   invokeHook('PermissionRequest');
 };
 
-appendTranscript('Initial automatic naming topic', false);
-setTimeout(() => {
+const requiredInitialHooks = ['SessionStart', 'UserPromptSubmit', 'Stop'];
+const initialHooksReady = () => {
+  try {
+    const hooks = hookDocument().hooks;
+    return requiredInitialHooks.every((event) => hooks[event]?.[0]?.hooks?.[0]?.command);
+  } catch {
+    return false;
+  }
+};
+const startInitialTurn = () => {
+  if (!initialHooksReady()) {
+    setTimeout(startInitialTurn, 50);
+    return;
+  }
   try {
     startTurn('Initial automatic naming topic');
     setTimeout(() => {
@@ -284,7 +296,10 @@ setTimeout(() => {
   } catch (error) {
     appendReceipt({ kind: 'fixtureError', message: error.name });
   }
-}, 600);
+};
+
+appendTranscript('Initial automatic naming topic', false);
+setTimeout(startInitialTurn, 50);
 
 let input = '';
 process.stdin.setRawMode?.(true);
