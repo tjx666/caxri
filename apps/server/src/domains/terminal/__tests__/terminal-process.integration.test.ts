@@ -1,6 +1,7 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 import { setImmediate as waitForImmediate } from 'node:timers/promises';
 
 import type { ServerEvent } from '@caxri/protocol';
@@ -9,6 +10,9 @@ import * as pty from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createTestTerminalManager } from '../../../__tests__/support/terminal';
+import { createTestAgentService } from '../../__tests__/create-test-domain-services';
+import { AgentCoordinator } from '../../agents/coordinator';
+import { detectForegroundAgentProvider } from '../../agents/process-detection';
 import { CaxriDatabase } from '../../db/repository';
 
 const temporaryDirectories: string[] = [];
@@ -209,6 +213,82 @@ describe('TerminalManager process integration', () => {
         expect(database.getTerminal(created.terminal!.id)).toBeUndefined();
         await drainTrackedPtys();
         database.close();
+    });
+
+    it('reactivates a same-provider Agent launched manually in the live Shell', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-agent-relaunch-'));
+        temporaryDirectories.push(directory);
+        const executable = join(directory, 'claude');
+        await writeFile(
+            executable,
+            `#!${process.execPath}\nprocess.stdin.setRawMode?.(true);\nprocess.stdin.resume();\nprocess.stdout.write('MANUAL_CLAUDE_READY\\r\\n');\n`,
+        );
+        await chmod(executable, 0o700);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'shell');
+        const logger = createTestLogger(join(directory, 'logs'));
+        const detectedProviders: Array<'claude' | 'codex' | undefined> = [];
+        const coordinator = new AgentCoordinator(
+            database,
+            createTestAgentService({
+                claude: {
+                    provider: 'claude',
+                    snapshot: () =>
+                        Promise.resolve({
+                            provider: 'claude',
+                            status: 'running',
+                            observedAt: Date.now(),
+                            available: true,
+                        }),
+                },
+            }),
+            () => {},
+            logger,
+            {
+                detectForegroundAgent: async (shellPid) => {
+                    const provider = await detectForegroundAgentProvider(shellPid);
+                    detectedProviders.push(provider);
+                    return provider;
+                },
+                refreshDelayMs: 5,
+            },
+        );
+        let output = '';
+        const manager = createTestTerminalManager(
+            database,
+            (event) => {
+                if (event.event === 'terminal.output') output += event.payload.data;
+            },
+            logger,
+            {
+                onOutputActivity: (terminalId, shellPid) =>
+                    coordinator.observeOutput(terminalId, shellPid),
+                spawn: spawnTrackedPty,
+            },
+        );
+
+        try {
+            await manager.start(created.terminal!);
+            await manager.attach(created.terminal!.id);
+            expect(database.promoteShellToAgent(created.terminal!.id, 'claude')).toBe(true);
+            database.updateAgentProcessState(created.terminal!.id, 'stopped');
+
+            expect(manager.write(created.terminal!.id, `${executable}\r`)).toBe(true);
+            expect(coordinator.observeInput(created.terminal!.id, `${executable}\r`)).toBe(true);
+
+            await expect.poll(() => output, { timeout: 5_000 }).toContain('MANUAL_CLAUDE_READY');
+            await expect.poll(() => detectedProviders, { timeout: 10_000 }).toContain('claude');
+            await expect
+                .poll(() => database.getTerminal(created.terminal!.id)?.lastAgentProcessState, {
+                    timeout: 5_000,
+                })
+                .toBe('running');
+        } finally {
+            coordinator.close();
+            await manager.shutdown('orderly');
+            await drainTrackedPtys();
+            database.close();
+        }
     });
 
     it('ignores input and resize requests that arrive after a Terminal has stopped', async () => {

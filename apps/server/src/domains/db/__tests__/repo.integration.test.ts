@@ -137,7 +137,7 @@ describe('CaxriDatabase', () => {
         });
 
         database.setTerminalPtyTitle(terminalId, 'codex reviewing');
-        expect(database.switchAgentProvider(terminalId, 'claude')).toBe(true);
+        expect(database.confirmForegroundAgentProvider(terminalId, 'claude')).toBe(true);
         expect(database.getTerminal(terminalId)).toMatchObject({
             kind: 'claude',
             ptyTitle: undefined,

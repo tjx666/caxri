@@ -240,6 +240,276 @@ describe('AgentCoordinator provider switch', () => {
         }
     });
 
+    it.each(['claude', 'cc'])(
+        'reactivates a stopped same-provider Agent launched with %s',
+        async (command) => {
+            const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-relaunch-'));
+            temporaryDirectories.push(directory);
+            const database = new CaxriDatabase(join(directory, 'state.db'));
+            const created = database.createSession(database.createProject(directory).id, 'claude');
+            database.rebindAgentSession(created.terminal!.id, 'claude', 'existing-session');
+            database.updateTerminalState(created.terminal!.id, 'running');
+            database.updateAgentProcessState(created.terminal!.id, 'dead');
+            const detectForegroundAgent = vi.fn(() => Promise.resolve('claude' as const));
+            const snapshot = vi.fn<AgentAdapter['snapshot']>(() =>
+                Promise.resolve({
+                    provider: 'claude',
+                    status: 'running',
+                    observedAt: Date.now(),
+                    available: true,
+                }),
+            );
+            const coordinator = new AgentCoordinator(
+                database,
+                createAgents(snapshot),
+                () => {},
+                new StructuredLogger(join(directory, 'logs')),
+                { detectForegroundAgent, refreshDelayMs: 5 },
+            );
+
+            try {
+                coordinator.observeInput(created.terminal!.id, `${command}\r`);
+                coordinator.observeOutput(created.terminal!.id, 4242);
+
+                await expect
+                    .poll(() => database.getTerminal(created.terminal!.id)?.lastAgentProcessState)
+                    .toBe('running');
+                expect(detectForegroundAgent).toHaveBeenCalledWith(4242);
+                expect(database.getTerminal(created.terminal!.id)).toMatchObject({
+                    agentSessionId: 'existing-session',
+                    icon: 'claude',
+                    kind: 'claude',
+                    provider: 'claude',
+                });
+            } finally {
+                coordinator.close();
+                database.close();
+            }
+        },
+    );
+
+    it.each(['starting', 'running'] as const)(
+        'does not inspect a direct same-provider command while the managed Agent is %s',
+        async (state) => {
+            const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-relaunch-live-'));
+            temporaryDirectories.push(directory);
+            const database = new CaxriDatabase(join(directory, 'state.db'));
+            const created = database.createSession(database.createProject(directory).id, 'claude');
+            database.updateAgentProcessState(created.terminal!.id, state);
+            const detectForegroundAgent = vi.fn(() => Promise.resolve('claude' as const));
+            const snapshot = vi.fn<AgentAdapter['snapshot']>(() =>
+                Promise.resolve({
+                    provider: 'claude',
+                    status: 'running',
+                    observedAt: Date.now(),
+                    available: true,
+                }),
+            );
+            const coordinator = new AgentCoordinator(
+                database,
+                createAgents(snapshot),
+                () => {},
+                new StructuredLogger(join(directory, 'logs')),
+                { detectForegroundAgent, refreshDelayMs: 5 },
+            );
+
+            try {
+                coordinator.observeInput(created.terminal!.id, 'claude\r');
+                coordinator.observeOutput(created.terminal!.id, 4242);
+                await new Promise((resolve) => setTimeout(resolve, 20));
+
+                expect(detectForegroundAgent).not.toHaveBeenCalled();
+                expect(database.getTerminal(created.terminal!.id)?.lastAgentProcessState).toBe(
+                    state,
+                );
+            } finally {
+                coordinator.close();
+                database.close();
+            }
+        },
+    );
+
+    it('retries foreground detection after the submitted alias produces output before its Agent starts', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-relaunch-retry-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'claude');
+        database.updateTerminalState(created.terminal!.id, 'running');
+        database.updateAgentProcessState(created.terminal!.id, 'stopped');
+        const detectForegroundAgent = vi
+            .fn<() => Promise<'claude' | undefined>>()
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValue('claude');
+        const snapshot = vi.fn<AgentAdapter['snapshot']>(() =>
+            Promise.resolve({
+                provider: 'claude',
+                status: 'running',
+                observedAt: Date.now(),
+                available: true,
+            }),
+        );
+        const coordinator = new AgentCoordinator(
+            database,
+            createAgents(snapshot),
+            () => {},
+            new StructuredLogger(join(directory, 'logs')),
+            {
+                detectForegroundAgent,
+                refreshDelayMs: 5,
+                shellProcessProbeIntervalMs: 5,
+            },
+        );
+
+        try {
+            coordinator.observeInput(created.terminal!.id, 'cc\r');
+            coordinator.observeOutput(created.terminal!.id, 4242);
+
+            await expect
+                .poll(() => database.getTerminal(created.terminal!.id)?.lastAgentProcessState)
+                .toBe('running');
+            expect(detectForegroundAgent.mock.calls.length).toBeGreaterThanOrEqual(2);
+        } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
+
+    it('revokes same-provider availability after the manually launched Agent exits', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-relaunch-exit-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'claude');
+        database.updateTerminalState(created.terminal!.id, 'running');
+        database.updateAgentProcessState(created.terminal!.id, 'stopped');
+        const detectForegroundAgent = vi
+            .fn<() => Promise<'claude' | undefined>>()
+            .mockResolvedValueOnce('claude')
+            .mockResolvedValue(undefined);
+        const coordinator = new AgentCoordinator(
+            database,
+            createAgents(() =>
+                Promise.resolve({
+                    provider: 'claude',
+                    status: 'running',
+                    observedAt: Date.now(),
+                    available: true,
+                }),
+            ),
+            () => {},
+            new StructuredLogger(join(directory, 'logs')),
+            {
+                detectForegroundAgent,
+                refreshDelayMs: 5,
+                shellProcessProbeIntervalMs: 5,
+            },
+        );
+
+        try {
+            coordinator.observeInput(created.terminal!.id, 'claude\r');
+            coordinator.observeOutput(created.terminal!.id, 4242);
+
+            await expect
+                .poll(() => database.getTerminal(created.terminal!.id)?.lastAgentProcessState)
+                .toBe('running');
+            await expect
+                .poll(() => database.getTerminal(created.terminal!.id)?.lastAgentProcessState)
+                .toBe('stopped');
+            expect(detectForegroundAgent).toHaveBeenCalledTimes(3);
+        } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
+
+    it('cannot revoke a managed resume with a late probe from the previous manual Agent', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-relaunch-resume-race-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'claude');
+        database.updateTerminalState(created.terminal!.id, 'running');
+        database.updateAgentProcessState(created.terminal!.id, 'stopped');
+        const lateProbe = Promise.withResolvers<'claude' | undefined>();
+        const detectForegroundAgent = vi
+            .fn<() => Promise<'claude' | undefined>>()
+            .mockResolvedValueOnce('claude')
+            .mockImplementationOnce(() => lateProbe.promise)
+            .mockResolvedValue(undefined);
+        const coordinator = new AgentCoordinator(
+            database,
+            createAgents(() =>
+                Promise.resolve({
+                    provider: 'claude',
+                    status: 'running',
+                    observedAt: Date.now(),
+                    available: true,
+                }),
+            ),
+            () => {},
+            new StructuredLogger(join(directory, 'logs')),
+            {
+                detectForegroundAgent,
+                refreshDelayMs: 5,
+                shellProcessProbeIntervalMs: 5,
+            },
+        );
+
+        try {
+            coordinator.observeInput(created.terminal!.id, 'claude\r');
+            coordinator.observeOutput(created.terminal!.id, 4242);
+            await expect
+                .poll(() => database.getTerminal(created.terminal!.id)?.lastAgentProcessState)
+                .toBe('running');
+            await expect.poll(() => detectForegroundAgent.mock.calls.length).toBeGreaterThan(1);
+
+            coordinator.prepareTerminalResume(created.terminal!.id);
+            database.updateAgentProcessState(created.terminal!.id, 'running');
+            lateProbe.resolve(undefined);
+            await new Promise((resolve) => setTimeout(resolve, 30));
+
+            expect(database.getTerminal(created.terminal!.id)?.lastAgentProcessState).toBe(
+                'running',
+            );
+        } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
+
+    it('keeps an inactive Agent stopped when the foreground process is not an Agent', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-relaunch-unconfirmed-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'claude');
+        database.updateAgentProcessState(created.terminal!.id, 'dead');
+        const detectForegroundAgent = vi.fn(() => Promise.resolve(undefined));
+        const snapshot = vi.fn<AgentAdapter['snapshot']>(() =>
+            Promise.resolve({
+                provider: 'claude',
+                status: 'running',
+                observedAt: Date.now(),
+                available: true,
+            }),
+        );
+        const coordinator = new AgentCoordinator(
+            database,
+            createAgents(snapshot),
+            () => {},
+            new StructuredLogger(join(directory, 'logs')),
+            { detectForegroundAgent, refreshDelayMs: 5 },
+        );
+
+        try {
+            coordinator.observeInput(created.terminal!.id, 'ls\r');
+            coordinator.observeOutput(created.terminal!.id, 4242);
+            await vi.waitFor(() => expect(detectForegroundAgent).toHaveBeenCalledWith(4242));
+
+            expect(database.getTerminal(created.terminal!.id)?.lastAgentProcessState).toBe('dead');
+        } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
+
     it('lets a cross-provider lifecycle signal open a switch candidate but never change identity directly', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-switch-hook-'));
         temporaryDirectories.push(directory);
