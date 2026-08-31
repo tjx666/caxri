@@ -303,14 +303,18 @@ captured result again when Main redeems the target. Home expansion and suffix se
 permanent single-file exception or a Renderer filesystem capability.
 
 Provider output recovery is an explicit, disabled-by-default Terminal steering policy for unstable Agent
-connections. Terminal Host matches bounded, case-insensitive literal suffixes only after the latest PTY
-output has settled in the parsed headless-xterm screen; ANSI bytes and arbitrary raw chunks are never
-match inputs. A match is fenced to the exact live PTY generation, sends fixed Escape and `continue`
-bytes with separately bounded delays, yields immediately to real user input, and is canceled by settings
-or lifecycle changes. The same suffix cannot fire again until parsed output stops matching it, and a
-rolling three-attempt limit prevents unattended loops. Logs and transient feedback carry only
-Terminal/provider/status metadata; user-authored patterns and Terminal content never enter events,
-logs, or diagnostics exports.
+connections. Terminal Host combines reviewed provider-owned literal suffixes with bounded user patterns,
+then matches them case-insensitively only after the latest PTY output has settled in the parsed
+headless-xterm screen; ANSI bytes and arbitrary raw chunks are never match inputs. Built-in suffixes stay
+in the matching implementation so an application upgrade can repair provider wording without rewriting
+or freezing user settings. A built-in rule requires an exact provider-owned line above reviewed,
+content-free cursor chrome, so submitted prompts cannot satisfy it; user-authored rules retain literal
+suffix matching. A match is fenced to the exact live PTY generation, sends fixed Escape and
+`continue` bytes with separately bounded delays, yields immediately to real user input, and is canceled
+by settings or lifecycle changes. The same suffix cannot fire again until parsed output stops matching
+it, and a rolling three-attempt limit prevents unattended loops. Logs and transient feedback carry only
+Terminal/provider/status/rule-source metadata; built-in suffixes, user-authored patterns, and Terminal
+content never enter events, logs, or diagnostics exports.
 
 Terminal groups form a persisted binary split tree with horizontal or vertical direction and a bounded
 ratio. Dragging a tab moves its durable Terminal ID between groups or creates a new split; shared
@@ -386,7 +390,7 @@ For a normal active file tab, Monaco publishes only cursor, selection length, an
 
 ## Settings, keybindings, and themes
 
-Global `settings.jsonc`, `keybindings.jsonc`, and theme files live in the application data directory. Writes sync a mode-`0600` temporary file before atomic replacement, and in-memory state changes only after replacement succeeds. The Server Core prefers Parcel Watcher hot reload and falls back to polling only these three files. Startup, hot reload, update parameters, get results, and change events share a 256 KiB UTF-8 source ceiling; disk reads stop at that boundary before parsing, and keybinding arrays are capped at 1,024 entries. Schema or size errors retain defaults or the prior valid state and report location without including source text in diagnostics. Missing provider-scoped Agent launch, disabled-by-default lifecycle-hook and output-recovery settings, and the nullable Terminal default cwd are supplied in memory without rewriting an older settings file. Each Agent provider's lifecycle integration can be enabled independently; installation health is a separate typed read/event surface because a saved preference does not prove that a provider loaded or trusted its hook. Provider recovery settings bound pattern count and length plus both input delays; diagnostic exports retain only enablement, delay values, and pattern count. Trusted Domains are a bounded Settings array of normalized HTTP(S) exact origins or explicit subdomain wildcard origins. Server Core owns their JSONC-preserving atomic persistence, while Main alone may append the canonical exact origin selected in a trust prompt; Renderer can manage the complete array only through the ordinary validated Settings update. Object-valued `files.exclude` merges user booleans over bounded defaults, so a default pattern can be disabled with `false` without re-declaring every other default.
+Global `settings.jsonc`, `keybindings.jsonc`, and theme files live in the application data directory. Writes sync a mode-`0600` temporary file before atomic replacement, and in-memory state changes only after replacement succeeds. The Server Core prefers Parcel Watcher hot reload and falls back to polling only these three files. Startup, hot reload, update parameters, get results, and change events share a 256 KiB UTF-8 source ceiling; disk reads stop at that boundary before parsing, and keybinding arrays are capped at 1,024 entries. Schema or size errors retain defaults or the prior valid state and report location without including source text in diagnostics. Missing provider-scoped Agent launch, disabled-by-default lifecycle-hook and output-recovery settings, and the nullable Terminal default cwd are supplied in memory without rewriting an older settings file. Each Agent provider's lifecycle integration can be enabled independently; installation health is a separate typed read/event surface because a saved preference does not prove that a provider loaded or trusted its hook. Provider recovery settings bound user pattern count and length plus both input delays; diagnostic exports retain only enablement, delay values, and the user-authored pattern count. Trusted Domains are a bounded Settings array of normalized HTTP(S) exact origins or explicit subdomain wildcard origins. Server Core owns their JSONC-preserving atomic persistence, while Main alone may append the canonical exact origin selected in a trust prompt; Renderer can manage the complete array only through the ordinary validated Settings update. Object-valued `files.exclude` merges user booleans over bounded defaults, so a default pattern can be disabled with `false` without re-declaring every other default.
 
 The Settings dialog opens in full-width structured UI mode. Its in-app source mode lazily mounts Monaco against the same reducer drafts, and it must parse successfully before returning to structured UI or switching source tabs. Server and Renderer import the same browser-safe Settings and keybinding schemas from `packages/protocol/src/configuration`, so defaults, bounds, and source-to-UI validation cannot drift. Hook installation health describes the last applied settings only: an edited toggle reports `Pending Apply`, and the provider section tells users that Agent Terminals opened before enablement need a restart. View switching is a two-segment UI/Source toggle; the former external `Open Config File` action was removed because macOS has no default `.jsonc` association and the in-app source editor owns config editing.
 
