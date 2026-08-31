@@ -82,6 +82,10 @@ case's fixed `assets/<case-id>-fixture-preflight.json` path and include it in
 `cases[].evidence`. `report.ts finalize` rejects the screenshot verdict if that
 receipt is missing or blocked.
 
+For temporal Renderer evidence, use `capture-renderer.ts frames`. Pass
+`--fixture-preflight` only when the frozen plan declares the Terminal fixture preflight; the owned
+runtime receipt lets non-Terminal interactions record frames without inventing a grid receipt.
+
 Capture a required `dom_snapshot` as a real `.html` artifact from the smallest
 semantic subtree that supports the observation. Choose a selector specific to
 the check instead of serializing the entire page:

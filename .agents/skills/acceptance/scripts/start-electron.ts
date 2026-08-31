@@ -577,6 +577,7 @@ async function main(): Promise<void> {
             caseMode,
             cleanupReusable: isCleanupReusable,
             profileId,
+            requiresTerminalFixturePreflight: plannedCase.item.fixturePreflight === 'terminal',
             reuseUserDataDir: reuseUserDataDirectory,
         });
         let lifecycleLaunchId: string;
@@ -597,7 +598,6 @@ async function main(): Promise<void> {
             }
             throw error;
         }
-
         try {
             const agentEnvironment = await prepareAcceptanceAgentEnvironment({
                 fixtureId: requestedAgentFixture,
