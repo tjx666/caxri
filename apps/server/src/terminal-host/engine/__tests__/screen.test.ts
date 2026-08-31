@@ -200,6 +200,20 @@ describe('TerminalScreenState', () => {
         screen.dispose();
     });
 
+    it('separates a Claude Code capacity stop from its active composer prompt', async () => {
+        const screen = new TerminalScreenState('', 100, 4);
+        const capacityMessage = '⚠ Selected model is at capacity. Please try a different model.';
+
+        screen.write(`\u{1B}[33m${capacityMessage}\u{1B}[0m\r\n❯`);
+
+        expect(await screen.textTail(200)).toEqual({
+            beforeCursorLine: capacityMessage,
+            cursorLine: '❯',
+            full: `${capacityMessage}\n❯`,
+        });
+        screen.dispose();
+    });
+
     it('bounds parser backlog and makes an overflowed recovery explicit', async () => {
         const overflows: number[] = [];
         const screen = new TerminalScreenState('', 40, 6, {

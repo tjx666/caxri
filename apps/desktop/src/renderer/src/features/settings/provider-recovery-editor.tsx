@@ -135,10 +135,12 @@ export function ProviderRecoveryEditor({
             {value.enabled && (
                 <div className="flex flex-col gap-3 rounded-md border border-border bg-elevated p-3">
                     <div className="flex flex-col gap-1">
-                        <FieldLabel htmlFor={`${id}-patterns`}>Ending output patterns</FieldLabel>
+                        <FieldLabel htmlFor={`${id}-patterns`}>
+                            Additional ending output patterns
+                        </FieldLabel>
                         <Textarea
                             id={`${id}-patterns`}
-                            aria-label={`${providerName} ending output patterns`}
+                            aria-label={`${providerName} additional ending output patterns`}
                             aria-invalid={Boolean(patternDraft.error)}
                             className="min-h-24 bg-background font-mono text-foreground"
                             placeholder={RECOVERY_PATTERN_PLACEHOLDERS[provider]}
@@ -152,12 +154,13 @@ export function ProviderRecoveryEditor({
                             }}
                         />
                         <FieldDescription>
-                            One literal, case-insensitive suffix per line. Matching uses parsed
-                            Terminal text after output becomes quiet.
+                            One additional literal, case-insensitive suffix per line. Caxri also
+                            applies reviewed built-in patterns when this provider has them. Matching
+                            uses parsed Terminal text after output becomes quiet.
                         </FieldDescription>
                         {value.patterns.length === 0 && !patternDraft.error && (
                             <p className="m-0 text-[11px] text-muted" role="status">
-                                No patterns configured; recovery remains inactive.
+                                No additional patterns configured.
                             </p>
                         )}
                         {patternDraft.error && (
