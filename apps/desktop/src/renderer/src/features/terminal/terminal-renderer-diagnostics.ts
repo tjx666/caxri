@@ -25,7 +25,8 @@ interface TerminalRendererDiagnosticInput {
 export function createTerminalRendererDiagnostic(
     input: TerminalRendererDiagnosticInput,
 ): RendererDiagnostic | undefined {
-    if (!input.paneActive && input.status.reason === 'active') return undefined;
+    if (!input.paneActive && input.status.reason === 'active' && input.status.retryState === 'idle')
+        return undefined;
     return {
         kind: 'terminal-renderer',
         diagnosticId: input.diagnosticId,
@@ -37,6 +38,13 @@ export function createTerminalRendererDiagnostic(
         contextLossCount: input.status.contextLossCount,
         redrawCount: input.status.redrawCount,
         recoveryResult: input.status.recoveryResult,
+        retryAttemptCount: input.status.retryAttemptCount,
+        retryDelayMs: input.status.retryDelayMs,
+        retryLimit: input.status.retryLimit,
+        ...(input.status.retrySequenceId && {
+            retrySequenceId: input.status.retrySequenceId,
+        }),
+        retryState: input.status.retryState,
         receivedBytes: input.receivedBytes,
         droppedBytes: input.droppedBytes,
         ...(input.correlationId && { correlationId: input.correlationId }),

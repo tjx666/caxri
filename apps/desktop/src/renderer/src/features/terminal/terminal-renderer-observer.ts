@@ -35,6 +35,10 @@ export function createTerminalRendererObserver(options: TerminalRendererObserver
             options.container.dataset.terminalRendererReason = status.reason;
             options.container.dataset.terminalWebglContextLosses = String(status.contextLossCount);
             options.container.dataset.terminalRendererRedraws = String(status.redrawCount);
+            options.container.dataset.terminalRendererRetryAttempts = String(
+                status.retryAttemptCount,
+            );
+            options.container.dataset.terminalRendererRetryState = status.retryState;
             gpuRecoveryNotificationCoordinator.observeTerminalRendererStatus({
                 status,
                 terminalId: options.terminalId,
@@ -57,18 +61,24 @@ export function createTerminalRendererObserver(options: TerminalRendererObserver
                 ...(correlationId && { correlationId }),
             });
             if (diagnostic) globalThis.caxri.reportDiagnostic(diagnostic);
+            if (
+                correlationId &&
+                (['cancelled', 'exhausted', 'succeeded'].includes(status.retryState) ||
+                    (status.trigger === 'gpu-process-recovery' && status.retryState === 'idle'))
+            )
+                correlationId = undefined;
         },
         recordOutput(data: string, dropped: number): void {
             receivedBytes += encoder.encode(data).byteLength;
             droppedBytes += dropped;
         },
         withRecovery<T>(nextCorrelationId: string, recover: () => T): T {
+            /**
+             * A later physical GPU incident owns subsequent diagnostics while the mounted Terminal keeps one stable
+             * retry sequence for its bounded recovery chain.
+             */
             correlationId = nextCorrelationId;
-            try {
-                return recover();
-            } finally {
-                correlationId = undefined;
-            }
+            return recover();
         },
     };
 }
