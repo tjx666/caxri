@@ -59,8 +59,8 @@ export interface TerminalExecutionLaunch {
 }
 
 /**
- * Core-facing execution boundary. Hot-path methods retain the existing synchronous acceptance contract while the
- * process-backed implementation sends ordered private requests and fences their asynchronous failures internally.
+ * Core-facing execution boundary. Renderer-owned hot paths retain synchronous acceptance, while exact managed-Agent
+ * input waits for the private Host to authorize and deliver the requested launch generation.
  */
 export interface TerminalExecutionPort {
     attach(
@@ -114,5 +114,5 @@ export interface TerminalExecutionPort {
         abortSignal?: AbortSignal,
     ): Promise<boolean>;
     writeAgentExact(terminalId: string, data: string, expectedAgentLaunchId: string): boolean;
-    writeAgent(terminalId: string, data: string): boolean;
+    writeAgent(terminalId: string, data: string): Promise<boolean>;
 }

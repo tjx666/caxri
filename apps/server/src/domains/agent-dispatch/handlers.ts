@@ -96,7 +96,7 @@ export function createAgentCommandHandlers(
         }),
         'agent.control.interruptInternal': ({ endpoint }) => signalAgent(endpoint, 'SIGINT'),
         'agent.control.stopInternal': ({ endpoint }) => signalAgent(endpoint, 'SIGHUP'),
-        'terminal.sendInternal': ({ attentionEpoch, enter, terminalId, text }) => {
+        'terminal.sendInternal': async ({ attentionEpoch, enter, terminalId, text }) => {
             let claimedSessionId: string | undefined;
             if (attentionEpoch !== undefined) {
                 const terminal = options.database.getTerminal(terminalId);
@@ -135,7 +135,7 @@ export function createAgentCommandHandlers(
                 didWrite =
                     attentionEpoch === undefined
                         ? options.terminals.write(terminalId, data)
-                        : options.terminals.writeAgent(terminalId, data);
+                        : await options.terminals.writeAgent(terminalId, data);
             } catch (error) {
                 if (claimedSessionId && attentionEpoch !== undefined)
                     options.database.releaseSessionAttentionReply(

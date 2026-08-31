@@ -128,6 +128,46 @@ describe('createCommandDispatcher paired-device generations', () => {
         await expect(dispatch(command, context(2))).resolves.toMatchObject({ ok: true });
         expect(invoke).toHaveBeenCalledTimes(2);
     });
+
+    it('returns only the content-free acknowledgement for a paired-device mark-read command', async () => {
+        const dispatch = createCommandDispatcher({
+            server: {
+                invoke: () => ({
+                    acknowledged: true,
+                    sessionId: 'session-1',
+                    attentionEpoch: 3,
+                    hasUnread: false,
+                }),
+            },
+        });
+
+        await expect(
+            dispatch(
+                request('mark-read-1', 'session.markRead', {
+                    sessionId: 'session-1',
+                    attentionEpoch: 3,
+                }),
+                {
+                    capabilities: ['sessions.write'],
+                    principal: {
+                        kind: 'paired-device',
+                        id: 'paired-device:device-1',
+                        deviceId: 'device-1',
+                        generation: 1,
+                        projectIds: ['project-1'],
+                    },
+                },
+            ),
+        ).resolves.toMatchObject({
+            ok: true,
+            result: {
+                acknowledged: true,
+                sessionId: 'session-1',
+                attentionEpoch: 3,
+                hasUnread: false,
+            },
+        });
+    });
 });
 
 describe('createCommandDispatcher durable receipts', () => {

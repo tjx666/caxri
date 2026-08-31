@@ -657,7 +657,12 @@ export async function createDomainServices(
                     event: 'state.changed',
                     payload: { kind: 'records', sessionIds: [sessionId], terminalIds: [] },
                 });
-            return result.session;
+            return {
+                acknowledged: result.acknowledged,
+                sessionId: result.session.id,
+                attentionEpoch: result.session.attentionEpoch,
+                hasUnread: result.session.hasUnread,
+            };
         },
         'session.rename': ({ sessionId, displayTitle }, signal, finalizeDurably) => {
             sessionAutoNaming.pauseSession(sessionId);

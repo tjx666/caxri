@@ -442,7 +442,7 @@ export class TerminalManager {
      * Mobile attention replies can target a waiting background Session, while ordinary desktop input remains bound to
      * the current attachment.
      */
-    writeAgent(terminalId: string, data: string): boolean {
+    writeAgent(terminalId: string, data: string): Promise<boolean> {
         return this.execution.writeAgent(terminalId, data);
     }
 

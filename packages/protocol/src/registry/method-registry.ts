@@ -113,6 +113,12 @@ const sessionIdWrite = {
     params: z.object({ sessionId: identifierSchema }),
     result: sessionRecordSchema,
 };
+const sessionAttentionReadResult = z.object({
+    acknowledged: z.boolean(),
+    sessionId: identifierSchema,
+    attentionEpoch: z.number().int().nonnegative(),
+    hasUnread: z.boolean(),
+});
 const keybindingsResult = z.object({
     value: z.array(keybindingSchema).max(MAX_KEYBINDINGS),
     source: configSourceSchema,
@@ -393,7 +399,7 @@ export const methods = {
             sessionId: identifierSchema,
             attentionEpoch: z.number().int().nonnegative(),
         }),
-        result: sessionRecordSchema,
+        result: sessionAttentionReadResult,
     },
     'session.rename': {
         ...serverWrite,

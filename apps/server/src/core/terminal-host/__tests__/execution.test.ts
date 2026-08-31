@@ -48,11 +48,13 @@ class FakeTerminalHostControl implements TerminalHostControl {
         (event: { code: number; signal: NodeJS.Signals | null }) => void
     >();
     private readonly inputResolvers: Array<{ resolve(): void }> = [];
+    private readonly agentInputResolvers: Array<() => void> = [];
     private readonly resizeResolvers: Array<() => void> = [];
     declineNextInput = false;
     failNextInput?: Error;
     readonly requests: Array<{ request: TerminalHostRequest; scope: TerminalHostScope }> = [];
     holdInputRequests = false;
+    holdAgentInputRequests = false;
     holdResizeRequests = false;
 
     emit(event: HostEvent): void {
@@ -117,6 +119,11 @@ class FakeTerminalHostControl implements TerminalHostControl {
                         },
                     });
                 });
+            case 'terminal.agent.input':
+                if (!this.holdAgentInputRequests) return Promise.resolve({ accepted: true });
+                return new Promise((resolve) =>
+                    this.agentInputResolvers.push(() => resolve({ accepted: true })),
+                );
             case 'terminal.resize':
                 if (!this.holdResizeRequests) return Promise.resolve({ accepted: true });
                 return new Promise((resolve) =>
@@ -129,6 +136,10 @@ class FakeTerminalHostControl implements TerminalHostControl {
 
     releaseInput(): void {
         this.inputResolvers.shift()?.resolve();
+    }
+
+    releaseAgentInput(): void {
+        this.agentInputResolvers.shift()?.();
     }
 
     releaseResize(): void {
@@ -325,7 +336,8 @@ describe('architecture-a3b-terminal-host: RemoteTerminalExecution', () => {
             }),
         );
 
-        expect(execution.writeAgent(terminal.id, 'Continue\r')).toBe(true);
+        control.holdAgentInputRequests = true;
+        const reply = execution.writeAgent(terminal.id, 'Continue\r');
         await vi.waitFor(() =>
             expect(control.requests.at(-1)?.request).toEqual({
                 method: 'terminal.agent.input',
@@ -337,6 +349,10 @@ describe('architecture-a3b-terminal-host: RemoteTerminalExecution', () => {
             terminalId: terminal.id,
         });
         expect(control.requests.at(-1)?.scope).not.toHaveProperty('attachmentId');
+        const pending = Symbol('pending Agent input');
+        await expect(Promise.race([reply, Promise.resolve(pending)])).resolves.toBe(pending);
+        control.releaseAgentInput();
+        await expect(reply).resolves.toBe(true);
 
         expect(execution.signalAgentExact(terminal.id, 'stale-launch', 'SIGINT')).toBe(false);
         expect(execution.signalAgentExact(terminal.id, 'launch-1', 'SIGINT')).toBe(true);
