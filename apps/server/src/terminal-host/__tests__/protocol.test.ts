@@ -1,4 +1,5 @@
 import type { TerminalRecord } from '@caxri/protocol';
+import { MAX_TERMINAL_INPUT_LENGTH } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import type { TerminalHostRequestEnvelope } from '../protocol';
@@ -69,6 +70,34 @@ const liveAuthority = {
 describe('architecture-a3b-terminal-host: private protocol', () => {
     it('accepts a bounded launch plan bound to the exact Server and Terminal generation', () => {
         expect(authorizeTerminalHostRequest(startEnvelope(), liveAuthority)).toEqual({ ok: true });
+    });
+
+    it('uses the shared private Terminal input frame limit', () => {
+        const envelope = startEnvelope();
+        const candidate = {
+            ...envelope,
+            id: 'request-input-limit',
+            request: {
+                method: 'terminal.input',
+                params: { data: 'x'.repeat(MAX_TERMINAL_INPUT_LENGTH) },
+            },
+            scope: {
+                ...envelope.scope,
+                attachmentId: 'attachment-1',
+                capability: 'terminal.input',
+            },
+        };
+
+        expect(terminalHostRequestEnvelopeSchema.safeParse(candidate).success).toBe(true);
+        expect(
+            terminalHostRequestEnvelopeSchema.safeParse({
+                ...candidate,
+                request: {
+                    ...candidate.request,
+                    params: { data: 'x'.repeat(MAX_TERMINAL_INPUT_LENGTH + 1) },
+                },
+            }).success,
+        ).toBe(false);
     });
 
     it('accepts only a strict structured Agent sub-plan', () => {

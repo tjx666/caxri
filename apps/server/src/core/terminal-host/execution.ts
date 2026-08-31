@@ -753,8 +753,12 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         const snapshotByTerminal = new Map(
             snapshots.map((snapshot) => [snapshot.terminalId, snapshot]),
         );
+        for (const terminalId of this.inputQueues.keys())
+            this.retireInputQueue(
+                terminalId,
+                new CaxriError('UNAVAILABLE', 'Terminal shut down before input completed'),
+            );
         this.identities.clear();
-        this.inputQueues.clear();
         this.resizeQueues.clear();
         this.views.clear();
         return liveIds.map((terminalId) => ({
