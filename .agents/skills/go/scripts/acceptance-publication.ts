@@ -1,5 +1,8 @@
+import { Buffer } from 'node:buffer';
+import { createHash } from 'node:crypto';
 import { lstat, readFile, realpath } from 'node:fs/promises';
 import { basename, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 
 import { z } from 'zod';
 
@@ -78,15 +81,24 @@ const evidenceTypeSchema = z.enum([
     'video',
 ]);
 const evidenceReferenceSchema = z.union([z.string().min(1), z.object({ path: z.string().min(1) })]);
+const productSurfaceSchema = z.enum(['desktop', 'mobile']);
+const mobileDeviceSchema = z.object({
+    appId: z.literal('com.caxri.mobile'),
+    deviceId: z.string().min(1),
+    platform: z.enum(['android', 'ios']),
+});
 const localCaseSchema = checkIdSchema.extend({
     evidence: z.array(evidenceReferenceSchema).min(1),
+    surface: productSurfaceSchema,
 });
 const requiredEvidenceSchema = z.union([
     evidenceTypeSchema,
     z.object({ hint: z.string().optional(), type: evidenceTypeSchema }),
 ]);
 const localPlanItemSchema = checkIdSchema.extend({
+    mobileDevice: mobileDeviceSchema.optional(),
     requiredEvidence: z.array(requiredEvidenceSchema).min(1),
+    surface: productSurfaceSchema,
 });
 
 const localReportSchema = z.object({
@@ -130,10 +142,20 @@ const acceptanceEvidenceSchema = z.object({
     fileUrl: z.string().min(1).nullable().optional(),
     type: evidenceTypeSchema,
 });
+const publishedFileSchema = z.object({
+    hash: z.string().regex(/^[0-9a-f]{64}$/u),
+    id: z.string().min(1),
+    size: z.number().int().positive(),
+});
+const remotePlanItemSchema = z.object({
+    verifierConfig: z.looseObject({ surface: productSurfaceSchema.optional() }),
+});
 const acceptanceCheckSchema = z.object({
     evidence: z.array(acceptanceEvidenceSchema),
     id: z.string().min(1),
+    planItem: remotePlanItemSchema.nullable().optional(),
     resultRound: z.number().int().positive(),
+    surface: productSurfaceSchema.nullable().optional(),
 });
 const acceptanceViewSchema = z.object({
     acceptance: z.object({ id: z.string().min(1) }),
@@ -225,6 +247,134 @@ function assertRemoteEvidenceIntegrity(
                     `LobeHub readback evidence payload is missing for ${acceptanceCase.id}`,
                 );
             }
+        }
+    }
+}
+
+const publishedMobileEvidenceBindingSchema = z.union([
+    z.object({ launchId: z.string().min(1) }),
+    z.object({ checkpointId: z.string().min(1) }),
+]);
+
+const publishedMobileReceiptSchema = z
+    .looseObject({
+        appId: z.literal('com.caxri.mobile'),
+        artifacts: z.array(z.unknown()),
+        build: z.looseObject({ identity: z.string().min(1), mode: z.string().min(1) }),
+        caseId: z.string().min(1),
+        cleanup: z.looseObject({
+            appData: z.enum(['cleared', 'preserved']),
+            desktopProfile: z.string(),
+        }),
+        device: z.looseObject({
+            id: z.string().min(1),
+            platform: z.enum(['android', 'ios']),
+        }),
+        outcome: z.string().min(1),
+        schemaVersion: z.literal(1),
+        sourceCommit: z.string().min(1),
+        status: z.enum(['passed', 'failed', 'blocked']),
+    })
+    .and(publishedMobileEvidenceBindingSchema);
+
+function parsePublishedMobileReceipt(
+    content: string,
+): z.infer<typeof publishedMobileReceiptSchema> | undefined {
+    try {
+        const receipt = publishedMobileReceiptSchema.safeParse(JSON.parse(content));
+        return receipt.success ? receipt.data : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+async function hasMatchingPublishedMobileReceipt(
+    evidence: Array<z.infer<typeof acceptanceEvidenceSchema>>,
+    localReceipt: z.infer<typeof publishedMobileReceiptSchema>,
+    localReceiptText: string,
+    runner: CommandRunner,
+): Promise<boolean> {
+    const localHash = createHash('sha256').update(localReceiptText).digest('hex');
+    const localSize = Buffer.byteLength(localReceiptText);
+    for (const item of evidence) {
+        if (item.type !== 'text') continue;
+        const inlineReceipt = item.content ? parsePublishedMobileReceipt(item.content) : undefined;
+        if (inlineReceipt && isDeepStrictEqual(inlineReceipt, localReceipt)) return true;
+        if (!item.fileId) continue;
+        try {
+            // Sequential readback preserves remote evidence order and avoids parallel CLI auth pressure.
+            // eslint-disable-next-line no-await-in-loop
+            const fileRaw = await runner('lobehub', ['file', 'view', item.fileId, '--json']);
+            const file = publishedFileSchema.parse(JSON.parse(fileRaw));
+            if (file.id === item.fileId && file.hash === localHash && file.size === localSize)
+                return true;
+        } catch {
+            // Other text evidence may be unrelated to the device receipt; a later item can still be the match.
+        }
+    }
+    return false;
+}
+
+/**
+ * For LobeHub publication, remote readback must preserve both the product surface and concrete mobile target.
+ * Otherwise, an Android result could be reviewed as generic desktop proof.
+ */
+async function assertRemoteSurfaceAndDeviceIntegrity(
+    report: z.infer<typeof localReportSchema>,
+    remoteChecks: Array<z.infer<typeof acceptanceCheckSchema>>,
+    reportDirectory: string,
+    runner: CommandRunner,
+): Promise<void> {
+    const remoteById = new Map(remoteChecks.map((check) => [check.id, check]));
+    for (const plan of report.plan) {
+        const remote = remoteById.get(plan.id);
+        const remoteSurfaces = [remote?.surface, remote?.planItem?.verifierConfig.surface].filter(
+            (surface): surface is z.infer<typeof productSurfaceSchema> => Boolean(surface),
+        );
+        if (
+            !remote ||
+            remoteSurfaces.length === 0 ||
+            remoteSurfaces.some((surface) => surface !== plan.surface)
+        ) {
+            throw new Error(
+                `LobeHub readback surface does not match the local round for ${plan.id}`,
+            );
+        }
+        if (plan.surface !== 'mobile') continue;
+        const expected = plan.mobileDevice;
+        if (!expected) throw new Error(`Local mobile plan ${plan.id} is missing mobileDevice`);
+        const deviceEvidence = `assets/${encodeURIComponent(plan.id)}-mobile-device.json`;
+        const localCase = report.cases.find(({ id }) => id === plan.id);
+        if (
+            !localCase ||
+            localCase.evidence.every((reference) => evidencePath(reference) !== deviceEvidence)
+        ) {
+            throw new Error(`Local mobile case ${plan.id} is missing its device receipt`);
+        }
+        const localReceiptPath = join(reportDirectory, deviceEvidence);
+        // Sequential reads keep remote mismatch failures in frozen plan order.
+        // eslint-disable-next-line no-await-in-loop
+        const localReceiptText = await readFile(localReceiptPath, 'utf8');
+        const localReceiptJson: unknown = JSON.parse(localReceiptText);
+        const localReceipt = publishedMobileReceiptSchema.parse(localReceiptJson);
+        if (
+            localReceipt.device.id !== expected.deviceId ||
+            localReceipt.device.platform !== expected.platform
+        ) {
+            throw new Error(`Local mobileDevice does not match the frozen plan for ${plan.id}`);
+        }
+        // Sequential readback keeps mismatches in frozen plan order.
+        // eslint-disable-next-line no-await-in-loop
+        const matches = await hasMatchingPublishedMobileReceipt(
+            remote.evidence,
+            localReceipt,
+            localReceiptText,
+            runner,
+        );
+        if (!matches) {
+            throw new Error(
+                `LobeHub readback mobileDevice does not match the local round for ${plan.id}`,
+            );
         }
     }
 }
@@ -611,6 +761,7 @@ export async function publishAcceptanceRound(
         throw new Error('LobeHub readback check ids do not match the local round');
     }
     assertRemoteEvidenceIntegrity(report, remoteChecks);
+    await assertRemoteSurfaceAndDeviceIntegrity(report, remoteChecks, reportDirectory, runner);
     const expectedVerdict = { fail: 'failed', partial: 'uncertain', pass: 'passed' }[
         report.summary.verdict
     ];

@@ -1,9 +1,17 @@
-import { spawnSync } from 'node:child_process';
+import { Buffer } from 'node:buffer';
+import type { ChildProcess } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { createReadStream } from 'node:fs';
+import { readFile, rename, stat, writeFile } from 'node:fs/promises';
 import process from 'node:process';
 
+import { assertDecodablePng } from '../.agents/skills/acceptance/scripts/png-integrity';
 import { writeJsonAtomic } from './atomic-json';
 
 const COMMIT_PATTERN = /^[0-9a-f]{7,64}$/iu;
+const RECORDING_START_TIMEOUT_MS = 5_000;
+const RECORDING_STOP_TIMEOUT_MS = 10_000;
 
 interface MobileAcceptanceCommand {
     arguments: string[];
@@ -15,6 +23,26 @@ interface MobileAcceptanceCommand {
     nowMs?: number;
     timeoutMs: number;
 }
+
+interface MobileAcceptanceRecording {
+    arguments: string[];
+    command: string;
+    cwd: string;
+}
+
+export interface MobileAcceptanceArtifact {
+    path: string;
+    sha256: string;
+    source: 'android-framebuffer' | 'ios-simulator-framebuffer';
+    type: 'screenshot' | 'video';
+}
+
+interface MobileAcceptanceArtifactCollection {
+    artifacts: MobileAcceptanceArtifact[];
+    failure: unknown;
+}
+
+type RecordingSpawn = typeof spawn;
 
 function errorCode(error: unknown): string | undefined {
     if (typeof error !== 'object' || error === null || !('code' in error)) return undefined;
@@ -52,6 +80,188 @@ export function runMobileAcceptanceCommand(
             `Mobile Acceptance command failed with status ${result.status ?? 'unknown'}`,
         );
     return input.captureOutput && typeof result.stdout === 'string' ? result.stdout.trim() : '';
+}
+
+/**
+ * Captures device bytes without decoding stdout as text. Failures intentionally omit stdout and stderr because a
+ * framebuffer can contain credentials or user-visible content.
+ */
+export function captureMobileAcceptanceCommand(
+    input: MobileAcceptanceCommand,
+    spawnProcess: typeof spawnSync = spawnSync,
+): Buffer {
+    const remainingMs = input.deadlineMs - (input.nowMs ?? Date.now());
+    if (remainingMs <= 0) throw new Error('Mobile Acceptance exceeded its overall deadline');
+    const timeout = Math.min(input.timeoutMs, remainingMs);
+    const result = spawnProcess(input.command, input.arguments, {
+        cwd: input.cwd,
+        encoding: null,
+        env: input.environment ?? process.env,
+        killSignal: 'SIGTERM',
+        maxBuffer: 32 * 1024 * 1024,
+        shell: false,
+        stdio: 'pipe',
+        timeout,
+    });
+    if (result.error) {
+        if (errorCode(result.error) === 'ETIMEDOUT')
+            throw new Error(`Mobile Acceptance command timed out after ${timeout}ms`);
+        throw new Error('Mobile Acceptance command failed to start');
+    }
+    if (result.status !== 0)
+        throw new Error(
+            `Mobile Acceptance command failed with status ${result.status ?? 'unknown'}`,
+        );
+    if (!Buffer.isBuffer(result.stdout) || result.stdout.length === 0)
+        throw new Error('Mobile Acceptance command returned no binary evidence');
+    return result.stdout;
+}
+
+async function waitForRecordingStart(child: ChildProcess): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(onTimeout, RECORDING_START_TIMEOUT_MS);
+        function onTimeout() {
+            child.off('error', onError);
+            child.off('spawn', onSpawn);
+            reject(new Error('Mobile Acceptance recording did not start'));
+        }
+        function onError() {
+            clearTimeout(timer);
+            child.off('spawn', onSpawn);
+            reject(new Error('Mobile Acceptance recording failed to start'));
+        }
+        function onSpawn() {
+            clearTimeout(timer);
+            child.off('error', onError);
+            resolve();
+        }
+        child.once('error', onError);
+        child.once('spawn', onSpawn);
+    });
+}
+
+async function waitForRecordingExit(
+    child: ChildProcess,
+    timeoutMs: number,
+): Promise<{ code: number | null; signal: NodeJS.Signals | null } | undefined> {
+    if (child.exitCode !== null || child.signalCode !== null) {
+        return { code: child.exitCode, signal: child.signalCode };
+    }
+    return new Promise((resolve) => {
+        const timer = setTimeout(onTimeout, timeoutMs);
+        function onTimeout() {
+            child.off('exit', onExit);
+            resolve(undefined);
+        }
+        function onExit(code: number | null, signal: NodeJS.Signals | null) {
+            clearTimeout(timer);
+            resolve({ code, signal });
+        }
+        child.once('exit', onExit);
+    });
+}
+
+/**
+ * Owns the one persistent `adb screenrecord` child for a mobile case. `stop()` is idempotent so normal completion and
+ * cleanup can safely converge on the same process without starting or signalling a replacement.
+ */
+export async function startMobileAcceptanceRecording(
+    input: MobileAcceptanceRecording,
+    spawnProcess: RecordingSpawn = spawn,
+): Promise<{ stop: () => Promise<void> }> {
+    const child = spawnProcess(input.command, input.arguments, {
+        cwd: input.cwd,
+        shell: false,
+        stdio: 'ignore',
+    });
+    await waitForRecordingStart(child);
+    let processError: unknown;
+    const recordError = (error: unknown) => {
+        processError ??= error;
+    };
+    child.on('error', recordError);
+    let stopPromise: Promise<void> | undefined;
+    return {
+        stop: () => {
+            stopPromise ??= (async () => {
+                const exit = waitForRecordingExit(child, RECORDING_STOP_TIMEOUT_MS);
+                if (child.exitCode === null && child.signalCode === null) child.kill('SIGINT');
+                let result = await exit;
+                let isForced = false;
+                if (!result) {
+                    isForced = true;
+                    const forcedExit = waitForRecordingExit(child, RECORDING_STOP_TIMEOUT_MS);
+                    child.kill('SIGTERM');
+                    result = await forcedExit;
+                }
+                child.off('error', recordError);
+                if (processError) throw new Error('Mobile Acceptance recording failed');
+                if (!result) throw new Error('Mobile Acceptance recording did not stop');
+                if (isForced)
+                    throw new Error('Mobile Acceptance recording required forced cleanup');
+                if (result.code !== 0 && result.signal !== 'SIGINT') {
+                    throw new Error('Mobile Acceptance recording exited unexpectedly');
+                }
+            })();
+            return stopPromise;
+        },
+    };
+}
+
+export async function writeMobileAcceptanceArtifact(path: string, content: Buffer): Promise<void> {
+    const temporary = `${path}.${process.pid}.tmp`;
+    await writeFile(temporary, content);
+    await rename(temporary, path);
+}
+
+async function sha256(path: string): Promise<string> {
+    const hash = createHash('sha256');
+    for await (const chunk of createReadStream(path) as AsyncIterable<Buffer>) hash.update(chunk);
+    return hash.digest('hex');
+}
+
+/**
+ * Produces the immutable artifact entry embedded in the device receipt. Screenshots must contain a decodable PNG
+ * framebuffer; recordings remain subject to the report finalizer's ffprobe and sampled-frame checks.
+ */
+export async function createMobileAcceptanceArtifact(
+    filePath: string,
+    artifact: Omit<MobileAcceptanceArtifact, 'sha256'>,
+): Promise<MobileAcceptanceArtifact> {
+    const metadata = await stat(filePath);
+    if (!metadata.isFile() || metadata.size === 0)
+        throw new Error('Mobile Acceptance artifact must be a non-empty file');
+    if (artifact.type === 'screenshot') {
+        if (!artifact.path.endsWith('.png')) {
+            throw new Error('Mobile Acceptance screenshot must be a valid PNG framebuffer capture');
+        }
+        await assertDecodablePng(await readFile(filePath));
+    }
+    return { ...artifact, sha256: await sha256(filePath) };
+}
+
+/**
+ * Collects final screenshot and recording evidence even when the product check already failed. The original failure
+ * remains authoritative while later capture failures are retained only when no earlier failure exists.
+ */
+export async function collectMobileAcceptanceArtifacts(input: {
+    captureRecording?: () => Promise<MobileAcceptanceArtifact>;
+    captureScreenshot?: () => Promise<MobileAcceptanceArtifact>;
+    failure: unknown;
+}): Promise<MobileAcceptanceArtifactCollection> {
+    const artifacts: MobileAcceptanceArtifact[] = [];
+    let failure = input.failure;
+    for (const capture of [input.captureScreenshot, input.captureRecording]) {
+        if (!capture) continue;
+        try {
+            // Sequential capture preserves the final screen before stopping the recording.
+            // eslint-disable-next-line no-await-in-loop
+            artifacts.push(await capture());
+        } catch (error) {
+            failure ??= error;
+        }
+    }
+    return { artifacts, failure };
 }
 
 /**

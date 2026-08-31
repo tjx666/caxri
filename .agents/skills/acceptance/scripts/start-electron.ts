@@ -212,7 +212,7 @@ Options:
   --test-root PATH       Project root selected in Caxri; repeat to queue roots (default: repository root)
   --agent-fixture ID     Plan-declared, repository-owned fake Agent fixture
   --native-dialog        Explicit-current-request exception: use the real macOS picker
-  --case-id ID           Stable lowercase id for this isolated Acceptance case
+  --case-id ID           Stable ASCII id for this isolated Acceptance case
   --report-dir DIR       Frozen round containing this case plan and lifecycle evidence
   --case-mode MODE       isolated (default) or restart
   --reuse-user-data PATH Reuse this case's frozen caxri-acceptance-user-<profile-id>-* profile

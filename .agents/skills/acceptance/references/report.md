@@ -82,8 +82,21 @@ Its case evidence must include `assets/<case-id>-mobile-device.json`. Finalizati
 receipt and rejects a different platform, app id, device id, report commit, or final lifecycle
 launch. For `readonly_checkpoint`, it instead requires the frozen checkpoint id and no lifecycle
 receipt. When `assets/<case-id>-result.json` is cited, finalization binds it to the same commit and
-isolation identity. This binds screenshots and behavior to the selected target instead of an
-ambient emulator, Simulator, stale install, or prior retry.
+isolation identity. Every cited mobile screenshot or recording must have one matching receipt entry:
+
+```json
+{
+  "path": "assets/MOB-ACC-02-android.png",
+  "sha256": "<64 lowercase hex characters>",
+  "source": "android-framebuffer",
+  "type": "screenshot"
+}
+```
+
+The artifact list must match the cited mobile media exactly. Finalization recomputes each hash,
+requires Android or iOS Simulator framebuffer provenance to match the frozen platform, and accepts
+mobile screenshots only as PNG framebuffer bytes. This binds screenshots and behavior to the
+selected target instead of an ambient emulator, Simulator, stale install, or prior retry.
 
 Create the round scaffold only after the plan is frozen:
 
