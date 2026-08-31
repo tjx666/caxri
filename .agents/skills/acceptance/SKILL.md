@@ -98,7 +98,9 @@ Read [references/report.md](references/report.md) before authoring the report an
    declared restart case may use `--case-mode restart --reuse-user-data`; its final launch must
    pass `--cleanup-reused-user-data`. A case whose plan declares `agentFixture` must also pass the
    same id through `--agent-fixture`; include the generated Agent fixture receipt in that case's
-   evidence. Confirm the CDP target is the Caxri renderer, not DevTools or a stale resident build.
+   evidence. Every launch uses isolated HOME, XDG directories, provider homes, and shell PATH with
+   blocked Agent shims; the declared fixture replaces only those blocked Agent targets. Confirm the
+   CDP target is the Caxri renderer, not DevTools or a stale resident build.
 2. Drive the smallest real user path that proves each plan item. Follow
    [surfaces/electron.md](surfaces/electron.md). Stop before a native sheet or app-modal window and
    hand that step to the user unless the current request explicitly authorizes agent verification;

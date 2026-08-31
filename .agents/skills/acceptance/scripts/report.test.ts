@@ -8,6 +8,7 @@ import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import {
     beginAgentFixtureLifecycle,
     completeAgentFixtureLifecycle,
+    validateAgentFixtureEvidence,
 } from './agent-fixture-lifecycle';
 import { createTerminalFixturePreflightReceipt } from './fixture-preflight';
 import type { InitializeReportInput } from './report';
@@ -107,6 +108,7 @@ async function writeAgentFixtureLifecycle(directory: string, caseId = 'terminal-
         caseId,
         cleanupCompleted: true,
         launchId,
+        sharedProfile: false,
     });
     return `assets/${encodeURIComponent(caseId)}-agent-fixture.json`;
 }
@@ -198,6 +200,7 @@ describe('Acceptance report scaffold', () => {
             caseId: 'terminal-layout',
             cleanupCompleted: false,
             launchId: firstLaunchId,
+            sharedProfile: true,
         });
         const finalLaunchId = await beginAgentFixtureLifecycle(directory, {
             caseId: 'terminal-layout',
@@ -207,6 +210,7 @@ describe('Acceptance report scaffold', () => {
             caseId: 'terminal-layout',
             cleanupCompleted: true,
             launchId: finalLaunchId,
+            sharedProfile: true,
         });
 
         const receipt = JSON.parse(
@@ -214,6 +218,73 @@ describe('Acceptance report scaffold', () => {
         ) as { launches: Array<{ cleanupCompleted: boolean }> };
         expect(receipt.launches).toHaveLength(2);
         expect(receipt.launches.every(({ cleanupCompleted }) => cleanupCompleted)).toBe(true);
+    });
+
+    it('does not credit an isolated retry with cleanup of an earlier fixture profile', async () => {
+        const directory = await reportDirectory();
+        await initialize(directory, {
+            plan: [{ ...plan[0], agentFixture: 'agent-features-v1' }],
+        });
+        const firstLaunchId = await beginAgentFixtureLifecycle(directory, {
+            caseId: 'terminal-layout',
+            fixtureId: 'agent-features-v1',
+        });
+        await completeAgentFixtureLifecycle(directory, {
+            caseId: 'terminal-layout',
+            cleanupCompleted: false,
+            launchId: firstLaunchId,
+            sharedProfile: false,
+        });
+        const retryLaunchId = await beginAgentFixtureLifecycle(directory, {
+            caseId: 'terminal-layout',
+            fixtureId: 'agent-features-v1',
+        });
+        await completeAgentFixtureLifecycle(directory, {
+            caseId: 'terminal-layout',
+            cleanupCompleted: true,
+            launchId: retryLaunchId,
+            sharedProfile: false,
+        });
+
+        const receipt = JSON.parse(
+            await readFile(join(directory, 'assets/terminal-layout-agent-fixture.json'), 'utf8'),
+        ) as { launches: Array<{ cleanupCompleted: boolean }> };
+        expect(receipt.launches.map(({ cleanupCompleted }) => cleanupCompleted)).toEqual([
+            false,
+            true,
+        ]);
+    });
+
+    it('rejects a symbolic-link Agent fixture receipt during completion and validation', async () => {
+        const directory = await reportDirectory();
+        await initialize(directory, {
+            plan: [{ ...plan[0], agentFixture: 'agent-features-v1' }],
+        });
+        const launchId = await beginAgentFixtureLifecycle(directory, {
+            caseId: 'terminal-layout',
+            fixtureId: 'agent-features-v1',
+        });
+        const receiptPath = join(directory, 'assets/terminal-layout-agent-fixture.json');
+        const targetPath = join(directory, 'assets/agent-fixture-target.json');
+        await writeFile(targetPath, await readFile(receiptPath));
+        await rm(receiptPath);
+        await symlink(targetPath, receiptPath);
+
+        await expect(
+            completeAgentFixtureLifecycle(directory, {
+                caseId: 'terminal-layout',
+                cleanupCompleted: true,
+                launchId,
+                sharedProfile: false,
+            }),
+        ).rejects.toThrow('must be a direct regular file');
+        await expect(
+            validateAgentFixtureEvidence(directory, {
+                caseId: 'terminal-layout',
+                evidencePaths: ['assets/terminal-layout-agent-fixture.json'],
+                fixtureId: 'agent-features-v1',
+            }),
+        ).rejects.toThrow('must be a direct regular file');
     });
 
     it('rejects a case id that the isolated Electron launcher cannot own', async () => {

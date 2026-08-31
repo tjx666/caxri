@@ -33,10 +33,12 @@ and agent adapters. Acceptance uses the real macOS Electron desktop surface.
   The final root remains selected after the queue is exhausted, so Acceptance never falls through
   to a native dialog.
 
-- **Agent fixtures:** Agent discovery is blocked by default. When the frozen plan declares
+- **Agent fixtures:** Every Acceptance launch uses isolated HOME, XDG directories, provider homes,
+  and shell PATH entries beneath the owned user-data directory; blocked Agent shims are the default.
+  When the frozen plan declares
   `"agentFixture": "agent-features-v1"`, pass `--agent-fixture agent-features-v1` to the launcher.
-  The adapter creates fixed fake Claude Code and Codex executables plus isolated provider homes
-  beneath the owned user-data directory. It rejects arbitrary ids and host executable paths and
+  The adapter replaces only the blocked Claude Code and Codex targets with fixed fake executables.
+  It rejects arbitrary ids and host executable paths and
   records `assets/<case-id>-agent-fixture.json`; include that receipt in the case evidence.
 
 - **Native dialogs:** these are manual Acceptance boundaries by default. Keep the deterministic

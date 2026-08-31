@@ -36,7 +36,7 @@ const path = require('node:path');
 function main() {
 const provider = ${JSON.stringify(provider)};
 if (process.argv.includes('--version')) {
-  process.stdout.write(provider === 'claude' ? '2.1.251 (Claude Code)\\n' : 'codex-cli 0.151.0\\n');
+  process.stdout.write(provider === 'claude' ? '2.1.251 (Claude Code)\n' : 'codex-cli 0.151.0\n');
   process.exit(0);
 }
 const stateRoot = provider === 'claude' ? process.env.CLAUDE_CONFIG_DIR : process.env.CODEX_HOME;
@@ -218,7 +218,7 @@ const invokeHook = (event) => {
   const group = hookDocument().hooks[event][0];
   childProcess.execFileSync('/bin/sh', ['-c', group.hooks[0].command], {
     env: process.env,
-    input: JSON.stringify({ hook_event_name: event, session_id: sessionId, source: 'startup' }),
+    input: JSON.stringify({ hook_event_name: event, session_id: sessionId }),
     stdio: ['pipe', 'pipe', 'inherit'],
   });
   appendReceipt({ event, kind: 'hook', sessionIdHash: sessionId.length });
@@ -227,11 +227,15 @@ const setClaudeStatus = (status) => {
   if (!metadataPath) return;
   writeJson(metadataPath, { ...readJson(metadataPath), status, updatedAt: new Date().toISOString() });
 };
+let hasCodexSessionStarted = false;
 const startTurn = (topic, includePrivate = false) => {
   appendTranscript(topic, includePrivate);
   setClaudeStatus('busy');
-  invokeHook(provider === 'codex' ? 'SessionStart' : 'UserPromptSubmit');
-  if (provider === 'codex') invokeHook('UserPromptSubmit');
+  if (provider === 'codex' && !hasCodexSessionStarted) {
+    invokeHook('SessionStart');
+    hasCodexSessionStarted = true;
+  }
+  invokeHook('UserPromptSubmit');
 };
 const finishTurn = () => {
   setClaudeStatus('completed');
