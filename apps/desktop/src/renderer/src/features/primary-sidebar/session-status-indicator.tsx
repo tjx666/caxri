@@ -5,20 +5,22 @@ import { cn } from '../../lib/utilities';
 import { sessionStatus } from './session-status';
 
 /**
- * The fixed right-edge status slot shared by the PrimarySidebar and MRU switcher. Unread attention moves, persistent
- * waiting stays still, running spins, and settled states leave the reserved slot empty so rows never reflow as
- * lifecycle signals change.
+ * The fixed right-edge status slot shared by the PrimarySidebar and MRU switcher. Unread attention moves, background
+ * acknowledged waiting stays still, running spins, and settled states leave the reserved slot empty so rows never
+ * reflow as lifecycle signals change.
  */
 export function SessionStatusIndicator({
     agentOperation,
     className,
+    isCurrentSession = false,
     session,
 }: {
     agentOperation?: AgentOperation;
     className?: string;
+    isCurrentSession?: boolean;
     session: SessionRecord;
 }) {
-    const status = sessionStatus(session, agentOperation);
+    const status = sessionStatus(session, agentOperation, isCurrentSession);
     if (status.kind === 'default') {
         return (
             <span
