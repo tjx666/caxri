@@ -429,7 +429,7 @@ jobs:
             test-results/parallel-safe/
             test-results/receipts/parallel-safe.json
             logs/
-          if-no-files-found: ignore
+          if-no-files-found: error
           retention-days: 7
       - name: Upload desktop-exclusive failure artifacts
         if: >-
@@ -444,7 +444,7 @@ jobs:
             test-results/desktop-exclusive/
             test-results/receipts/desktop-exclusive.json
             logs/
-          if-no-files-found: ignore
+          if-no-files-found: error
           retention-days: 7
       - name: Upload control failure artifacts
         if: always() && steps.control.outcome == 'failure'
@@ -455,7 +455,7 @@ jobs:
             test-results/control/
             test-results/receipts/control.json
             logs/
-          if-no-files-found: ignore
+          if-no-files-found: error
           retention-days: 7
       - name: Upload auxiliary E2E failure artifacts
         if: >-
@@ -476,7 +476,7 @@ jobs:
           path: |
             test-results/
             logs/
-          if-no-files-found: ignore
+          if-no-files-found: error
           retention-days: 7
       - name: Remove synthetic-merge checks worktree
         if: >-

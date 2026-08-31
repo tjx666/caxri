@@ -1,4 +1,4 @@
-import type { LogProcess } from '@caxri/protocol';
+import type { CaxriMethod, LogProcess } from '@caxri/protocol';
 
 export type E2EErrorSource = LogProcess | 'renderer';
 
@@ -6,6 +6,7 @@ export interface E2EErrorEvent {
     source: E2EErrorSource;
     event: string;
     code: string;
+    method?: CaxriMethod;
 }
 
 export interface E2EErrorAllowance extends E2EErrorEvent {
@@ -16,10 +17,24 @@ function keyOf(error: E2EErrorEvent): string {
     return `${error.source}/${error.event}/${error.code}`;
 }
 
-function formatCounts(counts: ReadonlyMap<string, number>): string {
+function formatCounts(
+    counts: ReadonlyMap<string, number>,
+    events: readonly E2EErrorEvent[] = [],
+): string {
     return Array.from(counts)
         .toSorted(([left], [right]) => left.localeCompare(right))
-        .map(([key, count]) => `${key} x${count}`)
+        .map(([key, count]) => {
+            const methods = new Set(
+                events
+                    .filter((event) => keyOf(event) === key)
+                    .flatMap((event) => (event.method ? [event.method] : [])),
+            );
+            const detail =
+                methods.size > 0
+                    ? ` [methods: ${[...methods].toSorted((left, right) => left.localeCompare(right)).join(', ')}]`
+                    : '';
+            return `${key} x${count}${detail}`;
+        })
         .join(', ');
 }
 
@@ -64,7 +79,9 @@ export function assertE2EErrorPolicy(
     }
 
     const failures = [
-        unexpected.size > 0 ? `Unexpected E2E errors: ${formatCounts(unexpected)}` : undefined,
+        unexpected.size > 0
+            ? `Unexpected E2E errors: ${formatCounts(unexpected, actual)}`
+            : undefined,
         missing.size > 0 ? `Missing E2E errors: ${formatCounts(missing)}` : undefined,
     ].filter(Boolean);
     if (failures.length > 0)
