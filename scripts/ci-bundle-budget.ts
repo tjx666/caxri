@@ -34,21 +34,21 @@ interface TimeBudget {
 }
 
 /**
- * Byte ceilings for every packaged artifact this repository ships. Baseline (2026-08): standalone Server ≈ 123 MiB,
- * out/main ≈ 650 KiB, out/preload ≈ 12 KiB, out/renderer ≈ 35.4 MiB, app.asar ≈ 36 MiB, Caxri.app ≈ 406 MiB. The Server
- * deliberately includes its pinned 116 MiB runtime so Desktop and platform deployments consume one identical,
- * self-contained artifact (docs/bundle-size.md).
+ * Byte ceilings for every packaged artifact this repository ships. Baseline (2026-08): standalone Server ≈ 133 MiB,
+ * out/main ≈ 831 KiB, out/preload ≈ 12 KiB, out/renderer ≈ 35.6 MiB, app.asar ≈ 36.9 MiB, Caxri.app ≈ 411 MiB. The
+ * Server deliberately includes its pinned Node runtime and bundled ripgrep binary so Desktop and platform deployments
+ * consume one identical, self-contained artifact (docs/bundle-size.md).
  */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-bundle-budget.test.ts
 export const SIZE_BUDGETS: SizeBudget[] = [
-    { path: 'apps/server/dist/server', maxBytes: 130 * MiB },
+    { path: 'apps/server/dist/server', maxBytes: 140 * MiB },
     { path: 'out/main', maxBytes: 2 * MiB },
     { path: 'out/preload', maxBytes: 256 * 1_024 },
     { path: 'out/renderer', maxBytes: 37 * MiB },
     { path: 'release.noindex/mac-arm64/Caxri.app/Contents/Resources/app.asar', maxBytes: 41 * MiB },
     {
         path: 'release.noindex/mac-arm64/Caxri.app/Contents/Resources/server',
-        maxBytes: 130 * MiB,
+        maxBytes: 140 * MiB,
     },
     { path: 'release.noindex/mac-arm64/Caxri.app', maxBytes: 430 * MiB },
 ];

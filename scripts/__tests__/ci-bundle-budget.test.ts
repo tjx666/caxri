@@ -53,6 +53,21 @@ describe('ci-bundle-budget', () => {
         expect(paths).toContain('release.noindex/mac-arm64/Caxri.app');
     });
 
+    it('keeps both standalone Server copies on the same explicit budget', () => {
+        const serverBudgets = SIZE_BUDGETS.filter(({ path }) =>
+            [
+                'apps/server/dist/server',
+                'release.noindex/mac-arm64/Caxri.app/Contents/Resources/server',
+            ].includes(path),
+        );
+
+        expect(serverBudgets).toHaveLength(2);
+        expect(serverBudgets.map(({ maxBytes }) => maxBytes)).toEqual([
+            140 * 1_024 * 1_024,
+            140 * 1_024 * 1_024,
+        ]);
+    });
+
     it('detects missing-module stderr from a packaged Node entry', () => {
         const stderr = [
             'node:internal/modules/cjs/loader:1524',
