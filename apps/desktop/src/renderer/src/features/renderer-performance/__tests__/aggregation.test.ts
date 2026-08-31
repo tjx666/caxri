@@ -7,7 +7,7 @@ describe('Renderer performance aggregation', () => {
         const summary = summarizeRendererPerformance({
             diagnosticId: 'd66947a8-0da0-4a4b-8629-a7694116d8e5',
             scenarioId: '08f3dd5f-5c18-49e2-bc25-e46262ec624d',
-            action: 'benchmark.renderer',
+            action: 'session.switch',
             buildMode: 'profiling',
             startedAt: 100,
             endedAt: 850,
@@ -19,7 +19,6 @@ describe('Renderer performance aggregation', () => {
                 longAnimationFrame: 'available',
                 eventTiming: 'available',
                 reactProfiler: 'available',
-                reactScan: 'active',
             },
             reactProfiles: [
                 {
@@ -51,6 +50,11 @@ describe('Renderer performance aggregation', () => {
                     commitTime: 350,
                 },
             ],
+            requests: [
+                { request: 'session.select', durationMs: 18 },
+                { request: 'app.bootstrap', durationMs: 10 },
+                { request: 'app.bootstrap', durationMs: 14 },
+            ],
             longAnimationFrames: [
                 { durationMs: 64, blockingDurationMs: 16, styleAndLayoutDurationMs: 8 },
                 { durationMs: 48, blockingDurationMs: 8, styleAndLayoutDurationMs: 4 },
@@ -64,43 +68,6 @@ describe('Renderer performance aggregation', () => {
                 },
             ],
             frameTimestamps: [0, 16, 32, 80],
-            reactScanCommits: [
-                {
-                    commitId: 1,
-                    componentName: 'TerminalPane',
-                    renderCount: 3,
-                    totalDurationMs: 12,
-                    treeTruncated: false,
-                },
-                {
-                    commitId: 2,
-                    componentName: 'TerminalPane',
-                    renderCount: 1,
-                    totalDurationMs: 6,
-                    treeTruncated: false,
-                },
-                {
-                    commitId: 2,
-                    componentName: 'Private/Project.tsx',
-                    renderCount: 2,
-                    totalDurationMs: 50,
-                    treeTruncated: true,
-                },
-                {
-                    commitId: 2,
-                    componentName: 'Anonymous',
-                    renderCount: 1,
-                    totalDurationMs: 100,
-                    treeTruncated: false,
-                },
-                {
-                    commitId: 2,
-                    componentName: 'div',
-                    renderCount: 1,
-                    totalDurationMs: 100,
-                    treeTruncated: false,
-                },
-            ],
             truncated: false,
         });
 
@@ -144,6 +111,10 @@ describe('Renderer performance aggregation', () => {
                     },
                 },
             },
+            requests: {
+                sessionSelect: { count: 1, totalDurationMs: 18, maxDurationMs: 18 },
+                appBootstrap: { count: 2, totalDurationMs: 24, maxDurationMs: 14 },
+            },
             longAnimationFrames: {
                 count: 2,
                 totalDurationMs: 112,
@@ -167,17 +138,9 @@ describe('Renderer performance aggregation', () => {
                 maxIntervalMs: 48,
                 missedFrameCount: 2,
             },
-            reactScan: {
-                commitCount: 2,
-                renderCount: 8,
-                slowestComponent: 'TerminalPane',
-                slowestComponentRenderCount: 4,
-                slowestComponentTotalDurationMs: 18,
-                treeTruncated: true,
-            },
-            truncated: true,
+            truncated: false,
         });
-        expect(JSON.stringify(summary)).not.toContain('Private/Project.tsx');
+        expect(summary).not.toHaveProperty('reactScan');
     });
 
     it('returns internally consistent zero summaries when observers collect no samples', () => {
@@ -196,13 +159,12 @@ describe('Renderer performance aggregation', () => {
                 longAnimationFrame: 'unavailable',
                 eventTiming: 'unavailable',
                 reactProfiler: 'disabled',
-                reactScan: 'disabled',
             },
             reactProfiles: [],
+            requests: [],
             longAnimationFrames: [],
             interactions: [],
             frameTimestamps: [],
-            reactScanCommits: [],
             truncated: false,
         });
 
@@ -223,6 +185,10 @@ describe('Renderer performance aggregation', () => {
             maxIntervalMs: 0,
             missedFrameCount: 0,
         });
-        expect(summary.reactScan.slowestComponent).toBeNull();
+        expect(summary.requests).toEqual({
+            sessionSelect: { count: 0, totalDurationMs: 0, maxDurationMs: 0 },
+            appBootstrap: { count: 0, totalDurationMs: 0, maxDurationMs: 0 },
+        });
+        expect(summary).not.toHaveProperty('reactScan');
     });
 });

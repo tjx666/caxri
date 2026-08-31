@@ -76,7 +76,6 @@ const performanceCountSchema = z.number().int().nonnegative().max(1_000_000);
 const percentileDurationSchema = z.number().nonnegative().max(120_000);
 const reactProfileCountSchema = z.number().int().nonnegative().max(10_000);
 const browserObserverCountSchema = z.number().int().nonnegative().max(2_000);
-const reactScanCountSchema = z.number().int().nonnegative().max(20_000);
 
 export const rendererPerformanceSurfaces = [
     'primary-sidebar',
@@ -136,28 +135,13 @@ const framePerformanceSummarySchema = z.strictObject({
     missedFrameCount: performanceCountSchema,
 });
 
-const safeComponentNameSchema = z
-    .string()
-    .max(120)
-    .regex(/^[\w $().:#[\]-]+$/u)
-    .nullable();
-
-const reactScanPerformanceSummarySchema = z.strictObject({
-    commitCount: reactScanCountSchema,
-    renderCount: reactScanCountSchema,
-    slowestComponent: safeComponentNameSchema,
-    slowestComponentRenderCount: reactScanCountSchema,
-    slowestComponentTotalDurationMs: performanceDurationSchema,
-    treeTruncated: z.boolean(),
+const requestPerformanceSummarySchema = z.strictObject({
+    count: z.number().int().nonnegative().max(100),
+    totalDurationMs: performanceDurationSchema,
+    maxDurationMs: performanceDurationSchema,
 });
 
-export const rendererPerformanceActions = [
-    'benchmark.renderer',
-    'session.switch',
-    'terminal.resize',
-    'files.expand',
-    'editor.open',
-] as const;
+export const rendererPerformanceActions = ['session.switch'] as const;
 
 /**
  * Bounded, content-free performance receipt emitted for one named Renderer scenario. It intentionally excludes
@@ -179,13 +163,15 @@ export const rendererPerformanceScenarioDiagnosticSchema = z.strictObject({
         longAnimationFrame: z.enum(['available', 'unavailable']),
         eventTiming: z.enum(['available', 'unavailable']),
         reactProfiler: z.enum(['available', 'disabled']),
-        reactScan: z.enum(['active', 'commit-tree-only', 'disabled', 'error']),
     }),
     react: reactPerformanceSummarySchema,
+    requests: z.strictObject({
+        sessionSelect: requestPerformanceSummarySchema,
+        appBootstrap: requestPerformanceSummarySchema,
+    }),
     longAnimationFrames: longAnimationFrameSummarySchema,
     interactions: interactionPerformanceSummarySchema,
     frames: framePerformanceSummarySchema,
-    reactScan: reactScanPerformanceSummarySchema,
     truncated: z.boolean(),
 });
 
@@ -237,7 +223,7 @@ export const rendererDiagnosticSchema = z
         }
 
         if (diagnostic.kind !== 'renderer-performance-scenario') return;
-        const { react, longAnimationFrames, interactions, frames, reactScan } = diagnostic;
+        const { react, requests, longAnimationFrames, interactions, frames } = diagnostic;
         if (react.commitCount > react.profiledRenderCount)
             addPerformanceAggregateIssue(context, ['react', 'commitCount']);
         if (
@@ -308,6 +294,15 @@ export const rendererDiagnosticSchema = z
         if (diagnostic.capabilities.reactProfiler === 'disabled' && react.profiledRenderCount !== 0)
             addPerformanceAggregateIssue(context, ['capabilities', 'reactProfiler']);
 
+        for (const [name, summary] of Object.entries(requests)) {
+            if (
+                (summary.count === 0 &&
+                    (summary.totalDurationMs !== 0 || summary.maxDurationMs !== 0)) ||
+                summary.maxDurationMs > summary.totalDurationMs
+            )
+                addPerformanceAggregateIssue(context, ['requests', name]);
+        }
+
         for (const [name, count, metrics] of [
             [
                 'longAnimationFrames',
@@ -359,26 +354,6 @@ export const rendererDiagnosticSchema = z
             (frames.sampleCount > 0 && frames.estimatedRefreshIntervalMs === 0)
         )
             addPerformanceAggregateIssue(context, ['frames', 'intervalP95Ms']);
-
-        if ((reactScan.slowestComponent === null) !== (reactScan.renderCount === 0))
-            addPerformanceAggregateIssue(context, ['reactScan', 'slowestComponent']);
-        if (
-            reactScan.commitCount > reactScan.renderCount ||
-            reactScan.slowestComponentRenderCount > reactScan.renderCount
-        )
-            addPerformanceAggregateIssue(context, ['reactScan', 'commitCount']);
-        if (
-            reactScan.renderCount === 0 &&
-            (reactScan.slowestComponentRenderCount !== 0 ||
-                reactScan.slowestComponentTotalDurationMs !== 0 ||
-                reactScan.treeTruncated)
-        )
-            addPerformanceAggregateIssue(context, ['reactScan', 'renderCount']);
-        if (
-            ['disabled', 'error'].includes(diagnostic.capabilities.reactScan) &&
-            reactScan.renderCount !== 0
-        )
-            addPerformanceAggregateIssue(context, ['capabilities', 'reactScan']);
     });
 
 export type TerminalRendererDiagnostic = z.infer<typeof terminalRendererDiagnosticSchema>;

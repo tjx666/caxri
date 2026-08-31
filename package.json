@@ -141,7 +141,6 @@
                 "entry": [
                     "src/preload/process-explorer.ts",
                     "src/renderer/src/main.tsx",
-                    "src/renderer/src/features/renderer-performance/react-scan-bootstrap.ts",
                     "src/renderer/src/process-explorer-main.tsx"
                 ]
             },

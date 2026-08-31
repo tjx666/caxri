@@ -17,9 +17,10 @@ description: Measure and protect Caxri startup, Server Core responsiveness, and 
    `CAXRI_BENCHMARK_EDITOR_DETOUR_FILE` that does not contain that text.
    For Renderer re-renders, frame gaps, Long Animation Frames, and interaction latency, run
    `bun run benchmark:renderer` and record `CAXRI_RENDERER_BENCHMARK`. The command owns its isolated
-   Project, uses a profiling React build without observer overhead, exercises every fixed Renderer
-   surface, and writes `test-results/receipts/renderer-performance.json`. Enable
-   `CAXRI_RENDERER_MONITORING=1` only for a separate local attribution run with `react-scan/lite`.
+   Project, seeds eight Sessions plus a populated and expanded file tree, uses a profiling React
+   build without observer overhead, measures one `session.switch`, and writes
+   `test-results/receipts/renderer-performance.json`. Read the fixed `session.select` and
+   `app.bootstrap` request summaries before attributing time to React.
 3. Read the correlated Desktop Main, Server Core, Terminal Host, and Extension Host JSONL logs
    from the active runtime profile's `<userData>/logs/` directory. Use `app.ready`,
    `server_connection.attached`, `window.ready_to_show`, `server_core.ready`, `pty.spawned`,
@@ -42,8 +43,12 @@ description: Measure and protect Caxri startup, Server Core responsiveness, and 
    E2E suites for release or CI parity.
 
 For an interactive Renderer scenario, follow [Renderer performance observability](../../../docs/renderer-performance.md).
-The strict receipt is the source of truth; `react-scan/lite` is an optional attribution layer and must
-not introduce a second schema, a production startup cost, or content-bearing diagnostics.
+The strict receipt is the source of truth. Start a component-level investigation only when three
+exact-head runs identify the same Profiler surface as the regression. Do not rank components by
+subtree-inclusive Fiber `actualDuration`; Caxri removed `react-scan/lite` 0.5.7 after its React 19.2
+commit trees failed the parent/child duration consistency required to derive self time. Add a future
+attribution tool only with bounded, internally consistent output and an avoidable
+props/state/context/hook cause.
 
 The large-Project startup gate requires Server Core, Terminal, Files, and single- or
 multi-repository Git to become usable within three seconds. A performance change must retain that
