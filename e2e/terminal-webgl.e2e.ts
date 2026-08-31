@@ -116,27 +116,30 @@ async function waitForSynchronizedTerminalGrid(page: Page, terminalId: string): 
     const input = pane.locator('.xterm-helper-textarea');
     const rows = pane.locator('.xterm-rows');
     const marker = `CAXRI_WEBGL_GRID_${Date.now()}_`;
-    const probe = String.raw`printf '${marker}%sx%s\n' "$(tput cols)" "$(tput lines)"`;
     let candidate: string | undefined;
     let matchingSamples = 0;
+    let probeSequence = 0;
     let synchronizedGrid: string | undefined;
 
     await expect(surface).toHaveAttribute('data-terminal-attached', 'true');
     await expect
         .poll(async () => {
+            const sampleMarker = `${marker}${probeSequence}_`;
+            probeSequence += 1;
+            const probe = String.raw`printf '${sampleMarker}%sx%s\n' "$(tput cols)" "$(tput lines)"`;
             await input.focus();
             await input.pressSequentially(probe);
             await input.press('Enter');
+            await expect(rows).toContainText(new RegExp(String.raw`${sampleMarker}\d+x\d+`, 'u'));
             const [rendererGrid, terminalText] = await Promise.all([
                 surface.evaluate(
                     (element) => (element as HTMLElement).dataset.terminalGrid ?? null,
                 ),
                 rows.textContent(),
             ]);
-            const ptyGrid = (terminalText ?? '')
-                .matchAll(new RegExp(String.raw`${marker}(\d+x\d+)`, 'g'))
-                .toArray()
-                .at(-1)?.[1];
+            const ptyGrid = (terminalText ?? '').match(
+                new RegExp(String.raw`${sampleMarker}(\d+x\d+)`, 'u'),
+            )?.[1];
             if (!rendererGrid || rendererGrid !== ptyGrid) {
                 candidate = undefined;
                 matchingSamples = 0;
