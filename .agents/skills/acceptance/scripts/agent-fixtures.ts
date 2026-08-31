@@ -44,6 +44,7 @@ const sqliteRoot = process.env.CODEX_SQLITE_HOME;
 const receiptPath = path.join(stateRoot, 'acceptance-receipts.jsonl');
 const modePath = path.join(stateRoot, 'acceptance-next-generation.json');
 const releasePath = path.join(stateRoot, 'acceptance-release-generation');
+const echoTerminalInputPath = path.join(stateRoot, 'acceptance-echo-terminal-input');
 const counterPath = path.join(stateRoot, 'acceptance-generation-count');
 const privateMarker = 'CAXRI_ACCEPTANCE_PRIVATE_' + provider.toUpperCase();
 const quote = (value) => "'" + String(value).replaceAll("'", "''") + "'";
@@ -285,6 +286,15 @@ let input = '';
 process.stdin.setRawMode?.(true);
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', (chunk) => {
+  // Opt-in echo makes unsent PTY input observable without exposing a host Agent process.
+  if (fs.existsSync(echoTerminalInputPath)) {
+    appendReceipt({
+      inputContainsPrivateMarker: chunk.includes(privateMarker),
+      kind: 'terminalChunk',
+      length: chunk.length,
+    });
+    process.stdout.write(chunk);
+  }
   input += chunk;
   const lines = input.split(/\r?\n|\r/);
   input = lines.pop() ?? '';
