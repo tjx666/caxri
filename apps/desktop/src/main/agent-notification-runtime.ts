@@ -1,9 +1,11 @@
+import process from 'node:process';
+
 import { isCaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 import type { BrowserWindow } from 'electron';
-import { Notification } from 'electron';
 
+import { createAgentNotificationDelivery } from './agent-notification-delivery';
 import type { AgentNotificationCoordinator } from './agent-notifications';
 import { createAgentNotificationCoordinator } from './agent-notifications';
 import type { DesktopServerConnection } from './server-connection';
@@ -44,6 +46,10 @@ export function createDesktopAgentNotifications({
     logger,
     supervisor,
 }: DesktopAgentNotificationOptions): AgentNotificationCoordinator {
+    const delivery = createAgentNotificationDelivery({
+        forceNative: process.env.CAXRI_E2E === '1',
+        logger,
+    });
     return createAgentNotificationCoordinator({
         activateSession: (sessionId) =>
             activateAgentNotificationSession({ focusMainWindow, supervisor }, sessionId),
@@ -71,17 +77,6 @@ export function createDesktopAgentNotifications({
                 fields: { errorKind },
             });
         },
-        showNotification: (notification, onClick) => {
-            if (!Notification.isSupported()) return;
-            const nativeNotification = new Notification(notification);
-            nativeNotification.on('click', onClick);
-            nativeNotification.show();
-            return {
-                close: () => {
-                    nativeNotification.removeListener('click', onClick);
-                    nativeNotification.close();
-                },
-            };
-        },
+        showNotification: (notification, onClick) => delivery.show(notification, onClick),
     });
 }

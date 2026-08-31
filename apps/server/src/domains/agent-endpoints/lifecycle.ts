@@ -166,6 +166,11 @@ export class AgentEndpointLifecycle {
             terminalId: terminal.id,
         });
         return {
+            /**
+             * Public, non-authorizing marker inherited by provider hooks. Personal notification hooks use it to avoid
+             * duplicating Caxri-owned notifications without depending on Endpoint credentials or internal identities.
+             */
+            CAXRI_MANAGED_AGENT: '1',
             CAXRI_AGENT_ENDPOINT_HOST_ID: endpoint.ref.hostId,
             CAXRI_AGENT_ENDPOINT_ID: endpoint.ref.endpointId,
             CAXRI_AGENT_ENDPOINT_GENERATION: String(endpoint.ref.generation),

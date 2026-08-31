@@ -27,6 +27,7 @@ export const logEventCatalog = {
         signalRejected: 'agent_hooks.signal_rejected',
     },
     agentNotifications: {
+        deliveryFallback: 'agent_notifications.delivery_fallback',
         operationFailed: 'agent_notifications.operation_failed',
     },
     app: {
