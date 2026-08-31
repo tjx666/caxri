@@ -558,6 +558,14 @@ test('Terminal detected-link picker opens file and OSC 8 links without a pointer
         );
         const terminalInput = running.page.locator('.xterm-helper-textarea');
         await expect(running.page.locator('.xterm-rows')).toContainText('OSC link label');
+        /**
+         * Under a loaded parallel CI run, xterm can paint the label before parsing the closing OSC 8 sequence. The
+         * picker snapshots tracked targets when it opens, so wait for the later shell-integration completion marker
+         * before activating it instead of freezing an incomplete link snapshot.
+         */
+        await expect(running.page.locator('.terminal-command-status')).toHaveText(
+            'Command completed successfully.',
+        );
 
         const openLink = async (target: string, accessibleName: string): Promise<void> => {
             await terminalInput.focus();
