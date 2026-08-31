@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { terminalLinkHintPosition } from '../terminal-link-hint';
 import type { TerminalLinkContext } from '../terminal-links';
 import {
     findTerminalLinks,
@@ -8,6 +7,7 @@ import {
     MAX_TERMINAL_DETECTED_LINKS,
     registerTerminalLinks,
     TERMINAL_DEFAULT_WORD_SEPARATORS,
+    terminalLinkHintText,
 } from '../terminal-links';
 import { cellsFor, createTerminal } from './terminal-links-test-helpers';
 
@@ -21,6 +21,15 @@ describe('findTerminalLinks', () => {
                 target: 'https://example.com/a_(b)',
                 text: 'https://example.com/a_(b)',
             },
+        ]);
+    });
+
+    it('describes the destination for plain URL and file links', () => {
+        const links = findTerminalLinks('https://example.com src/example.ts:12');
+
+        expect(links.map(terminalLinkHintText)).toEqual([
+            '⌘ click to open in browser',
+            '⌘ click to open in editor',
         ]);
     });
 
@@ -300,15 +309,6 @@ describe('findTerminalLinks', () => {
 
         expect(findTerminalLinks(text)).toEqual([]);
         expect(performance.now() - startedAt).toBeLessThan(500);
-    });
-});
-
-describe('terminalLinkHintPosition', () => {
-    it('offsets the hint above and to the right of the pointer', () => {
-        expect(terminalLinkHintPosition({ clientX: 100, clientY: 200 })).toEqual({
-            left: 112,
-            top: 172,
-        });
     });
 });
 
@@ -683,7 +683,7 @@ describe('registerTerminalLinks', () => {
         registration.dispose();
     });
 
-    it('ignores a bare click without the Cmd/Ctrl activation modifier', async () => {
+    it('ignores bare and Ctrl clicks without the macOS Cmd activation modifier', async () => {
         const text = 'https://example.com';
         const terminal = createTerminal(text, cellsFor(text));
         const { context, openUrl } = baseContext();
@@ -691,6 +691,7 @@ describe('registerTerminalLinks', () => {
 
         const links = await terminal.links();
         links?.[0].activate({} as MouseEvent, links[0].text);
+        links?.[0].activate({ ctrlKey: true } as MouseEvent, links[0].text);
         expect(openUrl).not.toHaveBeenCalled();
     });
 

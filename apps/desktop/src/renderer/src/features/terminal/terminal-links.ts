@@ -26,6 +26,8 @@ const EXPLICIT_TERMINAL_URL_PATTERN = /https?:\/\/[^\s<>"'`]+/giu;
  */
 const PLAIN_TEXT_URL_PATTERN = /https?:\/\/[^\s<>"'`、，。；：！？）]+/giu;
 const TRAILING_PUNCTUATION = new Set(['.', ',', ';', ':', '!', '?', '"', "'", '`']);
+const TERMINAL_FILE_LINK_HINT_TEXT = '⌘ click to open in editor';
+const TERMINAL_URL_LINK_HINT_TEXT = '⌘ click to open in browser';
 
 /**
  * Matches the VS Code `terminal.integrated.wordSeparators` default (leading space included). The
@@ -483,11 +485,10 @@ export function findTerminalLinks(
 
 /**
  * Matches VS Code/iTerm2: a link only activates while the platform's "open" modifier is held, instead of on a bare
- * click. Caxri ships only on macOS (Cmd); Ctrl is also accepted so an external/non-Mac keyboard layout still works
- * without per-platform detection.
+ * click. Caxri ships only on macOS, where Ctrl+click is reserved for the secondary-click gesture.
  */
 function hasLinkActivationModifier(event: MouseEvent): boolean {
-    return event.metaKey || event.ctrlKey;
+    return event.metaKey;
 }
 
 /**
@@ -512,6 +513,15 @@ function activateLinkFromPointer(
     context: TerminalLinkContext,
 ): void {
     if (hasLinkActivationModifier(event)) activateLink(match, context);
+}
+
+export function terminalLinkHintText(match: Pick<TerminalLinkMatch, 'hint' | 'kind'>): string {
+    if (match.hint) return match.hint;
+    return match.kind === 'url'
+        ? TERMINAL_URL_LINK_HINT_TEXT
+        : match.kind === 'commit'
+          ? '⌘ click to show commit in Git'
+          : TERMINAL_FILE_LINK_HINT_TEXT;
 }
 
 export function createDetectedLink(
@@ -625,24 +635,23 @@ function linksForLogicalLine(
         const start = logicalLine.positions.at(match.startIndex);
         const end = logicalLine.positions.at(match.endIndex - 1);
         if (!start || !end) return [];
-        return [
-            {
-                activate: (event) => activateLinkFromPointer(event, match, context),
-                /**
-                 * The cursor/underline stay unconditional on hover rather than gated behind a live Cmd/Ctrl check:
-                 * xterm only recomputes decorations when a link is (re)provided, so gating on the held modifier would
-                 * need global keydown/keyup listeners forcing a fresh `provideLinks` pass (and a visible redraw) on
-                 * every modifier press while the mouse sits still. The `hover` callback below instead shows a "⌘ click
-                 * to open" tooltip, telling the user what a bare click cannot do without that churn — the same tradeoff
-                 * VS Code's terminal makes for its link hover text.
-                 */
-                decorations: { pointerCursor: true, underline: true },
-                hover: (event) => hint.show(event, match.hint),
-                leave: () => hint.hide(),
-                range: { start, end },
-                text: match.text,
-            },
-        ];
+        const link: ILink = {
+            activate: (event) => activateLinkFromPointer(event, match, context),
+            /**
+             * High-confidence links stay underlined, while the pointer follows the live Cmd state. The hover controller
+             * waits until xterm installs its public decoration setters, then updates them without reproviding the
+             * link.
+             */
+            decorations: { pointerCursor: false, underline: true },
+            hover: (event) =>
+                hint.show(event, terminalLinkHintText(match), (isModifierDown) => {
+                    if (link.decorations) link.decorations.pointerCursor = isModifierDown;
+                }),
+            leave: () => hint.hide(),
+            range: { start, end },
+            text: match.text,
+        };
+        return [link];
     });
 }
 
@@ -741,6 +750,13 @@ export function registerTerminalLinks(
         activate(event, text) {
             const match = exactTerminalLinkTarget(text, context.wordSeparators);
             if (match) activateLinkFromPointer(event, match, context);
+        },
+        hover(event, text) {
+            const match = exactTerminalLinkTarget(text, context.wordSeparators);
+            if (match) hint.show(event, terminalLinkHintText(match));
+        },
+        leave() {
+            hint.hide();
         },
         /**
          * File URLs are allowed into the handler, then constrained by the Server-rooted read.

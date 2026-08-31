@@ -601,7 +601,10 @@ async function terminalTextBounds(page: Page, text: string) {
         let matched: { x: number; y: number; width: number; height: number } | undefined;
         for (const row of rows.children) {
             const rowText = row.textContent;
-            const targetStart = rowText.indexOf(target);
+            /**
+             * Xterm renders cell spaces as non-breaking spaces; normalization preserves one code unit per cell.
+             */
+            const targetStart = rowText.replaceAll('\u{A0}', ' ').indexOf(target);
             if (targetStart === -1) continue;
             const found = findTextNodeRange(row, targetStart);
             if (!found) continue;
@@ -609,7 +612,17 @@ async function terminalTextBounds(page: Page, text: string) {
             range.setStart(found.start.node, found.start.offset);
             range.setEnd(found.end.node, found.end.offset);
             const bounds = range.getBoundingClientRect();
-            matched = { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height };
+            const candidate = {
+                x: bounds.x,
+                y: bounds.y,
+                width: bounds.width,
+                height: bounds.height,
+            };
+            /**
+             * Xterm can recycle screen rows in a DOM order that differs from their visual order. Prefer the bottom-most
+             * visible occurrence so echoed commands do not win over their later output.
+             */
+            if (!matched || candidate.y > matched.y) matched = candidate;
         }
         return matched ?? null;
     }, text);
@@ -619,7 +632,11 @@ async function terminalTextBounds(page: Page, text: string) {
  * Moves off the target row before waiting for xterm's asynchronous link provider. xterm caches an empty provider result
  * when output replaces a blank row beneath a stationary pointer.
  */
-export async function clickTerminalLink(page: Page, text: string): Promise<void> {
+export async function hoverTerminalLink(
+    page: Page,
+    text: string,
+    options: { expectPointerClass?: boolean } = {},
+) {
     await expect.poll(() => terminalTextBounds(page, text)).not.toBeNull();
     const bounds = await terminalTextBounds(page, text);
     if (!bounds) throw new Error(`Terminal text not found: ${text}`);
@@ -636,10 +653,21 @@ export async function clickTerminalLink(page: Page, text: string): Promise<void>
     const resetRow = Math.abs(y - firstY) > Math.abs(y - lastY) ? firstRow : lastRow;
     await page.mouse.move(resetRow.x + 2, resetRow.y + resetRow.height / 2);
     await expect(page.locator('.xterm-cursor-pointer')).toHaveCount(0);
+    await expect(page.locator('.terminal-link-hint')).toHaveCount(0);
     await page.mouse.move(x, y);
-    await expect(page.locator('.xterm-cursor-pointer')).toBeVisible();
+    if (options.expectPointerClass)
+        await expect(page.locator('.xterm-cursor-pointer')).toBeVisible();
+    else await expect(page.locator('.xterm-cursor-pointer')).toHaveCount(0);
+    return bounds;
+}
+
+export async function clickTerminalLink(page: Page, text: string): Promise<void> {
+    const bounds = await hoverTerminalLink(page, text);
+    const x = bounds.x + bounds.width / 2;
+    const y = bounds.y + bounds.height / 2;
     await page.keyboard.down('Meta');
     try {
+        await expect(page.locator('.xterm-cursor-pointer')).toBeVisible();
         await page.mouse.click(x, y);
     } finally {
         await page.keyboard.up('Meta');
