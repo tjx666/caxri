@@ -3,6 +3,7 @@ import { Buffer } from 'node:buffer';
 import {
     agentProviderSchema,
     identifierSchema,
+    MAX_TERMINAL_INPUT_LENGTH,
     pathSchema,
     serverCredentialTokenSchema,
     serverProcessIdentitySchema,
@@ -150,7 +151,7 @@ const terminalRequestSchemas = [
     z
         .object({
             method: z.literal('terminal.input'),
-            params: z.object({ data: z.string().max(65_536) }).strict(),
+            params: z.object({ data: z.string().max(MAX_TERMINAL_INPUT_LENGTH) }).strict(),
         })
         .strict(),
     z

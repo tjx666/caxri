@@ -20,10 +20,10 @@ interface TerminalInputHandlerOptions {
 export function createTerminalInputHandler(
     options: TerminalInputHandlerOptions,
 ): DomainHandlers['terminal.input'] {
-    return ({ terminalId, data }) => {
+    return async ({ terminalId, data }, abortSignal) => {
         const terminal = options.database.getTerminal(terminalId);
         assertE2EAgentInputFromEnvironment(terminal?.provider);
-        const accepted = options.terminals.write(terminalId, data);
+        const accepted = await options.terminals.writeAcknowledged(terminalId, data, abortSignal);
         const didSubmit =
             accepted &&
             options.terminals.processId(terminalId) !== undefined &&

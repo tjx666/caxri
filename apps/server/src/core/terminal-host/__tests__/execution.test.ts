@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { TerminalRecord, TerminalSnapshot } from '@caxri/protocol';
-import { MAX_TERMINAL_INPUT_LENGTH } from '@caxri/protocol';
+import { MAX_TERMINAL_INPUT_LENGTH, MAX_TERMINAL_INPUT_PAYLOAD_LENGTH } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -46,8 +46,10 @@ class FakeTerminalHostControl implements TerminalHostControl {
     private readonly exitListeners = new Set<
         (event: { code: number; signal: NodeJS.Signals | null }) => void
     >();
-    private readonly inputResolvers: Array<() => void> = [];
+    private readonly inputResolvers: Array<{ resolve(): void }> = [];
     private readonly resizeResolvers: Array<() => void> = [];
+    declineNextInput = false;
+    failNextInput?: Error;
     readonly requests: Array<{ request: TerminalHostRequest; scope: TerminalHostScope }> = [];
     holdInputRequests = false;
     holdResizeRequests = false;
@@ -70,7 +72,11 @@ class FakeTerminalHostControl implements TerminalHostControl {
         return () => this.exitListeners.delete(listener);
     }
 
-    request(request: TerminalHostRequest, scope: TerminalHostScope): Promise<unknown> {
+    request(
+        request: TerminalHostRequest,
+        scope: TerminalHostScope,
+        signal?: AbortSignal,
+    ): Promise<unknown> {
         this.requests.push({ request, scope });
         switch (request.method) {
             case 'terminal.reserve':
@@ -82,10 +88,34 @@ class FakeTerminalHostControl implements TerminalHostControl {
             case 'terminal.stop':
                 return Promise.resolve({ snapshot, stopped: true });
             case 'terminal.input':
+                if (this.declineNextInput) {
+                    this.declineNextInput = false;
+                    return Promise.resolve({ accepted: false });
+                }
+                if (this.failNextInput) {
+                    const error = this.failNextInput;
+                    this.failNextInput = undefined;
+                    return Promise.reject(error);
+                }
                 if (!this.holdInputRequests) return Promise.resolve({ accepted: true });
-                return new Promise((resolve) =>
-                    this.inputResolvers.push(() => resolve({ accepted: true })),
-                );
+                return new Promise((resolve, reject) => {
+                    let isSettled = false;
+                    const abort = (): void => {
+                        if (isSettled) return;
+                        isSettled = true;
+                        signal?.removeEventListener('abort', abort);
+                        reject(new Error('input aborted'));
+                    };
+                    signal?.addEventListener('abort', abort, { once: true });
+                    this.inputResolvers.push({
+                        resolve() {
+                            if (isSettled) return;
+                            isSettled = true;
+                            signal?.removeEventListener('abort', abort);
+                            resolve({ accepted: true });
+                        },
+                    });
+                });
             case 'terminal.resize':
                 if (!this.holdResizeRequests) return Promise.resolve({ accepted: true });
                 return new Promise((resolve) =>
@@ -97,7 +127,7 @@ class FakeTerminalHostControl implements TerminalHostControl {
     }
 
     releaseInput(): void {
-        this.inputResolvers.shift()?.();
+        this.inputResolvers.shift()?.resolve();
     }
 
     releaseResize(): void {
@@ -477,6 +507,207 @@ describe('architecture-a3b-terminal-host: RemoteTerminalExecution', () => {
             ).toHaveLength(5),
         );
         control.releaseInput();
+    });
+
+    it('drains oversized public input through surrogate-safe private requests', async () => {
+        const { control, execution } = createExecution();
+        control.holdInputRequests = true;
+        await execution.attach(terminal.id);
+        await execution.reserve(terminal);
+        await execution.start({
+            args: [],
+            environment: {},
+            executable: '/bin/zsh',
+            initialSnapshot: null,
+            record: terminal,
+        });
+        const data = `${'x'.repeat(MAX_TERMINAL_INPUT_LENGTH - 1)}🙂tail`;
+
+        const drained = execution.writeAcknowledged(terminal.id, data);
+        await vi.waitFor(() => {
+            const inputs = control.requests.filter(
+                ({ request }) => request.method === 'terminal.input',
+            );
+            expect(inputs).toHaveLength(1);
+            expect(
+                (inputs[0].request as Extract<TerminalHostRequest, { method: 'terminal.input' }>)
+                    .params.data,
+            ).toBe('x'.repeat(MAX_TERMINAL_INPUT_LENGTH - 1));
+        });
+        expect(await Promise.race([drained, Promise.resolve('pending')])).toBe('pending');
+
+        control.releaseInput();
+        await vi.waitFor(() =>
+            expect(
+                control.requests.filter(({ request }) => request.method === 'terminal.input'),
+            ).toHaveLength(2),
+        );
+        const inputs = control.requests
+            .filter(({ request }) => request.method === 'terminal.input')
+            .map(
+                ({ request }) =>
+                    (request as Extract<TerminalHostRequest, { method: 'terminal.input' }>).params
+                        .data,
+            );
+        expect(inputs[1]).toBe('🙂tail');
+        expect(inputs.join('')).toBe(data);
+        expect(await Promise.race([drained, Promise.resolve('pending')])).toBe('pending');
+
+        control.releaseInput();
+        await expect(drained).resolves.toBe(true);
+    });
+
+    it('rejects cancelled or failed delivery receipts and accepts later input', async () => {
+        const { control, execution } = createExecution();
+        control.holdInputRequests = true;
+        await execution.attach(terminal.id);
+        await execution.reserve(terminal);
+        await execution.start({
+            args: [],
+            environment: {},
+            executable: '/bin/zsh',
+            initialSnapshot: null,
+            record: terminal,
+        });
+
+        const cancellation = new AbortController();
+        const cancelled = execution.writeAcknowledged(
+            terminal.id,
+            'x'.repeat(MAX_TERMINAL_INPUT_LENGTH + 1),
+            cancellation.signal,
+        );
+        await vi.waitFor(() =>
+            expect(
+                control.requests.filter(({ request }) => request.method === 'terminal.input'),
+            ).toHaveLength(1),
+        );
+        cancellation.abort();
+        await expect(cancelled).rejects.toMatchObject({ code: 'CANCELLED' });
+
+        control.holdInputRequests = false;
+        control.failNextInput = new Error('seeded input failure');
+        await expect(execution.writeAcknowledged(terminal.id, 'failed')).rejects.toThrow(
+            'seeded input failure',
+        );
+        await expect(execution.writeAcknowledged(terminal.id, 'recovered')).resolves.toBe(true);
+    });
+
+    it('rejects input declined by an exited private Terminal and accepts later input', async () => {
+        const { control, execution } = createExecution();
+        await execution.attach(terminal.id);
+        await execution.reserve(terminal);
+        await execution.start({
+            args: [],
+            environment: {},
+            executable: '/bin/zsh',
+            initialSnapshot: null,
+            record: terminal,
+        });
+
+        control.declineNextInput = true;
+        await expect(execution.writeAcknowledged(terminal.id, 'declined')).rejects.toMatchObject({
+            code: 'UNAVAILABLE',
+        });
+        await expect(execution.writeAcknowledged(terminal.id, 'recovered')).resolves.toBe(true);
+    });
+
+    it('rejects a delivery receipt when the Terminal attachment changes', async () => {
+        const { control, execution } = createExecution();
+        control.holdInputRequests = true;
+        await execution.attach(terminal.id);
+        await execution.reserve(terminal);
+        await execution.start({
+            args: [],
+            environment: {},
+            executable: '/bin/zsh',
+            initialSnapshot: null,
+            record: terminal,
+        });
+
+        const pending = execution.writeAcknowledged(terminal.id, 'pending');
+        await vi.waitFor(() =>
+            expect(
+                control.requests.filter(({ request }) => request.method === 'terminal.input'),
+            ).toHaveLength(1),
+        );
+        await execution.attach(terminal.id);
+        await expect(pending).rejects.toMatchObject({ code: 'CONFLICT' });
+
+        control.holdInputRequests = false;
+        await expect(execution.writeAcknowledged(terminal.id, 'recovered')).resolves.toBe(true);
+    });
+
+    it('rejects input accepted while Terminal Host shutdown is in progress', async () => {
+        const { control, execution } = createExecution();
+        const shutdownStarted = Promise.withResolvers<void>();
+        const releaseShutdown = Promise.withResolvers<void>();
+        vi.spyOn(control, 'shutdown').mockImplementationOnce(async () => {
+            shutdownStarted.resolve();
+            await releaseShutdown.promise;
+            return [snapshot];
+        });
+        control.holdInputRequests = true;
+        await execution.attach(terminal.id);
+        await execution.reserve(terminal);
+        await execution.start({
+            args: [],
+            environment: {},
+            executable: '/bin/zsh',
+            initialSnapshot: null,
+            record: terminal,
+        });
+
+        const shutdown = execution.shutdown();
+        await shutdownStarted.promise;
+        const outcome = (async () => {
+            try {
+                await execution.writeAcknowledged(terminal.id, 'arrived during shutdown');
+                return { status: 'resolved' as const };
+            } catch (error) {
+                return { error, status: 'rejected' as const };
+            }
+        })();
+        await vi.waitFor(() =>
+            expect(
+                control.requests.filter(({ request }) => request.method === 'terminal.input'),
+            ).toHaveLength(1),
+        );
+
+        releaseShutdown.resolve();
+        await shutdown;
+        await expect(
+            Promise.race([
+                outcome,
+                new Promise<{ status: 'pending' }>((resolve) =>
+                    setImmediate(() => resolve({ status: 'pending' })),
+                ),
+            ]),
+        ).resolves.toMatchObject({
+            error: { code: 'UNAVAILABLE' },
+            status: 'rejected',
+        });
+    });
+
+    it('rejects an oversized public input before sending a private request', async () => {
+        const { control, execution } = createExecution();
+        await execution.attach(terminal.id);
+        await execution.reserve(terminal);
+        await execution.start({
+            args: [],
+            environment: {},
+            executable: '/bin/zsh',
+            initialSnapshot: null,
+            record: terminal,
+        });
+        const requestsBeforeInput = control.requests.length;
+
+        await expect(
+            execution.writeAcknowledged(
+                terminal.id,
+                'x'.repeat(MAX_TERMINAL_INPUT_PAYLOAD_LENGTH + 1),
+            ),
+        ).resolves.toBe(false);
+        expect(control.requests).toHaveLength(requestsBeforeInput);
     });
 
     it('collapses resize bursts to the latest dimensions', async () => {

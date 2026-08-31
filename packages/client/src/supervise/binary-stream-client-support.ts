@@ -11,8 +11,10 @@ import type {
 import {
     BINARY_STREAM_MAX_BUFFERED_BYTES,
     BINARY_STREAM_MAX_CHUNK_BYTES,
+    binaryStreamAuthorization,
     binaryStreamReplySchema,
     CaxriError,
+    decodeBinaryStreamFrame,
     encodeBinaryStreamFrame,
 } from '@caxri/protocol';
 import type { RawData } from 'ws';
@@ -31,6 +33,91 @@ export interface BinaryStreamClientOptions {
     issueTicket(id: string, operation: BinaryStreamOperation): Promise<BinaryStreamTicketGrant>;
     onTerminalTransportFailure(): void;
     timeoutMs: number;
+}
+
+export abstract class ClientBinarySocket {
+    private accumulator?: FrameAccumulator;
+    private isOpen = false;
+    private readonly opened = Promise.withResolvers<void>();
+    protected readonly socket: WebSocket;
+    protected readonly writer: ClientSocketWriter;
+
+    constructor(
+        endpoint: ServerControlEndpoint,
+        grant: BinaryStreamTicketGrant,
+        timeoutMs: number,
+    ) {
+        this.socket = new WebSocket(streamUrl(endpoint, grant.path), {
+            headers: { authorization: binaryStreamAuthorization(grant.ticket) },
+            maxPayload: BINARY_STREAM_MAX_CHUNK_BYTES + 16,
+        });
+        this.writer = new ClientSocketWriter(this.socket);
+        const timer = setTimeout(() => {
+            this.opened.reject(new CaxriError('TIMEOUT', 'Caxri Server stream timed out'));
+            this.socket.terminate();
+        }, timeoutMs);
+        this.socket.once('open', () => {
+            clearTimeout(timer);
+            this.isOpen = true;
+            this.opened.resolve();
+        });
+        this.socket.on('message', (data, isBinary) => this.receive(data, isBinary));
+        this.socket.once('close', (code, reason) => {
+            clearTimeout(timer);
+            if (!this.isOpen) this.opened.reject(streamCloseError(code, reason.toString()));
+            this.handleClose(code, reason.toString());
+        });
+        this.socket.on('error', () => {});
+    }
+
+    private receive(data: RawData, isBinary: boolean): void {
+        if (!isBinary) {
+            this.fail(new CaxriError('VALIDATION', 'Binary stream received a text frame'));
+            return;
+        }
+        try {
+            this.handleFrame(decodeBinaryStreamFrame(rawBytes(data)));
+        } catch (error) {
+            this.fail(error);
+        }
+    }
+
+    protected waitForOpen(): Promise<void> {
+        return this.opened.promise;
+    }
+
+    protected collect(frame: BinaryStreamFrame, maximumBytes: number): Uint8Array | undefined {
+        this.accumulator ??= {
+            byteLength: 0,
+            chunks: [],
+            kind: frame.kind,
+            sequence: frame.sequence,
+        };
+        if (this.accumulator.kind !== frame.kind || this.accumulator.sequence !== frame.sequence)
+            throw new CaxriError('VALIDATION', 'Binary stream frame group was interleaved');
+        this.accumulator.byteLength += frame.payload.byteLength;
+        if (this.accumulator.byteLength > maximumBytes)
+            throw new CaxriError('CAPACITY', 'Binary stream input exceeded its byte budget');
+        this.accumulator.chunks.push(frame.payload);
+        if (!frame.final) return;
+        const completed = combine(this.accumulator.chunks, this.accumulator.byteLength);
+        this.accumulator = undefined;
+        return completed;
+    }
+
+    protected assertNoPartialGroup(): void {
+        if (this.accumulator)
+            throw new CaxriError('VALIDATION', 'Binary stream frame group was interleaved');
+    }
+
+    protected close(): void {
+        if (this.socket.readyState === WebSocket.OPEN) this.socket.close(4000, 'completed');
+        else if (this.socket.readyState !== WebSocket.CLOSED) this.socket.terminate();
+    }
+
+    protected abstract fail(error: unknown): void;
+    protected abstract handleClose(code: number, reason: string): void;
+    protected abstract handleFrame(frame: BinaryStreamFrame): void;
 }
 
 export class ClientSocketWriter {
@@ -108,13 +195,13 @@ export class ClientSocketWriter {
     }
 }
 
-export function rawBytes(data: RawData): Uint8Array {
+function rawBytes(data: RawData): Uint8Array {
     if (Buffer.isBuffer(data)) return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
     if (data instanceof ArrayBuffer) return new Uint8Array(data);
     return new Uint8Array(Buffer.concat(data));
 }
 
-export function combine(chunks: readonly Uint8Array[], byteLength: number): Uint8Array {
+function combine(chunks: readonly Uint8Array[], byteLength: number): Uint8Array {
     const combined = new Uint8Array(byteLength);
     let offset = 0;
     for (const chunk of chunks) {
@@ -124,7 +211,7 @@ export function combine(chunks: readonly Uint8Array[], byteLength: number): Uint
     return combined;
 }
 
-export function streamUrl(endpoint: ServerControlEndpoint, path: string): string {
+function streamUrl(endpoint: ServerControlEndpoint, path: string): string {
     return `${endpoint.protocol}://${endpoint.host}:${endpoint.port}${path}`;
 }
 

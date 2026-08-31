@@ -99,4 +99,12 @@ export interface TerminalExecutionPort {
         abortSignal?: AbortSignal,
     ): Promise<void>;
     write(terminalId: string, data: string): boolean;
+    /**
+     * Resolves after the private Terminal Host acknowledges every ordered input frame.
+     */
+    writeAcknowledged(
+        terminalId: string,
+        data: string,
+        abortSignal?: AbortSignal,
+    ): Promise<boolean>;
 }
