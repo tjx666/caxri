@@ -368,7 +368,7 @@ describe('Go state ledger', () => {
         recordAcceptance(state, {
             status: 'waived',
             waivedHeadSha: 'head-1',
-            waiverReason: 'User explicitly waived desktop Acceptance for skill-only changes.',
+            waiverReason: 'User explicitly waived Acceptance for skill-only changes.',
         });
         transitionState(state, 'acceptance_handoff');
 
