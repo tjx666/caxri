@@ -9,7 +9,7 @@ import type {
     TreeChildrenResult,
     ViewCatalogSnapshot,
 } from '@caxri/protocol';
-import { methods } from '@caxri/protocol';
+import { CaxriError, methods } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
@@ -629,18 +629,27 @@ export class ExtensionService extends EventTarget {
             });
         } catch (error) {
             /**
-             * A nested domain request can reject before this outer view fence runs. Preserve an Extension Host
-             * generation failure when that lifecycle actually changed; otherwise a retired Renderer scope owns the
-             * outcome and must remain a typed cancellation instead of leaking domain conflict/generation details.
+             * A nested domain request can reject before this outer view fence runs, so a retired Renderer scope must
+             * own the outcome before Extension failures are translated. Superseded reads are also normal request
+             * retirement: Extension-only GENERATION_EXPIRED is not a public wire code, so letting it escape would decay
+             * to INTERNAL and turn recovery races into false faults.
              */
             if (this.states.get(extension.extensionId)?.generation === generation)
                 assertActiveViewContext(parameters.context, await this.options.activeContext());
+            const failure = extensionFailure(error);
+            if (
+                readViewOperations.has(parameters.operation) &&
+                failure.code === 'GENERATION_EXPIRED'
+            )
+                throw new CaxriError('CANCELLED', failure.message);
             throw error;
         }
-        if (this.states.get(extension.extensionId)?.generation !== generation)
-            throw Object.assign(new Error('View provider generation expired'), {
-                code: 'GENERATION_EXPIRED',
-            });
+        if (this.states.get(extension.extensionId)?.generation !== generation) {
+            const message = 'View provider generation expired';
+            if (readViewOperations.has(parameters.operation))
+                throw new CaxriError('CANCELLED', message);
+            throw Object.assign(new Error(message), { code: 'GENERATION_EXPIRED' });
+        }
         if (readViewOperations.has(parameters.operation))
             assertActiveViewContext(parameters.context, await this.options.activeContext());
         return validatedExtensionWorkspaceResult(parameters.operation, result);
