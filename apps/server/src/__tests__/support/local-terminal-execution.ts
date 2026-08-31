@@ -130,6 +130,10 @@ export class LocalTerminalExecution extends EventTarget implements TerminalExecu
         return this.engine.write(terminalId, data);
     }
 
+    writeAcknowledged(terminalId: string, data: string): Promise<boolean> {
+        return Promise.resolve(this.engine.write(terminalId, data));
+    }
+
     configureOutputRecovery(): void {
         this.engine.reconcileOutputRecoverySettings();
     }

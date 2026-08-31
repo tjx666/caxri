@@ -11,7 +11,9 @@ import {
     MAX_CONFIGURATION_SOURCE_BYTES,
     MAX_FILE_BROWSE_ENTRIES,
     MAX_KEYBINDINGS,
+    MAX_TERMINAL_INPUT_LENGTH,
     methods,
+    parseCaxriRequest,
     parseCaxriResult,
     parseServerOperationRequest,
     parseServerOperationResult,
@@ -52,6 +54,21 @@ describe('method table', () => {
         expect(methods['app.bootstrap'].params.safeParse(undefined).success).toBe(true);
         expect(methods['terminal.runningCount'].params.safeParse(undefined).success).toBe(true);
         expect(methods['files.read'].params.safeParse(undefined).success).toBe(false);
+    });
+
+    it('accepts one bounded paste larger than a private Terminal Host input frame', () => {
+        expect(() =>
+            parseCaxriRequest('terminal.input', {
+                terminalId: 'terminal-1',
+                data: 'x'.repeat(MAX_TERMINAL_INPUT_LENGTH + 1),
+            }),
+        ).not.toThrow();
+        expect(() =>
+            parseCaxriRequest('terminal.input', {
+                terminalId: 'terminal-1',
+                data: 'x'.repeat(1_048_577),
+            }),
+        ).toThrow();
     });
 
     it('defaults Terminal restart to resuming the bound Agent session', () => {

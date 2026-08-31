@@ -138,7 +138,7 @@ interface PendingTerminalRequest {
     reject(error: Error): void;
     resolve(result: TerminalSnapshot | null): void;
     snapshot?: BinaryStreamTerminalSnapshotMetadata;
-    timer: NodeJS.Timeout;
+    timer?: NodeJS.Timeout;
 }
 
 class TerminalStreamClient extends ClientBinarySocket {
@@ -190,13 +190,18 @@ class TerminalStreamClient extends ClientBinarySocket {
         method: PendingTerminalRequest['method'],
     ): Promise<TerminalSnapshot | null> {
         return new Promise((resolve, reject) => {
-            const timer = setTimeout(() => {
-                this.pending.delete(sequence);
-                this.resolveDrain();
-                reject(new CaxriError('TIMEOUT', `Caxri Server stream timed out: ${method}`));
-                this.close();
-            }, this.options.timeoutMs);
-            this.pending.set(sequence, { method, reject, resolve, timer });
+            const timer =
+                method === 'terminal.input'
+                    ? undefined
+                    : setTimeout(() => {
+                          this.pending.delete(sequence);
+                          this.resolveDrain();
+                          reject(
+                              new CaxriError('TIMEOUT', `Caxri Server stream timed out: ${method}`),
+                          );
+                          this.close();
+                      }, this.options.timeoutMs);
+            this.pending.set(sequence, { method, reject, resolve, ...(timer && { timer }) });
         });
     }
 
@@ -209,7 +214,7 @@ class TerminalStreamClient extends ClientBinarySocket {
     private settleError(sequence: number, error: unknown): void {
         const pending = this.pending.get(sequence);
         if (!pending) throw new CaxriError('VALIDATION', 'Binary Terminal reply is unexpected');
-        clearTimeout(pending.timer);
+        if (pending.timer) clearTimeout(pending.timer);
         this.pending.delete(sequence);
         this.resolveDrain();
         pending.reject(
@@ -221,7 +226,7 @@ class TerminalStreamClient extends ClientBinarySocket {
     private settleResult(sequence: number, result: TerminalSnapshot | null): void {
         const pending = this.pending.get(sequence);
         if (!pending) throw new CaxriError('VALIDATION', 'Binary Terminal reply is unexpected');
-        clearTimeout(pending.timer);
+        if (pending.timer) clearTimeout(pending.timer);
         this.pending.delete(sequence);
         this.resolveDrain();
         pending.resolve(result);
@@ -633,9 +638,6 @@ export class BinaryStreamClient {
         if (request.method === 'terminal.input') {
             const payload = new TextEncoder().encode(request.params.data);
             const terminalId = request.params.terminalId;
-            const attached = this.terminals.get(terminalId);
-            if (attached && !this.terminalOperations.has(terminalId))
-                return attached.input(payload);
             return this.terminalOperations.run(
                 terminalId,
                 async (lease) => {
@@ -666,9 +668,6 @@ export class BinaryStreamClient {
         if (request.method !== 'terminal.resize')
             throw new CaxriError('VALIDATION', `Unsupported Terminal stream method: ${method}`);
         const terminalId = request.params.terminalId;
-        const attached = this.terminals.get(terminalId);
-        if (attached && !this.terminalOperations.has(terminalId))
-            return attached.resize(request.params.cols, request.params.rows);
         return this.terminalOperations.run(terminalId, async (lease) => {
             if (this.closed)
                 throw new CaxriError('UNAVAILABLE', 'Caxri Server binary streams are closed');
