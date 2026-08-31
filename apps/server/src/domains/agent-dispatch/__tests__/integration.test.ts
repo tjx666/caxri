@@ -145,13 +145,13 @@ describe('Agent dispatch Runtime integration', () => {
             ).toMatchObject({ outcome: 'signaled', terminalId: first.terminalId });
             expect(spawned[1].kill).toHaveBeenCalledWith('SIGINT');
 
-            expect(
+            await expect(
                 runtime.handlers['terminal.sendInternal']({
                     terminalId: created.terminal!.id,
                     text: 'human steer',
                     enter: true,
                 }),
-            ).toMatchObject({ accepted: true, byteLength: 11, enter: true });
+            ).resolves.toMatchObject({ accepted: true, byteLength: 11, enter: true });
             expect(spawned[0].write).toHaveBeenCalledWith('human steer\r');
             const steeredSession = (await runtime.handlers['app.bootstrap']({})).sessions.find(
                 (session) => session.id === created.session.id,
