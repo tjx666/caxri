@@ -24,6 +24,21 @@ describe('findTerminalLinks', () => {
         ]);
     });
 
+    it('stops a wrapped URL before an adjacent CJK label', () => {
+        const target = 'https://github.com/lobehub/lobehub/pull/18958';
+        const prefix = 'PR lobehub#18958 (';
+
+        expect(findTerminalLinks(`${prefix}${target})(目标 canary)。`)).toEqual([
+            {
+                endIndex: prefix.length + target.length,
+                kind: 'url',
+                startIndex: prefix.length,
+                target,
+                text: target,
+            },
+        ]);
+    });
+
     it('describes the destination for plain URL and file links', () => {
         const links = findTerminalLinks('https://example.com src/example.ts:12');
 
