@@ -51,9 +51,9 @@ describe('Agent command handlers', () => {
         expect(signalExact).not.toHaveBeenCalled();
     });
 
-    it('accepts a reply only while the exact waiting attention generation is still current', () => {
+    it('accepts a reply only while the exact waiting attention generation is still current', async () => {
         const write = vi.fn(() => true);
-        const writeAgent = vi.fn(() => true);
+        const writeAgent = vi.fn(() => Promise.resolve(true));
         const session = {
             id: 'session-1',
             primaryAgentTerminalId: 'terminal-1',
@@ -95,28 +95,28 @@ describe('Agent command handlers', () => {
             } as unknown as TerminalManager,
         });
 
-        expect(
+        await expect(
             handlers['terminal.sendInternal']({
                 terminalId: 'terminal-1',
                 text: 'Continue',
                 enter: true,
                 attentionEpoch: 3,
             }),
-        ).toMatchObject({ accepted: true, terminalId: 'terminal-1' });
-        expect(() =>
+        ).resolves.toMatchObject({ accepted: true, terminalId: 'terminal-1' });
+        await expect(
             handlers['terminal.sendInternal']({
                 terminalId: 'terminal-1',
                 text: 'Stale reply',
                 enter: true,
                 attentionEpoch: 3,
             }),
-        ).toThrow('Agent attention changed before the reply was accepted');
+        ).rejects.toThrow('Agent attention changed before the reply was accepted');
         expect(consumeSessionAttentionReply).toHaveBeenCalledOnce();
         expect(write).not.toHaveBeenCalled();
         expect(writeAgent).toHaveBeenCalledOnce();
     });
 
-    it('releases the attention claim when the PTY input queue rejects synchronously', () => {
+    it('releases the attention claim when the exact Agent input request is rejected', async () => {
         const releaseSessionAttentionReply = vi.fn(() => true);
         const handlers = createAgentCommandHandlers({
             coordinator: { observeInput: vi.fn(() => false) } as unknown as AgentCoordinator,
@@ -142,20 +142,18 @@ describe('Agent command handlers', () => {
             },
             terminals: {
                 processId: vi.fn(() => 4_242),
-                writeAgent: vi.fn(() => {
-                    throw new Error('input queue is full');
-                }),
+                writeAgent: vi.fn(() => Promise.reject(new Error('Agent launch ended'))),
             } as unknown as TerminalManager,
         });
 
-        expect(() =>
+        await expect(
             handlers['terminal.sendInternal']({
                 terminalId: 'terminal-1',
                 text: 'Continue',
                 enter: true,
                 attentionEpoch: 3,
             }),
-        ).toThrow('input queue is full');
+        ).rejects.toThrow('Agent launch ended');
         expect(releaseSessionAttentionReply).toHaveBeenCalledWith('session-1', 'terminal-1', 3);
     });
 });

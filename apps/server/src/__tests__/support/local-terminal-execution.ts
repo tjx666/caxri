@@ -141,9 +141,9 @@ export class LocalTerminalExecution extends EventTarget implements TerminalExecu
         );
     }
 
-    writeAgent(terminalId: string, data: string): boolean {
-        if (!this.agents.has(terminalId)) return false;
-        return this.engine.write(terminalId, data);
+    writeAgent(terminalId: string, data: string): Promise<boolean> {
+        if (!this.agents.has(terminalId)) return Promise.resolve(false);
+        return Promise.resolve(this.engine.write(terminalId, data));
     }
 
     configureOutputRecovery(): void {

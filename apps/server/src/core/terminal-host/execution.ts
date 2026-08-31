@@ -71,7 +71,8 @@ export interface TerminalHostControl {
 }
 
 /**
- * Process-backed execution port with synchronous cached hot paths and authenticated request ordering.
+ * Process-backed execution port. Renderer-owned input and resize preserve synchronous hot-path acceptance from cached
+ * identities. Exact managed-Agent input waits for Host authorization before the caller may acknowledge it.
  */
 export class RemoteTerminalExecution extends EventTarget implements TerminalExecutionPort {
     private readonly generations = new Map<string, number>();
@@ -234,19 +235,9 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
             while (this.inputQueues.get(terminalId) === queue && queue.hasPendingChunks) {
                 const batch = queue.takeBatch();
                 // eslint-disable-next-line no-await-in-loop -- Input ordering requires one private request in flight per Terminal.
-                const agentLaunchId = queue.agentLaunchId;
                 const result = (await this.supervisor.request(
-                    agentLaunchId
-                        ? {
-                              method: 'terminal.agent.input',
-                              params: { data: batch.data, launchId: agentLaunchId },
-                          }
-                        : { method: 'terminal.input', params: batch.params },
-                    this.terminalScope(
-                        queue.identity,
-                        agentLaunchId ? 'terminal.agent.input' : 'terminal.input',
-                        queue.attachmentId,
-                    ),
+                    { method: 'terminal.input', params: batch.params },
+                    this.terminalScope(queue.identity, 'terminal.input', queue.attachmentId),
                     queue.abortController.signal,
                 )) as { accepted: boolean };
                 if (!result.accepted)
@@ -536,33 +527,29 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
             .accepted;
     }
 
-    writeAgent(terminalId: string, data: string): boolean {
+    async writeAgent(terminalId: string, data: string): Promise<boolean> {
         const identity = this.identities.get(terminalId);
-        if (identity?.attachmentId) return this.write(terminalId, data);
         const agentLaunchId = identity?.agent?.processId ? identity.agent.launchId : undefined;
         if (!agentLaunchId || !identity?.processId) return false;
         if (data.length > MAX_TERMINAL_INPUT_LENGTH) return false;
         if (data.length === 0) return true;
-        let queue = this.inputQueues.get(terminalId);
-        if (queue && (queue.identity !== identity || queue.agentLaunchId !== agentLaunchId)) {
-            this.retireInputQueue(
-                terminalId,
-                new CaxriError('CONFLICT', 'Terminal Agent identity changed before input completed'),
-            );
-            queue = undefined;
-        }
-        if (!queue) {
-            queue = new TerminalInputQueue(undefined, identity, agentLaunchId);
-            this.inputQueues.set(terminalId, queue);
-        }
-        if (queue.queuedCharacters + data.length > MAX_QUEUED_KEYBOARD_INPUT_CHARACTERS)
-            throw new CaxriError('CAPACITY', 'Terminal input queue capacity exceeded');
-        queue.enqueue(data, false);
-        if (!queue.completion) {
-            queue.completion = this.drainInput(queue);
-            this.background(queue.completion, 'terminal.agent.input', terminalId);
-        }
-        return true;
+        await identity.ready;
+        const current = this.identities.get(terminalId);
+        if (
+            current !== identity ||
+            current.agent?.launchId !== agentLaunchId ||
+            current.agent.processId === undefined ||
+            current.processId === undefined
+        )
+            return false;
+        const result = (await this.supervisor.request(
+            {
+                method: 'terminal.agent.input',
+                params: { data, launchId: agentLaunchId },
+            },
+            this.terminalScope(identity, 'terminal.agent.input'),
+        )) as { accepted: boolean };
+        return result.accepted;
     }
 
     configureOutputRecovery(
