@@ -25,6 +25,8 @@ describe('Session list status', () => {
                     hasUnread: true,
                     lastAttentionKind: 'completed',
                 }),
+                undefined,
+                true,
             ),
         ).toEqual({
             ariaLabel:
@@ -43,8 +45,18 @@ describe('Session list status', () => {
         });
     });
 
+    it('clears acknowledged waiting from the selected Session row', () => {
+        expect(sessionStatus(sessionSource('waiting'), undefined, true)).toEqual({
+            kind: 'default',
+        });
+    });
+
     it('maps running and compaction to the running slot', () => {
         expect(sessionStatus(sessionSource('running'))).toEqual({
+            ariaLabel: 'Working. The Agent is running.',
+            kind: 'running',
+        });
+        expect(sessionStatus(sessionSource('running'), undefined, true)).toEqual({
             ariaLabel: 'Working. The Agent is running.',
             kind: 'running',
         });

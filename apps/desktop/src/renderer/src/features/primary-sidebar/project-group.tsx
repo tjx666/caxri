@@ -146,6 +146,7 @@ function ActiveSessionRow({
             <SessionStatusIndicator
                 agentOperation={terminal?.agentOperation}
                 className="transition-opacity group-hover/session-row:opacity-0"
+                isCurrentSession={selected}
                 session={session}
             />
         </div>
