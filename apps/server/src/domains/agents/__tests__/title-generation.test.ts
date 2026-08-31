@@ -6,6 +6,7 @@ import process from 'node:process';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
+    AGENT_TITLE_SYSTEM_INSTRUCTIONS,
     buildAgentTitlePrompt,
     normalizeGeneratedAgentTitle,
     readAgentTitleSource,
@@ -47,13 +48,31 @@ afterEach(async () => {
 });
 
 describe('Agent title generation', () => {
-    it('accepts only one-line emoji-prefixed titles within the Session limit', () => {
-        expect(normalizeGeneratedAgentTitle('  🧭 Session naming lifecycle  ')).toBe(
-            '🧭 Session naming lifecycle',
+    it('accepts compact titles and rejects emoji or language-specific overflow', () => {
+        expect(normalizeGeneratedAgentTitle('  Session naming lifecycle  ')).toBe(
+            'Session naming lifecycle',
         );
-        expect(normalizeGeneratedAgentTitle('Session naming lifecycle')).toBeUndefined();
-        expect(normalizeGeneratedAgentTitle(`🧭 ${'x'.repeat(60)}`)).toBeUndefined();
-        expect(normalizeGeneratedAgentTitle('🧭 First line\nSecond line')).toBeUndefined();
+        expect(normalizeGeneratedAgentTitle('Codex 自动命名')).toBe('Codex 自动命名');
+        expect(normalizeGeneratedAgentTitle('自动命名规则优化策略调整')).toBe(
+            '自动命名规则优化策略调整',
+        );
+        expect(normalizeGeneratedAgentTitle('🧭 Session naming')).toBeUndefined();
+        expect(normalizeGeneratedAgentTitle('Session naming 1️⃣')).toBeUndefined();
+        expect(normalizeGeneratedAgentTitle('Session naming 1')).toBe('Session naming 1');
+        expect(normalizeGeneratedAgentTitle('Refine Session Naming Rules')).toBe(
+            'Refine Session Naming Rules',
+        );
+        expect(normalizeGeneratedAgentTitle('Fix A B C D E')).toBeUndefined();
+        expect(normalizeGeneratedAgentTitle('持续优化 Codex Session 自动命名策略规则')).toBe(
+            undefined,
+        );
+        expect(normalizeGeneratedAgentTitle('First line\nSecond line')).toBeUndefined();
+    });
+
+    it('gives every provider one shared language-aware title contract', () => {
+        expect(AGENT_TITLE_SYSTEM_INSTRUCTIONS).toContain('Do not use emoji');
+        expect(AGENT_TITLE_SYSTEM_INSTRUCTIONS).toContain('at most 12 title units');
+        expect(AGENT_TITLE_SYSTEM_INSTRUCTIONS).toContain('at most 5 words');
     });
 
     it('escapes transcript-derived prompt fields as data', () => {

@@ -70,10 +70,6 @@ function hooksSource(documents: AgentHookDocuments): string | undefined {
 export const codexHookAdapter: AgentHookAdapter = {
     bindings,
     schemaVersion: 8,
-    autoNamingConflict: (documents) =>
-        /auto-thread-name\.js/u.test(hooksSource(documents) ?? '')
-            ? 'Existing automatic naming hook detected. Caxri left it unchanged; disable it to avoid duplicate model calls.'
-            : undefined,
     configTargets: (environment) => {
         const home = codexHome(environment.homeDirectory, environment.variables.CODEX_HOME);
         return [

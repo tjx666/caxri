@@ -43,7 +43,7 @@ function session(overrides: Partial<SessionRecord> = {}): SessionRecord {
     };
 }
 
-function terminal(provider: AgentProvider = 'codex'): TerminalRecord {
+function terminal(provider: AgentProvider = 'claude'): TerminalRecord {
     return {
         id: terminalId,
         sessionId,
@@ -71,15 +71,18 @@ function titleSource(overrides: Partial<AgentTitleSource> = {}): AgentTitleSourc
     };
 }
 
-function lifecycle(phase: AgentLifecycleSignal['phase']): AgentLifecycleSignal {
-    return { launchId, phase, provider: 'codex', terminalId };
+function lifecycle(
+    phase: AgentLifecycleSignal['phase'],
+    provider: AgentProvider = 'claude',
+): AgentLifecycleSignal {
+    return { launchId, phase, provider, terminalId };
 }
 
-function enabledSettings(): AppSettings {
+function enabledSettings(provider: AgentProvider = 'claude'): AppSettings {
     const settings = structuredClone(defaultAppSettings);
-    const provider: AgentProviderSettings = settings['agents.providers'].codex;
-    provider.hooks.enabled = true;
-    provider.naming.enabled = true;
+    const providerSettings: AgentProviderSettings = settings['agents.providers'][provider];
+    providerSettings.hooks.enabled = true;
+    providerSettings.naming.enabled = true;
     return settings;
 }
 
@@ -93,8 +96,10 @@ function harness(
         ) => Promise<string>;
         now?: () => number;
         ownership?: { lastAutoTitle?: string; state: 'active' | 'stopped' };
+        provider?: AgentProvider;
     } = {},
 ) {
+    const provider = options.provider ?? 'claude';
     let currentSession = options.currentSession ?? session();
     let ownership = options.ownership ?? { state: 'active' as const };
     const source = options.currentSource ?? titleSource();
@@ -109,7 +114,7 @@ function harness(
         (_provider, context) =>
             options.generate
                 ? options.generate(context)
-                : Promise.resolve('🧭 Session naming lifecycle'),
+                : Promise.resolve('Session naming lifecycle'),
     );
     const readTitleOwnership = vi.fn<AgentService['readTitleOwnership']>(() =>
         Promise.resolve(currentOwnership),
@@ -155,7 +160,7 @@ function harness(
     const logger = { write: loggerWrite } as unknown as StructuredLogger;
     const database = {
         getSession: (id: string) => (id === sessionId ? currentSession : undefined),
-        getTerminal: (id: string) => (id === terminalId ? terminal() : undefined),
+        getTerminal: (id: string) => (id === terminalId ? terminal(provider) : undefined),
         sessionNaming: {
             get: () => ownership,
             recordAutomaticTitle: vi.fn(),
@@ -172,7 +177,7 @@ function harness(
         renameAutomatically,
         resumeAutomaticNaming: resumeAutomaticSessionNaming,
     } as unknown as SessionRenameService;
-    const settings = enabledSettings();
+    const settings = enabledSettings(provider);
     const service = new SessionAutoNamingService(
         database,
         agents,
@@ -218,12 +223,12 @@ describe('Session automatic naming', () => {
 
         await vi.waitFor(() => expect(test.renameAutomatically).toHaveBeenCalledOnce());
         const generationContext = test.generateSessionTitle.mock.calls[0][1];
-        expect(test.generateSessionTitle.mock.calls[0][0]).toBe('codex');
+        expect(test.generateSessionTitle.mock.calls[0][0]).toBe('claude');
         expect(generationContext.cwd).toBe('/project');
         expect(generationContext.prompt).toContain('A private user request');
         expect(test.renameAutomatically).toHaveBeenCalledWith(
             sessionId,
-            '🧭 Session naming lifecycle',
+            'Session naming lifecycle',
             expect.any(Function),
             expect.any(AbortSignal),
             expect.any(Function),
@@ -234,13 +239,25 @@ describe('Session automatic naming', () => {
         await test.service.close();
     });
 
+    it('does not start a Caxri generation for a provider with native naming', async () => {
+        const test = harness({ provider: 'codex' });
+
+        test.service.observe(lifecycle('turnFinished', 'codex'));
+        await new Promise((resolve) => setTimeout(resolve, 20));
+
+        expect(test.readTitleSource).not.toHaveBeenCalled();
+        expect(test.generateSessionTitle).not.toHaveBeenCalled();
+        expect(test.renameAutomatically).not.toHaveBeenCalled();
+        await test.service.close();
+    });
+
     it('stops when a provider-native manual title replaces Caxri ownership', async () => {
         const test = harness({
             currentSource: titleSource({
                 currentProviderTitle: 'Manual provider title',
                 providerTitleState: 'explicit',
             }),
-            ownership: { state: 'active', lastAutoTitle: '🧭 Previous automatic title' },
+            ownership: { state: 'active', lastAutoTitle: 'Previous automatic title' },
         });
 
         test.service.observe(lifecycle('turnFinished'));
@@ -263,7 +280,7 @@ describe('Session automatic naming', () => {
         await vi.waitFor(() => expect(test.generateSessionTitle).toHaveBeenCalledOnce());
 
         test.service.observe(lifecycle('turnStarted'));
-        generation.resolve('🧯 Stale title');
+        generation.resolve('Stale title');
 
         await vi.waitFor(() =>
             expect(test.generateSessionTitle.mock.calls[0]?.[1].signal?.aborted).toBe(true),
@@ -294,7 +311,7 @@ describe('Session automatic naming', () => {
 
         await vi.waitFor(() => expect(test.loggerWrite).toHaveBeenCalledOnce());
         const serialized = JSON.stringify(test.loggerWrite.mock.calls);
-        expect(serialized).toContain('codex');
+        expect(serialized).toContain('claude');
         expect(serialized).toContain('Error');
         expect(serialized).not.toContain('private model detail');
         await test.service.close();
@@ -320,6 +337,23 @@ describe('Session automatic naming', () => {
         await test.service.close();
     });
 
+    it('rejects Resume when the provider owns automatic naming', async () => {
+        const test = harness({
+            currentSession: session({
+                autoNamingState: 'stopped',
+                displayTitle: 'Manual baseline',
+                titleMode: 'manual',
+            }),
+            provider: 'codex',
+        });
+
+        await expect(test.service.resumeSession(sessionId)).rejects.toMatchObject({
+            code: 'CONFLICT',
+        });
+        expect(test.resumeAutomaticSessionNaming).not.toHaveBeenCalled();
+        await test.service.close();
+    });
+
     it('fails closed when provider title ownership cannot be verified', async () => {
         const test = harness({
             currentSource: titleSource({ providerTitleState: 'unknown' }),
@@ -336,15 +370,15 @@ describe('Session automatic naming', () => {
         const generation = Promise.withResolvers<string>();
         const test = harness({
             currentSource: titleSource({
-                currentProviderTitle: '🧭 Previous automatic title',
+                currentProviderTitle: 'Previous automatic title',
                 providerTitleState: 'explicit',
             }),
             currentOwnership: {
-                currentProviderTitle: '🧭 Previous automatic title',
+                currentProviderTitle: 'Previous automatic title',
                 providerTitleState: 'explicit',
             },
             generate: () => generation.promise,
-            ownership: { state: 'active', lastAutoTitle: '🧭 Previous automatic title' },
+            ownership: { state: 'active', lastAutoTitle: 'Previous automatic title' },
         });
         test.service.observe(lifecycle('turnFinished'));
         await vi.waitFor(() => expect(test.generateSessionTitle).toHaveBeenCalledOnce());
@@ -353,7 +387,7 @@ describe('Session automatic naming', () => {
             currentProviderTitle: 'Manual provider title',
             providerTitleState: 'explicit',
         });
-        generation.resolve('🧭 Generated too late');
+        generation.resolve('Generated too late');
 
         await vi.waitFor(() =>
             expect(test.stopAutomaticSessionNaming).toHaveBeenCalledWith(sessionId),
@@ -369,7 +403,7 @@ describe('Session automatic naming', () => {
         await vi.waitFor(() => expect(test.generateSessionTitle).toHaveBeenCalledOnce());
 
         test.setCurrentLaunch(false);
-        generation.resolve('🧯 Stale launch title');
+        generation.resolve('Stale launch title');
 
         await new Promise((resolve) => setTimeout(resolve, 20));
         expect(test.renameAutomatically).not.toHaveBeenCalled();
@@ -382,11 +416,11 @@ describe('Session automatic naming', () => {
         test.service.observe(lifecycle('turnFinished'));
         await vi.waitFor(() => expect(test.generateSessionTitle).toHaveBeenCalledOnce());
 
-        test.settings['agents.providers'].codex.hooks.enabled = false;
+        test.settings['agents.providers'].claude.hooks.enabled = false;
         test.service.reconcile(test.settings['agents.providers']);
 
         expect(test.generateSessionTitle.mock.calls[0][1].signal?.aborted).toBe(true);
-        generation.resolve('🧯 Disabled result');
+        generation.resolve('Disabled result');
         await test.service.close();
         expect(test.renameAutomatically).not.toHaveBeenCalled();
     });
@@ -401,7 +435,7 @@ describe('Session automatic naming', () => {
                         () => {
                             setTimeout(() => {
                                 isGenerationSettled = true;
-                                resolve('🧯 Aborted title');
+                                resolve('Aborted title');
                             }, 10);
                         },
                         { once: true },

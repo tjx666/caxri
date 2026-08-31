@@ -117,23 +117,31 @@ function providerRows(provider: AgentProvider): SettingRowDescriptor[] {
             binding: { type: 'provider-toggle', provider, field: 'hooks' },
             haystack: lower(['lifecycle hooks', 'unread', 'background', ...providerTerms]),
         },
-        {
-            ...shared,
-            id: `agents.${provider}.naming`,
-            title: 'Automatic Session naming',
-            description:
-                'Uses one extra low-cost model call after eligible turns. Requires Lifecycle ' +
-                'hooks, takes effect on the next turn, and leaves the current title unchanged ' +
-                'if generation fails.',
-            binding: { type: 'provider-toggle', provider, field: 'naming' },
-            haystack: lower([
-                'automatic session naming',
-                'rename',
-                'title',
-                'model call',
-                ...providerTerms,
-            ]),
-        },
+        ...(agentProviderCatalog[provider].automaticSessionNaming === 'caxri'
+            ? [
+                  {
+                      ...shared,
+                      id: `agents.${provider}.naming`,
+                      title: 'Automatic Session naming',
+                      description:
+                          'Uses one extra low-cost model call after eligible turns. Requires Lifecycle ' +
+                          'hooks, takes effect on the next turn, and leaves the current title unchanged ' +
+                          'if generation fails.',
+                      binding: {
+                          type: 'provider-toggle' as const,
+                          provider,
+                          field: 'naming' as const,
+                      },
+                      haystack: lower([
+                          'automatic session naming',
+                          'rename',
+                          'title',
+                          'model call',
+                          ...providerTerms,
+                      ]),
+                  },
+              ]
+            : []),
         {
             ...shared,
             id: `agents.${provider}.messaging`,
