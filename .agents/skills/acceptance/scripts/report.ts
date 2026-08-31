@@ -13,6 +13,11 @@ import {
     terminalFixturePreflightReceiptSchema,
 } from './fixture-preflight';
 import { validateReportMediaEvidence } from './media-integrity';
+import {
+    mobileDeviceEvidencePath,
+    mobileDeviceReceiptSchema,
+    mobileDeviceSchema,
+} from './mobile-report';
 import type { RebindReportHeadInput } from './report-head';
 import { rebindReportDocument } from './report-head';
 import { reportCliHelp } from './report-help';
@@ -57,11 +62,6 @@ const stateIsolationSchema = z.discriminatedUnion('mode', [
         profileId: z.string().min(1),
     }),
 ]);
-const mobileDeviceSchema = z.object({
-    appId: z.literal('com.caxri.mobile'),
-    deviceId: z.string().trim().min(1).max(200),
-    platform: z.enum(['android', 'ios']),
-});
 const planItemSchema = z
     .looseObject({
         agentFixture: z.enum(acceptanceAgentFixtureIds).optional(),
@@ -139,20 +139,6 @@ const caseLifecycleReceiptSchema = z.object({
     schemaVersion: z.literal(1),
     stateIsolation: stateIsolationSchema,
 });
-const mobileDeviceReceiptSchema = z.object({
-    appId: z.literal('com.caxri.mobile'),
-    build: z.object({ identity: z.string().min(1), mode: z.string().min(1) }),
-    caseId: z.string().min(1),
-    cleanup: z.object({ appData: z.enum(['cleared', 'preserved']), desktopProfile: z.string() }),
-    device: z.object({
-        id: z.string().min(1),
-        kind: z.string().min(1),
-        platform: z.enum(['android', 'ios']),
-    }),
-    outcome: z.string().min(1),
-    schemaVersion: z.literal(1),
-    status: z.enum(['passed', 'failed', 'blocked']),
-});
 type CaseLifecycleReceipt = z.infer<typeof caseLifecycleReceiptSchema>;
 export interface InitializeReportInput {
     branch?: string;
@@ -181,9 +167,6 @@ function lifecycleEvidencePath(caseId: string): string {
 }
 function preflightEvidencePath(caseId: string): string {
     return `assets/${encodeURIComponent(caseId)}-fixture-preflight.json`;
-}
-function mobileDeviceEvidencePath(caseId: string): string {
-    return `assets/${encodeURIComponent(caseId)}-mobile-device.json`;
 }
 export async function loadAcceptanceCasePlan(
     reportDirectory: string,

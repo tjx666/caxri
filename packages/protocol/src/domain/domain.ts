@@ -24,7 +24,6 @@ export const MAX_TERMINAL_INPUT_LENGTH = 65_536;
  * Bounds one complete xterm input event while the private Terminal Host frame stays independently smaller.
  */
 export const MAX_TERMINAL_INPUT_PAYLOAD_LENGTH = 1_048_576;
-export const MAX_TERMINAL_PREVIEW_BYTES = 16 * 1024;
 export const MAX_TERMINAL_LINK_LENGTH = 16_384;
 export const MAX_TERMINAL_LINK_ROWS = 16;
 export const MAX_TERMINAL_OSC_LINKS = 1_000;
@@ -235,21 +234,6 @@ export const terminalSnapshotSchema = z.object({
     oscLinks: terminalOscLinkSnapshotsSchema.optional(),
     updatedAt: z.number(),
 });
-
-export const terminalPreviewSchema = z.strictObject({
-    terminalId: identifierSchema,
-    availability: z.enum(['live', 'stopped', 'unavailable']),
-    content: z
-        .string()
-        .refine(
-            (value) => new TextEncoder().encode(value).byteLength <= MAX_TERMINAL_PREVIEW_BYTES,
-            `Terminal preview exceeds ${MAX_TERMINAL_PREVIEW_BYTES} UTF-8 bytes`,
-        ),
-    truncated: z.boolean(),
-    updatedAt: z.number().int().positive(),
-});
-
-export type TerminalPreview = z.infer<typeof terminalPreviewSchema>;
 
 /**
  * A bounded read of an Agent Terminal's provider transcript file. `content` is present only when requested; `truncated`
