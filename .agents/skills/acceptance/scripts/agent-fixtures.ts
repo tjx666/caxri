@@ -100,7 +100,7 @@ const currentTitle = (sessionId) => {
 const generatedTitle = (count) => provider === 'claude'
   ? (count === 1 ? 'Claude Automatic Naming' : 'Claude Resumed Naming')
   : (count === 1 ? 'Codex Native Naming' : 'Codex Resumed Naming');
-const generatedPasteSummary = 'Codex paste summary: use the original file for exact errors, code, numbers, or instructions.';
+const generatedPasteSummary = 'Actual error: build failed with code E42 at src/task.ts:17; repeated progress lines were omitted.';
 
 const resumeIndex = process.argv.indexOf('--resume');
 const renameCommand = process.argv.at(-1) ?? '';
@@ -128,7 +128,7 @@ if (isClaudeGeneration || isCodexGeneration) {
   process.stdin.setEncoding('utf8');
   process.stdin.on('data', (chunk) => { input += chunk; });
   process.stdin.on('end', () => {
-    if (isCodexGeneration && !input.includes('Summarize the pasted text as a compact navigation aid')) {
+    if (isCodexGeneration && !input.includes('If the text is a log, build trace, test output, or diagnostic dump:')) {
       appendReceipt({ kind: 'unexpectedCodexTextGeneration' });
       process.exit(7);
       return;

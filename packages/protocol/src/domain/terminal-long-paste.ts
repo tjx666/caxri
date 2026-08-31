@@ -15,13 +15,25 @@ export const terminalLongPasteParametersSchema = z.object({
 export const terminalLongPasteResultSchema = z.discriminatedUnion('status', [
     z.object({
         agentLaunchId: identifierSchema,
+        characterCount: z.number().int().min(1).max(MAX_LONG_PASTE_CHARACTERS),
         filePath: pathSchema,
+        lineCount: z
+            .number()
+            .int()
+            .min(1)
+            .max(MAX_LONG_PASTE_CHARACTERS + 1),
         status: z.literal('summarized'),
         summary: z.string().min(1).max(MAX_LONG_PASTE_SUMMARY_CHARACTERS),
     }),
     z.object({
         agentLaunchId: identifierSchema,
+        characterCount: z.number().int().min(1).max(MAX_LONG_PASTE_CHARACTERS),
         filePath: pathSchema,
+        lineCount: z
+            .number()
+            .int()
+            .min(1)
+            .max(MAX_LONG_PASTE_CHARACTERS + 1),
         status: z.literal('unavailable'),
     }),
 ]);

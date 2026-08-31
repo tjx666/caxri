@@ -169,6 +169,10 @@ process.stdin.on('end', () => {
         expect(JSON.parse(await readFile(argumentsPath, 'utf8'))).toEqual(
             expect.arrayContaining(['--model', 'haiku', '--no-session-persistence']),
         );
+        const pasteArguments = JSON.parse(await readFile(argumentsPath, 'utf8')) as string[];
+        expect(pasteArguments[pasteArguments.indexOf('--system-prompt') + 1]).toContain(
+            'If the text is a log, build trace, test output, or diagnostic dump:',
+        );
         expect(await readFile(inputPath, 'utf8')).toBe('long paste fixture');
     });
 

@@ -317,9 +317,9 @@ describe('Acceptance Agent fixtures', () => {
                 fixture.executables.codex,
                 ['exec', '--skip-git-repo-check', '-'],
                 fixture.environment,
-                'Summarize the pasted text as a compact navigation aid for a coding agent.\n\nCAXRI_ACCEPTANCE_PRIVATE_CODEX',
+                'If the text is a log, build trace, test output, or diagnostic dump:\n\nCAXRI_ACCEPTANCE_PRIVATE_CODEX',
             ),
-        ).resolves.toContain('Codex paste summary');
+        ).resolves.toContain('Actual error: build failed with code E42');
 
         await expect(readReceipts(fixture.environment.CLAUDE_CONFIG_DIR!)).resolves.toContainEqual(
             expect.objectContaining({

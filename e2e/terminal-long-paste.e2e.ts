@@ -122,8 +122,11 @@ if (process.argv.includes('--ephemeral')) {
             .toBeGreaterThan(0);
 
         const submitted = await readFile(inputCapture, 'utf8');
+        const normalizedSubmitted = submitted.replaceAll('\r', '\n');
         expect(submitted).not.toContain('LONG_PASTE_ORIGINAL_SENTINEL');
         expect(submitted).toContain('[Long paste saved locally]');
+        expect(submitted).toContain(`Original size: 2 lines, ${original.length} characters`);
+        expect(normalizedSubmitted).toContain('\n\nSummary:\nE2E_SUMMARY_SENTINEL');
         await expect
             .poll(async () =>
                 (await readFile(inputCapture, 'utf8')).includes('E2E_SUMMARY_SENTINEL'),

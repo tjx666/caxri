@@ -7,6 +7,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CaxriDatabase } from '../../db/repository';
 import { LongPasteService } from '../long-paste';
+import {
+    AGENT_PASTE_SUMMARY_SYSTEM_INSTRUCTIONS,
+    countAgentPasteLines,
+} from '../paste-summary-generation';
 import type { AgentService } from '../service';
 
 const temporaryDirectories: string[] = [];
@@ -73,13 +77,32 @@ async function fixture(options?: {
 }
 
 describe('LongPasteService', () => {
+    it('counts visual lines across common newline encodings', () => {
+        expect(countAgentPasteLines('first\r\nsecond\nthird\rfourth')).toBe(4);
+        expect(countAgentPasteLines('one trailing line\n')).toBe(2);
+    });
+
+    it('instructs the low-cost model to extract real log failures and discard noise', () => {
+        expect(AGENT_PASTE_SUMMARY_SYSTEM_INSTRUCTIONS).toContain(
+            'If the text is a log, build trace, test output, or diagnostic dump:',
+        );
+        expect(AGENT_PASTE_SUMMARY_SYSTEM_INSTRUCTIONS).toContain(
+            'Drop timestamps, progress lines, successful steps, repeated warnings, duplicate frames, and status spam unless they are causal.',
+        );
+        expect(AGENT_PASTE_SUMMARY_SYSTEM_INSTRUCTIONS).toContain(
+            'If no clear error or failure is present, state that explicitly rather than guessing.',
+        );
+    });
+
     it('saves text above the default threshold before returning a sanitized summary', async () => {
         const test = await fixture({ summary: 'Useful\u{1B}[31m summary\r\n- exact 42' });
-        const content = 'x'.repeat(1_025);
+        const content = `build started\r\n${'x'.repeat(1_000)}\nError: failed`;
 
         const result = await test.service.prepare({ terminalId: test.terminal.id, content });
 
         expect(result).toMatchObject({
+            characterCount: content.length,
+            lineCount: 3,
             status: 'summarized',
             summary: 'Useful[31m summary\n- exact 42',
         });
