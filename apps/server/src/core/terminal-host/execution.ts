@@ -29,10 +29,7 @@ import type { TerminalInputReceipt } from './input-queue';
 import { TerminalInputQueue } from './input-queue';
 
 interface RemoteTerminalIdentity {
-    agent?: {
-        launchId: string;
-        processId?: number;
-    };
+    agent?: { launchId: string; processId?: number };
     attachmentId?: string;
     generation: number;
     processId?: number;
@@ -44,7 +41,6 @@ interface RemoteView {
     attachmentId: string;
     size?: { cols: number; rows: number };
 }
-
 interface RemoteResizeQueue {
     completion?: Promise<void>;
     identity: RemoteTerminalIdentity;
@@ -52,10 +48,8 @@ interface RemoteResizeQueue {
     view: RemoteView;
 }
 
-type TerminalHostEvent = Exclude<
-    Extract<TerminalHostMessage, { type: 'event' }>,
-    { event: 'host.ready' }
->;
+type HostMessageEvent = Extract<TerminalHostMessage, { type: 'event' }>;
+type TerminalHostEvent = Exclude<HostMessageEvent, { event: 'host.ready' }>;
 
 /**
  * Bounds accepted-but-not-yet-delivered input while allowing short bursts to coalesce. The private protocol has a
@@ -236,10 +230,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
                 const batch = queue.takeBatch();
                 // eslint-disable-next-line no-await-in-loop -- Input ordering requires one private request in flight per Terminal.
                 const result = (await this.supervisor.request(
-                    {
-                        method: 'terminal.input',
-                        params: batch.params,
-                    },
+                    { method: 'terminal.input', params: batch.params },
                     this.terminalScope(queue.identity, 'terminal.input', queue.attachmentId),
                     queue.abortController.signal,
                 )) as { accepted: boolean };
