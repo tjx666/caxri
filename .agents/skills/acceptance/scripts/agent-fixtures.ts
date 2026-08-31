@@ -100,6 +100,7 @@ const currentTitle = (sessionId) => {
 const generatedTitle = (count) => provider === 'claude'
   ? (count === 1 ? 'Claude Automatic Naming' : 'Claude Resumed Naming')
   : (count === 1 ? 'Codex Native Naming' : 'Codex Resumed Naming');
+const generatedPasteSummary = 'Codex paste summary: use the original file for exact errors, code, numbers, or instructions.';
 
 const resumeIndex = process.argv.indexOf('--resume');
 const renameCommand = process.argv.at(-1) ?? '';
@@ -122,19 +123,21 @@ if (provider === 'claude' && resumeIndex >= 0 && renameCommand.startsWith('/rena
 
 const isClaudeGeneration = provider === 'claude' && process.argv.includes('--print') && process.argv.includes('--model');
 const isCodexGeneration = provider === 'codex' && process.argv[2] === 'exec';
-if (isCodexGeneration) {
-  appendReceipt({ kind: 'unexpectedCodexNamingCall' });
-  process.exit(7);
-}
-if (isClaudeGeneration) {
+if (isClaudeGeneration || isCodexGeneration) {
   let input = '';
   process.stdin.setEncoding('utf8');
   process.stdin.on('data', (chunk) => { input += chunk; });
   process.stdin.on('end', () => {
+    if (isCodexGeneration && !input.includes('Summarize the pasted text as a compact navigation aid')) {
+      appendReceipt({ kind: 'unexpectedCodexTextGeneration' });
+      process.exit(7);
+      return;
+    }
     const mode = consumeMode();
     const count = nextCount();
     const sessionId = mode.sessionId ?? '';
-    const title = mode.kind === 'same' ? currentTitle(sessionId) : (mode.title ?? generatedTitle(count));
+    const generatedText = provider === 'claude' ? generatedTitle(count) : generatedPasteSummary;
+    const text = mode.kind === 'same' ? currentTitle(sessionId) : (mode.title ?? generatedText);
     appendReceipt({
       argumentContainsPrivateInput: process.argv.join(' ').includes(privateMarker),
       call: count,
@@ -144,7 +147,8 @@ if (isClaudeGeneration) {
     });
     const finish = () => {
       if (mode.kind === 'fail') process.exit(7);
-      process.stdout.write(title || generatedTitle(count));
+      if (provider === 'claude') process.stdout.write(text || generatedTitle(count));
+      else process.stdout.write(JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', text: text || generatedPasteSummary } }) + '\n');
     };
     if (mode.kind === 'hold') waitForRelease(finish);
     else finish();
