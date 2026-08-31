@@ -43,6 +43,7 @@ import {
     hasActiveTerminalSelection,
     registerTerminalClearHandler,
     registerTerminalFocusHandler,
+    registerTerminalInputGate,
     registerTerminalPasteHandler,
     registerTerminalSelectionHandlers,
     restartTerminal,
@@ -101,6 +102,16 @@ describe('sendTerminalSequence', () => {
             terminalId: 'terminal-1',
             data: sequence,
         });
+    });
+
+    it('sends nothing while the mounted Terminal input gate is locked', () => {
+        const unregister = registerTerminalInputGate('terminal-locked', () => false);
+
+        sendTerminalSequence('terminal-locked', '\r');
+
+        expect(mocks.tryCommand).not.toHaveBeenCalled();
+        expect(mocks.caxriRequest).not.toHaveBeenCalled();
+        unregister();
     });
 });
 

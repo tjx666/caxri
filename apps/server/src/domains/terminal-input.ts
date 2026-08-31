@@ -1,4 +1,5 @@
 import type { ServerEvent } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
 import { assertE2EAgentInputFromEnvironment } from '@caxri/system';
 
 import type { AgentCoordinator } from './agents';
@@ -41,6 +42,21 @@ export function createTerminalInputHandler(
                     terminalIds: [],
                 },
             });
+        return null;
+    };
+}
+
+/**
+ * Prevents an asynchronous long-paste replacement from crossing into a new Agent generation.
+ */
+export function createTerminalAgentExactInputHandler(
+    options: TerminalInputHandlerOptions,
+): DomainHandlers['terminal.inputAgentExact'] {
+    return ({ terminalId, data, expectedAgentLaunchId }) => {
+        const terminal = options.database.getTerminal(terminalId);
+        assertE2EAgentInputFromEnvironment(terminal?.provider);
+        if (!options.terminals.writeAgentExact(terminalId, data, expectedAgentLaunchId))
+            throw new CaxriError('CONFLICT', 'Managed Agent changed before long paste insertion');
         return null;
     };
 }

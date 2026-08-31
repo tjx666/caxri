@@ -13,6 +13,7 @@ export * from './project-customization.js';
 export * from './session.js';
 export * from './terminal-file-link.js';
 export * from './terminal-link-fingerprint.js';
+export * from './terminal-long-paste.js';
 export * from './terminal-reference.js';
 export * from './terminal-reference-contract.js';
 export * from './terminal-title.js';

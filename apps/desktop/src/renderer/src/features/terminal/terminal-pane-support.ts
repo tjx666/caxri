@@ -10,7 +10,7 @@ import {
     executeViewCatalogShortcut,
     invalidateControlledViewSnapshot,
 } from '../view-containers/view-container-commands';
-import { registerTerminalPasteHandler } from './terminal-actions';
+import { registerTerminalInputGate, registerTerminalPasteHandler } from './terminal-actions';
 import {
     openTerminalLinkCandidatePicker,
     registerTerminalLinkScanner,
@@ -80,10 +80,18 @@ export function registerTerminalInputHandlers(
     terminal: Terminal,
     terminalId: string,
     isRunning: () => boolean,
+    expectedAgentLaunchId: () => string | undefined = () => {},
 ): () => void {
     const sendInput = async (data: string): Promise<void> => {
         try {
-            await caxri.request('terminal.input', { terminalId, data });
+            const expected = expectedAgentLaunchId();
+            if (expected === undefined) await caxri.request('terminal.input', { terminalId, data });
+            else
+                await caxri.request('terminal.inputAgentExact', {
+                    terminalId,
+                    data,
+                    expectedAgentLaunchId: expected,
+                });
         } catch (error) {
             onError(errorMessage(error, 'Terminal input failed'));
         }
@@ -94,6 +102,7 @@ export function registerTerminalInputHandlers(
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void sendInput(data);
     });
+    const unregisterInputGate = registerTerminalInputGate(terminalId, isRunning);
     const unregisterPasteHandler = registerTerminalPasteHandler(terminalId, {
         paste(data) {
             if (!isRunning()) return false;
@@ -103,6 +112,7 @@ export function registerTerminalInputHandlers(
         },
     });
     return () => {
+        unregisterInputGate();
         unregisterPasteHandler();
         dataDisposable.dispose();
     };

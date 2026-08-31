@@ -251,7 +251,9 @@ function rowControl(properties: SettingRowProperties): {
                     ? 'lifecycle hooks'
                     : binding.field === 'naming'
                       ? 'automatic Session naming'
-                      : 'peer messaging'
+                      : binding.field === 'pasteSummary'
+                        ? 'long paste summaries'
+                        : 'peer messaging'
             }`;
             return {
                 labelFor: controlId,

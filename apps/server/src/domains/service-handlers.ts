@@ -2,7 +2,12 @@ import type { ServerOperation } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
 import { agentSkillHealthReader } from './agent-skills';
-import type { AgentEnvironment, AgentHookManager, AgentTranscriptWatcher } from './agents';
+import type {
+    AgentEnvironment,
+    AgentHookManager,
+    AgentTranscriptWatcher,
+    LongPasteService,
+} from './agents';
 import { listAgentActions, readAgentTranscript, recordRecentAgentAction } from './agents';
 import type { ConfigService } from './config';
 import type { CaxriDatabase } from './db';
@@ -37,6 +42,7 @@ type ServiceHandlerMethods =
     | 'terminal.agentTranscript'
     | 'terminal.commitLink.resolve'
     | 'terminal.fileLink.resolve'
+    | 'terminal.prepareLongPaste'
     | 'terminal.referenceContext'
     | 'project.create'
     | 'project.setIcon'
@@ -104,6 +110,7 @@ export function createServiceHandlers(services: {
     files: FileService;
     git: GitService;
     introspection: ReturnType<typeof createIntrospectionServices>;
+    longPastes: LongPasteService;
     projectStatus: ProjectStatusService;
     transcripts: AgentTranscriptWatcher;
     userDataPath: string;
@@ -120,6 +127,7 @@ export function createServiceHandlers(services: {
         files,
         git,
         introspection,
+        longPastes,
         projectStatus,
         transcripts,
         userDataPath,
@@ -169,6 +177,7 @@ export function createServiceHandlers(services: {
                 searchProjectFileSuffixes: (sessionId, root, suffix, signal) =>
                     files.searchProjectFileSuffixes(sessionId, root, suffix, signal),
             }),
+        'terminal.prepareLongPaste': (parameters, signal) => longPastes.prepare(parameters, signal),
         'terminal.referenceContext': ({ terminalId }) => {
             const terminal = database.getTerminal(terminalId);
             if (!terminal) throw new CaxriError('NOT_FOUND', 'Terminal not found');

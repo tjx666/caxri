@@ -198,6 +198,19 @@ export const settingsSpec = [
         display: { unit: 'lines' },
     },
     {
+        kind: 'integer',
+        key: 'terminal.longPasteThreshold',
+        title: 'Long paste threshold',
+        description:
+            'Longer text pasted into a running Agent is saved locally and replaced with a low-cost summary and file path',
+        category: 'terminal',
+        keywords: ['clipboard', 'paste', 'summary', 'context', 'tokens'],
+        min: 1,
+        max: 65_000,
+        default: 1_024,
+        display: { unit: 'characters', step: 256 },
+    },
+    {
         kind: 'boolean',
         key: 'terminal.copyOnSelect',
         title: 'Copy on select',
