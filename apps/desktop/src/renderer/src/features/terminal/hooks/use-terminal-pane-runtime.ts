@@ -11,21 +11,19 @@ import { errorMessage } from '@caxri/protocol';
 import { ClipboardAddon } from '@xterm/addon-clipboard';
 import { FitAddon } from '@xterm/addon-fit';
 import { ProgressAddon } from '@xterm/addon-progress';
-import type { ISearchOptions, ISearchResultChangeEvent } from '@xterm/addon-search';
-import { SearchAddon } from '@xterm/addon-search';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { Terminal } from '@xterm/xterm';
 
 import { useLatestReference } from '@/hooks/use-latest-reference';
 import { useOnVisible } from '@/hooks/use-on-visible';
 
-import { caxri } from '../../lib/caxri';
-import { useDialogStore } from '../../stores/dialogs';
-import { pushToast } from '../../stores/toasts';
+import { caxri } from '../../../lib/caxri';
+import { useDialogStore } from '../../../stores/dialogs';
+import { pushToast } from '../../../stores/toasts';
 import {
     registerTerminalClearHandler,
     registerTerminalSelectionHandlers,
-} from './terminal-actions';
+} from '../terminal-actions';
 import {
     formatTerminalCommandCompletionStatus,
     registerTerminalCommandNavigation,
@@ -33,37 +31,34 @@ import {
     terminalCommandDecorationFailedColor,
     terminalCommandDecorationSucceededColor,
     TerminalCommandTracker,
-} from './terminal-commands';
-import { loadTerminalFonts } from './terminal-fonts';
-import { createTerminalImageAddon, registerTerminalImageAddon } from './terminal-images';
-import { registerTerminalClipboardHandlers, terminalKeyboardInput } from './terminal-keyboard';
-import { createTerminalLongPasteRuntime } from './terminal-long-paste';
-import { ControlledOsc52Clipboard } from './terminal-osc52-clipboard';
+} from '../terminal-commands';
+import { loadTerminalFonts } from '../terminal-fonts';
+import { createTerminalImageAddon, registerTerminalImageAddon } from '../terminal-images';
+import { registerTerminalClipboardHandlers, terminalKeyboardInput } from '../terminal-keyboard';
+import { createTerminalLongPasteRuntime } from '../terminal-long-paste';
+import { ControlledOsc52Clipboard } from '../terminal-osc52-clipboard';
 import {
     detachTerminalQuietly,
-    emptySearchResults,
     onError,
-    opaqueSearchColor,
     OSC52_BLOCK_MESSAGES,
     registerTerminalInputHandlers,
     registerTerminalPaneLinks,
     xtermThemeWithoutOverviewRulerBorder,
-} from './terminal-pane-support';
-import { reconcileTerminalProcessFocus, shouldAutoFocusTerminal } from './terminal-process-focus';
-import { clearTerminalProgress, updateTerminalProgress } from './terminal-progress';
-import { shouldReconcileTerminalRecovery } from './terminal-recovery';
-import type { TerminalGpuAcceleration } from './terminal-renderer';
-import { TerminalRendererController } from './terminal-renderer';
-import { createTerminalRendererObserver } from './terminal-renderer-observer';
-import { TerminalBackpressureRecovery, TerminalReplayCoordinator } from './terminal-replay';
-import type { TerminalSearchOptions, TerminalSearchResults } from './terminal-search';
-import { TERMINAL_SEARCH_HIGHLIGHT_LIMIT } from './terminal-search';
-import { TerminalSelectionClipboard } from './terminal-selection-clipboard';
+} from '../terminal-pane-support';
+import { reconcileTerminalProcessFocus, shouldAutoFocusTerminal } from '../terminal-process-focus';
+import { clearTerminalProgress, updateTerminalProgress } from '../terminal-progress';
+import { shouldReconcileTerminalRecovery } from '../terminal-recovery';
+import type { TerminalGpuAcceleration } from '../terminal-renderer';
+import { TerminalRendererController } from '../terminal-renderer';
+import { createTerminalRendererObserver } from '../terminal-renderer-observer';
+import { TerminalBackpressureRecovery, TerminalReplayCoordinator } from '../terminal-replay';
+import { TerminalSelectionClipboard } from '../terminal-selection-clipboard';
 import {
     didTerminalSizeChange,
     TerminalPaneResizeController,
     TerminalResizeSettler,
-} from './terminal-size';
+} from '../terminal-size';
+import { useTerminalPaneSearch } from './use-terminal-pane-search';
 
 interface TerminalPaneRuntimeOptions {
     canAcceptAgentInput: boolean;
@@ -96,7 +91,9 @@ interface TerminalPaneRuntimeOptions {
     wordSeparators: string;
 }
 
-// Owns the imperative xterm lifecycle so TerminalPane stays a small presentation component.
+/**
+ * Owns the imperative xterm lifecycle so TerminalPane stays a small presentation component.
+ */
 export function useTerminalPaneRuntime({
     canAcceptAgentInput,
     active,
@@ -124,17 +121,15 @@ export function useTerminalPaneRuntime({
     const containerReference = useRef<HTMLDivElement>(null);
     const xtermReference = useRef<Terminal | undefined>(undefined);
     const fitAndResizeReference = useRef<(() => void) | undefined>(undefined);
-    // Context-menu Paste reads this effect-owned ref instead of capturing xterm across attach epochs.
+    /**
+     * Context-menu Paste reads this effect-owned ref instead of capturing xterm across attach epochs.
+     */
     const pasteReference = useRef<(() => Promise<void>) | undefined>(undefined);
-    const searchReference = useRef<SearchAddon | undefined>(undefined);
-    const searchActiveReference = useRef(false);
-    const searchSignatureReference = useRef('');
     const replayReference = useRef<TerminalReplayCoordinator | undefined>(undefined);
     const rendererReference = useRef<TerminalRendererController | undefined>(undefined);
     const [fontsReady, setFontsReady] = useState(false);
     const [longPasteState, setLongPasteState] = useState({ id: terminalId, pending: false });
     const longPastePending = longPasteState.id === terminalId && longPasteState.pending;
-    const [searchResults, setSearchResults] = useState<TerminalSearchResults>(emptySearchResults);
     const attachedEpochReference = useRef(attachEpoch);
     const previousProcessStateReference = useRef(processState);
     const latestReference = useLatestReference({
@@ -163,6 +158,15 @@ export function useTerminalPaneRuntime({
         terminalTheme,
         wordSeparators,
     });
+    const {
+        beginSearch,
+        createSearchAddon,
+        endSearch,
+        find,
+        isSearchActive,
+        registerSearchAddon,
+        searchResults,
+    } = useTerminalPaneSearch(latestReference);
 
     useEffect(() => {
         let isCanceled = false;
@@ -212,7 +216,7 @@ export function useTerminalPaneRuntime({
          * One bounded sentinel match distinguishes exactly-at-limit from overflow without parsing Terminal text outside
          * xterm's Unicode- and wrap-aware search engine.
          */
-        const search = new SearchAddon({ highlightLimit: TERMINAL_SEARCH_HIGHLIGHT_LIMIT + 1 });
+        const search = createSearchAddon();
         const unicode11 = new Unicode11Addon();
         const osc52Clipboard = new ControlledOsc52Clipboard({
             enabled: () => latestReference.current.osc52ClipboardWrite,
@@ -287,11 +291,7 @@ export function useTerminalPaneRuntime({
             images.dispose();
             container.dataset.terminalImageStatus = 'unavailable';
         }
-        searchReference.current = search;
-        const searchResultsDisposable = search.onDidChangeResults(
-            ({ resultCount, resultIndex }: ISearchResultChangeEvent) =>
-                setSearchResults({ resultCount, resultIndex }),
-        );
+        const unregisterSearchAddon = registerSearchAddon(search);
         const progressDisposable = progress.onChange((update) => {
             /**
              * A stopped Terminal has no process that can own progress, including while its visual history is restored.
@@ -388,7 +388,7 @@ export function useTerminalPaneRuntime({
              * SearchAddon represents the active match as a selection; it must not overwrite the system clipboard when
              * the user's copy-on-select preference is enabled.
              */
-            if (searchActiveReference.current) return;
+            if (isSearchActive()) return;
             if (!latestReference.current.copyOnSelect) return;
             // xterm's onSelectionChange callback cannot be async; TerminalSelectionClipboard already
             // reports its own write failures through the onFailure callback given to its constructor.
@@ -566,7 +566,7 @@ export function useTerminalPaneRuntime({
             backpressureRecovery.current?.dispose();
             replay.dispose();
             progressDisposable.dispose();
-            searchResultsDisposable.dispose();
+            unregisterSearchAddon();
             selectionDisposable.dispose();
             unregisterSelectionHandlers();
             unregisterInputHandlers();
@@ -587,9 +587,6 @@ export function useTerminalPaneRuntime({
             if (fitAndResizeReference.current === scheduleResize)
                 fitAndResizeReference.current = undefined;
             if (rendererReference.current === renderer) rendererReference.current = undefined;
-            if (searchReference.current === search) searchReference.current = undefined;
-            searchActiveReference.current = false;
-            searchSignatureReference.current = '';
             if (replayReference.current === replay) replayReference.current = undefined;
             // A cleanup function cannot be async; a Server restart racing this teardown has no view
             // left to notify, so the detach failure is intentionally unobserved.
@@ -710,78 +707,6 @@ export function useTerminalPaneRuntime({
     useEffect(
         () => registerTerminalClearHandler(terminalId, () => xtermReference.current?.clear()),
         [terminalId],
-    );
-    const beginSearch = useCallback((): void => {
-        searchActiveReference.current = true;
-    }, []);
-
-    const endSearch = useCallback((): void => {
-        try {
-            searchReference.current?.clearDecorations();
-        } finally {
-            searchActiveReference.current = false;
-            searchSignatureReference.current = '';
-            setSearchResults(emptySearchResults);
-        }
-    }, []);
-
-    const find = useCallback(
-        (
-            direction: 'next' | 'previous',
-            query: string,
-            options: TerminalSearchOptions,
-            isIncremental = false,
-        ): void => {
-            const search = searchReference.current;
-            if (!search) return;
-            searchActiveReference.current = true;
-            const theme = latestReference.current.terminalTheme;
-            const searchOptions: ISearchOptions = {
-                ...options,
-                incremental: isIncremental,
-                ...(theme && {
-                    decorations: {
-                        activeMatchBackground: opaqueSearchColor(theme.yellow),
-                        activeMatchBorder: opaqueSearchColor(theme.foreground),
-                        activeMatchColorOverviewRuler: opaqueSearchColor(theme.yellow),
-                        matchBackground: opaqueSearchColor(theme.selectionBackground),
-                        matchBorder: opaqueSearchColor(theme.brightBlack),
-                        matchOverviewRuler: opaqueSearchColor(theme.selectionBackground),
-                    },
-                }),
-            };
-            try {
-                const signature = JSON.stringify([query, options, theme]);
-                /**
-                 * Addon-search beta updates its cached options before checking whether options changed, so toggling
-                 * Match Case/Whole Word/Regex for the same query would retain stale decorations and counts. Clear only
-                 * on an incremental signature change; explicit next/previous navigation must preserve the current
-                 * result.
-                 */
-                if (isIncremental && signature !== searchSignatureReference.current)
-                    search.clearDecorations();
-                searchSignatureReference.current = signature;
-                if (!query) {
-                    search.findNext('', searchOptions);
-                    setSearchResults(emptySearchResults);
-                    return;
-                }
-                if (direction === 'previous') search.findPrevious(query, searchOptions);
-                else search.findNext(query, searchOptions);
-            } catch (error) {
-                search.clearDecorations();
-                setSearchResults({
-                    error:
-                        error instanceof SyntaxError
-                            ? 'Invalid regular expression'
-                            : 'Search unavailable',
-                    resultCount: 0,
-                    resultIndex: -1,
-                });
-            }
-        },
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- `latestReference` is a stable ref object, intentionally excluded
-        [],
     );
     const focusTerminal = useCallback((): void => xtermReference.current?.focus(), []);
     const pasteFromClipboard = useCallback((): void => {

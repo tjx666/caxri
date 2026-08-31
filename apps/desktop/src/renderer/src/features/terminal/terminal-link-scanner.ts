@@ -23,7 +23,7 @@ interface TerminalLinkScanChunk {
 export interface TerminalLinkScanner {
     /**
      * Scans at most one bounded chunk of buffer lines and returns the accumulated result so far. The caller
-     * (`use-terminal-link-picker.ts`) reschedules the next call with `requestAnimationFrame` while `status` is
+     * (`hooks/use-terminal-link-picker.ts`) reschedules the next call with `requestAnimationFrame` while `status` is
      * `'scanning'`, so a large scrollback time-slices across frames instead of blocking the Renderer in one synchronous
      * pass.
      */
