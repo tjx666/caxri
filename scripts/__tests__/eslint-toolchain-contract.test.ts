@@ -108,6 +108,14 @@ describe('shared ESLint preset toolchain contract', () => {
         ).resolves.toBe(true);
     });
 
+    it('keeps native script helpers outside TypeScript source linting', async () => {
+        const eslint = new ESLint({ cwd: root });
+
+        await expect(
+            eslint.isPathIgnored(resolve(root, 'scripts/mobile-acceptance-privacy.swift')),
+        ).resolves.toBe(true);
+    });
+
     it('does not apply source line limits to generated migration metadata', async () => {
         const config = await effectiveConfigFor(
             'apps/server/src/domains/db/migrations/meta/0016_snapshot.json',
