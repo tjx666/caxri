@@ -7,7 +7,7 @@ import type {
     TerminalKind,
     TerminalRecord,
 } from '@caxri/protocol';
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, notInArray, sql } from 'drizzle-orm';
 
 import type { CaxriDrizzleDatabase } from '../connection';
 import { terminals } from '../schema';
@@ -176,6 +176,52 @@ export class TerminalsModel {
             .set({ lastAgentProcessState: state, updatedAt: now })
             .where(and(eq(terminals.id, id), sql`${terminals.provider} IS NOT NULL`))
             .run();
+    }
+
+    /**
+     * Restores interactive Agent availability only after the coordinator confirms that the bound provider owns the
+     * Shell's foreground process group. This does not create a managed launch ID or grant process-control authority.
+     */
+    reactivateAgentProcess(id: string, provider: AgentProvider, now = Date.now()): boolean {
+        return (
+            this.database
+                .update(terminals)
+                .set({ lastAgentProcessState: 'running', updatedAt: now })
+                .where(
+                    and(
+                        eq(terminals.id, id),
+                        eq(terminals.provider, provider),
+                        eq(terminals.lastProcessState, 'running'),
+                        notInArray(terminals.lastAgentProcessState, ['starting', 'running']),
+                    ),
+                )
+                .run().changes === 1
+        );
+    }
+
+    /**
+     * Revokes interactive availability after repeated process probes confirm that an unmanaged Agent no longer owns the
+     * live Shell's foreground process group. Managed lifecycle state is cancelled before it can reach this path.
+     */
+    deactivateForegroundAgentProcess(
+        id: string,
+        provider: AgentProvider,
+        now = Date.now(),
+    ): boolean {
+        return (
+            this.database
+                .update(terminals)
+                .set({ lastAgentProcessState: 'stopped', updatedAt: now })
+                .where(
+                    and(
+                        eq(terminals.id, id),
+                        eq(terminals.provider, provider),
+                        eq(terminals.lastProcessState, 'running'),
+                        eq(terminals.lastAgentProcessState, 'running'),
+                    ),
+                )
+                .run().changes === 1
+        );
     }
 
     /**

@@ -313,7 +313,7 @@ test('live Terminal restores the authoritative screen after Renderer output back
     }
 });
 
-test('Agent exit returns to the same live Shell instead of stopping the Terminal', async () => {
+test('same-provider relaunch restores Agent Actions until the manual Agent exits', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-agent-shell-return-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -370,6 +370,49 @@ test('Agent exit returns to the same live Shell instead of stopping the Terminal
         await expect(rows).toContainText('RETURNED_TO_SHELL');
         await expect(pane).toHaveAttribute('data-terminal-id', terminalId);
         await expect.poll(() => pageRequest<number>(running.page, 'terminal.runningCount')).toBe(1);
+
+        await input.focus();
+        await running.page.keyboard.press('Meta+Shift+A');
+        await expect(running.page.locator('[data-agent-actions-picker]')).toHaveCount(0);
+
+        await typeTerminal(
+            running.page,
+            String.raw`alias cc=codex; printf 'SAME_PROVIDER_ALIAS_READY\n'`,
+        );
+        await expect(rows).toContainText('SAME_PROVIDER_ALIAS_READY');
+        await typeTerminal(running.page, 'cc');
+        await expect(rows).toContainText('FAKE_CODEX_READY');
+        await expect
+            .poll(async () => {
+                const bootstrap = await pageRequest<{
+                    terminals: Array<{ id: string; lastAgentProcessState?: string }>;
+                }>(running.page, 'app.bootstrap');
+                return bootstrap.terminals.find(({ id }) => id === terminalId)
+                    ?.lastAgentProcessState;
+            })
+            .toBe('running');
+
+        await input.focus();
+        await running.page.keyboard.press('Meta+Shift+A');
+        await expect(running.page.locator('[data-agent-actions-picker]')).toBeVisible();
+
+        await running.page.keyboard.press('Escape');
+        await expect(running.page.locator('[data-agent-actions-picker]')).toHaveCount(0);
+        await input.focus();
+        await input.press('Control+C');
+        await expect
+            .poll(async () => {
+                const bootstrap = await pageRequest<{
+                    terminals: Array<{ id: string; lastAgentProcessState?: string }>;
+                }>(running.page, 'app.bootstrap');
+                return bootstrap.terminals.find(({ id }) => id === terminalId)
+                    ?.lastAgentProcessState;
+            })
+            .toBe('stopped');
+
+        await input.focus();
+        await running.page.keyboard.press('Meta+Shift+A');
+        await expect(running.page.locator('[data-agent-actions-picker]')).toHaveCount(0);
     } finally {
         try {
             await running.app.close();
