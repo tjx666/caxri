@@ -76,19 +76,25 @@ function terminalLinkHintAnchor(terminal: Terminal, event: MouseEvent): Terminal
 export interface TerminalLinkHintController {
     dispose(): void;
     hide(): void;
+    leave(): void;
     show(
         event: MouseEvent,
         text: string,
         onModifierChange?: (isModifierDown: boolean) => void,
+        linkKey?: string,
     ): void;
 }
 
 /**
  * Owns one delayed hover popup and one modifier-listener set per Terminal. xterm replaces a link's decoration object
  * immediately after `hover` returns, so the initial modifier state is applied in a microtask, after those public
- * setters exist. The `xterm-hover` class prevents events from falling through to neighboring links.
+ * setters exist. A render can also synchronously leave and reprovide the same link; delaying that leave until the
+ * microtask boundary keeps the already-visible popup mounted without delaying a genuine pointer exit. The `xterm-hover`
+ * class prevents events from falling through to neighboring links.
  */
 export function createTerminalLinkHintController(terminal: Terminal): TerminalLinkHintController {
+    let activeLinkKey: string | undefined;
+    let anchorEvent: MouseEvent | undefined;
     let element: HTMLDivElement | undefined;
     let generation = 0;
     let isLinkHovered = false;
@@ -108,6 +114,17 @@ export function createTerminalLinkHintController(terminal: Terminal): TerminalLi
     ownerDocument?.addEventListener('keyup', onKeyboardModifier);
     ownerWindow?.addEventListener('blur', onWindowBlur);
 
+    const position = (hintElement: HTMLDivElement, event: MouseEvent) => {
+        const bounds = hintElement.getBoundingClientRect();
+        const { left, top } = terminalLinkHintPosition(
+            terminalLinkHintAnchor(terminal, event),
+            { height: bounds.height, width: bounds.width },
+            { height: ownerWindow?.innerHeight ?? 0, width: ownerWindow?.innerWidth ?? 0 },
+        );
+        hintElement.style.left = `${left}px`;
+        hintElement.style.top = `${top}px`;
+    };
+
     const hide = () => {
         generation += 1;
         if (timer !== undefined) clearTimeout(timer);
@@ -115,14 +132,20 @@ export function createTerminalLinkHintController(terminal: Terminal): TerminalLi
         isLinkHovered = false;
         updateModifier(false);
         modifierChange = undefined;
+        activeLinkKey = undefined;
+        anchorEvent = undefined;
         element?.remove();
         element = undefined;
     };
 
     return {
-        show(event, text, onModifierChange) {
-            hide();
+        show(event, text, onModifierChange, linkKey = text) {
             if (!host || !ownerDocument || !ownerWindow) return;
+            const isSameLink =
+                activeLinkKey === linkKey && (timer !== undefined || element?.textContent === text);
+            if (!isSameLink) hide();
+            activeLinkKey = linkKey;
+            anchorEvent = event;
             const currentGeneration = generation;
             isLinkHovered = true;
 
@@ -135,6 +158,11 @@ export function createTerminalLinkHintController(terminal: Terminal): TerminalLi
                 if (generation === currentGeneration) updateModifier(event.metaKey);
             });
 
+            if (isSameLink) {
+                if (element) position(element, event);
+                return;
+            }
+
             timer = setTimeout(() => {
                 timer = undefined;
                 if (generation !== currentGeneration) return;
@@ -145,19 +173,20 @@ export function createTerminalLinkHintController(terminal: Terminal): TerminalLi
                 nextElement.style.visibility = 'hidden';
                 nextElement.textContent = text;
                 host.append(nextElement);
-                const bounds = nextElement.getBoundingClientRect();
-                const { left, top } = terminalLinkHintPosition(
-                    terminalLinkHintAnchor(terminal, event),
-                    { height: bounds.height, width: bounds.width },
-                    { height: ownerWindow.innerHeight, width: ownerWindow.innerWidth },
-                );
-                nextElement.style.left = `${left}px`;
-                nextElement.style.top = `${top}px`;
+                position(nextElement, anchorEvent ?? event);
                 nextElement.style.visibility = 'visible';
                 element = nextElement;
             }, TERMINAL_LINK_HINT_DELAY_MS);
         },
         hide,
+        leave() {
+            isLinkHovered = false;
+            updateModifier(false);
+            const leavingLinkKey = activeLinkKey;
+            queueMicrotask(() => {
+                if (!isLinkHovered && activeLinkKey === leavingLinkKey) hide();
+            });
+        },
         dispose() {
             hide();
             ownerDocument?.removeEventListener('keydown', onKeyboardModifier);

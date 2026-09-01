@@ -240,8 +240,10 @@ describe('findTerminalLinks', () => {
         ]);
     });
 
-    it('does not detach an ordinary relative path from adjacent CJK prose', () => {
+    it('rejects ambiguous CJK prose while preserving an explicit relative path', () => {
         expect(findTerminalLinks('说明。workspace/apps/server/src/file.ts:15')).toEqual([]);
+        expect(findTerminalLinks('账单/配置状态给了陌生人。')).toEqual([]);
+        expect(findTerminalLinks('./账单/配置状态 src/Makefile')).toHaveLength(2);
     });
 
     it('preserves CJK punctuation inside valid relative paths', () => {
