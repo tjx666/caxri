@@ -12,8 +12,8 @@
  */
 
 import { mkdtemp, readdir, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { homedir, tmpdir } from 'node:os';
+import { isAbsolute, join } from 'node:path';
 import process from 'node:process';
 import { setTimeout as sleep } from 'node:timers/promises';
 
@@ -21,6 +21,7 @@ import { execFileAsync } from './exec';
 
 const REPOSITORY = 'tjx666/caxri';
 const INSTALL_PATH = '/Applications/Caxri.app';
+const BUNDLED_CLI_PATH = join(INSTALL_PATH, 'Contents', 'Resources', 'bin', 'caxri');
 
 interface InstallOptions {
     tag?: string;
@@ -53,11 +54,10 @@ export function findDmgPair(names: string[]): { checksum?: string; dmg: string }
     return { checksum, dmg };
 }
 
-const EXECUTABLE_PREFIX = `${INSTALL_PATH}/Contents/MacOS/`;
-const SERVER_RUNTIME_PREFIX = `${INSTALL_PATH}/Contents/Resources/server/runtime/bin/node`;
+const BUNDLE_CONTENTS_PREFIX = `${INSTALL_PATH}/Contents/`;
 const QUIT_POLL_INTERVAL_MS = 500;
-const APPLE_EVENT_ATTEMPTS = 10;
 const SIGNAL_ATTEMPTS = 10;
+const HOST_STOP_TIMEOUT_MS = 30_000;
 
 interface CaxriProcess {
     command: string;
@@ -71,6 +71,7 @@ interface QuitOperations {
     list: () => Promise<CaxriProcess[]>;
     quitApplication: () => Promise<void>;
     signalProcess: (pid: number, signal: NodeJS.Signals) => void;
+    stopHost: (profilePath: string) => Promise<number | undefined>;
     wait: (milliseconds: number) => Promise<void>;
 }
 
@@ -84,14 +85,85 @@ export function isHeadlessCaxriProcess(command: string): boolean {
     );
 }
 
+/**
+ * Restricts destructive shutdown to executables loaded from the exact installed application bundle.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/install-caxri.test.ts
+export function isInstalledCaxriCommand(command: string): boolean {
+    return command.startsWith(BUNDLE_CONTENTS_PREFIX);
+}
+
+/**
+ * Resolves the profile owned by the installed Desktop. Electron helper argv is authoritative for explicit profiles; the
+ * fallback mirrors Electron's current packaged default derived from the `@caxri/desktop` package name.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/install-caxri.test.ts
+export function resolveInstalledProfilePath(
+    processes: ReadonlyArray<Pick<CaxriProcess, 'command'>>,
+    environmentPath = process.env.CAXRI_USER_DATA_DIR,
+    homeDirectory = homedir(),
+): string {
+    if (environmentPath && isAbsolute(environmentPath)) return environmentPath;
+    for (const { command } of processes) {
+        const marker = '--user-data-dir=';
+        const markerIndex = command.indexOf(marker);
+        if (markerIndex === -1) continue;
+        const remainder = command.slice(markerIndex + marker.length);
+        const nextFlagIndex = remainder.indexOf(' --');
+        const profilePath = (
+            nextFlagIndex === -1 ? remainder : remainder.slice(0, nextFlagIndex)
+        ).trim();
+        if (profilePath && isAbsolute(profilePath)) return profilePath;
+    }
+    return join(homeDirectory, 'Library', 'Application Support', '@caxri', 'desktop');
+}
+
+/**
+ * Defines the exact installed CLI invocation used before replacing its application bundle.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/install-caxri.test.ts
+export function hostStopCommand(profilePath: string): { arguments: string[]; command: string } {
+    return {
+        command: BUNDLED_CLI_PATH,
+        arguments: [
+            'host',
+            'stop',
+            '--force',
+            '--profile',
+            profilePath,
+            '--yes',
+            '--json',
+            '--timeout',
+            String(HOST_STOP_TIMEOUT_MS),
+        ],
+    };
+}
+
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/install-caxri.test.ts
+export function parseHostStopActivePtyCount(stdout: string): number | undefined {
+    try {
+        const value: unknown = JSON.parse(stdout);
+        const activePtyCount: unknown =
+            typeof value === 'object' && value !== null
+                ? Reflect.get(value, 'activePtyCount')
+                : undefined;
+        return Number.isSafeInteger(activePtyCount) && Number(activePtyCount) >= 0
+            ? Number(activePtyCount)
+            : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
 async function listInstalledCaxriProcesses(): Promise<CaxriProcess[]> {
     const { stdout } = await execFileAsync('/bin/ps', ['-axo', 'pid=,command=']);
     return stdout.split('\n').flatMap((line) => {
         const match = /^\s*(?<pid>\d+)\s+(?<command>\S.*)$/u.exec(line);
-        const command = match?.groups?.command;
-        if (!command?.startsWith(EXECUTABLE_PREFIX) && !command?.startsWith(SERVER_RUNTIME_PREFIX))
-            return [];
-        return [{ command, pid: Number(match?.groups?.pid) }];
+        const groups = match?.groups;
+        if (!groups) return [];
+        const command = groups.command;
+        if (!command || !isInstalledCaxriCommand(command)) return [];
+        return [{ command, pid: Number(groups.pid) }];
     });
 }
 
@@ -107,6 +179,13 @@ const defaultQuitOperations: QuitOperations = {
             // The process exited between the listing and the signal; that is the outcome we wanted.
         }
     },
+    stopHost: async (profilePath) => {
+        const invocation = hostStopCommand(profilePath);
+        const { stdout } = await execFileAsync(invocation.command, invocation.arguments, {
+            timeout: HOST_STOP_TIMEOUT_MS + 5_000,
+        });
+        return parseHostStopActivePtyCount(stdout);
+    },
     wait: (milliseconds) => sleep(milliseconds),
 };
 
@@ -114,12 +193,10 @@ const defaultQuitOperations: QuitOperations = {
  * Stops everything running out of the installed bundle before it is replaced; `ditto` over a live app corrupts both the
  * bundle and the running process.
  *
- * The windowed application is asked to quit through an Apple event so it can close its windows normally. The Host and
- * Runtime are deliberately detached background processes that outlive every window and are not registered applications,
- * so `tell application "Caxri" to quit` never reaches them — an installer run started after the last window closed used
- * to send an Apple event nothing received, wait out the full timeout, and fail with "quit it manually" against
- * processes that have no UI to quit. They are signalled directly instead, exactly as `uninstall-caxri` stops an owned
- * Host.
+ * The installed, version-matched CLI stops the Host first. When it reports active tasks (or cannot report a result),
+ * the installer then force-terminates the Desktop and its helpers so automatic reconnect cannot restart that Host and
+ * the ordinary quit confirmation cannot block an unattended install. With no active tasks, Desktop gets its normal quit
+ * path so it can persist window state. All remaining exact bundle-owned processes fall back from SIGTERM to SIGKILL.
  */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/install-caxri.test.ts
 export async function quitRunningCaxri(
@@ -129,16 +206,41 @@ export async function quitRunningCaxri(
     if (running.length === 0) return;
     console.log('Quitting the running Caxri…');
 
-    if (running.some(({ command }) => !isHeadlessCaxriProcess(command))) {
-        await operations.quitApplication();
-        for (let attempt = 0; attempt < APPLE_EVENT_ATTEMPTS && running.length > 0; attempt++) {
-            // eslint-disable-next-line no-await-in-loop -- bounded wait for the windowed app to exit
-            await operations.wait(QUIT_POLL_INTERVAL_MS);
-            // eslint-disable-next-line no-await-in-loop -- bounded wait for the windowed app to exit
-            running = await operations.list();
+    let shouldForceDesktop = false;
+    if (running.some(({ command }) => isHeadlessCaxriProcess(command))) {
+        try {
+            const activePtyCount = await operations.stopHost(resolveInstalledProfilePath(running));
+            shouldForceDesktop = activePtyCount !== 0;
+        } catch {
+            shouldForceDesktop = true;
+            console.warn('Bundled CLI Host stop failed; using exact-process shutdown fallback.');
         }
-        if (running.length === 0) return;
+        running = await operations.list();
     }
+
+    if (running.some(({ command }) => !isHeadlessCaxriProcess(command))) {
+        if (shouldForceDesktop) {
+            for (const { command, pid } of running) {
+                if (!isHeadlessCaxriProcess(command)) operations.signalProcess(pid, 'SIGKILL');
+            }
+        } else {
+            try {
+                await operations.quitApplication();
+            } catch {
+                console.warn(
+                    'Caxri did not accept the normal quit request; using exact-process shutdown fallback.',
+                );
+            }
+        }
+        for (let attempt = 0; attempt < SIGNAL_ATTEMPTS; attempt++) {
+            // eslint-disable-next-line no-await-in-loop -- bounded wait for Desktop-owned processes to exit
+            await operations.wait(QUIT_POLL_INTERVAL_MS);
+            // eslint-disable-next-line no-await-in-loop -- bounded wait for Desktop-owned processes to exit
+            running = await operations.list();
+            if (running.every(({ command }) => isHeadlessCaxriProcess(command))) break;
+        }
+    }
+    if (running.length === 0) return;
 
     for (const { pid } of running) operations.signalProcess(pid, 'SIGTERM');
     for (let attempt = 0; attempt < SIGNAL_ATTEMPTS; attempt++) {
@@ -148,8 +250,16 @@ export async function quitRunningCaxri(
         running = await operations.list();
         if (running.length === 0) return;
     }
+    for (const { pid } of running) operations.signalProcess(pid, 'SIGKILL');
+    for (let attempt = 0; attempt < SIGNAL_ATTEMPTS; attempt++) {
+        // eslint-disable-next-line no-await-in-loop -- bounded wait for force-terminated processes to exit
+        await operations.wait(QUIT_POLL_INTERVAL_MS);
+        // eslint-disable-next-line no-await-in-loop -- bounded wait for force-terminated processes to exit
+        running = await operations.list();
+        if (running.length === 0) return;
+    }
     throw new Error(
-        `Caxri is still running (PIDs ${running.map(({ pid }) => pid).join(', ')}). Stop it manually and re-run the installer.`,
+        `Caxri is still running after forced shutdown (PIDs ${running.map(({ pid }) => pid).join(', ')}); installation was aborted.`,
     );
 }
 

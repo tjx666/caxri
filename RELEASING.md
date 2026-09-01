@@ -50,9 +50,11 @@ the app as "damaged". Install from the terminal instead — `gh` downloads carry
 bun run install:caxri              # latest release; add `-- --tag vX.Y.Z` for a specific one
 ```
 
-The installer downloads the DMG and checksum with `gh`, verifies the SHA-256, quits a running
-Caxri, replaces `/Applications/Caxri.app`, and strips any quarantine attribute defensively. For an
-artifact that was already downloaded with a browser, clear the flag once with
+The installer downloads the DMG and checksum with `gh`, verifies the SHA-256, stops tasks through
+the installed version-matched CLI, quits Caxri without an interactive task prompt, replaces
+`/Applications/Caxri.app`, and strips any quarantine attribute defensively. A failed graceful stop
+falls back to signals scoped to exact processes inside that installed bundle. For an artifact that
+was already downloaded with a browser, clear the flag once with
 `xattr -dr com.apple.quarantine /Applications/Caxri.app`.
 
 ## Current distribution boundary
