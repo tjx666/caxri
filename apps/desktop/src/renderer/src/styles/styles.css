@@ -180,6 +180,16 @@
     padding-left: 20px;
 }
 /*
+ * xterm hardcodes pointer decorations for OSC 8 links and does not expose their decoration object through
+ * `ILinkHandler`. Keep its link hit-testing while making the visible cursor follow Caxri's macOS Cmd activation rule.
+ */
+.terminal-surface .xterm.xterm-cursor-pointer:not(.terminal-link-modifier-active) {
+    cursor: text;
+}
+.terminal-surface .xterm.terminal-link-modifier-active {
+    cursor: pointer;
+}
+/*
  * xterm.css hardcodes `background-color: #000` on the viewport (for macOS scrollbar opacity), and
  * the renderer canvas only paints the theme background over the character grid — so the reserved
  * gutter would show as a black strip. VS Code clears the viewport background the same way and lets
