@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { AppSettings } from '@caxri/protocol';
 import { MAX_TERMINAL_INPUT_LENGTH } from '@caxri/protocol';
 import { execFileAsync } from '@caxri/system';
 
@@ -388,6 +389,19 @@ test('Codex Terminal preserves an oversized bracketed paste across private input
         testRootPath: root,
     });
     try {
+        /**
+         * This test isolates raw PTY input framing, so opt out of the user-facing long-paste transformation before
+         * launching the Agent Terminal whose captured bytes are asserted below.
+         */
+        const currentSettings = await pageRequest<{ value: AppSettings }>(
+            running.page,
+            'settings.get',
+        );
+        const settings = structuredClone(currentSettings.value);
+        settings['agents.providers'].codex.pasteSummary.enabled = false;
+        await pageRequest(running.page, 'settings.update', {
+            source: JSON.stringify(settings, null, 2),
+        });
         await createProjectSession(running.page, 'codex');
         const input = running.page.locator('.xterm-helper-textarea');
         await expect(running.page.locator('.xterm-rows')).toContainText('FAKE_CODEX_READY');

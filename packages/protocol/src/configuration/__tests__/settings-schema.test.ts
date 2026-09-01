@@ -107,6 +107,7 @@ describe('wire schema versus file schema', () => {
             defaultAgentProviderSettings.codex.recovery,
         );
         expect(parsed['agents.providers'].codex.naming).toEqual({ enabled: false });
+        expect(parsed['agents.providers'].codex.pasteSummary).toEqual({ enabled: true });
 
         expect(
             appSettingsFileSchema.safeParse({

@@ -20,6 +20,7 @@ import { logEventCatalog } from '@caxri/system';
 
 import { AgentDispatchService, createAgentCommandHandlers } from './agent-dispatch';
 import { createAgentRuntime } from './agent-runtime';
+import { LongPasteService } from './agents';
 import { createBackgroundTasks } from './background-tasks';
 import { DiagnosticsService } from './diagnostics';
 import type { DomainDependencies, DomainHandlers, DomainServices } from './domain-services';
@@ -31,7 +32,7 @@ import { createServiceHandlers, mainOwned } from './service-handlers';
 import { SessionSelectionQueue } from './session-selection';
 import type { TerminalWorkingDirectoryIdentity } from './terminal';
 import { ShellIntegrationService, TerminalManager, TerminalRestoreSupervisor } from './terminal';
-import { createTerminalInputHandler } from './terminal-input';
+import { createTerminalAgentExactInputHandler, createTerminalInputHandler } from './terminal-input';
 import { createTerminalMoveHandler } from './terminal-move';
 import { createTerminalRestartHandler } from './terminal-restart';
 import * as provenance from './workbench-provenance';
@@ -80,6 +81,7 @@ export async function createDomainServices(
         agentHooks,
         agentLaunchSettings,
         agentOutputRecoverySettings,
+        agents,
         coordinator,
         sessionAutoNaming,
         sessionRenames,
@@ -166,6 +168,14 @@ export async function createDomainServices(
             dependencies.terminal?.terminalColors ??
             (() => configuration.getTheme().value.terminal),
     });
+    const longPastes = new LongPasteService(
+        userDataPath,
+        database,
+        agents,
+        () => configuration.getSettings().value,
+        (terminalId) => terminals.agentLaunchId(terminalId),
+    );
+    await longPastes.initialize();
     const unsubscribeTerminalSettings = configuration.subscribeSettings(() =>
         terminals.reconcileOutputRecoverySettings(),
     );
@@ -415,6 +425,7 @@ export async function createDomainServices(
         terminalRestores.close();
         await sessionAutoNaming.close();
         coordinator.close();
+        longPastes.close();
         unsubscribeTerminalSettings();
         await terminals.shutdown('orderly');
         dispatchService.close();
@@ -693,6 +704,12 @@ export async function createDomainServices(
         },
         'terminal.openFileLink': () => mainOwned('terminal.openFileLink'),
         'terminal.input': createTerminalInputHandler({ coordinator, database, send, terminals }),
+        'terminal.inputAgentExact': createTerminalAgentExactInputHandler({
+            coordinator,
+            database,
+            send,
+            terminals,
+        }),
         'terminal.resize': ({ terminalId, cols, rows }) => {
             terminals.resize(terminalId, cols, rows);
             return null;
@@ -755,6 +772,7 @@ export async function createDomainServices(
             files,
             git,
             introspection,
+            longPastes,
             projectStatus,
             transcripts,
             userDataPath,

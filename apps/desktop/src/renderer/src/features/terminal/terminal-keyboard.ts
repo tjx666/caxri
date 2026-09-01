@@ -16,6 +16,7 @@ interface TerminalClipboardHandlerOptions {
     getSelection(): string;
     imagePasteInput(): string | undefined;
     pasteImage(input: string): void;
+    pasteText(text: string): boolean;
 }
 
 /**
@@ -80,13 +81,14 @@ export function registerTerminalClipboardHandlers(
                   options.canAcceptAgentInput(),
               )
             : undefined;
-        if (!input) return;
+        const text = event.clipboardData?.getData('text/plain') ?? '';
+        if (!input && (!text || !options.pasteText(text))) return;
         /**
          * The provider owns image encoding and temp-file lifecycle; Caxri sends only its catalogued paste binding.
          */
         event.preventDefault();
         event.stopImmediatePropagation();
-        options.pasteImage(input);
+        if (input) options.pasteImage(input);
     };
     document.addEventListener('copy', handleCopy, { capture: true });
     container.addEventListener('paste', handlePaste, { capture: true });

@@ -134,6 +134,13 @@ export class LocalTerminalExecution extends EventTarget implements TerminalExecu
         return Promise.resolve(this.engine.write(terminalId, data));
     }
 
+    writeAgentExact(terminalId: string, data: string, expectedAgentLaunchId: string): boolean {
+        return (
+            this.agents.get(terminalId)?.launchId === expectedAgentLaunchId &&
+            this.engine.write(terminalId, data)
+        );
+    }
+
     configureOutputRecovery(): void {
         this.engine.reconcileOutputRecoverySettings();
     }
@@ -207,6 +214,10 @@ export class LocalTerminalExecution extends EventTarget implements TerminalExecu
 
     agentProcessId(terminalId: string): number | undefined {
         return this.agents.get(terminalId)?.processId;
+    }
+
+    agentLaunchId(terminalId: string): string | undefined {
+        return this.agents.get(terminalId)?.launchId;
     }
 
     resources(terminalId: string): ReturnType<TerminalExecutionPort['resources']> {

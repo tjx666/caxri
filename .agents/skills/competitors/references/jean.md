@@ -2,6 +2,8 @@
 
 _Researched 2026-08-06._
 
+_Long-paste behavior refreshed 2026-08-31 against commit `41390c6`._
+
 - **Positioning**: "Opinionated" native desktop dev environment for AI agents — git worktrees, chat sessions, terminals, and GitHub/Linear integrations unified into one cohesive workflow; explicitly picks one workflow per decision ("git worktrees for isolation, automated merging, structured context loading") instead of exposing configuration.
 - **Company/traction**: Built by coolLabs (makers of self-hosted PaaS Coolify), core maintainer Andras Bacsai; launched ~2026-01-23, ~1,134 GitHub stars / 134 forks / 123 open issues as of this research; sustained via GitHub Sponsors, Open Collective, and coolLabs' managed cloud services rather than a paid tier.
 - **Tech stack**: Tauri v2 (Rust) + React 19 + TypeScript, Tailwind CSS v4, shadcn/ui v4, Zustand v5, TanStack Query, CodeMirror 6, xterm.js.
@@ -22,6 +24,7 @@ _Researched 2026-08-06._
 - Deep GitHub/Linear integration: cross-project dashboard for issues/PRs/workflow runs/security alerts/advisories/Dependabot, "checkout PR as worktree," auto-archive worktree on PR merge.
 - Multi-dock terminal (floating/left/right/bottom), diff viewer (unified & side-by-side), file tree with preview, token-usage debug panel, mobile swipe gestures, configurable keybindings/themes/fonts.
 - Optional "Opinionated Plugins" for token reduction (RTK proxies CLI tool output, cutting 60-90% of tool-output tokens; Caveman trims Claude responses ~65-75%).
+- Text pastes at or above 2,000 characters are saved as a local text attachment, and the chat input receives a short file-reference instruction instead of the original text. Jean does not call a model to summarize the paste; this provides a useful precedent for keeping large source text out of the immediate Agent prompt while retaining an exact local artifact.
 
 ## Community sentiment
 

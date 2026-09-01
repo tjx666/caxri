@@ -183,6 +183,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
                                 launch: { executable: string; args: string[] };
                                 messaging: { enabled: boolean };
                                 naming: { enabled: boolean };
+                                pasteSummary: { enabled: boolean };
                                 recovery: {
                                     enabled: boolean;
                                     patterns: string[];
@@ -201,6 +202,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
                 launch: { executable: 'claude', args: [] },
                 messaging: { enabled: true },
                 naming: { enabled: true },
+                pasteSummary: { enabled: true },
                 recovery: {
                     enabled: false,
                     patterns: [],

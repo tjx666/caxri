@@ -73,12 +73,20 @@ interface AgentNamingSettings {
     enabled: boolean;
 }
 
+interface AgentPasteSummarySettings {
+    /**
+     * Authorizes one low-cost model call when Caxri replaces a long Terminal paste with a local-file reference.
+     */
+    enabled: boolean;
+}
+
 export interface AgentProviderSettings {
     actions: AgentActionsSettings;
     hooks: AgentHookSettings;
     launch: AgentLaunchSettings;
     messaging: AgentMessagingSettings;
     naming: AgentNamingSettings;
+    pasteSummary: AgentPasteSummarySettings;
     recovery: AgentOutputRecoverySettings;
 }
 
@@ -133,6 +141,7 @@ export const defaultAgentProviderSettings = Object.fromEntries(
             hooks: { enabled: false },
             messaging: { enabled: true },
             naming: { enabled: false },
+            pasteSummary: { enabled: true },
             recovery: { ...defaultAgentOutputRecoverySettings, patterns: [] },
             launch: {
                 executable: agentProviderCatalog[provider].executableName,

@@ -16,7 +16,7 @@ export type SettingRowBinding =
     | {
           type: 'provider-toggle';
           provider: AgentProvider;
-          field: 'hooks' | 'messaging' | 'naming';
+          field: 'hooks' | 'messaging' | 'naming' | 'pasteSummary';
       }
     | { type: 'provider-recovery'; provider: AgentProvider }
     | { type: 'provider-launch'; provider: AgentProvider; field: 'executable' | 'args' }
@@ -155,6 +155,21 @@ function providerRows(provider: AgentProvider): SettingRowDescriptor[] {
         },
         {
             ...shared,
+            id: `agents.${provider}.pasteSummary`,
+            title: 'Summarize long pastes',
+            description:
+                'Saves long pasted text locally and uses one extra low-cost model call before inserting a summary and file path. Disable this to keep ordinary paste behavior.',
+            binding: { type: 'provider-toggle', provider, field: 'pasteSummary' },
+            haystack: lower([
+                'summarize long pastes',
+                'clipboard',
+                'context',
+                'model call',
+                ...providerTerms,
+            ]),
+        },
+        {
+            ...shared,
             id: `agents.${provider}.recovery`,
             title: 'Network error recovery',
             description:
@@ -235,6 +250,7 @@ const rows: SettingRowDescriptor[] = [
     specRow('terminal.fontSize'),
     specRow('terminal.gpuAcceleration'),
     specRow('terminal.scrollback'),
+    specRow('terminal.longPasteThreshold'),
     specRow('terminal.copyOnSelect'),
     specRow('terminal.osc52ClipboardWrite'),
     specRow('terminal.wordSeparators'),

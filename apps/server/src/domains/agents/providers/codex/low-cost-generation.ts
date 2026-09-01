@@ -1,0 +1,109 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import type { AgentProviderPasteSummaryGenerationContext } from '../../contract';
+import { canonicalPath } from '../../contract';
+import { agentCommandEnvironment, assertAgentRenameVersion } from '../../rename';
+import { runAgentTextCommand } from '../../text-generation';
+import { resolveCodexHome } from './paths';
+
+const CODEX_LOW_COST_GENERATION_MINIMUM_VERSION = '0.122.0';
+const CODEX_LOW_COST_MODEL = 'gpt-5.6-luna';
+const MACOS_SANDBOX_EXECUTABLE = '/usr/bin/sandbox-exec';
+
+function parseCodexText(stdout: string): string {
+    let text = '';
+    for (const line of stdout.split('\n')) {
+        try {
+            const event = JSON.parse(line) as {
+                item?: { text?: unknown; type?: unknown };
+                type?: unknown;
+            };
+            if (
+                event.type === 'item.completed' &&
+                event.item?.type === 'agent_message' &&
+                typeof event.item.text === 'string'
+            ) {
+                text = event.item.text.trim();
+            }
+        } catch {
+            // Non-JSON diagnostics and unrelated stream events are ignored.
+        }
+    }
+    return text;
+}
+
+/**
+ * Codex has no CLI switch for its global AGENTS.md. The macOS host sandbox therefore denies both global instruction
+ * files and the Project itself while leaving provider authentication and model network access intact.
+ */
+function sandboxProfile(projectDirectory: string, codexHome: string): string {
+    return [
+        '(version 1)',
+        '(allow default)',
+        `(deny file-read* (subpath ${JSON.stringify(projectDirectory)}))`,
+        `(deny file-read* (literal ${JSON.stringify(join(codexHome, 'AGENTS.md'))}))`,
+        `(deny file-read* (literal ${JSON.stringify(join(codexHome, 'AGENTS.override.md'))}))`,
+    ].join(' ');
+}
+
+export async function generateCodexLowCostText(
+    context: AgentProviderPasteSummaryGenerationContext,
+    systemInstructions: string,
+    operation: string,
+    timeoutMs?: number,
+): Promise<string> {
+    assertAgentRenameVersion('codex', context.version, CODEX_LOW_COST_GENERATION_MINIMUM_VERSION);
+    const isolatedDirectory = await mkdtemp(join(tmpdir(), 'caxri-codex-text-'));
+    try {
+        const [canonicalProjectDirectory, canonicalCodexHome] = await Promise.all([
+            canonicalPath(context.cwd),
+            canonicalPath(resolveCodexHome(context.environment)),
+        ]);
+        const output = await runAgentTextCommand({
+            arguments: [
+                '-p',
+                sandboxProfile(canonicalProjectDirectory, canonicalCodexHome),
+                context.executable,
+                'exec',
+                '--ephemeral',
+                '--ignore-user-config',
+                '--ignore-rules',
+                '--disable',
+                'codex_hooks',
+                '--disable',
+                'shell_tool',
+                '--disable',
+                'multi_agent',
+                '--disable',
+                'apps',
+                '--skip-git-repo-check',
+                '-m',
+                CODEX_LOW_COST_MODEL,
+                '-c',
+                'model_reasoning_effort="low"',
+                '-c',
+                'project_doc_max_bytes=0',
+                '-c',
+                'project_doc_fallback_filenames=[]',
+                '-c',
+                'web_search="disabled"',
+                '-s',
+                'read-only',
+                '--json',
+                '-',
+            ],
+            cwd: isolatedDirectory,
+            environment: agentCommandEnvironment(context.environment),
+            executable: MACOS_SANDBOX_EXECUTABLE,
+            input: `${systemInstructions}\n\n${context.prompt}`,
+            limits: timeoutMs === undefined ? undefined : { timeoutMs },
+            operation,
+            signal: context.signal,
+        });
+        return parseCodexText(output);
+    } finally {
+        await rm(isolatedDirectory, { recursive: true, force: true });
+    }
+}

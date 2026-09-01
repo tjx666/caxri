@@ -26,7 +26,7 @@ import { useCaxriQuery } from '../../queries/client';
 import { setAgentActionsOpen, useDialogStore } from '../../stores/dialogs';
 import { getBootstrap, useSessions, useSettings, useTerminal } from '../../stores/selectors';
 import { pushToast, tryCommand } from '../../stores/toasts';
-import { focusTerminalById } from '../terminal/terminal-actions';
+import { canSendTerminalInput, focusTerminalById } from '../terminal/terminal-actions';
 import { isAgentProcessRunning } from '../terminal/terminal-agent-runtime';
 import type { AgentActionSubmitMode, AgentActionTerminalInputStep } from './agent-action-input';
 import {
@@ -58,6 +58,7 @@ async function didSendAgentActionInputSteps(
             // eslint-disable-next-line no-await-in-loop -- the provider protocol requires ordered delays and writes
             await new Promise<void>((resolve) => setTimeout(resolve, step.delayBeforeMs));
         }
+        if (!canSendTerminalInput(terminalId)) return false;
         // eslint-disable-next-line no-await-in-loop -- the next step must not overtake this PTY write
         const receipt = await tryCommand('Unable to send Agent command or skill', () =>
             caxri.request('terminal.input', { terminalId, data: step.data }),

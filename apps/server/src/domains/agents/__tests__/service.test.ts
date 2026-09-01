@@ -247,4 +247,20 @@ describe('Agent adapter fallback', () => {
             }),
         ).rejects.toBe(error);
     });
+
+    it('delegates paste summaries only to the selected provider', async () => {
+        const context = { cwd: '/project', prompt: 'long paste fixture' };
+        const summarizePaste = vi.fn<NonNullable<AgentAdapter['summarizePaste']>>(() =>
+            Promise.resolve('Compact summary'),
+        );
+        const claudeSummarize = vi.fn<NonNullable<AgentAdapter['summarizePaste']>>();
+        const service = createTestAgentService({
+            claude: { provider: 'claude', summarizePaste: claudeSummarize },
+            codex: { provider: 'codex', summarizePaste },
+        });
+
+        await expect(service.summarizePaste('codex', context)).resolves.toBe('Compact summary');
+        expect(summarizePaste).toHaveBeenCalledWith(context);
+        expect(claudeSummarize).not.toHaveBeenCalled();
+    });
 });

@@ -30,7 +30,11 @@ export interface DomainOperationDispatcher {
 /**
  * PTY input and resize are measured by aggregated throughput metrics, never per-request log writes.
  */
-const UNLOGGED_METHODS = new Set<string>(['terminal.input', 'terminal.resize']);
+const UNLOGGED_METHODS = new Set<string>([
+    'terminal.input',
+    'terminal.inputAgentExact',
+    'terminal.resize',
+]);
 const MAX_CANCEL_TOMBSTONES = 256;
 const CANCEL_TOMBSTONE_TTL_MS = 30_000;
 
