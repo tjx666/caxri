@@ -1,0 +1,342 @@
+import { writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import process from 'node:process';
+
+import { writeJsonAtomic } from '../scripts/atomic-json.ts';
+import { parseAndroidDisplayState } from '../scripts/mobile-android-cases.ts';
+import { test } from './support/fixtures.ts';
+import { pageRequest } from './support/helpers.ts';
+import { createMobileAcceptanceFixture } from './support/mobile-acceptance-fixture.ts';
+import {
+    adbShell,
+    captureMobileFramebuffer,
+    mobileSemantics,
+    tapMobileCheck,
+    waitForMobile,
+} from './support/mobile-android.ts';
+
+/**
+ * Mobile failure screenshots and traces can contain synthetic reply or Terminal-preview content outside the frozen
+ * report. Scenario-owned framebuffer evidence is the only capture path and is covered by the privacy finalizer.
+ */
+test.use({ screenshot: 'off', trace: 'off' });
+
+const serial = process.env.CAXRI_MOBILE_ACCEPTANCE_SERIAL;
+const caseId = process.env.CAXRI_MOBILE_ACCEPTANCE_CASE_ID;
+const assetsDirectory = process.env.CAXRI_MOBILE_ACCEPTANCE_ASSETS_DIR;
+const artifactManifestPath = process.env.CAXRI_MOBILE_ACCEPTANCE_ARTIFACT_MANIFEST;
+const scenarioReceiptPath = process.env.CAXRI_MOBILE_ACCEPTANCE_SCENARIO_RECEIPT;
+
+function requireEnvironment(): {
+    artifactManifestPath: string;
+    assetsDirectory: string;
+    caseId: string;
+    scenarioReceiptPath: string;
+    serial: string;
+} {
+    if (!serial || !caseId || !assetsDirectory || !artifactManifestPath || !scenarioReceiptPath) {
+        throw new Error('Mobile Acceptance scenario identity is incomplete');
+    }
+    return { artifactManifestPath, assetsDirectory, caseId, scenarioReceiptPath, serial };
+}
+
+async function capture(
+    environment: ReturnType<typeof requireEnvironment>,
+    label: string,
+    artifacts: string[],
+): Promise<void> {
+    const name = `${environment.caseId}-${label}-android.png`;
+    await captureMobileFramebuffer(environment.serial, join(environment.assetsDirectory, name));
+    artifacts.push(`assets/${name}`);
+}
+
+async function finish(
+    environment: ReturnType<typeof requireEnvironment>,
+    artifacts: string[],
+    receipt: Record<string, unknown>,
+): Promise<void> {
+    await Promise.all([
+        writeJsonAtomic(environment.artifactManifestPath, { artifacts, schemaVersion: 1 }),
+        writeFile(
+            environment.scenarioReceiptPath,
+            `${JSON.stringify({ ...receipt, caseId: environment.caseId, schemaVersion: 1 }, null, 2)}\n`,
+            'utf8',
+        ),
+    ]);
+}
+
+async function displayState(deviceSerial: string) {
+    const [density, fontScale, rotation, size] = await Promise.all([
+        adbShell(deviceSerial, ['wm', 'density']),
+        adbShell(deviceSerial, ['settings', 'get', 'system', 'font_scale']),
+        adbShell(deviceSerial, ['dumpsys', 'input']),
+        adbShell(deviceSerial, ['wm', 'size']),
+    ]);
+    return parseAndroidDisplayState({ density, fontScale, rotation, size });
+}
+
+async function restoreDisplay(
+    deviceSerial: string,
+    original: Awaited<ReturnType<typeof displayState>>,
+): Promise<void> {
+    await adbShell(deviceSerial, [
+        'wm',
+        'size',
+        original.size.override
+            ? `${original.size.override.width}x${original.size.override.height}`
+            : 'reset',
+    ]);
+    await adbShell(deviceSerial, [
+        'wm',
+        'density',
+        original.density.override ? String(original.density.override) : 'reset',
+    ]);
+    const restored = await displayState(deviceSerial);
+    if (JSON.stringify(restored) !== JSON.stringify(original)) {
+        throw new Error('Android display state was not restored exactly');
+    }
+}
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires the fixture argument.
+test('executes one report-bound Android product scenario', async ({}) => {
+    test.skip(!caseId, 'Run through the guarded Android Acceptance adapter');
+    const environment = requireEnvironment();
+    const artifacts: string[] = [];
+
+    switch (environment.caseId) {
+        case 'MOB-PAIR-02': {
+            await adbShell(environment.serial, [
+                'am',
+                'start',
+                '-W',
+                'com.caxri.mobile/.MainActivity',
+            ]);
+            await waitForMobile(
+                () => mobileSemantics(environment.serial),
+                (nodes) => nodes.some(({ checkId }) => checkId === 'pairing-entry-screen'),
+            );
+            await capture(environment, 'first-connect', artifacts);
+            await tapMobileCheck(environment.serial, 'pairing-scan-button');
+            await waitForMobile(
+                () => mobileSemantics(environment.serial),
+                (nodes) =>
+                    nodes.some(({ checkId }) => checkId === 'pairing-camera-permission-button'),
+            );
+            const camera = await adbShell(environment.serial, [
+                'dumpsys',
+                'package',
+                'com.caxri.mobile',
+            ]);
+            if (!/android\.permission\.CAMERA:\s+granted=false/u.test(camera)) {
+                throw new Error('Camera permission is not in the expected denied state');
+            }
+            await capture(environment, 'camera-denied', artifacts);
+            await tapMobileCheck(environment.serial, 'pairing-scan-back-button');
+            const fixture = await createMobileAcceptanceFixture({
+                mode: 'empty',
+                serial: environment.serial,
+            });
+            try {
+                await fixture.pair();
+                await capture(environment, 'paired-empty-sessions', artifacts);
+            } finally {
+                await fixture.stop();
+            }
+            await finish(environment, artifacts, {
+                cameraPermission: 'denied',
+                fallback: 'paste-entry-remained-available',
+                outcome: 'paired-empty-sessions',
+                status: 'passed',
+            });
+            break;
+        }
+        case 'MOB-PAIR-03': {
+            const fixture = await createMobileAcceptanceFixture({
+                mode: 'empty',
+                serial: environment.serial,
+            });
+            try {
+                const online = await fixture.pair();
+                const revokedAt = Date.now();
+                await pageRequest(fixture.running.page, 'mobile.device.revoke', {
+                    deviceId: online.deviceId,
+                });
+                await waitForMobile(
+                    () => mobileSemantics(environment.serial),
+                    (nodes) => nodes.some(({ checkId }) => checkId === 'pairing-entry-screen'),
+                    5_000,
+                );
+                const onlineDurationMs = Date.now() - revokedAt;
+                await adbShell(environment.serial, ['am', 'force-stop', 'com.caxri.mobile']);
+                await adbShell(environment.serial, [
+                    'am',
+                    'start',
+                    '-W',
+                    'com.caxri.mobile/.MainActivity',
+                ]);
+                await waitForMobile(
+                    () => mobileSemantics(environment.serial),
+                    (nodes) => nodes.some(({ checkId }) => checkId === 'pairing-entry-screen'),
+                );
+
+                const offline = await fixture.pair();
+                await adbShell(environment.serial, ['am', 'force-stop', 'com.caxri.mobile']);
+                await pageRequest(fixture.running.page, 'mobile.device.revoke', {
+                    deviceId: offline.deviceId,
+                });
+                await adbShell(environment.serial, [
+                    'am',
+                    'start',
+                    '-W',
+                    'com.caxri.mobile/.MainActivity',
+                ]);
+                await waitForMobile(
+                    () => mobileSemantics(environment.serial),
+                    (nodes) =>
+                        nodes.some(({ checkId }) => checkId === 'session-list-unverified') &&
+                        nodes.some(({ checkId }) => checkId === 'forget-device-button') &&
+                        nodes.some(({ checkId }) => checkId === 'connection-retry-button'),
+                );
+                await finish(environment, artifacts, {
+                    offlineAuthentication: 'unverified-credential-preserved',
+                    onlineRevocation: 'credential-cleared',
+                    onlineRevocationDurationMs: onlineDurationMs,
+                    status: 'passed',
+                });
+            } finally {
+                await fixture.stop();
+            }
+            break;
+        }
+        case 'MOB-SESSION-01': {
+            const originalDisplay = await displayState(environment.serial);
+            const fixture = await createMobileAcceptanceFixture({
+                mode: 'waiting',
+                serial: environment.serial,
+            });
+            try {
+                await fixture.pair();
+                const allowedSessionId = fixture.allowedSessionId;
+                if (!allowedSessionId) throw new Error('Waiting Session is unavailable');
+                await capture(environment, 'phone-list', artifacts);
+                await tapMobileCheck(environment.serial, `session-row-${allowedSessionId}`);
+                await waitForMobile(
+                    () => mobileSemantics(environment.serial),
+                    (nodes) => nodes.some(({ checkId }) => checkId === 'session-detail'),
+                );
+                await capture(environment, 'phone-detail', artifacts);
+
+                await adbShell(environment.serial, ['wm', 'size', '1600x2560']);
+                await adbShell(environment.serial, ['wm', 'density', '320']);
+                /**
+                 * The Android emulator reports the 800dp tablet configuration only after Activity recreation; changing
+                 * `wm` overrides underneath the running React Native Activity leaves its Window metrics unchanged.
+                 */
+                await adbShell(environment.serial, ['am', 'force-stop', 'com.caxri.mobile']);
+                await adbShell(environment.serial, [
+                    'am',
+                    'start',
+                    '-W',
+                    'com.caxri.mobile/.MainActivity',
+                ]);
+                await waitForMobile(
+                    () => mobileSemantics(environment.serial),
+                    (nodes) =>
+                        nodes.some(({ checkId }) => checkId === `session-row-${allowedSessionId}`),
+                );
+                await tapMobileCheck(environment.serial, `session-row-${allowedSessionId}`);
+                await waitForMobile(
+                    () => mobileSemantics(environment.serial),
+                    (nodes) =>
+                        nodes.some(({ checkId }) => checkId === 'session-list') &&
+                        nodes.some(({ checkId }) => checkId === 'session-detail'),
+                );
+                await capture(environment, 'tablet-split', artifacts);
+                await restoreDisplay(environment.serial, originalDisplay);
+                await adbShell(environment.serial, ['am', 'force-stop', 'com.caxri.mobile']);
+                await adbShell(environment.serial, [
+                    'am',
+                    'start',
+                    '-W',
+                    'com.caxri.mobile/.MainActivity',
+                ]);
+                await waitForMobile(
+                    () => mobileSemantics(environment.serial),
+                    (nodes) => nodes.some(({ checkId }) => checkId === 'session-list'),
+                );
+
+                await pageRequest(fixture.running.page, 'session.delete', {
+                    sessionId: allowedSessionId,
+                });
+                await waitForMobile(
+                    () => mobileSemantics(environment.serial),
+                    (nodes) => nodes.some(({ checkId }) => checkId === 'session-list-empty'),
+                );
+                await capture(environment, 'empty', artifacts);
+                await pageRequest(fixture.running.page, 'mobile.access.disable');
+                await waitForMobile(
+                    () => mobileSemantics(environment.serial),
+                    (nodes) => nodes.some(({ checkId }) => checkId === 'connection-stale-banner'),
+                    7_000,
+                );
+                await capture(environment, 'stale-error', artifacts);
+                await finish(environment, artifacts, {
+                    displayAfter: await displayState(environment.serial),
+                    displayBefore: originalDisplay,
+                    states: ['phone-list', 'phone-detail', 'tablet-split', 'empty', 'stale-error'],
+                    status: 'passed',
+                });
+            } finally {
+                await restoreDisplay(environment.serial, originalDisplay);
+                await fixture.stop();
+            }
+            break;
+        }
+        case 'MOB-SESSION-03': {
+            const fixture = await createMobileAcceptanceFixture({
+                mode: 'waiting',
+                serial: environment.serial,
+            });
+            let isWifiDisabled = false;
+            try {
+                await fixture.pair();
+                if (!fixture.allowedSessionId) throw new Error('Waiting Session is unavailable');
+                await tapMobileCheck(environment.serial, `session-row-${fixture.allowedSessionId}`);
+                const disconnectedAt = Date.now();
+                await adbShell(environment.serial, ['svc', 'wifi', 'disable']);
+                isWifiDisabled = true;
+                await waitForMobile(
+                    () => mobileSemantics(environment.serial),
+                    (nodes) =>
+                        nodes.some(({ checkId }) => checkId === 'connection-stale-banner') &&
+                        nodes.some(
+                            ({ checkId, enabled }) => checkId === 'short-reply-send' && !enabled,
+                        ),
+                    7_000,
+                );
+                const staleDurationMs = Date.now() - disconnectedAt;
+                await adbShell(environment.serial, ['svc', 'wifi', 'enable']);
+                isWifiDisabled = false;
+                await waitForMobile(
+                    () => mobileSemantics(environment.serial),
+                    (nodes) =>
+                        nodes.every(({ checkId }) => checkId !== 'connection-stale-banner') &&
+                        nodes.some(({ checkId }) => checkId === 'session-detail'),
+                    30_000,
+                );
+                await finish(environment, artifacts, {
+                    contentDuringStale: 'preserved',
+                    recovery: 'automatic-without-restart',
+                    staleDurationMs,
+                    status: 'passed',
+                });
+            } finally {
+                if (isWifiDisabled) await adbShell(environment.serial, ['svc', 'wifi', 'enable']);
+                await fixture.stop();
+            }
+            break;
+        }
+        default:
+            throw new Error(`Unsupported Playwright mobile Acceptance case: ${environment.caseId}`);
+    }
+});

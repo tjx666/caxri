@@ -1,0 +1,113 @@
+import { Buffer } from 'node:buffer';
+import { execFile } from 'node:child_process';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
+import { promisify } from 'node:util';
+
+const execFileAsync = promisify(execFile);
+const projectRoot = resolve(import.meta.dirname, '../..');
+const androidDeviceScript = join(projectRoot, 'apps/mobile/scripts/android-device.ts');
+const adb = join(homedir(), 'Library', 'Android', 'sdk', 'platform-tools', 'adb');
+
+export interface MobileSemanticNode {
+    checkId: string;
+    clickable: boolean;
+    enabled: boolean;
+}
+
+/**
+ * `adb shell` parses its command a second time. Quoting keeps pairing-link query separators inside the single deep-link
+ * argument instead of letting the device shell treat them as command operators.
+ */
+const deviceShellQuote = (value: string): string => `'${value.replaceAll("'", String.raw`'\''`)}'`;
+
+export async function runMobileDeviceCommand(
+    executable: string,
+    arguments_: string[],
+    output: 'capture' | 'ignore' = 'ignore',
+): Promise<string> {
+    try {
+        const result = await execFileAsync(executable, arguments_, {
+            cwd: projectRoot,
+            encoding: 'utf8',
+            maxBuffer: 4 * 1024 * 1024,
+        });
+        return output === 'capture' ? result.stdout.trim() : '';
+    } catch {
+        throw new Error('A mobile Acceptance device command failed');
+    }
+}
+
+export const adbShell = (serial: string, arguments_: string[]): Promise<string> =>
+    runMobileDeviceCommand(adb, ['-s', serial, 'shell', ...arguments_], 'capture');
+
+export async function mobileSemantics(serial: string): Promise<MobileSemanticNode[]> {
+    const source = await runMobileDeviceCommand(
+        'bun',
+        ['run', androidDeviceScript, 'semantics', '--serial', serial],
+        'capture',
+    );
+    return (JSON.parse(source) as { checks: MobileSemanticNode[] }).checks;
+}
+
+export const tapMobileCheck = (serial: string, checkId: string): Promise<string> =>
+    runMobileDeviceCommand('bun', [
+        'run',
+        androidDeviceScript,
+        'tap',
+        '--serial',
+        serial,
+        '--check-id',
+        checkId,
+    ]);
+
+export async function waitForMobile<T>(
+    read: () => T | Promise<T>,
+    isAccepted: (value: T) => boolean,
+    timeoutMs = 30_000,
+): Promise<T> {
+    const deadline = Date.now() + timeoutMs;
+    do {
+        // eslint-disable-next-line no-await-in-loop -- each observation depends on the previous state transition.
+        const value = await read();
+        if (isAccepted(value)) return value;
+        // eslint-disable-next-line no-await-in-loop -- bounded device polling avoids duplicate automation actions.
+        await new Promise((resolve) => setTimeout(resolve, 250));
+    } while (Date.now() < deadline);
+    throw new Error('Mobile Acceptance timed out');
+}
+
+export async function openMobilePairingLink(serial: string, pairingLink: string): Promise<void> {
+    try {
+        await execFileAsync(
+            adb,
+            [
+                '-s',
+                serial,
+                'shell',
+                `am start -W -a android.intent.action.VIEW -c android.intent.category.BROWSABLE -d ${deviceShellQuote(pairingLink)} com.caxri.mobile`,
+            ],
+            { cwd: projectRoot, encoding: 'utf8' },
+        );
+    } catch {
+        throw new Error('The pairing link could not be delivered');
+    }
+}
+
+export async function captureMobileFramebuffer(serial: string, path: string): Promise<void> {
+    await mkdir(dirname(path), { recursive: true });
+    try {
+        const result = await execFileAsync(adb, ['-s', serial, 'exec-out', 'screencap', '-p'], {
+            cwd: projectRoot,
+            encoding: 'buffer',
+            maxBuffer: 32 * 1024 * 1024,
+        });
+        if (!Buffer.isBuffer(result.stdout) || result.stdout.length === 0) {
+            throw new Error('Android framebuffer capture was empty');
+        }
+        await writeFile(path, result.stdout);
+    } catch {
+        throw new Error('Android framebuffer capture failed');
+    }
+}

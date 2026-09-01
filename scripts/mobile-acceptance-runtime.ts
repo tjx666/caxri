@@ -3,7 +3,8 @@ import type { ChildProcess } from 'node:child_process';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { readFile, rename, stat, writeFile } from 'node:fs/promises';
+import { readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import process from 'node:process';
 
 import { assertDecodablePng } from '../.agents/skills/acceptance/scripts/png-integrity';
@@ -35,6 +36,30 @@ export interface MobileAcceptanceArtifact {
     sha256: string;
     source: 'android-framebuffer' | 'ios-simulator-framebuffer';
     type: 'screenshot' | 'video';
+}
+
+/**
+ * Removes one case's replaceable evidence before a retry while preserving its append-only isolation history. Without
+ * this boundary, a failed retry could leave a prior screenshot or success receipt available for the new launch.
+ */
+export async function clearMobileAcceptanceCaseArtifacts(
+    reportDirectory: string,
+    caseId: string,
+): Promise<void> {
+    const assetsDirectory = join(reportDirectory, 'assets');
+    const prefix = `${encodeURIComponent(caseId)}-`;
+    const lifecycleName = `${prefix}state-isolation.json`;
+    const entries = await readdir(assetsDirectory, { withFileTypes: true });
+    await Promise.all(
+        entries
+            .filter(({ name }) => name.startsWith(prefix) && name !== lifecycleName)
+            .map((entry) => {
+                if (entry.isDirectory()) {
+                    throw new Error('Mobile Acceptance case artifacts must not be directories');
+                }
+                return rm(join(assetsDirectory, entry.name), { force: true });
+            }),
+    );
 }
 
 interface MobileAcceptanceArtifactCollection {
