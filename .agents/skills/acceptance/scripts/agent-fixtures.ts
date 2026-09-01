@@ -374,7 +374,11 @@ process.stdin.on('data', (chunk) => {
       kind: 'terminalChunk',
       length: chunk.length,
     });
-    process.stdout.write(chunk);
+    const visibleInput = chunk
+      .replaceAll(bracketedPasteStart, '')
+      .replaceAll(bracketedPasteEnd, '')
+      .replaceAll(/\r\n|\r|\n/gu, '\r\n');
+    process.stdout.write(visibleInput);
   }
   input += chunk;
   processInput();
