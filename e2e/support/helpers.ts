@@ -571,7 +571,7 @@ export async function typeTerminal(page: Page, command: string): Promise<void> {
     await input.press('Enter');
 }
 
-async function terminalTextBounds(page: Page, text: string) {
+export async function terminalTextBounds(page: Page, text: string) {
     return page.locator('.xterm-rows').evaluate((rows, target) => {
         /**
          * Finds the text-node offsets spanning `[targetStart, targetStart + target.length)` within `row`.

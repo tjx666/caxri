@@ -159,7 +159,19 @@ function isLikelyFilePath(path: string): boolean {
     if (/^file:\/\//i.test(path)) return true;
     if (/^[a-z][a-z\d+.-]*:\/\//i.test(path)) return false;
     if (path.startsWith('/') || path.startsWith('./') || path.startsWith('../')) return true;
-    if (path.includes('/')) return !path.startsWith('-');
+    /**
+     * A slash alone is not enough evidence for bare CJK prose such as `账单/配置状态`. Require a Han final segment to look
+     * like a filename; an extensionless target can still opt in with an explicit `./`, `../`, absolute, Home, or
+     * file-URL prefix. ASCII extensionless paths such as `src/Makefile` retain the existing Terminal behavior.
+     */
+    if (path.includes('/')) {
+        if (path.startsWith('-')) return false;
+        const finalSegment = path.slice(path.lastIndexOf('/') + 1);
+        if (!/\p{Script=Han}/u.test(finalSegment)) return true;
+        return (
+            /^\.[\w-]+$/u.test(finalSegment) || /^[^/:]+\.[a-z\d][\w-]{0,15}$/iu.test(finalSegment)
+        );
+    }
     return /^[^/:]+\.[a-z\d][\w-]{0,15}$/i.test(path);
 }
 
@@ -480,6 +492,18 @@ export function terminalLinkHintText(match: Pick<TerminalLinkMatch, 'hint' | 'ki
           : TERMINAL_FILE_LINK_HINT_TEXT;
 }
 
+/**
+ * Keeps xterm's synchronous leave/reprovide cycle stable without treating a different link rewritten at the same buffer
+ * range as the old one. The target is part of the identity because Terminal applications commonly redraw a line in
+ * place.
+ */
+export function terminalLinkHintKey(
+    scope: string,
+    match: Pick<TerminalLinkMatch, 'kind' | 'text'>,
+): string {
+    return `${scope}:${match.kind}:${match.text}`;
+}
+
 export function createDetectedLink(
     match: TerminalLinkMatch,
     context: TerminalLinkContext,
@@ -600,10 +624,18 @@ function linksForLogicalLine(
              */
             decorations: { pointerCursor: false, underline: true },
             hover: (event) =>
-                hint.show(event, terminalLinkHintText(match), (isModifierDown) => {
-                    if (link.decorations) link.decorations.pointerCursor = isModifierDown;
-                }),
-            leave: () => hint.hide(),
+                hint.show(
+                    event,
+                    terminalLinkHintText(match),
+                    (isModifierDown) => {
+                        if (link.decorations) link.decorations.pointerCursor = isModifierDown;
+                    },
+                    terminalLinkHintKey(
+                        `plain:${logicalLine.firstBufferLine}:${match.startIndex}:${match.endIndex}`,
+                        match,
+                    ),
+                ),
+            leave: () => hint.leave(),
             range: { start, end },
             text: match.text,
         };
@@ -707,12 +739,21 @@ export function registerTerminalLinks(
             const match = exactTerminalLinkTarget(text, context.wordSeparators);
             if (match) activateLinkFromPointer(event, match, context);
         },
-        hover(event, text) {
+        hover(event, text, range) {
             const match = exactTerminalLinkTarget(text, context.wordSeparators);
-            if (match) hint.show(event, terminalLinkHintText(match));
+            if (match)
+                hint.show(
+                    event,
+                    terminalLinkHintText(match),
+                    undefined,
+                    terminalLinkHintKey(
+                        `osc:${range.start.x}:${range.start.y}:${range.end.x}:${range.end.y}`,
+                        match,
+                    ),
+                );
         },
         leave() {
-            hint.hide();
+            hint.leave();
         },
         /**
          * File URLs are allowed into the handler, then constrained by the Server-rooted read.

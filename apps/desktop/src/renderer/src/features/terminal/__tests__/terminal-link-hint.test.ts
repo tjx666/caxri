@@ -5,6 +5,7 @@ import {
     TERMINAL_LINK_HINT_DELAY_MS,
     terminalLinkHintPosition,
 } from '../terminal-link-hint';
+import { terminalLinkHintKey } from '../terminal-links';
 
 function createHintDom() {
     const documentListeners = new Map<string, Set<EventListener>>();
@@ -12,11 +13,12 @@ function createHintDom() {
     const style: Partial<CSSStyleDeclaration> = {};
     const classRemove = vi.fn();
     const classToggle = vi.fn();
+    const elementRemove = vi.fn();
     const setAttribute = vi.fn();
     const hintElement = {
         className: '',
         getBoundingClientRect: () => ({ height: 32, width: 180 }),
-        remove: vi.fn(),
+        remove: elementRemove,
         setAttribute,
         style,
         textContent: '',
@@ -73,6 +75,7 @@ function createHintDom() {
         classToggle,
         dispatchDocument: (type: string, event: Event) => dispatch(documentListeners, type, event),
         dispatchWindow: (type: string, event: Event) => dispatch(windowListeners, type, event),
+        elementRemove,
         hintElement,
         host,
         terminal: { element: host, rows: 10, screenElement } as never,
@@ -134,6 +137,56 @@ describe('createTerminalLinkHintController', () => {
             visibility: 'visible',
         });
         expect(setAttribute).toHaveBeenCalledWith('role', 'tooltip');
+    });
+
+    it('keeps a visible hint mounted when xterm immediately reprovides the same link', async () => {
+        const { append, elementRemove, terminal } = createHintDom();
+        const controller = createTerminalLinkHintController(terminal);
+        const event = { clientX: 100, clientY: 200 } as MouseEvent;
+
+        controller.show(event, 'Open link', undefined, 'file:src/example.ts');
+        vi.advanceTimersByTime(TERMINAL_LINK_HINT_DELAY_MS);
+        controller.leave();
+        controller.show(event, 'Open link', undefined, 'file:src/example.ts');
+        await Promise.resolve();
+
+        expect(append).toHaveBeenCalledTimes(1);
+        expect(elementRemove).not.toHaveBeenCalled();
+    });
+
+    it('replaces a pending hint when a Terminal line redraws a different link in place', async () => {
+        const { append, hintElement, terminal } = createHintDom();
+        const controller = createTerminalLinkHintController(terminal);
+        const event = { clientX: 100, clientY: 200 } as MouseEvent;
+        const scope = 'plain:1:0:8';
+        const commitKey = terminalLinkHintKey(scope, { kind: 'commit', text: 'f36a02ac' });
+        const fileKey = terminalLinkHintKey(scope, { kind: 'file', text: 'foo/a.ts' });
+
+        expect(commitKey).not.toBe(fileKey);
+        controller.show(event, '⌘ click to show commit in Git', undefined, commitKey);
+        controller.leave();
+        controller.show(event, '⌘ click to open in editor', undefined, fileKey);
+        vi.advanceTimersByTime(TERMINAL_LINK_HINT_DELAY_MS);
+        await Promise.resolve();
+
+        expect(append).toHaveBeenCalledOnce();
+        expect(hintElement.textContent).toBe('⌘ click to open in editor');
+    });
+
+    it('hides after a genuine leave and replaces a different link with the same hint text', async () => {
+        const { append, elementRemove, terminal } = createHintDom();
+        const controller = createTerminalLinkHintController(terminal);
+        const event = { clientX: 100, clientY: 200 } as MouseEvent;
+
+        controller.show(event, 'Open link', undefined, 'file:src/first.ts');
+        vi.advanceTimersByTime(TERMINAL_LINK_HINT_DELAY_MS);
+        controller.leave();
+        await Promise.resolve();
+        expect(elementRemove).toHaveBeenCalledOnce();
+
+        controller.show(event, 'Open link', undefined, 'file:src/second.ts');
+        vi.advanceTimersByTime(TERMINAL_LINK_HINT_DELAY_MS);
+        expect(append).toHaveBeenCalledTimes(2);
     });
 
     it('tracks the macOS Cmd modifier only while its link remains hovered', async () => {
