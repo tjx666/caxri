@@ -19,6 +19,7 @@ import {
     clearMobileAcceptanceCaseArtifacts,
     collectMobileAcceptanceArtifacts,
     createMobileAcceptanceArtifact,
+    interruptAndroidScreenrecord,
     runMobileAcceptanceCommand,
     startMobileAcceptanceRecording,
     writeMobileAcceptanceArtifact,
@@ -362,6 +363,14 @@ async function executeCase(
                 ],
                 command: adb,
                 cwd: root,
+                interrupt: () => {
+                    interruptAndroidScreenrecord({
+                        adb,
+                        cwd: root,
+                        serial,
+                        timeoutMs: DEVICE_TIMEOUT_MS,
+                    });
+                },
             });
             await new Promise((resolve) => setTimeout(resolve, 250));
         }

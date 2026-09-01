@@ -29,6 +29,7 @@ interface MobileAcceptanceRecording {
     arguments: string[];
     command: string;
     cwd: string;
+    interrupt?: () => Promise<void> | void;
 }
 
 export interface MobileAcceptanceArtifact {
@@ -36,6 +37,35 @@ export interface MobileAcceptanceArtifact {
     sha256: string;
     source: 'android-framebuffer' | 'ios-simulator-framebuffer';
     type: 'screenshot' | 'video';
+}
+
+/**
+ * Stops the one serialized Android framebuffer recording on the dedicated Acceptance device. Exit code 1 means the
+ * bounded recording already ended, while any other failure prevents publishing a possibly incomplete MP4.
+ */
+export function interruptAndroidScreenrecord(
+    input: { adb: string; cwd: string; serial: string; timeoutMs: number },
+    spawnProcess: typeof spawnSync = spawnSync,
+): void {
+    const result = spawnProcess(
+        input.adb,
+        ['-s', input.serial, 'shell', 'pkill', '-INT', '-x', 'screenrecord'],
+        {
+            cwd: input.cwd,
+            encoding: 'utf8',
+            shell: false,
+            stdio: 'pipe',
+            timeout: input.timeoutMs,
+        },
+    );
+    if (result.error) {
+        if (errorCode(result.error) === 'ETIMEDOUT')
+            throw new Error('Android Acceptance recording interrupt timed out');
+        throw new Error('Android Acceptance recording interrupt failed to start');
+    }
+    if (result.status === 0) return;
+    if (result.status === 1 && typeof result.stderr === 'string' && !result.stderr.trim()) return;
+    throw new Error('Android Acceptance recording interrupt failed');
 }
 
 /**
@@ -187,8 +217,9 @@ async function waitForRecordingExit(
 }
 
 /**
- * Owns the one persistent `adb screenrecord` child for a mobile case. `stop()` is idempotent so normal completion and
- * cleanup can safely converge on the same process without starting or signalling a replacement.
+ * Owns the one persistent `adb screenrecord` child for a mobile case. Android callers provide a remote interrupt so
+ * `screenrecord` flushes the MP4 index before the original adb child exits; signalling only the local adb process can
+ * leave a non-empty but undecodable file. `stop()` is idempotent so normal completion and cleanup can safely converge.
  */
 export async function startMobileAcceptanceRecording(
     input: MobileAcceptanceRecording,
@@ -210,7 +241,19 @@ export async function startMobileAcceptanceRecording(
         stop: () => {
             stopPromise ??= (async () => {
                 const exit = waitForRecordingExit(child, RECORDING_STOP_TIMEOUT_MS);
-                if (child.exitCode === null && child.signalCode === null) child.kill('SIGINT');
+                let interruptFailure: unknown;
+                if (child.exitCode === null && child.signalCode === null) {
+                    if (input.interrupt) {
+                        try {
+                            await input.interrupt();
+                        } catch (error) {
+                            interruptFailure = error;
+                            child.kill('SIGINT');
+                        }
+                    } else {
+                        child.kill('SIGINT');
+                    }
+                }
                 let result = await exit;
                 let isForced = false;
                 if (!result) {
@@ -222,6 +265,8 @@ export async function startMobileAcceptanceRecording(
                 child.off('error', recordError);
                 if (processError) throw new Error('Mobile Acceptance recording failed');
                 if (!result) throw new Error('Mobile Acceptance recording did not stop');
+                if (interruptFailure)
+                    throw new Error('Mobile Acceptance recording interrupt failed');
                 if (isForced)
                     throw new Error('Mobile Acceptance recording required forced cleanup');
                 if (result.code !== 0 && result.signal !== 'SIGINT') {
