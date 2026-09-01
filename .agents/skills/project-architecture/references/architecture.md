@@ -457,10 +457,12 @@ identity.
 
 An Agent Terminal keeps one interactive Shell as its PTY root and starts the configured Agent as a managed
 foreground child. The Shell process defines the Terminal lifecycle, while `lastAgentProcessState` records
-whether the managed Agent generation is starting, running, or stopped. Agent exit therefore returns to the
-same live Shell without emitting `terminal.exit`; only the Shell root exiting stops the Terminal. Durable
+whether an interactive Agent is starting, running, or stopped in that Terminal; managed control is fenced
+separately by the in-memory launch ID and Agent process ID. Agent exit therefore returns to the same live Shell
+without emitting `terminal.exit`; only the Shell root exiting stops the Terminal. Durable
 provider, title, and Agent session identity remain attached to the Terminal so a later explicit resume can
-start another managed generation. Managed startup supports zsh and bash; when the configured platform Shell is
+start another managed generation. A manually launched foreground Agent receives no managed identity or control;
+bounded process probes only publish and later revoke its interactive availability. Managed startup supports zsh and bash; when the configured platform Shell is
 unsupported, Agent Terminals use macOS's system zsh while ordinary Shell Terminals keep the configured executable.
 `terminal.restart`, Resume, and Fresh deliberately replace the Shell PTY too:
 injecting a command into an existing prompt could append to an unpublished edit or disrupt foreground job control.
