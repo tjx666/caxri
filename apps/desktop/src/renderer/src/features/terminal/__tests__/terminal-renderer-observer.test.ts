@@ -27,6 +27,10 @@ const ACTIVE_WEBGL_STATUS: TerminalRendererStatus = {
     reason: 'active',
     recoveryResult: 'not-requested',
     redrawCount: 0,
+    retryAttemptCount: 0,
+    retryDelayMs: null,
+    retryLimit: 3,
+    retryState: 'idle',
     trigger: 'preference-change',
 };
 
@@ -36,7 +40,26 @@ const GLOBAL_RECOVERY_STATUS: TerminalRendererStatus = {
     reason: 'context-loss',
     recoveryResult: 'dom-restored',
     redrawCount: 1,
+    retryAttemptCount: 0,
+    retryDelayMs: 1_000,
+    retryLimit: 3,
+    retrySequenceId: '5bb3b253-1200-427b-88b3-83f70d21f360',
+    retryState: 'scheduled',
     trigger: 'gpu-process-recovery',
+};
+
+const RETRY_SUCCEEDED_STATUS: TerminalRendererStatus = {
+    contextLossCount: 1,
+    mode: 'webgl',
+    reason: 'active',
+    recoveryResult: 'not-requested',
+    redrawCount: 2,
+    retryAttemptCount: 1,
+    retryDelayMs: null,
+    retryLimit: 3,
+    retrySequenceId: '5bb3b253-1200-427b-88b3-83f70d21f360',
+    retryState: 'succeeded',
+    trigger: 'webgl-retry-succeeded',
 };
 
 function createObserver() {
@@ -125,5 +148,23 @@ describe('Terminal renderer observer GPU notification routing', () => {
                 trigger: 'gpu-process-recovery',
             }),
         );
+    });
+
+    it('keeps the GPU incident correlation through a delayed retry and clears it after success', () => {
+        const observer = createObserver();
+
+        observer.withRecovery(CORRELATION_ID, () => observer.publish(GLOBAL_RECOVERY_STATUS));
+        observer.publish(RETRY_SUCCEEDED_STATUS);
+        observer.publish(ACTIVE_WEBGL_STATUS);
+
+        expect(mocks.reportDiagnostic).toHaveBeenNthCalledWith(
+            2,
+            expect.objectContaining({
+                correlationId: CORRELATION_ID,
+                retrySequenceId: RETRY_SUCCEEDED_STATUS.retrySequenceId,
+                retryState: 'succeeded',
+            }),
+        );
+        expect(mocks.reportDiagnostic.mock.calls[2]?.[0]).not.toHaveProperty('correlationId');
     });
 });

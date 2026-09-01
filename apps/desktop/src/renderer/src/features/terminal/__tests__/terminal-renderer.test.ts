@@ -1,5 +1,5 @@
 import type { ITerminalAddon, Terminal } from '@xterm/xterm';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { TerminalRendererStatus } from '../terminal-renderer';
 import {
@@ -29,12 +29,22 @@ class FakeWebglAddon implements ITerminalAddon {
     }
 }
 
-function createHarness(options: { supported?: boolean; loadError?: Error } = {}) {
-    const addon = new FakeWebglAddon();
+function createHarness(
+    options: {
+        canRetry?: () => boolean;
+        loadError?: Error;
+        loadFailures?: number[];
+        supported?: boolean;
+    } = {},
+) {
+    const addons: FakeWebglAddon[] = [];
     const statuses: TerminalRendererStatus[] = [];
+    let loadAttempt = 0;
     const host = {
         loadAddon: vi.fn((candidate: ITerminalAddon) => {
-            if (options.loadError) throw options.loadError;
+            loadAttempt += 1;
+            if (options.loadError || options.loadFailures?.includes(loadAttempt))
+                throw options.loadError ?? new Error(`WebGL load ${loadAttempt} failed`);
             candidate.activate({} as Terminal);
         }),
     };
@@ -46,10 +56,28 @@ function createHarness(options: { supported?: boolean; loadError?: Error } = {})
             statuses.push(status);
         },
         () => options.supported ?? true,
-        () => addon,
+        () => {
+            const addon = new FakeWebglAddon();
+            addons.push(addon);
+            return addon;
+        },
+        options.canRetry ?? (() => true),
     );
-    return { addon, controller, host, redraw, statuses };
+    return {
+        get addon() {
+            return addons[0];
+        },
+        addons,
+        controller,
+        host,
+        redraw,
+        statuses,
+    };
 }
+
+afterEach(() => {
+    vi.useRealTimers();
+});
 
 describe('TerminalRendererController', () => {
     it('probes a real WebGL2 context and releases it immediately', () => {
@@ -151,7 +179,124 @@ describe('TerminalRendererController', () => {
         });
     });
 
-    it('rebuilds every enabled WebGL Terminal into DOM after a GPU process recovery request', () => {
+    it('retries WebGL after a transient context loss without changing the preference', async () => {
+        vi.useFakeTimers();
+        const harness = createHarness();
+        harness.controller.setPreference('on');
+
+        harness.addon.loseContext();
+        expect(harness.statuses.at(-1)).toMatchObject({
+            mode: 'dom',
+            reason: 'context-loss',
+            retryState: 'scheduled',
+        });
+
+        await vi.advanceTimersByTimeAsync(1_000);
+
+        expect(harness.host.loadAddon).toHaveBeenCalledTimes(2);
+        expect(harness.statuses.at(-1)).toMatchObject({
+            mode: 'webgl',
+            reason: 'active',
+            retryAttemptCount: 1,
+            retryState: 'succeeded',
+            trigger: 'webgl-retry-succeeded',
+        });
+    });
+
+    it('stops after three failed retry attempts in one rolling window', async () => {
+        vi.useFakeTimers();
+        const harness = createHarness({ loadFailures: [2, 3, 4] });
+        harness.controller.setPreference('on');
+
+        harness.addon.loseContext();
+        await vi.advanceTimersByTimeAsync(3_000);
+
+        expect(harness.host.loadAddon).toHaveBeenCalledTimes(4);
+        expect(harness.statuses.at(-1)).toMatchObject({
+            mode: 'dom',
+            reason: 'load-failed',
+            retryAttemptCount: 3,
+            retryDelayMs: null,
+            retryLimit: 3,
+            retryState: 'exhausted',
+            trigger: 'webgl-retry-exhausted',
+        });
+        await vi.advanceTimersByTimeAsync(60_000);
+        expect(harness.host.loadAddon).toHaveBeenCalledTimes(4);
+    });
+
+    it('defers a retry until the Terminal is visible', async () => {
+        vi.useFakeTimers();
+        let isVisible = false;
+        const harness = createHarness({ canRetry: () => isVisible });
+        harness.controller.setPreference('on');
+
+        harness.addon.loseContext();
+        await vi.advanceTimersByTimeAsync(1_000);
+        expect(harness.host.loadAddon).toHaveBeenCalledOnce();
+        expect(harness.statuses.at(-1)).toMatchObject({
+            retryState: 'deferred',
+            trigger: 'webgl-retry-deferred',
+        });
+
+        isVisible = true;
+        harness.controller.restoreVisible();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(harness.host.loadAddon).toHaveBeenCalledTimes(2);
+        expect(harness.statuses.at(-1)).toMatchObject({
+            retryState: 'succeeded',
+            trigger: 'webgl-retry-succeeded',
+        });
+    });
+
+    it('cancels a scheduled retry when the user disables WebGL', async () => {
+        vi.useFakeTimers();
+        const harness = createHarness();
+        harness.controller.setPreference('on');
+        harness.addon.loseContext();
+
+        harness.controller.setPreference('off');
+        await vi.advanceTimersByTimeAsync(1_000);
+
+        expect(harness.host.loadAddon).toHaveBeenCalledOnce();
+        expect(harness.statuses).toContainEqual(
+            expect.objectContaining({
+                retryState: 'cancelled',
+                trigger: 'webgl-retry-cancelled',
+            }),
+        );
+        expect(harness.statuses.at(-1)).toMatchObject({
+            mode: 'dom',
+            reason: 'disabled',
+            retryState: 'idle',
+        });
+    });
+
+    it('cancels a scheduled retry when the mounted Terminal is disposed', async () => {
+        vi.useFakeTimers();
+        const harness = createHarness();
+        harness.controller.setPreference('on');
+        harness.addon.loseContext();
+
+        harness.controller.dispose();
+        await vi.advanceTimersByTimeAsync(1_000);
+
+        expect(harness.host.loadAddon).toHaveBeenCalledOnce();
+        expect(harness.statuses).toContainEqual(
+            expect.objectContaining({
+                retryState: 'cancelled',
+                trigger: 'webgl-retry-cancelled',
+            }),
+        );
+        expect(harness.statuses.at(-1)).toMatchObject({
+            mode: 'dom',
+            reason: 'disposed',
+            retryState: 'idle',
+            trigger: 'dispose',
+        });
+    });
+
+    it('rebuilds every enabled WebGL Terminal into DOM and schedules a retry after GPU process loss', () => {
         const harness = createHarness();
         harness.controller.setPreference('on');
         harness.redraw.mockClear();
@@ -163,8 +308,10 @@ describe('TerminalRendererController', () => {
         expect(harness.redraw).toHaveBeenCalledTimes(1);
         expect(harness.redraw).toHaveBeenCalledWith('grid-sync');
         expect(harness.statuses.at(-1)).toMatchObject({
+            contextLossCount: 1,
             mode: 'dom',
             reason: 'context-loss',
+            retryState: 'scheduled',
             trigger: 'gpu-process-recovery',
         });
     });

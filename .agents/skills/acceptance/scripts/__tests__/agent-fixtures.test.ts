@@ -151,6 +151,38 @@ describe('Acceptance Agent fixtures', () => {
         expect(String(nativeTitle.stdout).trim()).toBe('Codex Resumed Naming');
     });
 
+    it('exits cleanly on the fixed lifecycle command', async () => {
+        const userDataDirectory = await mkdtemp(join(tmpdir(), 'caxri-acceptance-agent-fixture-'));
+        directories.push(userDataDirectory);
+        const fixture = await prepareAcceptanceAgentFixture({
+            fixtureId: 'agent-features-v1',
+            sourceEnvironment: { PATH: '/usr/bin:/bin' },
+            userDataDir: userDataDirectory,
+        });
+        const child = spawn(fixture.executables.claude, [], {
+            env: fixture.environment,
+            stdio: ['pipe', 'pipe', 'pipe'],
+        });
+        let stdout = '';
+        child.stdout.setEncoding('utf8').on('data', (chunk: string) => {
+            stdout += chunk;
+        });
+        child.stderr.resume();
+
+        await expect.poll(() => stdout).toContain('Fake claude Acceptance fixture ready');
+        child.stdin.write('fixture:exit\n');
+        await expect(
+            new Promise<number | null>((resolve, reject) => {
+                child.once('error', reject);
+                child.once('close', resolve);
+            }),
+        ).resolves.toBe(0);
+        expect(stdout).toContain('Fixture Agent exiting');
+        await expect(readReceipts(fixture.environment.CLAUDE_CONFIG_DIR!)).resolves.toContainEqual(
+            expect.objectContaining({ kind: 'fixtureExit' }),
+        );
+    });
+
     it('rejects paths, arbitrary names, and host provider fixture requests', async () => {
         const userDataDirectory = await mkdtemp(join(tmpdir(), 'caxri-acceptance-agent-fixture-'));
         directories.push(userDataDirectory);
