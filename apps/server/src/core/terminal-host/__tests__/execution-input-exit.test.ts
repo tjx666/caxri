@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { TerminalRecord, TerminalSnapshot } from '@caxri/protocol';
+import type { TerminalSnapshot } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -11,33 +11,12 @@ import type {
     TerminalHostRequest,
     TerminalHostScope,
 } from '../../../terminal-host/protocol';
-import type { TerminalHostControl } from '../execution';
 import { RemoteTerminalExecution } from '../execution';
+import type { TerminalHostControl } from '../execution-contract';
+import { snapshot, terminal } from './execution-fixtures';
 
 type HostEvent = Exclude<Extract<TerminalHostMessage, { type: 'event' }>, { event: 'host.ready' }>;
 
-const terminal: TerminalRecord = {
-    id: 'terminal-1',
-    sessionId: 'session-1',
-    cwd: '/project',
-    kind: 'shell',
-    title: 'Shell',
-    icon: 'terminal',
-    orderIndex: 0,
-    lastProcessState: 'starting',
-    createdAt: 1,
-    updatedAt: 1,
-};
-const snapshot: TerminalSnapshot = {
-    terminalId: terminal.id,
-    encodingVersion: 1,
-    cols: 120,
-    rows: 40,
-    lineCount: 0,
-    byteCount: 0,
-    payload: '',
-    updatedAt: 2,
-};
 const temporaryDirectories: string[] = [];
 
 class InputExitTerminalHostControl implements TerminalHostControl {

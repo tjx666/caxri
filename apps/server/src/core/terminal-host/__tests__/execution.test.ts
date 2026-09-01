@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { TerminalRecord, TerminalSnapshot } from '@caxri/protocol';
+import type { TerminalSnapshot } from '@caxri/protocol';
 import { MAX_TERMINAL_INPUT_LENGTH, MAX_TERMINAL_INPUT_PAYLOAD_LENGTH } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -12,33 +12,12 @@ import type {
     TerminalHostRequest,
     TerminalHostScope,
 } from '../../../terminal-host/protocol';
-import type { TerminalHostControl } from '../execution';
 import { RemoteTerminalExecution } from '../execution';
+import type { TerminalHostControl } from '../execution-contract';
+import { snapshot, terminal } from './execution-fixtures';
 
 type HostEvent = Exclude<Extract<TerminalHostMessage, { type: 'event' }>, { event: 'host.ready' }>;
 
-const terminal: TerminalRecord = {
-    id: 'terminal-1',
-    sessionId: 'session-1',
-    cwd: '/project',
-    kind: 'shell',
-    title: 'Shell',
-    icon: 'terminal',
-    orderIndex: 0,
-    lastProcessState: 'starting',
-    createdAt: 1,
-    updatedAt: 1,
-};
-const snapshot: TerminalSnapshot = {
-    terminalId: terminal.id,
-    encodingVersion: 1,
-    cols: 120,
-    rows: 40,
-    lineCount: 1,
-    byteCount: 6,
-    payload: 'screen',
-    updatedAt: 2,
-};
 const temporaryDirectories: string[] = [];
 const temporaryLoggers: StructuredLogger[] = [];
 
