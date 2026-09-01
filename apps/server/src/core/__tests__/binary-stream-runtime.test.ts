@@ -277,6 +277,62 @@ describe('BinaryStreamRuntime file transfer', () => {
 });
 
 describe('BinaryStreamRuntime Terminal attachment', () => {
+    it('delivers admitted input before completing the attachment on Terminal exit', async () => {
+        const input = Promise.withResolvers<unknown>();
+        const requests: string[] = [];
+        const { client, reader, runtime } = await connectRuntime(
+            claim({ method: 'terminal.attach', terminalId: 'terminal-1' }),
+            {
+                invoke: (request) => {
+                    requests.push(request.method);
+                    if (request.method === 'terminal.attach') return null;
+                    if (request.method === 'terminal.input') return input.promise;
+                    throw new Error(`Unexpected method: ${request.method}`);
+                },
+            },
+        );
+        const closed = closeEvent(client);
+        expect(reply(await reader.group('terminal-reply'))).toMatchObject({
+            method: 'terminal.attach',
+            ok: true,
+        });
+
+        client.send(
+            encodeBinaryStreamFrame({
+                final: true,
+                kind: 'terminal-input',
+                payload: new TextEncoder().encode('kill -9 $$\r'),
+                sequence: 1,
+            }),
+        );
+        await vi.waitFor(() => expect(requests).toEqual(['terminal.attach', 'terminal.input']));
+        runtime.deliver({
+            protocolVersion: 2,
+            cursor: 1,
+            event: {
+                event: 'terminal.exit',
+                payload: { terminalId: 'terminal-1', exitCode: 137, signal: 9 },
+            },
+        });
+
+        const didClose = async (): Promise<true> => {
+            await closed;
+            return true;
+        };
+        expect(
+            await Promise.race([
+                didClose(),
+                new Promise<false>((resolve) => setTimeout(resolve, 25, false)),
+            ]),
+        ).toBe(false);
+        input.resolve(null);
+        expect(reply(await reader.group('terminal-reply', 1))).toMatchObject({
+            method: 'terminal.input',
+            ok: true,
+        });
+        expect(await closed).toEqual({ code: 4000, reason: 'completed' });
+    });
+
     it('does not replace a current attachment with a stale generation', async () => {
         const server = new WebSocketServer({ host: '127.0.0.1', port: 0 });
         await new Promise<void>((resolve) => server.once('listening', () => resolve()));
