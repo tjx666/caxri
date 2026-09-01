@@ -176,6 +176,50 @@ describe('workbench IPC sender boundary', () => {
         expect(onRendererDiagnostic).not.toHaveBeenCalled();
     });
 
+    it('logs one trusted content-free OSC 52 clipboard failure', () => {
+        const report = electronMock.listeners.get(RENDERER_DIAGNOSTIC_CHANNEL)!;
+        const diagnostic = {
+            kind: 'terminal-osc52-clipboard-write-failure',
+            diagnosticId: 'bc3db163-6b13-4b50-81f4-126c55cc429b',
+            terminalId: 'terminal-1',
+            errorCategory: 'not-allowed',
+            clipboardWritePermission: 'granted',
+            documentVisible: true,
+            documentFocused: true,
+            secureContext: true,
+            terminalFocused: true,
+            userActivationActive: false,
+            userActivationHasBeenActive: true,
+        };
+
+        report({ sender: {} }, diagnostic);
+        report({ sender: renderer }, { ...diagnostic, errorMessage: 'private clipboard detail' });
+        expect(write).not.toHaveBeenCalled();
+
+        report({ sender: renderer }, diagnostic);
+
+        expect(write).toHaveBeenCalledExactlyOnceWith(
+            'warn',
+            'renderer.terminal_osc52_clipboard_write_failed',
+            {
+                fields: {
+                    code: 'TERMINAL_OSC52_CLIPBOARD_WRITE_FAILED',
+                    diagnosticId: diagnostic.diagnosticId,
+                    terminalId: diagnostic.terminalId,
+                    errorCategory: diagnostic.errorCategory,
+                    clipboardWritePermission: diagnostic.clipboardWritePermission,
+                    documentVisible: diagnostic.documentVisible,
+                    documentFocused: diagnostic.documentFocused,
+                    secureContext: diagnostic.secureContext,
+                    terminalFocused: diagnostic.terminalFocused,
+                    userActivationActive: diagnostic.userActivationActive,
+                    userActivationHasBeenActive: diagnostic.userActivationHasBeenActive,
+                },
+            },
+        );
+        expect(onRendererDiagnostic).not.toHaveBeenCalled();
+    });
+
     it('logs a trusted Renderer performance scenario as flat Agent-queryable fields', () => {
         const report = electronMock.listeners.get(RENDERER_DIAGNOSTIC_CHANNEL)!;
         const diagnostic = {

@@ -51,6 +51,20 @@ const validResizeBurstDiagnostic = {
     requestCount: 2,
 };
 
+const validOsc52ClipboardWriteFailureDiagnostic = {
+    kind: 'terminal-osc52-clipboard-write-failure',
+    diagnosticId: 'bc3db163-6b13-4b50-81f4-126c55cc429b',
+    terminalId: 'terminal-1',
+    errorCategory: 'not-allowed',
+    clipboardWritePermission: 'granted',
+    documentVisible: true,
+    documentFocused: true,
+    secureContext: true,
+    terminalFocused: true,
+    userActivationActive: false,
+    userActivationHasBeenActive: true,
+};
+
 const validPerformanceScenarioDiagnostic = {
     kind: 'renderer-performance-scenario',
     diagnosticId: 'd66947a8-0da0-4a4b-8629-a7694116d8e5',
@@ -146,6 +160,12 @@ describe('Renderer diagnostic contract', () => {
         );
     });
 
+    it('accepts a bounded content-free OSC 52 clipboard write failure', () => {
+        expect(rendererDiagnosticSchema.parse(validOsc52ClipboardWriteFailureDiagnostic)).toEqual(
+            validOsc52ClipboardWriteFailureDiagnostic,
+        );
+    });
+
     it('accepts a bounded content-free Renderer performance scenario', () => {
         expect(rendererPerformanceSurfaces).toEqual([
             'primary-sidebar',
@@ -209,6 +229,36 @@ describe('Renderer diagnostic contract', () => {
             expect(
                 rendererDiagnosticSchema.safeParse({
                     ...validResizeBurstDiagnostic,
+                    ...invalid,
+                }).success,
+            ).toBe(false);
+        }
+    });
+
+    it('rejects sensitive and open-ended OSC 52 clipboard failure fields', () => {
+        for (const forbidden of [
+            { clipboardText: 'private clipboard content' },
+            { errorMessage: 'private error detail' },
+            { errorName: 'NotAllowedError' },
+            { stack: 'private stack' },
+            { terminalOutput: 'private transcript' },
+        ]) {
+            expect(
+                rendererDiagnosticSchema.safeParse({
+                    ...validOsc52ClipboardWriteFailureDiagnostic,
+                    ...forbidden,
+                }).success,
+            ).toBe(false);
+        }
+
+        for (const invalid of [
+            { errorCategory: 'arbitrary-error-name' },
+            { clipboardWritePermission: 'arbitrary-permission' },
+            { userActivationActive: 'unknown' },
+        ]) {
+            expect(
+                rendererDiagnosticSchema.safeParse({
+                    ...validOsc52ClipboardWriteFailureDiagnostic,
                     ...invalid,
                 }).success,
             ).toBe(false);

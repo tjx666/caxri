@@ -166,6 +166,7 @@ export const logEventCatalog = {
         pageException: 'renderer.page_exception',
         performanceScenario: 'renderer.performance_scenario',
         preloadError: 'renderer.preload_error',
+        terminalOsc52ClipboardWriteFailed: 'renderer.terminal_osc52_clipboard_write_failed',
         terminalResizeBurst: 'renderer.terminal_resize_burst',
         terminalRendererStatus: 'renderer.terminal_renderer_status',
         unhandledRejection: 'renderer.unhandled_rejection',

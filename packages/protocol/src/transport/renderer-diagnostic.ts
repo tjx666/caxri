@@ -66,6 +66,38 @@ export const terminalRendererDiagnosticSchema = z.strictObject({
     terminalFocused: z.boolean(),
 });
 
+/**
+ * Content-free context for a failed OSC 52 clipboard write. Error text, stack traces, clipboard payloads, and payload
+ * sizes are intentionally excluded because Terminal-controlled values must never enter persisted diagnostics.
+ */
+export const terminalOsc52ClipboardWriteFailureDiagnosticSchema = z.strictObject({
+    kind: z.literal('terminal-osc52-clipboard-write-failure'),
+    diagnosticId: z.uuid(),
+    terminalId: identifierSchema,
+    errorCategory: z.enum([
+        'abort',
+        'error',
+        'invalid-state',
+        'non-error',
+        'not-allowed',
+        'other-dom-exception',
+        'security',
+    ]),
+    clipboardWritePermission: z.enum([
+        'denied',
+        'granted',
+        'prompt',
+        'query-failed',
+        'unavailable',
+    ]),
+    documentVisible: z.boolean(),
+    documentFocused: z.boolean(),
+    secureContext: z.boolean(),
+    terminalFocused: z.boolean(),
+    userActivationActive: z.boolean().nullable(),
+    userActivationHasBeenActive: z.boolean().nullable(),
+});
+
 const terminalGridColumnsSchema = z.number().int().min(2).max(1_000);
 const terminalGridRowsSchema = z.number().int().min(1).max(1_000);
 const resizeBurstCountSchema = z.number().int().nonnegative().max(10_000);
@@ -218,6 +250,7 @@ function addPerformanceAggregateIssue(
 export const rendererDiagnosticSchema = z
     .discriminatedUnion('kind', [
         terminalRendererDiagnosticSchema,
+        terminalOsc52ClipboardWriteFailureDiagnosticSchema,
         terminalResizeBurstDiagnosticSchema,
         rendererPerformanceScenarioDiagnosticSchema,
     ])
@@ -378,6 +411,9 @@ export const rendererDiagnosticSchema = z
     });
 
 export type TerminalRendererDiagnostic = z.infer<typeof terminalRendererDiagnosticSchema>;
+export type TerminalOsc52ClipboardWriteFailureDiagnostic = z.infer<
+    typeof terminalOsc52ClipboardWriteFailureDiagnosticSchema
+>;
 export type TerminalResizeBurstDiagnostic = z.infer<typeof terminalResizeBurstDiagnosticSchema>;
 export type RendererPerformanceScenarioDiagnostic = z.infer<
     typeof rendererPerformanceScenarioDiagnosticSchema

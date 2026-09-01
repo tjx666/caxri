@@ -37,6 +37,7 @@ import { createTerminalImageAddon, registerTerminalImageAddon } from '../termina
 import { registerTerminalClipboardHandlers, terminalKeyboardInput } from '../terminal-keyboard';
 import { createTerminalLongPasteRuntime } from '../terminal-long-paste';
 import { ControlledOsc52Clipboard } from '../terminal-osc52-clipboard';
+import { createTerminalOsc52ClipboardWriteFailureDiagnostic } from '../terminal-osc52-clipboard-diagnostics';
 import {
     detachTerminalQuietly,
     onError,
@@ -59,6 +60,43 @@ import {
     TerminalResizeSettler,
 } from '../terminal-size';
 import { useTerminalPaneSearch } from './use-terminal-pane-search';
+
+/**
+ * Captures only closed, content-free browser state. Diagnostics are best effort: their asynchronous permission probe or
+ * IPC report must never turn a clipboard rejection into a second Terminal failure.
+ */
+function reportTerminalOsc52ClipboardWriteFailure(
+    error: unknown,
+    container: HTMLElement,
+    terminalId: string,
+): void {
+    const userActivation = navigator.userActivation;
+    const queryPermission = async () =>
+        (
+            await navigator.permissions.query({
+                name: 'clipboard-write' as PermissionName,
+            })
+        ).state;
+    // eslint-disable-next-line no-void -- intentionally detached best-effort diagnostic
+    void createTerminalOsc52ClipboardWriteFailureDiagnostic(
+        {
+            diagnosticId: crypto.randomUUID(),
+            error,
+            terminalId,
+        },
+        {
+            documentFocused: document.hasFocus(),
+            documentVisible: document.visibilityState === 'visible',
+            queryPermission,
+            secureContext: isSecureContext,
+            terminalFocused: container.contains(document.activeElement),
+            userActivationActive: userActivation.isActive,
+            userActivationHasBeenActive: userActivation.hasBeenActive,
+        },
+    )
+        .then((diagnostic) => globalThis.caxri.reportDiagnostic(diagnostic))
+        .catch(() => {});
+}
 
 interface TerminalPaneRuntimeOptions {
     canAcceptAgentInput: boolean;
@@ -221,8 +259,16 @@ export function useTerminalPaneRuntime({
         const osc52Clipboard = new ControlledOsc52Clipboard({
             enabled: () => latestReference.current.osc52ClipboardWrite,
             onBlocked: (reason) => pushToast('info', OSC52_BLOCK_MESSAGES[reason]),
-            onWriteFailure: () =>
-                onError('OSC 52 clipboard write was denied. Check macOS clipboard permissions.'),
+            onWriteFailure: (error) => {
+                onError(
+                    'A Terminal program could not write to the clipboard. Check diagnostics for details.',
+                );
+                reportTerminalOsc52ClipboardWriteFailure(
+                    error,
+                    container,
+                    latestReference.current.terminalId,
+                );
+            },
             writeClipboard: (text) => navigator.clipboard.writeText(text),
         });
         const clipboard = new ClipboardAddon(osc52Clipboard, osc52Clipboard);

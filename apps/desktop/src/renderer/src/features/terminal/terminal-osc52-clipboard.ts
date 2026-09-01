@@ -21,7 +21,7 @@ interface ControlledOsc52ClipboardOptions {
      * Fires (throttled) when a write is deliberately blocked by policy rather than failing.
      */
     onBlocked: (reason: Osc52BlockReason) => void;
-    onWriteFailure: () => void;
+    onWriteFailure: (error: unknown) => void;
     writeClipboard: (text: string) => Promise<void>;
 }
 
@@ -121,10 +121,10 @@ export class ControlledOsc52Clipboard implements IBase64, IClipboardProvider {
         this.lastWriteAt = now;
         try {
             await this.options.writeClipboard(text);
-        } catch {
+        } catch (error) {
             if (this.failureReported) return;
             this.failureReported = true;
-            this.options.onWriteFailure();
+            this.options.onWriteFailure(error);
         }
     }
 }
