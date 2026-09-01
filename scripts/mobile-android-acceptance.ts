@@ -30,12 +30,18 @@ import { mobileAndroidAcceptanceCase, parseMobileAndroidCaseIds } from './mobile
 const root = resolve(import.meta.dirname, '..');
 const adb = join(homedir(), 'Library', 'Android', 'sdk', 'platform-tools', 'adb');
 const releaseApk = join(root, 'apps/mobile/android/app/build/outputs/apk/release/app-release.apk');
-const serial = process.env.CAXRI_MOBILE_ACCEPTANCE_SERIAL;
-if (!serial || !/^emulator-\d+$/u.test(serial)) {
-    throw new Error('CAXRI_MOBILE_ACCEPTANCE_SERIAL must name one disposable Android emulator');
-}
-const reportDirectory = process.env.CAXRI_MOBILE_ACCEPTANCE_REPORT_DIR;
-if (!reportDirectory) throw new Error('CAXRI_MOBILE_ACCEPTANCE_REPORT_DIR is required');
+const serial = (() => {
+    const value = process.env.CAXRI_MOBILE_ACCEPTANCE_SERIAL;
+    if (!value || !/^emulator-\d+$/u.test(value)) {
+        throw new Error('CAXRI_MOBILE_ACCEPTANCE_SERIAL must name one disposable Android emulator');
+    }
+    return value;
+})();
+const reportDirectory = (() => {
+    const value = process.env.CAXRI_MOBILE_ACCEPTANCE_REPORT_DIR;
+    if (!value) throw new Error('CAXRI_MOBILE_ACCEPTANCE_REPORT_DIR is required');
+    return value;
+})();
 const caseIds = parseMobileAndroidCaseIds(
     process.env.CAXRI_MOBILE_ACCEPTANCE_CASE_IDS ?? process.env.CAXRI_MOBILE_ACCEPTANCE_CASE_ID,
 );
