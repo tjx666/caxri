@@ -66,7 +66,7 @@ import { useTerminalPaneSearch } from './use-terminal-pane-search';
  * IPC report must never turn a clipboard rejection into a second Terminal failure.
  */
 function reportTerminalOsc52ClipboardWriteFailure(
-    error: unknown,
+    writeFailure: unknown,
     container: HTMLElement,
     terminalId: string,
 ): void {
@@ -78,24 +78,29 @@ function reportTerminalOsc52ClipboardWriteFailure(
             })
         ).state;
     // eslint-disable-next-line no-void -- intentionally detached best-effort diagnostic
-    void createTerminalOsc52ClipboardWriteFailureDiagnostic(
-        {
-            diagnosticId: crypto.randomUUID(),
-            error,
-            terminalId,
-        },
-        {
-            documentFocused: document.hasFocus(),
-            documentVisible: document.visibilityState === 'visible',
-            queryPermission,
-            secureContext: isSecureContext,
-            terminalFocused: container.contains(document.activeElement),
-            userActivationActive: userActivation.isActive,
-            userActivationHasBeenActive: userActivation.hasBeenActive,
-        },
-    )
-        .then((diagnostic) => globalThis.caxri.reportDiagnostic(diagnostic))
-        .catch(() => {});
+    void (async () => {
+        try {
+            const diagnostic = await createTerminalOsc52ClipboardWriteFailureDiagnostic(
+                {
+                    diagnosticId: crypto.randomUUID(),
+                    error: writeFailure,
+                    terminalId,
+                },
+                {
+                    documentFocused: document.hasFocus(),
+                    documentVisible: document.visibilityState === 'visible',
+                    queryPermission,
+                    secureContext: isSecureContext,
+                    terminalFocused: container.contains(document.activeElement),
+                    userActivationActive: userActivation.isActive,
+                    userActivationHasBeenActive: userActivation.hasBeenActive,
+                },
+            );
+            globalThis.caxri.reportDiagnostic(diagnostic);
+        } catch {
+            // Best-effort diagnostic reporting must swallow its own failures.
+        }
+    })();
 }
 
 interface TerminalPaneRuntimeOptions {
