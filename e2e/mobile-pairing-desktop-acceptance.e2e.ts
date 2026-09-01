@@ -83,6 +83,10 @@ async function encodeSafePreCredentialVideo(
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires the fixture argument.
 test('pairs from Desktop Settings without capturing the pairing credential', async ({}) => {
+    test.skip(
+        !process.env.CAXRI_MOBILE_ACCEPTANCE_REPORT_DIR,
+        'Run through the guarded Desktop mobile Acceptance adapter',
+    );
     const environment = requireEnvironment();
     const videoPath = join(environment.assetsDirectory, 'MOB-PAIR-01-desktop.mp4');
     const screenshotPath = join(environment.assetsDirectory, 'MOB-PAIR-01-desktop.png');
