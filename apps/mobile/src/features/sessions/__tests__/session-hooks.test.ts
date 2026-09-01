@@ -9,7 +9,11 @@ vi.mock('../../connection/mobile-client-provider', () => ({
 
 import { sessionReadKey } from '../hooks/use-session-attention';
 import { flattenMobileSessionSections, nextSelectedSessionId } from '../hooks/use-session-polling';
-import { acceptedShortReplyDraft, shortReplyByteLength } from '../hooks/use-short-reply';
+import {
+    acceptedShortReplyDraft,
+    isDeliveredReplyCurrent,
+    shortReplyByteLength,
+} from '../hooks/use-short-reply';
 import {
     failedTerminalPreviewState,
     loadingTerminalPreviewState,
@@ -132,6 +136,13 @@ describe('mobile Session hooks', () => {
         expect(shortReplyByteLength(tooLarge)).toBeGreaterThan(MOBILE_SHORT_REPLY_MAX_BYTES);
         expect(acceptedShortReplyDraft(current, tooLarge)).toBe(current);
         expect(acceptedShortReplyDraft(current, 'accepted')).toBe('accepted');
+    });
+
+    it('keeps delivery feedback only for the accepted Session attention generation', () => {
+        const delivered = { attentionEpoch: 3, sessionId: 'session-1' };
+        expect(isDeliveredReplyCurrent(delivered, session())).toBe(true);
+        expect(isDeliveredReplyCurrent(delivered, session({ attentionEpoch: 4 }))).toBe(false);
+        expect(isDeliveredReplyCurrent(delivered, session({ id: 'session-2' }))).toBe(false);
     });
 
     it('keys read acknowledgement by Session and attention generation', () => {

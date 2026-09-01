@@ -223,7 +223,9 @@ test('executes one report-bound Android product scenario', async ({}) => {
                 await tapMobileCheck(environment.serial, `session-row-${allowedSessionId}`);
                 await waitForMobile(
                     () => mobileSemantics(environment.serial),
-                    (nodes) => nodes.some(({ checkId }) => checkId === 'session-detail'),
+                    (nodes) =>
+                        nodes.some(({ checkId }) => checkId === 'session-detail') &&
+                        nodes.some(({ checkId }) => checkId === 'terminal-preview-populated'),
                 );
                 await capture(environment, 'phone-detail', artifacts);
 
@@ -250,7 +252,8 @@ test('executes one report-bound Android product scenario', async ({}) => {
                     () => mobileSemantics(environment.serial),
                     (nodes) =>
                         nodes.some(({ checkId }) => checkId === 'session-list') &&
-                        nodes.some(({ checkId }) => checkId === 'session-detail'),
+                        nodes.some(({ checkId }) => checkId === 'session-detail') &&
+                        nodes.some(({ checkId }) => checkId === 'terminal-preview-populated'),
                 );
                 await capture(environment, 'tablet-split', artifacts);
                 await restoreDisplay(environment.serial, originalDisplay);
@@ -285,6 +288,7 @@ test('executes one report-bound Android product scenario', async ({}) => {
                     displayAfter: await displayState(environment.serial),
                     displayBefore: originalDisplay,
                     states: ['phone-list', 'phone-detail', 'tablet-split', 'empty', 'stale-error'],
+                    terminalPreview: 'synthetic-non-empty',
                     status: 'passed',
                 });
             } finally {
