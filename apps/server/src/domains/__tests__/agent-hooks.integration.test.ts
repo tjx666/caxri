@@ -304,7 +304,7 @@ describe('Runtime Agent hook integration', () => {
                     '--phase',
                     'turnStarted',
                     '--schema',
-                    '7',
+                    '8',
                 ],
                 { env: { ...process.env, ...environment } },
             );
@@ -322,8 +322,25 @@ describe('Runtime Agent hook integration', () => {
                     lastActivityState: 'running',
                 });
 
+            const subagentStarted = execFileAsync(
+                bridge,
+                [
+                    '--source',
+                    'caxri',
+                    '--provider',
+                    'claude',
+                    '--phase',
+                    'subagentStarted',
+                    '--schema',
+                    '8',
+                ],
+                { env: { ...process.env, ...environment } },
+            );
+            subagentStarted.child.stdin?.end(JSON.stringify({ agent_id: 'subagent-1' }));
+            await subagentStarted;
+
             send.mockClear();
-            const subagentFinished = execFileAsync(
+            const parentFinished = await execFileAsync(
                 bridge,
                 [
                     '--source',
@@ -333,16 +350,13 @@ describe('Runtime Agent hook integration', () => {
                     '--phase',
                     'turnFinished',
                     '--schema',
-                    '7',
+                    '8',
                     '--reply',
                     'empty-json',
                 ],
                 { env: { ...process.env, ...environment } },
             );
-            subagentFinished.child.stdin?.end(
-                JSON.stringify({ agent_id: 'subagent-1', session_id: 'claude-session' }),
-            );
-            expect((await subagentFinished).stdout).toBe('{}\n');
+            expect(parentFinished.stdout).toBe('{}\n');
 
             expect(
                 await runtime.handlers['app.records']({
@@ -361,7 +375,7 @@ describe('Runtime Agent hook integration', () => {
             });
             expect(send).not.toHaveBeenCalled();
 
-            const parentFinished = await execFileAsync(
+            const subagentFinished = execFileAsync(
                 bridge,
                 [
                     '--source',
@@ -371,13 +385,16 @@ describe('Runtime Agent hook integration', () => {
                     '--phase',
                     'turnFinished',
                     '--schema',
-                    '7',
+                    '8',
                     '--reply',
                     'empty-json',
                 ],
                 { env: { ...process.env, ...environment } },
             );
-            expect(parentFinished.stdout).toBe('{}\n');
+            subagentFinished.child.stdin?.end(
+                JSON.stringify({ agent_id: 'subagent-1', session_id: 'claude-session' }),
+            );
+            expect((await subagentFinished).stdout).toBe('{}\n');
             await expect
                 .poll(async () => {
                     const records = await runtime.handlers['app.records']({

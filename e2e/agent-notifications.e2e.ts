@@ -276,7 +276,7 @@ setInterval(() => {
 });
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires the first test argument to use object destructuring
-test('a Claude subagent completion keeps the Session running without unread attention or a notification', async ({}, testInfo) => {
+test('a Claude parent completion waits for its background subagent before notifying', async ({}, testInfo) => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-subagent-notification-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -305,8 +305,9 @@ function invokeHook(event, payload) {
 }
 const actions = [
   ['turn-started', 'UserPromptSubmit', {}],
-  ['subagent-finished', 'Stop', { agent_id: 'subagent-1' }],
+  ['subagent-started', 'SubagentStart', { agent_id: 'subagent-1' }],
   ['parent-finished', 'Stop', {}],
+  ['subagent-finished', 'SubagentStop', { agent_id: 'subagent-1' }],
 ];
 setInterval(() => {
   for (const [name, event, payload] of actions) {
@@ -373,13 +374,15 @@ process.stdout.write('Fake Claude subagent lifecycle ready\r\n');
         await expect(sourceStatus).toHaveAttribute('data-session-status', 'running');
         await expect(sourceStatus).toHaveAccessibleName('Working. The Agent is running.');
 
+        await writeFile(join(config, 'subagent-started'), '', 'utf8');
+        await waitForReceipt(join(config, 'subagent-started.receipt'));
         await createAdditionalShellSession(running.page);
-        await writeFile(join(config, 'subagent-finished'), '', 'utf8');
-        await waitForReceipt(join(config, 'subagent-finished.receipt'));
+        await writeFile(join(config, 'parent-finished'), '', 'utf8');
+        await waitForReceipt(join(config, 'parent-finished.receipt'));
 
-        const afterSubagent = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
+        const afterParent = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
         expect(
-            afterSubagent.sessions.find((session) => session.id === sourceSessionId),
+            afterParent.sessions.find((session) => session.id === sourceSessionId),
         ).toMatchObject({
             attentionEpoch: 0,
             hasUnread: false,
@@ -395,11 +398,11 @@ process.stdout.write('Fake Claude subagent lifecycle ready\r\n');
             }),
         ).toBe(0);
         await running.page.screenshot({
-            path: testInfo.outputPath('subagent-finished-session-still-running.png'),
+            path: testInfo.outputPath('parent-finished-subagent-still-running.png'),
         });
 
-        await writeFile(join(config, 'parent-finished'), '', 'utf8');
-        await waitForReceipt(join(config, 'parent-finished.receipt'));
+        await writeFile(join(config, 'subagent-finished'), '', 'utf8');
+        await waitForReceipt(join(config, 'subagent-finished.receipt'));
         await expect
             .poll(async () => {
                 const bootstrap = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');

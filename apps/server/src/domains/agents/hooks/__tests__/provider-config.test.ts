@@ -76,7 +76,7 @@ describe('Agent provider hook configuration adapters', () => {
         ).hooks;
 
         expect(
-            claudeHookAdapter.inspect(new Map([['settings', installed]]), desired('claude', 7))
+            claudeHookAdapter.inspect(new Map([['settings', installed]]), desired('claude', 8))
                 .status,
         ).toEqual({ kind: 'current' });
         expect(installedHooks.PostToolUse).toHaveLength(1);
@@ -86,7 +86,7 @@ describe('Agent provider hook configuration adapters', () => {
 
         const removed = claudeHookAdapter.remove(
             new Map([['settings', installed]]),
-            desired('claude', 7),
+            desired('claude', 8),
         )[0].source;
         expect(JSON.parse(removed)).toEqual(foreign);
     });
@@ -212,7 +212,7 @@ describe('Agent provider hook configuration adapters', () => {
         },
         {
             adapter: claudeHookAdapter,
-            previousSchema: 6,
+            previousSchema: 7,
             provider: 'claude' as const,
             target: 'settings',
         },
@@ -272,6 +272,8 @@ describe('Agent provider hook configuration adapters', () => {
         expect(claude.hooks.PostToolUseFailure).toEqual([
             expect.objectContaining({ matcher: '^Bash$' }),
         ]);
+        expect(claude.hooks.SubagentStart).toHaveLength(1);
+        expect(claude.hooks.SubagentStop).toHaveLength(1);
     });
 
     it('refuses to merge Codex hooks.json with inline config.toml hooks', () => {
