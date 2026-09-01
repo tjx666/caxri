@@ -125,6 +125,10 @@ class FakeTerminalHostControl implements TerminalHostControl {
         this.resizeResolvers.shift()?.();
     }
 
+    requestCount(method: TerminalHostRequest['method']): number {
+        return this.requests.filter(({ request }) => request.method === method).length;
+    }
+
     shutdown(): Promise<TerminalSnapshot[]> {
         return Promise.resolve([snapshot]);
     }
@@ -637,9 +641,10 @@ describe('architecture-a3b-terminal-host: RemoteTerminalExecution', () => {
         await expect(execution.writeAcknowledged(terminal.id, 'recovered')).resolves.toBe(true);
     });
 
-    it('rejects a delivery receipt when the Terminal attachment changes', async () => {
+    it('drains hot paths admitted while changing the Terminal attachment', async () => {
         const { control, execution } = createExecution();
         control.holdInputRequests = true;
+        control.holdResizeRequests = true;
         await execution.attach(terminal.id);
         await execution.reserve(terminal);
         await execution.start({
@@ -649,18 +654,28 @@ describe('architecture-a3b-terminal-host: RemoteTerminalExecution', () => {
             initialSnapshot: null,
             record: terminal,
         });
-
         const pending = execution.writeAcknowledged(terminal.id, 'pending');
-        await vi.waitFor(() =>
-            expect(
-                control.requests.filter(({ request }) => request.method === 'terminal.input'),
-            ).toHaveLength(1),
-        );
-        await execution.attach(terminal.id);
-        await expect(pending).rejects.toMatchObject({ code: 'CONFLICT' });
-
-        control.holdInputRequests = false;
-        await expect(execution.writeAcknowledged(terminal.id, 'recovered')).resolves.toBe(true);
+        await vi.waitFor(() => expect(control.requestCount('terminal.input')).toBe(1));
+        expect(execution.resize(terminal.id, 120, 40)).toBe(true);
+        await vi.waitFor(() => expect(control.requestCount('terminal.resize')).toBe(1));
+        const reattachment = execution.attach(terminal.id);
+        await Promise.resolve();
+        expect(control.requestCount('terminal.attach')).toBe(1);
+        control.releaseInput();
+        await expect(pending).resolves.toBe(true);
+        const duringReattachment = execution.writeAcknowledged(terminal.id, 'during');
+        await vi.waitFor(() => expect(control.requestCount('terminal.input')).toBe(2));
+        control.releaseResize();
+        expect(
+            await Promise.race([
+                reattachment,
+                new Promise<'pending'>((resolve) => setTimeout(resolve, 0, 'pending')),
+            ]),
+        ).toBe('pending');
+        control.releaseInput();
+        await expect(duringReattachment).resolves.toBe(true);
+        await expect(reattachment).resolves.toMatchObject({ snapshot: null });
+        expect(control.requestCount('terminal.attach')).toBe(2);
     });
 
     it('rejects input accepted while Terminal Host shutdown is in progress', async () => {
