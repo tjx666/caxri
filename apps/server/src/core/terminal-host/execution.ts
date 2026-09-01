@@ -249,8 +249,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
     }
 
     /**
-     * Re-samples after every drain because either hot path can replace its settled queue while the other remains
-     * active.
+     * Re-samples because either hot path can replace a settled queue while the other remains active.
      */
     private async settleHotPaths(terminalIds: Iterable<string>): Promise<void> {
         const ids = [...terminalIds];

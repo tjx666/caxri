@@ -57,6 +57,7 @@ export async function createDomainServices(
         watchHub,
         workbenchRoots,
     } = await createRootServices(dependencies);
+    const selectedSessionId = () => database.getAppState('lastSelectedSessionId') ?? undefined;
     workbenchRoots.setRootChangedHandler((sessionId) => {
         if (selectedSessionId() === sessionId)
             // eslint-disable-next-line unicorn/prefer-await -- synchronous callback cannot await
@@ -227,9 +228,6 @@ export async function createDomainServices(
             }),
         };
     }
-    function selectedSessionId(): string | undefined {
-        return database.getAppState('lastSelectedSessionId') ?? undefined;
-    }
     async function terminalWorkingDirectory(
         projectRoot: string,
         requestedCwd?: string,
@@ -306,7 +304,6 @@ export async function createDomainServices(
             return database.getTerminal(terminal.id)!;
         }
     }
-
     async function terminalDirectoryIdentity(
         path: string,
     ): Promise<TerminalWorkingDirectoryIdentity> {
@@ -319,7 +316,6 @@ export async function createDomainServices(
             inode: stats.ino.toString(),
         };
     }
-
     /**
      * Auto-restores a Session's Terminals that an orderly shutdown left `interrupted` (GitHub issue #18). A Terminal
      * with a bound Agent conversation (`terminal.provider` set) resumes it via its Server provider descriptor, so
@@ -436,13 +432,6 @@ export async function createDomainServices(
         await watchHub.close();
         database.close();
     }
-    const terminalMoveDependencies = {
-        coordinator,
-        database,
-        send,
-        terminals,
-        watchSessionInBackground,
-    };
     const handlers: DomainHandlers = {
         'extensions.retry': () => mainOwned('extensions.retry'),
         'requests.cancel': () => mainOwned('requests.cancel'),
@@ -524,7 +513,13 @@ export async function createDomainServices(
         'processExplorer.open': () => mainOwned('processExplorer.open'),
         'dialog.selectDirectory': () => mainOwned('dialog.selectDirectory'),
         ...createWorkbenchRootHandlers(workbenchRoots, mainOwned),
-        ...createTerminalMoveHandler(terminalMoveDependencies),
+        ...createTerminalMoveHandler({
+            coordinator,
+            database,
+            send,
+            terminals,
+            watchSessionInBackground,
+        }),
         'editor.confirmDiscard': () => mainOwned('editor.confirmDiscard'),
         'diagnostics.export': () => mainOwned('diagnostics.export'),
         'bugReport.captureScreenshot': () => mainOwned('bugReport.captureScreenshot'),
