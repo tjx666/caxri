@@ -10,7 +10,11 @@ describe('mobile Expo config', () => {
 
         expect(config.plugins).toContainEqual([
             'expo-splash-screen',
-            { backgroundColor: draculaTheme.colors.background },
+            {
+                backgroundColor: draculaTheme.colors.background,
+                image: '../../build/icon.png',
+                imageWidth: 128,
+            },
         ]);
     });
 });

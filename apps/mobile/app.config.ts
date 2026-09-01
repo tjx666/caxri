@@ -5,6 +5,7 @@ import type { ConfigContext, ExpoConfig } from 'expo/config';
  * self-contained; app-config.test.ts guards its parity with the protocol theme.
  */
 const MOBILE_SPLASH_BACKGROUND = '#282a36';
+const MOBILE_SPLASH_IMAGE = '../../build/icon.png';
 
 export default function createExpoConfig({ config }: ConfigContext): ExpoConfig {
     return {
@@ -38,6 +39,8 @@ export default function createExpoConfig({ config }: ConfigContext): ExpoConfig 
                 'expo-splash-screen',
                 {
                     backgroundColor: MOBILE_SPLASH_BACKGROUND,
+                    image: MOBILE_SPLASH_IMAGE,
+                    imageWidth: 128,
                 },
             ],
         ],
