@@ -657,6 +657,10 @@ describe('TerminalManager', () => {
             ]);
             expect(isCompletedBeforeTimeout).toBe(true);
             expect(spawn).not.toHaveBeenCalled();
+            expect(database.getTerminal(created.terminal!.id)).toMatchObject({
+                lastProcessState: 'interrupted',
+                failureReason: undefined,
+            });
         } finally {
             shouldStart = false;
             await starting;
@@ -696,6 +700,10 @@ describe('TerminalManager', () => {
             ]);
             expect(isCompletedBeforeTimeout).toBe(true);
             expect(spawn).not.toHaveBeenCalled();
+            expect(database.getTerminal(created.terminal!.id)).toMatchObject({
+                lastProcessState: 'interrupted',
+                failureReason: undefined,
+            });
         } finally {
             cancellation.abort();
             await starting;

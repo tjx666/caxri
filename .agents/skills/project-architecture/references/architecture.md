@@ -182,6 +182,10 @@ changes request the full bootstrap convergence snapshot; steady-state Terminal a
 events carry typed Session/Terminal identities and use the bounded `app.records` read so they never
 resend the whole application graph. An unrecognized state-change scope normalizes to the full
 convergence path.
+An invalid internal event is rejected inside the Server Core listener before it can reach a structured control or
+journal boundary. The rejection records only its known event name plus bounded schema paths, codes, and array counts,
+then emits the existing full unknown-state invalidation so connected clients converge without crashing Server Core or
+exposing the rejected payload.
 
 Server Core resolves that table through one composition root. `createServerDomainService(deps)`
 constructs and wires every domain service from injected dependencies (data directory, logger, event
@@ -345,6 +349,9 @@ and can be restarted. In-flight Agent CLI discovery is revalidated against durab
 registered, so closing a Terminal or deleting its Session cannot create an orphan process.
 
 Interrupted-Terminal recovery is supervised by one Server Core-wide four-spawn budget. Selecting a Session invalidates queued restore work from the previous selection, and the selected generation is revalidated after executable discovery immediately before PTY spawn. A visible interrupted Terminal retains the receiving Renderer grid before restore, starts its PTY and parsed screen at that grid when possible, and performs one ordered live-screen reattach after the record becomes `running`; this removes any remaining attach/spawn race without relying on a later ResizeObserver event. Startup Agent metadata probes are limited to the selected Session; another Session is probed when selected rather than during boot.
+The visible-grid wait resolves as stale work when its restore generation is canceled across both in-process and private
+Terminal Host execution adapters; it must leave the durable Terminal `interrupted`, never convert an ordinary Session
+switch into `failed` / `spawn_failed`.
 
 Exited Terminals retain their final output and reserve a compact recovery row beneath the xterm viewport, never over it. A zero exit without a signal is neutral; startup failures and signal or non-zero exits use a danger state. Surface actions, the command palette, and `Command+Shift+R` restart the same durable Terminal record, so recovery cannot create a duplicate tab or PTY identity. Restarting a bound Agent Terminal resumes its correlated provider session by default; only the separate `Start New Agent Session` action clears that binding and starts fresh, while Shell restarts always remain fresh.
 
@@ -450,10 +457,12 @@ identity.
 
 An Agent Terminal keeps one interactive Shell as its PTY root and starts the configured Agent as a managed
 foreground child. The Shell process defines the Terminal lifecycle, while `lastAgentProcessState` records
-whether the managed Agent generation is starting, running, or stopped. Agent exit therefore returns to the
-same live Shell without emitting `terminal.exit`; only the Shell root exiting stops the Terminal. Durable
+whether an interactive Agent is starting, running, or stopped in that Terminal; managed control is fenced
+separately by the in-memory launch ID and Agent process ID. Agent exit therefore returns to the same live Shell
+without emitting `terminal.exit`; only the Shell root exiting stops the Terminal. Durable
 provider, title, and Agent session identity remain attached to the Terminal so a later explicit resume can
-start another managed generation. Managed startup supports zsh and bash; when the configured platform Shell is
+start another managed generation. A manually launched foreground Agent receives no managed identity or control;
+bounded process probes only publish and later revoke its interactive availability. Managed startup supports zsh and bash; when the configured platform Shell is
 unsupported, Agent Terminals use macOS's system zsh while ordinary Shell Terminals keep the configured executable.
 `terminal.restart`, Resume, and Fresh deliberately replace the Shell PTY too:
 injecting a command into an existing prompt could append to an unpublished edit or disrupt foreground job control.
@@ -579,6 +588,8 @@ Structured logs carry timestamp, process, level, event, correlation ID, duration
 Structured event names are owned by the browser-safe protocol `logEventCatalog`; production log sinks accept only its derived `LogEventName`, and the `logs.query.event` filter uses the same schema. Query results deliberately keep a bounded string event so older or externally produced JSONL records remain readable without weakening production write-time typing.
 
 GPU failures form one Main-owned correlated incident. Main decodes Electron's raw POSIX child status into the Chromium result code, records selected window state and GPU command-line switches, then captures bounded hardware, ANGLE, Skia/Graphite, and feature status after `gpu-info-update`. The workbench Renderer may report only a strict browser-safe diagnostic union: terminal-renderer status with opaque Terminal identity, renderer enums and counters, process/focus/visibility booleans; or the content-free resize burst summary defined above. Neither branch admits Terminal output, prompts, DOM text, error messages, source, paths, or environment data. Renderer reports immediately before or after a GPU exit are linked through the incident correlation window so post-mortem triage can distinguish a native GPU process loss from a stale xterm atlas or an input-focus failure. An incident may fall affected Terminals back to DOM rendering for the current session, but it never changes the next-launch hardware-acceleration setting; entering GPU Safe Mode requires an explicit user action.
+
+An enabled Terminal that falls back to DOM may retry WebGL at most three times within a rolling 60-second window. Retries wait until the mounted pane and document are visible, stop permanently for that mount after the budget is exhausted, and are cancelled by disposal or a renderer-preference change. Each retry sequence carries one content-free UUID plus its state, attempt count, limit, and next delay through the strict Renderer diagnostic union. A Main-owned GPU incident correlation remains attached across the delayed sequence, allowing diagnostics to distinguish scheduled, deferred, attempted, succeeded, failed, exhausted, and cancelled recovery without admitting arbitrary messages or user content.
 
 The application version and short commit hash are injected at build time and read once by Desktop Main, which stamps its own logs and forwards them to the Server Core's environment so both processes' logs and the diagnostics export can be correlated to the exact build.
 

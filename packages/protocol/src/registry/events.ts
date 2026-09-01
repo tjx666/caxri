@@ -31,6 +31,12 @@ const configChangedSchema = z.object({
     error: z.string().optional(),
 });
 
+/**
+ * One watcher event must stay inside the durable protocol envelope. Producers share this bound so an in-process burst
+ * cannot create an event that only fails after it reaches the recovery journal.
+ */
+export const MAX_FILE_CHANGES_PER_EVENT = 512;
+
 const fullStateChangeReasonSchema = z.enum([
     'project.create',
     'project.delete',
@@ -131,7 +137,7 @@ export const serverEventPayloads = {
          * Stable Project scope lets inactive Sessions sharing this root converge their caches.
          */
         workbenchProjectId: identifierSchema,
-        changes: z.array(fileChangeSchema).max(512),
+        changes: z.array(fileChangeSchema).max(MAX_FILE_CHANGES_PER_EVENT),
         overflow: z.boolean(),
         gitIgnoreRulesChanged: z.literal(true).optional(),
     }),

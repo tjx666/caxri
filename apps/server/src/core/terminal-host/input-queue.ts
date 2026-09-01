@@ -37,7 +37,9 @@ function splitTerminalInput(data: string): string[] {
  * Owns bounded private chunks and per-public-input acknowledgements for one Terminal attachment.
  */
 export class TerminalInputQueue<Identity> {
+    private activeBatch?: TerminalInputBatch;
     private chunks: TerminalInputChunk[] = [];
+    private deferredRejection?: unknown;
     private head = 0;
     private readonly receipts = new Set<TerminalInputReceipt>();
     readonly abortController = new AbortController();
@@ -74,13 +76,20 @@ export class TerminalInputQueue<Identity> {
         return this.head < this.chunks.length;
     }
 
-    acknowledge(batch: TerminalInputBatch): void {
+    settleAcceptedBatch(batch: TerminalInputBatch): boolean {
+        if (this.activeBatch !== batch) return true;
+        this.activeBatch = undefined;
         this.queuedCharacters -= batch.length;
         for (const chunk of batch.chunks) {
             const receipt = chunk.receipt;
             if (receipt) this.acknowledgeReceipt(receipt);
         }
         this.compact();
+        if (this.deferredRejection === undefined) return false;
+        const error = this.deferredRejection;
+        this.deferredRejection = undefined;
+        this.reject(error);
+        return true;
     }
 
     enqueue(data: string, shouldAcknowledge: boolean): TerminalInputReceipt | undefined {
@@ -98,8 +107,20 @@ export class TerminalInputQueue<Identity> {
         return this.receipts.has(receipt);
     }
 
+    /**
+     * Keeps an accepted private write alive when its PTY exit event overtakes the reply. The reply still proves whether
+     * that active batch was delivered; all later queued input remains rejected against the retired Terminal.
+     */
+    deferRejectionUntilActiveBatchSettles(error: unknown): boolean {
+        if (!this.activeBatch) return false;
+        this.deferredRejection = error;
+        return true;
+    }
+
     reject(error: unknown): void {
         this.abortController.abort();
+        this.activeBatch = undefined;
+        this.deferredRejection = undefined;
         for (const receipt of this.receipts) receipt.completion.reject(error);
         this.receipts.clear();
     }
@@ -114,6 +135,8 @@ export class TerminalInputQueue<Identity> {
             chunks.push(chunk);
             length += chunk.data.length;
         }
-        return { chunks, data: chunks.map(({ data }) => data).join(''), length };
+        const batch = { chunks, data: chunks.map(({ data }) => data).join(''), length };
+        this.activeBatch = batch;
+        return batch;
     }
 }

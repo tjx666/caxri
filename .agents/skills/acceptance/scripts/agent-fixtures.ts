@@ -301,6 +301,11 @@ process.stdin.on('data', (chunk) => {
       else if (command.startsWith('fixture:title:')) setMode({ kind: 'normal', sessionId, title: command.slice('fixture:title:'.length) });
       else if (command === 'fixture:turn') { startTurn('A changed acceptance topic'); setTimeout(finishTurn, 150); }
       else if (command === 'fixture:private-turn') { startTurn('Private acceptance topic', true); setTimeout(finishTurn, 150); }
+      else if (command === 'fixture:exit') {
+        appendReceipt({ kind: 'fixtureExit' });
+        process.stdout.write('Fixture Agent exiting\r\n');
+        process.exit(0);
+      }
       else if (command) appendReceipt({ kind: 'terminalInput', length: command.length });
       process.stdout.write('Fixture command accepted\r\n');
     } catch (error) {
