@@ -28,11 +28,11 @@ import {
     mobilePairingResultSchema,
     mobilePublicKey,
     MobileReplayGuard,
+    mobileRevokedSchema,
     mobileSealedFrameSchema,
     mobileServerHelloSchema,
     openMobileFrame,
     PAIRING_SECRET_BYTES,
-    sealMobileFrame,
     serializeMobilePairingLink,
     X25519_KEY_BYTES,
 } from '@caxri/mobile-transport';
@@ -64,6 +64,7 @@ import type {
     MobileDeviceRegistry,
     MobileDeviceSummary,
 } from '../device-registry';
+import { createServerSealedPayload, sendFinalSealedPayload } from './sealed-payload';
 import { MobileSocketQueueBudget } from './socket-queue-budget';
 
 const MOBILE_PATH = '/mobile';
@@ -221,6 +222,9 @@ export function boundedMobileReply(
     };
 }
 
+/**
+ * Preserves one challenge shape for invalid IDs without disclosing whether a pairing exists.
+ */
 function dummyCandidate(
     hello: Extract<MobileClientHello, { mode: 'pair' }>,
     now: number,
@@ -236,13 +240,12 @@ function dummyCandidate(
         createdAt: now,
     };
 }
-
 /**
- * Default-off LAN transport for one Server profile. Existing loopback control transport is never reused.
+ * Default-off LAN transport for one Server profile. The loopback control transport is never reused.
  */
 /* eslint-disable unicorn/consistent-class-member-order -- The public lifecycle API stays together before handshake internals. */
 export class MobileGateway {
-    readonly #activeByDevice = new Map<string, Set<WebSocket>>();
+    readonly #activeByDevice = new Map<string, Map<WebSocket, GatewaySession>>();
     readonly #dispatch: CommandDispatcher;
     readonly #now: () => number;
     readonly #options: MobileGatewayOptions;
@@ -421,8 +424,13 @@ export class MobileGateway {
 
     async revoke(deviceId: string, expectedGeneration: number): Promise<MobileDeviceSummary> {
         const revoked = await this.#options.registry.revoke(deviceId, expectedGeneration);
-        const activeSockets = this.#activeByDevice.get(deviceId) ?? [];
-        for (const socket of activeSockets) this.#terminate(socket);
+        const activeSessions = this.#activeByDevice.get(deviceId);
+        if (activeSessions)
+            await Promise.all(
+                [...activeSessions].map(([socket, session]) =>
+                    this.#sendRevokedAndClose(socket, session),
+                ),
+            );
         this.#activeByDevice.delete(deviceId);
         return revoked;
     }
@@ -575,8 +583,10 @@ export class MobileGateway {
                     isReady = true;
                     this.#handshakes = Math.max(0, this.#handshakes - 1);
                     clearTimeout(timer);
-                    const active = this.#activeByDevice.get(session.deviceId) ?? new Set();
-                    active.add(socket);
+                    const active =
+                        this.#activeByDevice.get(session.deviceId) ??
+                        new Map<WebSocket, GatewaySession>();
+                    active.set(socket, session);
                     this.#activeByDevice.set(session.deviceId, active);
                     return;
                 }
@@ -713,26 +723,16 @@ export class MobileGateway {
 
     #sendSealed(socket: WebSocket, session: GatewaySession, payload: unknown): void {
         const counter = session.outbound.take();
-        const source = JSON.stringify(payload);
-        const plaintext = new TextEncoder().encode(source);
-        const ciphertext = sealMobileFrame(
-            session.keys.serverToClient,
+        const sourceFrame = createServerSealedPayload(
             {
                 connectionId: session.transcript.connectionId,
+                connectionIdHex: session.connection.connectionId,
                 counter,
                 deviceId: session.deviceId,
-                direction: 'server-to-client',
+                key: session.keys.serverToClient,
             },
-            plaintext,
+            payload,
         );
-        const frame = mobileSealedFrameSchema.parse({
-            type: 'sealed',
-            version: MOBILE_TRANSPORT_VERSION,
-            connectionId: session.connection.connectionId,
-            counter,
-            ciphertext: encodeHex(ciphertext),
-        });
-        const sourceFrame = JSON.stringify(frame);
         if (
             socket.readyState !== 1 ||
             socket.bufferedAmount + Buffer.byteLength(sourceFrame, 'utf8') >
@@ -742,6 +742,35 @@ export class MobileGateway {
             return;
         }
         socket.send(sourceFrame);
+    }
+
+    /**
+     * A revocation is disclosed only over the already authenticated session. The bounded close handshake preserves wire
+     * ordering for the encrypted control frame without letting a backpressured client delay Desktop indefinitely.
+     */
+    async #sendRevokedAndClose(socket: WebSocket, session: GatewaySession): Promise<void> {
+        const revoked = mobileRevokedSchema.parse({
+            type: 'revoked',
+            deviceId: session.deviceId,
+            generation: session.generation,
+        });
+        const counter = session.outbound.take();
+        const sourceFrame = createServerSealedPayload(
+            {
+                connectionId: session.transcript.connectionId,
+                connectionIdHex: session.connection.connectionId,
+                counter,
+                deviceId: session.deviceId,
+                key: session.keys.serverToClient,
+            },
+            revoked,
+        );
+        const closeResult = await sendFinalSealedPayload(
+            socket,
+            sourceFrame,
+            MOBILE_GATEWAY_MAX_WIRE_BYTES * 2,
+        );
+        if (closeResult === 'failed') this.#terminate(socket);
     }
 
     #terminate(socket: WebSocket): void {

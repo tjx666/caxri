@@ -1,0 +1,84 @@
+import { Buffer } from 'node:buffer';
+
+import {
+    encodeHex,
+    MOBILE_TRANSPORT_VERSION,
+    mobileSealedFrameSchema,
+    sealMobileFrame,
+} from '@caxri/mobile-transport';
+import WebSocket from 'ws';
+
+const FINAL_FRAME_CLOSE_TIMEOUT_MS = 1_000;
+
+interface ServerSealedPayloadContext {
+    connectionId: Uint8Array;
+    connectionIdHex: string;
+    counter: number;
+    deviceId: string;
+    key: Uint8Array;
+}
+
+export const createServerSealedPayload = (
+    context: ServerSealedPayloadContext,
+    payload: unknown,
+): string => {
+    const ciphertext = sealMobileFrame(
+        context.key,
+        {
+            connectionId: context.connectionId,
+            counter: context.counter,
+            deviceId: context.deviceId,
+            direction: 'server-to-client',
+        },
+        new TextEncoder().encode(JSON.stringify(payload)),
+    );
+    return JSON.stringify(
+        mobileSealedFrameSchema.parse({
+            type: 'sealed',
+            version: MOBILE_TRANSPORT_VERSION,
+            connectionId: context.connectionIdHex,
+            counter: context.counter,
+            ciphertext: encodeHex(ciphertext),
+        }),
+    );
+};
+
+/**
+ * Enqueues a final authenticated frame before starting the WebSocket close handshake. The peer cannot acknowledge the
+ * later close frame without first consuming the earlier data frame from the ordered stream; a bounded timeout lets the
+ * caller force-close a client that never completes the handshake.
+ */
+export const sendFinalSealedPayload = async (
+    socket: WebSocket,
+    sourceFrame: string,
+    maximumBufferedBytes: number,
+): Promise<'closed' | 'failed'> => {
+    if (
+        socket.readyState !== WebSocket.OPEN ||
+        socket.bufferedAmount + Buffer.byteLength(sourceFrame, 'utf8') > maximumBufferedBytes
+    )
+        return 'failed';
+    return new Promise<'closed' | 'failed'>((resolve) => {
+        let isSettled = false;
+        let onClose = (): void => {};
+        const timeout: { handle?: ReturnType<typeof setTimeout> } = {};
+        const settle = (result: 'closed' | 'failed'): void => {
+            if (isSettled) return;
+            isSettled = true;
+            clearTimeout(timeout.handle);
+            socket.off('close', onClose);
+            resolve(result);
+        };
+        onClose = (): void => settle('closed');
+        socket.once('close', onClose);
+        timeout.handle = setTimeout(() => settle('failed'), FINAL_FRAME_CLOSE_TIMEOUT_MS);
+        timeout.handle.unref();
+        socket.send(sourceFrame, (error) => {
+            if (error) {
+                settle('failed');
+                return;
+            }
+            if (socket.readyState === WebSocket.OPEN) socket.close(1_000);
+        });
+    });
+};

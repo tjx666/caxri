@@ -13,6 +13,7 @@ import {
     mobilePairingResultSchema,
     mobilePublicKey,
     MobileReplayGuard,
+    mobileRevokedSchema,
     mobileSealedFrameSchema,
     mobileServerHelloSchema,
     openMobileFrame,
@@ -21,7 +22,12 @@ import {
     sealMobileFrame,
     X25519_KEY_BYTES,
 } from '@caxri/mobile-transport';
-import type { CaxriMethod, MethodResult, ParametersArgument } from '@caxri/protocol';
+import type {
+    CaxriMethod,
+    CommandReplyEnvelope,
+    MethodResult,
+    ParametersArgument,
+} from '@caxri/protocol';
 import {
     CAXRI_PROTOCOL_VERSION,
     commandReplyEnvelopeSchema,
@@ -60,6 +66,22 @@ export class MobilePairingError extends Error {
     }
 }
 
+export class MobileReconnectError extends Error {
+    readonly code = 'unverified' as const;
+
+    constructor() {
+        super('Caxri could not verify this stored pairing.');
+        this.name = 'MobileReconnectError';
+    }
+}
+
+class MobileServerVerificationError extends Error {
+    constructor() {
+        super('Caxri could not verify this pairing.');
+        this.name = 'MobileServerVerificationError';
+    }
+}
+
 export interface MobileGatewayRuntime {
     openWebSocket(url: string): WebSocket;
     platform: 'android' | 'ios';
@@ -74,7 +96,7 @@ const mobileReadySchema = z.strictObject({
 
 interface SocketReader {
     close(): void;
-    next(timeoutMs: number): Promise<unknown>;
+    next(timeoutMs?: number): Promise<unknown>;
 }
 
 const eventError = (): Error => new Error('The Caxri connection closed.');
@@ -85,25 +107,31 @@ const createSocketReader = (socket: WebSocket): SocketReader => {
     const budget = new MobileSocketReaderBudget();
     let isClosed = false;
 
-    const rejectAll = (): void => {
-        if (isClosed) return;
+    /**
+     * A peer close may follow a final authenticated frame before the owner advances to its steady-state reader. Keep
+     * already parsed frames available in that case; explicit local cleanup and protocol failures discard them.
+     */
+    const rejectAll = (shouldDiscardQueued: boolean): void => {
         isClosed = true;
         const pendingRequests = [...waiting];
-        const queuedMessages = [...queued];
         waiting.length = 0;
-        queued.length = 0;
-        for (const item of queuedMessages) item.release();
+        if (shouldDiscardQueued) {
+            const queuedMessages = [...queued];
+            queued.length = 0;
+            for (const item of queuedMessages) item.release();
+        }
         for (const pending of pendingRequests) pending.reject(eventError());
     };
     socket.addEventListener('message', (event) => {
+        if (isClosed) return;
         if (typeof event.data !== 'string') {
             socket.close();
-            rejectAll();
+            rejectAll(true);
             return;
         }
         if (event.data.length > MOBILE_GATEWAY_MAX_WIRE_BYTES) {
             socket.close();
-            rejectAll();
+            rejectAll(true);
             return;
         }
         // Server wire messages are ASCII JSON, so code-unit length is also their UTF-8 byte length.
@@ -111,7 +139,7 @@ const createSocketReader = (socket: WebSocket): SocketReader => {
         const release = budget.tryAcquire(byteLength);
         if (!release) {
             socket.close();
-            rejectAll();
+            rejectAll(true);
             return;
         }
         let value: unknown;
@@ -120,7 +148,7 @@ const createSocketReader = (socket: WebSocket): SocketReader => {
         } catch {
             release();
             socket.close();
-            rejectAll();
+            rejectAll(true);
             return;
         }
         const pending = waiting.shift();
@@ -129,11 +157,11 @@ const createSocketReader = (socket: WebSocket): SocketReader => {
             pending.resolve(value);
         } else queued.push({ release, value });
     });
-    socket.addEventListener('close', rejectAll);
-    socket.addEventListener('error', rejectAll);
+    socket.addEventListener('close', () => rejectAll(false));
+    socket.addEventListener('error', () => rejectAll(false));
 
     return {
-        close: rejectAll,
+        close: () => rejectAll(true),
         next: (timeoutMs) => {
             const item = queued.shift();
             if (item) {
@@ -153,11 +181,12 @@ const createSocketReader = (socket: WebSocket): SocketReader => {
                         reject(error);
                     },
                 };
-                timeout.handle = setTimeout(() => {
-                    const index = waiting.indexOf(pending);
-                    if (index !== -1) waiting.splice(index, 1);
-                    reject(new Error('Caxri did not respond in time.'));
-                }, timeoutMs);
+                if (timeoutMs !== undefined)
+                    timeout.handle = setTimeout(() => {
+                        const index = waiting.indexOf(pending);
+                        if (index !== -1) waiting.splice(index, 1);
+                        reject(new Error('Caxri did not respond in time.'));
+                    }, timeoutMs);
                 waiting.push(pending);
             });
         },
@@ -214,6 +243,7 @@ interface EstablishedSession {
     connectionId: Uint8Array;
     connectionIdHex: string;
     deviceId: string;
+    generation: number;
     inbound: MobileReplayGuard;
     keys: MobileSessionKeys;
     outbound: MobileFrameCounter;
@@ -222,7 +252,7 @@ interface EstablishedSession {
     socket: WebSocket;
 }
 
-const receiveSealed = async (session: EstablishedSession, timeoutMs: number): Promise<unknown> => {
+const receiveSealed = async (session: EstablishedSession, timeoutMs?: number): Promise<unknown> => {
     const frame = mobileSealedFrameSchema.parse(await session.reader.next(timeoutMs));
     if (frame.connectionId !== session.connectionIdHex)
         throw new Error('Connection identity changed.');
@@ -296,7 +326,7 @@ const establish = async (input: {
             transcript,
         });
         if (!isHandshakeConfirmationValid(decodeHex(challenge.confirmation, 32), keys, 'server'))
-            throw new Error('Caxri could not verify this pairing.');
+            throw new MobileServerVerificationError();
         const confirmation = mobileClientConfirmationSchema.parse({
             type: 'confirm',
             version: MOBILE_TRANSPORT_VERSION,
@@ -308,6 +338,7 @@ const establish = async (input: {
             connectionId: transcript.connectionId,
             connectionIdHex: challenge.connectionId,
             deviceId: challenge.deviceId,
+            generation: challenge.generation,
             inbound: new MobileReplayGuard(),
             keys,
             outbound: new MobileFrameCounter(),
@@ -322,17 +353,97 @@ const establish = async (input: {
     }
 };
 
-export class MobileGatewayConnection {
-    readonly #session: EstablishedSession;
-    #requestSequence = Promise.resolve();
+export type MobileGatewayTermination = 'disconnected' | 'revoked';
 
-    constructor(session: EstablishedSession) {
+interface PendingMobileReply {
+    id: string;
+    reject(error: Error): void;
+    resolve(reply: CommandReplyEnvelope): void;
+}
+
+export class MobileGatewayConnection {
+    readonly #clearCredential: () => Promise<void>;
+    readonly #listeners = new Set<(reason: MobileGatewayTermination) => void>();
+    readonly #session: EstablishedSession;
+    #closedByOwner = false;
+    #pending?: PendingMobileReply;
+    #requestSequence = Promise.resolve();
+    #termination?: MobileGatewayTermination;
+
+    constructor(session: EstablishedSession, clearCredential: () => Promise<void>) {
         this.#session = session;
+        this.#clearCredential = clearCredential;
+        // eslint-disable-next-line no-void -- The connection lifetime owns its single inbound frame pump.
+        void this.#readLoop();
+    }
+
+    #finish(reason: MobileGatewayTermination, error: Error): void {
+        if (this.#termination || this.#closedByOwner) return;
+        this.#termination = reason;
+        this.#rejectPending(error);
+        this.#session.reader.close();
+        this.#session.socket.close();
+        for (const listener of this.#listeners) listener(reason);
+    }
+
+    /**
+     * Owns the only post-handshake reader so authenticated control payloads cannot race command replies or socket
+     * closure. Credential deletion occurs inside this ordered boundary before the revoked terminal state is exposed.
+     */
+    async #readLoop(): Promise<void> {
+        try {
+            while (!this.#termination && !this.#closedByOwner) {
+                // eslint-disable-next-line no-await-in-loop -- one reader serializes and authenticates every server frame.
+                const payload = await receiveSealed(this.#session);
+                const revoked = mobileRevokedSchema.safeParse(payload);
+                if (revoked.success) {
+                    if (
+                        revoked.data.deviceId !== this.#session.deviceId ||
+                        revoked.data.generation !== this.#session.generation
+                    )
+                        throw new Error('Caxri returned an unexpected revoked identity.');
+                    // A credential is cleared only after the control payload has passed authenticated frame opening.
+                    // eslint-disable-next-line no-await-in-loop -- revocation is the terminal frame for this connection.
+                    await this.#clearCredential();
+                    this.#finish('revoked', new Error('This device was revoked.'));
+                    return;
+                }
+                const reply = commandReplyEnvelopeSchema.parse(payload);
+                const pending = this.#pending;
+                if (!pending || reply.id !== pending.id)
+                    throw new Error('Caxri returned an unexpected reply.');
+                this.#pending = undefined;
+                pending.resolve(reply);
+            }
+        } catch (error) {
+            this.#finish(
+                'disconnected',
+                error instanceof Error ? error : new Error('The Caxri connection closed.'),
+            );
+        }
+    }
+
+    #rejectPending(error: Error): void {
+        const pending = this.#pending;
+        this.#pending = undefined;
+        pending?.reject(error);
     }
 
     close(): void {
+        this.#closedByOwner = true;
+        this.#rejectPending(eventError());
         this.#session.reader.close();
         this.#session.socket.close();
+        this.#listeners.clear();
+    }
+
+    onTermination(listener: (reason: MobileGatewayTermination) => void): () => void {
+        if (this.#termination) {
+            listener(this.#termination);
+            return () => {};
+        }
+        this.#listeners.add(listener);
+        return () => this.#listeners.delete(listener);
     }
 
     async request<M extends CaxriMethod>(
@@ -342,17 +453,42 @@ export class MobileGatewayConnection {
         const previousRequest = this.#requestSequence;
         const currentRequest = (async (): Promise<MethodResult<M>> => {
             await previousRequest;
+            if (this.#termination) throw eventError();
             const id = `mobile_${encodeHex(this.#session.runtime.randomBytes(16))}`;
-            sendSealed(this.#session, {
-                protocolVersion: CAXRI_PROTOCOL_VERSION,
-                id,
-                method,
-                params: arguments_[0] ?? {},
+            const replyPromise = new Promise<CommandReplyEnvelope>((resolve, reject) => {
+                const timeout = setTimeout(() => {
+                    if (this.#pending?.id !== id) return;
+                    const error = new Error('Caxri did not respond in time.');
+                    this.#pending = undefined;
+                    reject(error);
+                    this.#finish('disconnected', error);
+                }, REQUEST_TIMEOUT_MS);
+                this.#pending = {
+                    id,
+                    reject: (error) => {
+                        clearTimeout(timeout);
+                        reject(error);
+                    },
+                    resolve: (reply) => {
+                        clearTimeout(timeout);
+                        resolve(reply);
+                    },
+                };
             });
-            const reply = commandReplyEnvelopeSchema.parse(
-                await receiveSealed(this.#session, REQUEST_TIMEOUT_MS),
-            );
-            if (reply.id !== id) throw new Error('Caxri returned an unexpected reply.');
+            try {
+                sendSealed(this.#session, {
+                    protocolVersion: CAXRI_PROTOCOL_VERSION,
+                    id,
+                    method,
+                    params: arguments_[0] ?? {},
+                });
+            } catch (error) {
+                this.#finish(
+                    'disconnected',
+                    error instanceof Error ? error : new Error('The Caxri connection closed.'),
+                );
+            }
+            const reply = await replyPromise;
             if (!reply.ok)
                 throw new MobileGatewayRequestError(reply.error.code, reply.error.message);
             return parseCaxriResult(method, reply.result);
@@ -431,7 +567,12 @@ export const pairMobileGateway = async (input: {
             credential: paired.credential,
         } as const satisfies MobileCredential;
         await input.store.save(credential);
-        return { connection: new MobileGatewayConnection(session), credential };
+        return {
+            connection: new MobileGatewayConnection(session, async () => {
+                await input.store.clearIfCurrent(credential);
+            }),
+            credential,
+        };
     } catch (error) {
         session.reader.close();
         session.socket.close();
@@ -442,33 +583,42 @@ export const pairMobileGateway = async (input: {
 export const reconnectMobileGateway = async (
     credential: MobileCredential,
     runtime: MobileGatewayRuntime,
+    store: MobileCredentialStore,
 ): Promise<MobileGatewayConnection> => {
     const clientSecretKey = runtime.randomBytes(X25519_KEY_BYTES);
     const clientNonce = runtime.randomBytes(HANDSHAKE_NONCE_BYTES);
-    const session = await establish({
-        addresses: credential.addresses,
-        port: credential.port,
-        mode: 'connect',
-        expectedServerId: credential.serverId,
-        clientSecretKey,
-        clientNonce,
-        presharedKey: decodeHex(credential.credential, PAIRING_SECRET_BYTES),
-        runtime,
-        clientHello: {
-            type: 'hello',
-            version: MOBILE_TRANSPORT_VERSION,
+    let session: EstablishedSession;
+    try {
+        session = await establish({
+            addresses: credential.addresses,
+            port: credential.port,
             mode: 'connect',
-            deviceId: credential.deviceId,
-            generation: credential.generation,
-            clientPublicKey: encodeHex(mobilePublicKey(clientSecretKey)),
-            clientNonce: encodeHex(clientNonce),
-        },
-    });
+            expectedServerId: credential.serverId,
+            clientSecretKey,
+            clientNonce,
+            presharedKey: decodeHex(credential.credential, PAIRING_SECRET_BYTES),
+            runtime,
+            clientHello: {
+                type: 'hello',
+                version: MOBILE_TRANSPORT_VERSION,
+                mode: 'connect',
+                deviceId: credential.deviceId,
+                generation: credential.generation,
+                clientPublicKey: encodeHex(mobilePublicKey(clientSecretKey)),
+                clientNonce: encodeHex(clientNonce),
+            },
+        });
+    } catch (error) {
+        if (error instanceof MobileServerVerificationError) throw new MobileReconnectError();
+        throw error;
+    }
     try {
         const ready = mobileReadySchema.parse(await receiveSealed(session, HANDSHAKE_TIMEOUT_MS));
         if (ready.deviceId !== credential.deviceId || ready.generation !== credential.generation)
             throw new Error('Caxri returned an unexpected device identity.');
-        return new MobileGatewayConnection(session);
+        return new MobileGatewayConnection(session, async () => {
+            await store.clearIfCurrent(credential);
+        });
     } catch (error) {
         session.reader.close();
         session.socket.close();

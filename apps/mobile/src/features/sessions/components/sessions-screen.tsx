@@ -84,7 +84,7 @@ const SessionGroupHeader = ({ label, theme }: { label: string; theme: MobileThem
 );
 
 export const SessionsScreen = () => {
-    const { forgetDevice, lastSeenAt, paired, status } = useMobileClient();
+    const { forgetDevice, lastSeenAt, paired, retryConnection, status } = useMobileClient();
     const theme = useMobileTheme();
     const { width } = useWindowDimensions();
     const layout = mobileLayoutMode(width);
@@ -125,6 +125,7 @@ export const SessionsScreen = () => {
 
     const isFresh = isConnectionFresh(status, lastSeenAt, now);
     const isStale = paired && !isFresh;
+    const isPairingUnverified = status === 'unverified';
 
     const detailVisible = selected !== null && (layout === 'tablet-split' || phoneDetail);
     const preview = useTerminalPreview({
@@ -233,9 +234,27 @@ export const SessionsScreen = () => {
             {!hasLoaded ? (
                 <View
                     style={styles.empty}
-                    testID={error ? 'session-list-error' : 'session-list-loading'}
+                    testID={
+                        isPairingUnverified
+                            ? 'session-list-unverified'
+                            : error
+                              ? 'session-list-error'
+                              : 'session-list-loading'
+                    }
                 >
-                    {error ? (
+                    {isPairingUnverified ? (
+                        <>
+                            <Text
+                                accessibilityRole="header"
+                                style={[styles.emptyTitle, { color: theme.text }]}
+                            >
+                                Sessions unavailable
+                            </Text>
+                            <Text style={[styles.emptyBody, { color: theme.muted }]}>
+                                Retry the connection, or forget this device and pair again.
+                            </Text>
+                        </>
+                    ) : error ? (
                         <>
                             <Text
                                 accessibilityRole="alert"
@@ -300,7 +319,13 @@ export const SessionsScreen = () => {
             edges={['top', 'right', 'bottom', 'left']}
             style={[styles.safeArea, { backgroundColor: theme.background }]}
         >
-            {isStale ? <ConnectionBanner theme={theme} /> : null}
+            {isStale ? (
+                <ConnectionBanner
+                    onRetry={retryConnection}
+                    status={status === 'unverified' ? 'unverified' : 'stale'}
+                    theme={theme}
+                />
+            ) : null}
             {layout === 'phone' ? (
                 detailVisible ? (
                     <SessionDetail

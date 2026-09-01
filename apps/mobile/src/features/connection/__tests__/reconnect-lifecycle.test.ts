@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { reconnectDelay } from '../connection-state';
-import { reconnectWaitForAttempt, runReconnectAttempt } from '../reconnect-lifecycle';
+import {
+    observeMobileConnectionTermination,
+    reconnectWaitForAttempt,
+    runReconnectAttempt,
+} from '../reconnect-lifecycle';
 import { shouldScheduleMobileReconnect } from '../use-mobile-reconnect';
 
 describe('mobile reconnect lifecycle', () => {
@@ -35,13 +39,14 @@ describe('mobile reconnect lifecycle', () => {
 
     it('reports a failed reconnect only while its owner is active', async () => {
         const onFailed = vi.fn();
+        const failure = new Error('offline');
         await runReconnectAttempt({
-            connect: () => Promise.reject(new Error('offline')),
+            connect: () => Promise.reject(failure),
             isActive: () => true,
             onConnected: vi.fn(),
             onFailed,
         });
-        expect(onFailed).toHaveBeenCalledOnce();
+        expect(onFailed).toHaveBeenCalledExactlyOnceWith(failure);
 
         await runReconnectAttempt({
             connect: () => Promise.reject(new Error('offline')),
@@ -50,5 +55,30 @@ describe('mobile reconnect lifecycle', () => {
             onFailed,
         });
         expect(onFailed).toHaveBeenCalledOnce();
+    });
+
+    it('does not auto-retry terminal or unverified pairing states', () => {
+        const credential = { deviceId: 'device-1' } as never;
+        expect(shouldScheduleMobileReconnect(credential, 'revoked')).toBe(false);
+        expect(shouldScheduleMobileReconnect(credential, 'unverified')).toBe(false);
+    });
+
+    it('reports a connection that terminated before its owner subscribed', () => {
+        const onTerminated = vi.fn();
+        const unsubscribe = vi.fn();
+        const observation = observeMobileConnectionTermination(
+            {
+                close: vi.fn(),
+                onTermination: (listener) => {
+                    listener('revoked');
+                    return unsubscribe;
+                },
+            },
+            onTerminated,
+        );
+
+        expect(observation.didTerminate).toBe(true);
+        expect(observation.unsubscribe).toBe(unsubscribe);
+        expect(onTerminated).toHaveBeenCalledExactlyOnceWith('revoked');
     });
 });

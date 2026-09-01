@@ -122,9 +122,16 @@ export const mobilePairingResultSchema = z.strictObject({
     projectIds: z.array(identifierSchema).min(1).max(128),
 });
 
+export const mobileRevokedSchema = z.strictObject({
+    type: z.literal('revoked'),
+    deviceId: identifierSchema,
+    generation: z.number().int().positive(),
+});
+
 export type MobilePairingLink = z.infer<typeof mobilePairingLinkSchema>;
 export type MobileClientHello = z.infer<typeof mobileClientHelloSchema>;
 export type MobileServerHello = z.infer<typeof mobileServerHelloSchema>;
 export type MobileClientConfirmation = z.infer<typeof mobileClientConfirmationSchema>;
 export type MobileSealedFrame = z.infer<typeof mobileSealedFrameSchema>;
 export type MobilePairingResult = z.infer<typeof mobilePairingResultSchema>;
+export type MobileRevoked = z.infer<typeof mobileRevokedSchema>;
