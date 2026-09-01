@@ -19,9 +19,11 @@ import { expoMobileGatewayRuntime } from './expo-mobile-gateway-runtime';
 import type { MobileGatewayConnection } from './mobile-gateway-client';
 import {
     MobileGatewayRequestError,
+    MobileReconnectError,
     pairMobileGateway,
     reconnectMobileGateway,
 } from './mobile-gateway-client';
+import { observeMobileConnectionTermination } from './reconnect-lifecycle';
 import { useMobileReconnect } from './use-mobile-reconnect';
 
 interface MobileClientContextValue {
@@ -33,6 +35,7 @@ interface MobileClientContextValue {
         method: M,
         ...arguments_: ParametersArgument<M>
     ) => Promise<MethodResult<M>>;
+    retryConnection: () => void;
     status: MobileConnectionStatus;
 }
 
@@ -44,11 +47,33 @@ export const MobileClientProvider = ({ children }: { children: ReactNode }) => {
     const [retryAttempt, setRetryAttempt] = useState(0);
     const [status, setStatus] = useState<MobileConnectionStatus>('booting');
     const connection = useRef<MobileGatewayConnection | null>(null);
+    const removeTerminationListener = useRef<() => void>(() => {});
 
     const replaceConnection = useCallback((next: MobileGatewayConnection | null): void => {
+        removeTerminationListener.current();
+        removeTerminationListener.current = () => {};
         if (connection.current !== next) connection.current?.close();
         connection.current = next;
     }, []);
+
+    const adoptConnection = useCallback(
+        (next: MobileGatewayConnection): boolean => {
+            replaceConnection(next);
+            const observation = observeMobileConnectionTermination(next, (reason) => {
+                if (connection.current !== next) return;
+                replaceConnection(null);
+                setLastSeenAt(null);
+                setRetryAttempt(0);
+                if (reason === 'revoked') {
+                    setCredential(null);
+                    setStatus('revoked');
+                } else setStatus('stale');
+            });
+            removeTerminationListener.current = observation.unsubscribe;
+            return !observation.didTerminate;
+        },
+        [replaceConnection],
+    );
 
     useEffect(() => {
         let isActive = true;
@@ -72,19 +97,28 @@ export const MobileClientProvider = ({ children }: { children: ReactNode }) => {
 
     const reconnect = useCallback(
         (storedCredential: MobileCredential) =>
-            reconnectMobileGateway(storedCredential, expoMobileGatewayRuntime),
+            reconnectMobileGateway(
+                storedCredential,
+                expoMobileGatewayRuntime,
+                expoMobileCredentialStore,
+            ),
         [],
     );
     const acceptReconnection = useCallback(
         (next: MobileGatewayConnection): void => {
-            replaceConnection(next);
+            if (!adoptConnection(next)) return;
             setLastSeenAt(Date.now());
             setRetryAttempt(0);
             setStatus('connected');
         },
-        [replaceConnection],
+        [adoptConnection],
     );
-    const rejectReconnection = useCallback((): void => {
+    const rejectReconnection = useCallback((error: unknown): void => {
+        if (error instanceof MobileReconnectError) {
+            setRetryAttempt(0);
+            setStatus('unverified');
+            return;
+        }
         setRetryAttempt((attempt) => attempt + 1);
         setStatus('stale');
     }, []);
@@ -109,7 +143,7 @@ export const MobileClientProvider = ({ children }: { children: ReactNode }) => {
                     store: expoMobileCredentialStore,
                 });
                 setCredential(paired.credential);
-                replaceConnection(paired.connection);
+                if (!adoptConnection(paired.connection)) return;
                 setLastSeenAt(Date.now());
                 setRetryAttempt(0);
                 setStatus('connected');
@@ -118,7 +152,7 @@ export const MobileClientProvider = ({ children }: { children: ReactNode }) => {
                 throw error;
             }
         },
-        [credential, replaceConnection],
+        [adoptConnection, credential, replaceConnection],
     );
 
     const forgetDevice = useCallback(async (): Promise<void> => {
@@ -129,6 +163,12 @@ export const MobileClientProvider = ({ children }: { children: ReactNode }) => {
         setRetryAttempt(0);
         setStatus('unpaired');
     }, [replaceConnection]);
+
+    const retryConnection = useCallback((): void => {
+        if (!credential) return;
+        setRetryAttempt(0);
+        setStatus('stale');
+    }, [credential]);
 
     const request = useCallback(
         async <M extends CaxriMethod>(
@@ -162,9 +202,10 @@ export const MobileClientProvider = ({ children }: { children: ReactNode }) => {
             pair,
             paired: credential !== null,
             request,
+            retryConnection,
             status,
         }),
-        [credential, forgetDevice, lastSeenAt, pair, request, status],
+        [credential, forgetDevice, lastSeenAt, pair, request, retryConnection, status],
     );
 
     return <MobileClientContext.Provider value={value}>{children}</MobileClientContext.Provider>;

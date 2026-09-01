@@ -13,6 +13,12 @@ const credential = {
     credential: 'ab'.repeat(32),
 } satisfies MobileCredential;
 
+const replacementCredential = {
+    ...credential,
+    generation: 2,
+    credential: 'cd'.repeat(32),
+} satisfies MobileCredential;
+
 const memoryStorage = (): CredentialStorageAdapter & { values: Map<string, string> } => {
     const values = new Map<string, string>();
     return {
@@ -47,5 +53,34 @@ describe('mobile credential store', () => {
 
         await expect(createMobileCredentialStore(storage).load()).resolves.toBeNull();
         expect(storage.values.size).toBe(0);
+    });
+
+    it('does not let stale revocation delete a newly saved credential', async () => {
+        const storage = memoryStorage();
+        const store = createMobileCredentialStore(storage);
+        await store.save(credential);
+        let releaseDelete = (): void => {};
+        let reportDeleteStarted = (): void => {};
+        // eslint-disable-next-line unicorn/prefer-promise-with-resolvers -- The Mobile TypeScript target does not include the ES2024 API.
+        const deleteStarted = new Promise<void>((resolve) => {
+            reportDeleteStarted = resolve;
+        });
+        // eslint-disable-next-line unicorn/prefer-promise-with-resolvers -- The Mobile TypeScript target does not include the ES2024 API.
+        const deleteMayFinish = new Promise<void>((resolve) => {
+            releaseDelete = resolve;
+        });
+        storage.deleteItemAsync = async (key) => {
+            reportDeleteStarted();
+            await deleteMayFinish;
+            storage.values.delete(key);
+        };
+
+        const staleClear = store.clearIfCurrent(credential);
+        await deleteStarted;
+        const replacementSave = store.save(replacementCredential);
+        releaseDelete();
+        await Promise.all([staleClear, replacementSave]);
+
+        await expect(store.load()).resolves.toEqual(replacementCredential);
     });
 });

@@ -15,6 +15,7 @@ import {
     mobileClientConfirmationSchema,
     mobilePairingResultSchema,
     mobilePublicKey,
+    mobileRevokedSchema,
     mobileSealedFrameSchema,
     mobileServerHelloSchema,
     openMobileFrame,
@@ -199,94 +200,104 @@ describe('MobileGateway', () => {
         await closed;
     });
 
-    it('closes a reconnect handshake that uses the wrong device credential before ready', async () => {
-        const registry = await registryFixture();
-        const paired = await registry.pair({
-            displayName: 'Credential test tablet',
-            platform: 'android',
-            projectIds: ['project-1'],
-        });
-        let gatewayByte = 100;
-        const gateway = new MobileGateway({
-            adapters: { server: { invoke: vi.fn() } },
-            bootId: 'b'.repeat(32),
-            protocolIdentity: { serverId: 'a'.repeat(32), stateEpoch: 'c'.repeat(32) },
-            random: (bytes) => new Uint8Array(bytes).fill(gatewayByte++),
-            registry,
-            selectAddress: () => '127.0.0.1',
-        });
-        const enabled = await gateway.enable();
-        const socket = await openSocket(`ws://${enabled.address}:${enabled.port}/mobile`, {
-            origin: `http://${enabled.address}:${enabled.port}`,
-        });
-        try {
-            const clientSecret = decodeHex('41'.repeat(32));
-            const clientPublicKey = mobilePublicKey(clientSecret);
-            const clientNonce = decodeHex('51'.repeat(32));
-            const challengeMessage = nextMessage(socket);
-            socket.send(
-                JSON.stringify({
-                    type: 'hello',
-                    version: MOBILE_TRANSPORT_VERSION,
-                    mode: 'connect',
-                    deviceId: paired.device.deviceId,
-                    generation: paired.device.generation,
-                    clientPublicKey: encodeHex(clientPublicKey),
-                    clientNonce: encodeHex(clientNonce),
-                }),
-            );
-            const challenge = mobileServerHelloSchema.parse(await challengeMessage);
-            const transcript: HandshakeTranscript = {
-                mode: 'connect',
-                serverId: 'a'.repeat(32),
-                principalId: `paired-device:${paired.device.deviceId}`,
-                connectionId: decodeHex(challenge.connectionId, 16),
-                clientPublicKey,
-                serverPublicKey: decodeHex(challenge.serverPublicKey, 32),
-                clientNonce,
-                serverNonce: decodeHex(challenge.serverNonce, 32),
-            };
-            const wrongKeys = deriveMobileSessionKeys({
-                localSecretKey: clientSecret,
-                peerPublicKey: transcript.serverPublicKey,
-                presharedKey: decodeHex('ff'.repeat(32)),
-                transcript,
+    it.each([
+        { credential: 'wrong' as const, revokeBeforeConnect: false },
+        { credential: 'stored' as const, revokeBeforeConnect: true },
+    ])(
+        'keeps $credential credentials indistinguishable after revoke=$revokeBeforeConnect',
+        async ({ credential, revokeBeforeConnect }) => {
+            const registry = await registryFixture();
+            const paired = await registry.pair({
+                displayName: 'Credential test tablet',
+                platform: 'android',
+                projectIds: ['project-1'],
             });
-            expect(
-                isHandshakeConfirmationValid(
-                    decodeHex(challenge.confirmation, 32),
-                    wrongKeys,
-                    'server',
-                ),
-            ).toBe(false);
-
-            const closedWithoutReady = new Promise<void>((resolve, reject) => {
-                const timer = setTimeout(
-                    () => reject(new Error('Wrong-credential connection stayed open')),
-                    1_000,
+            if (revokeBeforeConnect)
+                await registry.revoke(paired.device.deviceId, paired.device.generation);
+            let gatewayByte = 100;
+            const gateway = new MobileGateway({
+                adapters: { server: { invoke: vi.fn() } },
+                bootId: 'b'.repeat(32),
+                protocolIdentity: { serverId: 'a'.repeat(32), stateEpoch: 'c'.repeat(32) },
+                random: (bytes) => new Uint8Array(bytes).fill(gatewayByte++),
+                registry,
+                selectAddress: () => '127.0.0.1',
+            });
+            const enabled = await gateway.enable();
+            const socket = await openSocket(`ws://${enabled.address}:${enabled.port}/mobile`, {
+                origin: `http://${enabled.address}:${enabled.port}`,
+            });
+            try {
+                const clientSecret = decodeHex('41'.repeat(32));
+                const clientPublicKey = mobilePublicKey(clientSecret);
+                const clientNonce = decodeHex('51'.repeat(32));
+                const challengeMessage = nextMessage(socket);
+                socket.send(
+                    JSON.stringify({
+                        type: 'hello',
+                        version: MOBILE_TRANSPORT_VERSION,
+                        mode: 'connect',
+                        deviceId: paired.device.deviceId,
+                        generation: paired.device.generation,
+                        clientPublicKey: encodeHex(clientPublicKey),
+                        clientNonce: encodeHex(clientNonce),
+                    }),
                 );
-                socket.once('message', () => {
-                    clearTimeout(timer);
-                    reject(new Error('Wrong-credential connection received a ready frame'));
+                const challenge = mobileServerHelloSchema.parse(await challengeMessage);
+                const transcript: HandshakeTranscript = {
+                    mode: 'connect',
+                    serverId: 'a'.repeat(32),
+                    principalId: `paired-device:${paired.device.deviceId}`,
+                    connectionId: decodeHex(challenge.connectionId, 16),
+                    clientPublicKey,
+                    serverPublicKey: decodeHex(challenge.serverPublicKey, 32),
+                    clientNonce,
+                    serverNonce: decodeHex(challenge.serverNonce, 32),
+                };
+                const clientKeys = deriveMobileSessionKeys({
+                    localSecretKey: clientSecret,
+                    peerPublicKey: transcript.serverPublicKey,
+                    presharedKey: decodeHex(
+                        credential === 'stored' ? paired.credential : 'ff'.repeat(32),
+                    ),
+                    transcript,
                 });
-                socket.once('close', () => {
-                    clearTimeout(timer);
-                    resolve();
+                expect(
+                    isHandshakeConfirmationValid(
+                        decodeHex(challenge.confirmation, 32),
+                        clientKeys,
+                        'server',
+                    ),
+                ).toBe(false);
+
+                const closedWithoutReady = new Promise<void>((resolve, reject) => {
+                    const timer = setTimeout(
+                        () => reject(new Error('Rejected connection stayed open')),
+                        1_000,
+                    );
+                    socket.once('message', () => {
+                        clearTimeout(timer);
+                        reject(new Error('Rejected connection received a ready frame'));
+                    });
+                    socket.once('close', () => {
+                        clearTimeout(timer);
+                        resolve();
+                    });
                 });
-            });
-            const wrongConfirmation = mobileClientConfirmationSchema.parse({
-                type: 'confirm',
-                version: MOBILE_TRANSPORT_VERSION,
-                connectionId: challenge.connectionId,
-                confirmation: encodeHex(handshakeConfirmation(wrongKeys, 'client')),
-            });
-            socket.send(JSON.stringify(wrongConfirmation));
-            await expect(closedWithoutReady).resolves.toBeUndefined();
-        } finally {
-            socket.close();
-            await gateway.close();
-        }
-    });
+                const clientConfirmation = mobileClientConfirmationSchema.parse({
+                    type: 'confirm',
+                    version: MOBILE_TRANSPORT_VERSION,
+                    connectionId: challenge.connectionId,
+                    confirmation: encodeHex(handshakeConfirmation(clientKeys, 'client')),
+                });
+                socket.send(JSON.stringify(clientConfirmation));
+                await expect(closedWithoutReady).resolves.toBeUndefined();
+            } finally {
+                socket.close();
+                await gateway.close();
+            }
+        },
+    );
 
     it('pairs over encrypted frames, rejects methods outside the allowlist, and revokes the live generation', async () => {
         const registry = await registryFixture();
@@ -436,9 +447,30 @@ describe('MobileGateway', () => {
         });
         expect(invoke).toHaveBeenCalledOnce();
 
-        const closed = new Promise<void>((resolve) => socket.once('close', () => resolve()));
+        const revokedMessage = nextMessage(socket);
+        const closed = new Promise<number>((resolve) =>
+            socket.once('close', (code) => resolve(code)),
+        );
         await gateway.revoke(paired.deviceId, paired.generation);
-        await closed;
+        const revokedFrame = mobileSealedFrameSchema.parse(await revokedMessage);
+        const revokedPlaintext = openMobileFrame(
+            keys.serverToClient,
+            {
+                connectionId: transcript.connectionId,
+                counter: revokedFrame.counter,
+                deviceId: paired.deviceId,
+                direction: 'server-to-client',
+            },
+            decodeHex(revokedFrame.ciphertext),
+        );
+        const revokedSource = new TextDecoder().decode(revokedPlaintext);
+        const revokedPayload = mobileRevokedSchema.parse(JSON.parse(revokedSource));
+        expect(revokedPayload).toEqual({
+            type: 'revoked',
+            deviceId: paired.deviceId,
+            generation: paired.generation,
+        });
+        await expect(closed).resolves.toBe(1_000);
         expect(() => registry.currentPrincipal(paired.deviceId, paired.generation)).toThrow(
             'Paired device authorization is unavailable',
         );

@@ -2,6 +2,26 @@ export interface ClosableMobileConnection {
     close(): void;
 }
 
+export interface TerminableMobileConnection<Reason> extends ClosableMobileConnection {
+    onTermination(listener: (reason: Reason) => void): () => void;
+}
+
+/**
+ * Captures a connection that had already terminated before its owner could subscribe. This closes the attach-before-
+ * subscribe window without delaying normal terminal callbacks or coupling the transport to React state.
+ */
+export const observeMobileConnectionTermination = <Reason>(
+    connection: TerminableMobileConnection<Reason>,
+    onTerminated: (reason: Reason) => void,
+): { didTerminate: boolean; unsubscribe: () => void } => {
+    let didTerminate = false;
+    const unsubscribe = connection.onTermination((reason) => {
+        didTerminate = true;
+        onTerminated(reason);
+    });
+    return { didTerminate, unsubscribe };
+};
+
 export const reconnectWaitForAttempt = (
     retryAttempt: number,
     delay: (attempt: number) => number,
@@ -20,7 +40,7 @@ export const runReconnectAttempt = async <Connection extends ClosableMobileConne
     connect: () => Promise<Connection>;
     isActive: () => boolean;
     onConnected: (connection: Connection) => void;
-    onFailed: () => void;
+    onFailed: (error: unknown) => void;
 }): Promise<void> => {
     try {
         const connection = await connect();
@@ -29,7 +49,7 @@ export const runReconnectAttempt = async <Connection extends ClosableMobileConne
             return;
         }
         onConnected(connection);
-    } catch {
-        if (isActive()) onFailed();
+    } catch (error) {
+        if (isActive()) onFailed(error);
     }
 };

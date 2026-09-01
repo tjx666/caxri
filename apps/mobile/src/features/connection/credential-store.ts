@@ -15,6 +15,7 @@ const mobileCredentialSchema = z.strictObject({
 });
 
 export type MobileCredential = z.infer<typeof mobileCredentialSchema>;
+type MobileCredentialIdentity = Pick<MobileCredential, 'deviceId' | 'generation' | 'serverId'>;
 
 export interface CredentialStorageAdapter {
     deleteItemAsync(key: string): Promise<void>;
@@ -24,6 +25,7 @@ export interface CredentialStorageAdapter {
 
 export interface MobileCredentialStore {
     clear(): Promise<void>;
+    clearIfCurrent(identity: MobileCredentialIdentity): Promise<boolean>;
     load(): Promise<MobileCredential | null>;
     save(credential: MobileCredential): Promise<void>;
 }
@@ -33,9 +35,23 @@ export interface MobileCredentialStore {
  */
 export const createMobileCredentialStore = (
     storage: CredentialStorageAdapter,
-): MobileCredentialStore => ({
-    clear: () => storage.deleteItemAsync(MOBILE_CREDENTIAL_KEY),
-    load: async () => {
+): MobileCredentialStore => {
+    let operationQueue = Promise.resolve();
+    /**
+     * SecureStore has no compare-and-delete primitive. Serializing reads and mutations prevents an old connection's
+     * authenticated revocation from deleting a newer pairing saved while its asynchronous deletion is pending.
+     */
+    const serialize = <Result>(operation: () => Promise<Result>): Promise<Result> => {
+        // eslint-disable-next-line unicorn/prefer-await, unicorn/prefer-then-catch -- Chaining the shared tail provides a mutex without ES2024-only Promise.withResolvers in React Native.
+        const result = operationQueue.then(operation, operation);
+        // eslint-disable-next-line unicorn/prefer-await, unicorn/prefer-then-catch -- The queue must recover after an operation fails so later credential work is not stranded.
+        operationQueue = result.then(
+            () => {},
+            () => {},
+        );
+        return result;
+    };
+    const loadStored = async (): Promise<MobileCredential | null> => {
         const source = await storage.getItemAsync(MOBILE_CREDENTIAL_KEY);
         if (source === null) return null;
         try {
@@ -44,9 +60,27 @@ export const createMobileCredentialStore = (
             await storage.deleteItemAsync(MOBILE_CREDENTIAL_KEY);
             return null;
         }
-    },
-    save: async (credential) => {
-        const value = mobileCredentialSchema.parse(credential);
-        await storage.setItemAsync(MOBILE_CREDENTIAL_KEY, JSON.stringify(value));
-    },
-});
+    };
+    return {
+        clear: () => serialize(() => storage.deleteItemAsync(MOBILE_CREDENTIAL_KEY)),
+        clearIfCurrent: (identity) =>
+            serialize(async () => {
+                const current = await loadStored();
+                if (
+                    !current ||
+                    current.serverId !== identity.serverId ||
+                    current.deviceId !== identity.deviceId ||
+                    current.generation !== identity.generation
+                )
+                    return false;
+                await storage.deleteItemAsync(MOBILE_CREDENTIAL_KEY);
+                return true;
+            }),
+        load: () => serialize(loadStored),
+        save: (credential) =>
+            serialize(async () => {
+                const value = mobileCredentialSchema.parse(credential);
+                await storage.setItemAsync(MOBILE_CREDENTIAL_KEY, JSON.stringify(value));
+            }),
+    };
+};

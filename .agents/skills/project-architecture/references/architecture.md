@@ -122,6 +122,11 @@ Domain types, protocol schemas, and React code never move there.
 `packages/mobile-transport` is the browser-safe cryptographic and wire-format boundary shared by
 native mobile clients and the Server gateway. It cannot import Node.js, Electron, native Desktop
 packages, or application source. Its public package root is the only supported entrypoint.
+Device revocation first fences the stored Server generation, then sends a generation-bound `revoked`
+control payload only through each already authenticated encrypted session before disconnecting it. The
+mobile client clears its credential only after that sealed payload authenticates. A reconnect whose
+stored credential cannot authenticate remains indistinguishable from an invalid credential or fake
+endpoint, so it retains the credential, stops automatic retry, and asks the user to retry or forget it.
 
 `apps/mobile` is the Expo and React Native companion application. Its `app/` and `src/` runtime graph
 may import only `@caxri/mobile-transport` and `@caxri/protocol`; tests may additionally consume

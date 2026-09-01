@@ -6,9 +6,12 @@ import { router } from 'expo-router';
 
 import { ActionButton } from '../../../components/action-button';
 import { useMobileTheme } from '../../../theme/use-mobile-theme';
+import { useMobileClient } from '../../connection/mobile-client-provider';
 
 export const PairingEntryScreen = () => {
     const theme = useMobileTheme();
+    const { status } = useMobileClient();
+    const wasRevoked = status === 'revoked';
 
     return (
         <SafeAreaView
@@ -36,23 +39,29 @@ export const PairingEntryScreen = () => {
                             accessibilityRole="header"
                             style={[styles.title, { color: theme.text }]}
                         >
-                            Pair with Caxri
+                            {wasRevoked ? 'Pairing revoked' : 'Pair with Caxri'}
                         </Text>
                         <Text style={[styles.description, { color: theme.muted }]}>
-                            Connect to Caxri running on your computer.
+                            {wasRevoked
+                                ? 'This device was removed in Caxri. Pair it again to reconnect.'
+                                : 'Connect to Caxri running on your computer.'}
                         </Text>
                     </View>
 
                     <View style={styles.actions}>
                         <View
                             accessible
-                            accessibilityLabel="Not connected. Pair this device with Caxri on your Mac."
+                            accessibilityLabel={
+                                wasRevoked
+                                    ? 'Pairing revoked. Pair this device with Caxri again.'
+                                    : 'Not connected. Pair this device with Caxri on your Mac.'
+                            }
                             style={[styles.status, { borderColor: theme.border }]}
                             testID="pairing-status"
                         >
                             <View style={[styles.statusDot, { backgroundColor: theme.muted }]} />
                             <Text style={[styles.statusText, { color: theme.muted }]}>
-                                Not connected
+                                {wasRevoked ? 'Pair again' : 'Not connected'}
                             </Text>
                         </View>
                         <ActionButton

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { mobileClientHelloSchema } from '../contract';
+import { mobileClientHelloSchema, mobileRevokedSchema } from '../contract';
 
 const pairHello = {
     type: 'hello',
@@ -14,6 +14,28 @@ const pairHello = {
 } as const;
 
 describe('mobile transport contract', () => {
+    it('accepts only a generation-bound revoked control payload', () => {
+        expect(
+            mobileRevokedSchema.parse({
+                type: 'revoked',
+                deviceId: `device_${'44'.repeat(16)}`,
+                generation: 1,
+            }),
+        ).toEqual({
+            type: 'revoked',
+            deviceId: `device_${'44'.repeat(16)}`,
+            generation: 1,
+        });
+        expect(
+            mobileRevokedSchema.safeParse({
+                type: 'revoked',
+                deviceId: `device_${'44'.repeat(16)}`,
+                generation: 1,
+                reason: 'leaked detail',
+            }).success,
+        ).toBe(false);
+    });
+
     it.each(['Tablet\nApprove', 'Tablet\u{202E}Approve'])(
         'rejects a misleading device name',
         (displayName) => {

@@ -22,7 +22,7 @@ export const useMobileReconnect = ({
     connect: (credential: MobileCredential) => Promise<MobileGatewayConnection>;
     credential: MobileCredential | null;
     onConnected: (connection: MobileGatewayConnection) => void;
-    onFailed: () => void;
+    onFailed: (error: unknown) => void;
     retryAttempt: number;
     status: MobileConnectionStatus;
 }): void => {
