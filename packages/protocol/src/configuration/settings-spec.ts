@@ -9,6 +9,7 @@ import { agentProviderCatalog, agentProviderIds } from '../agent/agents.js';
 
 export const settingCategories = [
     { id: 'general', title: 'General' },
+    { id: 'mobile', title: 'Mobile' },
     { id: 'terminal', title: 'Terminal' },
     { id: 'editor', title: 'Editor' },
     { id: 'security', title: 'Security' },

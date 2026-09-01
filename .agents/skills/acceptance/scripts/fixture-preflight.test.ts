@@ -65,4 +65,13 @@ describe('Acceptance Terminal fixture preflight', () => {
             ]),
         );
     });
+
+    it('accepts frozen uppercase case ids and rejects unsafe ids before writing a receipt', () => {
+        expect(createTerminalFixturePreflightReceipt(fixture(), 'MOB-SEC-01').caseId).toBe(
+            'MOB-SEC-01',
+        );
+        expect(() => createTerminalFixturePreflightReceipt(fixture(), 'MOB/SEC/01')).toThrow(
+            'ASCII letters, numbers, and hyphens',
+        );
+    });
 });

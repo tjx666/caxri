@@ -7,7 +7,7 @@ import { execFileAsync } from '@caxri/system';
 import { z } from 'zod';
 
 const ACCEPTANCE_USER_DATA_PREFIX = 'caxri-acceptance-user-';
-const ACCEPTANCE_CASE_ID_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/u;
+const ACCEPTANCE_CASE_ID_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,62}[A-Za-z0-9])?$/u;
 const PROCESS_PROBE_MAX_BUFFER_BYTES = 4 * 1024 * 1024;
 const PROCESS_PROBE_TIMEOUT_MS = 2_000;
 const PROCESS_QUERY_EXECUTABLE = '/bin/ps';
@@ -75,9 +75,24 @@ export function isAcceptanceCaseId(caseId: string): boolean {
     return ACCEPTANCE_CASE_ID_PATTERN.test(caseId);
 }
 
+/**
+ * Rejects case-folded duplicates because report assets commonly live on case-insensitive filesystems.
+ */
+export function assertUniqueAcceptanceCaseIds(items: Array<{ id: string }>, kind: string): void {
+    const seen = new Set<string>();
+    const duplicate = items.find(({ id }) => {
+        const folded = id.toLowerCase();
+        if (seen.has(folded)) return true;
+        seen.add(folded);
+        return false;
+    });
+    if (duplicate)
+        throw new Error(`Duplicate ${kind} id ignoring ASCII letter case: ${duplicate.id}`);
+}
+
 function normalizeCaseId(caseId: string = 'unscoped'): string {
     if (!isAcceptanceCaseId(caseId)) {
-        throw new Error('Acceptance case id must use lowercase letters, digits, and hyphens');
+        throw new Error('Acceptance case id must use ASCII letters, numbers, and hyphens');
     }
     return caseId;
 }

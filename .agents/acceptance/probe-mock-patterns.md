@@ -60,3 +60,25 @@ fixture commands documented in `.agents/skills/acceptance/scripts/agent-fixtures
 emits real provider hooks and metadata changes while keeping provider homes inside the owned
 profile. Use the desktop result as primary evidence and the generated fixture receipt as audit
 evidence; never cite its terminal output or synthetic transcript as product evidence.
+
+## Drive Android by sanitized semantic identifiers
+
+**Situation:** A native Android acceptance flow must find and activate a Caxri control without
+capturing user-visible content.
+
+**Works:** Give the React Native control a stable `testID`, inspect through
+`bun run --cwd apps/mobile android:device semantics --serial <serial>`, and tap through
+`android:device tap --check-id <id>`. The bridge proves Caxri owns the foreground Activity, parses the
+temporary UIAutomator dump, emits only identifiers/flags/bounds, and removes the raw XML from device
+and host. Re-inspect after navigation or native view replacement; never reuse stale bounds.
+
+## Exercise mobile reply delivery with an isolated fake Agent
+
+**Situation:** The end-to-end criterion must prove that an encrypted paired mobile client can reply
+to one waiting Agent Session without invoking a developer's real Agent CLI.
+
+**Works:** Use the guarded `test:e2e:mobile:android` runner. It creates a temporary Desktop/Server
+profile and Project, enables hooks for one fake Agent, waits for the real `waiting` state, pairs the
+release Android app, sends one fixed bounded reply, verifies the PTY received it once, disables
+mobile access, removes the temporary profile, and clears emulator app data. The report receipt names
+only the outcome and build/device identity; it never stores the pairing link or reply content.

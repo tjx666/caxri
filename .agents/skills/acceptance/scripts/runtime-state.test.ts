@@ -180,6 +180,23 @@ describe('Acceptance runtime ownership', () => {
         }
     });
 
+    it('owns an uppercase stable check id without normalizing it', async () => {
+        const profile = await prepareAcceptanceUserData({
+            caseId: 'MOB-SEC-01',
+            cleanupReusable: false,
+        });
+
+        try {
+            expect(profile.acceptanceCase).toMatchObject({
+                id: 'MOB-SEC-01',
+                mode: 'isolated',
+            });
+            expect(profile.userDataDir).toContain('-MOB-SEC-01-');
+        } finally {
+            await removeOwnedUserData(profile);
+        }
+    });
+
     it('reuses only prefixed temp profiles and cleans them up only when requested', async () => {
         const reusable = await mkdtemp(join(tmpdir(), 'caxri-acceptance-user-12-restart-case-'));
         const unsafe = await mkdtemp(join(tmpdir(), 'caxri-unowned-user-'));

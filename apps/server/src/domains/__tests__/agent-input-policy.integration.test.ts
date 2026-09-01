@@ -91,13 +91,13 @@ describe('Server Agent input policy', () => {
                     data: '\u{3}',
                 }),
             ).rejects.toThrow('Real Agent E2E does not accept interactive Terminal input');
-            expect(() =>
+            await expect(
                 runtime.handlers['terminal.sendInternal']({
                     terminalId: created.terminal!.id,
                     text: 'continue',
                     enter: true,
                 }),
-            ).toThrow('Real Agent E2E does not accept interactive Terminal input');
+            ).rejects.toThrow('Real Agent E2E does not accept interactive Terminal input');
             expect(() =>
                 runtime.handlers['bugReport.deliver']({
                     pasteImage: false,

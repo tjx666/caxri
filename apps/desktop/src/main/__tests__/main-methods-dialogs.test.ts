@@ -175,6 +175,52 @@ describe('editor.confirmDiscard', () => {
     });
 });
 
+describe('mobile.device.revoke', () => {
+    const device = {
+        createdAt: 1,
+        deviceId: `device_${'01'.repeat(16)}`,
+        displayName: 'Pixel 8',
+        generation: 3,
+        platform: 'android' as const,
+        projectIds: ['project-1'],
+    };
+
+    it('does not revoke when the native confirmation is dismissed', async () => {
+        electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 1 });
+        const request = requestMock({
+            'mobile.device.list': () => Promise.resolve({ devices: [device] }),
+        });
+        const handle = createMainMethodHandler(options({ request }));
+
+        await expect(
+            handle({ method: 'mobile.device.revoke', params: { deviceId: device.deviceId } }),
+        ).resolves.toEqual({ canceled: true });
+        expect(request).toHaveBeenCalledTimes(1);
+    });
+
+    it('binds confirmed revocation to the current device generation', async () => {
+        electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 });
+        const revoked = { ...device, generation: 4, revokedAt: 2 };
+        const request = requestMock({
+            'mobile.device.list': () => Promise.resolve({ devices: [device] }),
+            'mobile.device.revoke.apply': () => Promise.resolve(revoked),
+        });
+        const handle = createMainMethodHandler(options({ request }));
+
+        await expect(
+            handle({ method: 'mobile.device.revoke', params: { deviceId: device.deviceId } }),
+        ).resolves.toEqual(revoked);
+        expect(electronMock.dialog.showMessageBox).toHaveBeenCalledWith(
+            window,
+            expect.objectContaining({ message: "Revoke 'Pixel 8'?" }),
+        );
+        expect(request).toHaveBeenLastCalledWith('mobile.device.revoke.apply', {
+            deviceId: device.deviceId,
+            expectedGeneration: 3,
+        });
+    });
+});
+
 describe('diagnostics.export', () => {
     it('returns null without exporting when the save dialog is dismissed', async () => {
         electronMock.dialog.showSaveDialog.mockResolvedValueOnce({ canceled: true });

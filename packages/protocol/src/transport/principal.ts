@@ -12,6 +12,7 @@ export const capabilityIds = [
     'sessions.read',
     'sessions.write',
     'terminals.read',
+    'terminals.preview',
     'terminals.control',
     'terminals.steer',
     'files.read',
@@ -60,6 +61,7 @@ export const principalSchema = z.discriminatedUnion('kind', [
         kind: z.literal('paired-device'),
         id: principalIdSchema,
         deviceId: principalIdSchema,
+        generation: z.number().int().positive(),
         projectIds: projectIdsSchema,
     }),
 ]);

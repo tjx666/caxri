@@ -16,7 +16,7 @@ import { z } from 'zod';
 
 import { observationContextSchema } from '../observability/context-schema';
 
-export const TERMINAL_HOST_PROTOCOL_VERSION = 1 as const;
+export const TERMINAL_HOST_PROTOCOL_VERSION = 3 as const;
 export const MAX_TERMINAL_HOST_MESSAGE_BYTES = 32 * 1024 * 1024;
 const MAX_TERMINAL_HOST_OUTPUT_CHARACTERS = 256 * 1024;
 
@@ -24,6 +24,7 @@ const ptyGenerationSchema = z.number().int().positive();
 const attachmentIdSchema = identifierSchema;
 const terminalHostCapabilitySchema = z.enum([
     'host.lifecycle',
+    'terminal.agent.input',
     'terminal.input',
     'terminal.inspect',
     'terminal.lifecycle',
@@ -161,6 +162,17 @@ const terminalRequestSchemas = [
         .strict(),
     z
         .object({
+            method: z.literal('terminal.agent.input'),
+            params: z
+                .object({
+                    data: z.string().max(65_536),
+                    launchId: identifierSchema,
+                })
+                .strict(),
+        })
+        .strict(),
+    z
+        .object({
             method: z.literal('terminal.resize'),
             params: terminalGridSizeSchema,
         })
@@ -178,6 +190,12 @@ const terminalRequestSchemas = [
         .strict(),
     z.object({ method: z.literal('terminal.detach'), params: z.object({}).strict() }).strict(),
     z.object({ method: z.literal('terminal.snapshot'), params: z.object({}).strict() }).strict(),
+    z
+        .object({
+            method: z.literal('terminal.textTail'),
+            params: z.object({ maximumCharacters: z.number().int().min(1).max(65_536) }).strict(),
+        })
+        .strict(),
     z
         .object({
             method: z.literal('terminal.waitForAttachedSize'),
@@ -397,6 +415,7 @@ const terminalHostResultSchemas = {
         .strict(),
     'terminal.reserve': z.object({ reserved: z.literal(true) }).strict(),
     'terminal.start': z.object({ processId: z.number().int().positive() }).strict(),
+    'terminal.agent.input': z.object({ accepted: z.boolean() }).strict(),
     'terminal.input': z.object({ accepted: z.boolean() }).strict(),
     'terminal.resize': z.object({ accepted: z.boolean() }).strict(),
     'terminal.attach': z
@@ -404,6 +423,7 @@ const terminalHostResultSchemas = {
         .strict(),
     'terminal.detach': z.object({ detached: z.literal(true) }).strict(),
     'terminal.snapshot': z.object({ snapshot: terminalSnapshotSchema.nullable() }).strict(),
+    'terminal.textTail': z.object({ tail: z.string().max(65_536).nullable() }).strict(),
     'terminal.waitForAttachedSize': z.object({ attached: z.literal(true) }).strict(),
     'terminal.signal': z.object({ accepted: z.boolean() }).strict(),
     'terminal.agent.signal': z.object({ accepted: z.boolean() }).strict(),
@@ -429,11 +449,13 @@ const requiredCapabilities = {
     'host.shutdown': 'host.lifecycle',
     'terminal.reserve': 'terminal.lifecycle',
     'terminal.start': 'terminal.lifecycle',
+    'terminal.agent.input': 'terminal.agent.input',
     'terminal.input': 'terminal.input',
     'terminal.resize': 'terminal.view',
     'terminal.attach': 'terminal.view',
     'terminal.detach': 'terminal.view',
     'terminal.snapshot': 'terminal.view',
+    'terminal.textTail': 'terminal.inspect',
     'terminal.waitForAttachedSize': 'terminal.view',
     'terminal.signal': 'terminal.lifecycle',
     'terminal.agent.signal': 'terminal.lifecycle',
@@ -457,6 +479,7 @@ export interface TerminalHostAuthority {
               sessionId: string;
               ptyGeneration: number;
               attachmentId?: string;
+              agentLaunchId?: string;
               running?: boolean;
           }
         | undefined;
@@ -470,6 +493,7 @@ export type TerminalHostAuthorizationFailure =
     | 'terminal'
     | 'session'
     | 'generation'
+    | 'agent'
     | 'attachment';
 
 /**
@@ -531,6 +555,12 @@ export function authorizeTerminalHostRequest(
         return envelope.scope.attachmentId === envelope.request.params.attachmentId
             ? { ok: true }
             : { ok: false, reason: 'attachment' };
+    }
+    if (envelope.request.method === 'terminal.agent.input') {
+        if (envelope.scope.attachmentId !== undefined) return { ok: false, reason: 'attachment' };
+        return current.running && current.agentLaunchId === envelope.request.params.launchId
+            ? { ok: true }
+            : { ok: false, reason: 'agent' };
     }
     if (
         ['terminal.input', 'terminal.resize', 'terminal.detach'].includes(envelope.request.method)

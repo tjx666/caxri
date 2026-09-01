@@ -52,6 +52,9 @@ describe('filterSettingsRows', () => {
         expect(
             filterSettingsRows(settingsRows, 'Agent Commands & Skills').map((r) => r.id),
         ).toEqual(['agents.claude.actions', 'agents.codex.actions']);
+        expect(filterSettingsRows(settingsRows, 'mobile qr').map((r) => r.id)).toEqual([
+            'mobile.access',
+        ]);
     });
 
     it('offers Caxri automatic naming only for providers that Caxri names', () => {
@@ -90,6 +93,8 @@ describe('buildSettingsList', () => {
         expect(new Set(ids).size).toBe(ids.length);
         expect(list.filter((item) => item.kind === 'row')).toHaveLength(settingsRows.length);
         expect(list[0]).toMatchObject({ kind: 'category' });
+        expect(ids).toContain('category:mobile');
+        expect(ids).toContain('mobile.access');
     });
 });
 

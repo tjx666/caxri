@@ -1,7 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { randomBytes } from 'node:crypto';
 import { constants as fileConstants } from 'node:fs';
-import { chmod, lstat, mkdir, open, readFile, realpath, rename, rm } from 'node:fs/promises';
+import { chmod, lstat, mkdir, open, realpath, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import process from 'node:process';
 
@@ -23,6 +23,8 @@ import {
 } from '@caxri/protocol';
 import { profileIdForPath } from '@caxri/system';
 
+import { fileSystemCode, readPrivateJsonFile, replacePrivateJsonFile } from './private-json-store';
+
 const MAX_PRIVATE_FILE_BYTES = 16 * 1024;
 /**
  * Darwin supports atomic open-time advisory locking, but Node omits this flag from `fs.constants`.
@@ -34,6 +36,7 @@ export interface ServerProfilePaths {
     directory: string;
     lock: string;
     manifest: string;
+    mobileDevices: string;
     profileId: string;
     userDataPath: string;
 }
@@ -51,12 +54,6 @@ export interface ServerProfileLease {
 }
 
 export type ServerProcessState = 'alive' | 'dead' | 'unknown';
-
-function fileSystemCode(error: unknown): string | undefined {
-    return typeof error === 'object' && error !== null && 'code' in error
-        ? String(Reflect.get(error, 'code'))
-        : undefined;
-}
 
 async function privateDirectory(path: string): Promise<void> {
     await mkdir(path, { recursive: true, mode: 0o700 });
@@ -78,27 +75,24 @@ export async function resolveServerProfilePaths(userDataPath: string): Promise<S
         directory,
         lock: join(directory, 'owner.lock'),
         manifest: join(directory, 'manifest.json'),
+        mobileDevices: join(directory, 'mobile-devices.json'),
         profileId,
         userDataPath: canonicalUserDataPath,
     };
 }
 
 async function readPrivateJson(path: string): Promise<unknown> {
-    const metadata = await lstat(path);
-    if (!metadata.isFile() || metadata.isSymbolicLink() || (metadata.mode & 0o077) !== 0)
-        throw new CaxriError('PATH_DENIED', 'Host profile metadata is not private');
-    if (typeof process.getuid === 'function' && metadata.uid !== process.getuid())
-        throw new CaxriError('PATH_DENIED', 'Host profile metadata belongs to another user');
-    if (metadata.size > MAX_PRIVATE_FILE_BYTES)
-        throw new CaxriError('VALIDATION', 'Host profile metadata is oversized');
-    try {
-        return JSON.parse(await readFile(path, 'utf8')) as unknown;
-    } catch {
-        throw new CaxriError(
-            'VALIDATION',
-            'Host profile metadata is malformed; repair it only after verifying no Host is running',
-        );
-    }
+    return readPrivateJsonFile({
+        path,
+        maxBytes: MAX_PRIVATE_FILE_BYTES,
+        messages: {
+            malformed:
+                'Host profile metadata is malformed; repair it only after verifying no Host is running',
+            notPrivate: 'Host profile metadata is not private',
+            oversized: 'Host profile metadata is oversized',
+            wrongOwner: 'Host profile metadata belongs to another user',
+        },
+    });
 }
 
 export async function readServerManifest(path: string): Promise<ServerManifest> {
@@ -109,16 +103,6 @@ export async function readServerManifest(path: string): Promise<ServerManifest> 
             'Host manifest is invalid; repair it only after verifying no Host is running',
         );
     return parsed.data;
-}
-
-async function writePrivateJson(path: string, value: unknown): Promise<void> {
-    const handle = await open(path, 'wx', 0o600);
-    try {
-        await handle.writeFile(`${JSON.stringify(value)}\n`, 'utf8');
-        await handle.sync();
-    } finally {
-        await handle.close();
-    }
 }
 
 async function acquireProcessLock(path: string) {
@@ -195,19 +179,7 @@ async function writeLockHandle(
 }
 
 async function replacePrivateJson(directory: string, path: string, value: unknown): Promise<void> {
-    const temporary = join(directory, `.manifest-${randomBytes(12).toString('hex')}.tmp`);
-    try {
-        await writePrivateJson(temporary, value);
-        await rename(temporary, path);
-        const directoryHandle = await open(directory, 'r');
-        try {
-            await directoryHandle.sync();
-        } finally {
-            await directoryHandle.close();
-        }
-    } finally {
-        await rm(temporary, { force: true });
-    }
+    await replacePrivateJsonFile({ directory, path, temporaryPrefix: '.manifest-', value });
 }
 
 function probeServerProcess(pid: number): ServerProcessState {

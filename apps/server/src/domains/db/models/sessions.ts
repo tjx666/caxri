@@ -13,7 +13,6 @@ import {
     CaxriError,
     createPaneLayout,
     isVirtualEditorTabPath,
-    listPaneTerminalIds,
     openResource,
     remapPaneLayoutPaths,
     removePaneTerminal,
@@ -31,12 +30,14 @@ import {
     sessionState as sessionStateTable,
     terminals,
 } from '../schema';
+import { didConsumeAttentionReply, didReleaseAttentionReply } from './attention-replies';
 import {
     effectiveWorkbenchProjectId,
     mapSession,
     sessionSelection,
     workbenchProjects,
 } from './session-record';
+import { reconcileOwnedTerminalTabs } from './session-terminal-layout';
 
 function nextSessionActivityAt(now: number) {
     return sql<number>`MAX(${now}, COALESCE((SELECT MAX(${sessions.lastSessionActivityAt}) + 1 FROM ${sessions}), ${now}))`;
@@ -230,7 +231,7 @@ export class SessionsModel {
         const ownedTerminalIds = terminalIds ?? this.orderedTerminalIds(row.sessionId);
         const parsed = parseSessionState(row, () => this.defaultPaneLayout(ownedTerminalIds));
         if ('state' in parsed) {
-            const paneLayout = this.pruneClosedTerminalTabs(
+            const paneLayout = reconcileOwnedTerminalTabs(
                 parsed.state.paneLayout,
                 ownedTerminalIds,
             );
@@ -247,22 +248,6 @@ export class SessionsModel {
             reason: parsed.reason,
         });
         return repaired;
-    }
-
-    /**
-     * Drops Terminal tabs the Session no longer owns. A client layout is a view preference, never authority over which
-     * Terminals exist: a Renderer that closes a Terminal while an older layout write is still being assembled would
-     * otherwise resurrect its tab here, leaving a permanently blank pane that no close can reach.
-     */
-    private pruneClosedTerminalTabs(
-        paneLayout: SessionState['paneLayout'],
-        terminalIds: readonly string[],
-    ): SessionState['paneLayout'] {
-        const owned = new Set(terminalIds);
-        let pruned = paneLayout;
-        for (const terminalId of listPaneTerminalIds(paneLayout))
-            if (!owned.has(terminalId)) pruned = removePaneTerminal(pruned, terminalId);
-        return pruned;
     }
 
     /**
@@ -573,6 +558,14 @@ export class SessionsModel {
         );
     }
 
+    consumeAttentionReply(id: string, terminalId: string, attentionEpoch: number): boolean {
+        return didConsumeAttentionReply(this.database, id, terminalId, attentionEpoch);
+    }
+
+    releaseAttentionReply(id: string, terminalId: string, attentionEpoch: number): boolean {
+        return didReleaseAttentionReply(this.database, id, terminalId, attentionEpoch);
+    }
+
     rename(id: string, displayTitle: string): boolean {
         return (
             this.database
@@ -680,7 +673,7 @@ export class SessionsModel {
             .from(sessionStateTable)
             .where(eq(sessionStateTable.sessionId, state.sessionId))
             .get();
-        const paneLayout = this.pruneClosedTerminalTabs(
+        const paneLayout = reconcileOwnedTerminalTabs(
             state.paneLayout,
             terminalIds ?? this.orderedTerminalIds(state.sessionId),
         );

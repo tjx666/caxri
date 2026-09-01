@@ -1,171 +1,15 @@
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-
-import type { TerminalRecord, TerminalSnapshot } from '@caxri/protocol';
 import { MAX_TERMINAL_INPUT_LENGTH, MAX_TERMINAL_INPUT_PAYLOAD_LENGTH } from '@caxri/protocol';
-import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type {
-    TerminalHostMessage,
-    TerminalHostRequest,
-    TerminalHostScope,
-} from '../../../terminal-host/protocol';
-import type { TerminalHostControl } from '../execution';
-import { RemoteTerminalExecution } from '../execution';
+import type { TerminalHostRequest } from '../../../terminal-host/protocol';
+import {
+    cleanupExecutionFixtures,
+    createExecution,
+    snapshot,
+    terminal,
+} from './execution-fixtures';
 
-type HostEvent = Exclude<Extract<TerminalHostMessage, { type: 'event' }>, { event: 'host.ready' }>;
-
-const terminal: TerminalRecord = {
-    id: 'terminal-1',
-    sessionId: 'session-1',
-    cwd: '/project',
-    kind: 'shell',
-    title: 'Shell',
-    icon: 'terminal',
-    orderIndex: 0,
-    lastProcessState: 'starting',
-    createdAt: 1,
-    updatedAt: 1,
-};
-const snapshot: TerminalSnapshot = {
-    terminalId: terminal.id,
-    encodingVersion: 1,
-    cols: 120,
-    rows: 40,
-    lineCount: 1,
-    byteCount: 6,
-    payload: 'screen',
-    updatedAt: 2,
-};
-const temporaryDirectories: string[] = [];
-const temporaryLoggers: StructuredLogger[] = [];
-
-class FakeTerminalHostControl implements TerminalHostControl {
-    private readonly eventListeners = new Set<(event: HostEvent) => void>();
-    private readonly exitListeners = new Set<
-        (event: { code: number; signal: NodeJS.Signals | null }) => void
-    >();
-    private readonly inputResolvers: Array<{ resolve(): void }> = [];
-    private readonly resizeResolvers: Array<() => void> = [];
-    declineNextInput = false;
-    failNextInput?: Error;
-    readonly requests: Array<{ request: TerminalHostRequest; scope: TerminalHostScope }> = [];
-    holdInputRequests = false;
-    holdResizeRequests = false;
-
-    emit(event: HostEvent): void {
-        for (const listener of this.eventListeners) listener(event);
-    }
-
-    exit(code = 9): void {
-        for (const listener of this.exitListeners) listener({ code, signal: null });
-    }
-
-    onEvent(listener: (event: HostEvent) => void): () => void {
-        this.eventListeners.add(listener);
-        return () => this.eventListeners.delete(listener);
-    }
-
-    onExit(listener: (event: { code: number; signal: NodeJS.Signals | null }) => void): () => void {
-        this.exitListeners.add(listener);
-        return () => this.exitListeners.delete(listener);
-    }
-
-    request(
-        request: TerminalHostRequest,
-        scope: TerminalHostScope,
-        signal?: AbortSignal,
-    ): Promise<unknown> {
-        this.requests.push({ request, scope });
-        switch (request.method) {
-            case 'terminal.reserve':
-                return Promise.resolve({ reserved: true });
-            case 'terminal.attach':
-                return Promise.resolve({ snapshot: null, wasAttached: false });
-            case 'terminal.start':
-                return Promise.resolve({ processId: 4243 });
-            case 'terminal.stop':
-                return Promise.resolve({ snapshot, stopped: true });
-            case 'terminal.input':
-                if (this.declineNextInput) {
-                    this.declineNextInput = false;
-                    return Promise.resolve({ accepted: false });
-                }
-                if (this.failNextInput) {
-                    const error = this.failNextInput;
-                    this.failNextInput = undefined;
-                    return Promise.reject(error);
-                }
-                if (!this.holdInputRequests) return Promise.resolve({ accepted: true });
-                return new Promise((resolve, reject) => {
-                    let isSettled = false;
-                    const abort = (): void => {
-                        if (isSettled) return;
-                        isSettled = true;
-                        signal?.removeEventListener('abort', abort);
-                        reject(new Error('input aborted'));
-                    };
-                    signal?.addEventListener('abort', abort, { once: true });
-                    this.inputResolvers.push({
-                        resolve() {
-                            if (isSettled) return;
-                            isSettled = true;
-                            signal?.removeEventListener('abort', abort);
-                            resolve({ accepted: true });
-                        },
-                    });
-                });
-            case 'terminal.resize':
-                if (!this.holdResizeRequests) return Promise.resolve({ accepted: true });
-                return new Promise((resolve) =>
-                    this.resizeResolvers.push(() => resolve({ accepted: true })),
-                );
-            default:
-                return Promise.resolve({ accepted: true });
-        }
-    }
-
-    releaseInput(): void {
-        this.inputResolvers.shift()?.resolve();
-    }
-
-    releaseResize(): void {
-        this.resizeResolvers.shift()?.();
-    }
-
-    shutdown(): Promise<TerminalSnapshot[]> {
-        return Promise.resolve([snapshot]);
-    }
-}
-
-function createExecution(): {
-    control: FakeTerminalHostControl;
-    execution: RemoteTerminalExecution;
-} {
-    const directory = mkdtempSync(join(tmpdir(), 'caxri-remote-terminal-execution-'));
-    temporaryDirectories.push(directory);
-    const control = new FakeTerminalHostControl();
-    const logger = new StructuredLogger(join(directory, 'logs'), 'server-core');
-    temporaryLoggers.push(logger);
-    return {
-        control,
-        execution: new RemoteTerminalExecution(control, logger),
-    };
-}
-
-/**
- * Flushes background failure observations before removing their temporary log directories.
- */
-afterEach(async () => {
-    const pendingLoggers = [...temporaryLoggers];
-    temporaryLoggers.length = 0;
-    await Promise.all(pendingLoggers.map((logger) => logger.flush()));
-    const pendingDirectories = [...temporaryDirectories];
-    temporaryDirectories.length = 0;
-    for (const directory of pendingDirectories) rmSync(directory, { force: true, recursive: true });
-});
+afterEach(cleanupExecutionFixtures);
 
 describe('architecture-a3b-terminal-host: RemoteTerminalExecution', () => {
     it('replays a pre-launch view reservation and preserves synchronous input acceptance', async () => {
@@ -324,6 +168,24 @@ describe('architecture-a3b-terminal-host: RemoteTerminalExecution', () => {
                 params: { data: 'summary', expectedAgentLaunchId: 'launch-1' },
             }),
         );
+
+        control.holdAgentInputRequests = true;
+        const reply = execution.writeAgent(terminal.id, 'Continue\r');
+        await vi.waitFor(() =>
+            expect(control.requests.at(-1)?.request).toEqual({
+                method: 'terminal.agent.input',
+                params: { data: 'Continue\r', launchId: 'launch-1' },
+            }),
+        );
+        expect(control.requests.at(-1)?.scope).toMatchObject({
+            capability: 'terminal.agent.input',
+            terminalId: terminal.id,
+        });
+        expect(control.requests.at(-1)?.scope).not.toHaveProperty('attachmentId');
+        const pending = Symbol('pending Agent input');
+        await expect(Promise.race([reply, Promise.resolve(pending)])).resolves.toBe(pending);
+        control.releaseAgentInput();
+        await expect(reply).resolves.toBe(true);
 
         expect(execution.signalAgentExact(terminal.id, 'stale-launch', 'SIGINT')).toBe(false);
         expect(execution.signalAgentExact(terminal.id, 'launch-1', 'SIGINT')).toBe(true);
@@ -629,9 +491,10 @@ describe('architecture-a3b-terminal-host: RemoteTerminalExecution', () => {
         await expect(execution.writeAcknowledged(terminal.id, 'recovered')).resolves.toBe(true);
     });
 
-    it('rejects a delivery receipt when the Terminal attachment changes', async () => {
+    it('drains hot paths admitted while changing the Terminal attachment', async () => {
         const { control, execution } = createExecution();
         control.holdInputRequests = true;
+        control.holdResizeRequests = true;
         await execution.attach(terminal.id);
         await execution.reserve(terminal);
         await execution.start({
@@ -641,18 +504,28 @@ describe('architecture-a3b-terminal-host: RemoteTerminalExecution', () => {
             initialSnapshot: null,
             record: terminal,
         });
-
         const pending = execution.writeAcknowledged(terminal.id, 'pending');
-        await vi.waitFor(() =>
-            expect(
-                control.requests.filter(({ request }) => request.method === 'terminal.input'),
-            ).toHaveLength(1),
-        );
-        await execution.attach(terminal.id);
-        await expect(pending).rejects.toMatchObject({ code: 'CONFLICT' });
-
-        control.holdInputRequests = false;
-        await expect(execution.writeAcknowledged(terminal.id, 'recovered')).resolves.toBe(true);
+        await vi.waitFor(() => expect(control.requestCount('terminal.input')).toBe(1));
+        expect(execution.resize(terminal.id, 120, 40)).toBe(true);
+        await vi.waitFor(() => expect(control.requestCount('terminal.resize')).toBe(1));
+        const reattachment = execution.attach(terminal.id);
+        await Promise.resolve();
+        expect(control.requestCount('terminal.attach')).toBe(1);
+        control.releaseInput();
+        await expect(pending).resolves.toBe(true);
+        const duringReattachment = execution.writeAcknowledged(terminal.id, 'during');
+        await vi.waitFor(() => expect(control.requestCount('terminal.input')).toBe(2));
+        control.releaseResize();
+        expect(
+            await Promise.race([
+                reattachment,
+                new Promise<'pending'>((resolve) => setTimeout(resolve, 0, 'pending')),
+            ]),
+        ).toBe('pending');
+        control.releaseInput();
+        await expect(duringReattachment).resolves.toBe(true);
+        await expect(reattachment).resolves.toMatchObject({ snapshot: null });
+        expect(control.requestCount('terminal.attach')).toBe(2);
     });
 
     it('rejects input accepted while Terminal Host shutdown is in progress', async () => {

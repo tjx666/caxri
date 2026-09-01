@@ -66,6 +66,8 @@ const sessionSummarySchema = sessionRecordSchema.pick({
     archivedAt: true,
     lastOpenedAt: true,
     lastActivityState: true,
+    primaryAgentTerminalId: true,
+    attentionEpoch: true,
     hasUnread: true,
 });
 export const sessionQueryResultSchema = z.object({

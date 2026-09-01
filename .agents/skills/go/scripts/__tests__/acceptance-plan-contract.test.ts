@@ -80,6 +80,17 @@ describe('Go Acceptance planning contract', () => {
         );
     });
 
+    it('routes Go Acceptance across desktop and explicitly selected mobile surfaces', () => {
+        expect(goSkill).toContain(
+            'Its product surfaces are isolated macOS Electron desktop and explicitly',
+        );
+        expect(goSkill).toContain('selected Android/iOS mobile targets');
+        expect(goSkill).toContain('no Caxri product-surface claim');
+        expect(goSkill).not.toContain('Its only product surface is isolated macOS Electron');
+        expect(intakeReference).toContain('every selected Acceptance path');
+        expect(intakeReference).toContain('product surface and location (`desktop` or `mobile`)');
+    });
+
     it('keeps UI evidence primary without fabricating visual proof', () => {
         expect(fileIssueSkill).toContain('Prefer screenshots for settled UI');
         expect(fileIssueSkill).toContain(

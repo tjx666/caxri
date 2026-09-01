@@ -408,6 +408,12 @@ export class TerminalExecutionEngine {
         };
     }
 
+    async textTail(terminalId: string, maximumCharacters: number): Promise<string | null> {
+        const live = this.terminals.get(terminalId);
+        if (!live) return null;
+        return (await live.screen.textTail(maximumCharacters)).full;
+    }
+
     detachView(terminalId: string): void {
         this.attachments.detach(terminalId);
         const live = this.terminals.get(terminalId);

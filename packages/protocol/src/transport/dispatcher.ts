@@ -94,10 +94,16 @@ function receiptKey(
     if (isDurable)
         return `durable:${context.connection!.stateEpoch}:${context.connection!.clientId}:${requestId}`;
     const { principal } = context;
-    const generation =
-        principal.kind === 'agent' || principal.kind === 'desktop'
-            ? `:${principal.generation}`
-            : '';
+    let generation = '';
+    switch (principal.kind) {
+        case 'agent':
+        case 'desktop':
+        case 'paired-device':
+            generation = `:${principal.generation}`;
+            break;
+        default:
+            break;
+    }
     return `${principal.kind}:${principal.id}${generation}:${requestId}`;
 }
 

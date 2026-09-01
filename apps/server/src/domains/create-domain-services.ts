@@ -57,6 +57,7 @@ export async function createDomainServices(
         watchHub,
         workbenchRoots,
     } = await createRootServices(dependencies);
+    const selectedSessionId = () => database.getAppState('lastSelectedSessionId') ?? undefined;
     workbenchRoots.setRootChangedHandler((sessionId) => {
         if (selectedSessionId() === sessionId)
             // eslint-disable-next-line unicorn/prefer-await -- synchronous callback cannot await
@@ -227,9 +228,6 @@ export async function createDomainServices(
             }),
         };
     }
-    function selectedSessionId(): string | undefined {
-        return database.getAppState('lastSelectedSessionId') ?? undefined;
-    }
     async function terminalWorkingDirectory(
         projectRoot: string,
         requestedCwd?: string,
@@ -306,7 +304,6 @@ export async function createDomainServices(
             return database.getTerminal(terminal.id)!;
         }
     }
-
     async function terminalDirectoryIdentity(
         path: string,
     ): Promise<TerminalWorkingDirectoryIdentity> {
@@ -319,7 +316,6 @@ export async function createDomainServices(
             inode: stats.ino.toString(),
         };
     }
-
     /**
      * Auto-restores a Session's Terminals that an orderly shutdown left `interrupted` (GitHub issue #18). A Terminal
      * with a bound Agent conversation (`terminal.provider` set) resumes it via its Server provider descriptor, so
@@ -400,10 +396,8 @@ export async function createDomainServices(
                 payload: { kind: 'records', sessionIds: [], terminalIds: restoredTerminalIds },
             });
     }
-
     const { restoreInterruptedTerminalsInBackground, watchSessionInBackground } =
         createBackgroundTasks(logger, files, restoreInterruptedTerminals);
-
     const dispatchService = new AgentDispatchService({
         database,
         coordinator,
@@ -417,7 +411,6 @@ export async function createDomainServices(
     agentDispatchState.service = dispatchService;
     dispatchService.initialize();
     const sessionSelections = new SessionSelectionQueue();
-
     let isClosed = false;
     async function close(): Promise<void> {
         if (isClosed) return;
@@ -439,13 +432,6 @@ export async function createDomainServices(
         await watchHub.close();
         database.close();
     }
-    const terminalMoveDependencies = {
-        coordinator,
-        database,
-        send,
-        terminals,
-        watchSessionInBackground,
-    };
     const handlers: DomainHandlers = {
         'extensions.retry': () => mainOwned('extensions.retry'),
         'requests.cancel': () => mainOwned('requests.cancel'),
@@ -491,6 +477,14 @@ export async function createDomainServices(
         }),
         'host.status': () => mainOwned('host.status'),
         'host.stop': () => mainOwned('host.stop'),
+        'mobile.access.status': () => mainOwned('mobile.access.status'),
+        'mobile.access.enable': () => mainOwned('mobile.access.enable'),
+        'mobile.access.disable': () => mainOwned('mobile.access.disable'),
+        'mobile.pairing.create': () => mainOwned('mobile.pairing.create'),
+        'mobile.device.list': () => mainOwned('mobile.device.list'),
+        'mobile.dashboard': () => mainOwned('mobile.dashboard'),
+        'mobile.device.revoke': () => mainOwned('mobile.device.revoke'),
+        'mobile.device.revoke.apply': () => mainOwned('mobile.device.revoke.apply'),
         'desktop.status': () => mainOwned('desktop.status'),
         'desktop.focus': () => mainOwned('desktop.focus'),
         'desktop.openPath': () => mainOwned('desktop.openPath'),
@@ -519,7 +513,13 @@ export async function createDomainServices(
         'processExplorer.open': () => mainOwned('processExplorer.open'),
         'dialog.selectDirectory': () => mainOwned('dialog.selectDirectory'),
         ...createWorkbenchRootHandlers(workbenchRoots, mainOwned),
-        ...createTerminalMoveHandler(terminalMoveDependencies),
+        ...createTerminalMoveHandler({
+            coordinator,
+            database,
+            send,
+            terminals,
+            watchSessionInBackground,
+        }),
         'editor.confirmDiscard': () => mainOwned('editor.confirmDiscard'),
         'diagnostics.export': () => mainOwned('diagnostics.export'),
         'bugReport.captureScreenshot': () => mainOwned('bugReport.captureScreenshot'),
@@ -652,7 +652,12 @@ export async function createDomainServices(
                     event: 'state.changed',
                     payload: { kind: 'records', sessionIds: [sessionId], terminalIds: [] },
                 });
-            return result.session;
+            return {
+                acknowledged: result.acknowledged,
+                sessionId: result.session.id,
+                attentionEpoch: result.session.attentionEpoch,
+                hasUnread: result.session.hasUnread,
+            };
         },
         'session.rename': ({ sessionId, displayTitle }, signal, finalizeDurably) => {
             sessionAutoNaming.pauseSession(sessionId);
@@ -748,6 +753,7 @@ export async function createDomainServices(
             terminals,
         }),
         'terminal.snapshot': ({ terminalId }) => terminals.snapshot(terminalId),
+        'terminal.preview': ({ terminalId }) => terminals.preview(terminalId),
         'terminal.runningCount': ({ sessionId }) => terminals.runningCount(sessionId),
         'terminal.resources': ({ terminalId }) => terminals.resources(terminalId),
         'terminal.query': () => mainOwned('terminal.query'),

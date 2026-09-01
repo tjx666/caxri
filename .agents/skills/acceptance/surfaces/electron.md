@@ -1,6 +1,6 @@
 # macOS Electron desktop surface
 
-This is Caxri's only product Acceptance surface. Follow
+Use this surface for Caxri's macOS Electron product behavior. Follow
 `.agents/acceptance/PROJECT.md` to build and start an isolated app, then read
 `port` from `.records/acceptance/runtime.json`:
 

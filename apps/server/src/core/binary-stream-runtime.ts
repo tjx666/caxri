@@ -1,5 +1,3 @@
-import { Buffer } from 'node:buffer';
-
 import type {
     BinaryStreamCloseReason,
     BinaryStreamFrame,
@@ -33,6 +31,7 @@ import type { StructuredLogger } from '@caxri/system';
 import type { RawData } from 'ws';
 import WebSocket from 'ws';
 
+import { combineBinaryChunks, rawBinaryBytes } from './binary-stream-bytes';
 import type { BinaryStreamClaim } from './binary-stream-control';
 import type { TerminalDetachTransition } from './terminal-stream-lifecycle';
 import { TerminalStreamLifecycle } from './terminal-stream-lifecycle';
@@ -60,22 +59,6 @@ function isTerminalOperation(
     operation: BinaryStreamOperation,
 ): operation is TerminalStreamOperation {
     return 'terminalId' in operation;
-}
-
-function rawBytes(data: RawData): Uint8Array {
-    if (Buffer.isBuffer(data)) return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
-    if (data instanceof ArrayBuffer) return new Uint8Array(data);
-    return new Uint8Array(Buffer.concat(data));
-}
-
-function combine(chunks: readonly Uint8Array[], byteLength: number): Uint8Array {
-    const combined = new Uint8Array(byteLength);
-    let offset = 0;
-    for (const chunk of chunks) {
-        combined.set(chunk, offset);
-        offset += chunk.byteLength;
-    }
-    return combined;
 }
 
 function closeReason(error: unknown): BinaryStreamCloseReason {
@@ -223,6 +206,7 @@ function errorStreamReply(
 class TerminalBinarySession extends BaseBinarySession {
     private activeInput?: { byteLength: number; chunks: Uint8Array[]; sequence: number };
     private commandChain = Promise.resolve();
+    private completing = false;
     private droppedBytes = 0;
     private gapScheduled = false;
     private lastClientSequence: number;
@@ -351,13 +335,13 @@ class TerminalBinarySession extends BaseBinarySession {
     }
 
     private receive(data: RawData, isBinary: boolean): void {
-        if (this.closed) return;
+        if (this.closed || this.completing) return;
         if (!isBinary) {
             this.close('protocol-error');
             return;
         }
         try {
-            const frame = decodeBinaryStreamFrame(rawBytes(data));
+            const frame = decodeBinaryStreamFrame(rawBinaryBytes(data));
             if (frame.kind === 'terminal-input') this.receiveInput(frame);
             else if (frame.kind === 'terminal-resize') this.receiveResize(frame);
             else this.close('scope-mismatch');
@@ -402,7 +386,7 @@ class TerminalBinarySession extends BaseBinarySession {
         let data: string;
         try {
             data = new TextDecoder('utf-8', { fatal: true }).decode(
-                combine(input.chunks, input.byteLength),
+                combineBinaryChunks(input.chunks, input.byteLength),
             );
         } catch {
             this.close('protocol-error');
@@ -488,7 +472,7 @@ class TerminalBinarySession extends BaseBinarySession {
     }
 
     output(data: string, upstreamDroppedBytes = 0): void {
-        if (this.closed) return;
+        if (this.closed || this.completing) return;
         const payload = new TextEncoder().encode(data);
         if (upstreamDroppedBytes > 0) {
             this.scheduleGap(upstreamDroppedBytes + payload.byteLength);
@@ -515,6 +499,24 @@ class TerminalBinarySession extends BaseBinarySession {
                 release();
             }
         })();
+    }
+
+    /**
+     * A Terminal can exit before Terminal Host's reply for the input that caused that exit reaches Server Core. Drain
+     * every command already admitted on this attachment so the client receives its exact acknowledgement before the
+     * normal completed close.
+     */
+    completeAfterPending(): void {
+        if (this.closed || this.completing) return;
+        this.completing = true;
+        const completion = (async () => {
+            await this.commandChain;
+            await this.outbound;
+            this.close('completed');
+        })();
+        // `observe` converts any pending transport failure into the typed stream close.
+        // eslint-disable-next-line no-void
+        void this.observe(completion);
     }
 }
 
@@ -596,7 +598,7 @@ class FileBinarySession extends BaseBinarySession {
             return;
         }
         try {
-            const frame = decodeBinaryStreamFrame(rawBytes(data));
+            const frame = decodeBinaryStreamFrame(rawBinaryBytes(data));
             if (frame.kind !== 'file-data' || frame.sequence !== 0) {
                 this.close('scope-mismatch');
                 return;
@@ -627,7 +629,7 @@ class FileBinarySession extends BaseBinarySession {
         let content: string;
         try {
             content = new TextDecoder('utf-8', { fatal: true }).decode(
-                combine(this.chunks, this.byteLength),
+                combineBinaryChunks(this.chunks, this.byteLength),
             );
             this.chunks.length = 0;
         } catch {
@@ -761,7 +763,8 @@ export class BinaryStreamRuntime {
         }
         if (projected.event === 'terminal.exit')
             for (const session of this.terminalSessions.values())
-                if (session.terminalId === projected.payload.terminalId) session.close('completed');
+                if (session.terminalId === projected.payload.terminalId)
+                    session.completeAfterPending();
         return false;
     }
 

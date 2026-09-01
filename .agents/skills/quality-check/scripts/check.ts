@@ -38,9 +38,11 @@ export type DirtyLayer =
     | 'Server Core'
     | 'Domains'
     | 'Server'
+    | 'Mobile'
     | 'System'
     | 'IPC'
     | 'Shared'
+    | 'Mobile Transport'
     | 'CLI'
     | 'e2e'
     | 'skills'
@@ -65,9 +67,11 @@ const DIRTY_LAYER_ORDER: DirtyLayer[] = [
     'Server Core',
     'Domains',
     'Server',
+    'Mobile',
     'System',
     'IPC',
     'Shared',
+    'Mobile Transport',
     'CLI',
     'e2e',
     'skills',
@@ -84,10 +88,12 @@ function dirtyLayerForFile(file: string): DirtyLayer {
     if (normalized.startsWith('apps/server/src/core/')) return 'Server Core';
     if (normalized.startsWith('apps/server/src/domains/')) return 'Domains';
     if (normalized.startsWith('apps/server/')) return 'Server';
+    if (normalized.startsWith('apps/mobile/')) return 'Mobile';
     if (normalized.startsWith('apps/cli/')) return 'CLI';
     if (normalized.startsWith('packages/system/')) return 'System';
     if (normalized.startsWith('packages/protocol/')) return 'IPC';
     if (normalized.startsWith('packages/utils/')) return 'Shared';
+    if (normalized.startsWith('packages/mobile-transport/')) return 'Mobile Transport';
     if (
         normalized.startsWith('packages/agent-skills/') ||
         normalized.startsWith('packages/client/') ||
@@ -117,12 +123,15 @@ export function dirtyLayerReportForFiles(
     const dirtyLayers = new Set(files.map(dirtyLayerForFile));
     const layers = DIRTY_LAYER_ORDER.filter((layer) => dirtyLayers.has(layer));
     const suggestedGates: string[] = [];
-    if (dirtyLayers.has('Renderer')) suggestedGates.push('bun run doctor:changed');
+    if (dirtyLayers.has('Renderer') || dirtyLayers.has('Mobile'))
+        suggestedGates.push('bun run doctor:changed');
     if (
         dirtyLayers.has('Renderer') ||
         dirtyLayers.has('IPC') ||
         dirtyLayers.has('Shared') ||
-        dirtyLayers.has('System')
+        dirtyLayers.has('System') ||
+        dirtyLayers.has('Mobile') ||
+        dirtyLayers.has('Mobile Transport')
     )
         suggestedGates.push('bun run knip');
     if (hasExplicitFiles) {

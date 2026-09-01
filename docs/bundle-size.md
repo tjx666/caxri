@@ -8,19 +8,24 @@ legitimately needs more bytes.
 
 | Artifact                  | Size      | Dominant contents                                                   |
 | ------------------------- | --------- | ------------------------------------------------------------------- |
-| `Caxri.app` (total)       | ~406 MiB  | Electron 43 framework + embedded standalone Server                  |
-| `Resources/server`        | ~123 MiB  | Pinned runtime (~116 MiB), native dependencies, bundles, extensions |
-| `app.asar`                | ~36 MiB   | Desktop Main, Preload, and Renderer bundles                         |
-| `out/renderer`            | ~35.4 MiB | Monaco (~6.8 MiB JS + 15 MiB workers), fonts, vscode-icons (below)  |
-| `out/main`                | ~650 KiB  | Electron Desktop Main only                                          |
-| `out/preload`             | ~8 KiB    | Sandboxed preload bundles                                           |
-| `apps/server/dist/server` | ~123 MiB  | Byte-identical source of the embedded Server artifact               |
+| `Caxri.app` (total)       | ~411 MiB  | Electron 44 framework + embedded standalone Server                  |
+| `Resources/server`        | ~133 MiB  | Pinned runtime (~121 MiB), native dependencies, bundles, extensions |
+| `app.asar`                | ~36.9 MiB | Desktop Main, Preload, and Renderer bundles                         |
+| `out/renderer`            | ~35.6 MiB | Monaco (~6.8 MiB JS + 15 MiB workers), fonts, vscode-icons (below)  |
+| `out/main`                | ~831 KiB  | Electron Desktop Main only                                          |
+| `out/preload`             | ~12 KiB   | Sandboxed preload bundles                                           |
+| `apps/server/dist/server` | ~133 MiB  | Byte-identical source of the embedded Server artifact               |
 
 The renderer carries the full `@yutengjing/vscode-icons` SVG set (~4.5 MiB across 1553 files,
 emitted as individual assets). This is a conscious budget increase, not drift: the Files secondarySidebar
 can encounter any file or folder name in a user's project at runtime, so there is no meaningful
 subset to tree-shake, and shipping the complete set is what makes icons match VS Code's
 vscode-icons extension.
+
+The Server runtime also carries the bundled ripgrep executable (~4.3 MiB) so project search uses a
+known binary without relying on the host environment. An exact `origin/main` measurement after that
+binary landed was 132.82 MiB; the 140 MiB ceiling preserves roughly the same five-percent headroom
+as the previous 123/130 MiB baseline while the job-summary delta still exposes incremental growth.
 
 Pre-optimization the app was ~367 MiB on disk: 220 Electron locales (47 MiB), whole-package
 `node_modules` copies in the asar (drizzle-orm 14 MiB, zod 5.7 MiB, xterm 5 MiB, archiver's

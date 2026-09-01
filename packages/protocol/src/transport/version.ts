@@ -43,9 +43,9 @@ export type ProtocolWelcome = z.infer<typeof protocolWelcomeSchema>;
  */
 export function negotiateProtocolVersion(clientVersions: readonly number[]): CaxriProtocolVersion {
     const clientVersionSet = new Set(clientVersions);
-    const version = supportedProtocolVersions.findLast((candidate) =>
-        clientVersionSet.has(candidate),
-    );
-    if (!version) throw new CaxriError('CONFLICT', 'No compatible Caxri protocol version');
-    return version;
+    for (let index = supportedProtocolVersions.length - 1; index >= 0; index -= 1) {
+        const candidate = supportedProtocolVersions[index];
+        if (clientVersionSet.has(candidate)) return candidate;
+    }
+    throw new CaxriError('CONFLICT', 'No compatible Caxri protocol version');
 }

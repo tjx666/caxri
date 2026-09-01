@@ -1,0 +1,6 @@
+.expo/
+android/
+ios/
+expo-env.d.ts
+*.jks
+*.keystore

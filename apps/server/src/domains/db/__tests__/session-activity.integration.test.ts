@@ -114,4 +114,39 @@ describe('Session Activity persistence', () => {
         expect(database.getAppState('lastSelectedSessionId')).toBe(second.id);
         database.close();
     });
+
+    it('atomically consumes one reply for an exact waiting attention generation', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-db-attention-reply-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'codex');
+        database.updateAgentMetadata(
+            created.terminal!.id,
+            {
+                provider: 'codex',
+                attentionKind: 'waiting',
+                available: true,
+                observedAt: Date.now(),
+                status: 'waiting',
+            },
+            true,
+        );
+        const waiting = database.getSession(created.session.id)!;
+        expect(
+            database.consumeSessionAttentionReply(
+                waiting.id,
+                created.terminal!.id,
+                waiting.attentionEpoch,
+            ),
+        ).toBe(true);
+        expect(
+            database.consumeSessionAttentionReply(
+                waiting.id,
+                created.terminal!.id,
+                waiting.attentionEpoch,
+            ),
+        ).toBe(false);
+        expect(database.getSession(waiting.id)?.lastActivityState).toBe('running');
+        database.close();
+    });
 });

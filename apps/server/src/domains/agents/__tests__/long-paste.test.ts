@@ -198,7 +198,10 @@ describe('LongPasteService', () => {
             terminalId: test.terminal.id,
             content: 'retention-bound input '.repeat(100),
         });
-        now += 31 * 24 * 60 * 60 * 1_000;
+        /**
+         * The filesystem owns mtime, so advance the injected clock from the persisted file instead of a fixed date.
+         */
+        now = (await stat(result.filePath)).mtimeMs + 31 * 24 * 60 * 60 * 1_000;
 
         await vi.waitFor(async () => {
             let isExists = true;

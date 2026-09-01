@@ -191,4 +191,45 @@ describe('toolchain contract', () => {
         expect(stdout.trim()).toMatch(/^Version 7\./u);
         expect(typescript.version).toMatch(/^6\./u);
     });
+
+    it('rejects browser document globals from the React Native runtime project', async () => {
+        const workspace = await mkdtemp(join(tmpdir(), 'caxri-mobile-runtime-contract-'));
+        const tscPath = join(repoRoot, 'apps/mobile/node_modules/.bin/tsc');
+        try {
+            await writeFile(
+                join(workspace, 'tsconfig.json'),
+                JSON.stringify({
+                    extends: join(repoRoot, 'apps/mobile/tsconfig.runtime.json'),
+                    files: ['./browser-globals.ts'],
+                    include: [],
+                }),
+            );
+            await writeFile(
+                join(workspace, 'browser-globals.ts'),
+                [
+                    'document.body;',
+                    'window.location;',
+                    "localStorage.setItem('key', 'value');",
+                    "alert('unsupported');",
+                    "void navigator.clipboard.writeText('unsupported');",
+                ].join('\n'),
+            );
+
+            let diagnostics = '';
+            try {
+                await execFileAsync(tscPath, ['--noEmit', '-p', join(workspace, 'tsconfig.json')]);
+            } catch (error) {
+                const failure = error as { stderr?: string; stdout?: string };
+                diagnostics = `${failure.stdout ?? ''}\n${failure.stderr ?? ''}`;
+            }
+
+            expect(diagnostics).toContain("Cannot find name 'document'");
+            expect(diagnostics).toContain("Cannot find name 'window'");
+            expect(diagnostics).toContain("Cannot find name 'localStorage'");
+            expect(diagnostics).toContain("Cannot find name 'alert'");
+            expect(diagnostics).toContain("Property 'clipboard' does not exist");
+        } finally {
+            await rm(workspace, { force: true, recursive: true });
+        }
+    });
 });
