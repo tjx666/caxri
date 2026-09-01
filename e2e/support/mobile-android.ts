@@ -45,6 +45,28 @@ export const adbShell = (serial: string, arguments_: string[]): Promise<string> 
     runMobileDeviceCommand(adb, ['-s', serial, 'shell', ...arguments_], 'capture');
 
 /**
+ * Toggles every emulator network transport used by the Android Acceptance fixture. Disabling Wi-Fi alone leaves the
+ * emulator's cellular route to 10.0.2.2 active, so the stale-session scenario would never actually disconnect.
+ */
+export async function setMobileNetworkAvailable(
+    serial: string,
+    isAvailable: boolean,
+    shell: typeof adbShell = adbShell,
+): Promise<void> {
+    const action = isAvailable ? 'enable' : 'disable';
+    let failure: unknown;
+    for (const service of ['wifi', 'data']) {
+        try {
+            // eslint-disable-next-line no-await-in-loop -- both transports must be attempted even if the first fails.
+            await shell(serial, ['svc', service, action]);
+        } catch (error) {
+            failure ??= error;
+        }
+    }
+    if (failure) throw new Error(`Mobile Acceptance could not ${action} every network transport`);
+}
+
+/**
  * Starts one device-framebuffer recording through the shared Acceptance process owner. The caller chooses the exact
  * stop boundary so private reply text never has to enter a report-bound recording.
  */

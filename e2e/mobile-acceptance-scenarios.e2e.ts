@@ -11,6 +11,7 @@ import {
     adbShell,
     captureMobileFramebuffer,
     mobileSemantics,
+    setMobileNetworkAvailable,
     tapMobileCheck,
     waitForMobile,
 } from './support/mobile-android.ts';
@@ -297,14 +298,14 @@ test('executes one report-bound Android product scenario', async ({}) => {
                 mode: 'waiting',
                 serial: environment.serial,
             });
-            let isWifiDisabled = false;
+            let isNetworkDisabled = false;
             try {
                 await fixture.pair();
                 if (!fixture.allowedSessionId) throw new Error('Waiting Session is unavailable');
                 await tapMobileCheck(environment.serial, `session-row-${fixture.allowedSessionId}`);
                 const disconnectedAt = Date.now();
-                await adbShell(environment.serial, ['svc', 'wifi', 'disable']);
-                isWifiDisabled = true;
+                isNetworkDisabled = true;
+                await setMobileNetworkAvailable(environment.serial, false);
                 await waitForMobile(
                     () => mobileSemantics(environment.serial),
                     (nodes) =>
@@ -315,8 +316,8 @@ test('executes one report-bound Android product scenario', async ({}) => {
                     7_000,
                 );
                 const staleDurationMs = Date.now() - disconnectedAt;
-                await adbShell(environment.serial, ['svc', 'wifi', 'enable']);
-                isWifiDisabled = false;
+                await setMobileNetworkAvailable(environment.serial, true);
+                isNetworkDisabled = false;
                 await waitForMobile(
                     () => mobileSemantics(environment.serial),
                     (nodes) =>
@@ -331,7 +332,7 @@ test('executes one report-bound Android product scenario', async ({}) => {
                     status: 'passed',
                 });
             } finally {
-                if (isWifiDisabled) await adbShell(environment.serial, ['svc', 'wifi', 'enable']);
+                if (isNetworkDisabled) await setMobileNetworkAvailable(environment.serial, true);
                 await fixture.stop();
             }
             break;
