@@ -638,6 +638,21 @@ describe('CaxriDatabase', () => {
         database.close();
     });
 
+    it('refuses to let a stale layout write hide a newly created Terminal tab', async () => {
+        const directory = await temporaryDirectory('caxri-db-stale-layout-create-');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'shell');
+        const staleState = database.getSessionState(created.session.id);
+
+        const second = database.createTerminal(created.session.id, 'shell');
+        database.updateSessionState(staleState);
+
+        expect(
+            listPaneTerminalIds(database.getSessionState(created.session.id).paneLayout),
+        ).toEqual([created.terminal!.id, second.id]);
+        database.close();
+    });
+
     it('never reuses a Terminal order_index after closing a middle Terminal and creating a new one', async () => {
         const directory = await temporaryDirectory('caxri-db-order-index-');
         const database = new CaxriDatabase(join(directory, 'state.db'));

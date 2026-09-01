@@ -178,7 +178,7 @@ bun run .agents/skills/go/scripts/state.ts report-delivered \
   --state "$STATE" --head-sha def5678 --acceptance-url "https://app.lobehub.com/..."
 ```
 
-If the user explicitly waives desktop Acceptance for a non-product exact head,
+If the user explicitly waives Acceptance for a non-product exact head,
 record `status=waived`, `waived-head-sha`, and the reason. The report still must
 be generated before merge and delivered before completion.
 

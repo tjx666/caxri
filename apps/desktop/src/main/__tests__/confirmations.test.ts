@@ -6,6 +6,7 @@ import {
     discardGitChangesPrompt,
     externalLinkChoice,
     externalLinkPrompt,
+    revokeMobileDevicePrompt,
     trashPrompt,
     unsavedChangesChoice,
     unsavedChangesPrompt,
@@ -73,6 +74,21 @@ describe('trash prompt', () => {
 
     it('keeps Cancel as the default and Escape target', () => {
         const options = trashPrompt({ name: 'notes.md', path: '/tmp/notes.md' });
+        expect(options.buttons![options.defaultId!]).toBe('Cancel');
+        expect(options.buttons![options.cancelId!]).toBe('Cancel');
+    });
+});
+
+describe('mobile device revoke prompt', () => {
+    it('names the device, explains the impact, and keeps cancellation safe by default', () => {
+        const options = revokeMobileDevicePrompt({
+            displayName: 'Pixel 8',
+            platform: 'android',
+        });
+        expect(options.message).toBe("Revoke 'Pixel 8'?");
+        expect(options.detail).toContain('immediately loses access');
+        expect(options.detail).toContain('pair it again');
+        expect(options.detail).toContain('Projects and files are not affected');
         expect(options.buttons![options.defaultId!]).toBe('Cancel');
         expect(options.buttons![options.cancelId!]).toBe('Cancel');
     });

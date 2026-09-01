@@ -38,7 +38,8 @@ Check only prerequisites relevant to the planned workflow:
 - LobeHub Acceptance authentication: use `lobehub whoami --json`; the CLI has no
   `lobehub auth status` command, so do not infer or guess an auth subcommand;
 - dependencies needed by selected issues;
-- availability of the macOS Electron acceptance path.
+- availability of every selected Acceptance path: isolated macOS Electron for `desktop`, or an
+  explicitly selected Android emulator/device or iOS Simulator for `mobile`.
 
 The intake snapshot runs the canonical LobeHub probe and records only a boolean
 success marker, never the returned profile payload. It retries each read-only
@@ -100,7 +101,7 @@ needs an exact target and its own explicit authorization. Keep release execution
 outside the product-delivery queue. After that boundary is resolved, record it as
 a separate explicit `$release` workflow instead of calling it from Go.
 
-For an ambiguous visual or asset request, resolve its exact macOS Electron
+For an ambiguous visual or asset request, resolve its exact product surface and
 location, dimensions or platform variants, reference or intended difference,
 and observable before/after criterion. Do not turn "improve the icon" into an
 implementation issue without a verifiable target.
@@ -121,8 +122,8 @@ For each selected issue, record:
 - user-visible outcome and non-goals;
 - an explicit UX design covering the user path, visible states, copy, keyboard,
   and accessibility behavior, or a reason no direct UI claim exists;
-- macOS Electron location or an explicit reason the requirement is not a product
-  surface claim;
+- product surface and location (`desktop` or `mobile`), or an explicit reason the requirement is
+  not a product-surface claim;
 - dependencies and priority;
 - likely owning layer;
 - competitor evidence and any deliberate Caxri deviation;

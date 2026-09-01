@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import type { CommandExecutionContext } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
@@ -8,6 +10,9 @@ export function principalRequestKey(context: CommandExecutionContext, requestId:
         : null;
     return JSON.stringify([principal.kind, principal.id, generation, requestId]);
 }
+
+export const dispatchIdFor = (context: CommandExecutionContext, requestId: string): string =>
+    `dispatch-${createHash('sha256').update(principalRequestKey(context, requestId)).digest('hex')}`;
 
 /**
  * Owns cancellation for authenticated public reads while preserving principal and generation isolation in the key

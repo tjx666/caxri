@@ -108,6 +108,14 @@ describe('shared ESLint preset toolchain contract', () => {
         ).resolves.toBe(true);
     });
 
+    it('keeps native script helpers outside TypeScript source linting', async () => {
+        const eslint = new ESLint({ cwd: root });
+
+        await expect(
+            eslint.isPathIgnored(resolve(root, 'scripts/mobile-acceptance-privacy.swift')),
+        ).resolves.toBe(true);
+    });
+
     it('does not apply source line limits to generated migration metadata', async () => {
         const config = await effectiveConfigFor(
             'apps/server/src/domains/db/migrations/meta/0016_snapshot.json',
@@ -223,6 +231,57 @@ describe('shared ESLint preset toolchain contract', () => {
         expect(result.messages.map(({ ruleId }) => ruleId)).toContain(
             'caxri/architecture-boundaries',
         );
+    });
+
+    it('rejects platform imports across both mobile runtime roots', async () => {
+        const cases = [
+            ['apps/mobile/src/node-prefixed-import.ts', 'node:fs'],
+            ['apps/mobile/app/node-bare-import.ts', 'fs'],
+            ['apps/mobile/src/electron-import.ts', 'electron'],
+            ['apps/mobile/app/node-pty-import.ts', 'node-pty'],
+            ['apps/mobile/src/sqlite-import.ts', 'better-sqlite3'],
+            ['apps/mobile/app/watcher-import.ts', '@parcel/watcher'],
+            ['apps/mobile/src/web-socket-package-import.ts', 'ws'],
+        ] as const;
+        const results = await Promise.all(
+            cases.map(([path, specifier]) => lintSource(path, `import '${specifier}';`)),
+        );
+
+        for (const [index, result] of results.entries())
+            expect(
+                result.messages.map(({ ruleId }) => ruleId),
+                cases[index]?.[0],
+            ).toContain('caxri/architecture-boundaries');
+    });
+
+    it('allows static contract tests to inspect browser source with Node APIs', async () => {
+        const results = await Promise.all([
+            lintSource(
+                'apps/desktop/src/renderer/__tests__/source-contract.test.ts',
+                "import { readFile } from 'node:fs/promises'; void readFile;",
+            ),
+            lintSource(
+                'apps/mobile/src/__tests__/source-contract.test.ts',
+                "import { readFile } from 'node:fs/promises'; void readFile;",
+            ),
+        ]);
+
+        for (const result of results)
+            expect(result.messages.map(({ ruleId }) => ruleId)).not.toContain(
+                'caxri/architecture-boundaries',
+            );
+    });
+
+    it('ignores Expo native build output during repository lint', async () => {
+        const eslint = new ESLint({ cwd: root });
+        const androidOutput = resolve(root, 'apps/mobile/android/build/generated.js');
+        const iosOutput = resolve(root, 'apps/mobile/ios/Pods/generated.js');
+        const ignored = await Promise.all([
+            eslint.isPathIgnored(androidOutput),
+            eslint.isPathIgnored(iosOutput),
+        ]);
+
+        expect(ignored).toEqual([true, true]);
     });
 
     it('keeps every shared browser-unsafe dependency out of Renderer source', async () => {

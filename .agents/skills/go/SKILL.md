@@ -156,14 +156,15 @@ Read [references/acceptance-loop.md](references/acceptance-loop.md) before the f
 the PR head is review-clean and required checks are green, or an authorized exact-head local
 fallback has passed, proceed to planning. A fresh context-isolated tester authors the final plan
 independently. Do not give it a builder-authored plan or expected verdicts. Then Call the Skill
-tool with "acceptance". Its only product surface is isolated macOS Electron. Hidden ordering uses
-the observable desktop result plus an owning focused test or log receipt; desktop timing alone is
-not proof. Builders never accept or reject their own delivery, and any later code change
-invalidates the accepted head.
+tool with "acceptance". Its product surfaces are isolated macOS Electron desktop and explicitly
+selected Android/iOS mobile targets. Each check names the reviewer-facing surface, and a
+cross-device workflow may use evidence from both. Hidden ordering uses the observable product
+result plus an owning focused test or log receipt; device timing alone is not proof. Builders never
+accept or reject their own delivery, and any later code change invalidates the accepted head.
 
-If the frozen issues have no product or desktop claim and the user explicitly waives Acceptance
+If the frozen issues have no Caxri product-surface claim and the user explicitly waives Acceptance
 for the exact head, record the head and reason, transition to `acceptance_handoff`, and do not
-invent desktop evidence.
+invent product evidence.
 
 ## Phase 4: merge, close, and learn
 

@@ -1,0 +1,32 @@
+{
+    "name": "@caxri/mobile-transport",
+    "version": "0.0.1",
+    "private": true,
+    "description": "Browser-safe Caxri mobile pairing and encrypted transport primitives.",
+    "type": "module",
+    "sideEffects": false,
+    "files": [
+        "dist"
+    ],
+    "exports": {
+        ".": {
+            "bun": "./src/index.ts",
+            "types": "./src/index.ts",
+            "import": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "build": "tsc -p tsconfig.build.json",
+        "test": "vitest run --root ../.. --project mobile-transport",
+        "typecheck": "tsc --noEmit -p tsconfig.json"
+    },
+    "dependencies": {
+        "@noble/ciphers": "2.4.0",
+        "@noble/curves": "2.4.0",
+        "@noble/hashes": "2.4.0",
+        "zod": "catalog:"
+    },
+    "engines": {
+        "node": ">=22.13.0"
+    }
+}

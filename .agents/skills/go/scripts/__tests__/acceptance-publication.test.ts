@@ -37,10 +37,10 @@ function report(
     verdict: 'fail' | 'partial' | 'pass' = 'pass',
 ) {
     return {
-        cases: checkIds.map((id) => ({ evidence: [`assets/${id}.txt`], id })),
+        cases: checkIds.map((id) => ({ evidence: [`assets/${id}.txt`], id, surface: 'desktop' })),
         commit: headSha,
         createdAt: '2026-08-12T00:00:00.000Z',
-        plan: checkIds.map((id) => ({ id, requiredEvidence: ['text'] })),
+        plan: checkIds.map((id) => ({ id, requiredEvidence: ['text'], surface: 'desktop' })),
         requirement: '同一交付只保留一个稳定的 Acceptance lineage。',
         summary: { verdict },
     };
@@ -73,6 +73,7 @@ async function writeRoundWithVisualEvidence(): Promise<string> {
                     {
                         evidence: ['assets/desktop.png'],
                         id: 'desktop-visual-state',
+                        surface: 'desktop',
                     },
                 ],
                 commit: 'head-1',
@@ -83,6 +84,7 @@ async function writeRoundWithVisualEvidence(): Promise<string> {
                         requiredEvidence: [
                             { hint: 'Capture the rendered desktop surface', type: 'screenshot' },
                         ],
+                        surface: 'desktop',
                     },
                 ],
                 requirement: '桌面视觉结果必须随 Acceptance 报告交付。',
@@ -135,6 +137,7 @@ function viewJson(
         }>;
         headSha?: string;
         roundIndex?: number;
+        surface?: 'desktop' | 'mobile';
         verdict?: 'failed' | 'passed' | 'uncertain';
         verifyRunId?: string;
     } = {},
@@ -149,7 +152,9 @@ function viewJson(
                 { content: 'Remote evidence receipt', fileId: null, fileUrl: null, type: 'text' },
             ],
             id,
+            planItem: { verifierConfig: { surface: input.surface ?? 'desktop' } },
             resultRound: roundIndex,
+            surface: input.surface ?? 'desktop',
         })),
         rounds: [
             {

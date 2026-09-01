@@ -4,5 +4,10 @@
  * Node's `path.basename` when platform-accurate parsing (drive letters, `.` / `..` semantics) matters.
  */
 export function pathBasename(path: string): string {
-    return path.split(/[\\/]/).findLast(Boolean) ?? path;
+    const segments = path.split(/[\\/]/);
+    for (let index = segments.length - 1; index >= 0; index -= 1) {
+        const segment = segments[index];
+        if (segment) return segment;
+    }
+    return path;
 }

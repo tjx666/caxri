@@ -1,3 +1,5 @@
+import { sortedCopy } from './sorted-copy.js';
+
 /**
  * Computes WCAG relative luminance for an sRGB `#rrggbb` or `#rrggbbaa` color, ignoring an alpha suffix. Callers must
  * resolve transparency before using this value for a contrast guarantee.
@@ -16,7 +18,8 @@ export function relativeLuminance(hexColor: string): number {
  * Computes the WCAG contrast ratio between two opaque sRGB `#rrggbb` colors.
  */
 export function contrastRatio(first: string, second: string): number {
-    const [lighter, darker] = [relativeLuminance(first), relativeLuminance(second)].toSorted(
+    const [lighter, darker] = sortedCopy(
+        [relativeLuminance(first), relativeLuminance(second)],
         (left, right) => right - left,
     );
     return (lighter + 0.05) / (darker + 0.05);

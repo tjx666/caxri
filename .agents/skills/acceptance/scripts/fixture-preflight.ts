@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 import stringWidth from 'string-width';
 import { z } from 'zod';
 
+import { isAcceptanceCaseId } from './runtime-state';
+
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 
 const gridMarkerSchema = z.object({
@@ -43,7 +45,9 @@ const preflightResultSchema = z.object({
 });
 
 export const terminalFixturePreflightReceiptSchema = z.object({
-    caseId: z.string().min(1),
+    caseId: z.string().refine(isAcceptanceCaseId, {
+        message: 'Acceptance case id must use ASCII letters, numbers, and hyphens',
+    }),
     fixture: terminalFixtureSchema,
     kind: z.literal('terminal-fixture-preflight'),
     result: preflightResultSchema,

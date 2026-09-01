@@ -19,6 +19,8 @@ export const serverTestFiles = ['apps/server/{scripts,src}/**/*.test.ts'];
 export const systemTestFiles = ['packages/system/src/**/*.test.ts'];
 export const utilitiesTestFiles = ['packages/utils/src/**/*.test.ts'];
 export const cliTestFiles = ['apps/cli/{scripts,src}/**/*.test.ts'];
+export const mobileTestFiles = ['apps/mobile/{plugins,scripts,src}/**/*.test.ts'];
+export const mobileTransportTestFiles = ['packages/mobile-transport/src/**/*.test.ts'];
 export const testProjectNames = [
     'desktop-parallel',
     'agent-skills',
@@ -30,6 +32,8 @@ export const testProjectNames = [
     'system',
     'utils',
     'cli',
+    'mobile',
+    'mobile-transport',
 ];
 const serialNativeTestPrefix = [
     'apps/server/src/domains/__tests__/agent-hooks.integration.test.ts',
@@ -102,6 +106,10 @@ export const workspaceAliases = {
         'packages/client/src/supervise/index.ts',
     ),
     '@caxri/client': resolve(import.meta.dirname, 'packages/client/src/index.ts'),
+    '@caxri/mobile-transport': resolve(
+        import.meta.dirname,
+        'packages/mobile-transport/src/index.ts',
+    ),
     '@caxri/protocol': resolve(import.meta.dirname, 'packages/protocol/src/index.ts'),
     '@caxri/system': resolve(import.meta.dirname, 'packages/system/src/index.ts'),
     '@caxri/utils': resolve(import.meta.dirname, 'packages/utils/src/index.ts'),
@@ -197,6 +205,22 @@ export default defineConfig({
                 test: {
                     name: 'cli',
                     include: cliTestFiles,
+                    maxWorkers: parallelMaxWorkers,
+                },
+            },
+            {
+                extends: true,
+                test: {
+                    name: 'mobile',
+                    include: mobileTestFiles,
+                    maxWorkers: parallelMaxWorkers,
+                },
+            },
+            {
+                extends: true,
+                test: {
+                    name: 'mobile-transport',
+                    include: mobileTransportTestFiles,
                     maxWorkers: parallelMaxWorkers,
                 },
             },

@@ -38,6 +38,9 @@ const sessionSummarySchema = sessionRecordSchema.pick({
     archivedAt: true,
     lastOpenedAt: true,
     lastActivityState: true,
+    primaryAgentTerminalId: true,
+    attentionEpoch: true,
+    hasUnread: true,
 });
 const terminalSummarySchema = terminalRecordSchema.pick({
     id: true,

@@ -1,7 +1,7 @@
 # Common Acceptance Mistakes — Caxri
 
 This is the living log of Caxri-specific mistakes that consumed, invalidated, or
-needlessly prolonged an Acceptance run. Read it before planning a desktop round.
+needlessly prolonged an Acceptance run. Read it before planning a desktop or mobile round.
 Keep entries evidence-based and link to the canonical workflow rule instead of
 duplicating the full procedure here.
 
@@ -95,3 +95,41 @@ ledger disagree with the immutable remote history.
 advance the round only after exact remote readback; reserve
 `acceptance-reconcile-round` for an explicitly documented ledger repair. See the
 canonical [Go Acceptance loop](../skills/go/references/acceptance-loop.md).
+
+## Treating a development client or stale native install as current mobile evidence
+
+**Situation:** A mobile screen is already visible on an emulator or Simulator after source,
+configuration, or native plugin changes.
+
+**Does not work:** Capturing the existing app and inferring that it represents the current working
+tree. Metro can update JavaScript while leaving stale native code installed, and generated Expo
+projects can survive config changes.
+
+**Works:** Record the exact device, regenerate the applicable native project when configuration or
+plugins changed, build the current native binary, install it explicitly, and preserve build identity.
+For the Android cross-device path, use `bun run test:e2e:mobile:android` with report directory and
+case id so the guarded runner produces lifecycle and APK-hash receipts.
+
+## Uploading raw mobile accessibility output
+
+**Situation:** A tap target or postcondition must be inspected on Android or iOS.
+
+**Does not work:** Attaching a raw UIAutomator XML dump or unreviewed Accessibility hierarchy. It can
+contain a pairing credential, visible Terminal content, Session names, Project paths, keyboard
+suggestions, or other private text.
+
+**Works:** On Android, use `android:device semantics`, which emits only stable identifiers and
+structural flags and deletes the raw dump. On iOS, review the hierarchy before attaching it and omit
+it when it contains private values. In both cases, capture a fresh isolated artifact if a pairing QR
+or link entered any frame.
+
+## Using an emulator measurement as a release-performance pass
+
+**Situation:** Emulator or Simulator launch and frame measurements are available.
+
+**Does not work:** Comparing those values directly with physical-device release budgets. Host load,
+virtualization, development shells, and UI-tree polling dominate several measurements.
+
+**Works:** Use virtual-device measurements as diagnostics only. A release-performance acceptance
+case names one physical device, current release build, sampling method, repetition count, and budget
+from `docs/mobile/PERFORMANCE.md`.

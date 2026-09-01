@@ -8,6 +8,7 @@ import {
     isBoundedTerminalHostMessage,
     isTerminalHostResult,
     MAX_TERMINAL_HOST_MESSAGE_BYTES,
+    TERMINAL_HOST_PROTOCOL_VERSION,
     terminalHostMessageSchema,
     terminalHostRequestEnvelopeSchema,
 } from '../protocol';
@@ -30,7 +31,7 @@ const terminal: TerminalRecord = {
 function startEnvelope(): TerminalHostRequestEnvelope {
     return terminalHostRequestEnvelopeSchema.parse({
         type: 'request',
-        protocolVersion: 1,
+        protocolVersion: TERMINAL_HOST_PROTOCOL_VERSION,
         id: 'request-1',
         bootId,
         credential,
@@ -63,6 +64,8 @@ const liveAuthority = {
                   sessionId: terminal.sessionId,
                   ptyGeneration: 1,
                   attachmentId: 'attachment-1',
+                  agentLaunchId: 'launch-1',
+                  running: true,
               }
             : undefined,
 };
@@ -224,7 +227,7 @@ describe('architecture-a3b-terminal-host: private protocol', () => {
     ] as const)('rejects stale input by %s identity', (reason, identityPatch) => {
         const candidate = terminalHostRequestEnvelopeSchema.parse({
             type: 'request',
-            protocolVersion: 1,
+            protocolVersion: TERMINAL_HOST_PROTOCOL_VERSION,
             id: 'request-2',
             bootId,
             credential,
@@ -245,10 +248,54 @@ describe('architecture-a3b-terminal-host: private protocol', () => {
         });
     });
 
+    it('allows background Agent input only for the exact live launch without a Renderer attachment', () => {
+        const base = {
+            type: 'request',
+            protocolVersion: TERMINAL_HOST_PROTOCOL_VERSION,
+            id: 'request-agent-input',
+            bootId,
+            credential,
+            scope: {
+                scope: 'terminal',
+                capability: 'terminal.agent.input',
+                sessionId: terminal.sessionId,
+                terminalId: terminal.id,
+                ptyGeneration: 1,
+            },
+            request: {
+                method: 'terminal.agent.input',
+                params: { data: 'Continue\r', launchId: 'launch-1' },
+            },
+        } as const;
+        const accepted = terminalHostRequestEnvelopeSchema.parse(base);
+        expect(authorizeTerminalHostRequest(accepted, liveAuthority)).toEqual({ ok: true });
+
+        const staleAgent = terminalHostRequestEnvelopeSchema.parse({
+            ...base,
+            request: {
+                ...base.request,
+                params: { ...base.request.params, launchId: 'stale-launch' },
+            },
+        });
+        expect(authorizeTerminalHostRequest(staleAgent, liveAuthority)).toEqual({
+            ok: false,
+            reason: 'agent',
+        });
+
+        const attached = terminalHostRequestEnvelopeSchema.parse({
+            ...base,
+            scope: { ...base.scope, attachmentId: 'attachment-1' },
+        });
+        expect(authorizeTerminalHostRequest(attached, liveAuthority)).toEqual({
+            ok: false,
+            reason: 'attachment',
+        });
+    });
+
     it('allows attach to rotate an attachment while rejecting a mismatched requested attachment', () => {
         const base = {
             type: 'request',
-            protocolVersion: 1,
+            protocolVersion: TERMINAL_HOST_PROTOCOL_VERSION,
             id: 'request-3',
             bootId,
             credential,
@@ -289,7 +336,7 @@ describe('architecture-a3b-terminal-host: private protocol', () => {
                 type: 'event',
                 event: 'host.ready',
                 bootId,
-                protocolVersion: 1,
+                protocolVersion: TERMINAL_HOST_PROTOCOL_VERSION,
                 appVersion: '0.0.18',
                 buildId: 'build-1',
                 commit: 'deadbeef',

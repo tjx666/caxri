@@ -1,11 +1,10 @@
 import { Buffer } from 'node:buffer';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import process from 'node:process';
 
 import type {
     CommandAdapter,
-    CommandExecutionContext,
     ProtocolEventEnvelope,
     ServerEvent,
     ServerOperationRequest,
@@ -24,7 +23,7 @@ import {
 import { logEventCatalog, startEventLoopMonitor, StructuredLogger } from '@caxri/system';
 
 import { createServerDomainService } from '../core/create-domain-service';
-import type { AgentEndpointControl } from '../domains/agent-endpoints';
+import { createAgentEndpointControl } from './agent-endpoints/control';
 import { AgentEndpointRegistry } from './agent-endpoints/registry';
 import { AgentInboxRegistry } from './agent-inbox/registry';
 import { ControlServer } from './control-server';
@@ -33,6 +32,9 @@ import { ServerDesktopRouter } from './desktop-router';
 import { createExtensionService } from './extensions/create-service';
 import { readActiveExtensionContext, routeExtensionDomainEvent } from './extensions/domain-events';
 import type { ExtensionService } from './extensions/service';
+import { isMobileControlRequest, openMobileAccessController } from './mobile';
+import { MutationAdmission } from './mutation-admission';
+import { assertProjectScope, projectScope } from './principal-project-scope';
 import { acquireServerProfile } from './profile';
 import { ProviderMessagingAdapterRegistry } from './provider-messaging/registry';
 import { createServerRecoveryJournal } from './recovery-journal';
@@ -41,7 +43,11 @@ import {
     logDurableRecovery,
     prepareServerEventForDelivery,
 } from './recovery-observability';
-import { principalRequestKey, RequestCancellationRegistry } from './request-cancellation';
+import {
+    dispatchIdFor,
+    principalRequestKey,
+    RequestCancellationRegistry,
+} from './request-cancellation';
 import type { ServerCore, ServerCoreOptions } from './server-core-contract';
 import { createTerminalExecution } from './terminal-host/create-execution';
 
@@ -60,6 +66,14 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         userDataPath: options.userDataPath,
         version: options.version,
     });
+    const mobileAccess = await openMobileAccessController({
+        directory: lease.paths.directory,
+        registryPath: lease.paths.mobileDevices,
+        onOpenError: async () => {
+            stopEventLoopMonitor();
+            await lease.release();
+        },
+    });
     logger.updateBaseContext({ bootId: lease.identity.processIdentity, buildId: options.buildId });
     const agentEndpoints = new AgentEndpointRegistry(lease.identity.processIdentity);
     const providerMessaging = new ProviderMessagingAdapterRegistry(agentEndpoints);
@@ -76,12 +90,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             server?.broadcastDesktop({ event: 'agent.message.receipt', payload });
         },
     });
-    const endpointControl: AgentEndpointControl = {
-        activate: (parameters) => Promise.resolve(agentEndpoints.activate(parameters)),
-        begin: (parameters) => Promise.resolve(agentEndpoints.begin(parameters)),
-        messaging: (parameters) => Promise.resolve(agentEndpoints.updateMessaging(parameters)),
-        retire: (parameters) => Promise.resolve(agentEndpoints.retire(parameters)),
-    };
+    const endpointControl = createAgentEndpointControl(agentEndpoints);
     const terminalExecution = createTerminalExecution({
         appVersion: options.version,
         bootId: lease.identity.processIdentity,
@@ -107,43 +116,11 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
     let desktopRouter: ServerDesktopRouter | undefined;
     let stopPromise: Promise<void> | undefined;
     let commandStopFallback: NodeJS.Immediate | undefined;
-    let isMutationAdmissionClosed = false,
-        mutationsInFlight = 0;
+    const mutationAdmission = new MutationAdmission();
     const { promise: stopped, resolve: resolveStopped } = Promise.withResolvers<void>();
     const { promise: stopping, resolve: resolveStopping } = Promise.withResolvers<void>();
     const dispatchWaitIds = new Map<string, Set<string>>();
-    const mutationDrainWaiters = new Set<() => void>();
-    const finishMutation = (): void => {
-        mutationsInFlight -= 1;
-        if (mutationsInFlight !== 0) return;
-        for (const resolve of mutationDrainWaiters) resolve();
-        mutationDrainWaiters.clear();
-    };
-    const waitForMutations = (): Promise<void> =>
-        mutationsInFlight === 0
-            ? Promise.resolve()
-            : new Promise((resolve) => mutationDrainWaiters.add(resolve));
-    const projectScope = (context: CommandExecutionContext): string[] | null => {
-        switch (context.principal.kind) {
-            case 'agent':
-            case 'extension':
-            case 'paired-device':
-                return [...context.principal.projectIds];
-            default:
-                return null;
-        }
-    };
-    const assertProjectScope = (context: CommandExecutionContext, projectId: string): void => {
-        const scope = projectScope(context);
-        if (scope && !scope.includes(projectId))
-            throw new CaxriError('FORBIDDEN', 'Agent control is outside the granted Project');
-    };
     const requestCancellations = new RequestCancellationRegistry();
-    /**
-     * Keeps public dispatch identity independent while preserving principal-scoped request retry.
-     */
-    const dispatchIdFor = (context: CommandExecutionContext, requestId: string): string =>
-        `dispatch-${createHash('sha256').update(principalRequestKey(context, requestId)).digest('hex')}`;
     const forwardDomainOperation = async (
         request: ServerOperationRequest,
         signal?: AbortSignal,
@@ -152,40 +129,36 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         if (!spec) throw new CaxriError('VALIDATION', 'Unknown Runtime command');
         if (spec.effect === 'read')
             return domainService.forward(request.method, request.params, undefined, signal);
-        if (isMutationAdmissionClosed) throw new CaxriError('UNAVAILABLE', 'Host is stopping');
-        switch (request.method) {
-            case 'terminal.close': {
-                agentEndpoints.forgetTerminal(request.params.terminalId);
-                break;
+        return mutationAdmission.run(async () => {
+            switch (request.method) {
+                case 'terminal.close': {
+                    agentEndpoints.forgetTerminal(request.params.terminalId);
+                    break;
+                }
+                // Restart keeps the Terminal identity alive, so only the endpoint retires and the
+                // generation record stays for the next monotonic `begin()`.
+                case 'terminal.restart': {
+                    agentEndpoints.retireTerminal(request.params.terminalId);
+                    break;
+                }
+                case 'session.delete': {
+                    agentEndpoints.forgetSession(request.params.sessionId);
+                    break;
+                }
+                case 'project.delete': {
+                    agentEndpoints.forgetProject(request.params.projectId);
+                    break;
+                }
+                case 'terminal.terminateAll': {
+                    agentEndpoints.clear();
+                    break;
+                }
+                default:
+                    // Most mutations need no Agent Endpoint bookkeeping before forwarding.
+                    break;
             }
-            // Restart keeps the Terminal identity alive, so only the endpoint retires and the
-            // generation record stays for the next monotonic `begin()`.
-            case 'terminal.restart': {
-                agentEndpoints.retireTerminal(request.params.terminalId);
-                break;
-            }
-            case 'session.delete': {
-                agentEndpoints.forgetSession(request.params.sessionId);
-                break;
-            }
-            case 'project.delete': {
-                agentEndpoints.forgetProject(request.params.projectId);
-                break;
-            }
-            case 'terminal.terminateAll': {
-                agentEndpoints.clear();
-                break;
-            }
-            default:
-                // Most mutations need no Agent Endpoint bookkeeping before forwarding.
-                break;
-        }
-        mutationsInFlight += 1;
-        try {
-            return await domainService.forward(request.method, request.params, undefined, signal);
-        } finally {
-            finishMutation();
-        }
+            return domainService.forward(request.method, request.params, undefined, signal);
+        });
     };
     const recoverySnapshot = async (cursor: number) => {
         const state = await domainService.request('app.bootstrap');
@@ -241,11 +214,12 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
     };
     domainService.onEvent(deliver);
     const stop = (reason = 'requested'): Promise<void> => {
-        isMutationAdmissionClosed = true;
+        mutationAdmission.close();
         resolveStopping();
         stopPromise ??= (async () => {
             logger.write('info', logEventCatalog.serverCore.stopping, { fields: { reason } });
             stopEventLoopMonitor();
+            await mobileAccess.close();
             await server?.close();
             agentInbox.close();
             await providerMessaging.close();
@@ -265,6 +239,13 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                     'INTERNAL',
                     `Host received a desktop-owned method: ${request.method}`,
                 );
+            if (isMobileControlRequest(request))
+                return mobileAccess.invokeControl(request, context, domainService);
+            if (
+                context.principal.kind === 'paired-device' &&
+                (request.method === 'terminal.preview' || request.method === 'session.markRead')
+            )
+                await mobileAccess.validatePairedDeviceRequest(request, context, domainService);
             switch (request.method) {
                 case 'events.recover':
                     return recoveryJournal.recover(request.params);
@@ -400,18 +381,30 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                     });
                 }
                 case 'terminal.send': {
-                    if (
-                        context.principal.kind !== 'human-cli' &&
-                        context.principal.kind !== 'desktop'
-                    )
-                        throw new CaxriError(
-                            'FORBIDDEN',
-                            'Terminal steer requires a human owner principal',
+                    const invoke = () =>
+                        forwardDomainOperation({
+                            method: 'terminal.sendInternal',
+                            params: request.params,
+                        });
+                    let result: unknown;
+                    if (context.principal.kind === 'paired-device')
+                        result = await mobileAccess.invokeShortReply(
+                            context,
+                            request.params,
+                            domainService,
+                            invoke,
                         );
-                    const result = await forwardDomainOperation({
-                        method: 'terminal.sendInternal',
-                        params: request.params,
-                    });
+                    else {
+                        if (
+                            context.principal.kind !== 'human-cli' &&
+                            context.principal.kind !== 'desktop'
+                        )
+                            throw new CaxriError(
+                                'FORBIDDEN',
+                                'Terminal steer requires a human owner principal',
+                            );
+                        result = await invoke();
+                    }
                     logger.write('info', logEventCatalog.terminal.humanSteer, {
                         fields: {
                             terminalId: request.params.terminalId,
@@ -442,9 +435,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                      */
                     const retired = agentEndpoints.resolveRetired(request.params.to);
                     assertProjectScope(context, retired.projectId);
-                    if (isMutationAdmissionClosed)
-                        throw new CaxriError('UNAVAILABLE', 'Host is stopping');
-                    mutationsInFlight += 1;
+                    mutationAdmission.begin();
                     try {
                         const dispatch = await domainService.request(
                             'agent.dispatch.wakeInternal',
@@ -487,7 +478,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                             dispatch.dispatchId,
                         );
                     } finally {
-                        finishMutation();
+                        mutationAdmission.finish();
                     }
                 }
                 case 'agent.message.reply': {
@@ -567,12 +558,12 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                     return desktopRouter.open('openInEditor', 'directory', request.params);
                 }
                 case 'host.stop': {
-                    if (isMutationAdmissionClosed)
+                    if (mutationAdmission.isClosed)
                         throw new CaxriError('CONFLICT', 'Host stop is already in progress');
-                    isMutationAdmissionClosed = true;
+                    mutationAdmission.close();
                     let isAccepted = false;
                     try {
-                        await waitForMutations();
+                        await mutationAdmission.waitForDrain();
                         const health = await domainService.request('app.health');
                         if (health.activePtyCount > 0 && !request.params.confirmLivePtys)
                             throw new CaxriError(
@@ -598,7 +589,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                         commandStopFallback.unref();
                         return { stopping: true, activePtyCount: health.activePtyCount };
                     } finally {
-                        if (!isAccepted) isMutationAdmissionClosed = false;
+                        if (!isAccepted) mutationAdmission.reopen();
                     }
                 }
                 case 'project.query': {
@@ -632,6 +623,10 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                         principal: context.principal,
                         query: request.params,
                     });
+                case 'terminal.preview':
+                    return forwardDomainOperation(request);
+                case 'session.markRead':
+                    return forwardDomainOperation(request);
                 default: {
                     const forwarded: Extract<ServerRequest, { method: CoreForwardedMethod }> =
                         request;
@@ -657,6 +652,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         await domainService.start();
         const protocolRecovery = await domainService.recoveryState();
         const protocolIdentity = protocolRecovery.identity();
+        mobileAccess.attach(serverAdapter, lease.identity.processIdentity, protocolIdentity);
         logger.updateBaseContext({ serverId: protocolIdentity.serverId });
         recoveryJournal.initialize(protocolIdentity, protocolRecovery);
         logger.write('info', logEventCatalog.serverCore.recoveryReady, {
@@ -692,7 +688,10 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                 return desktopRouter.consumeTarget(targetId, generation);
             },
             desktopCredential: lease.desktopCredential,
-            invokeDesktopOperation: (request) => forwardDomainOperation(request),
+            invokeDesktopOperation: (request) =>
+                request.method === 'mobile.device.revoke.apply'
+                    ? mobileAccess.invokeDesktopOperation(request)
+                    : forwardDomainOperation(request),
             logger,
             identity: lease.identity,
             protocolIdentity,

@@ -139,11 +139,13 @@ describe('pnpm workspace contract', () => {
     const rootManifest = manifest(join(root, 'package.json')) as RootPackageManifest;
     const agentSkillsManifest = manifest(join(root, 'packages/agent-skills/package.json'));
     const clientManifest = manifest(join(root, 'packages/client/package.json'));
+    const mobileTransportManifest = manifest(join(root, 'packages/mobile-transport/package.json'));
     const protocolManifest = manifest(join(root, 'packages/protocol/package.json'));
     const systemManifest = manifest(join(root, 'packages/system/package.json'));
     const utilitiesManifest = manifest(join(root, 'packages/utils/package.json'));
     const cliManifest = manifest(join(root, 'apps/cli/package.json'));
     const desktopManifest = manifest(join(root, 'apps/desktop/package.json'));
+    const mobileManifest = manifest(join(root, 'apps/mobile/package.json'));
     const serverManifest = manifest(join(root, 'apps/server/package.json'));
     const extensionManifests = readdirSync(join(root, 'extensions'), { withFileTypes: true })
         .filter((entry) => entry.isDirectory())
@@ -169,6 +171,7 @@ describe('pnpm workspace contract', () => {
             'oxlint': '^1.80.0',
             'oxlint-tsgolint': '^7.0.2001',
             'prettier-plugin-tailwindcss': '^0.8.1',
+            'react-qr-code': '2.2.0',
             'semver': '^7.8.5',
             'sonda': '^0.14.0',
             'ws': '^8.21.3',
@@ -203,12 +206,14 @@ describe('pnpm workspace contract', () => {
     it('defines the current ownership graph without empty application workspaces', () => {
         expect(appBoundaries.map(({ root }) => root)).toEqual([
             'apps/desktop',
+            'apps/mobile',
             'apps/server',
             'apps/cli',
         ]);
         expect(packageBoundaries.map(({ root }) => root)).toEqual([
             'packages/agent-skills',
             'packages/client',
+            'packages/mobile-transport',
             'packages/protocol',
             'packages/extension-api',
             'packages/system',
@@ -229,6 +234,35 @@ describe('pnpm workspace contract', () => {
                 `apps/${entry.name} must be independently runnable`,
             ).toBeDefined();
         }
+    });
+
+    it('registers the mobile runtime and transport package as browser-safe boundaries', () => {
+        const runtimeConfig = JSON.parse(
+            readFileSync(join(root, 'apps/mobile/tsconfig.runtime.json'), 'utf8'),
+        ) as { compilerOptions?: { lib?: string[]; types?: string[] } };
+
+        expect(runtimeConfig.compilerOptions?.lib).toEqual(['ES2022', 'WebWorker']);
+        expect(runtimeConfig.compilerOptions?.types).toEqual([]);
+        expect(mobileManifest.dependencies).toMatchObject({
+            '@caxri/mobile-transport': 'workspace:*',
+            '@caxri/protocol': 'workspace:*',
+        });
+        expect(mobileManifest.devDependencies?.['@caxri/utils']).toBe('workspace:*');
+        expect(serverManifest.dependencies?.['@caxri/mobile-transport']).toBe('workspace:*');
+        expect(mobileTransportManifest.dependencies ?? {}).not.toHaveProperty('@caxri/system');
+        expect(appBoundaries.find(({ id }) => id === 'mobile')).toMatchObject({
+            allowedPackages: ['mobile-transport', 'protocol'],
+            root: 'apps/mobile',
+            testAllowedPackages: ['utils'],
+        });
+        expect(packageBoundaries.find(({ id }) => id === 'mobile-transport')).toMatchObject({
+            allowedPackages: [],
+            browserSafe: true,
+            root: 'packages/mobile-transport',
+        });
+        expect(appBoundaries.find(({ id }) => id === 'server')?.allowedPackages).toContain(
+            'mobile-transport',
+        );
     });
 
     it('keeps packages importable only through explicit exports', () => {
@@ -260,10 +294,11 @@ describe('pnpm workspace contract', () => {
         ];
         const legacyControlTransport = localControlSources
             .map((path) => ({ path: relative(root, path), source: readFileSync(path, 'utf8') }))
-            .filter(({ source }) =>
-                /from\s+['"]node:net['"]|\b(?:host|runtime)\.sock\b|unix domain socket|\bUDS\b/iu.test(
-                    source,
-                ),
+            .filter(
+                ({ path, source }) =>
+                    /\b(?:host|runtime)\.sock\b|unix domain socket|\bUDS\b/iu.test(source) ||
+                    (path !== 'apps/server/src/core/mobile/gateway/gateway.ts' &&
+                        /from\s+['"]node:net['"]/u.test(source)),
             )
             .map(({ path }) => path);
         expect(legacyControlTransport).toEqual([]);
@@ -327,6 +362,7 @@ describe('pnpm workspace contract', () => {
             'configuration',
             'desktop',
             'domain',
+            'mobile',
             'registry',
             'transport',
         ]);

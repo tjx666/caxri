@@ -1,8 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { relativeTime } from '../relative-time';
 
 const NOW = Date.UTC(2026, 0, 1, 12, 0, 0);
+
+afterEach(() => {
+    vi.unstubAllGlobals();
+});
 
 describe('relativeTime', () => {
     it('describes sub-minute differences in seconds', () => {
@@ -20,5 +24,14 @@ describe('relativeTime', () => {
 
     it('describes future timestamps', () => {
         expect(relativeTime(NOW + 3 * 3_600_000, NOW)).toBe('in 3 hours');
+    });
+
+    it('loads and formats when Intl.RelativeTimeFormat is unavailable', async () => {
+        vi.resetModules();
+        vi.stubGlobal('Intl', { ...Intl, RelativeTimeFormat: undefined });
+
+        const portableModule = await import('../relative-time');
+
+        expect(portableModule.relativeTime(NOW - 90_000, NOW)).toBe('1 minute ago');
     });
 });

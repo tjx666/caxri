@@ -26,6 +26,7 @@ export type SettingRowBinding =
     | { type: 'terminal-reference-links' }
     | { type: 'files-exclude' }
     | { type: 'archived-sessions' }
+    | { type: 'mobile-access' }
     | { type: 'remote-debugging' }
     | { type: 'hardware-acceleration' };
 
@@ -245,6 +246,24 @@ const rows: SettingRowDescriptor[] = [
         description: 'Restore or permanently delete archived Sessions',
         binding: { type: 'archived-sessions' },
         haystack: lower(['archived sessions', 'restore', 'delete', 'manage', 'history']),
+    },
+    {
+        id: 'mobile.access',
+        category: 'mobile',
+        title: 'Mobile access',
+        description:
+            'Pair phones and tablets on this local network to review scoped Agent Sessions and send short replies',
+        binding: { type: 'mobile-access' },
+        haystack: lower([
+            'mobile access',
+            'phone',
+            'tablet',
+            'android',
+            'ios',
+            'pair',
+            'qr code',
+            'local network',
+        ]),
     },
     specRow('terminal.fontFamily'),
     specRow('terminal.fontSize'),

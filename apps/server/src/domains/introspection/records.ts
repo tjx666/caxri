@@ -150,6 +150,8 @@ export class RecordQueryService {
                     archivedAt,
                     lastOpenedAt,
                     lastActivityState,
+                    primaryAgentTerminalId,
+                    attentionEpoch,
                     hasUnread,
                 }) => ({
                     id,
@@ -158,6 +160,8 @@ export class RecordQueryService {
                     ...(archivedAt !== undefined && { archivedAt }),
                     lastOpenedAt,
                     lastActivityState,
+                    ...(primaryAgentTerminalId !== undefined && { primaryAgentTerminalId }),
+                    attentionEpoch,
                     hasUnread,
                 }),
             ),

@@ -43,7 +43,7 @@ import type {
 } from './models/agent-dispatch-receipts';
 import type { AppStateKey, AppStateValue } from './models/app-state';
 import type { SessionWorkbenchBinding } from './models/sessions';
-import { MAX_TERMINALS_GLOBAL, MAX_TERMINALS_PER_SESSION } from './models/terminals';
+import { assertTerminalCapacity } from './terminal-capacity';
 
 /**
  * Facade kept close to the pre-split `Database` API so every consumer (composition root, Terminal manager, File
@@ -62,29 +62,12 @@ export class CaxriDatabase {
         this.sessionNaming = this.db.sessionNaming;
     }
 
-    private assertTerminalCapacity(sessionId?: string): void {
-        if (this.db.terminals.countAll() >= MAX_TERMINALS_GLOBAL)
-            throw new CaxriError(
-                'CAPACITY',
-                `Caxri supports at most ${MAX_TERMINALS_GLOBAL} Terminals`,
-            );
-        if (
-            sessionId &&
-            this.db.terminals.countForSession(sessionId) >= MAX_TERMINALS_PER_SESSION
-        ) {
-            throw new CaxriError(
-                'CAPACITY',
-                `A Session supports at most ${MAX_TERMINALS_PER_SESSION} Terminals`,
-            );
-        }
-    }
-
     private insertTerminal(sessionId: string, kind: TerminalKind, cwd?: string): TerminalRecord {
         const session = this.db.sessions.get(sessionId);
         if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
         const ownerProject = this.db.projects.get(session.projectId);
         if (!ownerProject) throw new CaxriError('NOT_FOUND', 'Project not found');
-        this.assertTerminalCapacity(sessionId);
+        assertTerminalCapacity(this.db.terminals, sessionId);
         const terminal = this.db.terminals.insert({
             sessionId,
             kind,
@@ -187,6 +170,22 @@ export class CaxriDatabase {
         now = Date.now(),
     ): boolean {
         return this.db.sessions.touchActivity(sessionId, reason, now);
+    }
+
+    consumeSessionAttentionReply(
+        sessionId: string,
+        terminalId: string,
+        attentionEpoch: number,
+    ): boolean {
+        return this.db.sessions.consumeAttentionReply(sessionId, terminalId, attentionEpoch);
+    }
+
+    releaseSessionAttentionReply(
+        sessionId: string,
+        terminalId: string,
+        attentionEpoch: number,
+    ): boolean {
+        return this.db.sessions.releaseAttentionReply(sessionId, terminalId, attentionEpoch);
     }
 
     getSessionWorkbenchBinding(id: string): SessionWorkbenchBinding | undefined {
@@ -457,7 +456,7 @@ export class CaxriDatabase {
             });
             let terminal: TerminalRecord | null = null;
             if (kind) {
-                this.assertTerminalCapacity();
+                assertTerminalCapacity(this.db.terminals);
                 terminal = this.db.terminals.insert({
                     sessionId: session.id,
                     kind,
