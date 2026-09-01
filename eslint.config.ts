@@ -68,12 +68,12 @@ export default defineConfig(
         'competitors/**',
         /**
          * `@yutengjing/eslint-config-basic` scopes a `no-console`/`no-process-exit` override to `**\/scripts/**\/*.*`,
-         * which (as an unrestricted `files` pattern) broadens the overall file-discovery superset to any extension
+         * which (as an unrestricted `files` pattern) broadens the overall file-discovery superset to every extension
          * under a `scripts/` directory. Because the shared preset's TypeScript `languageOptions` block has no `files`
-         * filter of its own, that superset makes ESLint try to parse this shell script with the TypeScript parser and
-         * crash. Shell scripts were never meant to be JS/TS-linted; there is exactly one in the repository.
+         * filter of its own, ESLint would try to parse native helpers with the TypeScript parser and crash. Shell and
+         * Swift sources have their own compilers and were never meant to be JS/TS-linted.
          */
-        '**/*.sh',
+        '**/*.{sh,swift}',
         /**
          * Negative fixtures for `scripts/__tests__/eslint-toolchain-contract.test.ts`: they exist solely to trip
          * specific rules and would otherwise fail this repository's own `--max-warnings=0` gate. The contract test
