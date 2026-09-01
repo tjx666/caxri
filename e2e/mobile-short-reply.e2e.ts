@@ -10,8 +10,10 @@ import { writeJsonAtomic } from '../scripts/atomic-json.ts';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
+import { MOBILE_ACCEPTANCE_SAFE_OUTPUT } from './support/mobile-acceptance-fixture.ts';
 import {
     adbShell,
+    captureMobileFramebuffer,
     mobileSemantics,
     openMobilePairingLink,
     runMobileDeviceCommand,
@@ -90,6 +92,7 @@ process.stdin.on('data', (chunk) => {
   }
 });
 process.stdin.resume();
+process.stdout.write(${JSON.stringify(MOBILE_ACCEPTANCE_SAFE_OUTPUT)});
 setTimeout(() => {
   invokeHook('UserPromptSubmit', { session_id: fixtureSessionId, turn_id: 'turn-1' });
   invokeHook('PermissionRequest', { session_id: fixtureSessionId, turn_id: 'turn-1' });
@@ -192,7 +195,9 @@ setTimeout(() => {
         await tapMobileCheck(serial, `session-row-${allowedSessionId}`);
         await waitForMobile(
             () => mobileSemantics(serial),
-            (nodes) => nodes.some((node) => node.checkId === 'short-reply-input' && node.enabled),
+            (nodes) =>
+                nodes.some((node) => node.checkId === 'short-reply-input' && node.enabled) &&
+                nodes.some((node) => node.checkId === 'terminal-preview-populated'),
         );
         await new Promise((resolve) => setTimeout(resolve, RECORDING_STATE_HOLD_MS));
         await replyRecording.stop();
@@ -218,6 +223,10 @@ setTimeout(() => {
         if (!captured.equals(Buffer.from(`${acceptanceToken}\r`)))
             throw new Error('The fake Agent received unexpected input');
         await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) => nodes.some((node) => node.checkId === 'short-reply-success'),
+        );
+        await waitForMobile(
             () => pageRequest<BootstrapState>(running!.page, 'app.bootstrap'),
             (state) =>
                 state.sessions.some(
@@ -230,6 +239,16 @@ setTimeout(() => {
             () => mobileSemantics(serial),
             (nodes) => nodes.some((node) => node.checkId === 'short-reply-send' && !node.enabled),
         );
+        const assetsDirectory = process.env.CAXRI_MOBILE_ACCEPTANCE_ASSETS_DIR;
+        const artifactManifest = process.env.CAXRI_MOBILE_ACCEPTANCE_ARTIFACT_MANIFEST;
+        if (assetsDirectory && artifactManifest) {
+            const screenshotName = 'MOB-SESSION-02-reply-sent-android.png';
+            await captureMobileFramebuffer(serial, join(assetsDirectory, screenshotName));
+            await writeJsonAtomic(artifactManifest, {
+                artifacts: [`assets/${screenshotName}`],
+                schemaVersion: 1,
+            });
+        }
         await testInfo.attach('android-mobile-receipt.json', {
             body: Buffer.from(
                 JSON.stringify(
@@ -238,6 +257,7 @@ setTimeout(() => {
                         build: 'current-release',
                         pairing: 'encrypted',
                         reply: 'accepted-once',
+                        replySuccessVisible: true,
                         stateAfterReply: 'running',
                         status: 'passed',
                     },
@@ -259,6 +279,7 @@ setTimeout(() => {
                     count: 1,
                     destination: 'main-agent-terminal',
                     repeatDisabled: true,
+                    successVisible: true,
                     stateAfterReply: 'running',
                 },
                 launchId,

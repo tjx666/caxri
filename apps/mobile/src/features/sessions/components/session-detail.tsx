@@ -85,6 +85,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 18,
     },
     sendError: { fontSize: 13, lineHeight: 19 },
+    sendSuccess: { fontSize: 13, fontWeight: '600', lineHeight: 19 },
     sendLabel: { fontSize: 15, fontWeight: '700' },
     truncated: { fontSize: 12 },
 });
@@ -106,8 +107,17 @@ export const SessionDetail = ({
 }) => {
     const previewScroll = useRef<ScrollView>(null);
     const { error: previewError, isLoading: previewLoading, preview, refresh } = previewState;
-    const { byteLength, canSend, disabledReason, draft, send, sendError, sending, updateDraft } =
-        useShortReply({ isConnected, onRefresh, session });
+    const {
+        byteLength,
+        canSend,
+        disabledReason,
+        draft,
+        replySent,
+        send,
+        sendError,
+        sending,
+        updateDraft,
+    } = useShortReply({ isConnected, onRefresh, session });
 
     return (
         <KeyboardAvoidingView
@@ -193,7 +203,9 @@ export const SessionDetail = ({
                     <Text
                         selectable
                         style={[styles.previewText, { color: theme.text }]}
-                        testID="terminal-preview"
+                        testID={
+                            preview?.content ? 'terminal-preview-populated' : 'terminal-preview'
+                        }
                     >
                         {preview === null
                             ? session.primaryAgentTerminalId
@@ -244,14 +256,24 @@ export const SessionDetail = ({
                             {byteLength}/{MOBILE_SHORT_REPLY_MAX_BYTES} B
                         </Text>
                     </View>
-                    {sendError ? (
-                        <Text
-                            accessibilityRole="alert"
-                            style={[styles.sendError, { color: theme.danger }]}
-                        >
-                            {sendError}
-                        </Text>
-                    ) : null}
+                    <View accessibilityLiveRegion="polite">
+                        {sendError ? (
+                            <Text
+                                accessibilityRole="alert"
+                                style={[styles.sendError, { color: theme.danger }]}
+                            >
+                                {sendError}
+                            </Text>
+                        ) : null}
+                        {replySent ? (
+                            <Text
+                                style={[styles.sendSuccess, { color: theme.primary }]}
+                                testID="short-reply-success"
+                            >
+                                Reply sent.
+                            </Text>
+                        ) : null}
+                    </View>
                     <Pressable
                         accessibilityLabel={sending ? 'Sending reply' : 'Send reply'}
                         accessibilityRole="button"

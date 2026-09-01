@@ -35,6 +35,9 @@ interface CreateMobileAcceptanceFixtureInput {
     serial: string;
 }
 
+export const MOBILE_ACCEPTANCE_SAFE_OUTPUT =
+    'Synthetic Agent output: ready for Acceptance review.\r\n';
+
 async function fakeWaitingAgent(userDataDirectory: string, inputCapture: string) {
     return createFakeAgentMode({
         userDataDir: userDataDirectory,
@@ -67,6 +70,7 @@ process.stdin.on('data', (chunk) => {
   }
 });
 process.stdin.resume();
+process.stdout.write(${JSON.stringify(MOBILE_ACCEPTANCE_SAFE_OUTPUT)});
 setTimeout(() => {
   invokeHook('UserPromptSubmit', { session_id: fixtureSessionId, turn_id: 'turn-1' });
   invokeHook('PermissionRequest', { session_id: fixtureSessionId, turn_id: 'turn-1' });
