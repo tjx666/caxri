@@ -8,8 +8,8 @@ import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createTestTerminalManager } from '../../../__tests__/support/terminal';
-import type { TerminalHostControl } from '../../../core/terminal-host/execution';
 import { RemoteTerminalExecution } from '../../../core/terminal-host/execution';
+import type { TerminalHostControl } from '../../../core/terminal-host/execution-contract';
 import type { TerminalHostRequest, TerminalHostScope } from '../../../terminal-host/protocol';
 import { CaxriDatabase } from '../../db/repository';
 import { TerminalRestoreSupervisor } from '../restore-supervisor';

@@ -20,36 +20,17 @@ import type {
     TerminalExecutionLaunch,
     TerminalExecutionPort,
 } from '../../domains/terminal';
+import type { TerminalHostScope } from '../../terminal-host/protocol';
 import type {
-    TerminalHostMessage,
-    TerminalHostRequest,
-    TerminalHostScope,
-} from '../../terminal-host/protocol';
+    RemoteResizeQueue,
+    RemoteTerminalIdentity,
+    RemoteView,
+    TerminalHostCapability,
+    TerminalHostControl,
+    TerminalHostEvent,
+} from './execution-contract';
 import type { TerminalInputReceipt } from './input-queue';
 import { TerminalInputQueue } from './input-queue';
-
-interface RemoteTerminalIdentity {
-    agent?: { launchId: string; processId?: number };
-    attachmentId?: string;
-    generation: number;
-    processId?: number;
-    ready: Promise<void>;
-    record: TerminalRecord;
-}
-
-interface RemoteView {
-    attachmentId: string;
-    size?: { cols: number; rows: number };
-}
-interface RemoteResizeQueue {
-    completion?: Promise<void>;
-    identity: RemoteTerminalIdentity;
-    latest?: { cols: number; rows: number };
-    view: RemoteView;
-}
-
-type HostMessageEvent = Extract<TerminalHostMessage, { type: 'event' }>;
-type TerminalHostEvent = Exclude<HostMessageEvent, { event: 'host.ready' }>;
 
 /**
  * Bounds accepted-but-not-yet-delivered input while allowing short bursts to coalesce. The private protocol has a
@@ -58,17 +39,6 @@ type TerminalHostEvent = Exclude<HostMessageEvent, { event: 'host.ready' }>;
 const MAX_QUEUED_KEYBOARD_INPUT_CHARACTERS = MAX_TERMINAL_INPUT_LENGTH * 4;
 const MAX_QUEUED_TERMINAL_INPUT_CHARACTERS =
     MAX_TERMINAL_INPUT_PAYLOAD_LENGTH + MAX_TERMINAL_INPUT_LENGTH * 4;
-
-export interface TerminalHostControl {
-    onEvent(listener: (event: TerminalHostEvent) => void): () => void;
-    onExit(listener: (event: { code: number; signal: NodeJS.Signals | null }) => void): () => void;
-    request(
-        request: TerminalHostRequest,
-        scope: TerminalHostScope,
-        signal?: AbortSignal,
-    ): Promise<unknown>;
-    shutdown(): Promise<TerminalSnapshot[]>;
-}
 
 /**
  * Process-backed execution port. Renderer-owned input and resize preserve synchronous hot-path acceptance from cached
@@ -92,12 +62,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
 
     private terminalScope(
         identity: RemoteTerminalIdentity,
-        capability:
-            | 'terminal.agent.input'
-            | 'terminal.input'
-            | 'terminal.inspect'
-            | 'terminal.lifecycle'
-            | 'terminal.view',
+        capability: TerminalHostCapability,
         attachmentId?: string,
     ): TerminalHostScope {
         return {
