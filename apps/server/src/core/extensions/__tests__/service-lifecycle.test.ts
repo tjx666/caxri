@@ -281,6 +281,121 @@ describe('ExtensionService generation lifecycle', () => {
         },
     );
 
+    it('classifies superseded controlled reads as cancellation without hiding action expiry', async () => {
+        const service = new ExtensionService({
+            ...observationIdentity,
+            appVersion: '0.0.17',
+            commit: 'test',
+            extensionHostPath: '/out/main/extension-host.js',
+            extensionRoots: ['/extensions'],
+            includeTestOnly: true,
+            logger: new StructuredLogger(
+                '/tmp/caxri-extension-service-test',
+                'server-core',
+                'error',
+            ),
+            activeContext: () =>
+                Promise.resolve({
+                    ownerProjectId: 'project-1',
+                    sessionId: 'session-1',
+                    workbenchProjectId: 'project-1',
+                }),
+            projectIds: () => Promise.resolve(['project-1']),
+            projectStatus: () => Promise.resolve({ repositories: [], refreshedAt: 1 }),
+            workspaceRequest: () => Promise.resolve(null),
+        });
+        await service.start();
+        supervisorHarness.activation.resolve();
+        supervisorHarness.viewOperationResult = Promise.reject(
+            Object.assign(new Error('Source Control snapshot was superseded'), {
+                code: 'GENERATION_EXPIRED',
+            }),
+        );
+
+        await expect(
+            service.viewOperation({
+                viewId: 'publisher.fixture.sourceControl',
+                operation: 'source.snapshot',
+                arguments: { refresh: 0 },
+                requestId: 'superseded-snapshot',
+                context: {
+                    kind: 'session',
+                    sessionId: 'session-1',
+                    workbenchProjectId: 'project-1',
+                },
+            }),
+        ).rejects.toMatchObject({
+            code: 'CANCELLED',
+            message: 'Source Control snapshot was superseded',
+        });
+
+        supervisorHarness.viewOperationResult = Promise.reject(
+            Object.assign(new Error('Source Control action expired'), {
+                code: 'GENERATION_EXPIRED',
+            }),
+        );
+        await expect(
+            service.viewOperation({
+                viewId: 'publisher.fixture.sourceControl',
+                operation: 'source.action',
+                arguments: { actionId: 'stale-action', revision: '1' },
+                requestId: 'expired-action',
+                context: {
+                    kind: 'session',
+                    sessionId: 'session-1',
+                    workbenchProjectId: 'project-1',
+                },
+            }),
+        ).rejects.toMatchObject({
+            code: 'GENERATION_EXPIRED',
+            message: 'Source Control action expired',
+        });
+
+        const pending = Promise.withResolvers<unknown>();
+        supervisorHarness.viewOperationResult = pending.promise;
+        const retiredGeneration = service.viewOperation({
+            viewId: 'publisher.fixture.sourceControl',
+            operation: 'source.snapshot',
+            arguments: { refresh: 1 },
+            requestId: 'retired-generation-snapshot',
+            context: {
+                kind: 'session',
+                sessionId: 'session-1',
+                workbenchProjectId: 'project-1',
+            },
+        });
+        await vi.waitFor(() =>
+            expect(
+                supervisorHarness.requests.some(
+                    (request) =>
+                        request.method === 'viewOperation' &&
+                        request.parameters?.requestId === 'retired-generation-snapshot',
+                ),
+            ).toBe(true),
+        );
+        for (const listener of supervisorHarness.exitListeners) listener(86);
+        pending.resolve({
+            revision: '2',
+            title: 'Source Control',
+            accessibilityLabel: 'Repositories',
+            modeAccessibilityLabel: 'Source control mode',
+            modes: [],
+            selectedModeId: 'default',
+            refreshAction: {
+                id: 'refresh',
+                label: 'Refresh',
+                icon: { kind: 'theme', id: 'refresh' },
+                command: { id: 'publisher.fixture.refresh' },
+            },
+            providers: [],
+            emptyMessage: 'No repositories.',
+        });
+        await expect(retiredGeneration).rejects.toMatchObject({
+            code: 'CANCELLED',
+            message: 'View provider generation expired',
+        });
+    });
+
     it('does not let a rejected retired activation overwrite the crash generation', async () => {
         const service = new ExtensionService({
             ...observationIdentity,

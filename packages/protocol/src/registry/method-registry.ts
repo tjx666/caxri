@@ -63,6 +63,7 @@ import {
     terminalFileLinkAmbiguousResolutionSchema,
     terminalFileLinkAmbiguousResultSchema,
 } from '../domain/terminal-file-link.js';
+import { terminalLongPasteMethods } from '../domain/terminal-long-paste.js';
 import { terminalReferenceMethods } from '../domain/terminal-reference-contract.js';
 import {
     extensionCommandIdSchema,
@@ -428,6 +429,7 @@ export const methods = {
         }),
         result: z.null(),
     },
+    ...terminalLongPasteMethods,
     'terminal.resize': {
         ...terminalStreamControl,
         params: z.object({

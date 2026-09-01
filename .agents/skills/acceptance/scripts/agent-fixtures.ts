@@ -44,6 +44,7 @@ const sqliteRoot = process.env.CODEX_SQLITE_HOME;
 const receiptPath = path.join(stateRoot, 'acceptance-receipts.jsonl');
 const modePath = path.join(stateRoot, 'acceptance-next-generation.json');
 const releasePath = path.join(stateRoot, 'acceptance-release-generation');
+const echoTerminalInputPath = path.join(stateRoot, 'acceptance-echo-terminal-input');
 const counterPath = path.join(stateRoot, 'acceptance-generation-count');
 const privateMarker = 'CAXRI_ACCEPTANCE_PRIVATE_' + provider.toUpperCase();
 const quote = (value) => "'" + String(value).replaceAll("'", "''") + "'";
@@ -99,6 +100,7 @@ const currentTitle = (sessionId) => {
 const generatedTitle = (count) => provider === 'claude'
   ? (count === 1 ? 'Claude Automatic Naming' : 'Claude Resumed Naming')
   : (count === 1 ? 'Codex Native Naming' : 'Codex Resumed Naming');
+const generatedPasteSummary = 'Actual error: build failed with code E42 at src/task.ts:17; repeated progress lines were omitted.';
 
 const resumeIndex = process.argv.indexOf('--resume');
 const renameCommand = process.argv.at(-1) ?? '';
@@ -121,19 +123,21 @@ if (provider === 'claude' && resumeIndex >= 0 && renameCommand.startsWith('/rena
 
 const isClaudeGeneration = provider === 'claude' && process.argv.includes('--print') && process.argv.includes('--model');
 const isCodexGeneration = provider === 'codex' && process.argv[2] === 'exec';
-if (isCodexGeneration) {
-  appendReceipt({ kind: 'unexpectedCodexNamingCall' });
-  process.exit(7);
-}
-if (isClaudeGeneration) {
+if (isClaudeGeneration || isCodexGeneration) {
   let input = '';
   process.stdin.setEncoding('utf8');
   process.stdin.on('data', (chunk) => { input += chunk; });
   process.stdin.on('end', () => {
+    if (isCodexGeneration && !input.includes('If the text is a log, build trace, test output, or diagnostic dump:')) {
+      appendReceipt({ kind: 'unexpectedCodexTextGeneration' });
+      process.exit(7);
+      return;
+    }
     const mode = consumeMode();
     const count = nextCount();
     const sessionId = mode.sessionId ?? '';
-    const title = mode.kind === 'same' ? currentTitle(sessionId) : (mode.title ?? generatedTitle(count));
+    const generatedText = provider === 'claude' ? generatedTitle(count) : generatedPasteSummary;
+    const text = mode.kind === 'same' ? currentTitle(sessionId) : (mode.title ?? generatedText);
     appendReceipt({
       argumentContainsPrivateInput: process.argv.join(' ').includes(privateMarker),
       call: count,
@@ -143,7 +147,8 @@ if (isClaudeGeneration) {
     });
     const finish = () => {
       if (mode.kind === 'fail') process.exit(7);
-      process.stdout.write(title || generatedTitle(count));
+      if (provider === 'claude') process.stdout.write(text || generatedTitle(count));
+      else process.stdout.write(JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', text: text || generatedPasteSummary } }) + '\n');
     };
     if (mode.kind === 'hold') waitForRelease(finish);
     else finish();
@@ -269,8 +274,20 @@ const requestAttention = () => {
   invokeHook('PermissionRequest');
 };
 
-appendTranscript('Initial automatic naming topic', false);
-setTimeout(() => {
+const requiredInitialHooks = ['SessionStart', 'UserPromptSubmit', 'Stop'];
+const initialHooksReady = () => {
+  try {
+    const hooks = hookDocument().hooks;
+    return requiredInitialHooks.every((event) => hooks[event]?.[0]?.hooks?.[0]?.command);
+  } catch {
+    return false;
+  }
+};
+const startInitialTurn = () => {
+  if (!initialHooksReady()) {
+    setTimeout(startInitialTurn, 50);
+    return;
+  }
   try {
     startTurn('Initial automatic naming topic');
     setTimeout(() => {
@@ -279,43 +296,96 @@ setTimeout(() => {
   } catch (error) {
     appendReceipt({ kind: 'fixtureError', message: error.name });
   }
-}, 600);
+};
 
+appendTranscript('Initial automatic naming topic', false);
+setTimeout(startInitialTurn, 50);
+
+const bracketedPasteStart = '\u001b[200~';
+const bracketedPasteEnd = '\u001b[201~';
 let input = '';
+let isBracketedPaste = false;
 process.stdin.setRawMode?.(true);
 process.stdin.setEncoding('utf8');
-process.stdin.on('data', (chunk) => {
-  input += chunk;
-  const lines = input.split(/\r?\n|\r/);
-  input = lines.pop() ?? '';
-  for (const raw of lines) {
-    const command = raw.trim();
-    try {
-      if (command === 'fixture:start') startTurn('Long completion notification topic');
-      else if (command === 'fixture:finish') finishTurn();
-      else if (command === 'fixture:waiting') requestAttention();
-      else if (command === 'fixture:release') fs.writeFileSync(releasePath, 'release');
-      else if (command === 'fixture:hold-next') setMode({ kind: 'hold', sessionId });
-      else if (command === 'fixture:fail-next') setMode({ kind: 'fail', sessionId });
-      else if (command === 'fixture:same-next') setMode({ kind: 'same', sessionId });
-      else if (command.startsWith('fixture:title:')) setMode({ kind: 'normal', sessionId, title: command.slice('fixture:title:'.length) });
-      else if (command === 'fixture:turn') { startTurn('A changed acceptance topic'); setTimeout(finishTurn, 150); }
-      else if (command === 'fixture:private-turn') { startTurn('Private acceptance topic', true); setTimeout(finishTurn, 150); }
-      else if (command === 'fixture:exit') {
-        appendReceipt({ kind: 'fixtureExit' });
-        process.stdout.write('Fixture Agent exiting\r\n');
-        process.exit(0);
-      }
-      else if (command) appendReceipt({ kind: 'terminalInput', length: command.length });
-      process.stdout.write('Fixture command accepted\r\n');
-    } catch (error) {
-      appendReceipt({ kind: 'fixtureError', message: error.name });
-      process.stdout.write('Fixture command failed\r\n');
+const handleCommand = (raw) => {
+  const command = raw.trim();
+  try {
+    if (command === 'fixture:start') startTurn('Long completion notification topic');
+    else if (command === 'fixture:finish') finishTurn();
+    else if (command === 'fixture:waiting') requestAttention();
+    else if (command === 'fixture:release') fs.writeFileSync(releasePath, 'release');
+    else if (command === 'fixture:hold-next') setMode({ kind: 'hold', sessionId });
+    else if (command === 'fixture:fail-next') setMode({ kind: 'fail', sessionId });
+    else if (command === 'fixture:same-next') setMode({ kind: 'same', sessionId });
+    else if (command.startsWith('fixture:title:')) setMode({ kind: 'normal', sessionId, title: command.slice('fixture:title:'.length) });
+    else if (command === 'fixture:turn') { startTurn('A changed acceptance topic'); setTimeout(finishTurn, 150); }
+    else if (command === 'fixture:private-turn') { startTurn('Private acceptance topic', true); setTimeout(finishTurn, 150); }
+    else if (command === 'fixture:exit') {
+      appendReceipt({ kind: 'fixtureExit' });
+      process.stdout.write('Fixture Agent exiting\r\n');
+      process.exit(0);
     }
+    else if (command) appendReceipt({ kind: 'terminalInput', length: command.length });
+    process.stdout.write('Fixture command accepted\r\n');
+  } catch (error) {
+    appendReceipt({ kind: 'fixtureError', message: error.name });
+    process.stdout.write('Fixture command failed\r\n');
   }
+};
+const markerSuffixLength = (value, marker) => {
+  for (let length = Math.min(value.length, marker.length - 1); length > 0; length -= 1) {
+    if (value.endsWith(marker.slice(0, length))) return length;
+  }
+  return 0;
+};
+const processInput = () => {
+  while (input.length > 0) {
+    if (isBracketedPaste) {
+      const endIndex = input.indexOf(bracketedPasteEnd);
+      if (endIndex === -1) {
+        const suffixLength = markerSuffixLength(input, bracketedPasteEnd);
+        input = suffixLength === 0 ? '' : input.slice(-suffixLength);
+        return;
+      }
+      input = input.slice(endIndex + bracketedPasteEnd.length);
+      isBracketedPaste = false;
+      continue;
+    }
+    const startIndex = input.indexOf(bracketedPasteStart);
+    const newline = /\r\n|\r|\n/u.exec(input);
+    if (startIndex !== -1 && (newline?.index === undefined || startIndex < newline.index)) {
+      input = input.slice(startIndex + bracketedPasteStart.length);
+      isBracketedPaste = true;
+      continue;
+    }
+    if (newline?.index !== undefined) {
+      handleCommand(input.slice(0, newline.index));
+      input = input.slice(newline.index + newline[0].length);
+      continue;
+    }
+    return;
+  }
+};
+process.stdin.on('data', (chunk) => {
+  // Opt-in echo makes unsent PTY input observable without exposing a host Agent process.
+  if (fs.existsSync(echoTerminalInputPath)) {
+    appendReceipt({
+      inputContainsPrivateMarker: chunk.includes(privateMarker),
+      kind: 'terminalChunk',
+      length: chunk.length,
+    });
+    const visibleInput = chunk
+      .replaceAll(bracketedPasteStart, '')
+      .replaceAll(bracketedPasteEnd, '')
+      .replaceAll(/\r\n|\r|\n/gu, '\r\n');
+    process.stdout.write(visibleInput);
+  }
+  input += chunk;
+  processInput();
 });
 process.stdin.resume();
-process.stdout.write('Fake ' + provider + ' Acceptance fixture ready\r\n');
+// Real Agent TUIs enable bracketed paste so embedded newlines remain unsent editor input.
+process.stdout.write('\u001b[?2004hFake ' + provider + ' Acceptance fixture ready\r\n');
 }
 main();
 `;

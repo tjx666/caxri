@@ -232,6 +232,53 @@ describe('Acceptance Electron stopper', () => {
         expect(replacement.removeOwnedUserData).not.toHaveBeenCalled();
     });
 
+    it('captures and stops a new Server generation created during shutdown', async () => {
+        const recordedServerCore = {
+            identity: 'recorded server core identity',
+            pid: 333,
+            role: 'server-core',
+        } as const;
+        const replacementServerCore = {
+            identity: 'replacement server core identity',
+            pid: 555,
+            role: 'server-core',
+        } as const;
+        const replacementExtensionHost = {
+            identity: 'replacement extension host identity',
+            pid: 666,
+            role: 'extension-host',
+        } as const;
+        const liveProcessIds = new Set([333, 555, 666]);
+        const discoverOwnedProcesses = vi
+            .fn()
+            .mockResolvedValueOnce([recordedServerCore])
+            .mockResolvedValue([replacementServerCore, replacementExtensionHost]);
+        const replacement = dependencies({
+            discoverOwnedProcesses,
+            isOwnedLauncher: vi.fn().mockResolvedValue(false),
+            isOwnedProcess: vi.fn(({ pid }: { pid: number }) =>
+                Promise.resolve(liveProcessIds.has(pid)),
+            ),
+            isOwnedRuntime: vi.fn().mockResolvedValue(false),
+            kill: vi.fn((pid: number) => liveProcessIds.delete(pid)),
+            readRuntime: vi
+                .fn()
+                .mockResolvedValue(
+                    JSON.stringify({ ...runtime, ownedProcesses: [recordedServerCore] }),
+                ),
+        });
+
+        await stopElectron(replacement);
+
+        expect(replacement.kill).toHaveBeenCalledWith(333, 'SIGTERM');
+        expect(replacement.kill).toHaveBeenCalledWith(555, 'SIGTERM');
+        expect(replacement.kill).toHaveBeenCalledWith(666, 'SIGTERM');
+        const persistedRuntime = vi.mocked(replacement.writeRuntime).mock.calls[0][0];
+        expect(persistedRuntime.ownedProcesses).toContainEqual(replacementServerCore);
+        expect(persistedRuntime.ownedProcesses).toContainEqual(replacementExtensionHost);
+        expect(replacement.removeOwnedUserData).toHaveBeenCalledOnce();
+    });
+
     it('persists a newly discovered Extension Host identity before signaling it', async () => {
         const recordedProcesses = [
             { identity: 'server core identity', pid: 333, role: 'server-core' },

@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
     isClipboardContainingImage,
+    registerTerminalClipboardHandlers,
     terminalImagePasteInput,
     terminalKeyboardInput,
     writeTerminalSelectionToCopyEvent,
@@ -91,6 +92,33 @@ describe('isClipboardContainingImage', () => {
         expect(
             terminalImagePasteInput(imageClipboard, catalogImagePasteInput('codex'), false),
         ).toBeUndefined();
+    });
+});
+
+describe('registerTerminalClipboardHandlers', () => {
+    it('claims long text paste before xterm can receive the original', () => {
+        const container = new EventTarget() as HTMLElement;
+        const testDocument = new EventTarget() as Document;
+        const pasteText = vi.fn(() => true);
+        const unregister = registerTerminalClipboardHandlers({
+            canAcceptAgentInput: () => true,
+            container,
+            document: testDocument,
+            getSelection: () => '',
+            imagePasteInput: () => {},
+            pasteImage: vi.fn(),
+            pasteText,
+        });
+        const event = new Event('paste', { bubbles: true, cancelable: true }) as ClipboardEvent;
+        Object.defineProperty(event, 'clipboardData', {
+            value: { files: [], getData: () => 'long text', items: [], types: ['text/plain'] },
+        });
+
+        container.dispatchEvent(event);
+
+        expect(event.defaultPrevented).toBe(true);
+        expect(pasteText).toHaveBeenCalledWith('long text');
+        unregister();
     });
 });
 

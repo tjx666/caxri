@@ -114,17 +114,19 @@ describe('Claude Code provider', () => {
         });
     });
 
-    it('sends title prompt content only through stdin to the low-cost model', async () => {
+    it('sends low-cost prompt content only through stdin', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-claude-naming-command-'));
         temporaryDirectories.push(directory);
         const executable = join(directory, 'claude.cjs');
         const argumentsPath = join(directory, 'arguments.json');
+        const cwdPath = join(directory, 'cwd.txt');
         const inputPath = join(directory, 'input.txt');
         await writeFile(
             executable,
             `#!${process.execPath}
 const { writeFileSync } = require('node:fs');
 writeFileSync(${JSON.stringify(argumentsPath)}, JSON.stringify(process.argv.slice(2)));
+writeFileSync(${JSON.stringify(cwdPath)}, process.cwd());
 let input = '';
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', (chunk) => { input += chunk; });
@@ -148,11 +150,30 @@ process.stdin.on('end', () => {
         ).resolves.toBe('Claude Naming Lifecycle');
         const arguments_ = JSON.parse(await readFile(argumentsPath, 'utf8')) as string[];
         expect(arguments_).toEqual(
-            expect.arrayContaining(['--model', 'haiku', '--no-session-persistence']),
+            expect.arrayContaining(['--model', 'haiku', '--no-session-persistence', '--safe-mode']),
         );
         expect(arguments_[arguments_.indexOf('--system-prompt') + 1]).toContain('Do not use emoji');
         expect(arguments_.join(' ')).not.toContain('private transcript excerpt');
         expect(await readFile(inputPath, 'utf8')).toBe('private transcript excerpt');
+        expect(await readFile(cwdPath, 'utf8')).not.toBe(directory);
+
+        await expect(
+            claudeProvider.pasteSummary?.summarize({
+                cwd: directory,
+                environment: { homeDirectory: directory, variables: {} },
+                executable,
+                prompt: 'long paste fixture',
+                version: '2.1.251 (Claude Code)',
+            }),
+        ).resolves.toBe('Claude Naming Lifecycle');
+        expect(JSON.parse(await readFile(argumentsPath, 'utf8'))).toEqual(
+            expect.arrayContaining(['--model', 'haiku', '--no-session-persistence']),
+        );
+        const pasteArguments = JSON.parse(await readFile(argumentsPath, 'utf8')) as string[];
+        expect(pasteArguments[pasteArguments.indexOf('--system-prompt') + 1]).toContain(
+            'If the text is a log, build trace, test output, or diagnostic dump:',
+        );
+        expect(await readFile(inputPath, 'utf8')).toBe('long paste fixture');
     });
 
     it('renames the exact native session with structured arguments and returns the provider-authoritative name', async () => {

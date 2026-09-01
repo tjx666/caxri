@@ -1,0 +1,60 @@
+import { z } from 'zod';
+
+import type { MethodSpec } from '../transport/method-spec.js';
+import { commandPolicy } from '../transport/method-spec.js';
+import { identifierSchema, MAX_TERMINAL_INPUT_LENGTH, pathSchema } from './domain.js';
+
+export const MAX_LONG_PASTE_CHARACTERS = 1_048_576;
+export const MAX_LONG_PASTE_SUMMARY_CHARACTERS = 4_096;
+
+export const terminalLongPasteParametersSchema = z.object({
+    terminalId: identifierSchema,
+    content: z.string().min(1).max(MAX_LONG_PASTE_CHARACTERS),
+});
+
+export const terminalLongPasteResultSchema = z.discriminatedUnion('status', [
+    z.object({
+        agentLaunchId: identifierSchema,
+        characterCount: z.number().int().min(1).max(MAX_LONG_PASTE_CHARACTERS),
+        filePath: pathSchema,
+        lineCount: z
+            .number()
+            .int()
+            .min(1)
+            .max(MAX_LONG_PASTE_CHARACTERS + 1),
+        status: z.literal('summarized'),
+        summary: z.string().min(1).max(MAX_LONG_PASTE_SUMMARY_CHARACTERS),
+    }),
+    z.object({
+        agentLaunchId: identifierSchema,
+        characterCount: z.number().int().min(1).max(MAX_LONG_PASTE_CHARACTERS),
+        filePath: pathSchema,
+        lineCount: z
+            .number()
+            .int()
+            .min(1)
+            .max(MAX_LONG_PASTE_CHARACTERS + 1),
+        status: z.literal('unavailable'),
+    }),
+]);
+
+export const terminalLongPasteMethods = {
+    'terminal.inputAgentExact': {
+        ...commandPolicy('server', 'control'),
+        idempotency: 'none',
+        params: z.object({
+            terminalId: identifierSchema,
+            data: z.string().min(1).max(MAX_TERMINAL_INPUT_LENGTH),
+            expectedAgentLaunchId: identifierSchema,
+        }),
+        result: z.null(),
+    },
+    'terminal.prepareLongPaste': {
+        ...commandPolicy('server', 'control'),
+        idempotency: 'none',
+        params: terminalLongPasteParametersSchema,
+        result: terminalLongPasteResultSchema,
+    },
+} as const satisfies Record<string, MethodSpec>;
+
+export type TerminalLongPasteResult = z.infer<typeof terminalLongPasteResultSchema>;

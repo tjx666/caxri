@@ -27,7 +27,6 @@ import {
  */
 async function waitForStableTerminalGrid(page: Page, terminalId: string): Promise<string> {
     const pane = page.locator(`.terminal-pane[data-terminal-id="${terminalId}"]`);
-    const input = pane.locator('.xterm-helper-textarea');
     const rows = pane.locator('.xterm-rows');
     const gridProbe = String.raw`printf 'CAXRI_PTY_GRID_%sx%s\n' "$(tput cols)" "$(tput lines)"`;
     /**
@@ -35,10 +34,16 @@ async function waitForStableTerminalGrid(page: Page, terminalId: string): Promis
      * attachment and initial replay finish, so keyboard probes must wait for the Renderer-owned readiness boundary.
      */
     await expect(pane.locator('.terminal-surface[data-terminal-attached="true"]')).toBeVisible();
-    await input.focus();
-    await input.press('Control+L');
-    await input.pressSequentially(gridProbe);
-    await input.press('Enter');
+    const sendGridProbe = () =>
+        pageRequest(page, 'terminal.input', {
+            data: `\u{C}${gridProbe}\r`,
+            terminalId,
+        });
+    /**
+     * This helper verifies the Renderer/PTY grid, not keyboard routing. Send the probe through the Server contract so
+     * an xterm remount cannot silently drop keystrokes while its local `disableStdin` state catches up.
+     */
+    await sendGridProbe();
 
     let candidate: string | undefined;
     let matchingSamples = 0;
@@ -105,9 +110,7 @@ async function waitForStableTerminalGrid(page: Page, terminalId: string): Promis
             ) {
                 candidate = undefined;
                 matchingSamples = 0;
-                await input.focus();
-                await input.pressSequentially(gridProbe);
-                await input.press('Enter');
+                await sendGridProbe();
                 return { ...rendererState, ptyGrid, stable: false };
             }
             const rendererGrid = rendererState.rendererGrid;

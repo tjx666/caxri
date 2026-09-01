@@ -183,6 +183,132 @@ describe('Acceptance Agent fixtures', () => {
         );
     });
 
+    it('can expose unsent Terminal input through an explicit fixture receipt and echo', async () => {
+        const userDataDirectory = await mkdtemp(join(tmpdir(), 'caxri-acceptance-agent-fixture-'));
+        directories.push(userDataDirectory);
+        const fixture = await prepareAcceptanceAgentFixture({
+            fixtureId: 'agent-features-v1',
+            sourceEnvironment: { PATH: '/usr/bin:/bin' },
+            userDataDir: userDataDirectory,
+        });
+        const codexRoot = fixture.environment.CODEX_HOME!;
+        await writeFile(join(codexRoot, 'acceptance-echo-terminal-input'), '');
+        const child = spawn(fixture.executables.codex, [], {
+            env: fixture.environment,
+            stdio: ['pipe', 'pipe', 'pipe'],
+        });
+        let stdout = '';
+        child.stdout.setEncoding('utf8').on('data', (chunk: string) => {
+            stdout += chunk;
+        });
+        child.stderr.resume();
+        try {
+            await expect.poll(() => stdout).toContain('Fake codex Acceptance fixture ready');
+            child.stdin.write('SYNTHETIC_SUMMARY_WITHOUT_SUBMIT');
+            await expect.poll(() => stdout).toContain('SYNTHETIC_SUMMARY_WITHOUT_SUBMIT');
+            await expect
+                .poll(async () => readReceipts(codexRoot))
+                .toContainEqual({
+                    inputContainsPrivateMarker: false,
+                    kind: 'terminalChunk',
+                    length: 32,
+                    provider: 'codex',
+                });
+        } finally {
+            child.kill('SIGTERM');
+            await new Promise<void>((resolve) => child.once('close', () => resolve()));
+        }
+
+        expect((await readReceipts(codexRoot)).some(({ kind }) => kind === 'terminalInput')).toBe(
+            false,
+        );
+    });
+
+    it('keeps multiline bracketed paste as unsent Agent input', async () => {
+        const userDataDirectory = await mkdtemp(join(tmpdir(), 'caxri-acceptance-agent-fixture-'));
+        directories.push(userDataDirectory);
+        const fixture = await prepareAcceptanceAgentFixture({
+            fixtureId: 'agent-features-v1',
+            sourceEnvironment: { PATH: '/usr/bin:/bin' },
+            userDataDir: userDataDirectory,
+        });
+        const codexRoot = fixture.environment.CODEX_HOME!;
+        await writeFile(join(codexRoot, 'acceptance-echo-terminal-input'), '');
+        const child = spawn(fixture.executables.codex, [], {
+            env: fixture.environment,
+            stdio: ['pipe', 'pipe', 'pipe'],
+        });
+        let stdout = '';
+        child.stdout.setEncoding('utf8').on('data', (chunk: string) => {
+            stdout += chunk;
+        });
+        child.stderr.resume();
+        try {
+            await expect.poll(() => stdout).toContain('\u{1B}[?2004h');
+            child.stdin.write('\u{1B}[200~Summary:\n- Error E42\n- src/task.ts:17\u{1B}[201~');
+            await expect
+                .poll(() => stdout)
+                .toContain('Summary:\r\n- Error E42\r\n- src/task.ts:17');
+        } finally {
+            child.kill('SIGTERM');
+            await new Promise<void>((resolve) => child.once('close', () => resolve()));
+        }
+
+        expect((await readReceipts(codexRoot)).some(({ kind }) => kind === 'terminalInput')).toBe(
+            false,
+        );
+        expect(stdout).not.toContain('\u{1B}[200~');
+        expect(stdout).not.toContain('\u{1B}[201~');
+    });
+
+    it('waits for managed hooks before starting the initial fixture turn', async () => {
+        const userDataDirectory = await mkdtemp(join(tmpdir(), 'caxri-acceptance-agent-fixture-'));
+        directories.push(userDataDirectory);
+        const fixture = await prepareAcceptanceAgentFixture({
+            fixtureId: 'agent-features-v1',
+            sourceEnvironment: { PATH: '/usr/bin:/bin' },
+            userDataDir: userDataDirectory,
+        });
+        const codexRoot = fixture.environment.CODEX_HOME!;
+        const child = spawn(fixture.executables.codex, [], {
+            env: fixture.environment,
+            stdio: ['pipe', 'pipe', 'pipe'],
+        });
+        let stdout = '';
+        child.stdout.setEncoding('utf8').on('data', (chunk: string) => {
+            stdout += chunk;
+        });
+        child.stderr.resume();
+        try {
+            await expect.poll(() => stdout).toContain('Fake codex Acceptance fixture ready');
+            await new Promise((resolve) => setTimeout(resolve, 700));
+            expect(await readReceipts(codexRoot)).not.toContainEqual(
+                expect.objectContaining({ kind: 'fixtureError' }),
+            );
+
+            const hook = { hooks: [{ command: '/usr/bin/true' }] };
+            await writeFile(
+                join(codexRoot, 'hooks.json'),
+                JSON.stringify({
+                    hooks: { SessionStart: [hook], Stop: [hook], UserPromptSubmit: [hook] },
+                }),
+            );
+            await expect
+                .poll(
+                    async () =>
+                        (await readReceipts(codexRoot)).filter(({ kind }) => kind === 'hook')
+                            .length,
+                )
+                .toBe(3);
+            expect(await readReceipts(codexRoot)).not.toContainEqual(
+                expect.objectContaining({ kind: 'fixtureError' }),
+            );
+        } finally {
+            child.kill('SIGTERM');
+            await new Promise<void>((resolve) => child.once('close', () => resolve()));
+        }
+    });
+
     it('rejects paths, arbitrary names, and host provider fixture requests', async () => {
         const userDataDirectory = await mkdtemp(join(tmpdir(), 'caxri-acceptance-agent-fixture-'));
         directories.push(userDataDirectory);
@@ -199,7 +325,7 @@ describe('Acceptance Agent fixtures', () => {
         );
     });
 
-    it('drives Claude naming over stdin and rejects a Caxri Codex naming call', async () => {
+    it('drives Claude naming and Codex paste summaries while rejecting a Codex naming call', async () => {
         const userDataDirectory = await mkdtemp(join(tmpdir(), 'caxri-acceptance-agent-fixture-'));
         directories.push(userDataDirectory);
         const fixture = await prepareAcceptanceAgentFixture({
@@ -223,6 +349,14 @@ describe('Acceptance Agent fixtures', () => {
                 'CAXRI_ACCEPTANCE_PRIVATE_CODEX',
             ),
         ).rejects.toThrow('Fixture exited with 7');
+        await expect(
+            runFixture(
+                fixture.executables.codex,
+                ['exec', '--skip-git-repo-check', '-'],
+                fixture.environment,
+                'If the text is a log, build trace, test output, or diagnostic dump:\n\nCAXRI_ACCEPTANCE_PRIVATE_CODEX',
+            ),
+        ).resolves.toContain('Actual error: build failed with code E42');
 
         await expect(readReceipts(fixture.environment.CLAUDE_CONFIG_DIR!)).resolves.toContainEqual(
             expect.objectContaining({
@@ -232,7 +366,14 @@ describe('Acceptance Agent fixtures', () => {
             }),
         );
         await expect(readReceipts(fixture.environment.CODEX_HOME!)).resolves.toContainEqual(
-            expect.objectContaining({ kind: 'unexpectedCodexNamingCall' }),
+            expect.objectContaining({ kind: 'unexpectedCodexTextGeneration' }),
+        );
+        await expect(readReceipts(fixture.environment.CODEX_HOME!)).resolves.toContainEqual(
+            expect.objectContaining({
+                argumentContainsPrivateInput: false,
+                inputContainsPrivateMarker: true,
+                kind: 'generate',
+            }),
         );
     });
 });

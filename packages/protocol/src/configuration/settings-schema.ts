@@ -57,6 +57,9 @@ const agentMessagingSettingsSchema = z
 const agentNamingSettingsSchema = z
     .object({ enabled: z.boolean().default(false) })
     .default({ enabled: false });
+const agentPasteSummarySettingsSchema = z
+    .object({ enabled: z.boolean().default(true) })
+    .default({ enabled: true });
 const agentOutputRecoverySettingsSchema = z
     .object({
         enabled: z.boolean(),
@@ -90,6 +93,7 @@ const agentProviderSettingsSchema = z.object({
     launch: agentLaunchSettingsSchema,
     messaging: agentMessagingSettingsSchema,
     naming: agentNamingSettingsSchema,
+    pasteSummary: agentPasteSummarySettingsSchema,
     recovery: agentOutputRecoverySettingsSchema,
 });
 
@@ -170,6 +174,7 @@ export const appSettingsSchema = z.object({
     'terminal.fontSize': integerField(spec['terminal.fontSize']),
     'editor.fontFamily': nullableStringField(spec['editor.fontFamily']),
     'terminal.scrollback': integerField(spec['terminal.scrollback']),
+    'terminal.longPasteThreshold': integerField(spec['terminal.longPasteThreshold']),
     'terminal.copyOnSelect': booleanField(spec['terminal.copyOnSelect']),
     'terminal.gpuAcceleration': z
         .enum(enumValues(spec['terminal.gpuAcceleration'].options))

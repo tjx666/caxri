@@ -79,6 +79,7 @@ export interface TerminalExecutionPort {
     onEvent(listener: (event: TerminalExecutionEvent) => void): () => void;
     onExit(listener: (event: TerminalExecutionExit) => void): () => void;
     onHostExit(listener: (terminalIds: readonly string[]) => void): () => void;
+    agentLaunchId(terminalId: string): string | undefined;
     agentProcessId(terminalId: string): number | undefined;
     processId(terminalId: string): number | undefined;
     reassignSession(terminalId: string, sessionId: string): void;
@@ -111,4 +112,5 @@ export interface TerminalExecutionPort {
         data: string,
         abortSignal?: AbortSignal,
     ): Promise<boolean>;
+    writeAgentExact(terminalId: string, data: string, expectedAgentLaunchId: string): boolean;
 }

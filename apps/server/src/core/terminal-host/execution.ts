@@ -29,10 +29,7 @@ import type { TerminalInputReceipt } from './input-queue';
 import { TerminalInputQueue } from './input-queue';
 
 interface RemoteTerminalIdentity {
-    agent?: {
-        launchId: string;
-        processId?: number;
-    };
+    agent?: { launchId: string; processId?: number };
     attachmentId?: string;
     generation: number;
     processId?: number;
@@ -44,7 +41,6 @@ interface RemoteView {
     attachmentId: string;
     size?: { cols: number; rows: number };
 }
-
 interface RemoteResizeQueue {
     completion?: Promise<void>;
     identity: RemoteTerminalIdentity;
@@ -52,10 +48,8 @@ interface RemoteResizeQueue {
     view: RemoteView;
 }
 
-type TerminalHostEvent = Exclude<
-    Extract<TerminalHostMessage, { type: 'event' }>,
-    { event: 'host.ready' }
->;
+type HostMessageEvent = Extract<TerminalHostMessage, { type: 'event' }>;
+type TerminalHostEvent = Exclude<HostMessageEvent, { event: 'host.ready' }>;
 
 /**
  * Bounds accepted-but-not-yet-delivered input while allowing short bursts to coalesce. The private protocol has a
@@ -236,7 +230,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
                 const batch = queue.takeBatch();
                 // eslint-disable-next-line no-await-in-loop -- Input ordering requires one private request in flight per Terminal.
                 const result = (await this.supervisor.request(
-                    { method: 'terminal.input', params: { data: batch.data } },
+                    { method: 'terminal.input', params: batch.params },
                     this.terminalScope(queue.identity, 'terminal.input', queue.attachmentId),
                     queue.abortController.signal,
                 )) as { accepted: boolean };
@@ -351,6 +345,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         data: string,
         maximumLength: number,
         shouldAcknowledge = false,
+        expectedAgentLaunchId?: string,
     ): {
         accepted: boolean;
         queue?: TerminalInputQueue<RemoteTerminalIdentity>;
@@ -381,7 +376,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
                 : MAX_QUEUED_KEYBOARD_INPUT_CHARACTERS;
         if (queue.queuedCharacters + data.length > capacity)
             throw new CaxriError('CAPACITY', 'Terminal input queue capacity exceeded');
-        const receipt = queue.enqueue(data, shouldAcknowledge);
+        const receipt = queue.enqueue(data, shouldAcknowledge, expectedAgentLaunchId);
         if (!queue.completion) {
             queue.completion = this.drainInput(queue);
             this.background(queue.completion, 'terminal.input', terminalId);
@@ -510,20 +505,20 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         if (!result.accepted) return false;
         const { queue, receipt } = result;
         if (!queue || !receipt) return true;
-        const cancel = (): void => {
-            if (this.inputQueues.get(terminalId) === queue && queue.hasReceipt(receipt))
+        await queue.waitForReceipt(receipt, abortSignal, () => {
+            if (this.inputQueues.get(terminalId) === queue)
                 this.retireInputQueue(
                     terminalId,
                     new CaxriError('CANCELLED', 'Terminal input was cancelled'),
                 );
-        };
-        abortSignal?.addEventListener('abort', cancel, { once: true });
-        try {
-            await receipt.completion.promise;
-            return true;
-        } finally {
-            abortSignal?.removeEventListener('abort', cancel);
-        }
+        });
+        return true;
+    }
+
+    writeAgentExact(terminalId: string, data: string, launchId: string): boolean {
+        if (this.identities.get(terminalId)?.agent?.launchId !== launchId) return false;
+        return this.acceptInput(terminalId, data, MAX_TERMINAL_INPUT_LENGTH, false, launchId)
+            .accepted;
     }
 
     configureOutputRecovery(
@@ -742,6 +737,10 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
 
     agentProcessId(terminalId: string): number | undefined {
         return this.identities.get(terminalId)?.agent?.processId;
+    }
+
+    agentLaunchId(terminalId: string): string | undefined {
+        return this.identities.get(terminalId)?.agent?.launchId;
     }
 
     async resources(terminalId: string): Promise<TerminalResourceUsage | null> {

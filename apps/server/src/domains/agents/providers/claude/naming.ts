@@ -4,13 +4,9 @@ import { open, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type { AgentProviderDescriptor, AgentTitleSource } from '../../contract';
-import { agentCommandEnvironment, assertAgentRenameVersion } from '../../rename';
 import type { AgentTitleMessage } from '../../title-generation';
-import {
-    AGENT_TITLE_SYSTEM_INSTRUCTIONS,
-    readAgentTitleSource,
-    runAgentTitleCommand,
-} from '../../title-generation';
+import { AGENT_TITLE_SYSTEM_INSTRUCTIONS, readAgentTitleSource } from '../../title-generation';
+import { generateClaudeLowCostText } from './low-cost-generation';
 import {
     claudeTranscriptBaseRoot,
     claudeTranscriptPath,
@@ -18,7 +14,6 @@ import {
     resolveClaudeConfigDirectory,
 } from './paths';
 
-const CLAUDE_NAMING_MINIMUM_VERSION = '2.1.232';
 const MAX_CLAUDE_METADATA_BYTES = 128 * 1024;
 const MAX_CLAUDE_METADATA_FILES = 512;
 
@@ -126,34 +121,10 @@ export const claudeNaming: NonNullable<AgentProviderDescriptor['naming']> = {
         };
     },
     async generateTitle(context) {
-        assertAgentRenameVersion('claude', context.version, CLAUDE_NAMING_MINIMUM_VERSION);
-        return runAgentTitleCommand({
-            arguments: [
-                '--print',
-                '--model',
-                'haiku',
-                '--no-session-persistence',
-                '--tools',
-                '',
-                '--mcp-config',
-                '{"mcpServers":{}}',
-                '--strict-mcp-config',
-                '--setting-sources',
-                '',
-                '--no-chrome',
-                '--disable-slash-commands',
-                '--system-prompt',
-                AGENT_TITLE_SYSTEM_INSTRUCTIONS,
-                '--effort',
-                'low',
-                '--max-turns',
-                '1',
-            ],
-            cwd: context.cwd,
-            environment: agentCommandEnvironment(context.environment),
-            executable: context.executable,
-            input: context.prompt,
-            signal: context.signal,
-        });
+        return generateClaudeLowCostText(
+            context,
+            AGENT_TITLE_SYSTEM_INSTRUCTIONS,
+            'Automatic Session naming',
+        );
     },
 };

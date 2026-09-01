@@ -30,6 +30,7 @@ describe('Runtime service handler cancellation', () => {
             files: {} as FileService,
             git: { sync } as unknown as GitService,
             introspection: {} as ReturnType<typeof createIntrospectionServices>,
+            longPastes: {} as never,
             projectStatus: {} as ProjectStatusService,
             transcripts: {} as never,
             userDataPath: '/tmp/caxri-runtime-handler-test',
