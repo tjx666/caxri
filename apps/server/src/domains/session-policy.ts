@@ -217,6 +217,7 @@ export interface AgentLifecycleDecision {
 
 const NON_SESSION_ACTIVITY_PHASES = new Set<AgentLifecyclePhase>([
     'sessionIdentified',
+    'subagentStarted',
     'shellToolStarted',
     'shellToolFinished',
     'shellToolFailed',

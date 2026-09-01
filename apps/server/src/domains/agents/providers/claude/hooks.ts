@@ -15,8 +15,10 @@ const SETTINGS_TARGET = 'settings';
 const CAXRI_MANAGED_AWARE_FLAG = '--caxri-managed-aware';
 const bindings = [
     { event: 'UserPromptSubmit', phase: 'turnStarted' },
+    { event: 'SubagentStart', phase: 'subagentStarted' },
     { event: 'PermissionRequest', phase: 'attentionRequested' },
     { event: 'Stop', phase: 'turnFinished', reply: 'emptyJson' },
+    { event: 'SubagentStop', phase: 'turnFinished', reply: 'emptyJson' },
     { event: 'PreToolUse', matcher: '^Bash$', phase: 'shellToolStarted' },
     { event: 'PostToolUse', matcher: '^Bash$', phase: 'shellToolFinished' },
     { event: 'PostToolUseFailure', matcher: '^Bash$', phase: 'shellToolFailed' },
@@ -58,7 +60,7 @@ function disabledHookPolicy(source: string | undefined): string | undefined {
 
 export const claudeHookAdapter: AgentHookAdapter = {
     bindings,
-    schemaVersion: 7,
+    schemaVersion: 8,
     autoNamingConflict: (documents) => {
         const hasUnawareHook = jsonHookCommands(settingsSource(documents)).some(
             (command) =>

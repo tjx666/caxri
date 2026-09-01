@@ -5,6 +5,7 @@ import type { AgentEnvironment } from '../contract';
 export const agentLifecyclePhases = [
     'sessionIdentified',
     'turnStarted',
+    'subagentStarted',
     'attentionRequested',
     'turnFinished',
     'shellToolStarted',

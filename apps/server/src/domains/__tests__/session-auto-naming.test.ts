@@ -239,6 +239,18 @@ describe('Session automatic naming', () => {
         await test.service.close();
     });
 
+    it('does not generate from a child-scoped completion', async () => {
+        const test = harness();
+
+        test.service.observe({ ...lifecycle('turnFinished'), agentId: 'subagent-1' });
+        await new Promise((resolve) => setTimeout(resolve, 20));
+
+        expect(test.readTitleSource).not.toHaveBeenCalled();
+        expect(test.generateSessionTitle).not.toHaveBeenCalled();
+        expect(test.renameAutomatically).not.toHaveBeenCalled();
+        await test.service.close();
+    });
+
     it('does not start a Caxri generation for a provider with native naming', async () => {
         const test = harness({ provider: 'codex' });
 

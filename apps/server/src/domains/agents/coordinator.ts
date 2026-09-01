@@ -24,6 +24,7 @@ import {
     directAgentProvider,
     MAX_SHELL_COMMAND_LENGTH,
 } from './shell-promotion';
+import { AgentWorkTracker } from './work-tracker';
 
 const AGENT_METADATA_REFRESH_DELAY_MS = 2_000;
 const AGENT_COMPACTION_TIMEOUT_MS = 5 * 60_000;
@@ -69,9 +70,9 @@ export class AgentCoordinator {
     private readonly launchIdsByTerminal = new Map<string, string>();
     private readonly hookAuthoritativeLaunchIds = new Map<string, string>();
     private readonly attention = new AgentAttentionTracker();
+    private readonly work = new AgentWorkTracker((signal) => this.applyLifecycle(signal));
     /**
-     * A pending baseline keeps identical reconciliation probes from turning persisted provider state into fresh Session
-     * Activity or unread attention. `null` means this PTY generation has since shown a real transition.
+     * Tracks whether provider metadata is still only the launch baseline; `null` marks a real transition.
      */
     private readonly metadataActivityBaselines = new Map<string, MetadataActivityBaseline | null>();
 
@@ -149,9 +150,23 @@ export class AgentCoordinator {
         });
     }
 
+    private forgetLifecycleState(terminalId: string): void {
+        this.attention.forget(terminalId);
+        this.work.forget(terminalId);
+    }
+
+    private applyLifecycle(event: AgentLifecycleSignal): void {
+        if (event.phase === 'turnFinished') {
+            this.attention.forget(event.terminalId);
+            this.lifecycleWatchdogs.stopRunningTurn(event.terminalId);
+            this.hookAuthoritativeLaunchIds.set(event.terminalId, event.launchId);
+        }
+        if (this.database.updateAgentLifecycle(event))
+            this.emitAgentMetadataChange(event.terminalId);
+    }
+
     /**
-     * Applies a foreground-confirmed Shell promotion, same-provider reactivation, or provider switch. Returning false
-     * keeps an alias candidate alive in case the foreground provider changes later in its bounded window.
+     * Applies a confirmed Shell promotion or provider switch; false keeps the bounded candidate alive.
      */
     private confirmShellPromotion(
         terminalId: string,
@@ -169,7 +184,7 @@ export class AgentCoordinator {
             if (!this.database.confirmForegroundAgentProvider(terminalId, provider)) return false;
             this.probeGenerations.set(terminalId, (this.probeGenerations.get(terminalId) ?? 0) + 1);
             this.hookAuthoritativeLaunchIds.delete(terminalId);
-            this.attention.forget(terminalId);
+            this.forgetLifecycleState(terminalId);
             if (candidate.agentSessionId)
                 this.database.rebindAgentSession(terminalId, provider, candidate.agentSessionId);
         } else if (!this.database.promoteShellToAgent(terminalId, provider)) {
@@ -329,7 +344,7 @@ export class AgentCoordinator {
          */
         this.probeGenerations.set(terminal.id, (this.probeGenerations.get(terminal.id) ?? 0) + 1);
         this.hookAuthoritativeLaunchIds.delete(terminal.id);
-        this.attention.forget(terminal.id);
+        this.forgetLifecycleState(terminal.id);
         this.database.rebindAgentSession(terminal.id, provider, snapshot.sessionId);
         this.shellInputs.delete(terminal.id);
         this.shellPromotionCandidates.delete(terminal.id);
@@ -537,7 +552,7 @@ export class AgentCoordinator {
         this.lifecycleWatchdogs.forget(terminalId, true);
         this.launchIdsByTerminal.set(terminalId, launchId);
         this.hookAuthoritativeLaunchIds.delete(terminalId);
-        this.attention.forget(terminalId);
+        this.forgetLifecycleState(terminalId);
     }
 
     isCurrentTerminalLaunch(terminalId: string, launchId: string): boolean {
@@ -551,18 +566,18 @@ export class AgentCoordinator {
         this.lifecycleWatchdogs.forget(terminalId, true);
         this.launchIdsByTerminal.delete(terminalId);
         this.hookAuthoritativeLaunchIds.delete(terminalId);
-        this.attention.forget(terminalId);
+        this.forgetLifecycleState(terminalId);
     }
 
     /**
      * Applies only validated, provider-neutral lifecycle data. An attention-bearing signal makes hooks authoritative
      * for status; until then metadata remains a completion fallback when a later hook is lost, and it always owns
-     * identity/title/usage.
+     * identity/title/usage. A parent completion claims authority even while child aggregation defers its lifecycle.
      */
     observeLifecycleSignal(signal: AgentLifecycleSignal): boolean {
         if (this.launchIdsByTerminal.get(signal.terminalId) !== signal.launchId) return false;
         const terminal = this.database.getTerminal(signal.terminalId);
-        if (!terminal || (signal.agentId && signal.phase === 'turnFinished')) return false;
+        if (!terminal) return false;
         /**
          * Hook environment is inherited by every child of a Shell PTY so an alias-launched Agent can use it later. It
          * is not provider identity: only the independent foreground-process and metadata promotion paths may establish
@@ -593,6 +608,10 @@ export class AgentCoordinator {
             }
             return false;
         }
+        const work = this.work.observe(signal);
+        if (work.handled !== undefined) return work.handled;
+        if (signal.phase === 'turnFinished')
+            this.hookAuthoritativeLaunchIds.set(signal.terminalId, signal.launchId);
         const isToolBatchFinished = signal.phase === 'toolBatchFinished';
         const didResolveAttention =
             isToolBatchFinished && this.attention.resolvesFinalRequest(signal);
@@ -616,21 +635,12 @@ export class AgentCoordinator {
                         signal.agentTurnId,
                     );
                 else this.lifecycleWatchdogs.stopRunningTurn(signal.terminalId);
-
                 break;
             }
             case 'attentionRequested': {
                 this.attention.request(signal);
                 this.lifecycleWatchdogs.stopRunningTurn(signal.terminalId);
                 this.hookAuthoritativeLaunchIds.set(signal.terminalId, signal.launchId);
-
-                break;
-            }
-            case 'turnFinished': {
-                this.attention.forget(signal.terminalId);
-                this.lifecycleWatchdogs.stopRunningTurn(signal.terminalId);
-                this.hookAuthoritativeLaunchIds.set(signal.terminalId, signal.launchId);
-
                 break;
             }
             // No default
@@ -662,10 +672,8 @@ export class AgentCoordinator {
             shouldRefreshMetadata = true;
         }
         if (shouldRefreshMetadata) this.refreshes.schedule(signal.terminalId);
-        const isUpdated =
-            (!isToolBatchFinished || didResolveAttention) &&
-            this.database.updateAgentLifecycle(signal);
-        if (isUpdated) this.emitAgentMetadataChange(signal.terminalId);
+        if (!work.deferCompletion && (!isToolBatchFinished || didResolveAttention))
+            this.applyLifecycle(signal);
         return true;
     }
 
@@ -676,7 +684,7 @@ export class AgentCoordinator {
         for (const terminal of this.database.listTerminals())
             if (terminal.provider === provider) {
                 this.hookAuthoritativeLaunchIds.delete(terminal.id);
-                this.attention.forget(terminal.id);
+                this.forgetLifecycleState(terminal.id);
                 this.lifecycleWatchdogs.forget(terminal.id, true);
             }
     }
@@ -700,7 +708,7 @@ export class AgentCoordinator {
         this.excludedAgentSessionIdsByTerminal.set(terminalId, excluded);
         this.startedAtByTerminal.set(terminalId, startedAt);
         this.metadataActivityBaselines.delete(terminalId);
-        this.attention.forget(terminalId);
+        this.forgetLifecycleState(terminalId);
         this.database.resetAgentMetadataForStart(terminalId, startedAt);
     }
 
@@ -716,7 +724,7 @@ export class AgentCoordinator {
         this.shellInputs.delete(terminalId);
         this.startedAtByTerminal.set(terminalId, Date.now());
         this.metadataActivityBaselines.delete(terminalId);
-        this.attention.forget(terminalId);
+        this.forgetLifecycleState(terminalId);
     }
 
     /**
@@ -754,7 +762,7 @@ export class AgentCoordinator {
         this.probeGenerations.delete(terminalId);
         this.launchIdsByTerminal.delete(terminalId);
         this.hookAuthoritativeLaunchIds.delete(terminalId);
-        this.attention.forget(terminalId);
+        this.forgetLifecycleState(terminalId);
     }
 
     forgetSession(sessionId: string): void {
@@ -770,7 +778,7 @@ export class AgentCoordinator {
             this.probeGenerations.delete(terminal.id);
             this.launchIdsByTerminal.delete(terminal.id);
             this.hookAuthoritativeLaunchIds.delete(terminal.id);
-            this.attention.forget(terminal.id);
+            this.forgetLifecycleState(terminal.id);
         }
     }
 
@@ -783,6 +791,7 @@ export class AgentCoordinator {
         this.launchIdsByTerminal.clear();
         this.hookAuthoritativeLaunchIds.clear();
         this.attention.clear();
+        this.work.clear();
         this.metadataActivityBaselines.clear();
         this.lifecycleWatchdogs.close();
     }

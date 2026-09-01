@@ -4,16 +4,17 @@ import { join } from 'node:path';
 
 import type { AgentProvider } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { CaxriDatabase } from '../../db/repository';
 import { AgentCoordinator } from '../coordinator';
 import type { AgentAdapter } from '../service';
 import { AgentService } from '../service';
 
-function createAgents(): AgentService {
+function createAgents(
+    snapshot: AgentAdapter['snapshot'] = () => Promise.reject(new Error('not used')),
+): AgentService {
     const renameSession: AgentAdapter['renameSession'] = () => new Promise<never>(() => {});
-    const snapshot: AgentAdapter['snapshot'] = () => Promise.reject(new Error('not used'));
     const adapters: Record<AgentProvider, AgentAdapter> = {
         claude: { provider: 'claude', renameSession, snapshot },
         codex: { provider: 'codex', renameSession, snapshot },
@@ -53,6 +54,153 @@ describe('AgentCoordinator subagent lifecycle', () => {
 
             expect(handled).toBe(false);
             expect(database.getTerminal(created.terminal!.id)?.agentSessionId).toBeUndefined();
+            expect(database.getSession(created.session.id)).toMatchObject({
+                attentionEpoch: 0,
+                hasUnread: false,
+                lastActivityState: 'running',
+                lastAttentionKind: undefined,
+            });
+        } finally {
+            coordinator.close();
+            database.close();
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
+
+    it('waits for every active Claude subagent after the parent turn finishes', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-claude-subagent-running-'));
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'claude');
+        const coordinator = new AgentCoordinator(
+            database,
+            createAgents(),
+            () => {},
+            new StructuredLogger(join(directory, 'logs')),
+        );
+        const terminalId = created.terminal!.id;
+
+        try {
+            coordinator.beginTerminalLaunch(terminalId, 'launch-1');
+            coordinator.observeLifecycleSignal({
+                launchId: 'launch-1',
+                phase: 'turnStarted',
+                provider: 'claude',
+                terminalId,
+            });
+            for (const agentId of ['subagent-1', 'subagent-2']) {
+                coordinator.observeLifecycleSignal({
+                    agentId,
+                    launchId: 'launch-1',
+                    phase: 'subagentStarted',
+                    provider: 'claude',
+                    terminalId,
+                });
+            }
+
+            coordinator.observeLifecycleSignal({
+                launchId: 'launch-1',
+                phase: 'turnFinished',
+                provider: 'claude',
+                terminalId,
+            });
+
+            expect(database.getSession(created.session.id)).toMatchObject({
+                attentionEpoch: 0,
+                hasUnread: false,
+                lastActivityState: 'running',
+            });
+
+            coordinator.observeLifecycleSignal({
+                agentId: 'subagent-2',
+                launchId: 'launch-1',
+                phase: 'turnFinished',
+                provider: 'claude',
+                terminalId,
+            });
+            expect(database.getSession(created.session.id)).toMatchObject({
+                attentionEpoch: 0,
+                hasUnread: false,
+                lastActivityState: 'running',
+            });
+
+            coordinator.observeLifecycleSignal({
+                agentId: 'subagent-1',
+                launchId: 'launch-1',
+                phase: 'turnFinished',
+                provider: 'claude',
+                terminalId,
+            });
+            expect(database.getSession(created.session.id)).toMatchObject({
+                attentionEpoch: 1,
+                hasUnread: true,
+                lastActivityState: 'completed',
+                lastAttentionKind: 'completed',
+            });
+
+            coordinator.observeLifecycleSignal({
+                agentId: 'subagent-1',
+                launchId: 'launch-1',
+                phase: 'turnFinished',
+                provider: 'claude',
+                terminalId,
+            });
+            expect(database.getSession(created.session.id)?.attentionEpoch).toBe(1);
+        } finally {
+            coordinator.close();
+            database.close();
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
+
+    it('keeps deferred hook lifecycle authoritative over Claude metadata probes', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-claude-subagent-metadata-'));
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'claude');
+        const snapshot = vi.fn<AgentAdapter['snapshot']>(() =>
+            Promise.resolve({
+                attentionKind: 'waiting',
+                available: true,
+                observedAt: Date.now(),
+                provider: 'claude',
+                sessionId: 'claude-session',
+                status: 'waiting',
+            }),
+        );
+        const coordinator = new AgentCoordinator(
+            database,
+            createAgents(snapshot),
+            () => {},
+            new StructuredLogger(join(directory, 'logs')),
+        );
+        const terminalId = created.terminal!.id;
+
+        try {
+            coordinator.beginTerminalLaunch(terminalId, 'launch-1');
+            coordinator.observeLifecycleSignal({
+                launchId: 'launch-1',
+                phase: 'turnStarted',
+                provider: 'claude',
+                terminalId,
+            });
+            coordinator.observeLifecycleSignal({
+                agentId: 'subagent-1',
+                launchId: 'launch-1',
+                phase: 'subagentStarted',
+                provider: 'claude',
+                terminalId,
+            });
+            coordinator.observeLifecycleSignal({
+                launchId: 'launch-1',
+                phase: 'turnFinished',
+                provider: 'claude',
+                terminalId,
+            });
+
+            coordinator.probeTerminal(terminalId);
+            await expect
+                .poll(() => database.getTerminal(terminalId)?.agentSessionId)
+                .toBe('claude-session');
+            expect(snapshot).toHaveBeenCalledOnce();
             expect(database.getSession(created.session.id)).toMatchObject({
                 attentionEpoch: 0,
                 hasUnread: false,

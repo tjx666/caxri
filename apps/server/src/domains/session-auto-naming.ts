@@ -314,6 +314,7 @@ export class SessionAutoNamingService {
     }
 
     observe(signal: AgentLifecycleSignal): void {
+        if (signal.agentId) return;
         const terminal = this.database.getTerminal(signal.terminalId);
         if (!terminal) return;
         const session = this.database.getSession(terminal.sessionId);
