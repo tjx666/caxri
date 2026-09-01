@@ -39,6 +39,23 @@ describe('findTerminalLinks', () => {
         ]);
     });
 
+    it.each(['(', '[', '{', '（'])(
+        'stops a URL before an adjacent CJK note opened by %s',
+        (opener) => {
+            const target = 'https://example.com/acceptance/round-id';
+
+            expect(findTerminalLinks(`${target}${opener}覆盖 all checks)`)).toEqual([
+                {
+                    endIndex: target.length,
+                    kind: 'url',
+                    startIndex: 0,
+                    target,
+                    text: target,
+                },
+            ]);
+        },
+    );
+
     it('describes the destination for plain URL and file links', () => {
         const links = findTerminalLinks('https://example.com src/example.ts:12');
 
@@ -82,7 +99,7 @@ describe('findTerminalLinks', () => {
     });
 
     it('preserves URL query, fragment, percent encoding, and balanced parentheses', () => {
-        const target = 'https://example.com/a_(b)/c%20d?mode=review#summary';
+        const target = 'https://example.com/a_(覆盖范围)/c%20d?mode=review#summary';
 
         expect(findTerminalLinks(`${target}。`)).toMatchObject([
             { kind: 'url', target, text: target },
@@ -453,7 +470,7 @@ describe('registerTerminalLinks', () => {
         const terminal = createTerminal('descriptive label', cellsFor('descriptive label'));
         const { context, openUrl } = baseContext();
         const registration = registerTerminalLinks(terminal.terminal, context);
-        const target = 'https://example.com/search?q=你好，世界';
+        const target = 'https://example.com/search(q=你好，世界';
 
         terminal.setCursor(0, 0);
         expect(terminal.osc8(`;${target}`)).toBe(false);

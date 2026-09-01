@@ -7,6 +7,12 @@ import {
 } from './terminal-file-location';
 import type { TerminalLinkHintController } from './terminal-link-hint';
 import { createTerminalLinkHintController } from './terminal-link-hint';
+import type { TerminalLinkClosingBracket } from './terminal-link-token';
+import {
+    TERMINAL_LINK_BRACKET_ADJUSTMENTS,
+    trimPlainTextUrlToken,
+    trimTerminalLinkToken,
+} from './terminal-link-token';
 import type { TerminalLogicalLine } from './terminal-logical-line';
 import { joinTerminalLogicalLines, readSoftWrappedLogicalLine } from './terminal-logical-line';
 import type { VisibleOscLink } from './terminal-osc-link-tracker';
@@ -19,13 +25,11 @@ import type { TerminalLinkReferenceContext } from './terminal-reference-links';
 import { findTerminalReferenceLinks } from './terminal-reference-links';
 
 const CJK_PROSE_BOUNDARIES = new Set(['、', '，', '。', '；', '：', '！', '？']);
-const LEADING_WRAPPERS = new Set(['(', '[', '{', '<', '"', "'", '`']);
 const EXPLICIT_TERMINAL_URL_PATTERN = /https?:\/\/[^\s<>"'`]+/giu;
 /**
  * Plain text needs explicit CJK prose boundaries while OSC 8 targets retain every valid Unicode URL character.
  */
-const PLAIN_TEXT_URL_PATTERN = /https?:\/\/[^\s<>"'`、，。；：！？）]+/giu;
-const TRAILING_PUNCTUATION = new Set(['.', ',', ';', ':', '!', '?', '"', "'", '`']);
+const PLAIN_TEXT_URL_PATTERN = /https?:\/\/[^\s<>"'`、，。；：！？（）]+/giu;
 const TERMINAL_FILE_LINK_HINT_TEXT = '⌘ click to open in editor';
 const TERMINAL_URL_LINK_HINT_TEXT = '⌘ click to open in browser';
 
@@ -120,51 +124,6 @@ export interface TerminalLinkRegistration {
     restoreOscLinks(snapshots: readonly TerminalOscLinkSnapshot[]): void;
 }
 
-type ClosingBracket = ')' | ']' | '}';
-
-/**
- * Maps each opening/closing bracket character to the closer it affects and the amount by which it shifts that closer's
- * outstanding count, so `trimToken` can preserve balanced wrappers in one bounded scan.
- */
-const BRACKET_EXCESS_ADJUSTMENTS: Partial<Record<string, readonly [ClosingBracket, number]>> = {
-    '(': [')', -1],
-    ')': [')', 1],
-    '[': [']', -1],
-    ']': [']', 1],
-    '{': ['}', -1],
-    '}': ['}', 1],
-};
-
-function trimToken(raw: string): { endOffset: number; startOffset: number; text: string } {
-    let startOffset = 0;
-    let endOffset = raw.length;
-    while (startOffset < endOffset && LEADING_WRAPPERS.has(raw[startOffset])) startOffset += 1;
-    const bracketExcess: Record<ClosingBracket, number> = { ')': 0, ']': 0, '}': 0 };
-    /**
-     * Keep balanced URL/path brackets, but stop at the first unmatched closer so adjacent wrapper prose stays outside.
-     */
-    for (let index = startOffset; index < endOffset; index += 1) {
-        const adjustment = BRACKET_EXCESS_ADJUSTMENTS[raw[index]];
-        if (adjustment) {
-            const [closer, delta] = adjustment;
-            if (delta > 0 && bracketExcess[closer] === 0) {
-                endOffset = index;
-                break;
-            }
-            bracketExcess[closer] += delta;
-        }
-    }
-    while (startOffset < endOffset) {
-        const last = raw[endOffset - 1];
-        if (TRAILING_PUNCTUATION.has(last)) {
-            endOffset -= 1;
-            continue;
-        }
-        break;
-    }
-    return { endOffset, startOffset, text: raw.slice(startOffset, endOffset) };
-}
-
 /**
  * Only the current user's exact `~/...` shorthand is actionable. Server owns OS user lookup and deliberately rejects
  * other shell expansion forms so the Renderer never guesses at environment or account semantics.
@@ -225,9 +184,9 @@ function locationPathStart(text: string, pathEnd: number, wordSeparators: string
         if (/[\s|<>"'`]/.test(character)) break;
         start -= 1;
     }
-    const unmatchedOpeners: Array<{ closer: ClosingBracket; index: number }> = [];
+    const unmatchedOpeners: Array<{ closer: TerminalLinkClosingBracket; index: number }> = [];
     for (let index = start; index < pathEnd; index += 1) {
-        const adjustment = BRACKET_EXCESS_ADJUSTMENTS[text[index]];
+        const adjustment = TERMINAL_LINK_BRACKET_ADJUSTMENTS[text[index]];
         if (!adjustment) continue;
         const [closer, delta] = adjustment;
         if (delta < 0) unmatchedOpeners.push({ closer, index });
@@ -258,7 +217,7 @@ function findLocationFileLinks(
     for (const suffix of text.matchAll(TERMINAL_FILE_LOCATION_SUFFIX_PATTERN)) {
         const endIndex = suffix.index + suffix[0].length;
         const startIndex = locationPathStart(text, suffix.index, wordSeparators);
-        const trimmed = trimToken(text.slice(startIndex, endIndex));
+        const trimmed = trimTerminalLinkToken(text.slice(startIndex, endIndex));
         const location = parseTerminalFileLocation(trimmed.text);
         if (
             !location.location ||
@@ -348,7 +307,7 @@ function detachPathCandidateFromCjkProse(token: RawToken, wordSeparators: string
     for (let index = searchStart; index >= 0; index -= 1) {
         if (!CJK_PROSE_BOUNDARIES.has(token.text[index])) continue;
         const candidate = token.text.slice(index + 1);
-        const trimmed = trimToken(candidate);
+        const trimmed = trimTerminalLinkToken(candidate);
         if (
             !trimmed.text.startsWith('.') &&
             !trimmed.text.startsWith('/') &&
@@ -380,7 +339,10 @@ export function findTerminalLinks(
     for (const url of text.matchAll(urlPattern)) {
         const raw = url[0];
         const rawStart = url.index;
-        const trimmed = trimToken(raw);
+        const trimmed =
+            urlPattern === PLAIN_TEXT_URL_PATTERN
+                ? trimPlainTextUrlToken(raw)
+                : trimTerminalLinkToken(raw);
         if (!trimmed.text) continue;
         urlLinks.push({
             endIndex: rawStart + trimmed.endOffset,
@@ -396,7 +358,7 @@ export function findTerminalLinks(
         const token = detachPathCandidateFromCjkProse(rawToken, wordSeparators);
         const raw = token.text;
         const rawStart = token.index;
-        const trimmed = trimToken(raw);
+        const trimmed = trimTerminalLinkToken(raw);
         if (!trimmed.text) continue;
         const startIndex = rawStart + trimmed.startOffset;
         const endIndex = rawStart + trimmed.endOffset;

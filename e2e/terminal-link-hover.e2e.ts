@@ -24,7 +24,7 @@ test('Terminal links delay contextual hover hints and reserve the pointer cursor
         await createShellSession(running.page);
         const fileLink = 'src/example.ts:2';
         const url = 'https://example.com/hover-link';
-        const urlLine = `PR example#18958 (${url})(目标 canary)。`;
+        const urlLine = `${url}(覆盖 6/6 checks)。`;
         const oscBrowserLabel = 'OSC browser';
         const oscEditorLabel = 'OSC editor';
         const oscFileUrl = pathToFileURL(join(sourceDirectory, 'example.ts')).href;
