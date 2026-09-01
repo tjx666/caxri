@@ -59,10 +59,11 @@ describe('mobile Acceptance publication readback', () => {
     it('binds exact head, run, check ids, surfaces, and frozen mobile targets', () => {
         expect(
             createMobileAcceptanceReadbackReceipt({
+                checkpointPlan: plan,
                 checkpointId,
                 headSha,
                 history,
-                plan,
+                readbackPlan: [{ id: 'MOB-ACC-03', surface: 'desktop' }],
                 view,
             }),
         ).toMatchObject({
@@ -84,10 +85,11 @@ describe('mobile Acceptance publication readback', () => {
     it('rejects a remote surface mismatch', () => {
         expect(() =>
             createMobileAcceptanceReadbackReceipt({
+                checkpointPlan: plan,
                 checkpointId,
                 headSha,
                 history,
-                plan,
+                readbackPlan: [{ id: 'MOB-ACC-03', surface: 'desktop' }],
                 view: {
                     ...view,
                     checks: view.checks.map((check) => ({
@@ -97,5 +99,18 @@ describe('mobile Acceptance publication readback', () => {
                 },
             }),
         ).toThrow('remote surface');
+    });
+
+    it('rejects a repair plan that omits the readback case', () => {
+        expect(() =>
+            createMobileAcceptanceReadbackReceipt({
+                checkpointPlan: plan,
+                checkpointId,
+                headSha,
+                history,
+                readbackPlan: [{ id: 'MOB-PAIR-01', surface: 'desktop' }],
+                view,
+            }),
+        ).toThrow('does not contain the publication readback case');
     });
 });
