@@ -135,6 +135,7 @@ async function writeScenarioReceipt(
 async function executeBuiltInScenario(
     caseId: MobileAndroidAcceptanceCaseId,
     launchId: string,
+    remoteVideoPath: string,
     sourceCommit: string,
 ): Promise<void> {
     const { scenario } = mobileAndroidAcceptanceCase(caseId);
@@ -228,13 +229,14 @@ async function executeBuiltInScenario(
             });
             return;
         default:
-            return executePlaywrightScenario(caseId, launchId, sourceCommit);
+            return executePlaywrightScenario(caseId, launchId, remoteVideoPath, sourceCommit);
     }
 }
 
 async function executePlaywrightScenario(
     caseId: MobileAndroidAcceptanceCaseId,
     launchId: string,
+    remoteVideoPath: string,
     sourceCommit: string,
 ): Promise<void> {
     const scenario = mobileAndroidAcceptanceCase(caseId).scenario;
@@ -252,6 +254,7 @@ async function executePlaywrightScenario(
         CAXRI_MOBILE_ACCEPTANCE_SERIAL: serial,
         CAXRI_MOBILE_ACCEPTANCE_SOURCE_COMMIT: sourceCommit,
         ...(scenario === 'session-short-reply' && {
+            CAXRI_MOBILE_ACCEPTANCE_REMOTE_VIDEO_PATH: remoteVideoPath,
             CAXRI_MOBILE_ACCEPTANCE_RESULT_RECEIPT: join(assetsDirectory, `${caseId}-result.json`),
         }),
     };
@@ -344,7 +347,7 @@ async function executeCase(
         adbRun(['shell', 'pm', 'clear', 'com.caxri.mobile']);
         await markCaseLifecycleReady(reportDirectory, { caseId, launchId });
         isLifecycleReady = true;
-        if (definition.media.includes('video')) {
+        if (definition.media.includes('video') && definition.recordingOwner === 'adapter') {
             recording = await startMobileAcceptanceRecording({
                 arguments: [
                     '-s',
@@ -362,7 +365,7 @@ async function executeCase(
             });
             await new Promise((resolve) => setTimeout(resolve, 250));
         }
-        await executeBuiltInScenario(caseId, launchId, sourceCommit);
+        await executeBuiltInScenario(caseId, launchId, remoteVideoPath, sourceCommit);
         const scenarioArtifacts = await readScenarioArtifacts(caseId);
         for (const artifactPath of scenarioArtifacts) {
             // Sequential hashing preserves frozen artifact order and bounds device evidence memory.
@@ -382,9 +385,9 @@ async function executeCase(
     } finally {
         const activeRecording = recording;
         const collected = await collectMobileAcceptanceArtifacts({
-            captureRecording: activeRecording
+            captureRecording: definition.media.includes('video')
                 ? async () => {
-                      await activeRecording.stop();
+                      await activeRecording?.stop();
                       run(
                           adb,
                           ['-s', serial, 'pull', remoteVideoPath, videoPath],

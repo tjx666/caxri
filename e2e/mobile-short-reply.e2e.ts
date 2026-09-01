@@ -15,6 +15,7 @@ import {
     mobileSemantics,
     openMobilePairingLink,
     runMobileDeviceCommand,
+    startMobileFramebufferRecording,
     tapMobileCheck,
     waitForMobile,
 } from './support/mobile-android.ts';
@@ -27,6 +28,12 @@ test.use({ screenshot: 'off', trace: 'off' });
 
 const acceptanceToken = 'mobileok';
 
+/**
+ * Holds three content-safe product states long enough for the report finalizer's two-frame-per-second variation check.
+ * Recording still stops before the keyboard, reply text, or Terminal input can enter evidence.
+ */
+const RECORDING_STATE_HOLD_MS = 1_250;
+
 // eslint-disable-next-line no-empty-pattern -- Playwright requires the first test argument to use object destructuring.
 test('Android sends one bounded reply to a waiting fake Agent', async ({}, testInfo) => {
     const serial = process.env.CAXRI_MOBILE_ACCEPTANCE_SERIAL;
@@ -36,6 +43,9 @@ test('Android sends one bounded reply to a waiting fake Agent', async ({}, testI
         throw new Error(
             'Run the guarded Android acceptance script so it installs the current release build',
         );
+    const remoteVideoPath = process.env.CAXRI_MOBILE_ACCEPTANCE_REMOTE_VIDEO_PATH;
+    if (!remoteVideoPath)
+        throw new Error('The report-bound mobile Acceptance recording path is unavailable');
     const packageState = await adbShell(serial, ['dumpsys', 'package', 'com.caxri.mobile']);
     if (/\bDEBUGGABLE\b/u.test(packageState) || !packageState.includes('versionName=0.0.24'))
         throw new Error('The installed Caxri package is not the expected release build');
@@ -90,6 +100,7 @@ setTimeout(() => {
     });
 
     let running: Awaited<ReturnType<typeof launchCaxri>> | undefined;
+    let replyRecording: Awaited<ReturnType<typeof startMobileFramebufferRecording>> | undefined;
     let failure: unknown;
     try {
         running = await launchCaxri({
@@ -139,6 +150,13 @@ setTimeout(() => {
 
         await adbShell(serial, ['logcat', '-c']);
         await adbShell(serial, ['input', 'keyevent', 'KEYCODE_BACK']);
+        await adbShell(serial, ['am', 'start', '-W', 'com.caxri.mobile/.MainActivity']);
+        await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) => nodes.some((node) => node.checkId === 'pairing-entry-screen'),
+        );
+        replyRecording = await startMobileFramebufferRecording(serial, remoteVideoPath);
+        await new Promise((resolve) => setTimeout(resolve, RECORDING_STATE_HOLD_MS));
         await openMobilePairingLink(serial, pairing.pairingLink);
 
         const pairingNodes = await waitForMobile(
@@ -170,11 +188,15 @@ setTimeout(() => {
         if (pairingNodes.some((node) => node.checkId === `session-row-${deniedSessionId}`))
             throw new Error('The paired device exposed a Session outside its Project grant');
         if (devices.devices.length !== 1) throw new Error('Unexpected paired-device count');
+        await new Promise((resolve) => setTimeout(resolve, RECORDING_STATE_HOLD_MS));
         await tapMobileCheck(serial, `session-row-${allowedSessionId}`);
         await waitForMobile(
             () => mobileSemantics(serial),
             (nodes) => nodes.some((node) => node.checkId === 'short-reply-input' && node.enabled),
         );
+        await new Promise((resolve) => setTimeout(resolve, RECORDING_STATE_HOLD_MS));
+        await replyRecording.stop();
+        replyRecording = undefined;
         await tapMobileCheck(serial, 'short-reply-input');
         await adbShell(serial, ['input', 'text', acceptanceToken]);
         await waitForMobile(
@@ -250,6 +272,11 @@ setTimeout(() => {
         failure = error;
     } finally {
         let cleanupFailure: unknown;
+        try {
+            await replyRecording?.stop();
+        } catch (error) {
+            cleanupFailure = error;
+        }
         try {
             if (running) await pageRequest(running.page, 'mobile.access.disable');
         } catch {

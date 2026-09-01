@@ -11,21 +11,25 @@ describe('mobile Android Acceptance cases', () => {
         expect(mobileAndroidAcceptanceCase('MOB-FDN-01')).toEqual({
             desktopProfile: 'not-required',
             media: ['screenshot'],
+            recordingOwner: 'adapter',
             scenario: 'foundation-layout',
         });
         expect(mobileAndroidAcceptanceCase('MOB-FDN-02')).toEqual({
             desktopProfile: 'not-required',
             media: ['video'],
+            recordingOwner: 'adapter',
             scenario: 'foundation-cold-start',
         });
         expect(mobileAndroidAcceptanceCase('MOB-SESSION-02')).toEqual({
             desktopProfile: 'managed-by-isolated-e2e',
             media: ['screenshot', 'video'],
+            recordingOwner: 'scenario',
             scenario: 'session-short-reply',
         });
         expect(mobileAndroidAcceptanceCase('MOB-PAIR-05')).toEqual({
             desktopProfile: 'not-required',
             media: [],
+            recordingOwner: 'adapter',
             scenario: 'crypto-vector',
         });
         expect(() => mobileAndroidAcceptanceCase('MOB-SEC-01')).toThrow(
