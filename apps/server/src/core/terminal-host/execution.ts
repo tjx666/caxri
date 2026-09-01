@@ -20,15 +20,14 @@ import type {
     TerminalExecutionLaunch,
     TerminalExecutionPort,
 } from '../../domains/terminal';
-import type { TerminalHostScope } from '../../terminal-host/protocol';
 import type {
     RemoteResizeQueue,
     RemoteTerminalIdentity,
     RemoteView,
-    TerminalHostCapability,
     TerminalHostControl,
     TerminalHostEvent,
 } from './execution-contract';
+import { terminalScope } from './execution-scope';
 import type { TerminalInputReceipt } from './input-queue';
 import { TerminalInputQueue } from './input-queue';
 
@@ -58,21 +57,6 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         super();
         supervisor.onEvent((event) => this.projectHostEvent(event));
         supervisor.onExit(() => this.handleHostExit());
-    }
-
-    private terminalScope(
-        identity: RemoteTerminalIdentity,
-        capability: TerminalHostCapability,
-        attachmentId?: string,
-    ): TerminalHostScope {
-        return {
-            scope: 'terminal',
-            capability,
-            sessionId: identity.record.sessionId,
-            terminalId: identity.record.id,
-            ptyGeneration: identity.generation,
-            ...(attachmentId && { attachmentId }),
-        };
     }
 
     private isCurrentEvent(event: TerminalHostEvent): RemoteTerminalIdentity | undefined {
@@ -202,7 +186,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
                 // eslint-disable-next-line no-await-in-loop -- Input ordering requires one private request in flight per Terminal.
                 const result = (await this.supervisor.request(
                     { method: 'terminal.input', params: batch.params },
-                    this.terminalScope(queue.identity, 'terminal.input', queue.attachmentId),
+                    terminalScope(queue.identity, 'terminal.input', queue.attachmentId),
                     queue.abortController.signal,
                 )) as { accepted: boolean };
                 if (!result.accepted)
@@ -245,7 +229,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
                 // eslint-disable-next-line no-await-in-loop -- Resize pressure stays bounded by serializing the latest dimensions.
                 await this.supervisor.request(
                     { method: 'terminal.resize', params: size },
-                    this.terminalScope(queue.identity, 'terminal.view', queue.view.attachmentId),
+                    terminalScope(queue.identity, 'terminal.view', queue.view.attachmentId),
                 );
             }
         } finally {
@@ -264,8 +248,18 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         return completions;
     }
 
+    /**
+     * Re-samples after every drain because either hot path can replace its settled queue while the other remains
+     * active.
+     */
     private async settleHotPaths(terminalIds: Iterable<string>): Promise<void> {
-        await Promise.allSettled(this.hotPathCompletions(terminalIds));
+        const ids = [...terminalIds];
+        while (true) {
+            const completions = this.hotPathCompletions(ids);
+            if (completions.length === 0) return;
+            // eslint-disable-next-line no-await-in-loop -- Attachment rotation must include those newly admitted queues.
+            await Promise.allSettled(completions);
+        }
     }
 
     private async observeBackground(
@@ -293,11 +287,13 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         snapshot: TerminalSnapshot | null;
         wasAttached: boolean;
     }> {
-        if (identity.attachmentId && identity.attachmentId !== view.attachmentId)
-            this.retireInputQueue(
-                identity.record.id,
-                new CaxriError('CONFLICT', 'Terminal attachment changed before input completed'),
-            );
+        if (identity.attachmentId && identity.attachmentId !== view.attachmentId) {
+            /**
+             * Terminal Host invalidates the previous attachment as soon as it accepts `terminal.attach`. Drain work
+             * already admitted under that capability first so a Renderer remount cannot discard typed input or resize.
+             */
+            await this.settleHotPaths([identity.record.id]);
+        }
         identity.attachmentId = view.attachmentId;
         return (await this.supervisor.request(
             {
@@ -307,7 +303,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
                     ...(view.size !== undefined && { size: view.size }),
                 },
             },
-            this.terminalScope(identity, 'terminal.view', view.attachmentId),
+            terminalScope(identity, 'terminal.view', view.attachmentId),
         )) as { snapshot: TerminalSnapshot | null; wasAttached: boolean };
     }
 
@@ -372,7 +368,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         const ready = (async () => {
             await this.supervisor.request(
                 { method: 'terminal.reserve', params: record },
-                this.terminalScope(identity, 'terminal.lifecycle'),
+                terminalScope(identity, 'terminal.lifecycle'),
             );
             const view = this.views.get(record.id);
             if (view) await this.attachReserved(identity, view);
@@ -427,7 +423,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
                         }),
                     },
                 },
-                this.terminalScope(identity, 'terminal.lifecycle'),
+                terminalScope(identity, 'terminal.lifecycle'),
             )) as { processId: number };
             identity.processId = result.processId;
             this.generations.set(input.record.id, identity.generation);
@@ -449,7 +445,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         try {
             await this.supervisor.request(
                 { method: 'terminal.waitForAttachedSize', params: { timeoutMs } },
-                this.terminalScope(identity, 'terminal.view'),
+                terminalScope(identity, 'terminal.view'),
                 abortSignal,
             );
         } catch (error) {
@@ -512,7 +508,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
                 method: 'terminal.agent.input',
                 params: { data, launchId: agentLaunchId },
             },
-            this.terminalScope(identity, 'terminal.agent.input'),
+            terminalScope(identity, 'terminal.agent.input'),
         )) as { accepted: boolean };
         return result.accepted;
     }
@@ -531,7 +527,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
                     method: 'terminal.recovery.configure',
                     params: { provider, ...(settings && { settings }) },
                 },
-                this.terminalScope(identity, 'terminal.lifecycle'),
+                terminalScope(identity, 'terminal.lifecycle'),
             ),
             'terminal.recovery.configure',
             terminalId,
@@ -548,7 +544,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         this.background(
             this.supervisor.request(
                 { method: 'terminal.signal', params: { expectedProcessId, signal } },
-                this.terminalScope(identity, 'terminal.lifecycle'),
+                terminalScope(identity, 'terminal.lifecycle'),
             ),
             'terminal.signal',
             terminalId,
@@ -567,7 +563,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         this.background(
             this.supervisor.request(
                 { method: 'terminal.agent.signal', params: { launchId: expectedLaunchId, signal } },
-                this.terminalScope(identity, 'terminal.lifecycle'),
+                terminalScope(identity, 'terminal.lifecycle'),
             ),
             'terminal.agent.signal',
             terminalId,
@@ -612,7 +608,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         if (!identity?.processId) return null;
         const result = (await this.supervisor.request(
             { method: 'terminal.snapshot', params: {} },
-            this.terminalScope(identity, 'terminal.view'),
+            terminalScope(identity, 'terminal.view'),
         )) as { snapshot: TerminalSnapshot | null };
         return result.snapshot;
     }
@@ -622,7 +618,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         if (!identity?.processId) return null;
         const result = (await this.supervisor.request(
             { method: 'terminal.textTail', params: { maximumCharacters } },
-            this.terminalScope(identity, 'terminal.inspect'),
+            terminalScope(identity, 'terminal.inspect'),
         )) as { tail: string | null };
         return result.tail;
     }
@@ -639,7 +635,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
                 await Promise.allSettled(completions);
                 await this.supervisor.request(
                     { method: 'terminal.detach', params: {} },
-                    this.terminalScope(identity, 'terminal.view', view.attachmentId),
+                    terminalScope(identity, 'terminal.view', view.attachmentId),
                 );
             })(),
             'terminal.detach',
@@ -674,7 +670,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         await this.settleHotPaths([terminalId]);
         const result = (await this.supervisor.request(
             { method: 'terminal.stop', params: { persistSnapshot: true } },
-            this.terminalScope(identity, 'terminal.lifecycle'),
+            terminalScope(identity, 'terminal.lifecycle'),
         )) as { snapshot: TerminalSnapshot | null; stopped: true };
         delete identity.processId;
         delete identity.agent;
@@ -692,7 +688,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
                 await Promise.allSettled(completions);
                 await this.supervisor.request(
                     { method: 'terminal.stop', params: { persistSnapshot: false } },
-                    this.terminalScope(identity, 'terminal.lifecycle'),
+                    terminalScope(identity, 'terminal.lifecycle'),
                 );
             })(),
             'terminal.stop',
@@ -709,7 +705,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         if (!identity) return;
         const request = this.supervisor.request(
             { method: 'terminal.reassign', params: { sessionId } },
-            this.terminalScope(identity, 'terminal.lifecycle'),
+            terminalScope(identity, 'terminal.lifecycle'),
         );
         identity.record = { ...identity.record, sessionId };
         this.background(request, 'terminal.reassign', terminalId);
@@ -754,7 +750,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         if (!identity?.processId) return null;
         const result = (await this.supervisor.request(
             { method: 'terminal.resources', params: {} },
-            this.terminalScope(identity, 'terminal.inspect'),
+            terminalScope(identity, 'terminal.inspect'),
         )) as { resources: TerminalResourceUsage | null };
         return result.resources;
     }
