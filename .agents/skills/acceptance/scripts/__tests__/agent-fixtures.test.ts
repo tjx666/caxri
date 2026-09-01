@@ -246,7 +246,9 @@ describe('Acceptance Agent fixtures', () => {
         try {
             await expect.poll(() => stdout).toContain('\u{1B}[?2004h');
             child.stdin.write('\u{1B}[200~Summary:\n- Error E42\n- src/task.ts:17\u{1B}[201~');
-            await expect.poll(() => stdout).toContain('Summary:\n- Error E42\n- src/task.ts:17');
+            await expect
+                .poll(() => stdout)
+                .toContain('Summary:\r\n- Error E42\r\n- src/task.ts:17');
         } finally {
             child.kill('SIGTERM');
             await new Promise<void>((resolve) => child.once('close', () => resolve()));
@@ -255,6 +257,8 @@ describe('Acceptance Agent fixtures', () => {
         expect((await readReceipts(codexRoot)).some(({ kind }) => kind === 'terminalInput')).toBe(
             false,
         );
+        expect(stdout).not.toContain('\u{1B}[200~');
+        expect(stdout).not.toContain('\u{1B}[201~');
     });
 
     it('waits for managed hooks before starting the initial fixture turn', async () => {
