@@ -35,7 +35,13 @@ interface E2ERequestGate {
     released: Promise<void>;
 }
 
+interface E2EMobilePairingBridge {
+    created: Promise<string>;
+    deliver: (pairingLink: string) => void;
+}
+
 const e2eRequestState: {
+    mobilePairingBridge?: E2EMobilePairingBridge;
     pathBrowserStartGate?: E2ERequestGate;
     sessionStateUpdateCount: number;
 } = { sessionStateUpdateCount: 0 };
@@ -44,6 +50,11 @@ function createE2ERequestGate(): E2ERequestGate {
     const { promise: reached, resolve: markReached } = Promise.withResolvers<void>();
     const { promise: released, resolve: release } = Promise.withResolvers<void>();
     return { markReached, reached, release, released };
+}
+
+function createE2EMobilePairingBridge(): E2EMobilePairingBridge {
+    const { promise: created, resolve: deliver } = Promise.withResolvers<string>();
+    return { created, deliver };
 }
 
 /**
@@ -65,12 +76,18 @@ async function requestWithId<M extends CaxriMethod>(
     /**
      * The payload crosses a process boundary as unknown; the method table owns its static shape.
      */
-    return (await ipcRenderer.invoke('caxri:request', {
+    const reply = (await ipcRenderer.invoke('caxri:request', {
         protocolVersion: CAXRI_PROTOCOL_VERSION,
         id: requestId,
         method,
         params: arguments_[0] ?? {},
     })) as MethodReply<M>;
+    if (isE2E && method === 'mobile.pairing.create' && reply.ok) {
+        const pairingLink: unknown = Reflect.get(reply.result as object, 'pairingLink');
+        if (typeof pairingLink === 'string')
+            e2eRequestState.mobilePairingBridge?.deliver(pairingLink);
+    }
+    return reply;
 }
 
 async function request<M extends CaxriMethod>(
@@ -129,10 +146,14 @@ contextBridge.exposeInMainWorld('caxri', bridge);
 
 if (isE2E) {
     /**
-     * These narrow E2E-only seams expose content-free synchronization for two focused regressions. They are not a
-     * general IPC recorder and never expose request arguments, replies, or production diagnostics.
+     * These narrow E2E-only seams expose synchronization for focused regressions. The mobile pairing bridge transfers
+     * one link exactly once while Acceptance capture is disabled so the QR credential never enters an artifact; it
+     * neither records arbitrary requests nor persists the link. Production builds do not expose these seams.
      */
     contextBridge.exposeInMainWorld('caxriE2E', {
+        armMobilePairingBridge: () => {
+            e2eRequestState.mobilePairingBridge = createE2EMobilePairingBridge();
+        },
         armPathBrowserStartGate: () => {
             e2eRequestState.pathBrowserStartGate = createE2ERequestGate();
         },
@@ -144,6 +165,15 @@ if (isE2E) {
             e2eRequestState.sessionStateUpdateCount = 0;
         },
         sessionStateUpdateCount: () => e2eRequestState.sessionStateUpdateCount,
+        takeMobilePairingLink: async () => {
+            const bridge = e2eRequestState.mobilePairingBridge;
+            if (!bridge) throw new Error('Mobile pairing bridge is not armed');
+            try {
+                return await bridge.created;
+            } finally {
+                e2eRequestState.mobilePairingBridge = undefined;
+            }
+        },
         waitForPathBrowserStartGate: () => e2eRequestState.pathBrowserStartGate?.reached,
     });
 }

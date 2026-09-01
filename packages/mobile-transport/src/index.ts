@@ -1,3 +1,4 @@
+export * from './acceptance-vector.js';
 export * from './contract.js';
 export * from './encoding.js';
 export * from './pairing-link.js';

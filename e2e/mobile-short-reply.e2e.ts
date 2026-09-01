@@ -1,10 +1,8 @@
 import { Buffer } from 'node:buffer';
-import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
-import { homedir, tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import process from 'node:process';
-import { promisify } from 'node:util';
 
 import type { AppSettings, BootstrapState } from '@caxri/protocol';
 
@@ -12,71 +10,22 @@ import { writeJsonAtomic } from '../scripts/atomic-json.ts';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
-
-const execFileAsync = promisify(execFile);
-const projectRoot = resolve(import.meta.dirname, '..');
-const androidDeviceScript = join(projectRoot, 'apps/mobile/scripts/android-device.ts');
-const adb = join(homedir(), 'Library', 'Android', 'sdk', 'platform-tools', 'adb');
-const acceptanceToken = 'mobileok';
-
-interface SemanticNode {
-    checkId: string;
-    enabled: boolean;
-}
+import {
+    adbShell,
+    mobileSemantics,
+    openMobilePairingLink,
+    runMobileDeviceCommand,
+    tapMobileCheck,
+    waitForMobile,
+} from './support/mobile-android.ts';
 
 /**
- * `adb shell` passes its command through the device shell. Pairing-link query separators must stay inside one quoted
- * argument or the shell treats them as command operators and silently truncates the deep link.
+ * The reply text and Terminal preview must never enter Playwright's automatic failure artifacts. The guarded adapter
+ * owns the report-bound framebuffer evidence and its privacy scan.
  */
-const deviceShellQuote = (value: string): string => `'${value.replaceAll("'", String.raw`'\''`)}'`;
+test.use({ screenshot: 'off', trace: 'off' });
 
-async function run(
-    executable: string,
-    arguments_: string[],
-    output: 'capture' | 'ignore' = 'ignore',
-): Promise<string> {
-    try {
-        const result = await execFileAsync(executable, arguments_, {
-            cwd: projectRoot,
-            encoding: 'utf8',
-            maxBuffer: 4 * 1024 * 1024,
-        });
-        return output === 'capture' ? result.stdout.trim() : '';
-    } catch {
-        throw new Error('A mobile acceptance device command failed');
-    }
-}
-
-const adbShell = (serial: string, arguments_: string[]): Promise<string> =>
-    run(adb, ['-s', serial, 'shell', ...arguments_], 'capture');
-
-async function semantics(serial: string): Promise<SemanticNode[]> {
-    const source = await run(
-        'bun',
-        ['run', androidDeviceScript, 'semantics', '--serial', serial],
-        'capture',
-    );
-    return (JSON.parse(source) as { checks: SemanticNode[] }).checks;
-}
-
-const tap = (serial: string, checkId: string): Promise<string> =>
-    run('bun', ['run', androidDeviceScript, 'tap', '--serial', serial, '--check-id', checkId]);
-
-async function waitFor<T>(
-    read: () => T | Promise<T>,
-    isAccepted: (value: T) => boolean,
-    timeoutMs = 30_000,
-): Promise<T> {
-    const deadline = Date.now() + timeoutMs;
-    do {
-        // eslint-disable-next-line no-await-in-loop -- each observation depends on the previous state transition.
-        const value = await read();
-        if (isAccepted(value)) return value;
-        // eslint-disable-next-line no-await-in-loop -- bounded device polling avoids duplicate automation actions.
-        await new Promise((resolve) => setTimeout(resolve, 250));
-    } while (Date.now() < deadline);
-    throw new Error('Mobile acceptance timed out');
-}
+const acceptanceToken = 'mobileok';
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires the first test argument to use object destructuring.
 test('Android sends one bounded reply to a waiting fake Agent', async ({}, testInfo) => {
@@ -131,7 +80,6 @@ process.stdin.on('data', (chunk) => {
   }
 });
 process.stdin.resume();
-process.stdout.write('Mobile acceptance Agent ready\r\n');
 setTimeout(() => {
   invokeHook('UserPromptSubmit', { session_id: fixtureSessionId, turn_id: 'turn-1' });
   invokeHook('PermissionRequest', { session_id: fixtureSessionId, turn_id: 'turn-1' });
@@ -164,7 +112,7 @@ setTimeout(() => {
         });
         const allowedSessionId = await createProjectSession(running.page, 'codex');
         const deniedSessionId = await createProjectSession(running.page, 'codex');
-        const waiting = await waitFor(
+        const waiting = await waitForMobile(
             () => pageRequest<BootstrapState>(running!.page, 'app.bootstrap'),
             (state) =>
                 [allowedSessionId, deniedSessionId].every((sessionId) =>
@@ -191,23 +139,10 @@ setTimeout(() => {
 
         await adbShell(serial, ['logcat', '-c']);
         await adbShell(serial, ['input', 'keyevent', 'KEYCODE_BACK']);
-        try {
-            await execFileAsync(
-                adb,
-                [
-                    '-s',
-                    serial,
-                    'shell',
-                    `am start -W -a android.intent.action.VIEW -c android.intent.category.BROWSABLE -d ${deviceShellQuote(pairing.pairingLink)} com.caxri.mobile`,
-                ],
-                { cwd: projectRoot, encoding: 'utf8' },
-            );
-        } catch {
-            throw new Error('The pairing link could not be delivered');
-        }
+        await openMobilePairingLink(serial, pairing.pairingLink);
 
-        const pairingNodes = await waitFor(
-            () => semantics(serial),
+        const pairingNodes = await waitForMobile(
+            () => mobileSemantics(serial),
             (nodes) =>
                 nodes.some(
                     (node) =>
@@ -235,20 +170,20 @@ setTimeout(() => {
         if (pairingNodes.some((node) => node.checkId === `session-row-${deniedSessionId}`))
             throw new Error('The paired device exposed a Session outside its Project grant');
         if (devices.devices.length !== 1) throw new Error('Unexpected paired-device count');
-        await tap(serial, `session-row-${allowedSessionId}`);
-        await waitFor(
-            () => semantics(serial),
+        await tapMobileCheck(serial, `session-row-${allowedSessionId}`);
+        await waitForMobile(
+            () => mobileSemantics(serial),
             (nodes) => nodes.some((node) => node.checkId === 'short-reply-input' && node.enabled),
         );
-        await tap(serial, 'short-reply-input');
+        await tapMobileCheck(serial, 'short-reply-input');
         await adbShell(serial, ['input', 'text', acceptanceToken]);
-        await waitFor(
-            () => semantics(serial),
+        await waitForMobile(
+            () => mobileSemantics(serial),
             (nodes) => nodes.some((node) => node.checkId === 'short-reply-send' && node.enabled),
         );
-        await tap(serial, 'short-reply-send');
+        await tapMobileCheck(serial, 'short-reply-send');
 
-        const captured = await waitFor(
+        const captured = await waitForMobile(
             async () => {
                 try {
                     return await readFile(inputCapture);
@@ -260,7 +195,7 @@ setTimeout(() => {
         );
         if (!captured.equals(Buffer.from(`${acceptanceToken}\r`)))
             throw new Error('The fake Agent received unexpected input');
-        await waitFor(
+        await waitForMobile(
             () => pageRequest<BootstrapState>(running!.page, 'app.bootstrap'),
             (state) =>
                 state.sessions.some(
@@ -269,8 +204,8 @@ setTimeout(() => {
                         candidate.lastActivityState === 'running',
                 ),
         );
-        await waitFor(
-            () => semantics(serial),
+        await waitForMobile(
+            () => mobileSemantics(serial),
             (nodes) => nodes.some((node) => node.checkId === 'short-reply-send' && !node.enabled),
         );
         await testInfo.attach('android-mobile-receipt.json', {
@@ -331,8 +266,8 @@ setTimeout(() => {
             cleanupFailure ??= error;
         }
         try {
-            await waitFor(
-                () => run('/bin/ps', ['-axo', 'pid=,args='], 'capture'),
+            await waitForMobile(
+                () => runMobileDeviceCommand('/bin/ps', ['-axo', 'pid=,args='], 'capture'),
                 (processes) => processes.split('\n').every((line) => !line.includes(userData)),
             );
         } catch {

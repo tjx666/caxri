@@ -1,6 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { EventEmitter } from 'node:events';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
     assertMobileAcceptanceSourceIdentity,
     captureMobileAcceptanceCommand,
+    clearMobileAcceptanceCaseArtifacts,
     collectMobileAcceptanceArtifacts,
     createMobileAcceptanceArtifact,
     runMobileAcceptanceCommand,
@@ -75,6 +76,30 @@ describe('mobile Acceptance runtime', () => {
 
         await expect(readFile(path, 'utf8')).resolves.toContain('launch-2');
         await expect(readFile(path, 'utf8')).resolves.not.toContain('launch-1');
+    });
+
+    it('clears stale case evidence while preserving lifecycle history and other cases', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-mobile-acceptance-'));
+        temporaryDirectories.push(directory);
+        const assets = join(directory, 'assets');
+        await mkdir(assets);
+        await Promise.all([
+            writeFile(join(assets, 'MOB-PAIR-01-desktop.png'), 'stale'),
+            writeFile(join(assets, 'MOB-PAIR-01-scenario.txt'), 'stale'),
+            writeFile(join(assets, 'MOB-PAIR-01-state-isolation.json'), 'history'),
+            writeFile(join(assets, 'MOB-PAIR-02-android.png'), 'other'),
+        ]);
+
+        await clearMobileAcceptanceCaseArtifacts(directory, 'MOB-PAIR-01');
+
+        await expect(readFile(join(assets, 'MOB-PAIR-01-desktop.png'))).rejects.toThrow();
+        await expect(readFile(join(assets, 'MOB-PAIR-01-scenario.txt'))).rejects.toThrow();
+        await expect(
+            readFile(join(assets, 'MOB-PAIR-01-state-isolation.json'), 'utf8'),
+        ).resolves.toBe('history');
+        await expect(readFile(join(assets, 'MOB-PAIR-02-android.png'), 'utf8')).resolves.toBe(
+            'other',
+        );
     });
 
     it('captures binary device output without decoding or exposing it', () => {
