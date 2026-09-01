@@ -224,6 +224,39 @@ describe('Acceptance Agent fixtures', () => {
         );
     });
 
+    it('keeps multiline bracketed paste as unsent Agent input', async () => {
+        const userDataDirectory = await mkdtemp(join(tmpdir(), 'caxri-acceptance-agent-fixture-'));
+        directories.push(userDataDirectory);
+        const fixture = await prepareAcceptanceAgentFixture({
+            fixtureId: 'agent-features-v1',
+            sourceEnvironment: { PATH: '/usr/bin:/bin' },
+            userDataDir: userDataDirectory,
+        });
+        const codexRoot = fixture.environment.CODEX_HOME!;
+        await writeFile(join(codexRoot, 'acceptance-echo-terminal-input'), '');
+        const child = spawn(fixture.executables.codex, [], {
+            env: fixture.environment,
+            stdio: ['pipe', 'pipe', 'pipe'],
+        });
+        let stdout = '';
+        child.stdout.setEncoding('utf8').on('data', (chunk: string) => {
+            stdout += chunk;
+        });
+        child.stderr.resume();
+        try {
+            await expect.poll(() => stdout).toContain('\u{1B}[?2004h');
+            child.stdin.write('\u{1B}[200~Summary:\n- Error E42\n- src/task.ts:17\u{1B}[201~');
+            await expect.poll(() => stdout).toContain('Summary:\n- Error E42\n- src/task.ts:17');
+        } finally {
+            child.kill('SIGTERM');
+            await new Promise<void>((resolve) => child.once('close', () => resolve()));
+        }
+
+        expect((await readReceipts(codexRoot)).some(({ kind }) => kind === 'terminalInput')).toBe(
+            false,
+        );
+    });
+
     it('waits for managed hooks before starting the initial fixture turn', async () => {
         const userDataDirectory = await mkdtemp(join(tmpdir(), 'caxri-acceptance-agent-fixture-'));
         directories.push(userDataDirectory);
