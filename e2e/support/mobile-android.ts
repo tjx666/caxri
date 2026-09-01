@@ -5,6 +5,8 @@ import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 
+import { startMobileAcceptanceRecording } from '../../scripts/mobile-acceptance-runtime.ts';
+
 const execFileAsync = promisify(execFile);
 const projectRoot = resolve(import.meta.dirname, '../..');
 const androidDeviceScript = join(projectRoot, 'apps/mobile/scripts/android-device.ts');
@@ -41,6 +43,27 @@ export async function runMobileDeviceCommand(
 
 export const adbShell = (serial: string, arguments_: string[]): Promise<string> =>
     runMobileDeviceCommand(adb, ['-s', serial, 'shell', ...arguments_], 'capture');
+
+/**
+ * Starts one device-framebuffer recording through the shared Acceptance process owner. The caller chooses the exact
+ * stop boundary so private reply text never has to enter a report-bound recording.
+ */
+export const startMobileFramebufferRecording = (serial: string, remotePath: string) =>
+    startMobileAcceptanceRecording({
+        arguments: [
+            '-s',
+            serial,
+            'shell',
+            'screenrecord',
+            '--bit-rate',
+            '8000000',
+            '--time-limit',
+            '180',
+            remotePath,
+        ],
+        command: adb,
+        cwd: projectRoot,
+    });
 
 export async function mobileSemantics(serial: string): Promise<MobileSemanticNode[]> {
     const source = await runMobileDeviceCommand(

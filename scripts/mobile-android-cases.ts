@@ -4,51 +4,61 @@ const androidCases = {
     'MOB-ACC-02': {
         desktopProfile: 'not-required',
         media: ['screenshot', 'video'],
+        recordingOwner: 'adapter',
         scenario: 'adapter-lifecycle',
     },
     'MOB-FDN-01': {
         desktopProfile: 'not-required',
         media: ['screenshot'],
+        recordingOwner: 'adapter',
         scenario: 'foundation-layout',
     },
     'MOB-FDN-02': {
         desktopProfile: 'not-required',
         media: ['video'],
+        recordingOwner: 'adapter',
         scenario: 'foundation-cold-start',
     },
     'MOB-FDN-03': {
         desktopProfile: 'not-required',
         media: [],
+        recordingOwner: 'adapter',
         scenario: 'foundation-inspect',
     },
     'MOB-PAIR-02': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot'],
+        recordingOwner: 'adapter',
         scenario: 'pairing-recovery',
     },
     'MOB-PAIR-03': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['video'],
+        recordingOwner: 'adapter',
         scenario: 'pairing-revocation',
     },
     'MOB-PAIR-05': {
         desktopProfile: 'not-required',
         media: [],
+        recordingOwner: 'adapter',
         scenario: 'crypto-vector',
     },
     'MOB-SESSION-01': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot'],
+        recordingOwner: 'adapter',
         scenario: 'session-states',
     },
     'MOB-SESSION-02': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot', 'video'],
+        recordingOwner: 'scenario',
         scenario: 'session-short-reply',
     },
     'MOB-SESSION-03': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['video'],
+        recordingOwner: 'adapter',
         scenario: 'session-reconnect',
     },
 } as const satisfies Record<
@@ -56,6 +66,7 @@ const androidCases = {
     {
         desktopProfile: 'managed-by-isolated-e2e' | 'not-required';
         media: readonly MobileAndroidMediaType[];
+        recordingOwner: 'adapter' | 'scenario';
         scenario: string;
     }
 >;
@@ -67,6 +78,7 @@ export type MobileAndroidAcceptanceScenario =
 export function mobileAndroidAcceptanceCase(caseId: string): {
     desktopProfile: 'managed-by-isolated-e2e' | 'not-required';
     media: MobileAndroidMediaType[];
+    recordingOwner: 'adapter' | 'scenario';
     scenario: MobileAndroidAcceptanceScenario;
 } {
     if (!Object.hasOwn(androidCases, caseId)) {
@@ -76,6 +88,7 @@ export function mobileAndroidAcceptanceCase(caseId: string): {
     return {
         desktopProfile: definition.desktopProfile,
         media: [...definition.media],
+        recordingOwner: definition.recordingOwner,
         scenario: definition.scenario,
     };
 }
