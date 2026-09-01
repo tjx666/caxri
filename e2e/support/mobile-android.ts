@@ -5,7 +5,10 @@ import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 
-import { startMobileAcceptanceRecording } from '../../scripts/mobile-acceptance-runtime.ts';
+import {
+    interruptAndroidScreenrecord,
+    startMobileAcceptanceRecording,
+} from '../../scripts/mobile-acceptance-runtime.ts';
 
 const execFileAsync = promisify(execFile);
 const projectRoot = resolve(import.meta.dirname, '../..');
@@ -85,6 +88,14 @@ export const startMobileFramebufferRecording = (serial: string, remotePath: stri
         ],
         command: adb,
         cwd: projectRoot,
+        interrupt: () => {
+            interruptAndroidScreenrecord({
+                adb,
+                cwd: projectRoot,
+                serial,
+                timeoutMs: 30_000,
+            });
+        },
     });
 
 export async function mobileSemantics(serial: string): Promise<MobileSemanticNode[]> {

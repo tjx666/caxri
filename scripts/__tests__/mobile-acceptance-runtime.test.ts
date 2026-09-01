@@ -12,6 +12,7 @@ import {
     clearMobileAcceptanceCaseArtifacts,
     collectMobileAcceptanceArtifacts,
     createMobileAcceptanceArtifact,
+    interruptAndroidScreenrecord,
     runMobileAcceptanceCommand,
     startMobileAcceptanceRecording,
     writeMobileAcceptanceReceipt,
@@ -214,5 +215,159 @@ describe('mobile Acceptance runtime', () => {
         expect(spawn).toHaveBeenCalledOnce();
         expect(child.kill).toHaveBeenCalledOnce();
         expect(child.kill).toHaveBeenCalledWith('SIGINT');
+    });
+
+    it.each([0, 1])('accepts Android screenrecord interrupt status %i', (status) => {
+        const spawn = vi.fn(() => ({ error: undefined, status, stderr: '' }));
+
+        interruptAndroidScreenrecord(
+            {
+                adb: '/sdk/adb',
+                cwd: '/repo',
+                serial: 'emulator-5554',
+                timeoutMs: 30_000,
+            },
+            spawn as never,
+        );
+
+        expect(spawn).toHaveBeenCalledWith(
+            '/sdk/adb',
+            ['-s', 'emulator-5554', 'shell', 'pkill', '-INT', '-x', 'screenrecord'],
+            expect.objectContaining({ shell: false, stdio: 'pipe', timeout: 30_000 }),
+        );
+    });
+
+    it('rejects an unexpected Android screenrecord interrupt status', () => {
+        const spawn = vi.fn(() => ({ error: undefined, status: 2, stderr: '' }));
+
+        expect(() =>
+            interruptAndroidScreenrecord(
+                {
+                    adb: '/sdk/adb',
+                    cwd: '/repo',
+                    serial: 'emulator-5554',
+                    timeoutMs: 30_000,
+                },
+                spawn as never,
+            ),
+        ).toThrow('Android Acceptance recording interrupt failed');
+    });
+
+    it('rejects adb transport failure instead of treating it as no matching process', () => {
+        const spawn = vi.fn(() => ({ error: undefined, status: 1, stderr: 'device offline' }));
+
+        expect(() =>
+            interruptAndroidScreenrecord(
+                {
+                    adb: '/sdk/adb',
+                    cwd: '/repo',
+                    serial: 'emulator-5554',
+                    timeoutMs: 30_000,
+                },
+                spawn as never,
+            ),
+        ).toThrow('Android Acceptance recording interrupt failed');
+    });
+
+    it('waits for an Android-specific remote interrupt before returning', async () => {
+        // eslint-disable-next-line unicorn/prefer-event-target -- ChildProcess uses EventEmitter events.
+        const child = new EventEmitter() as EventEmitter & {
+            exitCode: number | null;
+            kill: ReturnType<typeof vi.fn>;
+            signalCode: NodeJS.Signals | null;
+        };
+        child.exitCode = null;
+        child.signalCode = null;
+        child.kill = vi.fn();
+        const spawn = vi.fn(() => {
+            queueMicrotask(() => child.emit('spawn'));
+            return child;
+        });
+        const interrupt = vi.fn(() => {
+            child.exitCode = 0;
+            queueMicrotask(() => child.emit('exit', 0, null));
+            return Promise.resolve();
+        });
+
+        const recording = await startMobileAcceptanceRecording(
+            {
+                arguments: ['shell', 'screenrecord', '/data/local/tmp/caxri.mp4'],
+                command: '/sdk/adb',
+                cwd: '/repo',
+                interrupt,
+            },
+            spawn as never,
+        );
+        await recording.stop();
+
+        expect(interrupt).toHaveBeenCalledOnce();
+        expect(child.kill).not.toHaveBeenCalled();
+    });
+
+    it('falls back to local cleanup when the remote interrupt fails', async () => {
+        // eslint-disable-next-line unicorn/prefer-event-target -- ChildProcess uses EventEmitter events.
+        const child = new EventEmitter() as EventEmitter & {
+            exitCode: number | null;
+            kill: ReturnType<typeof vi.fn>;
+            signalCode: NodeJS.Signals | null;
+        };
+        child.exitCode = null;
+        child.signalCode = null;
+        child.kill = vi.fn((signal: NodeJS.Signals) => {
+            child.signalCode = signal;
+            queueMicrotask(() => child.emit('exit', 0, signal));
+            return true;
+        });
+        const spawn = vi.fn(() => {
+            queueMicrotask(() => child.emit('spawn'));
+            return child;
+        });
+        const interrupt = vi.fn(() => Promise.reject(new Error('remote interrupt failed')));
+
+        const recording = await startMobileAcceptanceRecording(
+            {
+                arguments: ['shell', 'screenrecord', '/data/local/tmp/caxri.mp4'],
+                command: '/sdk/adb',
+                cwd: '/repo',
+                interrupt,
+            },
+            spawn as never,
+        );
+
+        await expect(recording.stop()).rejects.toThrow(
+            'Mobile Acceptance recording interrupt failed',
+        );
+        expect(child.kill).toHaveBeenCalledWith('SIGINT');
+    });
+
+    it('does not interrupt a recording that already exited', async () => {
+        // eslint-disable-next-line unicorn/prefer-event-target -- ChildProcess uses EventEmitter events.
+        const child = new EventEmitter() as EventEmitter & {
+            exitCode: number | null;
+            kill: ReturnType<typeof vi.fn>;
+            signalCode: NodeJS.Signals | null;
+        };
+        child.exitCode = 0;
+        child.signalCode = null;
+        child.kill = vi.fn();
+        const spawn = vi.fn(() => {
+            queueMicrotask(() => child.emit('spawn'));
+            return child;
+        });
+        const interrupt = vi.fn();
+
+        const recording = await startMobileAcceptanceRecording(
+            {
+                arguments: ['shell', 'screenrecord', '/data/local/tmp/caxri.mp4'],
+                command: '/sdk/adb',
+                cwd: '/repo',
+                interrupt,
+            },
+            spawn as never,
+        );
+        await recording.stop();
+
+        expect(interrupt).not.toHaveBeenCalled();
+        expect(child.kill).not.toHaveBeenCalled();
     });
 });
