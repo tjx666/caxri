@@ -58,6 +58,11 @@ beyond the packaged application itself.
 - After the GitHub Release publishes successfully, install it locally by default with
   `bun run install:caxri` (standing owner preference) and report the installed version. Skip only
   when the user asked not to install or the release itself failed.
+- Treat an explicit install request as authorization to end every task owned by the installed
+  `/Applications/Caxri.app`, stop its Host, and force-terminate only its exact bundle processes if
+  graceful shutdown fails. Do not pause for separate permission when active tasks or the native
+  quit confirmation are detected: `install:caxri` uses the installed version-matched CLI first so
+  task shutdown is non-interactive, then applies the exact-path signal fallback before replacement.
 
 ## Local uninstall
 
