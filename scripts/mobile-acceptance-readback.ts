@@ -180,6 +180,7 @@ async function main(): Promise<void> {
     ) {
         throw new Error('Publication readback requires a desktop readonly checkpoint');
     }
+    const checkpointId = planned.item.stateIsolation.checkpointId;
     const sourceCommit = runMobileAcceptanceCommand({
         arguments: ['rev-parse', 'HEAD'],
         captureOutput: true,
@@ -211,7 +212,7 @@ async function main(): Promise<void> {
     const report = reportSchema.parse(JSON.parse(reportRaw));
     const state = stateSchema.parse(JSON.parse(stateRaw));
     const publication = state.acceptance.publication.history.find(
-        ({ verifyRunId }) => verifyRunId === planned.item.stateIsolation.checkpointId,
+        ({ verifyRunId }) => verifyRunId === checkpointId,
     );
     if (!publication) throw new Error('Go state has no matching verified publication checkpoint');
     const viewRaw = runMobileAcceptanceCommand({
@@ -223,7 +224,7 @@ async function main(): Promise<void> {
         timeoutMs: COMMAND_TIMEOUT_MS,
     });
     const receipt = createMobileAcceptanceReadbackReceipt({
-        checkpointId: planned.item.stateIsolation.checkpointId,
+        checkpointId,
         headSha: sourceCommit,
         history: state.acceptance.publication.history,
         plan: report.plan,
