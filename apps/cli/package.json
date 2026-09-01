@@ -1,6 +1,6 @@
 {
     "name": "@caxri/cli",
-    "version": "0.0.28",
+    "version": "0.0.29",
     "private": true,
     "description": "Command-line application for Caxri Server.",
     "type": "module",
