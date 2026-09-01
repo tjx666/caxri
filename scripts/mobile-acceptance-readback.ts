@@ -1,12 +1,13 @@
 #!/usr/bin/env bun
 
 import { lstat, readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import process from 'node:process';
 
 import { z } from 'zod';
 
 import { loadAcceptanceCasePlan } from '../.agents/skills/acceptance/scripts/report';
+import { validateExistingReportDirectory } from '../.agents/skills/acceptance/scripts/report-paths';
 import {
     assertMobileAcceptanceSourceIdentity,
     clearMobileAcceptanceCaseArtifacts,
@@ -83,14 +84,22 @@ function sorted(values: string[]): string[] {
     return values.toSorted((left, right) => left.localeCompare(right));
 }
 
+/**
+ * Compares a remote checkpoint with that checkpoint's frozen plan. The current repair plan can contain only the
+ * unresolved readback case, so using it as the expected remote check list would make every honest repair fail.
+ */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- focused tests exercise exact publication readback matching.
 export function createMobileAcceptanceReadbackReceipt(input: {
+    checkpointPlan: PlanItem[];
     checkpointId: string;
     headSha: string;
     history: PublicationRecord[];
-    plan: PlanItem[];
+    readbackPlan: PlanItem[];
     view: AcceptanceView;
 }) {
+    if (input.readbackPlan.every(({ id, surface }) => !(id === CASE_ID && surface === 'desktop'))) {
+        throw new Error('Acceptance repair round does not contain the publication readback case');
+    }
     const publication = input.history.find(({ verifyRunId }) => verifyRunId === input.checkpointId);
     if (!publication || publication.headSha !== input.headSha) {
         throw new Error('Acceptance publication checkpoint does not match the exact head');
@@ -117,7 +126,7 @@ export function createMobileAcceptanceReadbackReceipt(input: {
     const remoteChecks = input.view.checks.filter(
         ({ resultRound }) => resultRound === publication.roundIndex,
     );
-    const expectedIds = sorted(input.plan.map(({ id }) => id));
+    const expectedIds = sorted(input.checkpointPlan.map(({ id }) => id));
     const remoteIds = sorted(remoteChecks.map(({ id }) => id));
     if (
         JSON.stringify(expectedIds) !== JSON.stringify(sorted(publication.checkIds)) ||
@@ -125,7 +134,7 @@ export function createMobileAcceptanceReadbackReceipt(input: {
     ) {
         throw new Error('Acceptance remote check ids do not match the frozen plan');
     }
-    const planById = new Map(input.plan.map((item) => [item.id, item]));
+    const planById = new Map(input.checkpointPlan.map((item) => [item.id, item]));
     for (const check of remoteChecks) {
         const plan = planById.get(check.id);
         const surfaces = [check.surface, check.planItem?.verifierConfig.surface].filter(
@@ -145,15 +154,15 @@ export function createMobileAcceptanceReadbackReceipt(input: {
         checkpointId: input.checkpointId,
         checkIds: expectedIds,
         exactHead: input.headSha,
-        mobileDevices: input.plan.flatMap((item) =>
+        mobileDevices: input.checkpointPlan.flatMap((item) =>
             item.mobileDevice ? [{ caseId: item.id, ...item.mobileDevice }] : [],
         ),
         outcome: 'publication-readback-verified',
         roundIndex: publication.roundIndex,
         schemaVersion: 1 as const,
         status: 'passed' as const,
-        surfaces: [...new Set(input.plan.map(({ surface }) => surface))].toSorted((left, right) =>
-            left.localeCompare(right),
+        surfaces: [...new Set(input.checkpointPlan.map(({ surface }) => surface))].toSorted(
+            (left, right) => left.localeCompare(right),
         ),
         verdict: publication.verdict,
     };
@@ -204,9 +213,9 @@ async function main(): Promise<void> {
         plannedCommit: planned.commit,
         status: sourceStatus,
     });
-    await clearMobileAcceptanceCaseArtifacts(reportDirectory, CASE_ID);
+    await clearMobileAcceptanceCaseArtifacts(planned.directory, CASE_ID);
     const [reportRaw, stateRaw] = await Promise.all([
-        readFile(resolve(reportDirectory, 'result.json'), 'utf8'),
+        readFile(resolve(planned.directory, 'result.json'), 'utf8'),
         readFile(stateFile, 'utf8'),
     ]);
     const report = reportSchema.parse(JSON.parse(reportRaw));
@@ -215,6 +224,27 @@ async function main(): Promise<void> {
         ({ verifyRunId }) => verifyRunId === checkpointId,
     );
     if (!publication) throw new Error('Go state has no matching verified publication checkpoint');
+    const currentRound = Number(/^round-(\d+)$/u.exec(basename(planned.directory))?.[1]);
+    if (!Number.isSafeInteger(currentRound) || publication.roundIndex >= currentRound) {
+        throw new Error('Publication readback checkpoint must precede the current repair round');
+    }
+    const checkpointDirectory = await validateExistingReportDirectory(
+        join(dirname(planned.directory), `round-${publication.roundIndex}`),
+    );
+    const checkpointReportPath = join(checkpointDirectory, 'result.json');
+    const checkpointMetadata = await lstat(checkpointReportPath);
+    if (checkpointMetadata.isSymbolicLink() || !checkpointMetadata.isFile()) {
+        throw new Error('Publication checkpoint report must be a direct regular file');
+    }
+    const checkpointReport = reportSchema.parse(
+        JSON.parse(await readFile(checkpointReportPath, 'utf8')),
+    );
+    if (checkpointReport.commit !== sourceCommit) {
+        throw new Error('Publication checkpoint report does not match the exact head');
+    }
+    /**
+     * This runs before the repair round is published, while every remote check still points at the checkpoint round.
+     */
     const viewRaw = runMobileAcceptanceCommand({
         arguments: ['acceptance', 'view', publication.acceptanceId, '--json'],
         captureOutput: true,
@@ -224,14 +254,15 @@ async function main(): Promise<void> {
         timeoutMs: COMMAND_TIMEOUT_MS,
     });
     const receipt = createMobileAcceptanceReadbackReceipt({
+        checkpointPlan: checkpointReport.plan,
         checkpointId,
         headSha: sourceCommit,
         history: state.acceptance.publication.history,
-        plan: report.plan,
+        readbackPlan: report.plan,
         view: viewSchema.parse(JSON.parse(viewRaw)),
     });
     await writeMobileAcceptanceReceipt(
-        resolve(reportDirectory, 'assets', `${CASE_ID}-readback.txt`),
+        resolve(planned.directory, 'assets', `${CASE_ID}-readback.txt`),
         receipt,
     );
 }
