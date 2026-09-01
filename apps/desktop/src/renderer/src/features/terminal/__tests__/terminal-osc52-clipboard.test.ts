@@ -129,13 +129,14 @@ describe('ControlledOsc52Clipboard', () => {
         expect(writeClipboard).toHaveBeenNthCalledWith(2, 'second');
     });
 
-    it('reports clipboard permission failure once without including content', async () => {
+    it('reports a clipboard write failure once without including content', async () => {
         let now = 2_000;
         const { clipboard, onWriteFailure, writeClipboard } = osc52Fixture({
             enabled: true,
             now: () => now,
         });
-        writeClipboard.mockRejectedValue(new Error('denied with private clipboard content'));
+        const failure = new Error('denied with private clipboard content');
+        writeClipboard.mockRejectedValue(failure);
 
         await writeOsc52(clipboard, 'first secret');
         now += OSC52_MIN_WRITE_INTERVAL_MS;
@@ -143,6 +144,6 @@ describe('ControlledOsc52Clipboard', () => {
 
         expect(writeClipboard).toHaveBeenCalledTimes(2);
         expect(onWriteFailure).toHaveBeenCalledOnce();
-        expect(onWriteFailure).toHaveBeenCalledWith();
+        expect(onWriteFailure).toHaveBeenCalledWith(failure);
     });
 });

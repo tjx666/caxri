@@ -86,6 +86,26 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
             });
             return;
         }
+        if (diagnostic.kind === 'terminal-osc52-clipboard-write-failure') {
+            options
+                .logger()
+                ?.write('warn', logEventCatalog.renderer.terminalOsc52ClipboardWriteFailed, {
+                    fields: {
+                        code: 'TERMINAL_OSC52_CLIPBOARD_WRITE_FAILED',
+                        diagnosticId: diagnostic.diagnosticId,
+                        terminalId: diagnostic.terminalId,
+                        errorCategory: diagnostic.errorCategory,
+                        clipboardWritePermission: diagnostic.clipboardWritePermission,
+                        documentVisible: diagnostic.documentVisible,
+                        documentFocused: diagnostic.documentFocused,
+                        secureContext: diagnostic.secureContext,
+                        terminalFocused: diagnostic.terminalFocused,
+                        userActivationActive: diagnostic.userActivationActive,
+                        userActivationHasBeenActive: diagnostic.userActivationHasBeenActive,
+                    },
+                });
+            return;
+        }
         const { react, requests, longAnimationFrames, interactions, frames, capabilities } =
             diagnostic;
         options.logger()?.write('info', logEventCatalog.renderer.performanceScenario, {

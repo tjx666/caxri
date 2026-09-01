@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -19,6 +19,28 @@ function osc52(payload: string, selection = 'c'): string {
 }
 
 const encoded = (text: string): string => Buffer.from(text).toString('base64');
+
+interface StructuredLogRecord {
+    event: string;
+    fields?: Record<string, unknown>;
+}
+
+async function readStructuredLog(path: string): Promise<StructuredLogRecord[]> {
+    try {
+        const content = await readFile(path, 'utf8');
+        const completeContent = content.endsWith('\n')
+            ? content
+            : content.slice(0, content.lastIndexOf('\n') + 1);
+        return completeContent
+            .trim()
+            .split('\n')
+            .filter(Boolean)
+            .map((line) => JSON.parse(line) as StructuredLogRecord);
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+        throw error;
+    }
+}
 
 const OSC52_BLOCKED_TOASTS = {
     disabled:
@@ -171,6 +193,10 @@ test('OSC 52 clipboard writes remain opt-in, bounded, write-only, and lifecycle-
 
         await createAdditionalShellSession(running.page);
         const liveSessionId = await selectedSessionId(running.page);
+        const liveTerminalId = await running.page
+            .locator('.work-tab.active[data-terminal-id]')
+            .getAttribute('data-terminal-id');
+        if (!liveTerminalId) throw new Error('Live Terminal identity was not rendered');
         const persisted = await pageRequest<{
             encodingVersion: number;
             payload: string;
@@ -195,10 +221,30 @@ test('OSC 52 clipboard writes remain opt-in, bounded, write-only, and lifecycle-
         });
         await typeTerminal(running.page, osc52(encoded('PERMISSION_FIXTURE')));
         const permissionToast = running.page.getByText(
-            'OSC 52 clipboard write was denied. Check macOS clipboard permissions.',
+            'A Terminal program could not write to the clipboard. Check diagnostics for details.',
             { exact: true },
         );
         await expect(permissionToast).toHaveCount(1);
+        let clipboardDiagnostic: Record<string, unknown> | undefined;
+        await expect
+            .poll(async () => {
+                const records = await readStructuredLog(join(userData, 'logs', 'desktop.jsonl'));
+                clipboardDiagnostic = records.findLast(
+                    (record) =>
+                        record.event === 'renderer.terminal_osc52_clipboard_write_failed' &&
+                        record.fields?.terminalId === liveTerminalId,
+                )?.fields;
+                return clipboardDiagnostic;
+            })
+            .toBeTruthy();
+        expect(clipboardDiagnostic).toMatchObject({
+            code: 'TERMINAL_OSC52_CLIPBOARD_WRITE_FAILED',
+            errorCategory: 'not-allowed',
+            terminalId: liveTerminalId,
+        });
+        expect(['denied', 'granted', 'prompt', 'query-failed']).toContain(
+            clipboardDiagnostic?.clipboardWritePermission,
+        );
         await running.page.waitForTimeout(1_050);
         await typeTerminal(running.page, osc52(encoded('SECOND_PERMISSION_FIXTURE')));
         await expect(permissionToast).toHaveCount(1);
