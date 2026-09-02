@@ -115,6 +115,14 @@ describe('chooseReferenceTerminal', () => {
         expect(chooseReferenceTerminal(terminals, 'session-1', undefined)?.id).toBe('newest');
     });
 
+    it('breaks a createdAt tie by the higher order index', () => {
+        const tied = [
+            terminal({ id: 'first', createdAt: 5, orderIndex: 0 }),
+            terminal({ id: 'second', createdAt: 5, orderIndex: 1 }),
+        ];
+        expect(chooseReferenceTerminal(tied, 'session-1', undefined)?.id).toBe('second');
+    });
+
     it('never crosses into another Session', () => {
         expect(chooseReferenceTerminal(terminals, 'session-3', undefined)).toBeUndefined();
     });
