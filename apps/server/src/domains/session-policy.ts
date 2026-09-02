@@ -210,6 +210,20 @@ function reliableAttentionTransition(
     return kind;
 }
 
+/**
+ * A metadata probe cannot tell "idle at the prompt since launch" apart from "idle because a turn just finished": Claude
+ * Code writes `status: "idle"` into its session metadata the moment it starts, before any turn has run. Only a Session
+ * that was observed `running` has a turn the user could be waited on for, so a probed `waiting` raises attention solely
+ * from that state. Hook-driven `attentionRequested` signals bypass this because they are explicit.
+ */
+function metadataAttentionKind(
+    session: Pick<SessionRecord, 'lastActivityState'>,
+    kind: SessionAttentionKind | undefined,
+): SessionAttentionKind | undefined {
+    if (kind === 'waiting' && session.lastActivityState !== 'running') return undefined;
+    return kind;
+}
+
 export interface AgentLifecycleDecision {
     attentionKind?: SessionAttentionKind;
     lastActivityState: AgentActivityState;
@@ -314,7 +328,11 @@ export function decideAgentMetadataUpdate(
         normalizeTerminalTitle(agentDisplayTitle(snapshot.title, terminal.title)) ?? terminal.title;
     const isPrimaryAgent = terminal.id === session.primaryAgentTerminalId;
     const attentionKind = isPrimaryAgent
-        ? reliableAttentionTransition(session, snapshot.status, snapshot.attentionKind)
+        ? reliableAttentionTransition(
+              session,
+              snapshot.status,
+              metadataAttentionKind(session, snapshot.attentionKind),
+          )
         : undefined;
     const isNoOp =
         (!isPrimaryAgent ||

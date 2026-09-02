@@ -317,6 +317,26 @@ describe('decideAgentMetadataUpdate', () => {
         expect(decision?.terminalTitle).toBeUndefined();
     });
 
+    // Claude Code writes `status: "idle"` at launch before any turn runs; that must not read as "waiting for the user".
+    it('does not raise waiting attention from a probe when the Session never ran a turn', () => {
+        const primary = terminal({ id: 'claude-1', provider: 'claude' });
+        for (const lastActivityState of ['idle', 'unknown', 'completed'] as const) {
+            const decision = decideAgentMetadataUpdate(
+                primary,
+                session({ primaryAgentTerminalId: primary.id, lastActivityState }),
+                {
+                    provider: 'claude',
+                    attentionKind: 'waiting',
+                    available: true,
+                    observedAt: 0,
+                    status: 'waiting',
+                },
+            );
+            expect(decision?.sessionPatch).toMatchObject({ lastActivityState: 'waiting' });
+            expect(decision?.sessionPatch?.attentionKind).toBeUndefined();
+        }
+    });
+
     it('emits only reliable primary-Agent attention state transitions', () => {
         const primary = terminal({ id: 'claude-1', provider: 'claude' });
         const current = session({
