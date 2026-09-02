@@ -35,7 +35,7 @@ export const TERMINAL_DEFAULT_WORD_SEPARATORS = ' ()[]{}\',"`─‘’“”|';
  * Only the current user's exact `~/...` shorthand is actionable. Server owns OS user lookup and deliberately rejects
  * other shell expansion forms so the Renderer never guesses at environment or account semantics.
  */
-export function isCurrentUserHomePath(path: string): boolean {
+function isCurrentUserHomePath(path: string): boolean {
     return /^~\/.+/.test(path);
 }
 
