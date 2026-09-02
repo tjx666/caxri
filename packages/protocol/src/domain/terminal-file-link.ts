@@ -45,16 +45,18 @@ export const terminalFileLinkMethods = {
         }),
         result: z.union([
             canceledResultSchema,
-            z.object({ opened: z.literal(true) }),
             /**
              * A file outside every Project that the user chose to open: Main already read one bounded read-only
-             * snapshot, and the Renderer shows it as an ephemeral tab in the Terminal's own Session.
+             * snapshot, and the Renderer shows it as an ephemeral tab in the Terminal's own Session. This variant must
+             * precede the bare `{ opened: true }` shape: `z.union` takes the first match and a plain `z.object` strips
+             * unknown keys, so the wrong order silently drops `document` from the reply.
              */
             z.object({
                 opened: z.literal(true),
                 document: externalEditorDocumentSchema,
                 sessionId: identifierSchema,
             }),
+            z.object({ opened: z.literal(true) }),
             terminalFileLinkAmbiguousResultSchema,
         ]),
     },

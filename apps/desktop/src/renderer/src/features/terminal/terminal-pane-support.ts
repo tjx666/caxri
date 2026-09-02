@@ -1,11 +1,14 @@
 import type { EditorNavigationTarget } from '@caxri/protocol';
 import { errorMessage } from '@caxri/protocol';
+import { editorModelPath } from '@desktop-shared/editor-state';
 import type { ITheme, Terminal } from '@xterm/xterm';
 
 import { caxri } from '../../lib/caxri';
 import { openExternalUrl } from '../../lib/external-link';
+import { sessionViewScope } from '../../stores/session-view';
 import { pushToast } from '../../stores/toasts';
 import { useWorkbenchStore } from '../../stores/workbench';
+import { revealEditorNavigation } from '../editor/editor-reveal';
 import { openExternalEditorDocument } from '../editor/external-editor-documents';
 import {
     dispatchExtensionViewAction,
@@ -163,6 +166,14 @@ export function registerTerminalPaneLinks(
                         workbenchProjectId,
                     });
                 if (!opened) throw new Error('Unable to open external file in this Session');
+                if (location)
+                    revealEditorNavigation(
+                        editorModelPath(
+                            sessionViewScope(result.sessionId, workbenchProjectId),
+                            opened,
+                        ),
+                        location,
+                    );
                 return;
             }
             if ('status' in result)
