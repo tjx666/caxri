@@ -448,4 +448,98 @@ describe('workbench IPC sender boundary', () => {
         ).resolves.toMatchObject({ ok: false, error: { code: 'CANCELLED' } });
         expect(write).not.toHaveBeenCalled();
     });
+
+    it('logs a caller-side NOT_FOUND request failure at warn with correlation and method', async () => {
+        const write = vi.fn();
+        installWorkbenchIpc({
+            isQuitting: () => false,
+            logger: () => ({ write }) as never,
+            renderer: () => renderer as never,
+            transport: {
+                dispatch: () =>
+                    Promise.resolve({
+                        protocolVersion: 2,
+                        id: 'not-found-1',
+                        ok: false,
+                        error: { code: 'NOT_FOUND', message: 'Session not found' },
+                    }),
+                negotiate,
+            },
+        });
+        const request = electronMock.handles.get('caxri:request')!;
+
+        await request(
+            { sender: renderer },
+            { protocolVersion: 2, id: 'not-found-1', method: 'sessions.select', params: {} },
+        );
+
+        expect(write).toHaveBeenCalledExactlyOnceWith('warn', 'ipc.request_failed', {
+            correlationId: 'not-found-1',
+            fields: { code: 'NOT_FOUND', error: 'Session not found', method: 'sessions.select' },
+        });
+    });
+
+    it('logs a caller-side VALIDATION request failure at warn', async () => {
+        const write = vi.fn();
+        installWorkbenchIpc({
+            isQuitting: () => false,
+            logger: () => ({ write }) as never,
+            renderer: () => renderer as never,
+            transport: {
+                dispatch: () =>
+                    Promise.resolve({
+                        protocolVersion: 2,
+                        id: 'validation-1',
+                        ok: false,
+                        error: { code: 'VALIDATION', message: 'Path contains a null byte' },
+                    }),
+                negotiate,
+            },
+        });
+        const request = electronMock.handles.get('caxri:request')!;
+
+        await request(
+            { sender: renderer },
+            { protocolVersion: 2, id: 'validation-1', method: 'pathBrowser.list', params: {} },
+        );
+
+        expect(write).toHaveBeenCalledExactlyOnceWith('warn', 'ipc.request_failed', {
+            correlationId: 'validation-1',
+            fields: {
+                code: 'VALIDATION',
+                error: 'Path contains a null byte',
+                method: 'pathBrowser.list',
+            },
+        });
+    });
+
+    it('still logs a non-caller-side request failure at error with correlation and method', async () => {
+        const write = vi.fn();
+        installWorkbenchIpc({
+            isQuitting: () => false,
+            logger: () => ({ write }) as never,
+            renderer: () => renderer as never,
+            transport: {
+                dispatch: () =>
+                    Promise.resolve({
+                        protocolVersion: 2,
+                        id: 'io-1',
+                        ok: false,
+                        error: { code: 'IO', message: 'Disk read failed' },
+                    }),
+                negotiate,
+            },
+        });
+        const request = electronMock.handles.get('caxri:request')!;
+
+        await request(
+            { sender: renderer },
+            { protocolVersion: 2, id: 'io-1', method: 'files.read', params: {} },
+        );
+
+        expect(write).toHaveBeenCalledExactlyOnceWith('error', 'ipc.request_failed', {
+            correlationId: 'io-1',
+            fields: { code: 'IO', error: 'Disk read failed', method: 'files.read' },
+        });
+    });
 });

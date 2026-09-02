@@ -180,6 +180,17 @@ export function requestIdFromEnvelope(envelope: unknown): string | null {
     return parsed.success ? parsed.data.id : null;
 }
 
+/**
+ * Best-effort method name for diagnostics, tolerant of envelopes that otherwise fail validation (unknown method,
+ * malformed parameters, etc). Deliberately looser than {@link requestEnvelopeSchema}'s `method` shape, which rejects
+ * anything that is not a recognized Caxri method: a log line about an unrecognized method still needs the method name
+ * to be useful.
+ */
+export function methodFromEnvelope(envelope: unknown): string | null {
+    const parsed = z.object({ method: z.string() }).safeParse(envelope);
+    return parsed.success ? parsed.data.method : null;
+}
+
 function reply(id: string, result: unknown): CommandReplyEnvelope {
     return commandReplyEnvelopeSchema.parse({
         protocolVersion: CAXRI_PROTOCOL_VERSION,
