@@ -1,7 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { lstat } from 'node:fs/promises';
 
-import type { AgentTranscript } from '@caxri/protocol';
+import type { AgentProvider, AgentTranscript } from '@caxri/protocol';
 
 import type { CaxriDatabase } from '../db';
 import type { AgentEnvironment } from './contract';
@@ -16,11 +16,16 @@ import { openSafeAgentTranscript, resolveSafeAgentTranscriptPath } from './trans
  */
 export const MAX_AGENT_TRANSCRIPT_BYTES = 4 * 1024 * 1024;
 
-export function resolveAgentTranscriptLocation(
+interface BoundAgentIdentity {
+    agentSessionId: string;
+    cwd: string;
+    provider: AgentProvider;
+}
+
+function boundAgentIdentity(
     database: CaxriDatabase,
     terminalId: string,
-    environment: AgentEnvironment = defaultAgentEnvironment(),
-): AgentTranscriptLocation | undefined {
+): BoundAgentIdentity | undefined {
     const terminal = database.getTerminal(terminalId);
     if (
         !terminal?.provider ||
@@ -28,14 +33,41 @@ export function resolveAgentTranscriptLocation(
         !isOpaqueAgentSessionId(terminal.agentSessionId)
     )
         return;
-    const provider = agentProviders[terminal.provider];
-    const path = provider.transcriptPath?.(
-        { agentSessionId: terminal.agentSessionId, cwd: terminal.cwd },
-        environment,
-    );
+    return {
+        agentSessionId: terminal.agentSessionId,
+        cwd: terminal.cwd,
+        provider: terminal.provider,
+    };
+}
+
+export function resolveAgentTranscriptLocation(
+    database: CaxriDatabase,
+    terminalId: string,
+    environment: AgentEnvironment = defaultAgentEnvironment(),
+): AgentTranscriptLocation | undefined {
+    const identity = boundAgentIdentity(database, terminalId);
+    if (!identity) return;
+    const provider = agentProviders[identity.provider];
+    const path = provider.transcriptPath?.(identity, environment);
     const baseRoot = provider.transcriptBaseRoot?.(environment);
-    const root = provider.transcriptRoot?.({ cwd: terminal.cwd }, environment);
+    const root = provider.transcriptRoot?.({ cwd: identity.cwd }, environment);
     return path && root && baseRoot ? { baseRoot, path, root } : undefined;
+}
+
+/**
+ * Pure derivation first, then the provider's directory lookup for transcripts whose name cannot be computed (Codex).
+ * Callers that only need a synchronous, filesystem-free answer keep using `resolveAgentTranscriptLocation`.
+ */
+export async function locateAgentTranscript(
+    database: CaxriDatabase,
+    terminalId: string,
+    environment: AgentEnvironment = defaultAgentEnvironment(),
+): Promise<AgentTranscriptLocation | undefined> {
+    const derived = resolveAgentTranscriptLocation(database, terminalId, environment);
+    if (derived) return derived;
+    const identity = boundAgentIdentity(database, terminalId);
+    if (!identity) return;
+    return agentProviders[identity.provider].locateTranscript?.(identity, environment);
 }
 
 async function readTranscriptTail(

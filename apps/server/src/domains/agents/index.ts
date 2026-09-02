@@ -12,7 +12,11 @@ export {
     normalizeGeneratedAgentTitle,
     readAgentTitleGitBranch,
 } from './title-generation';
-export { readAgentTranscript, resolveAgentTranscriptLocation } from './transcript';
+export {
+    locateAgentTranscript,
+    readAgentTranscript,
+    resolveAgentTranscriptLocation,
+} from './transcript';
 export {
     createTranscriptPullRequestScan,
     resetTranscriptPullRequestScan,

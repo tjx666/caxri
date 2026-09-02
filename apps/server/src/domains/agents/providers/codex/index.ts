@@ -24,6 +24,7 @@ import { codexHookAdapter } from './hooks';
 import { generateCodexLowCostText } from './low-cost-generation';
 import { resolveCodexHome, resolveCodexStateDirectories } from './paths';
 import { findCodexStateDatabases } from './state-databases';
+import { locateCodexTranscript } from './transcript';
 
 /**
  * A one-shot app-server sees the active conversation as an unloaded thread; 0.110.0 made that rename path durable.
@@ -458,5 +459,6 @@ export const codexProvider: AgentProviderDescriptor = {
     readState: (context, environment) =>
         readCodexState(context, resolveCodexStateDirectories(environment)),
     renameSession: renameCodexSession,
+    locateTranscript: (context, environment) => locateCodexTranscript(context, environment),
     resumeArguments: (agentSessionId) => ['resume', agentSessionId],
 };
