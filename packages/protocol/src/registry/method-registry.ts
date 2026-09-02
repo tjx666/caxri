@@ -23,7 +23,11 @@ import {
     desktopStatusResultSchema,
 } from '../desktop/desktop-contract.js';
 import { gpuDesktopMethods } from '../desktop/gpu-contract.js';
-import { MAX_PATH_BROWSER_ENTRIES, pathBrowserMethods } from '../desktop/path-browser-contract.js';
+import {
+    MAX_PATH_BROWSER_ENTRIES,
+    pathBrowserMethods,
+    pathBrowserServerMethods,
+} from '../desktop/path-browser-contract.js';
 import { bugReportScreenshot, bugReportText } from '../domain/bug-report-contract.js';
 import { businessInternalMethods, businessMethods } from '../domain/business-contract.js';
 import {
@@ -164,6 +168,7 @@ export const methods = {
     ...mobileMethods,
     ...workbenchMethods,
     ...pathBrowserMethods,
+    ...pathBrowserServerMethods,
     ...extensionViewMethods,
     'viewContainers.catalog': {
         ...serverRead,

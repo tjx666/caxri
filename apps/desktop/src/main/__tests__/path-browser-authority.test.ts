@@ -169,6 +169,71 @@ describe('path browser authority', () => {
         });
     });
 
+    it('falls back to the shallowest Project directory matching a relative path suffix', async () => {
+        const ownerRoot = await temporaryDirectory('caxri-path-owner-');
+        const workbenchRoot = await temporaryDirectory('caxri-path-worktree-');
+        const canonicalWorkbenchRoot = await realpath(workbenchRoot);
+        const shallow = join(canonicalWorkbenchRoot, 'lobehub', 'packages', 'bank');
+        const deep = join(canonicalWorkbenchRoot, 'apps', 'web', 'vendor', 'packages', 'bank');
+        await mkdir(shallow, { recursive: true });
+        await mkdir(deep, { recursive: true });
+        const { authority, request } = authorityOptions(ownerRoot, workbenchRoot, {
+            request(method: string, parameters?: unknown) {
+                if (method === 'app.bootstrap')
+                    return Promise.resolve(bootstrap(ownerRoot, workbenchRoot));
+                if (method === 'files.browse')
+                    return Promise.resolve({ entries: [], truncated: false });
+                if (method === 'files.locateDirectory') {
+                    const { suffix } = parameters as { suffix: string };
+                    return Promise.resolve({
+                        paths: suffix === 'packages/bank' ? [deep, shallow] : [],
+                        truncated: false,
+                    });
+                }
+                return Promise.reject(new Error(`Unexpected method: ${method}`));
+            },
+        });
+        const initial = await authority.start({ sessionId: 'session-1' });
+
+        const located = await authority.browse({
+            browserId: initial.browserId,
+            mode: 'project',
+            input: 'packages/bank/index.ts',
+        });
+        expect(located).toMatchObject({
+            directoryLabel: 'lobehub/',
+            input: 'packages/bank/index.ts',
+            mode: 'project',
+        });
+        expect(request).toHaveBeenCalledWith('files.locateDirectory', {
+            sessionId: 'session-1',
+            suffix: 'packages/bank',
+        });
+        expect(request).toHaveBeenLastCalledWith('files.browse', {
+            sessionId: 'session-1',
+            directory: shallow,
+            query: 'index.ts',
+        });
+
+        await expect(
+            authority.browse({
+                browserId: initial.browserId,
+                mode: 'project',
+                input: 'nowhere/bank/index.ts',
+            }),
+        ).rejects.toMatchObject({ code: 'NOT_FOUND', message: 'File not found' });
+
+        request.mockClear();
+        await expect(
+            authority.browse({
+                browserId: initial.browserId,
+                mode: 'project',
+                input: '../packages/bank/index.ts',
+            }),
+        ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+        expect(request).not.toHaveBeenCalledWith('files.locateDirectory', expect.anything());
+    });
+
     it('live-lists Home, parent, relative, and absolute free paths with opaque entries', async () => {
         const container = await temporaryDirectory('caxri-path-free-');
         const ownerRoot = join(container, 'owner');

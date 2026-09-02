@@ -9,6 +9,7 @@ import type {
     ServerOperationParameters,
     ServerOperationResult,
 } from '@caxri/protocol';
+import { MAX_FILE_LOCATE_DIRECTORY_MATCHES } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
 import type { CaxriDatabase } from '../db';
@@ -23,7 +24,11 @@ import { FileMutationJournal } from './mutation-journal';
 import type { FileMutationServiceOptions } from './mutations';
 import { FileMutationService } from './mutations';
 import { FileOperationQueue } from './operation-queue';
-import type { ProjectFileSuffixSearchResult, SearchServiceOptions } from './search';
+import type {
+    ProjectFileSuffixSearchResult,
+    ProjectSuffixLeafKind,
+    SearchServiceOptions,
+} from './search';
 import { SearchService } from './search';
 import type { WatcherServiceOptions } from './watcher';
 import { WatcherService } from './watcher';
@@ -340,8 +345,34 @@ export class FileService {
         root: string,
         suffix: string,
         signal: AbortSignal,
+        leafKind?: ProjectSuffixLeafKind,
     ): Promise<ProjectFileSuffixSearchResult> {
-        return this.searcher.searchProjectFileSuffixes(sessionId, root, suffix, signal);
+        return this.searcher.searchProjectFileSuffixes(sessionId, root, suffix, signal, leafKind);
+    }
+
+    /**
+     * Path-browser fallback: locates Project-local directories whose relative path ends with `suffix`, so a relative
+     * path copied without its leading directories (for example from Agent output) can still be browsed.
+     */
+    async locateDirectory(
+        parameters: ServerOperationParameters<'files.locateDirectory'>,
+        signal?: AbortSignal,
+    ): Promise<ServerOperationResult<'files.locateDirectory'>> {
+        const { root } = await this.resolveSessionPath(parameters.sessionId);
+        const result = await this.searcher.searchProjectFileSuffixes(
+            parameters.sessionId,
+            root,
+            parameters.suffix,
+            signal ?? new AbortController().signal,
+            'directory',
+        );
+        return {
+            paths: result.matches
+                .slice(0, MAX_FILE_LOCATE_DIRECTORY_MATCHES)
+                .map((match) => match.path),
+            truncated:
+                result.truncated || result.matches.length > MAX_FILE_LOCATE_DIRECTORY_MATCHES,
+        };
     }
 
     watchSession(sessionId?: string): Promise<void> {
