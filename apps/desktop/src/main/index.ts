@@ -46,7 +46,7 @@ import { ProcessExplorerWindowController } from './process-explorer-window';
 import { loadRendererEntry } from './renderer-entry';
 import { RendererReadiness } from './renderer-readiness';
 import { ProjectRootGrants } from './root-grants';
-import { DesktopServerConnection, resolveDesktopLaunch } from './server-connection';
+import { DesktopServerConnection, resolveDesktopLaunch, wirePowerWake } from './server-connection';
 import { shouldContinueStartup } from './server-startup';
 import { createTestRootPathResolver } from './test-root';
 import { shouldStartAutomaticUpdateCheck, UpdateService, updateStateLogFields } from './updates';
@@ -606,9 +606,7 @@ if (ownsProfileInstance) {
     app.whenReady()
         // eslint-disable-next-line unicorn/prefer-await -- see comment above
         .then(async () => {
-            powerMonitor.on('shutdown', () => {
-                quitIntent = 'system-shutdown';
-            });
+            wirePowerWake(powerMonitor, () => (quitIntent = 'system-shutdown'), supervisor);
             if (
                 shouldEnableAcceptanceAccessibility({
                     environment: process.env,

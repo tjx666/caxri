@@ -1,5 +1,6 @@
 import { CAXRI_PROTOCOL_VERSION, CaxriError, logEventCatalog } from '@caxri/protocol';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import type WebSocket from 'ws';
 
 import type { ControlServerOptions } from '../control-server-support';
 import {
@@ -9,6 +10,7 @@ import {
     logControlRequestOutcome,
     observationContextForRequest,
     operatorContext,
+    terminateSocket,
 } from '../control-server-support';
 
 type ControlRequestLogEvent = Parameters<NonNullable<ControlServerOptions['logger']>['write']>[1];
@@ -114,6 +116,63 @@ describe('Host request log sink', () => {
         expect(metrics).toHaveLength(2);
         expect(JSON.stringify(writes)).not.toContain('do-not-log-source');
         expect(JSON.stringify(writes)).not.toContain('/private/project/secret.ts');
+    });
+});
+
+describe('terminateSocket', () => {
+    it('terminates the socket and logs the given reason', () => {
+        const writes: ControlRequestLogWrite[] = [];
+        // `socket` is typed as `WebSocket`, so referencing `socket.terminate` directly trips
+        // `@typescript-eslint/unbound-method`; assert on the mock function itself instead.
+        const terminate = vi.fn();
+        const socket = { terminate } as unknown as WebSocket;
+
+        terminateSocket(socket, 'handshake-timeout', {
+            write: (...arguments_: ControlRequestLogWrite) => writes.push(arguments_),
+        });
+
+        expect(terminate).toHaveBeenCalledTimes(1);
+        expect(writes).toHaveLength(1);
+        expect(writes[0]?.[0]).toBe('info');
+        expect(writes[0]?.[1]).toBe(logEventCatalog.serverCore.socketTerminated);
+        expect(writes[0]?.[2]?.fields).toEqual({ reason: 'handshake-timeout' });
+    });
+
+    it('terminates the socket without logging when no logger is given', () => {
+        const terminate = vi.fn();
+        const socket = { terminate } as unknown as WebSocket;
+
+        expect(() => terminateSocket(socket, 'server-closing')).not.toThrow();
+        expect(terminate).toHaveBeenCalledTimes(1);
+    });
+
+    it('attaches the connection identity as context when the caller has one', () => {
+        const writes: ControlRequestLogWrite[] = [];
+        const socket = { terminate: vi.fn() } as unknown as WebSocket;
+        const context = {
+            ...operatorContext('profile-1'),
+            connection: {
+                serverId: 'a'.repeat(32),
+                bootId: 'b'.repeat(32),
+                stateEpoch: 'c'.repeat(32),
+                clientId: 'client-1',
+                connectionId: 'd'.repeat(32),
+            },
+        };
+
+        terminateSocket(
+            socket,
+            'invalid-message',
+            { write: (...arguments_: ControlRequestLogWrite) => writes.push(arguments_) },
+            context,
+        );
+
+        expect(writes[0]?.[2]?.context).toEqual({
+            bootId: 'b'.repeat(32),
+            clientId: 'client-1',
+            connectionId: 'd'.repeat(32),
+            serverId: 'a'.repeat(32),
+        });
     });
 });
 

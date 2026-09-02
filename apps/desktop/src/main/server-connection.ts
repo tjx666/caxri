@@ -37,6 +37,7 @@ import {
 } from '@caxri/protocol';
 import type { E2EAgentPolicy, StructuredLogger } from '@caxri/system';
 import { computeBuildFingerprint, e2eAgentPolicyEnvironment, logEventCatalog } from '@caxri/system';
+import type { PowerMonitor } from 'electron';
 
 import type { ServerBuildIdentity } from './server-staleness';
 import { isServerBuildStale } from './server-staleness';
@@ -216,7 +217,7 @@ export class DesktopServerConnection extends EventTarget {
             this.options.handleCommand,
         );
         this.client = client;
-        client.onClose((reason) => this.handleConnectionLoss(client, reason));
+        client.onClose((reason, closeCode) => this.handleConnectionLoss(client, reason, closeCode));
         const connectionIdentity = client.welcome.connection;
         const recoveryIdentity = connectionIdentity
             ? `${connectionIdentity.serverId}:${connectionIdentity.stateEpoch}`
@@ -359,7 +360,11 @@ export class DesktopServerConnection extends EventTarget {
      * Drops a lost attachment and keeps retrying recoverable outages in the background. An orderly same-profile Desktop
      * takeover is terminal for this Main instance so it cannot evict the replacement in return.
      */
-    private handleConnectionLoss(lost: ServerClient, reason?: DesktopLeaseRevocationReason): void {
+    private handleConnectionLoss(
+        lost: ServerClient,
+        reason?: DesktopLeaseRevocationReason,
+        closeCode?: number,
+    ): void {
         if (this.lifecycle.status === 'disposed' || this.client !== lost) return;
         this.client = undefined;
         this.starting = undefined;
@@ -384,7 +389,9 @@ export class DesktopServerConnection extends EventTarget {
             );
             return;
         }
-        this.options.logger.write('warn', logEventCatalog.serverConnection.connectionLost, {});
+        this.options.logger.write('warn', logEventCatalog.serverConnection.connectionLost, {
+            fields: { closeCode: closeCode ?? null },
+        });
         if (this.serverPid !== undefined) this.serverSupervisor.reportProcessLoss(this.serverPid);
         if (this.serverSupervisor.isFailed()) return;
         this.ensureReconnectLoop();
@@ -574,6 +581,16 @@ export class DesktopServerConnection extends EventTarget {
         return client.markDesktopReady();
     }
 
+    /**
+     * Forces an immediate Desktop lease renewal. Intended to be called from Main's `powerMonitor` `resume` (and
+     * `unlock-screen`) handlers so a woken Desktop reasserts its lease before Server Core's own post-sleep expiry timer
+     * can win the race; see `ServerClient.renewLeaseNow`. A no-op while disconnected — the reconnect path establishes a
+     * fresh lease on its own.
+     */
+    renewLeaseNow(): void {
+        this.client?.renewLeaseNow();
+    }
+
     close(): void {
         this.disposeLifecycle();
         /**
@@ -636,4 +653,19 @@ export class DesktopServerConnection extends EventTarget {
         this.close();
         return Promise.resolve();
     }
+}
+
+/**
+ * Wires the two `powerMonitor` events Main's bootstrap needs at startup. `shutdown` marks the pending quit as an OS
+ * shutdown rather than a user action; `resume`/`unlock-screen` force an immediate lease renewal (see
+ * `DesktopServerConnection.renewLeaseNow`) instead of waiting on the connection's background renew interval.
+ */
+export function wirePowerWake(
+    powerMonitor: Pick<PowerMonitor, 'on'>,
+    onShutdown: () => void,
+    connection: Pick<DesktopServerConnection, 'renewLeaseNow'>,
+): void {
+    powerMonitor.on('shutdown', onShutdown);
+    powerMonitor.on('resume', () => connection.renewLeaseNow());
+    powerMonitor.on('unlock-screen', () => connection.renewLeaseNow());
 }

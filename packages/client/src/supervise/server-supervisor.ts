@@ -3,7 +3,8 @@ import process from 'node:process';
 import type { ServerManifest } from '@caxri/protocol';
 import { CAXRI_PROTOCOL_VERSION, CaxriError } from '@caxri/protocol';
 
-import { discoverServerManifest, ServerClient } from './client.js';
+import { ServerClient } from './client.js';
+import { discoverServerManifest } from './discovery.js';
 import type { ServerLaunchOptions, ServerLaunchReceipt } from './launch.js';
 import { launchServer } from './launch.js';
 

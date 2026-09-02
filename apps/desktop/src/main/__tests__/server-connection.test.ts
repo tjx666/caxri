@@ -30,7 +30,7 @@ interface FakeServerClient {
     onEvent: ReturnType<typeof vi.fn>;
     request: ReturnType<typeof vi.fn>;
     requestServerOperation: ReturnType<typeof vi.fn>;
-    triggerClose: (reason?: 'replaced') => void;
+    triggerClose: (reason?: 'replaced', closeCode?: number) => void;
     triggerEvent: (envelope: unknown) => void;
     welcome: {
         connection: {
@@ -71,7 +71,7 @@ function recoveryResult(
 }
 
 function createFakeServerClient(options: ServerRoundOptions = {}): FakeServerClient {
-    const closeListeners: Array<(reason?: 'replaced') => void> = [];
+    const closeListeners: Array<(reason?: 'replaced', closeCode?: number) => void> = [];
     const eventListeners: Array<(envelope: unknown) => void> = [];
     const recoveryIdentity = {
         serverId: options.serverId ?? defaultRecoveryIdentity.serverId,
@@ -80,7 +80,7 @@ function createFakeServerClient(options: ServerRoundOptions = {}): FakeServerCli
     return {
         close: vi.fn(),
         markDesktopReady: vi.fn().mockResolvedValue(undefined),
-        onClose: vi.fn((listener: (reason?: 'replaced') => void) => {
+        onClose: vi.fn((listener: (reason?: 'replaced', closeCode?: number) => void) => {
             closeListeners.push(listener);
             return () => {};
         }),
@@ -90,8 +90,8 @@ function createFakeServerClient(options: ServerRoundOptions = {}): FakeServerCli
         }),
         request: vi.fn().mockResolvedValue(recoveryResult(0, [], recoveryIdentity)),
         requestServerOperation: vi.fn(),
-        triggerClose: (reason) => {
-            for (const listener of closeListeners) listener(reason);
+        triggerClose: (reason, closeCode) => {
+            for (const listener of closeListeners) listener(reason, closeCode);
         },
         triggerEvent: (envelope) => {
             for (const listener of eventListeners) listener(envelope);
@@ -409,11 +409,14 @@ describe('Desktop Server connection facade', () => {
         expect(first.markDesktopReady).toHaveBeenCalledTimes(1);
 
         const replacement = mockServerRound();
-        first.triggerClose();
+        // 1006: the abnormal-closure code `ws` reports for `terminate()` (github.com/tjx666/caxri/issues/553).
+        first.triggerClose(undefined, 1006);
         await expect(connection.request('app.health')).rejects.toMatchObject({
             code: 'UNAVAILABLE',
         });
-        expect(logger.write).toHaveBeenCalledWith('warn', 'server_connection.lost', {});
+        expect(logger.write).toHaveBeenCalledWith('warn', 'server_connection.lost', {
+            fields: { closeCode: 1006 },
+        });
 
         await vi.advanceTimersByTimeAsync(500);
         expect(logger.write).toHaveBeenCalledWith('info', 'server_connection.reconnected', {
