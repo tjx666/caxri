@@ -81,6 +81,78 @@ describe('PTY observability', () => {
         });
     });
 
+    it('seeds a later burst from the previously applied grid so a one-step resize reads as a change', () => {
+        const { logger, write } = resizeLogger();
+        const observer = new PtyResizeBurstObserver(logger);
+
+        observer.recordApplied('terminal-1', { cols: 120, rows: 40 });
+        vi.advanceTimersByTime(250);
+        expect(write).toHaveBeenCalledOnce();
+        expect(write.mock.calls[0]?.[2]?.fields).toMatchObject({
+            sampleCount: 1,
+            changeCount: 0,
+            startCols: 120,
+            finalCols: 120,
+        });
+
+        observer.recordApplied('terminal-1', { cols: 130, rows: 40 });
+        vi.advanceTimersByTime(250);
+
+        expect(write).toHaveBeenCalledTimes(2);
+        expect(write.mock.calls[1]?.[2]?.fields).toMatchObject({
+            sampleCount: 1,
+            changeCount: 1,
+            startCols: 120,
+            startRows: 40,
+            finalCols: 130,
+            finalRows: 40,
+        });
+    });
+
+    it('reports no change when a seeded burst only re-samples the existing grid', () => {
+        const { logger, write } = resizeLogger();
+        const observer = new PtyResizeBurstObserver(logger);
+
+        observer.recordApplied('terminal-1', { cols: 120, rows: 40 });
+        vi.advanceTimersByTime(250);
+        expect(write).toHaveBeenCalledOnce();
+
+        observer.recordApplied('terminal-1', { cols: 120, rows: 40 });
+        vi.advanceTimersByTime(250);
+
+        expect(write).toHaveBeenCalledTimes(2);
+        expect(write.mock.calls[1]?.[2]?.fields).toMatchObject({
+            sampleCount: 1,
+            changeCount: 0,
+            startCols: 120,
+            startRows: 40,
+            finalCols: 120,
+            finalRows: 40,
+        });
+    });
+
+    it('does not seed a burst for a Terminal id reused after disposeTerminal cleared its remembered grid', () => {
+        const { logger, write } = resizeLogger();
+        const observer = new PtyResizeBurstObserver(logger);
+
+        observer.recordApplied('terminal-1', { cols: 120, rows: 40 });
+        observer.disposeTerminal('terminal-1');
+        expect(write).toHaveBeenCalledOnce();
+
+        observer.recordApplied('terminal-1', { cols: 130, rows: 40 });
+        vi.advanceTimersByTime(250);
+
+        expect(write).toHaveBeenCalledTimes(2);
+        expect(write.mock.calls[1]?.[2]?.fields).toMatchObject({
+            sampleCount: 1,
+            changeCount: 0,
+            startCols: 130,
+            startRows: 40,
+            finalCols: 130,
+            finalRows: 40,
+        });
+    });
+
     it('bounds a continuously changing resize burst at five seconds', () => {
         const { logger, write } = resizeLogger();
         const observer = new PtyResizeBurstObserver(logger);

@@ -19,6 +19,10 @@ const DEFAULT_RESIZE_BURST_MAX_SAMPLES = 10_000;
 export type TerminalResizeBurstFlushReason = 'disposed' | 'max-duration' | 'paused' | 'quiet';
 
 export interface TerminalResizeBurstSummary {
+    /**
+     * Grid transitions relative to the grid in force before the burst; `0` means the burst re-sampled the existing grid
+     * and never changed it.
+     */
     changeCount: number;
     durationMs: number;
     finalCols: number;
@@ -80,8 +84,10 @@ export class TerminalResizeBurstTracker {
     private readonly now: () => number;
     private readonly quietMs: number;
     private readonly setTimer: SetTimer;
+    private burstSeeded = false;
     private burstStartedAt: number | undefined;
     private disposed = false;
+    private lastGrid: TerminalSize | undefined;
     private lastSampleAt: number | undefined;
     private localAppliedCount = 0;
     private maxDurationTimer: TimerHandle | undefined;
@@ -125,10 +131,12 @@ export class TerminalResizeBurstTracker {
         const lastSampleAt = this.lastSampleAt;
         const localAppliedCount = this.localAppliedCount;
         const requestCount = this.requestCount;
+        const burstSeeded = this.burstSeeded;
         this.burstStartedAt = undefined;
         this.lastSampleAt = undefined;
         this.localAppliedCount = 0;
         this.requestCount = 0;
+        this.burstSeeded = false;
         if (
             !aggregate ||
             burstStartedAt === undefined ||
@@ -139,9 +147,13 @@ export class TerminalResizeBurstTracker {
 
         const rawDurationMs = Math.max(0, lastSampleAt - burstStartedAt);
         const sampleCount = Math.min(aggregate.sampleCount, this.maxSamples);
+        // A seeded burst compares every real sample against the pre-burst grid too, so up to `sampleCount`
+        // transitions are possible; an unseeded burst's first sample has nothing to compare against, so the bound
+        // stays `sampleCount - 1`.
+        const maxChangeCount = burstSeeded ? sampleCount : Math.max(0, sampleCount - 1);
         const report: TerminalResizeBurstSummary = {
             sampleCount,
-            changeCount: Math.min(aggregate.changeCount, Math.max(0, sampleCount - 1)),
+            changeCount: Math.min(aggregate.changeCount, maxChangeCount),
             startCols: aggregate.start.cols,
             startRows: aggregate.start.rows,
             minCols: aggregate.minimum.cols,
@@ -169,6 +181,10 @@ export class TerminalResizeBurstTracker {
         const sampledAt = this.now();
         if (this.burstStartedAt === undefined) {
             this.burstStartedAt = sampledAt;
+            if (this.lastGrid !== undefined) {
+                this.accumulator.seed(this.lastGrid);
+                this.burstSeeded = true;
+            }
             this.maxDurationTimer = this.setTimer(
                 () => this.flush('max-duration'),
                 this.maxDurationMs,
@@ -176,6 +192,7 @@ export class TerminalResizeBurstTracker {
         }
         this.lastSampleAt = sampledAt;
         this.accumulator.sample(size);
+        this.lastGrid = { cols: size.cols, rows: size.rows };
         if (observation.localApplied) this.localAppliedCount += 1;
         if (observation.requestSent) this.requestCount += 1;
         if (this.quietTimer !== undefined) this.clearTimer(this.quietTimer);
