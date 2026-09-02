@@ -202,6 +202,8 @@ export const logEventCatalog = {
         humanSteer: 'terminal.human_steer',
         restoreCwdRejected: 'terminal.restore_cwd_rejected',
         restoreInterruptedFailed: 'terminal.restore_interrupted_failed',
+        suspendFailed: 'terminal.suspend_failed',
+        suspended: 'terminal.suspended',
     },
     terminalHost: {
         error: 'terminal_host.error',

@@ -10,12 +10,7 @@ import type {
     TerminalKind,
     TerminalRecord,
 } from '@caxri/protocol';
-import {
-    agentProviderCatalog,
-    CaxriError,
-    errorMessage,
-    visiblePaneTerminalIds,
-} from '@caxri/protocol';
+import { agentProviderCatalog, CaxriError, errorMessage } from '@caxri/protocol';
 import { logEventCatalog } from '@caxri/system';
 
 import { AgentDispatchService, createAgentCommandHandlers } from './agent-dispatch';
@@ -31,10 +26,16 @@ import { createRootServices } from './root-services';
 import { createServiceHandlers, mainOwned } from './service-handlers';
 import { SessionSelectionQueue } from './session-selection';
 import type { TerminalWorkingDirectoryIdentity } from './terminal';
-import { ShellIntegrationService, TerminalManager, TerminalRestoreSupervisor } from './terminal';
+import {
+    ShellIntegrationService,
+    TerminalManager,
+    TerminalRestoreSupervisor,
+    TerminalSuspensionService,
+} from './terminal';
 import { createTerminalAgentExactInputHandler, createTerminalInputHandler } from './terminal-input';
 import { createTerminalMoveHandler } from './terminal-move';
 import { createTerminalRestartHandler } from './terminal-restart';
+import { createInterruptedTerminalRestorer } from './terminal-restore';
 import * as provenance from './workbench-provenance';
 import { validateWorkbenchRequestContext } from './workbench-request-context';
 import { createWorkbenchRootHandlers } from './workbench-roots';
@@ -67,11 +68,13 @@ export async function createDomainServices(
                 }),
             );
     });
+    const suspensionState: { service?: TerminalSuspensionService } = {};
     const agentRuntime = await createAgentRuntime({
         configuration,
         database,
         dependencies,
         logger,
+        onLifecycleSignal: (signal) => suspensionState.service?.observeLifecycle(signal),
         send,
         userDataPath,
         watchHub,
@@ -146,11 +149,14 @@ export async function createDomainServices(
                 ...endpointEnvironment,
             };
         },
-        onLifecycleStarted: (terminal) =>
-            terminal.kind === 'shell'
+        onLifecycleStarted: (terminal) => {
+            suspensionState.service?.observeLaunch(terminal.id);
+            return terminal.kind === 'shell'
                 ? undefined
-                : dependencies.agentEndpoints?.activate(terminal.id),
+                : dependencies.agentEndpoints?.activate(terminal.id);
+        },
         onLifecycleRetired: async (terminalId, launchId) => {
+            suspensionState.service?.forgetTerminal(terminalId);
             agentHooks.endTerminalLaunch(terminalId, launchId);
             await provenance.retireAgentWorkbenchProvenance({
                 endpoints: dependencies.agentEndpoints,
@@ -161,6 +167,7 @@ export async function createDomainServices(
         },
         onOutputActivity: (terminalId, processId) =>
             coordinator.observeOutput(terminalId, processId),
+        onInput: (terminalId) => suspensionState.service?.observeInput(terminalId),
         onAgentStateChanged: (terminalId, state) =>
             agentDispatchState.service?.observeTerminalState(terminalId, state),
         shellIntegration: (executable, environment) =>
@@ -181,6 +188,17 @@ export async function createDomainServices(
         terminals.reconcileOutputRecoverySettings(),
     );
     const terminalRestores = new TerminalRestoreSupervisor();
+    const terminalSuspension = new TerminalSuspensionService({
+        database,
+        logger,
+        selectedSessionId,
+        send,
+        settings: () => configuration.getSettings().value,
+        ...dependencies.terminalSuspension,
+        terminals,
+        watchHub,
+    });
+    suspensionState.service = terminalSuspension;
     const projectStatus = new ProjectStatusService(git, logger, undefined, { emit: send });
     const diagnostics = new DiagnosticsService(
         database,
@@ -316,86 +334,17 @@ export async function createDomainServices(
             inode: stats.ino.toString(),
         };
     }
-    /**
-     * Auto-restores a Session's Terminals that an orderly shutdown left `interrupted` (GitHub issue #18). A Terminal
-     * with a bound Agent conversation (`terminal.provider` set) resumes it via its Server provider descriptor, so
-     * `coordinator.prepareTerminalStart` — which clears the Agent session binding through `resetAgentMetadataForStart`
-     * — must be skipped for that Terminal; that clearing is exactly what a normal (non-resuming) start wants. A
-     * Terminal without a bound conversation (a shell, or an Agent Terminal that never reached a capability-detected
-     * session id) gets a fresh start instead. A spawn failure is left as `failed`; the user can restart it manually.
-     * Restore work shares a global concurrency budget. Selecting another Session invalidates queued work, and the
-     * generation is checked again after executable discovery immediately before spawn.
-     */
-    async function restoreInterruptedTerminals(sessionId: string): Promise<void> {
-        const sessionTerminals = database.listTerminals(sessionId);
-        // Every pane shows its own active tab, so more than one Terminal can be on screen at once; each of them waits
-        // for the attached grid size before replaying, which an off-screen Terminal has no reason to do.
-        const visibleTerminalIds = new Set(
-            visiblePaneTerminalIds(database.getSessionState(sessionId).paneLayout),
-        );
-        const interrupted = sessionTerminals.filter(
-            (terminal) => terminal.lastProcessState === 'interrupted',
-        );
-        const restored = await terminalRestores.restore(
-            sessionId,
-            interrupted.map((terminal) => async (isCurrent, abortSignal) => {
-                const shouldRestoreAgent = ['interrupted', 'running', 'starting'].includes(
-                    terminal.lastAgentProcessState ?? 'stopped',
-                );
-                const resumeAgentSessionId =
-                    shouldRestoreAgent && terminal.provider ? terminal.agentSessionId : undefined;
-                if (resumeAgentSessionId) coordinator.prepareTerminalResume(terminal.id);
-                else if (shouldRestoreAgent) coordinator.prepareTerminalStart(terminal.id);
-                try {
-                    const expectedWorkingDirectory = await terminalDirectoryIdentity(terminal.cwd);
-                    const restarted = await terminals.restart(terminal.id, {
-                        expectedWorkingDirectory,
-                        launchAgent: shouldRestoreAgent,
-                        resumeAgentSessionId,
-                        shouldStart: isCurrent,
-                        abortSignal,
-                        waitForAttachedSizeMs: visibleTerminalIds.has(terminal.id)
-                            ? (dependencies.terminalRestoreGridWaitMs ??
-                              VISIBLE_TERMINAL_RESTORE_GRID_WAIT_MS)
-                            : undefined,
-                    });
-                    if (restarted.lastProcessState !== 'running') return false;
-                } catch {
-                    const current = database.getTerminal(terminal.id);
-                    if (current?.lastProcessState === 'interrupted') {
-                        database.updateTerminalState(
-                            terminal.id,
-                            'failed',
-                            'working_directory_unavailable',
-                        );
-                        logger.write('warn', logEventCatalog.terminal.restoreCwdRejected, {
-                            fields: { terminalId: terminal.id },
-                        });
-                    }
-                    if (database.getTerminal(terminal.id)?.lastProcessState === 'failed')
-                        send({
-                            event: 'state.changed',
-                            payload: {
-                                kind: 'records',
-                                sessionIds: [],
-                                terminalIds: [terminal.id],
-                            },
-                        });
-                    return false;
-                }
-                if (terminal.provider) coordinator.probeTerminal(terminal.id);
-                return true;
-            }),
-        );
-        const restoredTerminalIds: string[] = [];
-        for (const [index, terminal] of interrupted.entries())
-            if (restored[index]) restoredTerminalIds.push(terminal.id);
-        if (restoredTerminalIds.length > 0)
-            send({
-                event: 'state.changed',
-                payload: { kind: 'records', sessionIds: [], terminalIds: restoredTerminalIds },
-            });
-    }
+    const restoreInterruptedTerminals = createInterruptedTerminalRestorer({
+        coordinator,
+        database,
+        logger,
+        send,
+        terminalDirectoryIdentity,
+        terminalRestores,
+        terminals,
+        visibleGridWaitMs:
+            dependencies.terminalRestoreGridWaitMs ?? VISIBLE_TERMINAL_RESTORE_GRID_WAIT_MS,
+    });
     const { restoreInterruptedTerminalsInBackground, watchSessionInBackground } =
         createBackgroundTasks(logger, files, restoreInterruptedTerminals);
     const dispatchService = new AgentDispatchService({
@@ -416,6 +365,7 @@ export async function createDomainServices(
         if (isClosed) return;
         isClosed = true;
         terminalRestores.close();
+        await terminalSuspension.close();
         await sessionAutoNaming.close();
         coordinator.close();
         longPastes.close();
@@ -624,6 +574,7 @@ export async function createDomainServices(
                 }
             }
             database.selectSession(created.session.id);
+            terminalSuspension.observeSelection();
             watchSessionInBackground(created.session.id);
             if (created.terminal?.provider) coordinator.probeTerminal(created.terminal.id);
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.create' } });
@@ -636,6 +587,7 @@ export async function createDomainServices(
             sessionSelections.run(async () => {
                 await workbenchRoots.validateSession(sessionId);
                 database.selectSession(sessionId);
+                terminalSuspension.observeSelection();
                 watchSessionInBackground(sessionId);
                 restoreInterruptedTerminalsInBackground(sessionId);
                 coordinator.probeSessionPrimaryAgent(sessionId);
@@ -665,10 +617,11 @@ export async function createDomainServices(
         },
         'session.resumeAutomaticNaming': ({ sessionId }) =>
             sessionAutoNaming.resumeSession(sessionId),
-        'session.archive': ({ sessionId }) => {
+        'session.archive': async ({ sessionId }) => {
             terminalRestores.cancel(sessionId);
             sessionAutoNaming.forgetSession(sessionId);
             const session = database.archiveSession(sessionId);
+            await terminalSuspension.suspendSession(sessionId);
             watchSessionInBackground(selectedSessionId());
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.archive' } });
             return session;
@@ -683,6 +636,7 @@ export async function createDomainServices(
         },
         'session.delete': ({ sessionId }) => {
             terminalRestores.forget(sessionId);
+            terminalSuspension.forgetSession(sessionId);
             sessionAutoNaming.forgetSession(sessionId);
             coordinator.forgetSession(sessionId);
             transcripts.forgetSession(sessionId);
@@ -785,6 +739,7 @@ export async function createDomainServices(
         }),
     };
     watchSessionInBackground(selectedSessionId());
+    terminalSuspension.start();
     // Background Terminal restore preserves the three-second startup gate.
     const initialSessionId = selectedSessionId();
     if (initialSessionId) {

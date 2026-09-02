@@ -35,6 +35,10 @@ export interface DomainDependencies {
     terminal?: Omit<TerminalManagerOptions, 'execution'>;
     terminalExecution: TerminalExecutionPort;
     terminalRestoreGridWaitMs?: number;
+    /**
+     * Test-only overrides for the background Agent suspension sweep: its cadence and clock.
+     */
+    terminalSuspension?: { now?: () => number; sweepIntervalMs?: number };
     agentAdapters?: Record<AgentProvider, AgentAdapter>;
     agentEnvironment?: AgentEnvironment;
     agentHooksPath?: string;

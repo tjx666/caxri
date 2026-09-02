@@ -236,6 +236,31 @@ export const settingsSpec = [
     },
     {
         kind: 'boolean',
+        key: 'terminal.suspendUntouchedAgents',
+        title: 'Suspend untouched Agents',
+        description:
+            'Stops an Agent CLI that received no input before you switched away; it resumes on return',
+        category: 'terminal',
+        keywords: ['agent', 'suspend', 'idle', 'background', 'memory', 'resume'],
+        default: true,
+    },
+    {
+        kind: 'enum',
+        key: 'terminal.suspendIdleAgents',
+        title: 'Suspend idle background Agents',
+        description:
+            'Stops Agent CLIs idle at their prompt in unselected Sessions; they resume on return',
+        category: 'terminal',
+        keywords: ['agent', 'suspend', 'idle', 'background', 'memory', 'resume'],
+        options: [
+            { value: 'off', label: 'Off' },
+            { value: '30m', label: 'After 30 minutes' },
+            { value: '2h', label: 'After 2 hours' },
+        ],
+        default: 'off',
+    },
+    {
+        kind: 'boolean',
         key: 'terminal.osc52ClipboardWrite',
         title: 'Allow OSC 52 clipboard writes',
         description: 'Remote programs may request bounded writes; clipboard reads stay blocked',
