@@ -15,7 +15,7 @@ const MAX_CODEX_SESSION_DAY_ENTRIES = 4_096;
 const UUID_V7_PATTERN = /^([\da-f]{8})-([\da-f]{4})-7[\da-f]{3}-[\da-f]{4}-[\da-f]{12}$/i;
 const ROLLOUT_NAME_PATTERN = /^rollout-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-[\da-f-]{36}\.jsonl$/i;
 
-export function codexSessionsRoot(environment: AgentEnvironment): string {
+function codexSessionsRoot(environment: AgentEnvironment): string {
     return join(resolveCodexHome(environment), 'sessions');
 }
 
