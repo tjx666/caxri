@@ -264,7 +264,8 @@
         "productName": "Caxri",
         "extraMetadata": {
             "main": "out/main/index.js",
-            "name": "@caxri/desktop"
+            "name": "@caxri/desktop",
+            "productName": "Caxri"
         },
         "electronFuses": {
             "runAsNode": true

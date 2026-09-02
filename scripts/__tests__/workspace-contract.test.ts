@@ -35,7 +35,7 @@ interface PackageManifest {
     bin?: unknown;
     build?: {
         asarUnpack?: string[];
-        extraMetadata?: { main?: string; name?: string };
+        extraMetadata?: { main?: string; name?: string; productName?: string };
         extraResources?: Array<{ from?: string; to?: string }>;
         files?: string[];
     };
@@ -452,9 +452,12 @@ describe('pnpm workspace contract', () => {
             private: true,
             version: rootManifest.version,
         });
+        // Electron derives `app.name` (used by the macOS About/Hide menu labels) from the packaged package.json
+        // `productName`; `build.productName` alone only names the bundle and Info.plist.
         expect(rootManifest.build?.extraMetadata).toEqual({
             main: 'out/main/index.js',
             name: '@caxri/desktop',
+            productName: 'Caxri',
         });
     });
 
