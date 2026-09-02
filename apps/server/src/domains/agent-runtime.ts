@@ -5,6 +5,7 @@ import { errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
+import type { AgentLifecycleSignal } from './agents';
 import {
     AgentCoordinator,
     AgentHookManager,
@@ -34,6 +35,10 @@ interface CreateAgentRuntimeOptions {
         | 'hookExecutable'
     >;
     logger: StructuredLogger;
+    /**
+     * Observes every accepted lifecycle signal after the coordinator has applied it.
+     */
+    onLifecycleSignal?: (signal: AgentLifecycleSignal) => void;
     send: (event: ServerEvent) => void;
     userDataPath: string;
     watchHub: WatchHub;
@@ -106,7 +111,10 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
                 workbenchRoots,
                 signal,
             );
-            if (handled) sessionAutoNaming.observe(signal);
+            if (handled) {
+                sessionAutoNaming.observe(signal);
+                options.onLifecycleSignal?.(signal);
+            }
             return handled;
         },
         hookExecutable: dependencies.hookExecutable ?? process.execPath,

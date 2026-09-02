@@ -179,6 +179,10 @@ export const appSettingsSchema = z.object({
     'terminal.gpuAcceleration': z
         .enum(enumValues(spec['terminal.gpuAcceleration'].options))
         .default(spec['terminal.gpuAcceleration'].default),
+    'terminal.suspendUntouchedAgents': booleanField(spec['terminal.suspendUntouchedAgents']),
+    'terminal.suspendIdleAgents': z
+        .enum(enumValues(spec['terminal.suspendIdleAgents'].options))
+        .default(spec['terminal.suspendIdleAgents'].default),
     'terminal.osc52ClipboardWrite': booleanField(spec['terminal.osc52ClipboardWrite']),
     'files.exclude': filesExcludeRecordSchema.default(DEFAULT_FILES_EXCLUDE),
     'files.maxFileBytes': integerField(spec['files.maxFileBytes']),

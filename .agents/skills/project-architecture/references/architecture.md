@@ -368,6 +368,19 @@ The visible-grid wait resolves as stale work when its restore generation is canc
 Terminal Host execution adapters; it must leave the durable Terminal `interrupted`, never convert an ordinary Session
 switch into `failed` / `spawn_failed`.
 
+Background Agent suspension is Server Core's only automatic PTY teardown. A `TerminalSuspensionService` sweep
+(`WatchHub` poller) parks Agent Terminals of unselected, unarchived Sessions by killing the PTY behind the restart
+barrier, capturing the final screen, and moving the durable record and Agent state to `suspended`; the record,
+scrollback, and bound Agent session id survive, and the interrupted-restore path relaunches the Terminal with the
+provider's resume arguments when its Session is selected again. Two rules apply, both driven by in-memory activity
+(launch, Core-delivered input, validated lifecycle turns, and Session selection): an untouched Agent that received no
+input and started no turn since launch is suspended shortly after its Session is left
+(`terminal.suspendUntouchedAgents`), and an Agent idle at its prompt in a background Session is suspended after the
+configured delay (`terminal.suspendIdleAgents`, off by default). The selected Session is never touched, an Agent
+mid-turn or awaiting the user's approval is never suspended, and Shell tabs are not eligible. Archiving a Session
+suspends all of its live Terminals. Terminal capacity counts only `starting` and `running` records so dormant tabs do
+not consume the limit.
+
 Exited Terminals retain their final output and reserve a compact recovery row beneath the xterm viewport, never over it. A zero exit without a signal is neutral; startup failures and signal or non-zero exits use a danger state. Surface actions, the command palette, and `Command+Shift+R` restart the same durable Terminal record, so recovery cannot create a duplicate tab or PTY identity. Restarting a bound Agent Terminal resumes its correlated provider session by default; only the separate `Start New Agent Session` action clears that binding and starts fresh, while Shell restarts always remain fresh.
 
 ## Files and editor

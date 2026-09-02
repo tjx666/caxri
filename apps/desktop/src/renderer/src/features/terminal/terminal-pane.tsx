@@ -94,7 +94,8 @@ function TerminalRecoveryBar({
      * requests to the same Terminal, so the actions stand down until it settles into a state
      * (`failed`/`dead`/`stopped`) that actually needs a user decision.
      */
-    const isAwaitingAutomaticRestore = processState === 'interrupted';
+    const isAwaitingAutomaticRestore =
+        processState === 'interrupted' || processState === 'suspended';
     return (
         <div
             aria-live="polite"

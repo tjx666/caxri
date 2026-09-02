@@ -14,6 +14,7 @@ import { terminals } from '../schema';
 
 export const MAX_TERMINALS_PER_SESSION = 16;
 export const MAX_TERMINALS_GLOBAL = 32;
+const LIVE_PROCESS_STATES: readonly ProcessState[] = ['starting', 'running'];
 
 interface TerminalRow {
     id: string;
@@ -92,10 +93,15 @@ export class TerminalsModel {
         return row ? mapTerminal(row) : undefined;
     }
 
+    /**
+     * Capacity counts only Terminals that still own a process. Exited, interrupted, and suspended records keep their
+     * scrollback and Agent session binding indefinitely, so counting them would let dormant tabs starve new work.
+     */
     countAll(): number {
         const row = this.database
             .select({ count: sql<number>`count(*)` })
             .from(terminals)
+            .where(inArray(terminals.lastProcessState, LIVE_PROCESS_STATES))
             .get()!;
         return row.count;
     }
@@ -104,7 +110,12 @@ export class TerminalsModel {
         const row = this.database
             .select({ count: sql<number>`count(*)` })
             .from(terminals)
-            .where(eq(terminals.sessionId, sessionId))
+            .where(
+                and(
+                    eq(terminals.sessionId, sessionId),
+                    inArray(terminals.lastProcessState, LIVE_PROCESS_STATES),
+                ),
+            )
             .get()!;
         return row.count;
     }

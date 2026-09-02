@@ -46,6 +46,10 @@ export interface TerminalManagerOptions {
      * Signals raw PTY activity even while no Renderer view is attached; consumers receive no content.
      */
     onOutputActivity?: (terminalId: string, processId: number) => void;
+    /**
+     * Signals that Core delivered input to a Terminal; consumers receive no content.
+     */
+    onInput?: (terminalId: string) => void;
     shellIntegration?: (
         executable: string,
         environment: NodeJS.ProcessEnv,

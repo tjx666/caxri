@@ -1,0 +1,209 @@
+import type { AppSettings, ServerEvent } from '@caxri/protocol';
+import { errorMessage } from '@caxri/protocol';
+import type { StructuredLogger } from '@caxri/system';
+import { logEventCatalog } from '@caxri/system';
+
+import type { AgentLifecycleSignal } from '../agents';
+import type { CaxriDatabase } from '../db';
+import type { WatchHandle, WatchHub } from '../watch-hub';
+import type { TerminalManager } from './manager';
+import type { TerminalActivitySample, TerminalSuspensionReason } from './suspension-policy';
+import { decideTerminalSuspensions } from './suspension-policy';
+
+const TERMINAL_SUSPENSION_SWEEP_INTERVAL_MS = 15_000;
+
+interface TerminalSuspensionServiceOptions {
+    database: CaxriDatabase;
+    logger: StructuredLogger;
+    now?: () => number;
+    selectedSessionId: () => string | undefined;
+    send: (event: ServerEvent) => void;
+    settings: () => AppSettings;
+    sweepIntervalMs?: number;
+    terminals: Pick<TerminalManager, 'processId' | 'suspend'>;
+    watchHub: Pick<WatchHub, 'registerPoller'>;
+}
+
+/**
+ * Parks background Agent Terminals that nobody is using so an idle workspace stops paying for a dozen resident CLIs.
+ * Activity is tracked in memory only (launch, input, lifecycle turns, Session selection); a suspended Terminal keeps
+ * its record, scrollback, and Agent session, and the ordinary interrupted-restore path relaunches it on selection.
+ */
+export class TerminalSuspensionService {
+    private readonly deselectedAt = new Map<string, number>();
+    private readonly samples = new Map<string, TerminalActivitySample>();
+    private readonly startedAt: number;
+    private lastSelectedSessionId: string | undefined;
+    private poller: WatchHandle | undefined;
+    private sweeping: Promise<string[]> | undefined;
+
+    constructor(private readonly options: TerminalSuspensionServiceOptions) {
+        this.startedAt = this.now();
+    }
+
+    private now(): number {
+        return this.options.now?.() ?? Date.now();
+    }
+
+    private sample(terminalId: string): TerminalActivitySample {
+        const existing = this.samples.get(terminalId);
+        if (existing) return existing;
+        const created: TerminalActivitySample = { turnInFlight: false };
+        this.samples.set(terminalId, created);
+        return created;
+    }
+
+    private async runSweep(): Promise<string[]> {
+        try {
+            return await this.suspendDecided();
+        } finally {
+            this.sweeping = undefined;
+        }
+    }
+
+    private async suspendDecided(): Promise<string[]> {
+        const { database } = this.options;
+        this.observeSelection();
+        const decisions = decideTerminalSuspensions({
+            deselectedAt: (sessionId) => this.deselectedAt.get(sessionId),
+            now: this.now(),
+            sample: (terminalId) => this.samples.get(terminalId),
+            selectedSessionId: this.options.selectedSessionId(),
+            session: (sessionId) => database.getSession(sessionId) ?? undefined,
+            settings: this.options.settings(),
+            startedAt: this.startedAt,
+            terminals: database.listTerminals(),
+        });
+        const suspended: string[] = [];
+        // Suspensions run one at a time so each restart barrier and snapshot capture finishes before the next kill.
+        for (const decision of decisions)
+            // eslint-disable-next-line no-await-in-loop -- sequential teardown, see comment above
+            if (await this.suspendTerminal(decision.terminalId, decision.reason))
+                suspended.push(decision.terminalId);
+        this.publish(suspended);
+        return suspended;
+    }
+
+    private async suspendTerminal(
+        terminalId: string,
+        reason: TerminalSuspensionReason | 'archived',
+    ): Promise<boolean> {
+        try {
+            const record = await this.options.terminals.suspend(terminalId);
+            if (!record) return false;
+            this.samples.delete(terminalId);
+            this.options.logger.write('info', logEventCatalog.terminal.suspended, {
+                fields: { reason, sessionId: record.sessionId, terminalId },
+            });
+            return true;
+        } catch (error) {
+            this.options.logger.write('warn', logEventCatalog.terminal.suspendFailed, {
+                fields: { error: errorMessage(error, 'unknown'), reason, terminalId },
+            });
+            return false;
+        }
+    }
+
+    private publish(terminalIds: readonly string[]): void {
+        if (terminalIds.length === 0) return;
+        this.options.send({
+            event: 'state.changed',
+            payload: { kind: 'records', sessionIds: [], terminalIds: [...terminalIds] },
+        });
+    }
+
+    /**
+     * Sessions that are not selected at startup are treated as deselected now, so a Server restart never suspends on
+     * the strength of a selection change it did not observe.
+     */
+    start(): void {
+        const selected = this.options.selectedSessionId();
+        const now = this.now();
+        this.lastSelectedSessionId = selected;
+        for (const session of this.options.database.listSessions())
+            if (session.id !== selected) this.deselectedAt.set(session.id, now);
+        this.poller = this.options.watchHub.registerPoller({
+            intervalMs: this.options.sweepIntervalMs ?? TERMINAL_SUSPENSION_SWEEP_INTERVAL_MS,
+            label: 'terminal-suspension',
+            pollOnce: async () => {
+                await this.sweep();
+            },
+        });
+    }
+
+    observeLaunch(terminalId: string): void {
+        this.samples.set(terminalId, { launchedAt: this.now(), turnInFlight: false });
+    }
+
+    observeInput(terminalId: string): void {
+        this.sample(terminalId).lastInputAt = this.now();
+    }
+
+    observeLifecycle(signal: Pick<AgentLifecycleSignal, 'phase' | 'terminalId'>): void {
+        const sample = this.sample(signal.terminalId);
+        const now = this.now();
+        switch (signal.phase) {
+            case 'turnStarted':
+                sample.lastTurnStartedAt = now;
+                sample.turnInFlight = true;
+                return;
+            case 'turnFinished':
+            case 'attentionRequested':
+                sample.lastTurnFinishedAt = now;
+                sample.turnInFlight = false;
+                return;
+            default:
+                return;
+        }
+    }
+
+    /**
+     * Re-reads the selected Session and stamps the one that was just left. Called after every selection change and at
+     * the top of each sweep, so a selection that changed through another path is still noticed within one interval.
+     */
+    observeSelection(): void {
+        const selected = this.options.selectedSessionId();
+        if (selected === this.lastSelectedSessionId) return;
+        if (this.lastSelectedSessionId !== undefined)
+            this.deselectedAt.set(this.lastSelectedSessionId, this.now());
+        if (selected !== undefined) this.deselectedAt.delete(selected);
+        this.lastSelectedSessionId = selected;
+    }
+
+    forgetTerminal(terminalId: string): void {
+        this.samples.delete(terminalId);
+    }
+
+    forgetSession(sessionId: string): void {
+        this.deselectedAt.delete(sessionId);
+    }
+
+    /**
+     * Evaluates the policy once and suspends every decided Terminal. Concurrent callers share one pass.
+     */
+    sweep(): Promise<string[]> {
+        this.sweeping ??= this.runSweep();
+        return this.sweeping;
+    }
+
+    /**
+     * An archived Session has no viewer; every live Terminal in it is parked and resumes when it is selected again.
+     */
+    async suspendSession(sessionId: string): Promise<string[]> {
+        const suspended: string[] = [];
+        for (const terminal of this.options.database.listTerminals(sessionId))
+            if (
+                this.options.terminals.processId(terminal.id) !== undefined &&
+                // eslint-disable-next-line no-await-in-loop -- sequential teardown, same as the sweep
+                (await this.suspendTerminal(terminal.id, 'archived'))
+            )
+                suspended.push(terminal.id);
+        this.publish(suspended);
+        return suspended;
+    }
+
+    async close(): Promise<void> {
+        await this.poller?.dispose();
+        this.poller = undefined;
+    }
+}

@@ -271,6 +271,8 @@ const rows: SettingRowDescriptor[] = [
     specRow('terminal.scrollback'),
     specRow('terminal.longPasteThreshold'),
     specRow('terminal.copyOnSelect'),
+    specRow('terminal.suspendUntouchedAgents'),
+    specRow('terminal.suspendIdleAgents'),
     specRow('terminal.osc52ClipboardWrite'),
     specRow('terminal.wordSeparators'),
     {

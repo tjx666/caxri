@@ -43,6 +43,12 @@ export function getTerminalExitPresentation(
                 label: 'Interrupted by app shutdown — restoring',
                 tone: 'neutral',
             };
+        case 'suspended':
+            return {
+                icon: 'pending',
+                label: 'Suspended while inactive — resuming',
+                tone: 'neutral',
+            };
         case 'starting':
         case 'running':
             return undefined;

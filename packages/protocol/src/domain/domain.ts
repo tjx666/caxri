@@ -67,6 +67,7 @@ const processStateSchema = z.enum([
     'dead',
     'failed',
     'interrupted',
+    'suspended',
 ]);
 /**
  * Distinct causes behind a `failed` Terminal, set only alongside that state. Keep this an enum of codes (not free text)

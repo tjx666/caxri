@@ -62,6 +62,7 @@ export class TerminalManager {
     private readonly onAgentStateChanged?: TerminalManagerOptions['onAgentStateChanged'];
     private readonly onOutputActivity?: TerminalManagerOptions['onOutputActivity'];
     private readonly onStateChanged?: TerminalManagerOptions['onStateChanged'];
+    private readonly onInput?: TerminalManagerOptions['onInput'];
     private readonly terminalColors?: TerminalManagerOptions['terminalColors'];
 
     constructor(
@@ -83,6 +84,7 @@ export class TerminalManager {
         this.onAgentStateChanged = options.onAgentStateChanged;
         this.onOutputActivity = options.onOutputActivity;
         this.onStateChanged = options.onStateChanged;
+        this.onInput = options.onInput;
         this.agentOutputRecoverySettings = options.agentOutputRecoverySettings;
         this.terminalColors = options.terminalColors;
         this.snapshots = new TerminalSnapshotPersistence(database, logger);
@@ -419,6 +421,7 @@ export class TerminalManager {
     }
 
     write(terminalId: string, data: string): boolean {
+        this.onInput?.(terminalId);
         return this.execution.write(terminalId, data);
     }
 
@@ -427,6 +430,7 @@ export class TerminalManager {
         data: string,
         abortSignal?: AbortSignal,
     ): Promise<boolean> {
+        this.onInput?.(terminalId);
         return this.execution.writeAcknowledged(terminalId, data, abortSignal);
     }
 
@@ -434,6 +438,7 @@ export class TerminalManager {
      * Checks and accepts a generated Agent input in one synchronous Server Core turn.
      */
     writeAgentExact(terminalId: string, data: string, expectedAgentLaunchId: string): boolean {
+        this.onInput?.(terminalId);
         return this.execution.writeAgentExact(terminalId, data, expectedAgentLaunchId);
     }
 
@@ -443,6 +448,7 @@ export class TerminalManager {
      * the current attachment.
      */
     writeAgent(terminalId: string, data: string): Promise<boolean> {
+        this.onInput?.(terminalId);
         return this.execution.writeAgent(terminalId, data);
     }
 
@@ -583,6 +589,24 @@ export class TerminalManager {
         const restarting = this.database.getTerminal(terminalId);
         if (!restarting) throw new CaxriError('CONFLICT', 'Terminal was closed while restarting');
         return this.start(restarting, { ...options, launchAgent });
+    }
+
+    /**
+     * Parks a live Terminal without losing it: the PTY is killed behind the same barrier a restart uses, the final
+     * screen is captured for the tab, and the durable record moves to `suspended` so selecting its Session restores the
+     * process (resuming the bound Agent session) exactly like an app-shutdown interruption would.
+     */
+    async suspend(terminalId: string): Promise<TerminalRecord | undefined> {
+        const record = this.database.getTerminal(terminalId);
+        if (!record || this.execution.processId(terminalId) === undefined) return undefined;
+        const resumesAgent = this.agentLaunches.has(terminalId);
+        if (resumesAgent) this.retireAgentLifecycleSoon(terminalId, 'suspended');
+        const capture = await this.execution.restartBarrier(terminalId);
+        if (capture) await this.snapshots.finalize(terminalId, Promise.resolve(capture));
+        this.database.updateTerminalState(terminalId, 'suspended');
+        if (resumesAgent) this.database.updateAgentProcessState(terminalId, 'suspended');
+        this.onStateChanged?.(terminalId, 'suspended');
+        return this.database.getTerminal(terminalId);
     }
 
     close(terminalId: string): void {
