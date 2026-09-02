@@ -10,6 +10,11 @@ import type { MainRequest, MethodResult } from '@caxri/protocol';
 import { CaxriError, MAX_CONFIGURABLE_FILE_BYTES, MAX_FILE_BROWSE_ENTRIES } from '@caxri/protocol';
 import { AsyncSemaphore } from '@caxri/system';
 
+import {
+    memoizedSubpathPrefix,
+    projectSubpathSuffix,
+    shallowestProjectPath,
+} from './path-browser-subpath';
 import type { DesktopServerConnection } from './server-connection';
 
 type StartParameters = Extract<MainRequest, { method: 'pathBrowser.start' }>['params'];
@@ -51,6 +56,12 @@ interface BrowserContext {
     id: string;
     input: string;
     listedDirectory: RootIdentity;
+    /**
+     * Subpath-fallback memo for this browser: a located prefix directory per suffix, or `null` when the Project holds
+     * no such directory. A negative entry also covers every longer suffix beneath it, so typing toward a folder that
+     * does not exist anywhere costs one bounded scan per new segment instead of one per keystroke.
+     */
+    locatedSuffixes: Map<string, string | null>;
     mode: BrowserMode;
     root: RootIdentity;
     rootLabel: string;
@@ -191,20 +202,6 @@ async function authorizeCandidate(
     } catch (error) {
         return pathFailure(error, 'Unable to authorize browse entry');
     }
-}
-
-/**
- * Splits a Project-relative browse input into the directory segments that must exist as a path suffix. Returns
- * `undefined` for input the subpath fallback must not touch: home, absolute, dot-relative, or single-segment input.
- */
-function projectSubpathSuffix(input: string): string[] | undefined {
-    if (input.startsWith('/') || input.startsWith('~')) return undefined;
-    // Drop the final filter segment (or the empty segment after a trailing slash).
-    const segments = input.split('/').slice(0, -1);
-    if (segments.length === 0) return undefined;
-    if (segments.some((segment) => !segment || segment === '.' || segment === '..'))
-        return undefined;
-    return segments;
 }
 
 function displayProjectDirectory(root: string, directory: string): string {
@@ -388,6 +385,11 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
                 context.mode === 'free'
                     ? directory.path !== '/'
                     : directory.path !== context.root.path,
+            /**
+             * In Project mode this is the display prefix (the located prefix after a subpath fallback), not necessarily
+             * the listed directory. Renderer creation derives its parent from it and stays safe only because the create
+             * gesture rejects any name containing `/`, which the fallback always has.
+             */
             directoryLabel:
                 context.mode === 'project'
                     ? displayProjectDirectory(context.root.path, displayDirectory)
@@ -452,24 +454,56 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
     ): Promise<{ directory: RootIdentity; displayDirectory: string } | undefined> {
         const suffix = projectSubpathSuffix(input);
         if (!suffix) return undefined;
-        const located = await options.getServer().request('files.locateDirectory', {
-            sessionId: context.browseSessionId,
-            suffix: suffix.join('/'),
-        });
-        const best = located.paths
-            .filter((path) => isSameOrInside(context.root.path, path))
-            .map((path) => ({ path, depth: relative(context.root.path, path).split(sep).length }))
-            .toSorted((a, b) => a.depth - b.depth || a.path.localeCompare(b.path))
-            .at(0);
-        if (!best) return undefined;
-        const directory = await directoryIdentity(best.path);
-        const displayDirectory = resolve(directory.path, ...suffix.map(() => '..'));
+        const key = suffix.join('/');
+        const displayDirectory = await locateProjectPrefix(context, key);
+        if (!displayDirectory) return undefined;
+        const directory = await directoryIdentity(resolve(displayDirectory, ...suffix));
         if (
             !isSameOrInside(context.root.path, directory.path) ||
             !isSameOrInside(context.root.path, displayDirectory)
         )
             throw new CaxriError('PATH_DENIED', 'Path escapes the Project root');
         return { directory, displayDirectory };
+    }
+
+    /**
+     * Resolves the prefix directory under which `key` exists, consulting the browser memo before asking Server Core.
+     */
+    async function locateProjectPrefix(
+        context: BrowserContext,
+        key: string,
+    ): Promise<string | undefined> {
+        const memo = memoizedSubpathPrefix(context.locatedSuffixes, key);
+        if (memo === null) return undefined;
+        if (memo !== undefined) {
+            try {
+                await directoryIdentity(resolve(memo, key));
+                return memo;
+            } catch {
+                // The memoized prefix no longer holds this deeper path; fall through to a fresh lookup.
+            }
+        }
+        const located = await options.getServer().request('files.locateDirectory', {
+            sessionId: context.browseSessionId,
+            suffix: key,
+        });
+        const depth = key.split('/').length;
+        const best = shallowestProjectPath(
+            context.root.path,
+            located.paths.filter((path) => isSameOrInside(context.root.path, path)),
+        );
+        if (!best) {
+            if (located.truncated)
+                throw new CaxriError(
+                    'NOT_FOUND',
+                    'File not found; the Project is too large to locate a matching folder',
+                );
+            context.locatedSuffixes.set(key, null);
+            return undefined;
+        }
+        const prefix = resolve(best, ...Array.from({ length: depth }, () => '..'));
+        context.locatedSuffixes.set(key, prefix);
+        return prefix;
     }
 
     async function browseFree(
@@ -686,6 +720,7 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
                 id: randomUUID(),
                 input: '',
                 listedDirectory: root,
+                locatedSuffixes: new Map(),
                 mode: 'project',
                 root,
                 rootLabel: project.displayTitle,

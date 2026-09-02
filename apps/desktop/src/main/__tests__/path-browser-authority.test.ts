@@ -215,6 +215,16 @@ describe('path browser authority', () => {
             query: 'index.ts',
         });
 
+        request.mockClear();
+        await mkdir(join(shallow, 'src'));
+        const deeper = await authority.browse({
+            browserId: initial.browserId,
+            mode: 'project',
+            input: 'packages/bank/src/',
+        });
+        expect(deeper).toMatchObject({ directoryLabel: 'lobehub/', input: 'packages/bank/src/' });
+        expect(request).not.toHaveBeenCalledWith('files.locateDirectory', expect.anything());
+
         await expect(
             authority.browse({
                 browserId: initial.browserId,
@@ -222,6 +232,15 @@ describe('path browser authority', () => {
                 input: 'nowhere/bank/index.ts',
             }),
         ).rejects.toMatchObject({ code: 'NOT_FOUND', message: 'File not found' });
+        request.mockClear();
+        await expect(
+            authority.browse({
+                browserId: initial.browserId,
+                mode: 'project',
+                input: 'nowhere/bank/deeper/index.ts',
+            }),
+        ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+        expect(request).not.toHaveBeenCalledWith('files.locateDirectory', expect.anything());
 
         request.mockClear();
         await expect(
