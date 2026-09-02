@@ -22,7 +22,6 @@ import {
     CaxriError,
     CONTROL_TRANSPORT_MAX_FRAME_BYTES,
     getMethodSpec,
-    localServerDesktopLeaseRevokedSchema,
     localServerEventSchema,
     toWireError,
 } from '@caxri/protocol';
@@ -40,8 +39,34 @@ import type { BinaryStreamControlOptions } from './binary-stream-control';
 
 const MAX_IN_FLIGHT_REQUESTS = 64;
 export const HANDSHAKE_TIMEOUT_MS = 2_000;
-export const DESKTOP_LEASE_MS = 60_000;
-export const DESKTOP_COMMAND_TIMEOUT_MS = 15_000;
+
+/**
+ * Stable reason codes attached to every `terminateSocket` call so an abrupt control-socket close is diagnosable from
+ * `server-core.jsonl` alone, instead of only being visible as an unexplained drop on the Desktop side.
+ */
+export type ControlSocketTerminationReason =
+    | 'binary-frame-received'
+    | 'cancellation-dispatch-failed'
+    | 'command-dispatch-failed'
+    | 'desktop-operation-dispatch-failed'
+    | 'desktop-target-consume-failed'
+    | 'handshake-timeout'
+    | 'hello-agent-auth-failed'
+    | 'hello-agent-auth-unavailable'
+    | 'hello-desktop-credential-mismatch'
+    | 'hello-operator-token-mismatch'
+    | 'hello-profile-mismatch'
+    | 'invalid-message'
+    | 'lease-renew-stale-generation'
+    | 'queue-processing-failed'
+    | 'replaced-desktop-no-lease'
+    | 'replaced-desktop-notify-failed'
+    | 'replaced-desktop-socket-not-open'
+    | 'reply-drop-injected'
+    | 'reply-settle-failed'
+    | 'server-closing'
+    | 'write-buffer-overflow'
+    | 'write-failed';
 
 export function controlMessageText(data: RawData): string {
     if (Buffer.isBuffer(data)) return data.toString('utf8');
@@ -49,10 +74,44 @@ export function controlMessageText(data: RawData): string {
     return Buffer.concat(data).toString('utf8');
 }
 
+function connectionObservationContext(
+    context?: CommandExecutionContext,
+): ObservationContext | undefined {
+    const connection = context?.connection;
+    if (!connection) return undefined;
+    return normalizeObservationContext({
+        bootId: connection.bootId,
+        clientId: connection.clientId,
+        connectionId: connection.connectionId,
+        serverId: connection.serverId,
+    });
+}
+
+/**
+ * Terminates a control socket and records why. Every abrupt `socket.terminate()` call in `control-server.ts` routes
+ * through this helper instead of calling `terminate()` directly, so the set of reasons stays centralized and every
+ * termination is diagnosable (see `DESKTOP_LEASE_GRACE_MS` in `control-server-desktop-lease.ts` for the sleep/wake
+ * investigation this came from).
+ */
+export function terminateSocket(
+    socket: WebSocket,
+    reason: ControlSocketTerminationReason,
+    logger?: ControlServerOptions['logger'],
+    context?: CommandExecutionContext,
+): void {
+    logger?.write('info', logEventCatalog.serverCore.socketTerminated, {
+        context: connectionObservationContext(context),
+        fields: { reason },
+    });
+    socket.terminate();
+}
+
 export function writeControlMessage(
     socket: WebSocket,
     message: unknown,
     flushed?: () => void,
+    logger?: ControlServerOptions['logger'],
+    context?: CommandExecutionContext,
 ): void {
     const source = JSON.stringify(message);
     if (
@@ -60,11 +119,11 @@ export function writeControlMessage(
         socket.bufferedAmount + Buffer.byteLength(source, 'utf8') >
             CONTROL_TRANSPORT_MAX_FRAME_BYTES
     ) {
-        socket.terminate();
+        terminateSocket(socket, 'write-buffer-overflow', logger, context);
         return;
     }
     socket.send(source, (error) => {
-        if (error) socket.terminate();
+        if (error) terminateSocket(socket, 'write-failed', logger, context);
         else flushed?.();
     });
 }
@@ -349,44 +408,20 @@ export interface ClientState {
     inFlightRequestIds: Map<string, number>;
     inFlightRequests: number;
     features: readonly ProtocolFeature[];
+    /**
+     * Set once the lease's expiry timer has already fired once without a renewal reaching the wire. While active,
+     * `leaseTimer` holds the grace-window timer rather than the original lease-duration timer; see
+     * `DESKTOP_LEASE_GRACE_MS` in `control-server-desktop-lease.ts`.
+     */
+    leaseGraceActive?: boolean;
+    /**
+     * The pong listener registered by `probeDesktopLiveness` while a liveness probe is outstanding. Present only during
+     * the window between entering grace and the probe resolving (a pong recovers the lease) or becoming moot (a renewal
+     * lands through another path, the lease is revoked, or the Host is closing) — see `clearLeaseLivenessProbe`.
+     */
+    leaseLivenessPongListener?: () => void;
     leaseTimer?: NodeJS.Timeout;
     socket: WebSocket;
-}
-
-/**
- * Ends a replaced Desktop only after its typed revocation is queued. An abrupt close would look like a recoverable
- * outage to Main and let two same-profile instances repeatedly evict each other.
- */
-export function closeReplacedDesktop(state: ClientState): void {
-    const generation = state.desktopLease?.generation;
-    if (!generation) {
-        state.socket.terminate();
-        return;
-    }
-    if (state.socket.readyState !== WebSocket.OPEN) {
-        state.socket.terminate();
-        return;
-    }
-    state.socket.send(
-        JSON.stringify(
-            localServerDesktopLeaseRevokedSchema.parse({
-                type: 'desktop-lease.revoked',
-                generation,
-                reason: 'replaced',
-            }),
-        ),
-        (error) => {
-            if (error) state.socket.terminate();
-            else state.socket.close(1000);
-        },
-    );
-}
-
-export interface PendingDesktopCommand {
-    reject(error: CaxriError): void;
-    resolve(value: unknown): void;
-    state: ClientState;
-    timer: NodeJS.Timeout;
 }
 
 export interface DesktopLeaseWaiter {
@@ -409,6 +444,11 @@ export interface ControlServerOptions {
      * Test seam for exercising lease expiry without a minute-long integration test.
      */
     desktopLeaseDurationMs?: number;
+    /**
+     * Test seam for exercising the post-expiry grace window (see `DESKTOP_LEASE_GRACE_MS` in
+     * `control-server-desktop-lease.ts`) without a real-time wait.
+     */
+    desktopLeaseGraceMs?: number;
     /**
      * Test seams for exercising slow-request log escalation without second-long integration tests.
      */
@@ -462,9 +502,17 @@ export function assertDurableRecoveryIdentity(options: ControlServerOptions): vo
 export function writeDesktopControlEvent(
     currentDesktop: ClientState | undefined,
     event: ProtocolEventEnvelope | TransientServerEvent,
+    logger?: ControlServerOptions['logger'],
 ): void {
     const message = localServerEventSchema.parse({ type: 'event', event });
-    if (currentDesktop?.desktopReady) writeControlMessage(currentDesktop.socket, message);
+    if (currentDesktop?.desktopReady)
+        writeControlMessage(
+            currentDesktop.socket,
+            message,
+            undefined,
+            logger,
+            currentDesktop.context,
+        );
 }
 
 /**
@@ -474,6 +522,7 @@ export function writeAgentControlEvent(
     clients: Iterable<ClientState>,
     endpoint: AgentEndpointReference,
     event: TransientServerEvent,
+    logger?: ControlServerOptions['logger'],
 ): void {
     const message = localServerEventSchema.parse({ type: 'event', event });
     for (const state of clients) {
@@ -483,6 +532,6 @@ export function writeAgentControlEvent(
             principal.endpointId === endpoint.endpointId &&
             principal.generation === endpoint.generation
         )
-            writeControlMessage(state.socket, message);
+            writeControlMessage(state.socket, message, undefined, logger, state.context);
     }
 }
