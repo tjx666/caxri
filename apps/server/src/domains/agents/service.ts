@@ -217,11 +217,11 @@ export class AgentService {
              * Production evidence: `agent.probe` at unconditional 'info' produced 10,520 info lines across 5 days (~80%
              * of server-core.jsonl), evicting real incidents from the single 5MB log generation within hours. Every
              * provider is polled repeatedly while idle, so an unconditional line is almost always uninformative; only
-             * an availability transition or an unusually slow probe is worth 'info'.
+             * an availability transition or an unusually slow probe is worth 'info'. The first probe of a provider
+             * counts as a transition so startup timing (see the `performance` skill) keeps its `agent.probe` record.
              */
             const level =
-                (previousAvailable !== undefined && previousAvailable !== snapshot.available) ||
-                durationMs > SLOW_AGENT_PROBE_MS
+                previousAvailable !== snapshot.available || durationMs > SLOW_AGENT_PROBE_MS
                     ? 'info'
                     : 'debug';
             this.logger?.write(level, logEventCatalog.agent.probe, {

@@ -140,9 +140,10 @@ describe('Agent adapter fallback', () => {
             .map((call) => call[0]);
         /**
          * Production evidence: unconditional 'info' probes rotated real incidents out of the single 5MB log generation
-         * within hours (see `SLOW_AGENT_PROBE_MS`'s JSDoc). Repeated non-transitioning probes must stay at 'debug'.
+         * within hours (see `SLOW_AGENT_PROBE_MS`'s JSDoc). The first probe stays at 'info' so startup timing keeps its
+         * record; repeated non-transitioning probes must stay at 'debug'.
          */
-        expect(levels).toEqual(['debug', 'debug']);
+        expect(levels).toEqual(['info', 'debug']);
     });
 
     it('logs the probe at info when availability transitions from the previous probe', async () => {
@@ -162,13 +163,14 @@ describe('Agent adapter fallback', () => {
         const service = createTestAgentService({ codex: { provider: 'codex', snapshot } }, logger);
 
         await service.snapshot('codex');
+        await service.snapshot('codex');
         isAvailable = false;
         await service.snapshot('codex');
 
         const levels = write.mock.calls
             .filter((call) => call[1] === 'agent.probe')
             .map((call) => call[0]);
-        expect(levels).toEqual(['debug', 'info']);
+        expect(levels).toEqual(['info', 'debug', 'info']);
     });
 
     it('logs the probe at info when it exceeds the slow-probe threshold, even without an availability change', async () => {
