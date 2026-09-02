@@ -3,6 +3,10 @@ import type { ProcessState } from '@caxri/protocol';
 import { gpuRecoveryNotificationCoordinator } from '../gpu/gpu-recovery-notifications';
 import type { TerminalGpuAcceleration, TerminalRendererStatus } from './terminal-renderer';
 import { createTerminalRendererDiagnostic } from './terminal-renderer-diagnostics';
+import {
+    clearTerminalRendererStatus,
+    publishTerminalRendererStatus,
+} from './terminal-renderer-status';
 
 interface TerminalRendererObserverState {
     active: boolean;
@@ -28,6 +32,7 @@ export function createTerminalRendererObserver(options: TerminalRendererObserver
 
     return {
         dispose(): void {
+            clearTerminalRendererStatus(options.terminalId);
             gpuRecoveryNotificationCoordinator.disposeTerminal(options.terminalId);
         },
         publish(status: TerminalRendererStatus): void {
@@ -39,6 +44,7 @@ export function createTerminalRendererObserver(options: TerminalRendererObserver
                 status.retryAttemptCount,
             );
             options.container.dataset.terminalRendererRetryState = status.retryState;
+            publishTerminalRendererStatus(options.terminalId, status);
             gpuRecoveryNotificationCoordinator.observeTerminalRendererStatus({
                 status,
                 terminalId: options.terminalId,
