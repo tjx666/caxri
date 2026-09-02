@@ -92,6 +92,29 @@ export const commandDefinitions: CommandDefinition[] = [
         nativeMenu: { menu: 'session', group: 0, order: 1 },
     },
     {
+        id: 'session.archive',
+        title: 'Archive Session',
+        category: 'Session',
+        description: 'Move the selected Session out of the sidebar and park its Terminals',
+        nativeMenu: { menu: 'session', group: 0, order: 2 },
+    },
+    {
+        id: 'session.detach',
+        title: 'Detach Agent',
+        category: 'Session',
+        description:
+            'Stop the selected Session’s Agent Terminals so another client can resume the same conversation',
+        nativeMenu: { menu: 'session', group: 3, order: 0 },
+    },
+    {
+        id: 'session.resume',
+        title: 'Resume Agent',
+        category: 'Session',
+        description:
+            'Relaunch the selected Session’s detached Agent Terminals and resume their conversations',
+        nativeMenu: { menu: 'session', group: 3, order: 1 },
+    },
+    {
         id: 'session.selectNext',
         title: 'Select Next Session',
         category: 'Session',

@@ -25,7 +25,7 @@ describe('Session list status', () => {
                     hasUnread: true,
                     lastAttentionKind: 'completed',
                 }),
-                undefined,
+                {},
                 true,
             ),
         ).toEqual({
@@ -46,7 +46,7 @@ describe('Session list status', () => {
     });
 
     it('clears acknowledged waiting from the selected Session row', () => {
-        expect(sessionStatus(sessionSource('waiting'), undefined, true)).toEqual({
+        expect(sessionStatus(sessionSource('waiting'), {}, true)).toEqual({
             kind: 'default',
         });
     });
@@ -56,14 +56,16 @@ describe('Session list status', () => {
             ariaLabel: 'Working. The Agent is running.',
             kind: 'running',
         });
-        expect(sessionStatus(sessionSource('running'), undefined, true)).toEqual({
+        expect(sessionStatus(sessionSource('running'), {}, true)).toEqual({
             ariaLabel: 'Working. The Agent is running.',
             kind: 'running',
         });
-        expect(sessionStatus(sessionSource('completed'), 'compacting')).toEqual({
-            ariaLabel: 'Compacting. Codex is summarizing earlier context before continuing.',
-            kind: 'running',
-        });
+        expect(sessionStatus(sessionSource('completed'), { agentOperation: 'compacting' })).toEqual(
+            {
+                ariaLabel: 'Compacting. Codex is summarizing earlier context before continuing.',
+                kind: 'running',
+            },
+        );
     });
 
     it.each<AgentActivityState>(['completed', 'failed', 'idle', 'unknown'])(
@@ -72,6 +74,28 @@ describe('Session list status', () => {
             expect(sessionStatus(sessionSource(state))).toEqual({ kind: 'default' });
         },
     );
+
+    it('shows a detached Agent as a static detached slot instead of stale activity', () => {
+        expect(
+            sessionStatus(sessionSource('running'), { lastProcessState: 'detached' }, true),
+        ).toEqual({
+            ariaLabel: 'Detached. The Agent was stopped so another client can resume it.',
+            kind: 'detached',
+        });
+        expect(sessionStatus(sessionSource('waiting'), { lastProcessState: 'detached' })).toEqual({
+            ariaLabel: 'Detached. The Agent was stopped so another client can resume it.',
+            kind: 'detached',
+        });
+    });
+
+    it('keeps unread attention ahead of a detached Agent', () => {
+        expect(
+            sessionStatus(
+                sessionSource('completed', { hasUnread: true, lastAttentionKind: 'completed' }),
+                { lastProcessState: 'detached' },
+            ),
+        ).toMatchObject({ emphasis: 'unread', kind: 'attention' });
+    });
 
     it('keeps reliable failed attention in the unified unread state', () => {
         expect(

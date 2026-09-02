@@ -69,11 +69,11 @@ const processStateSchema = z.enum([
     'failed',
     'interrupted',
     'suspended',
+    'detached', // user hand-over to another client; unlike `suspended`, only `session.resume` relaunches it
 ]);
 /**
  * Distinct causes behind a `failed` Terminal, set only alongside that state. Keep this an enum of codes (not free text)
- * so the Renderer maps each one to actionable copy in `terminal-exit-presentation.ts` without trusting Runtime-authored
- * strings.
+ * so the Renderer maps each one to actionable copy in `terminal-exit-presentation.ts`, never Runtime-authored strings.
  */
 const terminalFailureReasonSchema = z.enum([
     'working_directory_unavailable',

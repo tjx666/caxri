@@ -89,6 +89,9 @@ export const commandDefinitions: CommandDefinition[] = [
          */
         { confirm: true },
     ),
+    fromCatalog('session.archive', (context) => context.session.archiveSelected()),
+    fromCatalog('session.detach', (context) => context.session.detachSelected()),
+    fromCatalog('session.resume', (context) => context.session.resumeSelected()),
     fromCatalog('session.selectNext', (context) => context.session.selectAdjacent(1)),
     fromCatalog('session.selectPrevious', (context) => context.session.selectAdjacent(-1)),
     fromCatalog(

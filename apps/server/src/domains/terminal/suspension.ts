@@ -1,4 +1,4 @@
-import type { AppSettings, ServerEvent } from '@caxri/protocol';
+import type { AppSettings, ServerEvent, TerminalRecord } from '@caxri/protocol';
 import { errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
@@ -86,10 +86,13 @@ export class TerminalSuspensionService {
 
     private async suspendTerminal(
         terminalId: string,
-        reason: TerminalSuspensionReason | 'archived',
+        reason: TerminalSuspensionReason | 'archived' | 'detached',
     ): Promise<boolean> {
         try {
-            const record = await this.options.terminals.suspend(terminalId);
+            const record = await this.options.terminals.suspend(
+                terminalId,
+                reason === 'detached' ? 'detached' : 'suspended',
+            );
             if (!record) return false;
             this.samples.delete(terminalId);
             this.options.logger.write('info', logEventCatalog.terminal.suspended, {
@@ -110,6 +113,27 @@ export class TerminalSuspensionService {
             event: 'state.changed',
             payload: { kind: 'records', sessionIds: [], terminalIds: [...terminalIds] },
         });
+    }
+
+    private async parkSession(
+        sessionId: string,
+        reason: 'archived' | 'detached',
+        isEligible: (terminal: TerminalRecord) => boolean,
+    ): Promise<string[]> {
+        const parked: string[] = [];
+        for (const terminal of this.options.database.listTerminals(sessionId)) {
+            if (
+                !isEligible(terminal) ||
+                this.options.terminals.processId(terminal.id) === undefined
+            )
+                continue;
+            // Sequential teardown, same as the sweep: each restart barrier and snapshot capture finishes first.
+            // oxlint-disable-next-line react-doctor/async-await-in-loop
+            const suspended = await this.suspendTerminal(terminal.id, reason); // eslint-disable-line no-await-in-loop -- see above
+            if (suspended) parked.push(terminal.id);
+        }
+        this.publish(parked);
+        return parked;
     }
 
     /**
@@ -189,17 +213,21 @@ export class TerminalSuspensionService {
     /**
      * An archived Session has no viewer; every live Terminal in it is parked and resumes when it is selected again.
      */
-    async suspendSession(sessionId: string): Promise<string[]> {
-        const suspended: string[] = [];
-        for (const terminal of this.options.database.listTerminals(sessionId))
-            if (
-                this.options.terminals.processId(terminal.id) !== undefined &&
-                // eslint-disable-next-line no-await-in-loop -- sequential teardown, same as the sweep
-                (await this.suspendTerminal(terminal.id, 'archived'))
-            )
-                suspended.push(terminal.id);
-        this.publish(suspended);
-        return suspended;
+    suspendSession(sessionId: string): Promise<string[]> {
+        return this.parkSession(sessionId, 'archived', () => true);
+    }
+
+    /**
+     * Parks every live Agent Terminal of a Session as `detached` so another client can resume the same provider
+     * conversation (Codex refuses to open one session twice). Shell tabs stay untouched: the user only wants to hand
+     * over the Agent, not their shell. Unlike archive/idle suspension, selecting the Session does not relaunch these.
+     */
+    detachSession(sessionId: string): Promise<string[]> {
+        return this.parkSession(
+            sessionId,
+            'detached',
+            (terminal) => terminal.provider !== undefined,
+        );
     }
 
     async close(): Promise<void> {

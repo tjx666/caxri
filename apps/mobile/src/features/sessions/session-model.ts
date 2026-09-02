@@ -107,6 +107,7 @@ export const terminalPreviewFallback = (
         case 'failed':
         case 'interrupted':
         case 'suspended':
+        case 'detached':
             return 'The Agent is stopped.';
         case 'running':
         case 'starting':

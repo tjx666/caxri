@@ -121,6 +121,63 @@ describe('background Agent suspension', () => {
         }
     });
 
+    it('keeps a detached Agent parked across Session selection and resumes it only on request', async () => {
+        const runtime = await createRuntime('detach');
+        const { domains } = runtime;
+        try {
+            const first = await domains.handlers['session.create']({
+                projectId: runtime.project.id,
+                defaultAgent: 'claude',
+            });
+            const terminalId = first.terminal!.id;
+            const terminalRecord = async () => {
+                const state = await domains.handlers['app.bootstrap']({});
+                return state.terminals.find((entry) => entry.id === terminalId);
+            };
+            await vi.waitFor(async () =>
+                expect((await terminalRecord())?.lastAgentProcessState).toBe('running'),
+            );
+            const direct = new Database(join(runtime.userDataPath, 'caxri.db'));
+            direct
+                .prepare('UPDATE terminals SET agent_session_id = ? WHERE id = ?')
+                .run('claude-session-2', terminalId);
+            direct.close();
+
+            // Detaching the selected Session kills the Agent without leaving it.
+            await domains.handlers['session.detach']({ sessionId: first.session.id });
+            const detached = await terminalRecord();
+            expect(detached?.lastProcessState).toBe('detached');
+            expect(detached?.lastAgentProcessState).toBe('detached');
+            expect(detached?.agentSessionId).toBe('claude-session-2');
+            expect(runtime.kills[0]).toHaveBeenCalled();
+
+            // Leaving and re-selecting the Session must not relaunch the handed-over conversation.
+            const second = await domains.handlers['session.create']({
+                projectId: runtime.project.id,
+                defaultAgent: 'shell',
+            });
+            await domains.handlers['session.select']({ sessionId: second.session.id });
+            await domains.handlers['session.select']({ sessionId: first.session.id });
+            runtime.advance(UNTOUCHED_SUSPENSION_DELAY_MS);
+            await new Promise((resolve) => setTimeout(resolve, 50));
+            expect(runtime.spawnSpy).toHaveBeenCalledTimes(2);
+            expect((await terminalRecord())?.lastProcessState).toBe('detached');
+
+            // An explicit resume relaunches with the provider's resume arguments and the same binding.
+            await domains.handlers['session.resume']({ sessionId: first.session.id });
+            await vi.waitFor(() => expect(runtime.spawnSpy).toHaveBeenCalledTimes(3));
+            const resumed = runtime.start.mock.calls.at(-1)?.[0].agent;
+            expect(resumed?.args).toEqual(['--resume', 'claude-session-2']);
+            await vi.waitFor(async () => {
+                const record = await terminalRecord();
+                expect(record?.lastProcessState).toBe('running');
+                expect(record?.agentSessionId).toBe('claude-session-2');
+            });
+        } finally {
+            await domains.close();
+        }
+    });
+
     it('parks the live Terminals of an archived Session', async () => {
         const runtime = await createRuntime('archive');
         const { domains } = runtime;

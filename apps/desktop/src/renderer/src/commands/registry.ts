@@ -19,10 +19,13 @@ export interface CommandContext {
         removeSelected(): void;
     };
     session: {
+        archiveSelected(): void;
         canNavigateHistory(direction: SessionNavigationDirection): boolean;
         create(): void;
         deleteSelected(): void;
+        detachSelected(): void;
         navigateHistory(direction: SessionNavigationDirection): void;
+        resumeSelected(): void;
         selectAdjacent(delta: 1 | -1): void;
         switchMru(invocation?: SessionMruShortcutInvocation): void;
     };

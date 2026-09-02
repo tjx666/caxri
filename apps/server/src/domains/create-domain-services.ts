@@ -628,6 +628,29 @@ export async function createDomainServices(
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.archive' } });
             return session;
         },
+        'session.detach': async ({ sessionId }) => {
+            if (!database.getSession(sessionId))
+                throw new CaxriError('NOT_FOUND', 'Session not found');
+            // A queued restore could relaunch the Agent right after it was handed over; drop it first.
+            terminalRestores.cancel(sessionId);
+            await terminalSuspension.detachSession(sessionId);
+            send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.detach' } });
+            return database.getSession(sessionId)!;
+        },
+        'session.resume': ({ sessionId }) =>
+            sessionSelections.run(async () => {
+                await workbenchRoots.validateSession(sessionId);
+                database.selectSession(sessionId);
+                terminalSuspension.observeSelection();
+                watchSessionInBackground(sessionId);
+                restoreInterruptedTerminalsInBackground(sessionId, { includeDetached: true });
+                coordinator.probeSessionPrimaryAgent(sessionId);
+                send({
+                    event: 'state.changed',
+                    payload: { kind: 'full', reason: 'session.resume' },
+                });
+                return database.getSession(sessionId)!;
+            }),
         'session.unarchive': ({ sessionId }) => {
             const session = database.unarchiveSession(sessionId);
             send({

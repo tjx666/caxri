@@ -1,4 +1,5 @@
 import type { DragEvent } from 'react';
+import { useState } from 'react';
 
 import type {
     ProjectRecord,
@@ -26,6 +27,7 @@ import type { ProjectDropTarget } from './project-order';
 import { hasProjectDragType } from './project-order';
 import { SessionActivityCard } from './session-activity-card';
 import { SessionPullRequestIndicator } from './session-pull-request-indicator';
+import { SessionRowMenu } from './session-row-menu';
 import { SessionStatusIndicator } from './session-status-indicator';
 
 const sessionCardClassName =
@@ -61,6 +63,7 @@ interface ActiveSessionRowProperties {
     selected: boolean;
     session: SessionRecord;
     terminal?: TerminalRecord;
+    terminals: TerminalRecord[];
 }
 
 function ActiveSessionRow({
@@ -79,8 +82,14 @@ function ActiveSessionRow({
     selected,
     session,
     terminal,
+    terminals,
 }: ActiveSessionRowProperties) {
     const renameErrorId = `session-rename-error-${session.id}`;
+    /**
+     * The HoverCard opens on a hover delay and would otherwise pop over an open context menu; closing it while the menu
+     * is open keeps one popup on screen at a time.
+     */
+    const [menuOpen, setMenuOpen] = useState(false);
     const sessionCard = (
         <div
             data-row-id={session.id}
@@ -159,14 +168,14 @@ function ActiveSessionRow({
                 />
             )}
             <SessionStatusIndicator
-                agentOperation={terminal?.agentOperation}
                 className="transition-opacity group-hover/session-row:opacity-0"
                 isCurrentSession={selected}
                 session={session}
+                terminal={terminal}
             />
         </div>
     );
-    return (
+    const row = (
         <div
             aria-level={2}
             aria-selected={selected}
@@ -180,6 +189,7 @@ function ActiveSessionRow({
                     project={project}
                     pullRequest={pullRequest}
                     session={session}
+                    suppressed={menuOpen}
                     terminal={terminal}
                     trigger={sessionCard}
                 />
@@ -214,6 +224,18 @@ function ActiveSessionRow({
                 </button>
             </Tooltip>
         </div>
+    );
+    if (renaming) return row;
+    return (
+        <SessionRowMenu
+            onBeginRename={onBeginRename}
+            onOpenChange={setMenuOpen}
+            project={project}
+            session={session}
+            terminals={terminals}
+        >
+            {row}
+        </SessionRowMenu>
     );
 }
 
@@ -429,6 +451,7 @@ export function ProjectGroup({
                                 selected={session.id === selectedSessionId}
                                 session={session}
                                 terminal={sessionTerminal(session, terminals)}
+                                terminals={terminals}
                             />
                         ))}
                         {activeSessions.length === 0 && (

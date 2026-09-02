@@ -594,18 +594,22 @@ export class TerminalManager {
     /**
      * Parks a live Terminal without losing it: the PTY is killed behind the same barrier a restart uses, the final
      * screen is captured for the tab, and the durable record moves to `suspended` so selecting its Session restores the
-     * process (resuming the bound Agent session) exactly like an app-shutdown interruption would.
+     * process (resuming the bound Agent session) exactly like an app-shutdown interruption would. `detached` is the
+     * user-driven variant: it survives Session selection and only an explicit `session.resume` relaunches it.
      */
-    async suspend(terminalId: string): Promise<TerminalRecord | undefined> {
+    async suspend(
+        terminalId: string,
+        state: 'suspended' | 'detached' = 'suspended',
+    ): Promise<TerminalRecord | undefined> {
         const record = this.database.getTerminal(terminalId);
         if (!record || this.execution.processId(terminalId) === undefined) return undefined;
         const resumesAgent = this.agentLaunches.has(terminalId);
-        if (resumesAgent) this.retireAgentLifecycleSoon(terminalId, 'suspended');
+        if (resumesAgent) this.retireAgentLifecycleSoon(terminalId, state);
         const capture = await this.execution.restartBarrier(terminalId);
         if (capture) await this.snapshots.finalize(terminalId, Promise.resolve(capture));
-        this.database.updateTerminalState(terminalId, 'suspended');
-        if (resumesAgent) this.database.updateAgentProcessState(terminalId, 'suspended');
-        this.onStateChanged?.(terminalId, 'suspended');
+        this.database.updateTerminalState(terminalId, state);
+        if (resumesAgent) this.database.updateAgentProcessState(terminalId, state);
+        this.onStateChanged?.(terminalId, state);
         return this.database.getTerminal(terminalId);
     }
 
