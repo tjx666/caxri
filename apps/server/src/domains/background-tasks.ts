@@ -3,6 +3,7 @@ import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
 import type { FileService } from './files';
+import type { TerminalRestoreOptions } from './terminal-restore';
 
 /**
  * Fire-and-forget wrappers for recoverable background work (file watching, interrupted-Terminal restore) that must
@@ -12,9 +13,15 @@ import type { FileService } from './files';
 export function createBackgroundTasks(
     logger: StructuredLogger,
     files: FileService,
-    restoreInterruptedTerminals: (sessionId: string) => Promise<void>,
+    restoreInterruptedTerminals: (
+        sessionId: string,
+        options?: TerminalRestoreOptions,
+    ) => Promise<void>,
 ): {
-    restoreInterruptedTerminalsInBackground: (sessionId: string) => void;
+    restoreInterruptedTerminalsInBackground: (
+        sessionId: string,
+        options?: TerminalRestoreOptions,
+    ) => void;
     watchSessionInBackground: (sessionId: string | undefined) => void;
 } {
     /**
@@ -36,10 +43,13 @@ export function createBackgroundTasks(
      * Restoring interrupted Terminals spawns PTYs and probes Agent CLIs; it must never delay the triggering IPC
      * response, so every call site fires this without awaiting it.
      */
-    function restoreInterruptedTerminalsInBackground(sessionId: string): void {
+    function restoreInterruptedTerminalsInBackground(
+        sessionId: string,
+        options?: TerminalRestoreOptions,
+    ): void {
         // Same fire-and-forget rationale as `watchSessionInBackground` above.
         // eslint-disable-next-line unicorn/prefer-await -- fire-and-forget helper, see comment above
-        restoreInterruptedTerminals(sessionId).catch((error: unknown) =>
+        restoreInterruptedTerminals(sessionId, options).catch((error: unknown) =>
             logger.write('error', logEventCatalog.terminal.restoreInterruptedFailed, {
                 fields: { sessionId, error: errorMessage(error, 'unknown') },
             }),

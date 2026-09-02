@@ -381,6 +381,12 @@ mid-turn or awaiting the user's approval is never suspended, and Shell tabs are 
 suspends all of its live Terminals. Terminal capacity counts only `starting` and `running` records so dormant tabs do
 not consume the limit.
 
+`detached` is the user-driven sibling of `suspended`: `session.detach` parks a Session's live Agent Terminals (never
+its Shell tabs) through the same barrier so another client can `codex resume` / `claude --resume` the bound
+conversation, which Codex refuses to open twice. Selecting the Session does not relaunch a detached Terminal; only the
+explicit `session.resume` request (or the Terminal's own Resume action) opts it back into the restore path with the
+provider's resume arguments.
+
 Exited Terminals retain their final output and reserve a compact recovery row beneath the xterm viewport, never over it. A zero exit without a signal is neutral; startup failures and signal or non-zero exits use a danger state. Surface actions, the command palette, and `Command+Shift+R` restart the same durable Terminal record, so recovery cannot create a duplicate tab or PTY identity. Restarting a bound Agent Terminal resumes its correlated provider session by default; only the separate `Start New Agent Session` action clears that binding and starts fresh, while Shell restarts always remain fresh.
 
 ## Files and editor

@@ -22,6 +22,14 @@ interface InterruptedTerminalRestorerOptions {
     visibleGridWaitMs: number;
 }
 
+export interface TerminalRestoreOptions {
+    /**
+     * `detached` Terminals were parked by the user for another client and must survive an ordinary Session selection;
+     * only the explicit `session.resume` request opts them back in.
+     */
+    includeDetached?: boolean;
+}
+
 export function createInterruptedTerminalRestorer(options: InterruptedTerminalRestorerOptions) {
     const {
         coordinator,
@@ -34,16 +42,20 @@ export function createInterruptedTerminalRestorer(options: InterruptedTerminalRe
         visibleGridWaitMs,
     } = options;
     /**
-     * Auto-restores a Session's Terminals that an orderly shutdown left `interrupted` (GitHub issue #18). A Terminal
-     * with a bound Agent conversation (`terminal.provider` set) resumes it via its Server provider descriptor, so
-     * `coordinator.prepareTerminalStart` — which clears the Agent session binding through `resetAgentMetadataForStart`
-     * — must be skipped for that Terminal; that clearing is exactly what a normal (non-resuming) start wants. A
-     * Terminal without a bound conversation (a shell, or an Agent Terminal that never reached a capability-detected
-     * session id) gets a fresh start instead. A spawn failure is left as `failed`; the user can restart it manually.
-     * Restore work shares a global concurrency budget. Selecting another Session invalidates queued work, and the
-     * generation is checked again after executable discovery immediately before spawn.
+     * Auto-restores a Session's Terminals that an orderly shutdown left `interrupted` (GitHub issue #18) or that the
+     * background suspension sweep parked as `suspended`. A Terminal with a bound Agent conversation
+     * (`terminal.provider` set) resumes it via its Server provider descriptor, so `coordinator.prepareTerminalStart` —
+     * which clears the Agent session binding through `resetAgentMetadataForStart` — must be skipped for that Terminal;
+     * that clearing is exactly what a normal (non-resuming) start wants. A Terminal without a bound conversation (a
+     * shell, or an Agent Terminal that never reached a capability-detected session id) gets a fresh start instead. A
+     * spawn failure is left as `failed`; the user can restart it manually. Restore work shares a global concurrency
+     * budget. Selecting another Session invalidates queued work, and the generation is checked again after executable
+     * discovery immediately before spawn.
      */
-    return async function restoreInterruptedTerminals(sessionId: string): Promise<void> {
+    return async function restoreInterruptedTerminals(
+        sessionId: string,
+        options: TerminalRestoreOptions = {},
+    ): Promise<void> {
         const sessionTerminals = database.listTerminals(sessionId);
         // Every pane shows its own active tab, so more than one Terminal can be on screen at once; each of them waits
         // for the attached grid size before replaying, which an off-screen Terminal has no reason to do.
@@ -53,12 +65,14 @@ export function createInterruptedTerminalRestorer(options: InterruptedTerminalRe
         const interrupted = sessionTerminals.filter(
             (terminal) =>
                 terminal.lastProcessState === 'interrupted' ||
-                terminal.lastProcessState === 'suspended',
+                terminal.lastProcessState === 'suspended' ||
+                (options.includeDetached && terminal.lastProcessState === 'detached'),
         );
         const restored = await terminalRestores.restore(
             sessionId,
             interrupted.map((terminal) => async (isCurrent, abortSignal) => {
                 const shouldRestoreAgent = [
+                    'detached',
                     'interrupted',
                     'running',
                     'starting',
@@ -85,7 +99,8 @@ export function createInterruptedTerminalRestorer(options: InterruptedTerminalRe
                     const current = database.getTerminal(terminal.id);
                     if (
                         current?.lastProcessState === 'interrupted' ||
-                        current?.lastProcessState === 'suspended'
+                        current?.lastProcessState === 'suspended' ||
+                        current?.lastProcessState === 'detached'
                     ) {
                         database.updateTerminalState(
                             terminal.id,

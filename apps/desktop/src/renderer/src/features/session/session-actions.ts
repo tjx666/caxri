@@ -1,4 +1,4 @@
-import type { SessionRecord, TerminalKind, TerminalRecord } from '@caxri/protocol';
+import type { ProjectRecord, SessionRecord, TerminalKind, TerminalRecord } from '@caxri/protocol';
 import { agentProviderCatalog } from '@caxri/protocol';
 
 import type { SessionMruShortcutInvocation } from '../../commands/registry';
@@ -175,6 +175,73 @@ export function archiveSession(sessionId: string): void {
     );
 }
 
+export function archiveSelectedSession(): void {
+    const session = getSelectedSession();
+    if (session) archiveSession(session.id);
+}
+
+/**
+ * Codex refuses to open one conversation in two processes, so handing a Session to an editor Terminal means Caxri must
+ * stop its own Agent first. `session.detach` parks the Agent Terminals as `detached`; unlike background suspension,
+ * selecting the Session again does not relaunch them — only `resumeSession` does.
+ */
+export function detachSession(sessionId: string): void {
+    // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+    void tryCommand('Session detach failed', () => caxri.request('session.detach', { sessionId }), {
+        refresh: refreshWorkbench,
+    });
+}
+
+export function resumeSession(sessionId: string): void {
+    // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+    void tryCommand('Session resume failed', () => caxri.request('session.resume', { sessionId }), {
+        refresh: refreshWorkbench,
+    });
+}
+
+export function detachSelectedSession(): void {
+    const session = getSelectedSession();
+    if (session) detachSession(session.id);
+}
+
+export function resumeSelectedSession(): void {
+    const session = getSelectedSession();
+    if (session) resumeSession(session.id);
+}
+
+/**
+ * True when the Session has at least one Agent Terminal parked by `detachSession`, i.e. the menu should offer Resume
+ * instead of Detach.
+ */
+export function hasDetachedAgentTerminal(
+    sessionId: string,
+    terminals: ReadonlyArray<Pick<TerminalRecord, 'lastProcessState' | 'provider' | 'sessionId'>>,
+): boolean {
+    return terminals.some(
+        (terminal) =>
+            terminal.sessionId === sessionId &&
+            terminal.provider !== undefined &&
+            terminal.lastProcessState === 'detached',
+    );
+}
+
+/**
+ * True when the Session has a live Agent Terminal that `detachSession` could hand over.
+ */
+export function hasLiveAgentTerminal(
+    sessionId: string,
+    terminals: ReadonlyArray<Pick<TerminalRecord, 'lastProcessState' | 'provider' | 'sessionId'>>,
+): boolean {
+    return terminals.some(
+        (terminal) =>
+            terminal.sessionId === sessionId &&
+            terminal.provider !== undefined &&
+            (terminal.lastProcessState === 'running' || terminal.lastProcessState === 'starting'),
+    );
+}
+
 export function unarchiveSession(sessionId: string): void {
     // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
@@ -255,12 +322,22 @@ export function openSelectedProjectInExternalEditor(): void {
     const project = selectSelectedProject(bootstrap);
     if (!bootstrap || !project) return;
     const session = getSelectedSession();
+    openProjectInExternalEditor(
+        project,
+        session?.projectId === project.id ? session.id : undefined,
+    );
+}
+
+export function openProjectInExternalEditor(
+    project: Pick<ProjectRecord, 'rootPath'>,
+    sessionId?: string,
+): void {
     // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void tryCommand('Opening the Project in the external editor failed', () =>
         caxri.request('project.openInEditor', {
             path: project.rootPath,
-            ...(session?.projectId === project.id && { sessionId: session.id }),
+            ...(sessionId !== undefined && { sessionId }),
         }),
     );
 }

@@ -106,9 +106,10 @@ describe('command registry', () => {
                 group.map((command) => command.id),
             ),
         ).toEqual([
-            ['session.create', 'session.delete'],
+            ['session.create', 'session.delete', 'session.archive'],
             ['session.selectPrevious', 'session.selectNext'],
             ['session.navigateBack', 'session.navigateForward'],
+            ['session.detach', 'session.resume'],
         ]);
     });
 

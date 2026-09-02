@@ -26,9 +26,10 @@ const terminalStateColor: Record<TerminalRecord['lastProcessState'], string> = {
      */
     interrupted: 'text-danger',
     /**
-     * A suspended Terminal is parked on purpose and relaunches on selection, so it reads as resting, not broken.
+     * Parked on purpose (background suspension or a user hand-over): dormant, not broken.
      */
     suspended: 'text-muted',
+    detached: 'text-muted',
 };
 
 /**

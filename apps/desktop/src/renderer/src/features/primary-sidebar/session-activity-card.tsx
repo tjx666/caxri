@@ -40,26 +40,44 @@ function unreadAttentionPresentation(
     return { ...sessionActivityPresentation(kind), tone: sessionUnreadTone(kind) };
 }
 
+/**
+ * A detached Agent was stopped on purpose so another client can resume it; the last probed lifecycle state would
+ * misreport it as still working or waiting here.
+ */
+const detachedActivityPresentation = {
+    ariaLabel: 'Detached. The Agent was stopped so another client can resume it.',
+    description:
+        'Stopped so another client can resume this conversation. Resume it from the row menu.',
+    indicatorClassName: 'text-muted',
+    label: 'Detached',
+    tone: 'neutral',
+} satisfies ReturnType<typeof sessionActivityPresentation>;
+
 export function SessionActivityCard({
     project,
     pullRequest,
     session,
+    suppressed = false,
     terminal,
     trigger,
 }: {
     project: ProjectRecord;
     pullRequest?: SessionPullRequest;
     session: SessionRecord;
+    /**
+     * Keeps the card closed while another popup (the row's context menu) owns the pointer.
+     */
+    suppressed?: boolean;
     terminal?: TerminalRecord;
     trigger: ReactElement;
 }) {
     const accessibleDescriptionId = useId();
     const [open, setOpen] = useState(false);
     const now = useNow(30_000);
-    const activity = sessionActivityPresentation(
-        session.lastActivityState,
-        terminal?.agentOperation,
-    );
+    const activity =
+        terminal?.lastProcessState === 'detached'
+            ? detachedActivityPresentation
+            : sessionActivityPresentation(session.lastActivityState, terminal?.agentOperation);
     const agent = terminal?.kind ?? 'shell';
     const agentLabel = resolveAgentIcon(agent).label;
     const lastOpened = formatSessionRelativeTime(session.lastOpenedAt, now);
@@ -95,7 +113,7 @@ export function SessionActivityCard({
     }, [open]);
 
     return (
-        <HoverCard open={open} onOpenChange={(nextOpen) => setOpen(nextOpen)}>
+        <HoverCard open={open && !suppressed} onOpenChange={(nextOpen) => setOpen(nextOpen)}>
             <HoverCardTrigger
                 aria-describedby={accessibleDescriptionId}
                 closeDelay={80}

@@ -16,6 +16,22 @@ describe('getTerminalExitPresentation', () => {
                 tone: 'neutral',
             },
         ],
+        [
+            'suspended',
+            {
+                icon: 'pending',
+                label: 'Suspended while inactive — resuming',
+                tone: 'neutral',
+            },
+        ],
+        [
+            'detached',
+            {
+                icon: 'detached',
+                label: 'Detached — resume when you are done elsewhere',
+                tone: 'neutral',
+            },
+        ],
     ] satisfies Array<[ProcessState, ReturnType<typeof getTerminalExitPresentation>]>)(
         'maps %s to a distinct recovery presentation',
         (state, expected) => {
