@@ -33,11 +33,18 @@ function publishEditorStatus(editor: MonacoCodeEditor, statusKey: string | undef
     const model = editor.getModel();
     const selection = editor.getSelection();
     if (!model || !selection) return;
-    const startOffset = model.getOffsetAt(selection.getStartPosition());
-    const endOffset = model.getOffsetAt(selection.getEndPosition());
+    const start = selection.getStartPosition();
+    const end = selection.getEndPosition();
+    const startOffset = model.getOffsetAt(start);
+    const endOffset = model.getOffsetAt(end);
     useEditorStatusStore.getState().setStatus(statusKey, {
         line: selection.positionLineNumber,
         column: selection.positionColumn,
+        selectionStartLine: start.lineNumber,
+        selectionEndLine:
+            end.lineNumber > start.lineNumber && end.column === 1
+                ? end.lineNumber - 1
+                : end.lineNumber,
         selectedCharacters: Math.max(0, endOffset - startOffset),
         languageId: model.getLanguageId(),
     });

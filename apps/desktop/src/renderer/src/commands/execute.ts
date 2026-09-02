@@ -4,6 +4,10 @@ import type { CommandId } from '@caxri/protocol';
 import { listPaneTerminalIds, paneSplitBlockedReason } from '@caxri/protocol';
 
 import { closeDocumentTabs, saveActiveEditor } from '../features/editor/document-actions';
+import {
+    canSendActiveFileReference,
+    sendActiveFileReferenceToTerminal,
+} from '../features/editor/send-file-reference';
 import { toggleScreencastMode } from '../features/screencast/screencast';
 import {
     beginSessionCreation,
@@ -236,6 +240,9 @@ const commandContext: CommandContext = {
     editor: {
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         saveActive: () => void saveActiveEditor(),
+        canSendReferenceToTerminal: canSendActiveFileReference,
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        sendReferenceToTerminal: () => void sendActiveFileReferenceToTerminal(),
     },
     secondarySidebar: {
         activateViewContainer: activateSecondarySidebarViewContainer,
