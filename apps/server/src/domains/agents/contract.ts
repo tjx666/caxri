@@ -6,6 +6,7 @@ import process from 'node:process';
 import type { AgentActivityState, AgentProvider, ProcessState } from '@caxri/protocol';
 
 import type { AgentHookAdapter } from './hooks/contract';
+import type { AgentTranscriptLocation } from './transcript-security';
 
 export interface AgentSnapshotContext {
     /**
@@ -192,6 +193,15 @@ export interface AgentProviderDescriptor {
      * watching the provider file.
      */
     transcriptRoot?(context: { cwd: string }, environment: AgentEnvironment): string;
+    /**
+     * Locates the transcript when its path cannot be derived purely, e.g. Codex names rollouts by wall-clock time. May
+     * list provider-owned directories but must never read transcript contents; Server still canonicalizes the returned
+     * boundary before opening the file. `transcriptPath` wins when both are present.
+     */
+    locateTranscript?(
+        context: { agentSessionId: string; cwd: string },
+        environment: AgentEnvironment,
+    ): Promise<AgentTranscriptLocation | undefined>;
 }
 
 /**

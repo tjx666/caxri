@@ -176,7 +176,88 @@ const createdPullRequestLines = [
     }),
 ];
 
+/**
+ * UUIDv7 Codex thread id; its leading 48 bits place the rollout in the local day folder of 2026-05-27.
+ */
+const CODEX_THREAD_ID = '019e676d-8740-7bb2-8bcb-f189c8260607';
+
+async function writeCodexRollout(home: string, lines: string[]): Promise<void> {
+    const day = new Date(0x019e676d8740);
+    const segments = [
+        String(day.getFullYear()),
+        String(day.getMonth() + 1).padStart(2, '0'),
+        String(day.getDate()).padStart(2, '0'),
+    ];
+    const directory = join(home, '.codex', 'sessions', ...segments);
+    await mkdir(directory, { recursive: true });
+    await writeFile(
+        join(directory, `rollout-${segments.join('-')}T11-14-52-${CODEX_THREAD_ID}.jsonl`),
+        `${lines.join('\n')}\n`,
+    );
+}
+
+const codexCreatedPullRequestLines = [
+    JSON.stringify({
+        type: 'response_item',
+        payload: {
+            type: 'function_call',
+            name: 'exec_command',
+            arguments: JSON.stringify({ cmd: 'gh pr create --fill', workdir: '/project' }),
+            call_id: 'call_1',
+        },
+    }),
+    JSON.stringify({
+        type: 'response_item',
+        payload: {
+            type: 'function_call_output',
+            call_id: 'call_1',
+            output: 'Output:\nhttps://github.com/lobehub/lobehub/pull/19024\n',
+        },
+    }),
+];
+
 describe('SessionPullRequestService', () => {
+    it('resolves the PR a Codex Agent created from its rollout while the Session sits on main', async () => {
+        const home = await temporaryDirectory('caxri-session-pr-codex-home-');
+        await writeCodexRollout(home, codexCreatedPullRequestLines);
+        const terminal = {
+            id: 'terminal-codex',
+            sessionId: 'session-1',
+            kind: 'codex',
+            provider: 'codex',
+            cwd: '/project',
+            agentSessionId: CODEX_THREAD_ID,
+        } as unknown as TerminalRecord;
+        const gh = vi.fn((arguments_: readonly string[]) => {
+            expect(arguments_.slice(0, 3)).toEqual(['pr', 'view', '19024']);
+            return Promise.resolve(pullRequestJson());
+        });
+        const runner = vi.fn<ProjectStatusRunner>((command, arguments_) =>
+            command === 'git'
+                ? Promise.resolve('git@github.com:lobehub/lobehub.git\n')
+                : gh(arguments_),
+        );
+        const service = new SessionPullRequestService(
+            {
+                getTerminal: (id) => (id === terminal.id ? terminal : undefined),
+                listSessions: () => [session({ primaryAgentTerminalId: terminal.id })],
+            },
+            { summary: () => Promise.resolve(gitSummary('main')) },
+            await logger(),
+            runner,
+            { agentEnvironment: { homeDirectory: home, variables: {} }, emit: () => {} },
+        );
+
+        await service.refresh();
+
+        expect(service.snapshot().pullRequests['session-1']).toMatchObject({
+            number: 19024,
+            state: 'merged',
+            source: 'agent',
+        });
+        expect(gh).toHaveBeenCalledTimes(1);
+    });
+
     it('resolves the PR the Agent created from its transcript ahead of the checked-out branch', async () => {
         const gh = vi.fn((arguments_: readonly string[]) => {
             expect(arguments_.slice(0, 5)).toEqual([

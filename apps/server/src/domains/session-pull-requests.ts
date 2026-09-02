@@ -19,8 +19,8 @@ import type {
 import {
     createTranscriptPullRequestScan,
     defaultAgentEnvironment,
+    locateAgentTranscript,
     resetTranscriptPullRequestScan,
-    resolveAgentTranscriptLocation,
     scanTranscriptLines,
     scanTranscriptPullRequestLine,
 } from './agents';
@@ -349,9 +349,11 @@ export class SessionPullRequestService {
             : (this.options.openTtlMs ?? OPEN_TTL_MS);
     }
 
-    private transcriptLocation(session: SessionRecord): AgentTranscriptLocation | undefined {
-        if (!session.primaryAgentTerminalId) return undefined;
-        return resolveAgentTranscriptLocation(
+    private transcriptLocation(
+        session: SessionRecord,
+    ): Promise<AgentTranscriptLocation | undefined> {
+        if (!session.primaryAgentTerminalId) return Promise.resolve(undefined);
+        return locateAgentTranscript(
             this.database as CaxriDatabase,
             session.primaryAgentTerminalId,
             this.environment,
@@ -365,7 +367,7 @@ export class SessionPullRequestService {
     private async transcriptReference(
         session: SessionRecord,
     ): Promise<PullRequestReference | undefined> {
-        const location = this.transcriptLocation(session);
+        const location = await this.transcriptLocation(session);
         if (!location) return undefined;
         let scan = this.transcriptScans.get(location.path);
         if (!scan) {
