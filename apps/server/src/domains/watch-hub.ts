@@ -17,8 +17,30 @@ const DEFAULT_MAX_NATIVE_SUBSCRIPTIONS = 64;
  */
 const NATIVE_PRESSURE_WARN_RATIO = 0.75;
 const MAX_SNAPSHOT_LABELS = 64;
+/**
+ * First delay before retrying a failed native subscription, doubling on each further attempt up to
+ * {@link NATIVE_RETRY_MAX_DELAY_MS}. Retries never stop once fallback is active: a native failure has no signal that
+ * tells the hub it is permanent (a transient FD exhaustion or a temporarily unavailable network volume can clear at any
+ * time), and a capped-interval retry attempt is cheap next to leaving a Session pinned to polling forever.
+ */
+const NATIVE_RETRY_INITIAL_DELAY_MS = 5_000;
+const NATIVE_RETRY_MAX_DELAY_MS = 300_000;
 
 type WatchMode = 'native' | 'polling' | 'disposed';
+
+/**
+ * Matches the macOS FSEvents "must rescan" advisory. `@parcel/watcher@2.6.0`'s `FSEventsBackend.cc` attaches one of
+ * three messages to a batch when `kFSEventStreamEventFlagMustScanSubDirs` is set — "Events were dropped by the FSEvents
+ * client.", "Events were dropped by the kernel.", or "Too many events." — always followed by "File system must be
+ * re-scanned." (see `src/macos/FSEventsBackend.cc:82-88`). The stream itself keeps running and its callback stays
+ * registered (contrast `Watcher::notifyError` in `src/Watcher.cc:113-120`, which really does tear the subscription
+ * down), so this is advisory, not a dead subscription: the caller should reconcile once and keep watching natively
+ * instead of degrading to polling.
+ */
+function isMustRescanAdvisory(error: unknown): boolean {
+    const message = errorMessage(error, '');
+    return /must be re-scanned/i.test(message) || /events were dropped/i.test(message);
+}
 
 interface WatchFallback {
     intervalMs: number;
@@ -50,6 +72,12 @@ export interface WatchRegistrationOptions {
      * `handle.startFallback(error)` when an errored native subscription should degrade to polling.
      */
     onError?: (error: unknown, handle: WatchHandle) => void;
+    /**
+     * A "must rescan" advisory on an otherwise-live native subscription (see {@link isMustRescanAdvisory}). The hub
+     * never calls `onError` or degrades to polling for this case; the registration stays native and the consumer should
+     * perform one reconciliation pass to recover any events the advisory implies were coalesced away.
+     */
+    onRescan?: () => void;
     /**
      * Degraded operation when the native subscription cannot be installed (or the native gate is exhausted). A
      * registration without a fallback rethrows its subscribe failure to the caller.
@@ -116,6 +144,17 @@ class Registration implements WatchHandle {
     pollTimer?: NodeJS.Timeout;
     pollInFlight = false;
     fallbackActive = false;
+    /**
+     * The options `register()` was called with, kept for the lifetime of the registration so a later fallback can retry
+     * the same native subscription. Absent for `registerPoller()` entries, which never have a native form — that
+     * absence is what tells `activateFallback` not to schedule a native-restore retry for them.
+     */
+    registerOptions?: WatchRegistrationOptions;
+    /**
+     * Bounded exponential-backoff retry of the native subscription while this registration is degraded to polling.
+     */
+    nativeRetryTimer?: NodeJS.Timeout;
+    nativeRetryDelayMs = NATIVE_RETRY_INITIAL_DELAY_MS;
 
     constructor(
         readonly label: string,
@@ -250,6 +289,131 @@ export class WatchHub {
     }
 
     /**
+     * Leaves this registration's poll timer (solo or shared group), without touching its native subscription or mode.
+     * Shared by disposal and by a successful native restore, both of which need the fallback timer stopped.
+     */
+    private leaveFallbackTimer(entry: Registration): void {
+        if (entry.pollTimer) clearInterval(entry.pollTimer);
+        entry.pollTimer = undefined;
+        const groupKey = entry.fallback?.groupKey;
+        if (groupKey === undefined) return;
+        const group = this.fallbackGroups.get(groupKey);
+        if (!group) return;
+        group.members.delete(entry);
+        if (group.members.size === 0) {
+            if (group.timer) clearInterval(group.timer);
+            this.fallbackGroups.delete(groupKey);
+        }
+    }
+
+    /**
+     * Schedules the next native-restore attempt at `entry.nativeRetryDelayMs`, then doubles the delay up to
+     * {@link NATIVE_RETRY_MAX_DELAY_MS} for the attempt after that. A no-op while a retry is already pending, disposed,
+     * or closed, and for registrations with no native form (see `Registration.registerOptions`).
+     */
+    private scheduleNativeRetry(entry: Registration): void {
+        if (entry.isDisposed() || this.closed || !entry.registerOptions || entry.nativeRetryTimer)
+            return;
+        const delay = entry.nativeRetryDelayMs;
+        entry.nativeRetryTimer = setTimeout(() => {
+            entry.nativeRetryTimer = undefined;
+            // eslint-disable-next-line no-void -- fire-and-forget retry attempt driven by a timer callback
+            void this.attemptNativeRestore(entry);
+        }, delay);
+        entry.nativeRetryTimer.unref();
+        entry.nativeRetryDelayMs = Math.min(delay * 2, NATIVE_RETRY_MAX_DELAY_MS);
+    }
+
+    /**
+     * One bounded-backoff attempt to resubscribe a fallback-degraded registration natively. Success stops the poll
+     * timer, restores `mode: 'native'`, clears `fallbackActive` (so a later real failure can degrade again), and resets
+     * the backoff for next time; failure reschedules the next attempt at the (already doubled) delay.
+     */
+    private async attemptNativeRestore(entry: Registration): Promise<void> {
+        if (entry.isDisposed() || this.closed || entry.mode !== 'polling' || !entry.registerOptions)
+            return;
+        const options = entry.registerOptions;
+        if (this.nativeCount() >= this.maxNativeSubscriptions) {
+            this.scheduleNativeRetry(entry);
+            return;
+        }
+        try {
+            const subscription = await this.attachNativeSubscription(entry, options);
+            // `entry.mode`/`this.closed` can change while the native subscribe above is awaited (dispose(), close(),
+            // or a concurrent fallback/restore), so this re-check must run even though the checker narrows both from
+            // the guard at the top of this method.
+            // oxlint-disable-next-line typescript/no-unnecessary-condition -- entry state can change during the preceding await
+            if (entry.isDisposed() || this.closed || entry.mode !== 'polling') {
+                await this.releaseSubscription(subscription);
+                return;
+            }
+            this.leaveFallbackTimer(entry);
+            entry.subscription = subscription;
+            entry.mode = 'native';
+            entry.fallbackActive = false;
+            entry.nativeRetryDelayMs = NATIVE_RETRY_INITIAL_DELAY_MS;
+            this.warnOnNativePressure();
+            this.logger?.write('info', logEventCatalog.watchHub.nativeRestored, {
+                fields: { label: entry.label },
+            });
+        } catch {
+            // The retry attempt's own failure is not user-actionable (the loop already logged the original
+            // fallback); re-arming quietly avoids one warning per backoff tick while a native backend stays down.
+            this.scheduleNativeRetry(entry);
+        }
+    }
+
+    /**
+     * Subscribes `entry` to `options.root`, classifying every runtime callback error before forwarding it: a "must
+     * rescan" advisory (see {@link isMustRescanAdvisory}) never reaches `onError`, so it can never trigger a fallback
+     * degradation or a caller's root-unavailable escalation. Shared by the initial `register()` attempt and by
+     * {@link attemptNativeRestore}'s retry so both paths apply the same classification.
+     */
+    private attachNativeSubscription(
+        entry: Registration,
+        options: WatchRegistrationOptions,
+    ): Promise<parcelWatcher.AsyncSubscription> {
+        return this.nativeSubscribe()(
+            options.root,
+            (error, events) => {
+                if (entry.mode === 'disposed') return;
+                if (error) {
+                    if (isMustRescanAdvisory(error)) {
+                        // FSEventsBackend.cc pairs this advisory with whatever events it still captured in the same
+                        // batch (see `Watcher::triggerCallbacks` in @parcel/watcher's Watcher.cc), so forward them
+                        // before treating the batch as a rescan trigger instead of silently discarding real events.
+                        if (events.length > 0) {
+                            entry.eventBatches += 1;
+                            entry.lastEventAt = Date.now();
+                            options.onEvents(events);
+                        }
+                        this.logger?.write('info', logEventCatalog.watchHub.rescan, {
+                            fields: { label: entry.label, error: errorMessage(error, 'unknown') },
+                        });
+                        options.onRescan?.();
+                        return;
+                    }
+                    this.logger?.write('warn', logEventCatalog.watchHub.watcherError, {
+                        fields: {
+                            label: entry.label,
+                            error: errorMessage(error, 'unknown'),
+                        },
+                    });
+                    options.onError?.(error, entry);
+                    return;
+                }
+                entry.eventBatches += 1;
+                entry.lastEventAt = Date.now();
+                options.onEvents(events);
+            },
+            {
+                backend: NATIVE_WATCHER_BACKEND,
+                ...(options.ignore && { ignore: [...options.ignore] }),
+            },
+        );
+    }
+
+    /**
      * Registers a native watch over `root`. Resolves once the subscription is live or the fallback took over; rejects
      * only when the native backend failed and no fallback exists.
      */
@@ -259,6 +423,9 @@ export class WatchHub {
             entry.mode = 'disposed';
             return entry;
         }
+        // Kept for the registration's lifetime so a later fallback can retry this same native subscription; see
+        // `Registration.registerOptions`.
+        entry.registerOptions = options;
         this.registrations.add(entry);
         this.recordWatcherCount();
         if (this.nativeCount() >= this.maxNativeSubscriptions) {
@@ -276,29 +443,7 @@ export class WatchHub {
             return entry;
         }
         try {
-            const subscription = await this.nativeSubscribe()(
-                options.root,
-                (error, events) => {
-                    if (entry.mode === 'disposed') return;
-                    if (error) {
-                        this.logger?.write('warn', logEventCatalog.watchHub.watcherError, {
-                            fields: {
-                                label: entry.label,
-                                error: errorMessage(error, 'unknown'),
-                            },
-                        });
-                        options.onError?.(error, entry);
-                        return;
-                    }
-                    entry.eventBatches += 1;
-                    entry.lastEventAt = Date.now();
-                    options.onEvents(events);
-                },
-                {
-                    backend: NATIVE_WATCHER_BACKEND,
-                    ...(options.ignore && { ignore: [...options.ignore] }),
-                },
-            );
+            const subscription = await this.attachNativeSubscription(entry, options);
             // dispose()/close() may have run while the native subscription was in flight; release the fresh
             // subscription quietly so no watcher leaks past shutdown.
             if (entry.mode === 'disposed' || !this.registrations.has(entry)) {
@@ -381,6 +526,9 @@ export class WatchHub {
         if (entry.isDisposed() || this.closed) return;
         if (groupKey === undefined) this.startSoloTimer(entry);
         else this.joinFallbackGroup(groupKey, entry);
+        // Only real watch registrations (`register()`) carry `registerOptions`; a `registerPoller()` entry has no
+        // native form to restore, so it never gets a retry timer.
+        if (entry.registerOptions) this.scheduleNativeRetry(entry);
     }
 
     /**
@@ -391,19 +539,9 @@ export class WatchHub {
         entry.mode = 'disposed';
         this.registrations.delete(entry);
         this.recordWatcherCount();
-        if (entry.pollTimer) clearInterval(entry.pollTimer);
-        entry.pollTimer = undefined;
-        const groupKey = entry.fallback?.groupKey;
-        if (groupKey !== undefined) {
-            const group = this.fallbackGroups.get(groupKey);
-            if (group) {
-                group.members.delete(entry);
-                if (group.members.size === 0) {
-                    if (group.timer) clearInterval(group.timer);
-                    this.fallbackGroups.delete(groupKey);
-                }
-            }
-        }
+        if (entry.nativeRetryTimer) clearTimeout(entry.nativeRetryTimer);
+        entry.nativeRetryTimer = undefined;
+        this.leaveFallbackTimer(entry);
         const subscription = entry.subscription;
         entry.subscription = undefined;
         if (subscription) await this.releaseSubscription(subscription);
