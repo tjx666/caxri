@@ -95,6 +95,7 @@ jobs:
         run: bun run package:dmg -- --arm64
 
       - name: Verify packaged application
+        id: verify-packaged
         env:
           CAXRI_BENCHMARK_EXECUTABLE: ${{ github.workspace }}/release.noindex/mac-arm64/Caxri.app/Contents/MacOS/Caxri
           CAXRI_BENCHMARK_PROJECT_ROOT: ${{ github.workspace }}
@@ -102,6 +103,19 @@ jobs:
         run: |
           file "$CAXRI_BENCHMARK_EXECUTABLE" | grep -q 'arm64'
           bunx playwright test e2e/startup.performance.e2e.ts e2e/agent-login-path.e2e.ts --reporter=line
+
+      # The packaged-app probe only runs here, so a failure on the self-hosted runner leaves no
+      # Playwright trace or process log anywhere else. Mirror the CI failure-artifact upload.
+      - name: Upload packaged verification failure artifacts
+        if: always() && steps.verify-packaged.outcome == 'failure'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-packaged-verification-failure-artifacts
+          path: |
+            test-results/
+            logs/
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Verify release artifact
         id: artifact
