@@ -128,19 +128,33 @@ export async function renameClaudeSession(
  */
 const transcriptTitleCaches = new Map<string, TranscriptTitleCache>();
 
+/**
+ * Claude Code appends an `ai-title` record for its own generated title and a `custom-title` record for `/rename`,
+ * including the non-interactive `/rename` Caxri issues for automatic naming. The live `sessions/<pid>.json` metadata is
+ * owned by the interactive process and keeps its directory-derived `name` after an external rename, so the transcript
+ * is the only place the renamed title can be read back from. Whichever record was appended last wins.
+ */
 function scanTranscriptLine(line: string, cache: TranscriptTitleCache): void {
-    if (line.includes('"aiTitle"')) {
-        try {
-            const record = JSON.parse(line) as { aiTitle?: unknown; type?: unknown };
-            if (record.type === 'ai-title' && typeof record.aiTitle === 'string') {
-                const title = record.aiTitle.trim();
-                if (title) cache.title = title;
-            }
-        } catch {
-            /*
-            Partial or malformed lines are skipped; a later append re-delivers them complete.
-            */
-        }
+    if (!line.includes('"aiTitle"') && !line.includes('"customTitle"')) return;
+    try {
+        const record = JSON.parse(line) as {
+            aiTitle?: unknown;
+            customTitle?: unknown;
+            type?: unknown;
+        };
+        const raw =
+            record.type === 'ai-title'
+                ? record.aiTitle
+                : record.type === 'custom-title'
+                  ? record.customTitle
+                  : undefined;
+        if (typeof raw !== 'string') return;
+        const title = raw.trim();
+        if (title) cache.title = title;
+    } catch {
+        /*
+        Partial or malformed lines are skipped; a later append re-delivers them complete.
+        */
     }
 }
 
@@ -211,6 +225,11 @@ function claudeStatus(value: unknown): AgentActivityState | undefined {
 
 /**
  * Resolves the display title without ever promoting a raw prompt into Caxri persistence or an OS notification.
+ *
+ * A `derived` metadata name (`<directory>-xx`) is a placeholder Claude Code assigns before any real title exists. It is
+ * never returned as a title: `decideAgentMetadataUpdate` would otherwise persist it over the title automatic naming
+ * just wrote, because the interactive process never refreshes its metadata `name` after an external `/rename`.
+ * Returning `undefined` keeps the Session's current title instead.
  */
 async function resolveClaudeTitle(
     metadata: ClaudeSessionMetadata,
@@ -226,7 +245,7 @@ async function resolveClaudeTitle(
         );
         if (transcript.title) return transcript.title;
     }
-    return name || undefined;
+    return undefined;
 }
 
 /**

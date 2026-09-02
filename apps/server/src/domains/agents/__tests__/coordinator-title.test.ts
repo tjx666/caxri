@@ -21,8 +21,9 @@ afterEach(async () => {
 /**
  * End-to-end regression for the Claude session-title chain (real provider `readState` against real on-disk fixtures,
  * through the coordinator probe, into the Session row). Claude Code keeps its `/resume` labels in the project
- * transcript (`ai-title` records) while the live-session metadata `name` may merely be derived from the working
- * directory. Raw `last-prompt` content must never enter the Session record because native notifications reuse it.
+ * transcript (`ai-title` / `custom-title` records) while the live-session metadata `name` may merely be derived from
+ * the working directory. Raw `last-prompt` content must never enter the Session record because native notifications
+ * reuse it, and the derived placeholder must not either: persisting it would overwrite a title automatic naming wrote.
  */
 describe('AgentCoordinator provider title propagation', () => {
     it('keeps a raw transcript last prompt out of the persisted Session title', async () => {
@@ -79,11 +80,9 @@ describe('AgentCoordinator provider title propagation', () => {
             coordinator.observeOutput(created.terminal!.id);
 
             await expect
-                .poll(() => database.getSession(created.session.id)?.displayTitle)
-                .toBe('project-1a');
-            expect(database.getTerminal(created.terminal!.id)?.agentSessionId).toBe(
-                claudeSessionId,
-            );
+                .poll(() => database.getTerminal(created.terminal!.id)?.agentSessionId)
+                .toBe(claudeSessionId);
+            expect(database.getSession(created.session.id)?.displayTitle).toBe('Untitled');
         } finally {
             coordinator.close();
             database.close();
