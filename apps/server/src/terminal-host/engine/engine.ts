@@ -171,21 +171,18 @@ export class TerminalExecutionEngine {
             outputBytes: live.metricOutputBytes,
             droppedBytes: live.metricDroppedBytes,
         });
-        /**
-         * Production evidence: this fired every second per live Terminal regardless of pressure, producing 14,845
-         * 'info' lines across 5 days (most of `server-core.jsonl`'s remaining volume alongside `agent.probe`) while
-         * `recordPtyThroughput` above already feeds the same counts into the metric registry for steady-state
-         * observability. Only overflow (`droppedBytes > 0`, already the 'warn' branch) is worth a durable JSONL line.
-         */
-        if (live.metricDroppedBytes > 0)
-            this.options.logger.write('warn', ptyLogEvents.throughput, {
+        this.options.logger.write(
+            live.metricDroppedBytes > 0 ? 'warn' : 'info',
+            ptyLogEvents.throughput,
+            {
                 fields: {
                     terminalId: live.record.id,
                     inputBytes: live.metricInputBytes,
                     outputBytes: live.metricOutputBytes,
                     droppedBytes: live.metricDroppedBytes,
                 },
-            });
+            },
+        );
         live.metricInputBytes = 0;
         live.metricOutputBytes = 0;
         live.metricDroppedBytes = 0;
