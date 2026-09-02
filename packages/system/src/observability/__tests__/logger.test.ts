@@ -212,4 +212,44 @@ describe('StructuredLogger', () => {
             await rm(directory, { recursive: true, force: true });
         }
     });
+
+    it('keeps three rotated generations and evicts the oldest beyond that window', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-logger-'));
+        try {
+            const logger = new StructuredLogger(directory);
+            const bigField = 'y'.repeat(1024 * 1024);
+            /**
+             * 20 ~1MB records against a 5MB cap rotate at indices 4, 8, 12, and 16 (see the per-record byte budget
+             * computed against `MAX_LOG_BYTES`), leaving four populated epochs (current, `.1`, `.2`, `.3`) and evicting
+             * the oldest ([0..3]) once a fifth rotation would otherwise be needed for `.4`.
+             */
+            for (let index = 0; index < 20; index++) {
+                logger.write('info', logEventCatalog.file.search, {
+                    fields: { index, payload: bigField },
+                });
+                // eslint-disable-next-line no-await-in-loop -- intentionally sequential: each record must land before the next write sizes rotation.
+                await logger.flush();
+            }
+
+            const indicesIn = async (path: string): Promise<number[]> => {
+                if (!existsSync(path)) return [];
+                const content = await readFile(path, 'utf8');
+                return content
+                    .trim()
+                    .split('\n')
+                    .filter(Boolean)
+                    .map(
+                        (line) => (JSON.parse(line) as { fields: { index: number } }).fields.index,
+                    );
+            };
+
+            expect(await indicesIn(logger.path)).toEqual([16, 17, 18, 19]);
+            expect(await indicesIn(`${logger.path}.1`)).toEqual([12, 13, 14, 15]);
+            expect(await indicesIn(`${logger.path}.2`)).toEqual([8, 9, 10, 11]);
+            expect(await indicesIn(`${logger.path}.3`)).toEqual([4, 5, 6, 7]);
+            expect(existsSync(`${logger.path}.4`)).toBe(false);
+        } finally {
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
 });

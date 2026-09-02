@@ -105,4 +105,36 @@ describe('bounded structured log queries', () => {
 
         expect(after.records[0]?.id).toBe(before.records[0]?.id);
     });
+
+    it('reads records from every rotated generation, not just `.1`', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-log-generations-'));
+        const record = (event: string, second: number) =>
+            `${JSON.stringify({
+                timestamp: `2026-08-14T00:00:${String(second).padStart(2, '0')}.000Z`,
+                process: 'server-core',
+                level: 'info',
+                event,
+            })}\n`;
+        await writeFile(join(directory, 'server-core.jsonl'), record('server_core.ready', 3), {
+            mode: 0o600,
+        });
+        await writeFile(join(directory, 'server-core.jsonl.1'), record('server_core.first', 2), {
+            mode: 0o600,
+        });
+        await writeFile(join(directory, 'server-core.jsonl.2'), record('server_core.second', 1), {
+            mode: 0o600,
+        });
+        await writeFile(join(directory, 'server-core.jsonl.3'), record('server_core.third', 0), {
+            mode: 0o600,
+        });
+
+        const result = await new LogQueryService(directory).query({ limit: 10 });
+
+        expect(result.records.map((entry) => entry.event)).toEqual([
+            'server_core.third',
+            'server_core.second',
+            'server_core.first',
+            'server_core.ready',
+        ]);
+    });
 });

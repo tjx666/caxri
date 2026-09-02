@@ -13,8 +13,13 @@ import { ZipArchive } from 'archiver';
 import type { CaxriDatabase } from './db';
 import type { WatchHubSnapshot } from './watch-hub';
 
+/**
+ * Matches every rotated generation the logger keeps (`.jsonl`, `.jsonl.1`, `.jsonl.2`, ...). Matching any numeric
+ * suffix rather than hardcoding `StructuredLogger`'s current `MAX_LOG_GENERATIONS` bound keeps diagnostics snapshots
+ * and exports complete if that retention window changes without both sites needing to move together.
+ */
 const DIAGNOSTIC_LOG_NAME = new RegExp(
-    String.raw`^(?:${logProcesses.join('|')})\.jsonl(?:\.1)?$`,
+    String.raw`^(?:${logProcesses.join('|')})\.jsonl(?:\.\d+)?$`,
     'u',
 );
 
