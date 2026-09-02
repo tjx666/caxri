@@ -185,44 +185,22 @@ describe('Terminal resize burst diagnostics', () => {
             expect.objectContaining({ flushReason: 'max-duration' }),
         );
 
-        // A single-sample burst never changes grid; pair it with a second, differing sample so this burst still has
-        // a real grid change (see 'omits a burst that never changed grid' below for the changeCount === 0 case).
         tracker.sample({ cols: 82, rows: 59 }, { localApplied: true, requestSent: true });
-        tracker.sample({ cols: 83, rows: 59 }, { localApplied: true, requestSent: true });
         vi.advanceTimersByTime(250);
         expect(emit).toHaveBeenCalledTimes(2);
         expect(emit).toHaveBeenLastCalledWith(
             expect.objectContaining({
-                sampleCount: 2,
-                changeCount: 1,
-                finalCols: 83,
+                sampleCount: 1,
+                finalCols: 82,
                 flushReason: 'quiet',
             }),
         );
-    });
-
-    it('omits a burst that never changed grid, even when it applied locally or requested', () => {
-        vi.useFakeTimers();
-        const emit = vi.fn();
-        const tracker = new TerminalResizeBurstTracker({ emit, now: Date.now });
-
-        /**
-         * Production evidence: 364 `renderer.terminal_resize_burst` reports carried changeCount === 0 across 5 days
-         * (ResizeObserver noise resampling the same grid). `localApplied`/`requestSent` alone are not a proxy for a
-         * real grid change, so a burst must contain at least one differing sample to be worth reporting.
-         */
-        tracker.sample({ cols: 80, rows: 59 }, { localApplied: true, requestSent: true });
-        tracker.sample({ cols: 80, rows: 59 }, { localApplied: true, requestSent: true });
-        vi.advanceTimersByTime(250);
-
-        expect(emit).not.toHaveBeenCalled();
     });
 
     it('flushes pending evidence on pause and dispose without a later duplicate', () => {
         vi.useFakeTimers();
         const pausedEmit = vi.fn();
         const paused = new TerminalResizeBurstTracker({ emit: pausedEmit, now: Date.now });
-        paused.sample({ cols: 100, rows: 59 }, { localApplied: true, requestSent: true });
         paused.sample({ cols: 4, rows: 59 }, { localApplied: true, requestSent: true });
 
         paused.pause();
@@ -235,7 +213,6 @@ describe('Terminal resize burst diagnostics', () => {
 
         const disposedEmit = vi.fn();
         const disposed = new TerminalResizeBurstTracker({ emit: disposedEmit, now: Date.now });
-        disposed.sample({ cols: 100, rows: 59 }, { localApplied: true, requestSent: true });
         disposed.sample({ cols: 80, rows: 59 }, { localApplied: true, requestSent: true });
 
         disposed.dispose();

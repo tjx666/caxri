@@ -139,17 +139,9 @@ export class TerminalResizeBurstTracker {
 
         const rawDurationMs = Math.max(0, lastSampleAt - burstStartedAt);
         const sampleCount = Math.min(aggregate.sampleCount, this.maxSamples);
-        const changeCount = Math.min(aggregate.changeCount, Math.max(0, sampleCount - 1));
-        /**
-         * Production evidence: a burst driven entirely by ResizeObserver noise (same grid resampled repeatedly, e.g.
-         * during a pane drag that never crosses a cell boundary) produced 364 zero-change
-         * `renderer.terminal_resize_burst` reports across 5 days. Report generation is gated here at the source, not at
-         * the IPC consumer, since a report with no grid change carries no diagnostic value for any consumer.
-         */
-        if (changeCount === 0) return;
         const report: TerminalResizeBurstSummary = {
             sampleCount,
-            changeCount,
+            changeCount: Math.min(aggregate.changeCount, Math.max(0, sampleCount - 1)),
             startCols: aggregate.start.cols,
             startRows: aggregate.start.rows,
             minCols: aggregate.minimum.cols,

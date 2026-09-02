@@ -81,20 +81,6 @@ describe('PTY observability', () => {
         });
     });
 
-    it('skips the burst entirely when every sample repeats the same unchanged grid', () => {
-        const { logger, write } = resizeLogger();
-        const observer = new PtyResizeBurstObserver(logger);
-
-        observer.recordApplied('terminal-1', { cols: 120, rows: 40 });
-        vi.advanceTimersByTime(40);
-        observer.recordApplied('terminal-1', { cols: 120, rows: 40 });
-        vi.advanceTimersByTime(40);
-        observer.recordApplied('terminal-1', { cols: 120, rows: 40 });
-
-        vi.advanceTimersByTime(250);
-        expect(write).not.toHaveBeenCalled();
-    });
-
     it('bounds a continuously changing resize burst at five seconds', () => {
         const { logger, write } = resizeLogger();
         const observer = new PtyResizeBurstObserver(logger);
@@ -144,12 +130,8 @@ describe('PTY observability', () => {
     it('isolates Terminal bursts and retires one without a late timer', () => {
         const { logger, write } = resizeLogger();
         const observer = new PtyResizeBurstObserver(logger);
-        // Each Terminal needs a real grid change; a burst that never changes grid is now gated at the source (see
-        // 'skips the burst entirely when every sample repeats the same unchanged grid').
         observer.recordApplied('terminal-1', { cols: 120, rows: 40 });
-        observer.recordApplied('terminal-1', { cols: 100, rows: 35 });
         observer.recordApplied('terminal-2', { cols: 80, rows: 30 });
-        observer.recordApplied('terminal-2', { cols: 60, rows: 20 });
 
         observer.disposeTerminal('terminal-1');
         expect(write).toHaveBeenCalledOnce();
