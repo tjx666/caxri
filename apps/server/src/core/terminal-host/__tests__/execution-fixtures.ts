@@ -150,8 +150,8 @@ export class FakeTerminalHostControl implements TerminalHostControl {
         return this.requests.filter(({ request }) => request.method === method).length;
     }
 
-    shutdown(): Promise<TerminalSnapshot[]> {
-        return Promise.resolve([snapshot]);
+    shutdown(): Promise<{ failures: never[]; snapshots: TerminalSnapshot[] }> {
+        return Promise.resolve({ failures: [], snapshots: [snapshot] });
     }
 }
 

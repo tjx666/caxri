@@ -64,8 +64,8 @@ class RestoreTerminalHostControl implements TerminalHostControl {
         });
     }
 
-    shutdown(): Promise<TerminalSnapshot[]> {
-        return Promise.resolve([]);
+    shutdown(): Promise<{ failures: never[]; snapshots: TerminalSnapshot[] }> {
+        return Promise.resolve({ failures: [], snapshots: [] });
     }
 }
 

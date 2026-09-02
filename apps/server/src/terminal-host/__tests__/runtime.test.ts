@@ -70,7 +70,7 @@ function fakeEngine() {
             resources: vi.fn(() => Promise.resolve(null)),
             restartBarrier: vi.fn(),
             runningCount: vi.fn(() => 1),
-            shutdown: vi.fn(() => []),
+            shutdown: vi.fn<TerminalExecutionOwner['shutdown']>(() => []),
             signalExact: vi.fn(() => true),
             snapshot,
             start,
@@ -473,5 +473,116 @@ describe('architecture-a3b-terminal-host: TerminalHostRuntime', () => {
         expect(log).not.toContain('private-argument');
         expect(log).not.toContain('private-environment-value');
         expect(log).not.toContain('PRIVATE_TOKEN');
+    });
+
+    it('captures every settled snapshot and reports per-terminal failures when one Terminal rejects during host.shutdown', async () => {
+        const engine = fakeEngine();
+        const entries = Array.from({ length: 11 }, (_, index) => {
+            const terminalId = `terminal-${index}`;
+            const capture =
+                index === 5
+                    ? Promise.reject(new Error('parser barrier stuck'))
+                    : Promise.resolve({
+                          terminalId,
+                          encodingVersion: 1,
+                          cols: 80,
+                          rows: 24,
+                          lineCount: 1,
+                          byteCount: 1,
+                          payload: 'x',
+                          updatedAt: 1,
+                      });
+            return { terminalId, capture };
+        });
+        const shutdownMock = vi.fn(() => entries);
+        engine.owner.shutdown = shutdownMock;
+        const { messages, runtime } = createRuntime(engine.owner);
+
+        await runtime.accept(
+            privateRequest(
+                { method: 'host.shutdown', params: {} },
+                { scope: 'server', capability: 'host.lifecycle' },
+                'shutdown-1',
+            ),
+        );
+
+        expect(shutdownMock).toHaveBeenCalledOnce();
+        const reply = messages.at(-1) as {
+            type: 'reply';
+            id: string;
+            ok: true;
+            result: {
+                snapshots: unknown[];
+                failures?: Array<{ terminalId: string; error: string }>;
+            };
+        };
+        expect(reply).toMatchObject({ type: 'reply', id: 'shutdown-1', ok: true });
+        expect(reply.result.snapshots).toHaveLength(10);
+        expect(reply.result.failures).toEqual([
+            { terminalId: 'terminal-5', error: 'parser barrier stuck' },
+        ]);
+    });
+
+    it('memoizes the shutdown capture so a later stopAfterParentDisconnect reuses the host.shutdown result', async () => {
+        const engine = fakeEngine();
+        const capture = Promise.resolve({
+            terminalId: terminal.id,
+            encodingVersion: 1,
+            cols: 80,
+            rows: 24,
+            lineCount: 1,
+            byteCount: 1,
+            payload: 'x',
+            updatedAt: 1,
+        });
+        const shutdownMock = vi.fn(() => [{ terminalId: terminal.id, capture }]);
+        engine.owner.shutdown = shutdownMock;
+        const { messages, runtime } = createRuntime(engine.owner);
+
+        await runtime.accept(
+            privateRequest(
+                { method: 'host.shutdown', params: {} },
+                { scope: 'server', capability: 'host.lifecycle' },
+                'shutdown-1',
+            ),
+        );
+        await runtime.stopAfterParentDisconnect();
+
+        expect(shutdownMock).toHaveBeenCalledOnce();
+        const reply = messages.at(-1) as { result: { snapshots: unknown[] } };
+        expect(reply.result.snapshots).toHaveLength(1);
+    });
+
+    it('waitForShutdownRequest resolves once a shutdown capture begins and times out otherwise', async () => {
+        const engine = fakeEngine();
+        const { runtime } = createRuntime(engine.owner);
+
+        await expect(runtime.waitForShutdownRequest(20)).resolves.toBe(false);
+
+        engine.owner.shutdown = vi.fn(() => [
+            {
+                terminalId: terminal.id,
+                capture: Promise.resolve({
+                    terminalId: terminal.id,
+                    encodingVersion: 1,
+                    cols: 80,
+                    rows: 24,
+                    lineCount: 1,
+                    byteCount: 1,
+                    payload: 'x',
+                    updatedAt: 1,
+                }),
+            },
+        ]);
+        const shutdownReply = runtime.accept(
+            privateRequest(
+                { method: 'host.shutdown', params: {} },
+                { scope: 'server', capability: 'host.lifecycle' },
+                'shutdown-2',
+            ),
+        );
+
+        await expect(runtime.waitForShutdownRequest(1_000)).resolves.toBe(true);
+        await shutdownReply;
     });
 });

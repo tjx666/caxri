@@ -407,11 +407,28 @@ export type TerminalHostRequest = z.infer<typeof terminalHostRequestSchema>;
 export type TerminalHostRequestEnvelope = z.infer<typeof terminalHostRequestEnvelopeSchema>;
 export type TerminalHostMessage = z.infer<typeof terminalHostMessageSchema>;
 export type TerminalHostScope = z.infer<typeof terminalHostScopeSchema>;
+export type TerminalShutdownFailure = z.infer<typeof terminalShutdownFailureSchema>;
+
+/**
+ * Reported when `host.shutdown` could not capture one Terminal's final snapshot (e.g. the parser barrier rejected).
+ * Server Core uses this instead of a generic "omitted" message so the per-terminal rejection stays actionable.
+ */
+const terminalShutdownFailureSchema = z
+    .object({ terminalId: identifierSchema, error: z.string().max(4_096) })
+    .strict();
 
 const terminalHostResultSchemas = {
     'host.initialize': z.object({ initialized: z.literal(true) }).strict(),
     'host.shutdown': z
-        .object({ stopped: z.literal(true), snapshots: z.array(terminalSnapshotSchema) })
+        .object({
+            stopped: z.literal(true),
+            snapshots: z.array(terminalSnapshotSchema),
+            /**
+             * Additive field: absent or empty when every live Terminal's snapshot capture succeeded. One rejected
+             * capture no longer discards every other Terminal's snapshot (see `TerminalHostRuntime.dispatch`).
+             */
+            failures: z.array(terminalShutdownFailureSchema).optional(),
+        })
         .strict(),
     'terminal.reserve': z.object({ reserved: z.literal(true) }).strict(),
     'terminal.start': z.object({ processId: z.number().int().positive() }).strict(),
