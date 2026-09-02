@@ -178,7 +178,16 @@ export function openResource(
     const target = (paneId ? findPane(layout, paneId) : undefined) ?? activePane(layout);
     const existing = findResourceTabs(layout, resource);
     const inTargetPane = existing.find((occurrence) => occurrence.pane.id === target.id);
-    if (inTargetPane && !duplicate) return selectTab(layout, inTargetPane.tab.id);
+    /**
+     * A non-preview open of a resource that currently occupies the preview slot keeps it: the single click that
+     * precedes a double-click already previewed the file, so the double-click's open must pin instead of merely
+     * reselecting the same preview tab.
+     */
+    if (inTargetPane && !duplicate)
+        return selectTab(
+            preview ? layout : pinPaneTab(layout, inTargetPane.tab.id),
+            inTargetPane.tab.id,
+        );
     // A Terminal is an instance: opening one that already lives elsewhere reveals it instead of cloning the PTY.
     if (existing.length > 0 && !isRepeatablePaneResource(resource))
         return selectTab(layout, existing[0].tab.id);
