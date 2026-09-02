@@ -113,3 +113,8 @@ export const pathBrowserServerMethods = {
         }),
     },
 };
+
+/**
+ * Everything the registry needs from this module in one spread, keeping the registry's import on one line.
+ */
+export const pathBrowserContractMethods = { ...pathBrowserMethods, ...pathBrowserServerMethods };
