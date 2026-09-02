@@ -9,6 +9,15 @@ function metricLogger() {
     return { logger: { recordMetric } as never, recordMetric };
 }
 
+function writeLogger() {
+    const write = vi.fn<(level: string, event: string, options?: unknown) => void>();
+    const recordMetric = vi.fn();
+    return { logger: { recordMetric, write } as never, write };
+}
+
+const MUST_RESCAN_MESSAGE =
+    'Events were dropped by the FSEvents client. File system must be re-scanned.';
+
 type SubscribeCallback = Parameters<typeof parcelWatcher.subscribe>[1];
 
 function nativeSubscribe(unsubscribe = vi.fn(() => Promise.resolve())) {
@@ -251,6 +260,124 @@ describe('WatchHub', () => {
         resolve();
         await vi.advanceTimersByTimeAsync(100);
         expect(pollOnce).toHaveBeenCalledTimes(2);
+        await hub.close();
+    });
+
+    it('keeps a must-rescan advisory native, running one rescan instead of falling back', async () => {
+        const { callbacks, subscribe } = nativeSubscribe();
+        const { logger, write } = writeLogger();
+        const hub = new WatchHub({ subscribe, logger });
+        const onError = vi.fn();
+        const onRescan = vi.fn();
+        const activate = vi.fn();
+        const pollOnce = vi.fn(() => Promise.resolve());
+        const handle = await hub.register({
+            label: 'rescan-consumer',
+            root: '/watched',
+            onEvents: () => {},
+            onError,
+            onRescan,
+            fallback: { intervalMs: 100, activate, pollOnce },
+        });
+        expect(handle.mode).toBe('native');
+
+        callbacks[0]?.(new Error(MUST_RESCAN_MESSAGE), []);
+
+        expect(onRescan).toHaveBeenCalledOnce();
+        expect(onError).not.toHaveBeenCalled();
+        expect(handle.mode).toBe('native');
+        await vi.advanceTimersByTimeAsync(500);
+        expect(activate).not.toHaveBeenCalled();
+        expect(pollOnce).not.toHaveBeenCalled();
+        const events = write.mock.calls.map((call) => call[1]);
+        expect(events).toContain('watch_hub.rescan');
+        expect(events).not.toContain('watch_hub.fallback');
+        expect(events).not.toContain('watch_hub.watcher_error');
+        await hub.close();
+    });
+
+    it('forwards events bundled with a must-rescan advisory instead of discarding them', async () => {
+        const { callbacks, subscribe } = nativeSubscribe();
+        const hub = new WatchHub({ subscribe });
+        const events: string[] = [];
+        await hub.register({
+            label: 'rescan-with-events',
+            root: '/watched',
+            onEvents: (batch) => events.push(...batch.map((event) => event.path)),
+            onRescan: () => {},
+        });
+
+        callbacks[0]?.(new Error(MUST_RESCAN_MESSAGE), [
+            { type: 'update', path: '/watched/file.ts' },
+        ]);
+
+        expect(events).toEqual(['/watched/file.ts']);
+        expect(hub.snapshot().entries).toMatchObject([
+            { label: 'rescan-with-events', native: 1, eventBatches: 1 },
+        ]);
+        await hub.close();
+    });
+
+    it('retries a fallback-degraded native subscription with exponential backoff and restores native mode', async () => {
+        const unsubscribe = vi.fn(() => Promise.resolve());
+        const callbacks: SubscribeCallback[] = [];
+        let attempt = 0;
+        const subscribe = vi.fn((_root: string, callback: SubscribeCallback) => {
+            attempt += 1;
+            if (attempt <= 2) return Promise.reject(new Error('native backend unavailable'));
+            callbacks.push(callback);
+            return Promise.resolve({ unsubscribe });
+        }) as unknown as typeof parcelWatcher.subscribe;
+        const { logger, write } = writeLogger();
+        const hub = new WatchHub({ subscribe, logger });
+        const pollOnce = vi.fn(() => Promise.resolve());
+        const handle = await hub.register({
+            label: 'flaky',
+            root: '/watched',
+            onEvents: () => {},
+            fallback: { intervalMs: 100, pollOnce },
+        });
+
+        expect(handle.mode).toBe('polling');
+        expect(subscribe).toHaveBeenCalledOnce();
+
+        // First retry fires at the initial 5s delay and still fails.
+        await vi.advanceTimersByTimeAsync(5_000);
+        expect(subscribe).toHaveBeenCalledTimes(2);
+        expect(handle.mode).toBe('polling');
+
+        // The next retry backs off to 10s (delay doubled) before succeeding.
+        await vi.advanceTimersByTimeAsync(9_999);
+        expect(subscribe).toHaveBeenCalledTimes(2);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(subscribe).toHaveBeenCalledTimes(3);
+        expect(handle.mode).toBe('native');
+        expect(write.mock.calls.map((call) => call[1])).toContain('watch_hub.native_restored');
+
+        // The poll timer stopped: no further pollOnce ticks once native mode is restored.
+        const pollCallsAtRestore = pollOnce.mock.calls.length;
+        await vi.advanceTimersByTimeAsync(1_000);
+        expect(pollOnce).toHaveBeenCalledTimes(pollCallsAtRestore);
+        await hub.close();
+    });
+
+    it('stops retrying a fallback-degraded subscription once disposed', async () => {
+        const subscribe = vi.fn(() =>
+            Promise.reject(new Error('native backend unavailable')),
+        ) as unknown as typeof parcelWatcher.subscribe;
+        const hub = new WatchHub({ subscribe });
+        const pollOnce = vi.fn(() => Promise.resolve());
+        const handle = await hub.register({
+            label: 'disposed-before-retry',
+            root: '/watched',
+            onEvents: () => {},
+            fallback: { intervalMs: 100, pollOnce },
+        });
+        expect(subscribe).toHaveBeenCalledOnce();
+
+        await handle.dispose();
+        await vi.advanceTimersByTimeAsync(60_000);
+        expect(subscribe).toHaveBeenCalledOnce();
         await hub.close();
     });
 });
