@@ -604,7 +604,7 @@ export class AgentHookManager {
                 }
                 const { outcome, ...fields } = diagnostic;
                 if (outcome !== 'rejected' && fields.terminalId && fields.phase) {
-                    const key = `${outcome}:${fields.provider}:${fields.phase}:${fields.hasAgentSessionId}`;
+                    const key = `${outcome}:${fields.reason ?? ''}:${fields.provider}:${fields.phase}:${fields.hasAgentSessionId}`;
                     const logged = this.loggedSignalDiagnostics.get(fields.terminalId) ?? new Set();
                     if (logged.has(key)) return;
                     logged.add(key);

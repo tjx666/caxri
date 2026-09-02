@@ -11,6 +11,7 @@ import { defaultAgentProviderSettings } from '@caxri/protocol';
 import { execFileAsync, StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { claudeHookAdapter } from '../../providers/claude/hooks';
 import { codexHookAdapter } from '../../providers/codex/hooks';
 import type { AgentLifecycleSignal } from '../contract';
 import { AgentHookManager, MAX_AGENT_HOOK_CONFIG_BYTES } from '../manager';
@@ -316,7 +317,7 @@ describe('AgentHookManager', () => {
                     '--phase',
                     'turnFinished',
                     '--schema',
-                    '8',
+                    String(codexHookAdapter.schemaVersion),
                 ],
                 {
                     env: {
@@ -338,7 +339,7 @@ describe('AgentHookManager', () => {
                     '--phase',
                     'turnFinished',
                     '--schema',
-                    '8',
+                    String(codexHookAdapter.schemaVersion),
                     '--reply',
                     'empty-json',
                 ],
@@ -361,7 +362,7 @@ describe('AgentHookManager', () => {
                     '--phase',
                     'turnStarted',
                     '--schema',
-                    '8',
+                    String(codexHookAdapter.schemaVersion),
                 ],
                 { env: { ...process.env, ...environment } },
             );
@@ -392,7 +393,7 @@ describe('AgentHookManager', () => {
                     '--phase',
                     'turnStarted',
                     '--schema',
-                    '8',
+                    String(codexHookAdapter.schemaVersion),
                 ],
                 { env: { ...process.env, ...environment } },
             );
@@ -409,12 +410,35 @@ describe('AgentHookManager', () => {
                     '--phase',
                     'sessionIdentified',
                     '--schema',
-                    '8',
+                    String(codexHookAdapter.schemaVersion),
                 ],
                 { env: { ...process.env, ...environment } },
             );
             expect(ignored.stderr).toBe('');
             await vi.waitFor(() => expect(signals).toHaveBeenCalledTimes(4));
+
+            /**
+             * A nested CLI (e.g. Claude Code shelling out to `codex`) inherits the parent Terminal's CAXRI_HOOK_*
+             * environment, so its own hook fires with the parent's token but its own provider id. That must be treated
+             * as an ignored, benign signal rather than a rejection: the bridge should not print `caxri-hook:
+             * signal_rejected` to the nested CLI's stderr, and `onSignal` must not be invoked for it.
+             */
+            const providerMismatch = await execFileAsync(
+                bridge,
+                [
+                    '--source',
+                    'caxri',
+                    '--provider',
+                    'claude',
+                    '--phase',
+                    'turnFinished',
+                    '--schema',
+                    String(claudeHookAdapter.schemaVersion),
+                ],
+                { env: { ...process.env, ...environment } },
+            );
+            expect(providerMismatch.stderr).toBe('');
+            expect(signals).toHaveBeenCalledTimes(4);
 
             await logger.flush();
             const logSource = await readFile(join(directory, 'logs', 'server-core.jsonl'), 'utf8');
@@ -458,6 +482,23 @@ describe('AgentHookManager', () => {
             expect(ignoredLog).toMatchObject({
                 fields: { phase: 'sessionIdentified', stage: 'serverCore' },
             });
+            const providerMismatchLog = logRecords.find(
+                (record) =>
+                    record.event === 'agent_hooks.signal_ignored' &&
+                    (record.fields as Record<string, unknown> | undefined)?.reason ===
+                        'providerMismatch',
+            );
+            expect(providerMismatchLog).toMatchObject({
+                fields: { provider: 'claude', reason: 'providerMismatch', stage: 'serverCore' },
+            });
+            expect(
+                logRecords.some(
+                    (record) =>
+                        record.event === 'agent_hooks.signal_rejected' &&
+                        (record.fields as Record<string, unknown> | undefined)?.reason ===
+                            'providerMismatch',
+                ),
+            ).toBe(false);
             expect(logSource).not.toContain('test-token-never-log');
             expect(logSource).not.toContain('codex-session-123');
             expect(logSource).not.toContain('never forwarded');
@@ -483,7 +524,7 @@ describe('AgentHookManager', () => {
                     '--phase',
                     'turnFinished',
                     '--schema',
-                    '8',
+                    String(codexHookAdapter.schemaVersion),
                 ],
                 { env: { ...process.env, ...environment } },
             );
