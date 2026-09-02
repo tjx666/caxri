@@ -40,7 +40,10 @@ const pathBrowserSnapshot = z.object({
     truncated: z.boolean(),
 });
 const nonnegativeInteger = z.number().int().nonnegative();
-const externalDocument = z.object({
+/**
+ * One bounded read-only snapshot that Main already authorized and read; the Renderer opens it as an ephemeral tab.
+ */
+export const externalEditorDocumentSchema = z.object({
     id: identifierSchema,
     name: pathBrowserEntryName,
     displayPath: pathSchema,
@@ -54,7 +57,7 @@ const pathBrowserOpened = z.discriminatedUnion('kind', [
     z.object({
         opened: z.literal(true),
         kind: z.literal('external'),
-        document: externalDocument,
+        document: externalEditorDocumentSchema,
     }),
 ]);
 const pathBrowserNavigationResult = z.union([pathBrowserOpened, pathBrowserSnapshot]);

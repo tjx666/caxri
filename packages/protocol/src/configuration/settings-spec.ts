@@ -333,6 +333,15 @@ export const settingsSpec = [
     },
     {
         kind: 'complex',
+        key: 'security.trustedFolders',
+        title: 'Trusted folders',
+        description:
+            'Terminal file links under these folders open read-only without a confirmation prompt',
+        category: 'security',
+        keywords: ['path', 'folder', 'directory', 'link', 'terminal', 'allowlist', 'external'],
+    },
+    {
+        kind: 'complex',
         key: 'files.exclude',
         title: 'Excluded files',
         description: 'Glob patterns hidden from the file tree',

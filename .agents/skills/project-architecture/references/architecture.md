@@ -311,15 +311,20 @@ directory suffix search may resolve it only inside the current Workbench Project
 result opens directly, while incomplete or ambiguous results require the Renderer candidate picker.
 An explicit `.../` prefix opts into the same bounded suffix search across every authorized Project.
 Current-user `~/...` links expand only in Server Core, which rejects escape and non-regular targets and
-reuses a canonical Project that already contains the file. A Home target outside all Projects remains
-unread until Main obtains a native folder selection, Server Core proves that exact root contains the
-canonical target, and Main consumes the existing single-use grant to create or reuse the Project. Main
-then selects the unique target Session, creates a no-Terminal Session when none exists, or requires a
-native choice when the target Project has multiple reasonable Sessions. The final open still uses Server
-Core's one-use Desktop target: Server Core's approved root/file identity becomes an expected identity
-that Server Core compares with its first `files.authorizeOpen` result, then Server Core revalidates that
-captured result again when Main redeems the target. Home expansion and suffix search never create a
-permanent single-file exception or a Renderer filesystem capability.
+reuses a canonical Project that already contains the file. For a Project-contained target Main selects
+the unique target Session, creates a no-Terminal Session when none exists, or requires a native choice
+when the target Project has multiple reasonable Sessions; that open uses Server Core's one-use Desktop
+target, whose approved root/file identity becomes an expected identity that Server Core compares with
+its first `files.authorizeOpen` result and revalidates again when Main redeems the target. An explicit
+absolute, `file://`, `./`, `../`, or `~/` target outside every Project (OSC 8 hyperlinks carry the
+absolute URI even when their label reads `~/...`) is reported as `external` without being read. Main
+then reuses the free-path browser's read-only snapshot: it confirms once with Open / Trust Folder and
+Open / Cancel, or skips the prompt when the `security.trustedFolders` setting already contains the
+file's folder, reads one bounded no-follow snapshot, and the Renderer opens it as an ephemeral read-only
+tab in the Terminal's own Session. Trusting a folder persists only that prompt-skip preference; it never
+creates a Project, grants Files, Search, Git, Terminal cwd, or save authority, or makes the tab durable.
+Home expansion and suffix search never create a permanent single-file exception or a Renderer filesystem
+capability.
 
 Provider output recovery is an explicit, disabled-by-default Terminal steering policy for unstable Agent
 connections. Terminal Host combines reviewed provider-owned literal suffixes with bounded user patterns,
@@ -431,7 +436,7 @@ For a normal active file tab, Monaco publishes only cursor, selection length, an
 
 ## Settings, keybindings, and themes
 
-Global `settings.jsonc`, `keybindings.jsonc`, and theme files live in the application data directory. Writes sync a mode-`0600` temporary file before atomic replacement, and in-memory state changes only after replacement succeeds. The Server Core prefers Parcel Watcher hot reload and falls back to polling only these three files. Startup, hot reload, update parameters, get results, and change events share a 256 KiB UTF-8 source ceiling; disk reads stop at that boundary before parsing, and keybinding arrays are capped at 1,024 entries. Schema or size errors retain defaults or the prior valid state and report location without including source text in diagnostics. Missing provider-scoped Agent launch, disabled-by-default lifecycle-hook and output-recovery settings, and the nullable Terminal default cwd are supplied in memory without rewriting an older settings file. Each Agent provider's lifecycle integration can be enabled independently; installation health is a separate typed read/event surface because a saved preference does not prove that a provider loaded or trusted its hook. Provider recovery settings bound user pattern count and length plus both input delays; diagnostic exports retain only enablement, delay values, and the user-authored pattern count. Trusted Domains are a bounded Settings array of normalized HTTP(S) exact origins or explicit subdomain wildcard origins. Server Core owns their JSONC-preserving atomic persistence, while Main alone may append the canonical exact origin selected in a trust prompt; Renderer can manage the complete array only through the ordinary validated Settings update. Object-valued `files.exclude` merges user booleans over bounded defaults, so a default pattern can be disabled with `false` without re-declaring every other default.
+Global `settings.jsonc`, `keybindings.jsonc`, and theme files live in the application data directory. Writes sync a mode-`0600` temporary file before atomic replacement, and in-memory state changes only after replacement succeeds. The Server Core prefers Parcel Watcher hot reload and falls back to polling only these three files. Startup, hot reload, update parameters, get results, and change events share a 256 KiB UTF-8 source ceiling; disk reads stop at that boundary before parsing, and keybinding arrays are capped at 1,024 entries. Schema or size errors retain defaults or the prior valid state and report location without including source text in diagnostics. Missing provider-scoped Agent launch, disabled-by-default lifecycle-hook and output-recovery settings, and the nullable Terminal default cwd are supplied in memory without rewriting an older settings file. Each Agent provider's lifecycle integration can be enabled independently; installation health is a separate typed read/event surface because a saved preference does not prove that a provider loaded or trusted its hook. Provider recovery settings bound user pattern count and length plus both input delays; diagnostic exports retain only enablement, delay values, and the user-authored pattern count. Trusted Domains are a bounded Settings array of normalized HTTP(S) exact origins or explicit subdomain wildcard origins. Server Core owns their JSONC-preserving atomic persistence, while Main alone may append the canonical exact origin selected in a trust prompt; Renderer can manage the complete array only through the ordinary validated Settings update. Trusted Folders follow the same shape for absolute POSIX directory paths: Main alone may append the parent folder confirmed in a Terminal external-link prompt, and a matching folder only skips that prompt for later read-only opens. Object-valued `files.exclude` merges user booleans over bounded defaults, so a default pattern can be disabled with `false` without re-declaring every other default.
 
 The Settings dialog opens in full-width structured UI mode. Its in-app source mode lazily mounts Monaco against the same reducer drafts, and it must parse successfully before returning to structured UI or switching source tabs. Server and Renderer import the same browser-safe Settings and keybinding schemas from `packages/protocol/src/configuration`, so defaults, bounds, and source-to-UI validation cannot drift. Hook installation health describes the last applied settings only: an edited toggle reports `Pending Apply`, and the provider section tells users that Agent Terminals opened before enablement need a restart. View switching is a two-segment UI/Source toggle; the former external `Open Config File` action was removed because macOS has no default `.jsonc` association and the in-app source editor owns config editing.
 

@@ -73,6 +73,13 @@ describe('isRowModified', () => {
         expect(isRowModified({ type: 'trusted-domains' }, { settings: current })).toBe(true);
     });
 
+    it('treats trusted folders as modified once any rule exists', () => {
+        const current = settings();
+        expect(isRowModified({ type: 'trusted-folders' }, { settings: current })).toBe(false);
+        current['security.trustedFolders'] = ['/Users/me/.config'];
+        expect(isRowModified({ type: 'trusted-folders' }, { settings: current })).toBe(true);
+    });
+
     it('treats remote debugging as modified only when the loaded argv config disables it', () => {
         const current = settings();
         expect(isRowModified({ type: 'remote-debugging' }, { settings: current })).toBe(false);
@@ -112,6 +119,16 @@ describe('isRowResettable / rowResetAction', () => {
         expect(isRowResettable({ type: 'provider-skill-health', provider: 'codex' })).toBe(false);
         expect(rowResetAction({ type: 'archived-sessions' }, settings())).toBeUndefined();
         expect(rowResetAction({ type: 'mobile-access' }, settings())).toBeUndefined();
+    });
+
+    it('resets trusted folders to an empty list', () => {
+        const current = settings();
+        current['security.trustedFolders'] = ['/Users/me/.config'];
+        expect(rowResetAction({ type: 'trusted-folders' }, current)).toEqual({
+            kind: 'field',
+            key: 'security.trustedFolders',
+            value: [],
+        });
     });
 
     it('resets a scalar setting to its shipped default', () => {

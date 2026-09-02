@@ -14,6 +14,7 @@ export const desktopServerOperationIds = [
     'bugReport.deliver',
     'config.paths',
     'settings.trustDomain',
+    'settings.trustFolder',
     'diagnostics.exportPath',
     'git.discard.preflight',
     'git.discard.apply',

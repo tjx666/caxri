@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     terminalFileLinkAmbiguousResolutionSchema,
     terminalFileLinkCandidateSchema,
+    terminalFileLinkMethods,
 } from '../terminal-file-link';
 
 const candidate = {
@@ -42,5 +43,28 @@ describe('Terminal file-link candidate schemas', () => {
                 truncated: true,
             }).success,
         ).toBe(false);
+    });
+});
+
+describe('terminal.openFileLink result schema', () => {
+    const resultSchema = terminalFileLinkMethods['terminal.openFileLink'].result;
+    const document = {
+        id: 'external-1',
+        name: 'secret.json',
+        displayPath: '/tmp/outside/secret.json',
+        content: '{}',
+        mtimeMs: 1,
+        size: 2,
+        readOnly: true as const,
+    };
+
+    it('keeps the external document on an opened reply', () => {
+        /**
+         * Regression: the bare `{ opened: true }` union member used to come first and stripped `document`, so the
+         * Renderer silently ignored an external open.
+         */
+        const reply = { opened: true as const, document, sessionId: 'session-1' };
+        expect(resultSchema.parse(reply)).toEqual(reply);
+        expect(resultSchema.parse({ opened: true })).toEqual({ opened: true });
     });
 });

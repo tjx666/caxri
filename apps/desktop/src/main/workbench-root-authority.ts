@@ -1,15 +1,12 @@
 import { realpath } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { basename, dirname } from 'node:path';
 
-import type {
-    MainRequest,
-    ServerOperationParameters as ServerOperationParameters,
-    ServerOperationResult,
-} from '@caxri/protocol';
+import type { MainRequest } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 import type { BrowserWindow } from 'electron';
 import { dialog } from 'electron';
 
+import { readExternalFileSnapshot } from './external-file-snapshot';
 import type { PathBrowserOpenTarget } from './path-browser-authority';
 import { createPathBrowserAuthority } from './path-browser-authority';
 import type { ProjectRootGrants } from './root-grants';
@@ -26,6 +23,7 @@ type OpenTerminalFileLinkParameters = Extract<
     MainRequest,
     { method: 'terminal.openFileLink' }
 >['params'];
+type ExternalOpenDecision = 'cancel' | 'open' | 'trust';
 
 interface WorkbenchRootAuthorityOptions {
     getServer(): DesktopServerConnection;
@@ -87,86 +85,59 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
         return result.response === sessions.length ? undefined : sessions[result.response]?.id;
     }
 
+    /**
+     * A Project-contained link opens through Server Core's authorized editable path. Anything else is an "external"
+     * file: Main confirms once (or silently when a Trusted Folder already contains it), reads one bounded read-only
+     * snapshot, and hands it to the Terminal's own Session as an ephemeral tab. No Project or Session is created.
+     */
     async function openTerminalFileLink(parameters: OpenTerminalFileLinkParameters) {
         const server = options.getServer();
-        const initial = await server.request('terminal.fileLink.resolve', parameters);
-        if (initial.status === 'ambiguous')
+        const resolved = await server.request('terminal.fileLink.resolve', parameters);
+        if (resolved.status === 'ambiguous')
             return {
-                status: initial.status,
-                candidates: initial.candidates,
-                truncated: initial.truncated,
+                status: resolved.status,
+                candidates: resolved.candidates,
+                truncated: resolved.truncated,
             };
-        let expectedIdentity: NonNullable<
-            ServerOperationParameters<'desktop.openFile'>['expectedIdentity']
-        >;
-        let path: string;
-        let projectId: string;
-
-        if (initial.status === 'authorized') {
-            expectedIdentity = initial.identity;
-            path = initial.path;
-            projectId = initial.projectId;
-        } else {
-            const testRoot = options.nextTestRoot();
-            let selectedRoot = testRoot;
-            if (!selectedRoot) {
-                const confirmation = await showMessageBox(options.getWindow(), {
-                    type: 'question',
-                    title: 'Open a File Outside Added Projects?',
-                    message: 'This file is outside every added Project.',
-                    detail: 'Choose a Project folder that contains the file. Caxri will add that folder before opening it.',
-                    buttons: ['Choose Project Folder…', 'Cancel'],
-                    defaultId: 0,
-                    cancelId: 1,
-                    noLink: true,
-                });
-                if (confirmation.response !== 0) return { canceled: true as const };
-                const selection = await chooseDirectory(options.getWindow(), {
-                    title: 'Choose a Project Folder',
-                    defaultPath: dirname(initial.path),
-                    properties: ['openDirectory'],
-                });
-                selectedRoot = selection.canceled ? undefined : selection.filePaths.at(0);
+        if (resolved.status === 'external') {
+            if (!resolved.trusted) {
+                const decision = await confirmExternalOpen(resolved.path);
+                if (decision === 'cancel') return { canceled: true as const };
+                if (decision === 'trust')
+                    await server.request('settings.trustFolder', { path: dirname(resolved.path) });
             }
-            if (!selectedRoot) return { canceled: true as const };
-
-            const selected = await server.request('terminal.fileLink.resolve', {
-                ...parameters,
-                selectedRoot,
-            });
-            if (selected.status !== 'selection_authorized')
-                throw new CaxriError('INTERNAL', 'Terminal link selection was not authorized');
-            expectedIdentity = selected.identity;
-            options.grants.grant(selected.rootPath);
-            let project: ServerOperationResult<'project.create'>;
-            /**
-             * A failed autonomous flow cannot leave a reusable folder grant behind.
-             */
-            try {
-                project = await options.grants.use(selected.rootPath, () =>
-                    server.request('project.create', {
-                        rootPath: selected.rootPath,
-                        expectedRootIdentity: selected.identity.root,
-                    }),
-                );
-            } catch (error) {
-                options.grants.revoke(selected.rootPath);
-                throw error;
-            }
-            path = selected.path;
-            projectId = project.id;
+            return {
+                opened: true as const,
+                document: await readExternalFileSnapshot(resolved.path),
+                sessionId: resolved.sourceSessionId,
+            };
         }
 
-        const sessionId = await chooseTargetSession(projectId);
+        const sessionId = await chooseTargetSession(resolved.projectId);
         if (!sessionId) return { canceled: true as const };
         await server.request('desktop.openFile', {
-            expectedIdentity,
-            path,
+            expectedIdentity: resolved.identity,
+            path: resolved.path,
             sessionId,
             launchIfNeeded: false,
             ...(parameters.location && { location: parameters.location }),
         });
         return { opened: true as const };
+    }
+
+    async function confirmExternalOpen(path: string): Promise<ExternalOpenDecision> {
+        const folder = dirname(path);
+        const result = await showMessageBox(options.getWindow(), {
+            type: 'question',
+            title: 'Open a File Outside Added Projects?',
+            message: `Open ${basename(path)} read-only?`,
+            detail: `${path}\n\nThis file is outside every added Project, so Caxri opens a read-only copy without adding a Project. Trusting the folder skips this prompt for files under ${folder}.`,
+            buttons: ['Open', 'Trust Folder and Open', 'Cancel'],
+            defaultId: 0,
+            cancelId: 2,
+            noLink: true,
+        });
+        return result.response === 2 ? 'cancel' : result.response === 1 ? 'trust' : 'open';
     }
 
     async function openPathBrowserFile(target: PathBrowserOpenTarget) {

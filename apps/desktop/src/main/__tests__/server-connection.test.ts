@@ -228,12 +228,13 @@ describe('Desktop Server connection facade', () => {
         await expect(request).rejects.toMatchObject({ code: 'UNAVAILABLE' });
     });
 
-    it('routes Terminal Home-link resolution through the Desktop-authenticated Runtime channel', async () => {
+    it('routes Terminal external-link resolution through the Desktop-authenticated Runtime channel', async () => {
         const client = mockServerRound({ serverBuildId: 'build-a', serverVersion: '0.0.9' });
         client.requestServerOperation.mockResolvedValueOnce({
-            status: 'authorization_required',
+            status: 'external',
             path: '/Users/test/file.ts',
             sourceSessionId: 'session-1',
+            trusted: false,
         });
         const { connection } = createConnection({ buildId: 'build-a', version: '0.0.9' });
         await connection.start();
@@ -243,7 +244,7 @@ describe('Desktop Server connection facade', () => {
                 terminalId: 'terminal-1',
                 target: '~/file.ts',
             }),
-        ).resolves.toMatchObject({ status: 'authorization_required' });
+        ).resolves.toMatchObject({ status: 'external' });
         expect(client.requestServerOperation).toHaveBeenCalledWith(
             'terminal.fileLink.resolve',
             { terminalId: 'terminal-1', target: '~/file.ts' },

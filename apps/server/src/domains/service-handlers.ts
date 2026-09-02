@@ -76,6 +76,7 @@ type ServiceHandlerMethods =
     | 'agentSkills.get'
     | 'settings.update'
     | 'settings.trustDomain'
+    | 'settings.trustFolder'
     | 'keybindings.get'
     | 'keybindings.update'
     | 'theme.get'
@@ -187,6 +188,7 @@ export function createServiceHandlers(services: {
             resolveTerminalFileLink(database, parameters, {
                 searchProjectFileSuffixes: (sessionId, root, suffix, signal) =>
                     files.searchProjectFileSuffixes(sessionId, root, suffix, signal),
+                trustedFolders: configuration.getSettings().value['security.trustedFolders'],
             }),
         'terminal.prepareLongPaste': (parameters, signal) => longPastes.prepare(parameters, signal),
         'terminal.referenceContext': ({ terminalId }) => {
@@ -251,6 +253,10 @@ export function createServiceHandlers(services: {
         },
         'settings.trustDomain': async ({ domain }) => {
             await configuration.trustDomain(domain);
+            return configuration.getSettings();
+        },
+        'settings.trustFolder': async ({ path }) => {
+            await configuration.trustFolder(path);
             return configuration.getSettings();
         },
         'keybindings.get': () => configuration.getKeybindings(),
