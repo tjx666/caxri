@@ -42,4 +42,53 @@ describe('GridBurstAccumulator', () => {
             final: { cols: 120, rows: 60 },
         });
     });
+
+    it('reports a one-step resize as a real transition when seeded from the previous grid', () => {
+        const accumulator = new GridBurstAccumulator();
+
+        accumulator.seed({ cols: 80, rows: 40 });
+        accumulator.sample({ cols: 120, rows: 60 });
+
+        expect(accumulator.snapshot()).toEqual({
+            sampleCount: 1,
+            changeCount: 1,
+            start: { cols: 80, rows: 40 },
+            minimum: { cols: 80, rows: 40 },
+            maximum: { cols: 120, rows: 60 },
+            final: { cols: 120, rows: 60 },
+        });
+    });
+
+    it('reports no change when a seeded burst only re-samples the existing grid', () => {
+        const accumulator = new GridBurstAccumulator();
+
+        accumulator.seed({ cols: 80, rows: 40 });
+        accumulator.sample({ cols: 80, rows: 40 });
+
+        expect(accumulator.snapshot()).toEqual({
+            sampleCount: 1,
+            changeCount: 0,
+            start: { cols: 80, rows: 40 },
+            minimum: { cols: 80, rows: 40 },
+            maximum: { cols: 80, rows: 40 },
+            final: { cols: 80, rows: 40 },
+        });
+    });
+
+    it('does not count the seed toward sampleCount and still bounds min/max around it', () => {
+        const accumulator = new GridBurstAccumulator();
+
+        accumulator.seed({ cols: 120, rows: 40 });
+        accumulator.sample({ cols: 4, rows: 12 });
+        accumulator.sample({ cols: 80, rows: 30 });
+
+        expect(accumulator.snapshot()).toEqual({
+            sampleCount: 2,
+            changeCount: 2,
+            start: { cols: 120, rows: 40 },
+            minimum: { cols: 4, rows: 12 },
+            maximum: { cols: 120, rows: 40 },
+            final: { cols: 80, rows: 30 },
+        });
+    });
 });
