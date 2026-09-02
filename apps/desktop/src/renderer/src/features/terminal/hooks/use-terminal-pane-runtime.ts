@@ -21,6 +21,7 @@ import { caxri } from '../../../lib/caxri';
 import { useDialogStore } from '../../../stores/dialogs';
 import { pushToast } from '../../../stores/toasts';
 import {
+    markTerminalAttached,
     registerTerminalClearHandler,
     registerTerminalSelectionHandlers,
 } from '../terminal-actions';
@@ -575,6 +576,7 @@ export function useTerminalPaneRuntime({
             // oxlint-disable-next-line typescript/no-unnecessary-condition -- see comment above
             if (isDisposed) return;
             container.dataset.terminalAttached = 'true';
+            markTerminalAttached(terminalId, true);
             requestAnimationFrame(() => {
                 document.removeEventListener('focusin', trackNewerFocus);
                 document.removeEventListener('keydown', trackExplicitInteraction, true);
@@ -606,6 +608,7 @@ export function useTerminalPaneRuntime({
             isDisposed = true;
             longPaste.dispose();
             delete container.dataset.terminalAttached;
+            markTerminalAttached(terminalId, false);
             observer.disconnect();
             resizeSettler.dispose();
             resizeController.dispose();

@@ -41,6 +41,8 @@ import {
     didPasteIntoTerminal,
     focusTerminalById,
     hasActiveTerminalSelection,
+    isTerminalAttached,
+    markTerminalAttached,
     registerTerminalClearHandler,
     registerTerminalFocusHandler,
     registerTerminalInputGate,
@@ -49,6 +51,7 @@ import {
     restartTerminal,
     sendTerminalSequence,
     startNewAgentSession,
+    whenTerminalAttached,
 } from '../terminal-actions';
 
 /**
@@ -374,5 +377,32 @@ describe('selection handler registration contract', () => {
         copyActiveTerminalSelection('terminal-1');
         expect(secondHandlers.copySelection).toHaveBeenCalledTimes(1);
         expect(firstHandlers.copySelection).not.toHaveBeenCalled();
+    });
+});
+
+describe('terminal attachment registry', () => {
+    it('resolves immediately for an already attached Terminal', async () => {
+        markTerminalAttached('attached-1', true);
+        await expect(whenTerminalAttached('attached-1', 10)).resolves.toBe(true);
+        expect(isTerminalAttached('attached-1')).toBe(true);
+    });
+
+    it('resolves pending waiters once the pane reports its attach, and no longer after unmount', async () => {
+        const pending = whenTerminalAttached('attached-2', 1000);
+        markTerminalAttached('attached-2', true);
+        await expect(pending).resolves.toBe(true);
+        markTerminalAttached('attached-2', false);
+        expect(isTerminalAttached('attached-2')).toBe(false);
+    });
+
+    it('gives up after the timeout when no pane attaches', async () => {
+        vi.useFakeTimers();
+        try {
+            const pending = whenTerminalAttached('attached-3', 50);
+            await vi.advanceTimersByTimeAsync(50);
+            await expect(pending).resolves.toBe(false);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });

@@ -126,7 +126,11 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 canMoveActiveTerminalToNewSession: () => true,
                 moveActiveTerminalToNewSession: record('workbench.moveActiveTerminalToNewSession'),
             },
-            editor: { saveActive: record('editor.save') },
+            editor: {
+                saveActive: record('editor.save'),
+                canSendReferenceToTerminal: () => true,
+                sendReferenceToTerminal: record('editor.sendReferenceToTerminal'),
+            },
             secondarySidebar: {
                 activateViewContainer: record('secondarySidebar.activateViewContainer'),
                 toggle: record('secondarySidebar.toggle'),
