@@ -217,6 +217,7 @@ export const logEventCatalog = {
         ready: 'terminal_host.ready',
         requestFailed: 'terminal_host.request_failed',
         requestTimeout: 'terminal_host.request_timeout',
+        shutdownFailed: 'terminal_host.shutdown_failed',
         started: 'terminal_host.started',
         stopped: 'terminal_host.stopped',
         uncaughtException: 'terminal_host.uncaught_exception',

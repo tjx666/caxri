@@ -80,6 +80,12 @@ export interface TerminalExecutionPort {
     onExit(listener: (event: TerminalExecutionExit) => void): () => void;
     onHostExit(listener: (terminalIds: readonly string[]) => void): () => void;
     agentLaunchId(terminalId: string): string | undefined;
+    /**
+     * Called before Server Core's own `stop()` sends the graceful shutdown request, so a Terminal Host exit caused by
+     * an external signal (e.g. the OS tearing down the whole process tree) is recognized as expected teardown rather
+     * than an unexpected crash. Optional: fakes and in-memory adapters used in tests have no such distinction to make.
+     */
+    markCoreStopping?(): void;
     agentProcessId(terminalId: string): number | undefined;
     processId(terminalId: string): number | undefined;
     reassignSession(terminalId: string, sessionId: string): void;

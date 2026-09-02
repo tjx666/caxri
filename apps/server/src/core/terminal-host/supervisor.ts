@@ -5,7 +5,7 @@ import { once } from 'node:events';
 import process from 'node:process';
 
 import type { CaxriErrorCode, TerminalSnapshot } from '@caxri/protocol';
-import { CaxriError, errorCodes } from '@caxri/protocol';
+import { CaxriError, errorCodes, errorMessage } from '@caxri/protocol';
 import type { E2EAgentPolicy, StructuredLogger } from '@caxri/system';
 import {
     currentObservationContext,
@@ -20,6 +20,7 @@ import type {
     TerminalHostRequest,
     TerminalHostRequestEnvelope,
     TerminalHostScope,
+    TerminalShutdownFailure,
 } from '../../terminal-host/protocol';
 import {
     isBoundedTerminalHostMessage,
@@ -66,6 +67,23 @@ const MAX_CONCURRENT_REQUESTS = 256;
  */
 const TERMINAL_HOST_EXEC_ARGV = ['--max-semi-space-size=8'];
 
+const MIN_SHUTDOWN_TIMEOUT_MS = 5_000;
+const MAX_SHUTDOWN_TIMEOUT_MS = 30_000;
+const SHUTDOWN_TIMEOUT_PER_TERMINAL_MS = 1_000;
+
+/**
+ * `host.shutdown` must let the Terminal Host cross the parser barrier for every live Terminal before Server Core gives
+ * up and force-terminates the child. A fixed timeout starves a Host holding many live Terminals — the budget instead
+ * scales with how many final snapshots it actually has to capture, capped so a runaway Terminal count cannot delay
+ * application shutdown indefinitely.
+ */
+function shutdownTimeoutMs(liveTerminalCount: number): number {
+    return Math.min(
+        MAX_SHUTDOWN_TIMEOUT_MS,
+        MIN_SHUTDOWN_TIMEOUT_MS + SHUTDOWN_TIMEOUT_PER_TERMINAL_MS * liveTerminalCount,
+    );
+}
+
 function requestTimeout(request: TerminalHostRequest): number {
     switch (request.method) {
         case 'terminal.input':
@@ -76,7 +94,7 @@ function requestTimeout(request: TerminalHostRequest): number {
         case 'terminal.waitForAttachedSize':
             return request.params.timeoutMs + 1_000;
         case 'host.shutdown':
-            return 5_000;
+            return MIN_SHUTDOWN_TIMEOUT_MS;
         default:
             return DEFAULT_REQUEST_TIMEOUT_MS;
     }
@@ -93,6 +111,13 @@ function replyError(error: { code: string; message: string }): Error {
  * next request may start an empty Host, but PTYs are never adopted across children or Server Core generations.
  */
 export class TerminalHostSupervisor extends EventTarget {
+    /**
+     * Set by `markCoreStopping()` when Server Core's own `stop()` begins, before the graceful `host.shutdown` request
+     * necessarily reaches this Host. Distinguishes an unexpected crash from an OS-initiated signal (e.g. the whole
+     * process tree receiving SIGKILL during an app update) that reaches the Host outside the normal `shutdown()` path —
+     * see `handleExit`.
+     */
+    private coreStopping = false;
     private intentionalStop = false;
     private lastExit?: { at: number; code: number; signal: NodeJS.Signals | null };
     private launchCount = 0;
@@ -118,11 +143,17 @@ export class TerminalHostSupervisor extends EventTarget {
         this.pending.clear();
     }
 
-    private async terminate(owned: OwnedChild): Promise<void> {
+    /**
+     * `graceMs` defaults to the unscaled `host.shutdown` floor because most callers (e.g. a failed startup) never
+     * attempted a snapshot capture. `shutdown()` passes the same scaled budget it gave `host.shutdown`, so a Host still
+     * legitimately capturing many Terminals' snapshots is not SIGKILLed out from under a slow-but-progressing capture
+     * the instant the graceful request round trip ends.
+     */
+    private async terminate(owned: OwnedChild, graceMs = MIN_SHUTDOWN_TIMEOUT_MS): Promise<void> {
         const { child } = owned;
         if (child.exitCode !== null || child.signalCode !== null) return;
         child.kill();
-        const forceTimer = setTimeout(() => child.kill('SIGKILL'), 5_000);
+        const forceTimer = setTimeout(() => child.kill('SIGKILL'), graceMs);
         forceTimer.unref();
         await once(child, 'exit');
         clearTimeout(forceTimer);
@@ -194,11 +225,24 @@ export class TerminalHostSupervisor extends EventTarget {
         this.startedAt = undefined;
         this.state = this.intentionalStop ? 'stopped' : 'failed';
         this.rejectPending(`Terminal Host exited with code ${code}`);
-        this.options.logger.write(
-            this.intentionalStop ? 'info' : 'error',
-            logEventCatalog.terminalHost.exited,
-            { fields: { code, signal: signal ?? null } },
-        );
+        /**
+         * A signal-driven exit while Server Core is itself mid-`stop()` is most likely the OS tearing down the whole
+         * process tree (e.g. during an app update) rather than a genuine Terminal Host crash — `intentionalStop` only
+         * covers the case where this supervisor's own `shutdown()` reached the child first. Demote to 'warn' instead of
+         * 'error' so routine app-quit teardown does not read as a production incident.
+         */
+        const level = this.intentionalStop
+            ? 'info'
+            : signal && this.coreStopping
+              ? 'warn'
+              : 'error';
+        this.options.logger.write(level, logEventCatalog.terminalHost.exited, {
+            fields: {
+                code,
+                signal: signal ?? null,
+                ...(level === 'warn' && { source: 'core-stopping' }),
+            },
+        });
         if (!this.intentionalStop)
             this.dispatchEvent(new CustomEvent('exit', { detail: { code, signal } }));
     }
@@ -288,6 +332,7 @@ export class TerminalHostSupervisor extends EventTarget {
         request: TerminalHostRequest,
         scope: TerminalHostScope,
         signal?: AbortSignal,
+        timeoutOverrideMs?: number,
     ): Promise<unknown> {
         if (this.pending.size >= MAX_CONCURRENT_REQUESTS)
             throw new CaxriError('CAPACITY', 'Terminal Host request capacity exceeded');
@@ -343,28 +388,34 @@ export class TerminalHostSupervisor extends EventTarget {
                     ),
                 );
             };
-            const timer = setTimeout(() => {
-                const pending = this.pending.get(id);
-                if (!pending) return;
-                this.pending.delete(id);
-                pending.cleanup?.();
-                this.options.logger.write('warn', logEventCatalog.terminalHost.requestTimeout, {
-                    correlationId: id,
-                    context: observation,
-                    fields: { method: request.method },
-                    failure: {
-                        code: 'TIMEOUT',
-                        owner: 'terminal-host',
-                        phase: 'execute',
-                        reason: 'timeout',
-                        remediation: 'restart-terminal-host',
-                        retryable: true,
-                    },
-                });
-                reject(
-                    new CaxriError('TIMEOUT', `Terminal Host request timed out: ${request.method}`),
-                );
-            }, requestTimeout(request));
+            const timer = setTimeout(
+                () => {
+                    const pending = this.pending.get(id);
+                    if (!pending) return;
+                    this.pending.delete(id);
+                    pending.cleanup?.();
+                    this.options.logger.write('warn', logEventCatalog.terminalHost.requestTimeout, {
+                        correlationId: id,
+                        context: observation,
+                        fields: { method: request.method },
+                        failure: {
+                            code: 'TIMEOUT',
+                            owner: 'terminal-host',
+                            phase: 'execute',
+                            reason: 'timeout',
+                            remediation: 'restart-terminal-host',
+                            retryable: true,
+                        },
+                    });
+                    reject(
+                        new CaxriError(
+                            'TIMEOUT',
+                            `Terminal Host request timed out: ${request.method}`,
+                        ),
+                    );
+                },
+                timeoutOverrideMs ?? requestTimeout(request),
+            );
             timer.unref();
             if (signal) {
                 signal.addEventListener('abort', settleAbort, { once: true });
@@ -438,6 +489,14 @@ export class TerminalHostSupervisor extends EventTarget {
         return this.owned?.child.pid;
     }
 
+    /**
+     * Called from `server-core.ts stop()` before the graceful `host.shutdown` request necessarily arrives, so an OS
+     * signal that reaches this child first (see `handleExit`) is recognized as expected teardown, not a crash.
+     */
+    markCoreStopping(): void {
+        this.coreStopping = true;
+    }
+
     onEvent(
         listener: (
             event: Exclude<
@@ -470,22 +529,46 @@ export class TerminalHostSupervisor extends EventTarget {
         return () => this.removeEventListener('exit', handler);
     }
 
-    async shutdown(): Promise<TerminalSnapshot[]> {
+    /**
+     * `liveTerminalCount` scales both the `host.shutdown` request timeout and the subsequent SIGTERM→SIGKILL grace (see
+     * `shutdownTimeoutMs`), since a Host holding many live Terminals genuinely needs more wall-clock time to cross
+     * every parser barrier. A timed-out or otherwise failed request is logged as `shutdownFailed` instead of silently
+     * swallowed, so a lost shutdown capture is diagnosable from the Server Core log alone.
+     */
+    async shutdown(liveTerminalCount = 0): Promise<{
+        failures: TerminalShutdownFailure[];
+        snapshots: TerminalSnapshot[];
+    }> {
         this.intentionalStop = true;
         this.state = 'stopped';
         this.startedAt = undefined;
         const owned = this.owned;
-        if (!owned) return [];
+        if (!owned) return { failures: [], snapshots: [] };
+        const timeoutMs = shutdownTimeoutMs(liveTerminalCount);
         let snapshots: TerminalSnapshot[] = [];
+        let failures: TerminalShutdownFailure[] = [];
         try {
             const result = (await this.sendRequest(
                 owned,
                 { method: 'host.shutdown', params: {} },
                 { scope: 'server', capability: 'host.lifecycle' },
-            )) as { snapshots: TerminalSnapshot[]; stopped: true };
+                undefined,
+                timeoutMs,
+            )) as {
+                snapshots: TerminalSnapshot[];
+                stopped: true;
+                failures?: TerminalShutdownFailure[];
+            };
             snapshots = result.snapshots;
-        } catch {
-            // The owned child is force-terminated below if graceful snapshot capture failed.
+            failures = result.failures ?? [];
+        } catch (error) {
+            this.options.logger.write('warn', logEventCatalog.terminalHost.shutdownFailed, {
+                fields: {
+                    error: errorMessage(error, 'unknown'),
+                    expectedSnapshotCount: liveTerminalCount,
+                    timeoutMs,
+                },
+            });
         }
         if (this.owned === owned) {
             this.owned = undefined;
@@ -494,8 +577,8 @@ export class TerminalHostSupervisor extends EventTarget {
              * Intentional shutdown cancels stale reads; reserving UNAVAILABLE for Host loss keeps it actionable.
              */
             this.rejectPending('Terminal Host is stopping', 'CANCELLED');
-            await this.terminate(owned);
+            await this.terminate(owned, timeoutMs);
         }
-        return snapshots;
+        return { failures, snapshots };
     }
 }

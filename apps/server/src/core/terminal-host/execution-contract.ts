@@ -4,6 +4,7 @@ import type {
     TerminalHostMessage,
     TerminalHostRequest,
     TerminalHostScope,
+    TerminalShutdownFailure,
 } from '../../terminal-host/protocol';
 
 export interface RemoteTerminalIdentity {
@@ -45,10 +46,19 @@ export type TerminalHostCapability =
 export interface TerminalHostControl {
     onEvent(listener: (event: TerminalHostEvent) => void): () => void;
     onExit(listener: (event: { code: number; signal: NodeJS.Signals | null }) => void): () => void;
+    /**
+     * Called before Server Core's own `stop()` sends the graceful `host.shutdown` request, so an OS signal that reaches
+     * the Terminal Host child first is recognized as expected teardown rather than a crash. Optional so fakes and tests
+     * that never exercise that log-severity distinction can omit it.
+     */
+    markCoreStopping?(): void;
     request(
         request: TerminalHostRequest,
         scope: TerminalHostScope,
         signal?: AbortSignal,
     ): Promise<unknown>;
-    shutdown(): Promise<TerminalSnapshot[]>;
+    shutdown(liveTerminalCount?: number): Promise<{
+        failures: TerminalShutdownFailure[];
+        snapshots: TerminalSnapshot[];
+    }>;
 }
