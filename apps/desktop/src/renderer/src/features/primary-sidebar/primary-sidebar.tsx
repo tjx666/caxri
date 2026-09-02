@@ -5,6 +5,7 @@ import { Plus } from 'lucide-react';
 
 import caxriLogoUrl from '../../assets/caxri-logo.png';
 import { executeCommand } from '../../commands/execute';
+import { usePolledQuery } from '../../hooks/use-polled-query';
 import {
     useIsFullScreen,
     useProjects,
@@ -49,6 +50,11 @@ import { useSessionRename } from './hooks/use-session-rename';
 
 const NO_RECORDS: never[] = [];
 /**
+ * The Server sweep owns delivery-CLI pacing per Session; this poll only asks for the latest projection, and the
+ * `sessionPullRequests.changed` event refetches early when a sweep changes something.
+ */
+const SESSION_PULL_REQUESTS_REFETCH_INTERVAL_MS = 60_000;
+/**
  * Vite serves this repo-only asset in development without bundling it into production.
  */
 const primarySidebarLogoUrl = import.meta.env.DEV ? '/src/assets/caxri-logo-dev.png' : caxriLogoUrl;
@@ -77,6 +83,10 @@ export function PrimarySidebar() {
     const [focusedRowId, setFocusedRowId] = useState<string>();
     const treeReference = useRef<HTMLDivElement>(null);
     const sessionRename = useSessionRename(sessions);
+    const pullRequests = usePolledQuery('session.pullRequests', undefined, {
+        label: 'session.pullRequests',
+        intervalMs: SESSION_PULL_REQUESTS_REFETCH_INTERVAL_MS,
+    }).data?.pullRequests;
     const sidebarSessions = useMemo(
         () => activeSessionsInSidebarOrder(projects, sessions),
         [projects, sessions],
@@ -273,6 +283,7 @@ export function PrimarySidebar() {
                             onRenameValueChange={sessionRename.onRenameValueChange}
                             onToggle={() => toggleProject(project.id)}
                             project={project}
+                            pullRequests={pullRequests}
                             projectDropTarget={
                                 projectOrder.projectDropTarget?.projectId === project.id
                                     ? projectOrder.projectDropTarget

@@ -6,6 +6,7 @@ import type { TerminalKind } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import Database from 'better-sqlite3';
 import type { spawn as spawnPty } from 'node-pty';
+import type { Mock } from 'vitest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createTestDomainServices } from '../../__tests__/support/domain-services';

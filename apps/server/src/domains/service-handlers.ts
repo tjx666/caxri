@@ -1,5 +1,6 @@
 import type { ServerOperation } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
+import type { StructuredLogger } from '@caxri/system';
 
 import { agentSkillHealthReader } from './agent-skills';
 import type {
@@ -19,6 +20,7 @@ import { withGitRequestSignal } from './git';
 import type { createIntrospectionServices } from './introspection';
 import { resolveProjectRoot } from './project-root-identity';
 import type { ProjectStatusService } from './project-status';
+import { SessionPullRequestService } from './session-pull-requests';
 import { resolveTerminalFileLink } from './terminal';
 
 type ServiceHandlerMethods =
@@ -65,6 +67,7 @@ type ServiceHandlerMethods =
     | 'git.fileHead'
     | 'projectStatus.summary'
     | 'projectStatus.overview'
+    | 'session.pullRequests'
     | 'settings.get'
     | 'settings.inspect'
     | 'settings.patch'
@@ -111,6 +114,7 @@ export function createServiceHandlers(services: {
     git: GitService;
     introspection: ReturnType<typeof createIntrospectionServices>;
     longPastes: LongPasteService;
+    logger: StructuredLogger;
     projectStatus: ProjectStatusService;
     transcripts: AgentTranscriptWatcher;
     userDataPath: string;
@@ -128,10 +132,15 @@ export function createServiceHandlers(services: {
         git,
         introspection,
         longPastes,
+        logger,
         projectStatus,
         transcripts,
         userDataPath,
     } = services;
+    const sessionPullRequests = new SessionPullRequestService(database, git, logger, undefined, {
+        agentEnvironment,
+        emit,
+    });
     return {
         'agentActions.list': ({ terminalId }) =>
             listAgentActions(
@@ -227,6 +236,7 @@ export function createServiceHandlers(services: {
         'projectStatus.summary': ({ sessionId, refreshToken }) =>
             projectStatus.summary(sessionId, refreshToken),
         'projectStatus.overview': ({ sessionId }) => projectStatus.overview(sessionId),
+        'session.pullRequests': () => sessionPullRequests.snapshot(),
         'settings.get': () => configuration.getSettings(),
         'settings.inspect': () => configuration.inspectSettings(),
         'settings.patch': ({ changes, dryRun }) => configuration.patchSettings(changes, dryRun),

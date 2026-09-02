@@ -9,6 +9,7 @@ import type { CommandId } from './commands.js';
 import { gitCommitSchema } from './git.js';
 import { paneLayoutSchema } from './pane-layout.js';
 import { projectIconSchema } from './project-customization.js';
+import { projectStatusStateSchema } from './project-status-state.js';
 import {
     extensionTreeViewStatesSchema,
     sourceControlViewStatesSchema,
@@ -571,8 +572,6 @@ export const terminalResourceUsageSchema = z.object({
     memoryMb: z.number().nonnegative(),
     childProcessCount: z.number().int().nonnegative(),
 });
-
-const projectStatusStateSchema = z.enum(['success', 'failure', 'pending', 'neutral', 'unknown']);
 
 const projectStatusCheckSchema = z.object({
     name: z.string(),

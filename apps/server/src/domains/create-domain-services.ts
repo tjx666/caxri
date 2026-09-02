@@ -214,6 +214,14 @@ export async function createDomainServices(
         agentOperation: coordinator.agentOperation(terminal.id),
         processId: terminals.processId(terminal.id),
     });
+    const forgetSessionRuntime = (sessionId: string): void => {
+        terminalRestores.forget(sessionId);
+        terminalSuspension.forgetSession(sessionId);
+        sessionAutoNaming.forgetSession(sessionId);
+        coordinator.forgetSession(sessionId);
+        transcripts.forgetSession(sessionId);
+        terminals.terminateSession(sessionId);
+    };
     function bootstrapState(): BootstrapState {
         const settings = configuration.getSettings();
         const keybindings = configuration.getKeybindings();
@@ -535,13 +543,7 @@ export async function createDomainServices(
                     [...ownedSessions, ...affectedWorkbenchSessions].map((session) => session.id),
                 ),
             ];
-            for (const session of ownedSessions) {
-                terminalRestores.forget(session.id);
-                sessionAutoNaming.forgetSession(session.id);
-                coordinator.forgetSession(session.id);
-                transcripts.forgetSession(session.id);
-                terminals.terminateSession(session.id);
-            }
+            for (const session of ownedSessions) forgetSessionRuntime(session.id);
             git.evictSessions(affectedSessionIds);
             projectStatus.evictSessions(affectedSessionIds);
             database.deleteProject(projectId);
@@ -635,12 +637,7 @@ export async function createDomainServices(
             return session;
         },
         'session.delete': ({ sessionId }) => {
-            terminalRestores.forget(sessionId);
-            terminalSuspension.forgetSession(sessionId);
-            sessionAutoNaming.forgetSession(sessionId);
-            coordinator.forgetSession(sessionId);
-            transcripts.forgetSession(sessionId);
-            terminals.terminateSession(sessionId);
+            forgetSessionRuntime(sessionId);
             git.evictSessions([sessionId]);
             projectStatus.evictSessions([sessionId]);
             database.deleteSession(sessionId);
@@ -733,6 +730,7 @@ export async function createDomainServices(
             git,
             introspection,
             longPastes,
+            logger,
             projectStatus,
             transcripts,
             userDataPath,

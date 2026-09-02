@@ -165,6 +165,10 @@ export const serverEventPayloads = {
      */
     'projectStatus.changed': z.object({ sessionId: identifierSchema }),
     /**
+     * One-shot invalidation after a background sweep changed the discovered pull request of at least one Session.
+     */
+    'sessionPullRequests.changed': z.object({ sessionIds: z.array(identifierSchema).max(1_024) }),
+    /**
      * One-shot, content-free prompt trigger; Git topology remains Runtime-owned.
      */
     'workbench.candidate': z.object({

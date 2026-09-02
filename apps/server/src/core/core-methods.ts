@@ -54,6 +54,7 @@ export const coreForwardedMethods = [
     'session.create',
     'session.dismissWorkbenchCandidate',
     'session.markRead',
+    'session.pullRequests',
     'session.rename',
     'session.resumeAutomaticNaming',
     'session.select',

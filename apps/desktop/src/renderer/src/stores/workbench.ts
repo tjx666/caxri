@@ -719,6 +719,7 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
             case 'files.operationChanged':
             case 'git.changed':
             case 'projectStatus.changed':
+            case 'sessionPullRequests.changed':
             case 'terminal.exit':
             case 'terminal.output':
             case 'updates.state':

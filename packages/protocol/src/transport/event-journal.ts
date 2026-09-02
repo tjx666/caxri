@@ -24,6 +24,7 @@ export type TransientServerEvent = Extract<
             | 'host.connectionChanged'
             | 'gpu.recoveryRequested'
             | 'projectStatus.changed'
+            | 'sessionPullRequests.changed'
             | 'terminal.output'
             | 'terminal.outputRecovery'
             | 'viewContainers.catalogChanged'
@@ -50,6 +51,7 @@ const TRANSIENT_SERVER_EVENT_NAMES = new Set<ServerEvent['event']>([
     'host.connectionChanged',
     'gpu.recoveryRequested',
     'projectStatus.changed',
+    'sessionPullRequests.changed',
     'viewContainers.catalogChanged',
     'viewContainers.treeChanged',
     'viewContainers.viewChanged',

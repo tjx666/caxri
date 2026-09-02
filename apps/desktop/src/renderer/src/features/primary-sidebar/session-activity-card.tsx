@@ -1,7 +1,12 @@
 import type { ReactElement } from 'react';
 import { useEffect, useId, useState } from 'react';
 
-import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
+import type {
+    ProjectRecord,
+    SessionPullRequest,
+    SessionRecord,
+    TerminalRecord,
+} from '@caxri/protocol';
 import { Circle } from 'lucide-react';
 
 import { useNow } from '@/hooks/use-now';
@@ -9,7 +14,9 @@ import { useNow } from '@/hooks/use-now';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '../../components/ui/hover-card';
 import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
+import { openExternalUrl } from '../../lib/external-link';
 import { cn } from '../../lib/utilities';
+import { pushToast } from '../../stores/toasts';
 import { ProjectIcon } from './project-icon';
 import type { SessionActivityPresentation } from './session-activity';
 import {
@@ -18,6 +25,8 @@ import {
     sessionToneCalloutClassName,
     sessionUnreadTone,
 } from './session-activity';
+import { sessionPullRequestPresentation } from './session-pull-request';
+import { SessionPullRequestIndicator } from './session-pull-request-indicator';
 
 /**
  * The detail card keeps the exact attention kind and its explanatory tone even though the list's compact status slot
@@ -33,11 +42,13 @@ function unreadAttentionPresentation(
 
 export function SessionActivityCard({
     project,
+    pullRequest,
     session,
     terminal,
     trigger,
 }: {
     project: ProjectRecord;
+    pullRequest?: SessionPullRequest;
     session: SessionRecord;
     terminal?: TerminalRecord;
     trigger: ReactElement;
@@ -54,10 +65,14 @@ export function SessionActivityCard({
     const lastOpened = formatSessionRelativeTime(session.lastOpenedAt, now);
     const unreadAttention = unreadAttentionPresentation(session);
     const unread = unreadAttention ? `Unread attention: ${unreadAttention.label}` : undefined;
+    const pullRequestPresentation = pullRequest
+        ? sessionPullRequestPresentation(pullRequest)
+        : undefined;
     const accessibleDescription = [
         `Project ${project.displayTitle}.`,
         `Agent ${agentLabel}.`,
         activity.ariaLabel,
+        pullRequestPresentation?.ariaLabel,
         `Last opened ${lastOpened}.`,
         unread ? `${unread}.` : undefined,
     ]
@@ -134,6 +149,33 @@ export function SessionActivityCard({
                         {activity.description}
                     </p>
                 </div>
+                {pullRequest && pullRequestPresentation && (
+                    <a
+                        className="mt-2 flex min-w-0 items-center gap-1.5 rounded-md border border-border bg-surface px-2 py-1.5 text-[11px] text-foreground no-underline hover:bg-elevated"
+                        href={pullRequest.url}
+                        rel="noreferrer"
+                        aria-label={`Open pull request #${pullRequest.number}: ${pullRequest.title}`}
+                        onClick={(event) => {
+                            // Main denies every `window.open`/target=_blank navigation, so this anchor
+                            // is semantic only — the actual navigation goes through `external.open`.
+                            event.preventDefault();
+                            event.stopPropagation();
+                            // eslint-disable-next-line no-void -- intentional floating-promise discard, openExternalUrl reports its own failure
+                            void openExternalUrl(pullRequest.url, (message) =>
+                                pushToast('error', message),
+                            );
+                        }}
+                    >
+                        <SessionPullRequestIndicator pullRequest={pullRequest} />
+                        <span className="flex-none font-medium">#{pullRequest.number}</span>
+                        <span className="flex-none text-muted">
+                            {pullRequestPresentation.label}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-muted">
+                            {pullRequest.title}
+                        </span>
+                    </a>
+                )}
                 <div className="mt-2 flex items-center justify-between gap-3 text-[10px] text-muted">
                     <span>Last opened</span>
                     <span className="text-right text-foreground">{lastOpened}</span>

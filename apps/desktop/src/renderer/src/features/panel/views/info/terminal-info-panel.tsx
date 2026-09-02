@@ -25,6 +25,10 @@ const terminalStateColor: Record<TerminalRecord['lastProcessState'], string> = {
      * Same treatment as `dead`: an interrupted Terminal is restoring in the background, not a live process.
      */
     interrupted: 'text-danger',
+    /**
+     * A suspended Terminal is parked on purpose and relaunches on selection, so it reads as resting, not broken.
+     */
+    suspended: 'text-muted',
 };
 
 /**
