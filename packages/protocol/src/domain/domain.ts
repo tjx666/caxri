@@ -573,6 +573,7 @@ export const terminalResourceUsageSchema = z.object({
 });
 
 const projectStatusStateSchema = z.enum(['success', 'failure', 'pending', 'neutral', 'unknown']);
+export { projectStatusStateSchema };
 
 const projectStatusCheckSchema = z.object({
     name: z.string(),

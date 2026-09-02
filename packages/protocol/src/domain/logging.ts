@@ -142,6 +142,11 @@ export const logEventCatalog = {
         refreshFailed: 'project_status.refresh_failed',
         summary: 'project_status.summary',
     },
+    sessionPullRequests: {
+        cli: 'session_pull_requests.cli',
+        refresh: 'session_pull_requests.refresh',
+        refreshFailed: 'session_pull_requests.refresh_failed',
+    },
     pty: {
         attach: 'pty.attach',
         exitFinalizeFailed: 'pty.exit_finalize_failed',

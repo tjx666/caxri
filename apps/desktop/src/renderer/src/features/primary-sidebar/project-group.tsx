@@ -1,6 +1,11 @@
 import type { DragEvent } from 'react';
 
-import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
+import type {
+    ProjectRecord,
+    SessionPullRequest,
+    SessionRecord,
+    TerminalRecord,
+} from '@caxri/protocol';
 import { Archive, Paintbrush, RotateCcw, SquarePen } from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';
@@ -20,6 +25,7 @@ import { ProjectIcon } from './project-icon';
 import type { ProjectDropTarget } from './project-order';
 import { hasProjectDragType } from './project-order';
 import { SessionActivityCard } from './session-activity-card';
+import { SessionPullRequestIndicator } from './session-pull-request-indicator';
 import { SessionStatusIndicator } from './session-status-indicator';
 
 const sessionCardClassName =
@@ -44,6 +50,7 @@ interface ActiveSessionRowProperties {
     onCommitRename: () => void;
     onRenameValueChange: (value: string) => void;
     project: ProjectRecord;
+    pullRequest?: SessionPullRequest;
     renameError?: string;
     renameValue: string;
     renaming: boolean;
@@ -64,6 +71,7 @@ function ActiveSessionRow({
     onCommitRename,
     onRenameValueChange,
     project,
+    pullRequest,
     renameError,
     renameValue,
     renaming,
@@ -144,6 +152,12 @@ function ActiveSessionRow({
                     <strong className="font-medium">{session.displayTitle}</strong>
                 </span>
             )}
+            {!renaming && (
+                <SessionPullRequestIndicator
+                    className="transition-opacity group-hover/session-row:opacity-0"
+                    pullRequest={pullRequest}
+                />
+            )}
             <SessionStatusIndicator
                 agentOperation={terminal?.agentOperation}
                 className="transition-opacity group-hover/session-row:opacity-0"
@@ -164,6 +178,7 @@ function ActiveSessionRow({
             ) : (
                 <SessionActivityCard
                     project={project}
+                    pullRequest={pullRequest}
                     session={session}
                     terminal={terminal}
                     trigger={sessionCard}
@@ -223,6 +238,10 @@ interface ProjectGroupProperties {
     onToggle: () => void;
     project: ProjectRecord;
     projectDropTarget?: ProjectDropTarget;
+    /**
+     * Discovered pull requests keyed by Session id; absent entries render no glyph.
+     */
+    pullRequests?: Record<string, SessionPullRequest>;
     renameError?: string;
     renameValue: string;
     renamingSessionId?: string;
@@ -255,6 +274,7 @@ export function ProjectGroup({
     onToggle,
     project,
     projectDropTarget,
+    pullRequests,
     renameError,
     renameValue,
     renamingSessionId,
@@ -401,6 +421,7 @@ export function ProjectGroup({
                                 onCommitRename={onCommitRename}
                                 onRenameValueChange={onRenameValueChange}
                                 project={project}
+                                pullRequest={pullRequests?.[session.id]}
                                 renameError={renameError}
                                 renameValue={renameValue}
                                 renaming={session.id === renamingSessionId}
