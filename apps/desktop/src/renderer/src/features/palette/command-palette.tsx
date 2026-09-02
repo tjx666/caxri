@@ -11,7 +11,7 @@ import {
     CommandItem,
     CommandList,
 } from '../../components/ui/command';
-import { Dialog, DialogContent, DialogTitle } from '../../components/ui/dialog';
+import { Dialog, DialogTitle, PickerDialogContent } from '../../components/ui/dialog';
 import { useCommandShortcut } from '../../lib/keybindings';
 import { useCaxriQuery } from '../../queries/client';
 import { setPaletteOpen, useDialogStore } from '../../stores/dialogs';
@@ -95,11 +95,7 @@ export function CommandPalette() {
     const sessions = activeSessionsInSidebarOrder(projects, useSessions() ?? NO_RECORDS);
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
-            {/* The palette closes on Escape or on select; a close X would be dead weight in it. */}
-            <DialogContent
-                className="top-[18%] w-[min(560px,calc(100vw-32px))] translate-y-0 overflow-hidden"
-                showCloseButton={false}
-            >
+            <PickerDialogContent>
                 <DialogTitle className="sr-only">Command Palette</DialogTitle>
                 <Command label="Command Palette" className="w-full">
                     <CommandInput
@@ -162,7 +158,7 @@ export function CommandPalette() {
                         </CommandGroup>
                     </CommandList>
                 </Command>
-            </DialogContent>
+            </PickerDialogContent>
         </Dialog>
     );
 }

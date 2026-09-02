@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { MAX_CONFIGURABLE_FILE_BYTES } from '../../configuration/settings-spec';
-import { pathBrowserMethods } from '../path-browser-contract';
+import { pathBrowserMethods, pathBrowserServerMethods } from '../path-browser-contract';
 
 describe('path browser contract', () => {
     it('keeps every browser lifecycle method owned by Desktop Main', () => {
@@ -12,6 +12,15 @@ describe('path browser contract', () => {
             'desktop',
             'desktop',
         ]);
+    });
+
+    it('keeps the subpath fallback lookup on Server Core and bounds its suffix', () => {
+        const method = pathBrowserServerMethods['files.locateDirectory'];
+        expect(method.owner).toBe('server');
+        expect(method.params.safeParse({ sessionId: 'session-1', suffix: '' }).success).toBe(false);
+        expect(
+            method.params.safeParse({ sessionId: 'session-1', suffix: 'packages/bank' }).success,
+        ).toBe(true);
     });
 
     it('strips raw filesystem paths from snapshots before they reach the Renderer', () => {

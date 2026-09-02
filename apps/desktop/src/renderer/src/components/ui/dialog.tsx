@@ -105,6 +105,31 @@ export function DialogContent({
     );
 }
 
+/**
+ * Shell shared by every picker surface (path browser, command palette, Agent actions, Terminal links). Pickers follow
+ * VS Code's quick pick: they float over the workbench near the top without dimming or blurring it, because the user is
+ * usually typing while reading Terminal output or the file tree underneath. The backdrop stays mounted but transparent
+ * so an outside click still dismisses the picker without reaching the control below it, and the shared modal registry
+ * keeps app-wide shortcuts gated while it is open.
+ */
+export function PickerDialogContent({
+    backdropClassName,
+    className,
+    ...properties
+}: Omit<ComponentProps<typeof DialogContent>, 'showCloseButton'>) {
+    return (
+        <DialogContent
+            backdropClassName={cn('bg-transparent backdrop-blur-none', backdropClassName)}
+            className={cn(
+                'top-[18%] w-[min(560px,calc(100vw-32px))] translate-y-0 overflow-hidden',
+                className,
+            )}
+            showCloseButton={false}
+            {...properties}
+        />
+    );
+}
+
 export function DialogHeader({ className, ...properties }: ComponentProps<'div'>) {
     return (
         <div

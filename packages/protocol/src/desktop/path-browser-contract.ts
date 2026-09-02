@@ -5,6 +5,10 @@ import { identifierSchema, pathSchema } from '../domain/domain.js';
 import { commandPolicy } from '../transport/method-spec.js';
 
 export const MAX_PATH_BROWSER_ENTRIES = 200;
+/**
+ * Mirrors the Project search result ceiling; the path browser only ever uses the shallowest match.
+ */
+export const MAX_FILE_LOCATE_DIRECTORY_MATCHES = 500;
 
 const desktopRead = commandPolicy('desktop', 'read');
 const desktopWrite = commandPolicy('desktop', 'write');
@@ -90,3 +94,27 @@ export const pathBrowserMethods = {
         result: z.null(),
     },
 } as const;
+
+/**
+ * Server-owned support for the path browser's subpath fallback: a bounded Project-wide directory-suffix lookup. Matches
+ * are absolute paths inside the Session's Project root, sorted by relative path; Main still revalidates the chosen
+ * directory before listing it.
+ */
+export const pathBrowserServerMethods = {
+    'files.locateDirectory': {
+        ...commandPolicy('server', 'read'),
+        params: z.object({
+            sessionId: identifierSchema,
+            suffix: z.string().min(1).max(4096),
+        }),
+        result: z.object({
+            paths: z.array(pathSchema).max(MAX_FILE_LOCATE_DIRECTORY_MATCHES),
+            truncated: z.boolean(),
+        }),
+    },
+};
+
+/**
+ * Everything the registry needs from this module in one spread, keeping the registry's import on one line.
+ */
+export const pathBrowserContractMethods = { ...pathBrowserMethods, ...pathBrowserServerMethods };

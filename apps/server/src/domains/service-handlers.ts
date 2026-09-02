@@ -28,6 +28,7 @@ type ServiceHandlerMethods =
     | 'agentActions.recordRecent'
     | 'files.list'
     | 'files.browse'
+    | 'files.locateDirectory'
     | 'files.create'
     | 'files.copy'
     | 'files.rename'
@@ -154,6 +155,7 @@ export function createServiceHandlers(services: {
         'files.list': ({ sessionId, directory }, signal) =>
             files.listDirectory(sessionId, directory, signal),
         'files.browse': (parameters) => files.browse(parameters),
+        'files.locateDirectory': (parameters, signal) => files.locateDirectory(parameters, signal),
         'files.create': (parameters) => files.create(parameters),
         'files.copy': (parameters) => files.copy(parameters),
         'files.rename': (parameters) => files.rename(parameters),

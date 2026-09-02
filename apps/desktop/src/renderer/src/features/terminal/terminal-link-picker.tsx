@@ -6,7 +6,7 @@ import {
     CommandItem,
     CommandList,
 } from '../../components/ui/command';
-import { Dialog, DialogContent, DialogTitle } from '../../components/ui/dialog';
+import { Dialog, DialogTitle, PickerDialogContent } from '../../components/ui/dialog';
 import type { TerminalLinkScanStatus } from './terminal-link-scanner';
 import type { TerminalDetectedLink } from './terminal-links';
 import { MAX_TERMINAL_DETECTED_LINKS } from './terminal-links';
@@ -82,10 +82,7 @@ export function TerminalLinkPicker({
     const commandKey = mode;
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
-            <DialogContent
-                className="top-[18%] w-[min(560px,calc(100vw-32px))] translate-y-0 overflow-hidden"
-                showCloseButton={false}
-            >
+            <PickerDialogContent>
                 <DialogTitle className="sr-only">
                     {mode === 'candidates'
                         ? isCommitCandidates
@@ -148,7 +145,7 @@ export function TerminalLinkPicker({
                         )}
                     </CommandList>
                 </Command>
-            </DialogContent>
+            </PickerDialogContent>
         </Dialog>
     );
 }

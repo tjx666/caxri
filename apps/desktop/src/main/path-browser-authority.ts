@@ -10,6 +10,11 @@ import type { MainRequest, MethodResult } from '@caxri/protocol';
 import { CaxriError, MAX_CONFIGURABLE_FILE_BYTES, MAX_FILE_BROWSE_ENTRIES } from '@caxri/protocol';
 import { AsyncSemaphore } from '@caxri/system';
 
+import {
+    memoizedSubpathPrefix,
+    projectSubpathSuffix,
+    shallowestProjectPath,
+} from './path-browser-subpath';
 import type { DesktopServerConnection } from './server-connection';
 
 type StartParameters = Extract<MainRequest, { method: 'pathBrowser.start' }>['params'];
@@ -51,6 +56,12 @@ interface BrowserContext {
     id: string;
     input: string;
     listedDirectory: RootIdentity;
+    /**
+     * Subpath-fallback memo for this browser: a located prefix directory per suffix, or `null` when the Project holds
+     * no such directory. A negative entry also covers every longer suffix beneath it, so typing toward a folder that
+     * does not exist anywhere costs one bounded scan per new segment instead of one per keystroke.
+     */
+    locatedSuffixes: Map<string, string | null>;
     mode: BrowserMode;
     root: RootIdentity;
     rootLabel: string;
@@ -362,6 +373,7 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
         input: string,
         entries: Entry[],
         isTruncated: boolean,
+        displayDirectory = context.currentDirectory,
     ): Snapshot {
         context.input = input;
         context.listedDirectory = directory;
@@ -373,9 +385,14 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
                 context.mode === 'free'
                     ? directory.path !== '/'
                     : directory.path !== context.root.path,
+            /**
+             * In Project mode this is the display prefix (the located prefix after a subpath fallback), not necessarily
+             * the listed directory. Renderer creation derives its parent from it and stays safe only because the create
+             * gesture rejects any name containing `/`, which the fallback always has.
+             */
             directoryLabel:
                 context.mode === 'project'
-                    ? displayProjectDirectory(context.root.path, context.currentDirectory)
+                    ? displayProjectDirectory(context.root.path, displayDirectory)
                     : trailingSlash(directory.path),
             entries,
             input,
@@ -390,12 +407,20 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
         directory: RootIdentity,
         filter: string,
         input: string,
+        displayDirectory?: string,
     ): Promise<Snapshot> {
         await validateDirectory(context.root);
         if (!isSameOrInside(context.root.path, directory.path))
             throw new CaxriError('PATH_DENIED', 'Path escapes the Project root');
         if (filter.length > MAX_FILTER_LENGTH)
-            return snapshot(context, directory, input, replaceCandidates(context, []), false);
+            return snapshot(
+                context,
+                directory,
+                input,
+                replaceCandidates(context, []),
+                false,
+                displayDirectory,
+            );
         const result = await options.getServer().request('files.browse', {
             sessionId: context.browseSessionId,
             directory: directory.path,
@@ -413,7 +438,72 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
             input,
             replaceCandidates(context, candidates),
             result.truncated,
+            displayDirectory,
         );
+    }
+
+    /**
+     * VS Code-style subpath fallback: when the typed directory does not exist under the current directory, look for a
+     * Project-local directory whose path ends with those segments (for example `packages/x/` copied from Agent output
+     * while the Project holds `lobehub/packages/x/`). The shallowest match wins so the breadcrumb stays predictable;
+     * Server Core bounds and excludes the traversal, and Main revalidates the chosen directory before listing it.
+     */
+    async function locateProjectDirectory(
+        context: BrowserContext,
+        input: string,
+    ): Promise<{ directory: RootIdentity; displayDirectory: string } | undefined> {
+        const suffix = projectSubpathSuffix(input);
+        if (!suffix) return undefined;
+        const key = suffix.join('/');
+        const displayDirectory = await locateProjectPrefix(context, key);
+        if (!displayDirectory) return undefined;
+        const directory = await directoryIdentity(resolve(displayDirectory, ...suffix));
+        if (
+            !isSameOrInside(context.root.path, directory.path) ||
+            !isSameOrInside(context.root.path, displayDirectory)
+        )
+            throw new CaxriError('PATH_DENIED', 'Path escapes the Project root');
+        return { directory, displayDirectory };
+    }
+
+    /**
+     * Resolves the prefix directory under which `key` exists, consulting the browser memo before asking Server Core.
+     */
+    async function locateProjectPrefix(
+        context: BrowserContext,
+        key: string,
+    ): Promise<string | undefined> {
+        const memo = memoizedSubpathPrefix(context.locatedSuffixes, key);
+        if (memo === null) return undefined;
+        if (memo !== undefined) {
+            try {
+                await directoryIdentity(resolve(memo, key));
+                return memo;
+            } catch {
+                // The memoized prefix no longer holds this deeper path; fall through to a fresh lookup.
+            }
+        }
+        const located = await options.getServer().request('files.locateDirectory', {
+            sessionId: context.browseSessionId,
+            suffix: key,
+        });
+        const depth = key.split('/').length;
+        const best = shallowestProjectPath(
+            context.root.path,
+            located.paths.filter((path) => isSameOrInside(context.root.path, path)),
+        );
+        if (!best) {
+            if (located.truncated)
+                throw new CaxriError(
+                    'NOT_FOUND',
+                    'File not found; the Project is too large to locate a matching folder',
+                );
+            context.locatedSuffixes.set(key, null);
+            return undefined;
+        }
+        const prefix = resolve(best, ...Array.from({ length: depth }, () => '..'));
+        context.locatedSuffixes.set(key, prefix);
+        return prefix;
     }
 
     async function browseFree(
@@ -519,27 +609,30 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
                 : context.currentDirectory;
         let parsed = resolveBrowseInput(input, origin, userHome);
         let directory: RootIdentity;
+        let displayDirectory: string | undefined;
         try {
             directory = await directoryIdentity(parsed.directory);
         } catch (error) {
-            const folderName = input.endsWith('/') ? input.slice(0, -1) : '';
-            if (
-                mode !== 'project' ||
-                !folderName ||
-                folderName.includes('/') ||
-                !(error instanceof CaxriError) ||
-                error.code !== 'NOT_FOUND'
-            )
+            if (mode !== 'project' || !(error instanceof CaxriError) || error.code !== 'NOT_FOUND')
                 throw error;
-            /**
-             * A missing single-segment trailing-slash input is the existing Project-local "create folder" gesture. List
-             * its current parent with that name as the filter so Renderer can offer Create without weakening free-path
-             * browsing or swallowing permission and identity failures.
-             */
-            parsed = { directory: context.currentDirectory, filter: folderName };
-            directory = await directoryIdentity(context.currentDirectory);
+            const folderName = input.endsWith('/') ? input.slice(0, -1) : '';
+            if (folderName && !folderName.includes('/')) {
+                /**
+                 * A missing single-segment trailing-slash input is the existing Project-local "create folder" gesture.
+                 * List its current parent with that name as the filter so Renderer can offer Create without weakening
+                 * free-path browsing or swallowing permission and identity failures.
+                 */
+                parsed = { directory: context.currentDirectory, filter: folderName };
+                directory = await directoryIdentity(context.currentDirectory);
+            } else {
+                const located = await locateProjectDirectory(context, input);
+                if (!located) throw error;
+                directory = located.directory;
+                displayDirectory = located.displayDirectory;
+            }
         }
-        if (mode === 'project') return browseProject(context, directory, parsed.filter, input);
+        if (mode === 'project')
+            return browseProject(context, directory, parsed.filter, input, displayDirectory);
         return browseFree(context, directory, parsed.filter, input);
     }
 
@@ -627,6 +720,7 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
                 id: randomUUID(),
                 input: '',
                 listedDirectory: root,
+                locatedSuffixes: new Map(),
                 mode: 'project',
                 root,
                 rootLabel: project.displayTitle,

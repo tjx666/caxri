@@ -19,6 +19,7 @@ export const coreForwardedMethods = [
     'files.copy',
     'files.create',
     'files.list',
+    'files.locateDirectory',
     'files.move',
     'files.operation.acknowledge',
     'files.operation.cancel',

@@ -1,5 +1,15 @@
 import { Buffer } from 'node:buffer';
-import { access, chmod, link, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import {
+    access,
+    chmod,
+    link,
+    mkdir,
+    mkdtemp,
+    realpath,
+    rm,
+    symlink,
+    writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
@@ -352,6 +362,41 @@ describe('SearchService', () => {
             terminationReason: 'canceled',
         });
         active.database.close();
+    });
+
+    it('locates Project directories by path suffix while excluding dependency trees and symlinks', async () => {
+        const { database, root, service, session } = await fixture();
+        try {
+            await Promise.all([
+                mkdir(join(root, 'sub', 'packages', 'bank', 'src'), { recursive: true }),
+                mkdir(join(root, 'apps', 'web', 'packages', 'bank'), { recursive: true }),
+                mkdir(join(root, 'node_modules', 'packages', 'bank'), { recursive: true }),
+            ]);
+            await symlink(join(root, 'sub', 'packages'), join(root, 'docs', 'packages'));
+
+            const canonicalRoot = await realpath(root);
+            const located = await service.locateDirectory({
+                sessionId: session.id,
+                suffix: 'Packages/Bank',
+            });
+            expect(located).toEqual({
+                paths: [
+                    join(canonicalRoot, 'apps', 'web', 'packages', 'bank'),
+                    join(canonicalRoot, 'sub', 'packages', 'bank'),
+                ],
+                truncated: false,
+            });
+
+            await expect(
+                service.locateDirectory({ sessionId: session.id, suffix: 'src/alpha.ts' }),
+            ).resolves.toEqual({ paths: [], truncated: false });
+            await expect(
+                service.locateDirectory({ sessionId: session.id, suffix: '../packages' }),
+            ).rejects.toMatchObject({ code: 'VALIDATION' });
+        } finally {
+            await service.close();
+            database.close();
+        }
     });
 
     it('reports the file limit separately from a complete empty search', async () => {
