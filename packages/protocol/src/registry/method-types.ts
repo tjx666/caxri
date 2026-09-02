@@ -138,6 +138,8 @@ export const effectfulCommandRecovery = {
     'session.resumeAutomaticNaming': 'durable',
     'session.archive': 'durable',
     'session.unarchive': 'durable',
+    'session.detach': 'durable',
+    'session.resume': 'durable',
     'session.updateState': 'memory',
     'terminal.create': 'durable',
     'terminal.input': 'none',

@@ -416,6 +416,8 @@ export const methods = {
     'session.resumeAutomaticNaming': sessionIdWrite,
     'session.archive': sessionIdWrite,
     'session.unarchive': sessionIdWrite,
+    'session.detach': sessionIdWrite,
+    'session.resume': sessionIdWrite,
     'session.updateState': {
         ...serverWrite,
         params: sessionStateSchema,

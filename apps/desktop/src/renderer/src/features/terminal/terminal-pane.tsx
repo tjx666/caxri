@@ -2,7 +2,14 @@ import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 
 import type { ProcessState, TerminalFailureReason } from '@caxri/protocol';
 import { agentProviderCatalog } from '@caxri/protocol';
-import { CircleCheck, CircleX, MessageSquarePlus, RotateCcw, TriangleAlert } from 'lucide-react';
+import {
+    CircleCheck,
+    CircleX,
+    MessageSquarePlus,
+    RotateCcw,
+    TriangleAlert,
+    Unplug,
+} from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import {
@@ -86,9 +93,11 @@ function TerminalRecoveryBar({
             ? CircleCheck
             : exitPresentation.icon === 'failed'
               ? TriangleAlert
-              : exitPresentation.icon === 'pending'
-                ? undefined
-                : CircleX;
+              : exitPresentation.icon === 'detached'
+                ? Unplug
+                : exitPresentation.icon === 'pending'
+                  ? undefined
+                  : CircleX;
     /**
      * An automatic restore is already in flight for `interrupted`; racing it with a manual click can hand two restart
      * requests to the same Terminal, so the actions stand down until it settles into a state

@@ -55,13 +55,13 @@ function createHarness(options: { selected?: string; settings?: Partial<AppSetti
     const live = new Set(terminals.keys());
     const events: ServerEvent[] = [];
     let poller: PollerRegistrationOptions | undefined;
-    const suspend = vi.fn((terminalId: string) => {
+    const suspend = vi.fn((terminalId: string, state: 'suspended' | 'detached' = 'suspended') => {
         if (!live.has(terminalId)) return Promise.resolve(undefined);
         live.delete(terminalId);
         const record = terminals.get(terminalId)!;
         const suspended = terminal(terminalId, record.sessionId, {
-            lastAgentProcessState: 'suspended',
-            lastProcessState: 'suspended',
+            lastAgentProcessState: state,
+            lastProcessState: state,
         });
         terminals.set(terminalId, suspended);
         return Promise.resolve(suspended);
@@ -100,6 +100,7 @@ function createHarness(options: { selected?: string; settings?: Partial<AppSetti
             selected = sessionId;
         },
         events,
+        live,
         poller: () => poller,
         select: (sessionId: string) => {
             selected = sessionId;
@@ -159,6 +160,45 @@ describe('TerminalSuspensionService', () => {
         harness.select('session-b');
         harness.advance(UNTOUCHED_SUSPENSION_DELAY_MS);
         expect(await harness.service.sweep()).toEqual([]);
+    });
+
+    it('detaches only the live Agent Terminals of a Session and leaves Shell tabs running', async () => {
+        const harness = createHarness({ selected: 'session-a' });
+        harness.terminals.set(
+            'shell-a',
+            terminal('shell-a', 'session-a', {
+                kind: 'shell',
+                lastAgentProcessState: undefined,
+                provider: undefined,
+            }),
+        );
+        harness.live.add('shell-a');
+        expect(await harness.service.detachSession('session-a')).toEqual(['terminal-a']);
+        expect(harness.suspend).toHaveBeenCalledWith('terminal-a', 'detached');
+        expect(harness.terminals.get('terminal-a')?.lastProcessState).toBe('detached');
+        expect(harness.terminals.get('shell-a')?.lastProcessState).toBe('running');
+        expect(harness.events).toEqual([
+            {
+                event: 'state.changed',
+                payload: { kind: 'records', sessionIds: [], terminalIds: ['terminal-a'] },
+            },
+        ]);
+        // Nothing left to detach: the parked Terminal has no process, so the call is a no-op.
+        expect(await harness.service.detachSession('session-a')).toEqual([]);
+    });
+
+    it('never re-parks a detached Terminal during a sweep', async () => {
+        const harness = createHarness({
+            selected: 'session-a',
+            settings: { 'terminal.suspendIdleAgents': '30m' },
+        });
+        harness.service.start();
+        harness.service.observeLaunch('terminal-a');
+        await harness.service.detachSession('session-a');
+        harness.select('session-b');
+        harness.advance(60 * 60 * 1000);
+        expect(await harness.service.sweep()).toEqual([]);
+        expect(harness.terminals.get('terminal-a')?.lastProcessState).toBe('detached');
     });
 
     it('parks every live Terminal of an archived Session', async () => {

@@ -1,11 +1,17 @@
-import type { AgentOperation, SessionRecord } from '@caxri/protocol';
+import type { AgentOperation, ProcessState, SessionRecord } from '@caxri/protocol';
 
 import { sessionActivityPresentation } from './session-activity';
 
 export type SessionStatus =
     | { ariaLabel: string; emphasis: 'persistent' | 'unread'; kind: 'attention' }
+    | { ariaLabel: string; kind: 'detached' }
     | { ariaLabel: string; kind: 'running' }
     | { kind: 'default' };
+
+export interface SessionStatusTerminal {
+    agentOperation?: AgentOperation;
+    lastProcessState?: ProcessState;
+}
 
 type SessionStatusSource = Pick<
     SessionRecord,
@@ -19,9 +25,10 @@ type SessionStatusSource = Pick<
  */
 export function sessionStatus(
     session: SessionStatusSource,
-    agentOperation?: AgentOperation,
+    terminal: SessionStatusTerminal = {},
     isCurrentSession = false,
 ): SessionStatus {
+    const { agentOperation } = terminal;
     const currentActivity = sessionActivityPresentation(session.lastActivityState, agentOperation);
 
     if (session.hasUnread) {
@@ -36,6 +43,17 @@ export function sessionStatus(
             ariaLabel: `Needs attention: ${attentionActivity.label}. ${attentionActivity.description}${currentStatus}`,
             emphasis: 'unread',
             kind: 'attention',
+        };
+    }
+
+    /**
+     * A detached Agent was handed to another client on purpose, so whatever activity the last probe recorded is no
+     * longer Caxri's to animate. Unread attention still wins above: it was raised before the hand-over.
+     */
+    if (terminal.lastProcessState === 'detached') {
+        return {
+            ariaLabel: 'Detached. The Agent was stopped so another client can resume it.',
+            kind: 'detached',
         };
     }
 

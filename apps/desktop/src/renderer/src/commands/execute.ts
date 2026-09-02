@@ -6,14 +6,17 @@ import { listPaneTerminalIds, paneSplitBlockedReason } from '@caxri/protocol';
 import { closeDocumentTabs, saveActiveEditor } from '../features/editor/document-actions';
 import { toggleScreencastMode } from '../features/screencast/screencast';
 import {
+    archiveSelectedSession,
     beginSessionCreation,
     canNavigateSessionHistory,
     chooseProjectFolder,
     deleteSelectedProject,
     deleteSelectedSession,
+    detachSelectedSession,
     moveTerminalToNewSession,
     navigateSessionHistory,
     openSelectedProjectInExternalEditor,
+    resumeSelectedSession,
     selectAdjacentSession,
     switchMruSession,
 } from '../features/session/session-actions';
@@ -136,9 +139,12 @@ const commandContext: CommandContext = {
             // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             else void chooseProjectFolder();
         },
+        archiveSelected: archiveSelectedSession,
         canNavigateHistory: canNavigateSessionHistory,
         deleteSelected: deleteSelectedSession,
+        detachSelected: detachSelectedSession,
         navigateHistory: navigateSessionHistory,
+        resumeSelected: resumeSelectedSession,
         selectAdjacent: selectAdjacentSession,
         switchMru: switchMruSession,
     },

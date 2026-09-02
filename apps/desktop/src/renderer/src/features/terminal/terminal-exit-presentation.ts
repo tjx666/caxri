@@ -5,7 +5,7 @@ export interface TerminalExitPresentation {
      * `pending` marks an in-progress automatic restore; it must never share the `unexpected` failure glyph, since
      * nothing has actually gone wrong yet.
      */
-    icon: 'completed' | 'failed' | 'pending' | 'unexpected';
+    icon: 'completed' | 'detached' | 'failed' | 'pending' | 'unexpected';
     label: string;
     tone: 'neutral' | 'danger';
 }
@@ -47,6 +47,12 @@ export function getTerminalExitPresentation(
             return {
                 icon: 'pending',
                 label: 'Suspended while inactive — resuming',
+                tone: 'neutral',
+            };
+        case 'detached':
+            return {
+                icon: 'detached',
+                label: 'Detached — resume when you are done elsewhere',
                 tone: 'neutral',
             };
         case 'starting':
