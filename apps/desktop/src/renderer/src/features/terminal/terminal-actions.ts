@@ -240,6 +240,52 @@ export function focusTerminalById(terminalId: string): void {
 }
 
 /**
+ * Server admits ordinary `terminal.input` only while a Renderer view holds the Terminal's attachment (`acceptInput` in
+ * the Terminal Host drops it silently otherwise). A hidden tab has no mounted pane and therefore no attachment, so a
+ * command that first reveals a Terminal must wait here before writing into it. The mounted pane reports the initial
+ * attach completion; unmounting clears it.
+ */
+const attachedTerminals = new Set<string>();
+const attachmentWaiters = new Map<string, Set<() => void>>();
+
+export function markTerminalAttached(terminalId: string, isAttached: boolean): void {
+    if (!isAttached) {
+        attachedTerminals.delete(terminalId);
+        return;
+    }
+    attachedTerminals.add(terminalId);
+    const waiters = attachmentWaiters.get(terminalId);
+    attachmentWaiters.delete(terminalId);
+    if (waiters) for (const resolve of waiters) resolve();
+}
+
+export function isTerminalAttached(terminalId: string): boolean {
+    return attachedTerminals.has(terminalId);
+}
+
+/**
+ * Resolves `true` once the Terminal's pane has attached, or `false` after `timeoutMs` without an attachment.
+ */
+export function whenTerminalAttached(terminalId: string, timeoutMs: number): Promise<boolean> {
+    if (attachedTerminals.has(terminalId)) return Promise.resolve(true);
+    return new Promise((resolve) => {
+        const waiters = attachmentWaiters.get(terminalId) ?? new Set();
+        attachmentWaiters.set(terminalId, waiters);
+        const timer = setTimeout(() => {
+            waiters.delete(settle);
+            if (waiters.size === 0 && attachmentWaiters.get(terminalId) === waiters)
+                attachmentWaiters.delete(terminalId);
+            resolve(false);
+        }, timeoutMs);
+        function settle(): void {
+            clearTimeout(timer);
+            resolve(true);
+        }
+        waiters.add(settle);
+    });
+}
+
+/**
  * The mounted `TerminalPane` registers its live xterm selection here, mirroring {@link registerTerminalClearHandler}:
  * `copySelection` reuses `TerminalSelectionClipboard` (already serializing writes against a stale selection) instead of
  * a second clipboard write path, and `hasSelection` backs both the `terminal.copy` command's `when` gate and the

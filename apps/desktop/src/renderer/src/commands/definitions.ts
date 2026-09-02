@@ -172,6 +172,17 @@ export const commandDefinitions: CommandDefinition[] = [
         allowInEditable: true,
     }),
     fromCatalog('editor.save', (context) => context.editor.saveActive(), { allowInEditable: true }),
+    /**
+     * Fires from inside Monaco, so it must reach through an editable target like `editor.save`.
+     */
+    fromCatalog(
+        'editor.sendReferenceToTerminal',
+        (context) => context.editor.sendReferenceToTerminal(),
+        {
+            allowInEditable: true,
+            when: (context) => context.editor.canSendReferenceToTerminal(),
+        },
+    ),
     // A split is a pane operation, so the direction only chooses the split axis and which side the new pane takes.
     ...(
         [

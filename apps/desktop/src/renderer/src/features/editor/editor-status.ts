@@ -1,9 +1,15 @@
 import { omit } from 'es-toolkit';
 import { create } from 'zustand';
 
-interface EditorStatus {
+export interface EditorStatus {
     line: number;
     column: number;
+    /**
+     * First and last line of the current selection (1-based, inclusive); both equal `line` for a collapsed cursor. A
+     * selection that ends at column 1 of a later line excludes that line, matching how editors display line ranges.
+     */
+    selectionStartLine: number;
+    selectionEndLine: number;
     selectedCharacters: number;
     languageId: string;
 }

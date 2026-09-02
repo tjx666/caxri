@@ -21,6 +21,7 @@ import { caxri } from '../../../lib/caxri';
 import { useDialogStore } from '../../../stores/dialogs';
 import { pushToast } from '../../../stores/toasts';
 import {
+    markTerminalAttached,
     registerTerminalClearHandler,
     registerTerminalSelectionHandlers,
 } from '../terminal-actions';
@@ -558,11 +559,13 @@ export function useTerminalPaneRuntime({
             resizeSettler.pause();
             resizeController.pause();
             let attachment: TerminalSnapshot | null = null;
+            let isAttached = false;
             try {
                 attachment = await caxri.request(
                     'terminal.attach',
                     initialSize ? { terminalId, ...initialSize } : { terminalId },
                 );
+                isAttached = true;
                 if (initialSize && latestReference.current.processState === 'running')
                     resizeController.confirmSent(initialSize);
             } catch (error) {
@@ -575,6 +578,8 @@ export function useTerminalPaneRuntime({
             // oxlint-disable-next-line typescript/no-unnecessary-condition -- see comment above
             if (isDisposed) return;
             container.dataset.terminalAttached = 'true';
+            // A failed attach leaves Server without an attachment id, so command input must keep waiting.
+            if (isAttached) markTerminalAttached(terminalId, true);
             requestAnimationFrame(() => {
                 document.removeEventListener('focusin', trackNewerFocus);
                 document.removeEventListener('keydown', trackExplicitInteraction, true);
@@ -606,6 +611,7 @@ export function useTerminalPaneRuntime({
             isDisposed = true;
             longPaste.dispose();
             delete container.dataset.terminalAttached;
+            markTerminalAttached(terminalId, false);
             observer.disconnect();
             resizeSettler.dispose();
             resizeController.dispose();
@@ -673,6 +679,8 @@ export function useTerminalPaneRuntime({
          * Server-owned attachment state is lost with the utility process even though this pane remains mounted.
          */
         const reattach = async (): Promise<void> => {
+            // Server lost the attachment with the utility process; command input must wait for the new one.
+            markTerminalAttached(terminalId, false);
             try {
                 await replay.reattach(async () => {
                     const attachment = await caxri.request(
@@ -683,6 +691,7 @@ export function useTerminalPaneRuntime({
                     );
                     return attachment;
                 });
+                markTerminalAttached(terminalId, true);
             } catch (error) {
                 onError(errorMessage(error, 'Terminal reattachment failed'));
             }
@@ -718,6 +727,7 @@ export function useTerminalPaneRuntime({
          * persisted snapshot ahead of later live output.
          */
         const reattach = async (): Promise<void> => {
+            markTerminalAttached(terminalId, false);
             try {
                 await replay.reattach(async () => {
                     const attachment = await caxri.request('terminal.attach', {
@@ -727,6 +737,7 @@ export function useTerminalPaneRuntime({
                     });
                     return attachment;
                 });
+                markTerminalAttached(terminalId, true);
             } catch (error) {
                 onError(errorMessage(error, 'Terminal recovery reconciliation failed'));
             }

@@ -69,7 +69,14 @@ export interface CommandContext {
         canMoveActiveTerminalToNewSession(): boolean;
         moveActiveTerminalToNewSession(): void;
     };
-    editor: { saveActive(): void };
+    editor: {
+        saveActive(): void;
+        /**
+         * True only when an ordinary file editor is active and its Session has a Terminal to type into.
+         */
+        canSendReferenceToTerminal(): boolean;
+        sendReferenceToTerminal(): void;
+    };
     secondarySidebar: {
         activateViewContainer(id: ViewContainerId): void;
         toggle(): void;
