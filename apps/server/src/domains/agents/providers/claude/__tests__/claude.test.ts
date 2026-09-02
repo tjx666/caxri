@@ -489,6 +489,25 @@ process.stdin.on('end', () => {
             service.snapshot('claude', { rootPath: root, processState: 'running' }),
         ).resolves.toMatchObject({ title: 'Migrate market search to ES with flags' });
 
+        // A `/rename` (interactive or Caxri's own non-interactive automatic naming) appends `custom-title`, which
+        // the live metadata never reflects; the newest transcript record must win over the earlier ai-title.
+        await appendFile(
+            transcript,
+            `${JSON.stringify({
+                customTitle: 'Qwen3.8-Max-0902 Description',
+                sessionId: 'claude-session-derived',
+                type: 'custom-title',
+            })}\n${JSON.stringify({
+                agentName: 'Qwen3.8-Max-0902 Description',
+                sessionId: 'claude-session-derived',
+                type: 'agent-name',
+            })}\n`,
+            'utf8',
+        );
+        await expect(
+            service.snapshot('claude', { rootPath: root, processState: 'running' }),
+        ).resolves.toMatchObject({ title: 'Qwen3.8-Max-0902 Description' });
+
         await writeFile(
             join(config, 'projects', 'outside.jsonl'),
             `${JSON.stringify({ aiTitle: 'Escaped title', type: 'ai-title' })}\n`,
@@ -507,9 +526,13 @@ process.stdin.on('end', () => {
             }),
             'utf8',
         );
-        await expect(
-            service.snapshot('claude', { rootPath: root, processState: 'running' }),
-        ).resolves.toMatchObject({ title: 'project-worktree-7d' });
+        // Without a readable transcript title, the directory-derived placeholder must not surface as a title:
+        // persisting it would overwrite the name automatic naming already wrote.
+        const escaped = await service.snapshot('claude', {
+            rootPath: root,
+            processState: 'running',
+        });
+        expect(escaped.title).toBeUndefined();
     });
 
     it('never exposes a raw transcript prompt as the Session title', async () => {
@@ -567,9 +590,11 @@ process.stdin.on('end', () => {
             }),
         );
 
-        await expect(
-            service.snapshot('claude', { rootPath: root, processState: 'running' }),
-        ).resolves.toMatchObject({ title: 'project-derived-77' });
+        const initial = await service.snapshot('claude', {
+            rootPath: root,
+            processState: 'running',
+        });
+        expect(initial.title).toBeUndefined();
 
         // Later prompt records also stay private.
         await appendFile(
@@ -581,9 +606,11 @@ process.stdin.on('end', () => {
             })}\n`,
             'utf8',
         );
-        await expect(
-            service.snapshot('claude', { rootPath: root, processState: 'running' }),
-        ).resolves.toMatchObject({ title: 'project-derived-77' });
+        const prompted = await service.snapshot('claude', {
+            rootPath: root,
+            processState: 'running',
+        });
+        expect(prompted.title).toBeUndefined();
 
         // A provider-generated title remains safe to surface.
         await appendFile(
@@ -600,7 +627,7 @@ process.stdin.on('end', () => {
         ).resolves.toMatchObject({ title: 'Repair terminal lifecycles' });
     });
 
-    it('keeps an explicitly named session title and falls back to the derived name without a transcript', async () => {
+    it('keeps an explicitly named session title and never surfaces a derived name without a transcript title', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-claude-title-fallback-'));
         temporaryDirectories.push(directory);
         const root = join(directory, 'project');
@@ -654,7 +681,8 @@ process.stdin.on('end', () => {
             service.snapshot('claude', { rootPath: root, processState: 'running' }),
         ).resolves.toMatchObject({ title: 'My renamed session' });
 
-        // Derived name without any transcript still surfaces as the fallback title.
+        // A derived placeholder name without any transcript title must not surface: persisting it would overwrite
+        // the title automatic naming already wrote.
         await writeFile(
             join(config, 'sessions', 'named.json'),
             JSON.stringify({
@@ -667,8 +695,11 @@ process.stdin.on('end', () => {
             }),
             'utf8',
         );
-        await expect(
-            service.snapshot('claude', { rootPath: root, processState: 'running' }),
-        ).resolves.toMatchObject({ title: 'project-derived-name' });
+        const transcriptless = await service.snapshot('claude', {
+            rootPath: root,
+            processState: 'running',
+        });
+        expect(transcriptless).toMatchObject({ sessionId: 'claude-session-transcriptless' });
+        expect(transcriptless.title).toBeUndefined();
     });
 });
