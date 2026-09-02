@@ -18,7 +18,7 @@ import {
 } from '../session/session-actions';
 import { ProjectIcon } from './project-icon';
 import type { ProjectDropTarget } from './project-order';
-import { hasProjectDragType, resolveProjectHeadingClick } from './project-order';
+import { hasProjectDragType } from './project-order';
 import { SessionActivityCard } from './session-activity-card';
 import { SessionStatusIndicator } from './session-status-indicator';
 
@@ -220,7 +220,6 @@ interface ProjectGroupProperties {
     onDrop: (event: DragEvent<HTMLElement>) => void;
     onMove: (delta: -1 | 1) => void;
     onRenameValueChange: (value: string) => void;
-    onSelect: () => void;
     onToggle: () => void;
     project: ProjectRecord;
     projectDropTarget?: ProjectDropTarget;
@@ -253,7 +252,6 @@ export function ProjectGroup({
     onDrop,
     onMove,
     onRenameValueChange,
-    onSelect,
     onToggle,
     project,
     projectDropTarget,
@@ -327,15 +325,7 @@ export function ProjectGroup({
                     aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
                     data-row-id={project.id}
                     tabIndex={project.id === rovingRowId ? 0 : -1}
-                    onClick={() => {
-                        const effect = resolveProjectHeadingClick(
-                            active,
-                            expanded,
-                            activeSessions.length > 0,
-                        );
-                        if (effect.select) onSelect();
-                        if (effect.toggle) onToggle();
-                    }}
+                    onClick={onToggle}
                     onKeyDown={(event) => {
                         if (!event.altKey) return;
                         if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {

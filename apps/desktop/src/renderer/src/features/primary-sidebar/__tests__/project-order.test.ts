@@ -8,7 +8,6 @@ import {
     hasProjectDragType,
     PROJECT_DRAG_TYPE,
     projectOrderAfterDrop,
-    resolveProjectHeadingClick,
 } from '../project-order';
 
 describe('Project ordering', () => {
@@ -44,47 +43,6 @@ describe('Project ordering', () => {
         ).toBe(false);
         expect(areProjectDropTargetsEqual(undefined, undefined)).toBe(true);
     });
-
-    it('selects and expands an inactive collapsed Project in one click', () => {
-        expect(resolveProjectHeadingClick(false, false, true)).toEqual({
-            select: true,
-            toggle: true,
-        });
-    });
-
-    // Regression: collapsing previously required two clicks (the first only selected), and the
-    // collapse must not steal the active Session.
-    it('collapses an inactive expanded Project with a single click without selecting it', () => {
-        expect(resolveProjectHeadingClick(false, true, true)).toEqual({
-            select: false,
-            toggle: true,
-        });
-    });
-
-    it('only toggles disclosure when the Project is already active', () => {
-        expect(resolveProjectHeadingClick(true, true, true)).toEqual({
-            select: false,
-            toggle: true,
-        });
-        expect(resolveProjectHeadingClick(true, false, true)).toEqual({
-            select: false,
-            toggle: true,
-        });
-    });
-
-    it.each(['no Sessions', 'only archived Sessions'])(
-        'only toggles an inactive Project with %s',
-        () => {
-            expect(resolveProjectHeadingClick(false, true, false)).toEqual({
-                select: false,
-                toggle: true,
-            });
-            expect(resolveProjectHeadingClick(false, false, false)).toEqual({
-                select: false,
-                toggle: true,
-            });
-        },
-    );
 
     it('recognizes only the structured Project drag payload', () => {
         expect(hasProjectDragType(['text/plain', PROJECT_DRAG_TYPE])).toBe(true);

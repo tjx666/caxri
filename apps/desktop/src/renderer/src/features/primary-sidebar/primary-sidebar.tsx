@@ -19,7 +19,6 @@ import {
     beginSessionCreation,
     canResumeAutomaticSessionNaming,
     resumeAutomaticSessionNaming,
-    selectProject,
 } from '../session/session-actions';
 import { activeSessionsInSidebarOrder } from '../session/session-activity-order';
 import { useProjectCollapse } from './hooks/use-project-collapse';
@@ -272,7 +271,6 @@ export function PrimarySidebar() {
                                 projectOrder.move(project.id, project.displayTitle, delta)
                             }
                             onRenameValueChange={sessionRename.onRenameValueChange}
-                            onSelect={() => selectProject(project.id)}
                             onToggle={() => toggleProject(project.id)}
                             project={project}
                             projectDropTarget={
