@@ -299,7 +299,15 @@ function PaneSplitView({
             return isDecrease ? -0.05 : 0.05;
         },
     });
-    const firstStyle = { flexBasis: `${ratio * 100}%` } satisfies CSSProperties;
+    /**
+     * Both children share the remaining space by `flex-grow` from a zero basis, so the splitter lands at exactly
+     * `ratio` of the container. Setting `flexBasis: ratio%` on the first child while both kept `flex-1` left the
+     * leftover space split evenly, which put the splitter at `(1 + ratio) / 2` instead — a pointer-driven ratio (which
+     * resolves the absolute pointer position) then overshot on every move, so the splitter jumped away from the pointer
+     * at drag start and tracked it at half speed afterwards.
+     */
+    const firstStyle = { flex: `${ratio} 1 0%` } satisfies CSSProperties;
+    const secondStyle = { flex: `${1 - ratio} 1 0%` } satisfies CSSProperties;
     return (
         <div
             className={cn(
@@ -310,10 +318,7 @@ function PaneSplitView({
             )}
             data-split-id={node.id}
         >
-            <div
-                className={cn('pane-split-child', fullBleedClassName, 'flex-1')}
-                style={firstStyle}
-            >
+            <div className={cn('pane-split-child', fullBleedClassName)} style={firstStyle}>
                 <PaneNodeView leadingPane={leadingPane} layout={layout} node={node.first} />
             </div>
             <div
@@ -336,7 +341,7 @@ function PaneSplitView({
                 onPointerCancel={dragResize.onPointerCancel}
                 onLostPointerCapture={dragResize.onLostPointerCapture}
             />
-            <div className={cn('pane-split-child', fullBleedClassName, 'flex-1')}>
+            <div className={cn('pane-split-child', fullBleedClassName)} style={secondStyle}>
                 <PaneNodeView leadingPane={leadingPane} layout={layout} node={node.second} />
             </div>
         </div>
