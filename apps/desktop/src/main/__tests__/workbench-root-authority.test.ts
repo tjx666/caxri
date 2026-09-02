@@ -253,85 +253,91 @@ describe('openTerminalFileLink', () => {
         expect(electronMock.dialog.showMessageBox).not.toHaveBeenCalled();
     });
 
-    it('binds an outside file to the selected root before adding its Project and creating a Session', async () => {
-        const selectedRoot = await temporaryDirectory();
-        const request = vi.fn((method: string, parameters?: unknown) => {
+    it('opens an untrusted external file after the user chooses Open', async () => {
+        const externalRoot = await temporaryDirectory('caxri-external-');
+        const externalFile = join(externalRoot, 'notes.ts');
+        await writeFile(externalFile, 'export const outside = true;\n');
+        electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 });
+        const window = { id: 'main-window' };
+        const request = vi.fn((method: string) => {
             if (method === 'terminal.fileLink.resolve')
-                return Promise.resolve(
-                    'selectedRoot' in (parameters as object)
-                        ? {
-                              status: 'selection_authorized',
-                              identity: {
-                                  ...identity,
-                                  root: { ...identity.root, path: selectedRoot },
-                              },
-                              path: `${selectedRoot}/file.ts`,
-                              rootPath: selectedRoot,
-                              sourceSessionId: 'source-session',
-                          }
-                        : {
-                              status: 'authorization_required',
-                              path: `${selectedRoot}/file.ts`,
-                              sourceSessionId: 'source-session',
-                          },
-                );
-            if (method === 'project.create') return Promise.resolve({ id: 'project-1' });
-            if (method === 'app.bootstrap') return Promise.resolve(bootstrap([]));
-            if (method === 'session.create')
-                return Promise.resolve({ session: { id: 'session-created' } });
-            if (method === 'desktop.openFile') return Promise.resolve({ state: 'requested' });
+                return Promise.resolve({
+                    status: 'external',
+                    path: externalFile,
+                    sourceSessionId: 'source-session',
+                    trusted: false,
+                });
             return Promise.reject(new Error(`Unexpected method: ${method}`));
         });
-        const { instance } = authority({
-            getServer: server(request),
-            nextTestRoot: () => selectedRoot,
-        });
+        const { instance } = authority({ getServer: server(request), window });
 
         await expect(
             instance.openTerminalFileLink({
                 terminalId: 'terminal-1',
-                target: '~/selected/file.ts',
+                target: '~/outside/notes.ts',
             }),
-        ).resolves.toEqual({ opened: true });
-        expect(request.mock.calls.map(([method]) => method)).toEqual([
-            'terminal.fileLink.resolve',
-            'terminal.fileLink.resolve',
-            'project.create',
-            'app.bootstrap',
-            'session.create',
-            'desktop.openFile',
-        ]);
-        expect(request).toHaveBeenCalledWith('project.create', {
-            rootPath: selectedRoot,
-            expectedRootIdentity: {
-                path: selectedRoot,
-                device: identity.root.device,
-                inode: identity.root.inode,
+        ).resolves.toMatchObject({
+            opened: true,
+            sessionId: 'source-session',
+            document: {
+                displayPath: externalFile,
+                content: 'export const outside = true;\n',
+                readOnly: true,
+                name: 'notes.ts',
             },
         });
-        expect(request).toHaveBeenCalledWith('session.create', {
-            projectId: 'project-1',
-            defaultAgent: null,
-        });
-        expect(request).toHaveBeenCalledWith(
-            'desktop.openFile',
-            expect.objectContaining({
-                expectedIdentity: {
-                    ...identity,
-                    root: { ...identity.root, path: selectedRoot },
-                },
-            }),
+        expect(electronMock.dialog.showMessageBox).toHaveBeenCalledTimes(1);
+        expect(electronMock.dialog.showMessageBox).toHaveBeenCalledWith(
+            window,
+            expect.objectContaining({ buttons: ['Open', 'Trust Folder and Open', 'Cancel'] }),
         );
+        expect(request.mock.calls.map(([method]) => method)).toEqual(['terminal.fileLink.resolve']);
     });
 
-    it('cancels before folder selection without creating Project or Session state', async () => {
+    it('trusts the containing folder before opening when the user chooses Trust Folder and Open', async () => {
+        const externalRoot = await temporaryDirectory('caxri-external-');
+        const externalFile = join(externalRoot, 'notes.ts');
+        await writeFile(externalFile, 'export const outside = true;\n');
         electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 1 });
+        const calls: string[] = [];
+        const request = vi.fn((method: string, parameters?: unknown) => {
+            calls.push(method);
+            if (method === 'terminal.fileLink.resolve')
+                return Promise.resolve({
+                    status: 'external',
+                    path: externalFile,
+                    sourceSessionId: 'source-session',
+                    trusted: false,
+                });
+            if (method === 'settings.trustFolder') {
+                expect(parameters).toEqual({ path: externalRoot });
+                return Promise.resolve(null);
+            }
+            return Promise.reject(new Error(`Unexpected method: ${method}`));
+        });
+        const { instance } = authority({ getServer: server(request) });
+
+        await expect(
+            instance.openTerminalFileLink({
+                terminalId: 'terminal-1',
+                target: '~/outside/notes.ts',
+            }),
+        ).resolves.toMatchObject({ opened: true });
+        expect(calls).toEqual(['terminal.fileLink.resolve', 'settings.trustFolder']);
+    });
+
+    it('cancels without reading the file or trusting the folder when the user chooses Cancel', async () => {
+        const externalRoot = await temporaryDirectory('caxri-external-');
+        const externalFile = join(externalRoot, 'notes.ts');
+        await writeFile(externalFile, 'export const outside = true;\n');
+        electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 2 });
         const request = vi.fn((method: string) => {
             if (method === 'terminal.fileLink.resolve')
                 return Promise.resolve({
-                    status: 'authorization_required',
-                    path: '/outside/file.ts',
+                    status: 'external',
+                    path: externalFile,
                     sourceSessionId: 'source-session',
+                    trusted: false,
                 });
             return Promise.reject(new Error(`Unexpected method: ${method}`));
         });
@@ -340,55 +346,91 @@ describe('openTerminalFileLink', () => {
         await expect(
             instance.openTerminalFileLink({
                 terminalId: 'terminal-1',
-                target: '~/outside/file.ts',
+                target: '~/outside/notes.ts',
             }),
         ).resolves.toEqual({ canceled: true });
         expect(request.mock.calls.map(([method]) => method)).toEqual(['terminal.fileLink.resolve']);
-        expect(electronMock.dialog.showOpenDialog).not.toHaveBeenCalled();
     });
 
-    it('revokes the selected-root grant when Project creation fails', async () => {
-        const selectedRoot = await temporaryDirectory();
-        const grants = new ProjectRootGrants();
-        const request = vi.fn((method: string, parameters?: unknown) => {
+    it('opens a trusted external file without prompting', async () => {
+        const externalRoot = await temporaryDirectory('caxri-external-');
+        const externalFile = join(externalRoot, 'notes.ts');
+        await writeFile(externalFile, 'export const outside = true;\n');
+        const request = vi.fn((method: string) => {
             if (method === 'terminal.fileLink.resolve')
-                return Promise.resolve(
-                    'selectedRoot' in (parameters as object)
-                        ? {
-                              status: 'selection_authorized',
-                              identity: {
-                                  ...identity,
-                                  root: { ...identity.root, path: selectedRoot },
-                              },
-                              path: `${selectedRoot}/file.ts`,
-                              rootPath: selectedRoot,
-                              sourceSessionId: 'source-session',
-                          }
-                        : {
-                              status: 'authorization_required',
-                              path: `${selectedRoot}/file.ts`,
-                              sourceSessionId: 'source-session',
-                          },
-                );
-            if (method === 'project.create')
-                return Promise.reject(new Error('Runtime unavailable'));
+                return Promise.resolve({
+                    status: 'external',
+                    path: externalFile,
+                    sourceSessionId: 'source-session',
+                    trusted: true,
+                });
             return Promise.reject(new Error(`Unexpected method: ${method}`));
         });
-        const { instance } = authority({
-            getServer: server(request),
-            grants,
-            nextTestRoot: () => selectedRoot,
-        });
+        const { instance } = authority({ getServer: server(request) });
 
         await expect(
             instance.openTerminalFileLink({
                 terminalId: 'terminal-1',
-                target: '~/selected/file.ts',
+                target: '~/outside/notes.ts',
             }),
-        ).rejects.toThrow('Runtime unavailable');
-        await expect(grants.use(selectedRoot, () => Promise.resolve('retried'))).rejects.toThrow(
-            'was not selected',
-        );
+        ).resolves.toMatchObject({
+            opened: true,
+            sessionId: 'source-session',
+            document: { displayPath: externalFile, readOnly: true },
+        });
+        expect(electronMock.dialog.showMessageBox).not.toHaveBeenCalled();
+    });
+
+    it('rejects an untrusted external path that is a symlink even after the user chooses Open', async () => {
+        const externalRoot = await temporaryDirectory('caxri-external-');
+        const realFile = join(externalRoot, 'real.ts');
+        await writeFile(realFile, 'export const real = true;\n');
+        const link = join(externalRoot, 'link.ts');
+        await symlink(realFile, link);
+        electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 });
+        const request = vi.fn((method: string) => {
+            if (method === 'terminal.fileLink.resolve')
+                return Promise.resolve({
+                    status: 'external',
+                    path: link,
+                    sourceSessionId: 'source-session',
+                    trusted: false,
+                });
+            if (method === 'settings.trustFolder')
+                return Promise.reject(new Error('settings.trustFolder should not be called'));
+            return Promise.reject(new Error(`Unexpected method: ${method}`));
+        });
+        const { instance } = authority({ getServer: server(request) });
+
+        await expect(
+            instance.openTerminalFileLink({
+                terminalId: 'terminal-1',
+                target: '~/outside/link.ts',
+            }),
+        ).rejects.toMatchObject({ code: 'PATH_DENIED' });
+    });
+
+    it('rejects an external path whose file no longer exists', async () => {
+        const externalRoot = await temporaryDirectory('caxri-external-');
+        const missingFile = join(externalRoot, 'missing.ts');
+        const request = vi.fn((method: string) => {
+            if (method === 'terminal.fileLink.resolve')
+                return Promise.resolve({
+                    status: 'external',
+                    path: missingFile,
+                    sourceSessionId: 'source-session',
+                    trusted: true,
+                });
+            return Promise.reject(new Error(`Unexpected method: ${method}`));
+        });
+        const { instance } = authority({ getServer: server(request) });
+
+        await expect(
+            instance.openTerminalFileLink({
+                terminalId: 'terminal-1',
+                target: '~/outside/missing.ts',
+            }),
+        ).rejects.toMatchObject({ code: 'NOT_FOUND' });
     });
 
     it('uses a native choice when an authorized Project has multiple Sessions', async () => {

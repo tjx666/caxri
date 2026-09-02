@@ -2,7 +2,9 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
-import { allowE2EErrors, expect, test } from './support/fixtures.ts';
+import type { MessageBoxOptions } from 'electron';
+
+import { expect, test } from './support/fixtures.ts';
 import {
     clickTerminalLink,
     createShellSession,
@@ -16,10 +18,6 @@ function shellQuote(value: string): string {
 }
 
 test('Codex hard-wrapped file paths open as one trusted Terminal link', async () => {
-    allowE2EErrors([
-        { source: 'desktop', event: 'ipc.request_failed', code: 'PATH_DENIED', count: 1 },
-        { source: 'server-core', event: 'ipc.request_failed', code: 'PATH_DENIED', count: 1 },
-    ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-codex-hard-wrap-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(userData, 'e2e-agents', 'home', 'project');
@@ -135,13 +133,38 @@ test('Codex hard-wrapped file paths open as one trusted Terminal link', async ()
             running.page.getByRole('tab', { name: 'second-independent.ts' }),
         ).toHaveAttribute('aria-selected', 'true');
 
+        /**
+         * A target outside every Project asks before Main reads anything. Cancelling leaves no tab, no toast, and no
+         * new Project or Session behind.
+         */
+        await running.app.evaluate(({ dialog }) => {
+            const target = globalThis as typeof globalThis & {
+                caxriHardWrapProbe?: { confirmations: string[] };
+            };
+            target.caxriHardWrapProbe = { confirmations: [] };
+            dialog.showMessageBox = (
+                windowOrOptions: unknown,
+                maybeOptions?: MessageBoxOptions,
+            ) => {
+                const options = maybeOptions ?? (windowOrOptions as MessageBoxOptions);
+                target.caxriHardWrapProbe!.confirmations.push(options.message);
+                return Promise.resolve({ response: options.cancelId ?? 2, checkboxChecked: false });
+            };
+        });
         await running.page.getByRole('tab', { name: 'Shell' }).click();
         await clickTerminalLink(running.page, 'target.ts');
-        await expect(
-            running.page
-                .locator('.toast')
-                .filter({ hasText: 'Terminal link target is outside every Project' }),
-        ).toBeVisible();
+        await expect
+            .poll(() =>
+                running.app.evaluate(() => {
+                    const target = globalThis as typeof globalThis & {
+                        caxriHardWrapProbe?: { confirmations: string[] };
+                    };
+                    return target.caxriHardWrapProbe?.confirmations;
+                }),
+            )
+            .toEqual(['Open outside-target.ts read-only?']);
+        await expect(running.page.getByRole('tab', { name: 'outside-target.ts' })).toHaveCount(0);
+        await expect(running.page.locator('.toast')).toHaveCount(0);
         const afterDenied = await pageRequest<{ projects: unknown[]; sessions: unknown[] }>(
             running.page,
             'app.bootstrap',

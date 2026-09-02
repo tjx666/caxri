@@ -44,6 +44,8 @@ export function isRowModified(binding: SettingRowBinding, context: SettingsValue
             );
         case 'trusted-domains':
             return settings['security.trustedDomains'].length > 0;
+        case 'trusted-folders':
+            return settings['security.trustedFolders'].length > 0;
         case 'terminal-reference-links':
             return settings['terminal.referenceLinks'].length > 0;
         case 'files-exclude':
@@ -130,6 +132,8 @@ export function rowResetAction(
             };
         case 'trusted-domains':
             return { kind: 'field', key: 'security.trustedDomains', value: [] };
+        case 'trusted-folders':
+            return { kind: 'field', key: 'security.trustedFolders', value: [] };
         case 'terminal-reference-links':
             return { kind: 'field', key: 'terminal.referenceLinks', value: [] };
         case 'files-exclude':

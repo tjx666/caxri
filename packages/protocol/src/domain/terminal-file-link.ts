@@ -1,6 +1,14 @@
 import { z } from 'zod';
 
-import { identifierSchema, pathSchema } from './domain.js';
+import { desktopOpenIdentitySchema } from '../desktop/desktop-contract.js';
+import { externalEditorDocumentSchema } from '../desktop/path-browser-contract.js';
+import type { MethodSpec } from '../transport/method-spec.js';
+import { commandPolicy } from '../transport/method-spec.js';
+import { canceledResultSchema, identifierSchema, pathSchema } from './domain.js';
+import { editorNavigationTargetSchema } from './editor.js';
+
+const serverControl = commandPolicy('server', 'control');
+const desktopControl = commandPolicy('desktop', 'control');
 
 /**
  * Safe display metadata for one authorized Terminal file-link candidate. The absolute path remains subject to Server
@@ -23,3 +31,66 @@ export const terminalFileLinkAmbiguousResolutionSchema =
     terminalFileLinkAmbiguousResultSchema.extend({ sourceSessionId: identifierSchema });
 
 export type TerminalFileLinkCandidate = z.infer<typeof terminalFileLinkCandidateSchema>;
+
+/**
+ * The Main-owned open that consumes Server Core's resolution below.
+ */
+export const terminalFileLinkMethods = {
+    'terminal.openFileLink': {
+        ...desktopControl,
+        params: z.object({
+            terminalId: identifierSchema,
+            target: z.string().min(3).max(4_096),
+            location: editorNavigationTargetSchema.optional(),
+        }),
+        result: z.union([
+            canceledResultSchema,
+            /**
+             * A file outside every Project that the user chose to open: Main already read one bounded read-only
+             * snapshot, and the Renderer shows it as an ephemeral tab in the Terminal's own Session. This variant must
+             * precede the bare `{ opened: true }` shape: `z.union` takes the first match and a plain `z.object` strips
+             * unknown keys, so the wrong order silently drops `document` from the reply.
+             */
+            z.object({
+                opened: z.literal(true),
+                document: externalEditorDocumentSchema,
+                sessionId: identifierSchema,
+            }),
+            z.object({ opened: z.literal(true) }),
+            terminalFileLinkAmbiguousResultSchema,
+        ]),
+    },
+} as const satisfies Record<string, MethodSpec>;
+
+/**
+ * Server Core resolution used only by Main; the Renderer never sees a resolved path.
+ */
+export const terminalFileLinkInternalMethods = {
+    'terminal.fileLink.resolve': {
+        ...serverControl,
+        params: z.object({
+            terminalId: identifierSchema,
+            target: z.string().min(3).max(4_096),
+        }),
+        result: z.discriminatedUnion('status', [
+            /**
+             * An explicit path outside every Project. Server Core has not read it; Main decides whether to prompt
+             * (`trusted` reflects the `security.trustedFolders` setting) and then reads one read-only snapshot itself.
+             */
+            z.object({
+                status: z.literal('external'),
+                path: pathSchema,
+                sourceSessionId: identifierSchema,
+                trusted: z.boolean(),
+            }),
+            z.object({
+                status: z.literal('authorized'),
+                identity: desktopOpenIdentitySchema,
+                path: pathSchema,
+                projectId: identifierSchema,
+                sourceSessionId: identifierSchema,
+            }),
+            terminalFileLinkAmbiguousResolutionSchema,
+        ]),
+    },
+} as const satisfies Record<string, MethodSpec>;
