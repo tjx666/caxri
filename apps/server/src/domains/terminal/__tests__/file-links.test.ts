@@ -427,8 +427,8 @@ describe('resolveTerminalFileLink', () => {
         ).rejects.toMatchObject({ code: 'PATH_DENIED' });
     });
 
-    it('denies an explicit absolute path outside every authorized Project', async () => {
-        const { database, files, terminalId, userHome } = await fixture();
+    it('reports an explicit absolute path outside every Project as external without reading it', async () => {
+        const { database, files, sourceSessionId, terminalId, userHome } = await fixture();
         const outsideTarget = join(userHome, 'outside.ts');
         await writeFile(outsideTarget, 'secret\n');
 
@@ -438,8 +438,44 @@ describe('resolveTerminalFileLink', () => {
                 { terminalId, target: outsideTarget },
                 searchOptions(files),
             ),
-        ).rejects.toMatchObject({ code: 'PATH_DENIED' });
+        ).resolves.toEqual({
+            status: 'external',
+            path: outsideTarget,
+            sourceSessionId,
+            trusted: false,
+        });
     });
+
+    it.each([
+        ['absolute path', (path: string) => path],
+        ['file URL', (path: string) => `file://${path}`],
+    ])(
+        'marks an external %s trusted only when a Trusted Folder contains it',
+        async (_kind, toTarget) => {
+            const { database, sourceSessionId, terminalId, userHome } = await fixture();
+            const outsideTarget = join(userHome, '.lobehub', 'secrets', 'runtime.json');
+
+            await expect(
+                resolveTerminalFileLink(
+                    database,
+                    { terminalId, target: toTarget(outsideTarget) },
+                    { userHome, trustedFolders: [join(userHome, 'elsewhere')] },
+                ),
+            ).resolves.toEqual({
+                status: 'external',
+                path: outsideTarget,
+                sourceSessionId,
+                trusted: false,
+            });
+            await expect(
+                resolveTerminalFileLink(
+                    database,
+                    { terminalId, target: toTarget(outsideTarget) },
+                    { userHome, trustedFolders: [`${join(userHome, '.lobehub')}/`] },
+                ),
+            ).resolves.toMatchObject({ status: 'external', trusted: true });
+        },
+    );
 
     it('authorizes a regular Home file already contained by an added Project', async () => {
         const { database, sourceSessionId, terminalId, userHome } = await fixture();
@@ -476,8 +512,8 @@ describe('resolveTerminalFileLink', () => {
         });
     });
 
-    it('requires user authorization outside added Projects without probing target existence', async () => {
-        const { database, terminalId, userHome } = await fixture();
+    it('reports a Home link outside added Projects as external without probing target existence', async () => {
+        const { database, sourceSessionId, terminalId, userHome } = await fixture();
 
         await expect(
             resolveTerminalFileLink(
@@ -485,38 +521,12 @@ describe('resolveTerminalFileLink', () => {
                 { terminalId, target: '~/not-yet-authorized/missing.ts' },
                 { userHome },
             ),
-        ).resolves.toMatchObject({
-            status: 'authorization_required',
+        ).resolves.toEqual({
+            status: 'external',
             path: join(userHome, 'not-yet-authorized', 'missing.ts'),
+            sourceSessionId,
+            trusted: false,
         });
-    });
-
-    it('authorizes only a user-selected root that contains the regular target', async () => {
-        const { database, terminalId, userHome } = await fixture();
-        const selectedRoot = join(userHome, 'selected');
-        const otherRoot = join(userHome, 'other');
-        const target = join(selectedRoot, 'file.ts');
-        await Promise.all([mkdir(selectedRoot), mkdir(otherRoot)]);
-        await writeFile(target, 'selected\n');
-
-        await expect(
-            resolveTerminalFileLink(
-                database,
-                { terminalId, target: '~/selected/file.ts', selectedRoot },
-                { userHome },
-            ),
-        ).resolves.toMatchObject({
-            status: 'selection_authorized',
-            path: target,
-            rootPath: selectedRoot,
-        });
-        await expect(
-            resolveTerminalFileLink(
-                database,
-                { terminalId, target: '~/selected/file.ts', selectedRoot: otherRoot },
-                { userHome },
-            ),
-        ).rejects.toMatchObject({ code: 'PATH_DENIED' });
     });
 
     it('denies a symlink that escapes an otherwise authorized Project root', async () => {

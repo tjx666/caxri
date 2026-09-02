@@ -5,6 +5,8 @@ import type { ITheme, Terminal } from '@xterm/xterm';
 import { caxri } from '../../lib/caxri';
 import { openExternalUrl } from '../../lib/external-link';
 import { pushToast } from '../../stores/toasts';
+import { useWorkbenchStore } from '../../stores/workbench';
+import { openExternalEditorDocument } from '../editor/external-editor-documents';
 import {
     dispatchExtensionViewAction,
     executeViewCatalogShortcut,
@@ -147,6 +149,22 @@ export function registerTerminalPaneLinks(
                 target,
                 ...(location && { location }),
             });
+            if ('document' in result) {
+                const workbenchProjectId = useWorkbenchStore
+                    .getState()
+                    .bootstrap?.sessions.find(
+                        (session) => session.id === result.sessionId,
+                    )?.workbenchProjectId;
+                const opened =
+                    workbenchProjectId !== undefined &&
+                    openExternalEditorDocument({
+                        document: result.document,
+                        sessionId: result.sessionId,
+                        workbenchProjectId,
+                    });
+                if (!opened) throw new Error('Unable to open external file in this Session');
+                return;
+            }
             if ('status' in result)
                 openTerminalLinkCandidatePicker(
                     latest().terminalId,

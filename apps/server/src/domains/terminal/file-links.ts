@@ -8,7 +8,7 @@ import type {
     ServerOperationResult,
     TerminalFileLinkCandidate,
 } from '@caxri/protocol';
-import { CaxriError } from '@caxri/protocol';
+import { CaxriError, isPathInTrustedFolder } from '@caxri/protocol';
 
 import type { CaxriDatabase } from '../db';
 import { isSameOrInside } from '../path-security';
@@ -27,6 +27,10 @@ interface TerminalFileLinkResolverOptions {
         truncated: boolean;
         canceled: boolean;
     }>;
+    /**
+     * Normalized `security.trustedFolders` rules; a matching external target lets Main skip its confirmation prompt.
+     */
+    trustedFolders?: readonly string[];
     userHome?: string;
 }
 
@@ -310,27 +314,42 @@ async function searchAuthorizedProjects(
     };
 }
 
+async function resolveUserHome(userHomeOverride: string | undefined): Promise<string> {
+    return realpathExisting(userHomeOverride ?? homedir());
+}
+
+/**
+ * Shared outcome for any explicit candidate outside every added Project, whether it arrived as `~/...` text or as an
+ * absolute path / `file://` URL (OSC 8 hyperlinks carry the absolute URI even when the visible label says `~/...`).
+ * Server Core never reads the target here: Main decides whether to prompt, using `trusted` from the
+ * `security.trustedFolders` setting, and then reads one bounded read-only snapshot itself.
+ */
+function externalResolution(
+    sourceSessionId: string,
+    candidate: string,
+    trustedFolders: readonly string[],
+): TerminalFileLinkResolution {
+    return {
+        status: 'external',
+        path: candidate,
+        sourceSessionId,
+        trusted: isPathInTrustedFolder(candidate, trustedFolders),
+    };
+}
+
 async function resolveHomeLink(
     database: CaxriDatabase,
     sourceSessionId: string,
     target: string,
-    selectedRoot: string | undefined,
-    userHomeOverride: string | undefined,
+    options: TerminalFileLinkResolverOptions,
 ): Promise<TerminalFileLinkResolution> {
-    const userHome = await realpathExisting(userHomeOverride ?? homedir());
+    const userHome = await resolveUserHome(options.userHome);
     const candidate = resolve(userHome, target.slice(2));
     if (!isSameOrInside(userHome, candidate))
         throw new CaxriError('PATH_DENIED', 'Terminal link escapes the current user Home');
-    if (selectedRoot) {
-        const selected = await resolveRegularFile(selectedRoot, candidate);
-        return {
-            status: 'selection_authorized',
-            ...selected,
-            sourceSessionId,
-        };
-    }
     const project = projectContainingPath(database, candidate);
-    if (!project) return { status: 'authorization_required', path: candidate, sourceSessionId };
+    if (!project)
+        return externalResolution(sourceSessionId, candidate, options.trustedFolders ?? []);
     const authorized = await resolveRegularFile(project.rootPath, candidate);
     return {
         status: 'authorized',
@@ -349,7 +368,7 @@ async function resolveHomeLink(
  */
 export async function resolveTerminalFileLink(
     database: CaxriDatabase,
-    parameters: { terminalId: string; target: string; selectedRoot?: string },
+    parameters: { terminalId: string; target: string },
     options: TerminalFileLinkResolverOptions = {},
 ): Promise<TerminalFileLinkResolution> {
     const terminal = database.getTerminal(parameters.terminalId);
@@ -359,23 +378,15 @@ export async function resolveTerminalFileLink(
     if (parameters.target.startsWith('~/')) {
         if (parameters.target === '~/')
             throw new CaxriError('VALIDATION', 'Home Terminal links require a file path');
-        return resolveHomeLink(
-            database,
-            terminal.sessionId,
-            parameters.target,
-            parameters.selectedRoot,
-            options.userHome,
-        );
+        return resolveHomeLink(database, terminal.sessionId, parameters.target, options);
     }
     if (parameters.target.startsWith('~'))
         throw new CaxriError('VALIDATION', 'Only current-user ~/ Terminal links are supported');
     if (/^\$(?:HOME|\{HOME\})\//u.test(parameters.target))
         throw new CaxriError('VALIDATION', 'Shell Home variables are not supported in file links');
-    if (parameters.selectedRoot)
-        throw new CaxriError('VALIDATION', 'A selected root is only valid for a Home link');
 
     const exactCandidates = exactCandidatePaths(parameters.target, terminal.cwd, session.rootPath);
-    const hasUnauthorizedExactCandidate = exactCandidates.some(
+    const unauthorizedExactCandidate = exactCandidates.find(
         (candidate) => !projectContainingPath(database, candidate),
     );
     for (const candidate of exactCandidates) {
@@ -389,8 +400,12 @@ export async function resolveTerminalFileLink(
         parameters.target.startsWith('./') ||
         parameters.target.startsWith('../')
     ) {
-        if (hasUnauthorizedExactCandidate)
-            throw new CaxriError('PATH_DENIED', 'Terminal link target is outside every Project');
+        if (unauthorizedExactCandidate)
+            return externalResolution(
+                terminal.sessionId,
+                unauthorizedExactCandidate,
+                options.trustedFolders ?? [],
+            );
         throw new CaxriError('NOT_FOUND', 'File not found');
     }
 

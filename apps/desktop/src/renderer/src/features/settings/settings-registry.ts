@@ -23,6 +23,7 @@ export type SettingRowBinding =
     | { type: 'provider-actions'; provider: AgentProvider }
     | { type: 'provider-skill-health'; provider: AgentProvider }
     | { type: 'trusted-domains' }
+    | { type: 'trusted-folders' }
     | { type: 'terminal-reference-links' }
     | { type: 'files-exclude' }
     | { type: 'archived-sessions' }
@@ -284,6 +285,10 @@ const rows: SettingRowDescriptor[] = [
     {
         ...specRow('security.trustedDomains'),
         binding: { type: 'trusted-domains' },
+    },
+    {
+        ...specRow('security.trustedFolders'),
+        binding: { type: 'trusted-folders' },
     },
     specRow('git.fetchGitHubAvatars'),
     {

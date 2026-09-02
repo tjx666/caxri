@@ -15,10 +15,10 @@ import {
 import { appSettingsSchema } from '../configuration/settings-schema.js';
 import { MAX_CONFIGURABLE_FILE_BYTES } from '../configuration/settings-spec.js';
 import { MAX_TRUSTED_DOMAIN_LENGTH } from '../configuration/trusted-domains.js';
+import { MAX_TRUSTED_FOLDER_LENGTH } from '../configuration/trusted-folders.js';
 import { argvConfigChangesSchema, argvConfigSchema } from '../desktop/argv-config.js';
 import {
     desktopHostMethods,
-    desktopOpenIdentitySchema,
     desktopRootIdentitySchema,
     desktopStatusResultSchema,
 } from '../desktop/desktop-contract.js';
@@ -56,15 +56,14 @@ import {
     themeTokensSchema,
     updateStateSchema,
 } from '../domain/domain.js';
-import { editorNavigationTargetSchema } from '../domain/editor.js';
 import { fileSearchModeSchema, fileSearchResultSchema } from '../domain/file-search.js';
 import { gitInternalMethods, gitMethods } from '../domain/git-contract.js';
 import { projectIconSchema } from '../domain/project-customization.js';
 import { sessionRenameTitleSchema } from '../domain/session.js';
 import { sessionPullRequestMethods } from '../domain/session-pull-request.js';
 import {
-    terminalFileLinkAmbiguousResolutionSchema,
-    terminalFileLinkAmbiguousResultSchema,
+    terminalFileLinkInternalMethods,
+    terminalFileLinkMethods,
 } from '../domain/terminal-file-link.js';
 import { terminalLongPasteMethods } from '../domain/terminal-long-paste.js';
 import { terminalReadMethods } from '../domain/terminal-read-contract.js';
@@ -495,19 +494,7 @@ export const methods = {
         }),
         result: terminalRecordSchema,
     },
-    'terminal.openFileLink': {
-        ...desktopControl,
-        params: z.object({
-            terminalId: identifierSchema,
-            target: z.string().min(3).max(4_096),
-            location: editorNavigationTargetSchema.optional(),
-        }),
-        result: z.union([
-            canceledResultSchema,
-            z.object({ opened: z.literal(true) }),
-            terminalFileLinkAmbiguousResultSchema,
-        ]),
-    },
+    ...terminalFileLinkMethods,
     ...terminalReferenceMethods,
     ...terminalReadMethods,
     /**
@@ -729,6 +716,11 @@ export const internalMethods = {
         params: z.object({ domain: z.string().min(1).max(MAX_TRUSTED_DOMAIN_LENGTH) }),
         result: settingsResult,
     },
+    'settings.trustFolder': {
+        ...serverWrite,
+        params: z.object({ path: z.string().min(1).max(MAX_TRUSTED_FOLDER_LENGTH) }),
+        result: settingsResult,
+    },
     'diagnostics.exportPath': {
         ...serverWrite,
         params: z.object({ destination: pathSchema }),
@@ -760,36 +752,7 @@ export const internalMethods = {
             }),
         }),
     },
-    'terminal.fileLink.resolve': {
-        ...serverControl,
-        params: z.object({
-            terminalId: identifierSchema,
-            target: z.string().min(3).max(4_096),
-            selectedRoot: pathSchema.optional(),
-        }),
-        result: z.discriminatedUnion('status', [
-            z.object({
-                status: z.literal('authorization_required'),
-                path: pathSchema,
-                sourceSessionId: identifierSchema,
-            }),
-            z.object({
-                status: z.literal('authorized'),
-                identity: desktopOpenIdentitySchema,
-                path: pathSchema,
-                projectId: identifierSchema,
-                sourceSessionId: identifierSchema,
-            }),
-            z.object({
-                status: z.literal('selection_authorized'),
-                identity: desktopOpenIdentitySchema,
-                path: pathSchema,
-                rootPath: pathSchema,
-                sourceSessionId: identifierSchema,
-            }),
-            terminalFileLinkAmbiguousResolutionSchema,
-        ]),
-    },
+    ...terminalFileLinkInternalMethods,
     'terminal.detachAll': { ...serverControl, params: noParameters, result: z.null() },
     'terminal.terminateAll': { ...serverControl, params: noParameters, result: z.null() },
     'theme.importPath': {
