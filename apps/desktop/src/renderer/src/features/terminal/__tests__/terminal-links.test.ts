@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { TERMINAL_DEFAULT_WORD_SEPARATORS } from '../terminal-file-candidate';
 import type { TerminalLinkContext } from '../terminal-links';
 import {
     findTerminalLinks,
     MAX_TERMINAL_DETECTED_LINK_TARGET_BYTES,
     MAX_TERMINAL_DETECTED_LINKS,
     registerTerminalLinks,
-    TERMINAL_DEFAULT_WORD_SEPARATORS,
     terminalLinkHintText,
 } from '../terminal-links';
 import { cellsFor, createTerminal } from './terminal-links-test-helpers';
@@ -202,95 +202,6 @@ describe('findTerminalLinks', () => {
         ]);
     });
 
-    it('splits a path from glued CJK prose at a word-separator parenthesis', () => {
-        // Regression: `realpath '/…/串联 (src/api/workflows/es-reindex.ts)'` ENOENT — the CJK
-        // prefix and wrapping parentheses were folded into the clicked path.
-        expect(findTerminalLinks('串联 (src/api/workflows/es-reindex.ts) 已完成')).toEqual([
-            {
-                endIndex: 35,
-                kind: 'file',
-                startIndex: 4,
-                target: 'src/api/workflows/es-reindex.ts',
-                text: 'src/api/workflows/es-reindex.ts',
-            },
-        ]);
-        expect(findTerminalLinks('串联(src/api/workflows/es-reindex.ts)')).toEqual([
-            {
-                endIndex: 34,
-                kind: 'file',
-                startIndex: 3,
-                target: 'src/api/workflows/es-reindex.ts',
-                text: 'src/api/workflows/es-reindex.ts',
-            },
-        ]);
-    });
-
-    it.each(['。', '，', '：'])('splits a path from CJK prose after %s', (separator) => {
-        const text = `说明${separator}.local-config/model-config/meta.json:4`;
-
-        expect(findTerminalLinks(text)).toEqual([
-            {
-                endIndex: text.length,
-                kind: 'file',
-                location: { mode: 'line', startLine: 4, endLine: 4 },
-                startIndex: 3,
-                target: '.local-config/model-config/meta.json',
-                text: '.local-config/model-config/meta.json:4',
-            },
-        ]);
-    });
-
-    it('rejects ambiguous CJK prose while preserving an explicit relative path', () => {
-        expect(findTerminalLinks('说明。workspace/apps/server/src/file.ts:15')).toEqual([]);
-        expect(findTerminalLinks('账单/配置状态给了陌生人。')).toEqual([]);
-        expect(findTerminalLinks('./账单/配置状态 src/Makefile')).toHaveLength(2);
-    });
-
-    it('preserves CJK punctuation inside valid relative paths', () => {
-        expect(findTerminalLinks('./目录。版本/file.ts:8')).toMatchObject([
-            {
-                kind: 'file',
-                target: './目录。版本/file.ts',
-                location: { mode: 'line', startLine: 8, endLine: 8 },
-            },
-        ]);
-        expect(findTerminalLinks('docs/目录。版本/file.ts:8')).toMatchObject([
-            {
-                kind: 'file',
-                target: 'docs/目录。版本/file.ts',
-                location: { mode: 'line', startLine: 8, endLine: 8 },
-            },
-        ]);
-        expect(findTerminalLinks('docs/中文说明.md')).toMatchObject([
-            { kind: 'file', target: 'docs/中文说明.md' },
-        ]);
-    });
-
-    it('honors custom word separators from the terminal.wordSeparators setting', () => {
-        // Word separators still control fallback tokenization, while the higher-priority local-file
-        // parser recognizes an explicit location independently, matching VS Code's detector order.
-        expect(findTerminalLinks('串联(src/api/x.ts)', ' ')).toMatchObject([
-            { kind: 'file', target: '串联(src/api/x.ts)' },
-        ]);
-        expect(
-            findTerminalLinks('说明。.local-config/model-config/meta.json:4', ' '),
-        ).toMatchObject([
-            {
-                kind: 'file',
-                target: '说明。.local-config/model-config/meta.json',
-                location: { mode: 'line', startLine: 4, endLine: 4 },
-            },
-        ]);
-        const withColonSeparator = findTerminalLinks('src/a.ts:12', ' :');
-        expect(withColonSeparator).toMatchObject([
-            {
-                kind: 'file',
-                target: 'src/a.ts',
-                location: { mode: 'line', startLine: 12, endLine: 12 },
-            },
-        ]);
-    });
-
     it('does not turn custom protocols, flags, or ordinary dotted prose into file links', () => {
         expect(findTerminalLinks('javascript:alert(1) --flag version.')).toEqual([]);
     });
@@ -334,14 +245,6 @@ describe('findTerminalLinks', () => {
         expect(findTerminalLinks(text)).toMatchObject([
             { kind: 'url', target: 'https://example.com/value' },
         ]);
-        expect(performance.now() - startedAt).toBeLessThan(500);
-    });
-
-    it('keeps maximal CJK prose boundary scanning bounded', () => {
-        const text = '。'.repeat(16_000);
-        const startedAt = performance.now();
-
-        expect(findTerminalLinks(text)).toEqual([]);
         expect(performance.now() - startedAt).toBeLessThan(500);
     });
 });
