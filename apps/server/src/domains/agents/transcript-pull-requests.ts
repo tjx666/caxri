@@ -16,7 +16,8 @@ export interface TranscriptPullRequestScan extends TranscriptScanCursor {
     created?: TranscriptPullRequestReference;
     mentioned?: TranscriptPullRequestReference;
     /**
-     * Tool-use ids of pending `gh pr create` invocations whose result record has not been scanned yet.
+     * Claude tool-use ids or Codex call ids of pending `gh pr create` invocations whose result record has not been
+     * scanned yet.
      */
     pendingCreateToolUseIds: Set<string>;
 }
@@ -27,7 +28,11 @@ export interface TranscriptPullRequestScan extends TranscriptScanCursor {
 const MAX_PENDING_CREATE_TOOL_USES = 16;
 const PULL_REQUEST_URL_PATTERN =
     /https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/pull\/(\d+)(?![\w/])/g;
-const PR_CREATE_COMMAND_PATTERN = /\bgh\s+pr\s+create\b/;
+/**
+ * Global flags may sit between `gh` and the subcommand (`gh -R owner/repo pr create`), so the pattern skips any run of
+ * dash options, each with an optional space- or `=`-separated value.
+ */
+const PR_CREATE_COMMAND_PATTERN = /\bgh(?:\s+-[\w-]+(?:[ =]\S+)?)*\s+pr\s+create\b/;
 
 interface TranscriptContentBlock {
     id?: unknown;
@@ -41,6 +46,21 @@ interface TranscriptContentBlock {
 
 interface TranscriptRecord {
     message?: { content?: unknown };
+    payload?: unknown;
+    type?: unknown;
+}
+
+/**
+ * One Codex rollout `response_item` payload; the Agent's shell runs as `function_call`/`function_call_output` pairs
+ * keyed by `call_id`, and its prose arrives as an assistant `message` of `output_text` blocks.
+ */
+interface CodexResponseItem {
+    arguments?: unknown;
+    call_id?: unknown;
+    content?: unknown;
+    input?: unknown;
+    output?: unknown;
+    role?: unknown;
     type?: unknown;
 }
 
@@ -117,19 +137,59 @@ function scanToolResultBlocks(blocks: readonly unknown[], scan: TranscriptPullRe
     }
 }
 
+function scanCodexResponseItem(payload: unknown, scan: TranscriptPullRequestScan): void {
+    if (!isContentBlock(payload)) return;
+    const item = payload as CodexResponseItem;
+    switch (item.type) {
+        case 'function_call':
+        case 'custom_tool_call': {
+            // `exec_command` serializes its arguments as a JSON string; the command text survives escaping intact.
+            const invocation = item.type === 'function_call' ? item.arguments : item.input;
+            if (typeof invocation !== 'string' || typeof item.call_id !== 'string') return;
+            if (PR_CREATE_COMMAND_PATTERN.test(invocation))
+                rememberPendingCreate(scan, item.call_id);
+            return;
+        }
+        case 'function_call_output':
+        case 'custom_tool_call_output': {
+            if (typeof item.call_id !== 'string') return;
+            if (!scan.pendingCreateToolUseIds.delete(item.call_id)) return;
+            const reference = lastPullRequestReference(blockText(item.output));
+            if (reference) scan.created = reference;
+            return;
+        }
+        case 'message': {
+            if (item.role !== 'assistant' || !Array.isArray(item.content)) return;
+            for (const block of item.content as unknown[]) {
+                if (!isContentBlock(block) || block.type !== 'output_text') continue;
+                if (typeof block.text !== 'string') continue;
+                const reference = lastPullRequestReference(block.text);
+                if (reference) scan.mentioned = reference;
+            }
+            return;
+        }
+        default:
+    }
+}
+
 /**
- * Consumes one Claude Code transcript line. Only Agent-authored records are inspected: `gh pr create` tool results bind
- * the Session to the PR it delivered, and assistant prose supplies the fallback mention. User prompts are skipped so a
- * pasted link never masquerades as the Session's own delivery. Lines without a PR link or a create command are rejected
- * before JSON parsing so the incremental scan stays cheap.
+ * Consumes one Claude Code or Codex transcript line. Only Agent-authored records are inspected: `gh pr create` tool
+ * results bind the Session to the PR it delivered, and assistant prose supplies the fallback mention. User prompts
+ * (Claude `user` text, Codex `input_text`) are skipped so a pasted link never masquerades as the Session's own
+ * delivery. Lines without a PR link or a create command are rejected before JSON parsing so the incremental scan stays
+ * cheap.
  */
 export function scanTranscriptPullRequestLine(line: string, scan: TranscriptPullRequestScan): void {
-    const mayCreate = line.includes('gh pr create');
+    const mayCreate = line.includes('pr create');
     if (!mayCreate && !line.includes('/pull/')) return;
     let record: TranscriptRecord;
     try {
         record = JSON.parse(line) as TranscriptRecord;
     } catch {
+        return;
+    }
+    if (record.type === 'response_item') {
+        scanCodexResponseItem(record.payload, scan);
         return;
     }
     const content: unknown = record.message?.content;

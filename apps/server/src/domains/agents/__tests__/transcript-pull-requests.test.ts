@@ -27,6 +27,142 @@ function assistantText(text: string): string {
     return JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text }] } });
 }
 
+function codexResponseItem(payload: Record<string, unknown>): string {
+    return JSON.stringify({
+        timestamp: '2026-05-25T16:50:51.612Z',
+        type: 'response_item',
+        payload,
+    });
+}
+
+function codexExecCommand(callId: string, command: string): string {
+    return codexResponseItem({
+        type: 'function_call',
+        name: 'exec_command',
+        arguments: JSON.stringify({ cmd: command, workdir: '/project', yield_time_ms: 10_000 }),
+        call_id: callId,
+    });
+}
+
+function codexCommandOutput(callId: string, output: string): string {
+    return codexResponseItem({
+        type: 'function_call_output',
+        call_id: callId,
+        output: `Chunk ID: b50e7a\nProcess exited with code 0\nOutput:\n${output}`,
+    });
+}
+
+function codexAssistantText(text: string): string {
+    return codexResponseItem({
+        type: 'message',
+        role: 'assistant',
+        content: [{ type: 'output_text', text }],
+    });
+}
+
+describe('codex transcript pull request scan', () => {
+    it('binds the Session to the PR returned by its own exec_command gh pr create', () => {
+        const scan = createTranscriptPullRequestScan();
+        scanTranscriptPullRequestLine(
+            codexExecCommand(
+                'call_1',
+                'git push -u origin feat/x && gh pr create --base main --title "fix: x" --body-file - <<\'EOF\'\nbody\nEOF',
+            ),
+            scan,
+        );
+        scanTranscriptPullRequestLine(
+            codexCommandOutput(
+                'call_1',
+                'remote: Create a pull request for feat/x on GitHub by visiting:\nremote: https://github.com/lobehub-biz/lobehub-cloud/pull/new/feat/x\nhttps://github.com/lobehub-biz/lobehub-cloud/pull/881\n',
+            ),
+            scan,
+        );
+        expect(scan.created).toEqual({
+            owner: 'lobehub-biz',
+            repo: 'lobehub-cloud',
+            number: 881,
+            url: 'https://github.com/lobehub-biz/lobehub-cloud/pull/881',
+        });
+        expect(scan.pendingCreateToolUseIds.size).toBe(0);
+    });
+
+    it('accepts the exec script tool with global gh flags and block-shaped outputs', () => {
+        const scan = createTranscriptPullRequestScan();
+        scanTranscriptPullRequestLine(
+            codexResponseItem({
+                type: 'custom_tool_call',
+                name: 'exec',
+                input: 'const r = await tools.exec_command({ cmd: "gh -R lobehub/lobehub pr create --base main --fill" });',
+                call_id: 'call_custom',
+            }),
+            scan,
+        );
+        scanTranscriptPullRequestLine(
+            codexResponseItem({
+                type: 'function_call_output',
+                call_id: 'call_other',
+                output: 'https://github.com/lobehub/lobehub/pull/1',
+            }),
+            scan,
+        );
+        expect(scan.created).toBe(undefined);
+        scanTranscriptPullRequestLine(
+            codexResponseItem({
+                type: 'custom_tool_call_output',
+                call_id: 'call_custom',
+                output: [
+                    {
+                        type: 'input_text',
+                        text: 'Script completed\nhttps://github.com/lobehub/lobehub/pull/2\n',
+                    },
+                ],
+            }),
+            scan,
+        );
+        expect(scan.created?.number).toBe(2);
+    });
+
+    it('takes assistant prose as a mention but never user input or the duplicate event_msg', () => {
+        const scan = createTranscriptPullRequestScan();
+        scanTranscriptPullRequestLine(
+            codexResponseItem({
+                type: 'message',
+                role: 'user',
+                content: [
+                    {
+                        type: 'input_text',
+                        text: 'look at https://github.com/lobehub/lobehub/pull/5',
+                    },
+                ],
+            }),
+            scan,
+        );
+        scanTranscriptPullRequestLine(
+            JSON.stringify({
+                type: 'event_msg',
+                payload: {
+                    type: 'agent_message',
+                    message: 'https://github.com/lobehub/lobehub/pull/6',
+                },
+            }),
+            scan,
+        );
+        expect(scan.mentioned).toBe(undefined);
+        scanTranscriptPullRequestLine(
+            codexAssistantText(
+                'Opened [PR #263](https://github.com/lobehub-biz/lobehub-cloud/pull/263).',
+            ),
+            scan,
+        );
+        expect(scan.mentioned).toEqual({
+            owner: 'lobehub-biz',
+            repo: 'lobehub-cloud',
+            number: 263,
+            url: 'https://github.com/lobehub-biz/lobehub-cloud/pull/263',
+        });
+    });
+});
+
 describe('transcript pull request scan', () => {
     it('binds the Session to the PR returned by its own gh pr create', () => {
         const scan = createTranscriptPullRequestScan();
