@@ -9,6 +9,7 @@ import {
     createShellSession,
     launchCaxri,
     pageRequest,
+    revealSettingsSection,
     selectedSessionId,
     sessionCard,
     typeTerminal,
@@ -102,6 +103,8 @@ test('OSC 52 clipboard writes remain opt-in, bounded, write-only, and lifecycle-
 
         await running.page.keyboard.press('Meta+,');
         const dialog = running.page.getByRole('dialog');
+        // Settings rows are virtualized, so reveal the Terminal section before querying its switch.
+        await revealSettingsSection(dialog, 'Terminal');
         const setting = dialog.getByRole('switch', { name: 'Allow OSC 52 clipboard writes' });
         await expect(setting).not.toBeChecked();
         await setting.check();
