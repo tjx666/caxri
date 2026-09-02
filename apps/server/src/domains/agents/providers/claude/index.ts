@@ -20,7 +20,8 @@ import {
     assertAgentRenameVersion,
     throwAgentRenameError,
 } from '../../rename';
-import { openSafeAgentTranscript } from '../../transcript-security';
+import type { TranscriptScanCursor } from '../../transcript-scan';
+import { scanTranscriptLines } from '../../transcript-scan';
 import { claudeHookAdapter } from './hooks';
 import { generateClaudeLowCostText } from './low-cost-generation';
 import { claudeNaming } from './naming';
@@ -44,8 +45,6 @@ interface ClaudeSessionMetadata {
 const MAX_CLAUDE_METADATA_BYTES = 128 * 1024;
 const MAX_CLAUDE_METADATA_FILES = 512;
 const MAX_CONCURRENT_CLAUDE_READS = 8;
-const MAX_TRANSCRIPT_SCAN_BYTES_PER_READ = 4 * 1024 * 1024;
-const TRANSCRIPT_READ_CHUNK_BYTES = 64 * 1024;
 const MAX_TRANSCRIPT_TITLE_CACHES = 64;
 /**
  * Non-interactive `/rename` is the public write boundary. Repeating the same exact-session rename is idempotent on the
@@ -58,11 +57,7 @@ const CLAUDE_RENAME_OUTPUT_BYTES = 64 * 1024;
 const CLAUDE_RENAME_TIMEOUT_MS = 10_000;
 const CLAUDE_RENAME_RESULT_PREFIX = 'Session renamed to:';
 
-interface TranscriptTitleCache {
-    /**
-     * Byte offset of the first unconsumed transcript byte; scans resume here on the next poll.
-     */
-    offset: number;
+interface TranscriptTitleCache extends TranscriptScanCursor {
     title?: string;
 }
 
@@ -169,56 +164,17 @@ async function readTranscriptTitles(
         }
     }
     if (!isOpaqueAgentSessionId(sessionId)) return cache;
-    try {
-        const opened = await openSafeAgentTranscript({
+    const titleCache = cache;
+    await scanTranscriptLines(
+        {
             baseRoot: claudeTranscriptBaseRoot(configDirectory),
             path,
             root: claudeTranscriptRoot(configDirectory, cwd),
-        });
-        if (!opened) return cache;
-        const { handle, stats } = opened;
-        try {
-            if (stats.size < cache.offset) Object.assign(cache, { offset: 0, title: undefined });
-            const chunk = Buffer.allocUnsafe(TRANSCRIPT_READ_CHUNK_BYTES);
-            let scanned = 0;
-            let remainder = Buffer.alloc(0);
-            while (
-                cache.offset + remainder.length < stats.size &&
-                scanned < MAX_TRANSCRIPT_SCAN_BYTES_PER_READ
-            ) {
-                // eslint-disable-next-line no-await-in-loop -- chunks of one file must be read sequentially
-                const { bytesRead } = await handle.read(
-                    chunk,
-                    0,
-                    chunk.length,
-                    cache.offset + remainder.length,
-                );
-                if (bytesRead <= 0) break;
-                scanned += bytesRead;
-                const combined = Buffer.concat([remainder, chunk.subarray(0, bytesRead)]);
-                const lastNewline = combined.lastIndexOf(0x0a);
-                if (lastNewline === -1) {
-                    remainder = combined;
-                    continue;
-                }
-                for (const line of combined.subarray(0, lastNewline).toString('utf8').split('\n'))
-                    scanTranscriptLine(line, cache);
-                remainder = combined.subarray(lastNewline + 1);
-                cache.offset += lastNewline + 1;
-            }
-            /**
-             * The final line may lack a trailing newline; parse it without consuming so a later append re-reads it as a
-             * complete line.
-             */
-            scanTranscriptLine(remainder.toString('utf8'), cache);
-        } finally {
-            await handle.close();
-        }
-    } catch {
-        /**
-         * A missing or unreadable transcript is a normal capability miss; keep any cached title.
-         */
-    }
+        },
+        titleCache,
+        (line) => scanTranscriptLine(line, titleCache),
+        { onReset: () => (titleCache.title = undefined) },
+    );
     return cache;
 }
 

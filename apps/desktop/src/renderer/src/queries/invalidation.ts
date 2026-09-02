@@ -398,6 +398,12 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
             invalidateProjectStatusQuery(queryClient, event.payload.sessionId);
             return;
         }
+        if (event.event === 'sessionPullRequests.changed') {
+            // Fire-and-forget: the refreshed query surfaces any error through React Query state.
+            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+            void queryClient.invalidateQueries({ queryKey: ['session.pullRequests'] });
+            return;
+        }
         if (event.event === 'agentTranscript.changed') {
             invalidateAgentTranscriptQuery(queryClient, event.payload.terminalId);
             return;

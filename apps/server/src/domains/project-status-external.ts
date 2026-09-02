@@ -164,7 +164,8 @@ export function projectStatusCommandOperation(
     command: ProjectStatusCommand,
     arguments_: readonly string[],
 ): string {
-    if (command === 'gh') return arguments_[0] === 'pr' ? 'pr.view' : 'unknown';
+    if (command === 'gh')
+        return arguments_[0] === 'pr' ? `pr.${arguments_[1] ?? 'unknown'}` : 'unknown';
     if (command === 'linear') return arguments_[0] === 'api' ? 'issue.get' : 'unknown';
     if (command === 'vc') return arguments_[0] === 'teams' ? 'teams.list' : 'deployments.list';
     if (arguments_[0] === 'remote') return 'remote.get-url';

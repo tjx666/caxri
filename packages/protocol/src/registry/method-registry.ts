@@ -58,6 +58,7 @@ import { fileSearchModeSchema, fileSearchResultSchema } from '../domain/file-sea
 import { gitInternalMethods, gitMethods } from '../domain/git-contract.js';
 import { projectIconSchema } from '../domain/project-customization.js';
 import { sessionRenameTitleSchema } from '../domain/session.js';
+import { sessionPullRequestMethods } from '../domain/session-pull-request.js';
 import {
     terminalFileLinkAmbiguousResolutionSchema,
     terminalFileLinkAmbiguousResultSchema,
@@ -657,6 +658,7 @@ export const methods = {
         params: z.object({ sessionId: identifierSchema }),
         result: projectStatusOverviewSchema,
     },
+    ...sessionPullRequestMethods,
     'settings.get': { ...serverRead, params: noParameters, result: settingsResult },
     'agentHooks.get': { ...serverRead, params: noParameters, result: agentHookHealthMapSchema },
     'agentSkills.get': { ...serverRead, params: noParameters, result: agentSkillHealthSchema },

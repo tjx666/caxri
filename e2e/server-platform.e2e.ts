@@ -7,7 +7,7 @@ import process from 'node:process';
 import { connectToServer, ensureServer } from '@caxri/client/supervise';
 
 import { expect, test } from './support/fixtures.ts';
-import { createShellSession, launchCaxri } from './support/helpers.ts';
+import { createShellSession, launchCaxri, revealSettingsSection } from './support/helpers.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const cliPath = join(projectRoot, 'apps', 'cli', 'dist', 'caxri.cjs');
@@ -182,7 +182,10 @@ test('shares settings across an app-managed Server and Desktop', async () => {
         });
         await createShellSession(running.page);
         await running.page.keyboard.press('Meta+,');
-        const clipboardSetting = running.page.getByRole('switch', {
+        // Settings rows are virtualized, so reveal the Terminal section before querying its switch.
+        const settingsDialog = running.page.getByRole('dialog');
+        await revealSettingsSection(settingsDialog, 'Terminal');
+        const clipboardSetting = settingsDialog.getByRole('switch', {
             name: 'Allow OSC 52 clipboard writes',
         });
         await expect(clipboardSetting).toBeChecked();
