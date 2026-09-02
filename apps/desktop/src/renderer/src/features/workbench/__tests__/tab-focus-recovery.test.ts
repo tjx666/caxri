@@ -11,7 +11,7 @@ const ids = (): (() => string) => {
 function terminalActiveLayout() {
     const id = ids();
     return openResource(
-        createPaneLayout({ kind: 'editor', path: '/repo/README.md' }, id),
+        createPaneLayout({ kind: 'file', path: '/repo/README.md' }, id),
         { kind: 'terminal', terminalId: 'terminal-new' },
         {},
         id,
@@ -22,7 +22,7 @@ function editorActiveLayout() {
     const id = ids();
     return openResource(
         createPaneLayout({ kind: 'terminal', terminalId: 'terminal-old' }, id),
-        { kind: 'editor', path: '/repo/README.md' },
+        { kind: 'file', path: '/repo/README.md' },
         {},
         id,
     );
