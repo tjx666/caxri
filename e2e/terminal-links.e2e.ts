@@ -19,7 +19,6 @@ import {
 test('Terminal links open Project files and confirm URLs through Main', async () => {
     allowE2EErrors([
         { source: 'desktop', event: 'ipc.request_failed', code: 'INTERNAL', count: 1 },
-        { source: 'desktop', event: 'ipc.request_failed', code: 'NOT_FOUND', count: 1 },
         { source: 'server-core', event: 'ipc.request_failed', code: 'NOT_FOUND', count: 1 },
     ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-links-e2e-'));
@@ -487,7 +486,6 @@ test('Terminal detected-link picker opens file and OSC 8 links without a pointer
     allowE2EErrors([
         { source: 'desktop', event: 'ipc.request_failed', code: 'PATH_DENIED', count: 1 },
         { source: 'server-core', event: 'ipc.request_failed', code: 'PATH_DENIED', count: 1 },
-        { source: 'desktop', event: 'ipc.request_failed', code: 'NOT_FOUND', count: 1 },
         { source: 'server-core', event: 'ipc.request_failed', code: 'NOT_FOUND', count: 1 },
     ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-link-picker-e2e-'));

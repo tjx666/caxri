@@ -113,14 +113,28 @@ test('issue-104-error-gate: observes a page exception while the UI remains usabl
     }
 });
 
+/**
+ * `project.create` with a `rootPath` that was never granted through the folder-picker flow fails entirely inside
+ * Desktop's {@link ../../apps/desktop/src/main/root-grants.ts | ProjectRootGrants} before any Server round trip, so it
+ * stays at `error` level even though `NOT_FOUND` and `VALIDATION` demote to `warn` for ordinary caller-side input.
+ */
+const UNGRANTED_ROOT_PATH = '/caxri-e2e-error-gate-ungranted-root';
+
 errorGateSelfTest(
     'issue-104-error-gate: rejects an unexpected Desktop error after usable UI',
     // eslint-disable-next-line no-empty-pattern -- Playwright requires the first test argument to be an object destructuring pattern
     async ({}, testInfo) => {
         await expectGateFailure(
             testInfo,
-            'Unexpected E2E errors: desktop/ipc.request_failed/VALIDATION x1',
-            () => observeIpcFailure(testInfo, 'desktop-unallowed', 'e2e.invalid', {}, 'VALIDATION'),
+            'Unexpected E2E errors: desktop/ipc.request_failed/PATH_DENIED x1 [methods: project.create]',
+            () =>
+                observeIpcFailure(
+                    testInfo,
+                    'desktop-unallowed',
+                    'project.create',
+                    { rootPath: UNGRANTED_ROOT_PATH },
+                    'PATH_DENIED',
+                ),
         );
     },
 );
@@ -128,9 +142,15 @@ errorGateSelfTest(
 // eslint-disable-next-line no-empty-pattern -- Playwright requires the first test argument to be an object destructuring pattern
 test('issue-104-error-gate: consumes one exact Desktop error after usable UI', async ({}, testInfo) => {
     allowE2EErrors([
-        { source: 'desktop', event: 'ipc.request_failed', code: 'VALIDATION', count: 1 },
+        { source: 'desktop', event: 'ipc.request_failed', code: 'PATH_DENIED', count: 1 },
     ]);
-    await observeIpcFailure(testInfo, 'desktop-allowed', 'e2e.invalid', {}, 'VALIDATION');
+    await observeIpcFailure(
+        testInfo,
+        'desktop-allowed',
+        'project.create',
+        { rootPath: UNGRANTED_ROOT_PATH },
+        'PATH_DENIED',
+    );
 });
 
 errorGateSelfTest(
@@ -139,7 +159,7 @@ errorGateSelfTest(
     async ({}, testInfo) => {
         await expectGateFailure(
             testInfo,
-            'Unexpected E2E errors: desktop/ipc.request_failed/NOT_FOUND x1, server-core/ipc.request_failed/NOT_FOUND x1 [methods: terminal.restart]',
+            'Unexpected E2E errors: server-core/ipc.request_failed/NOT_FOUND x1 [methods: terminal.restart]',
             () =>
                 observeIpcFailure(
                     testInfo,
@@ -153,9 +173,8 @@ errorGateSelfTest(
 );
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires the first test argument to be an object destructuring pattern
-test('issue-104-error-gate: consumes exact Desktop and Server errors after usable UI', async ({}, testInfo) => {
+test('issue-104-error-gate: consumes one exact Server error after usable UI', async ({}, testInfo) => {
     allowE2EErrors([
-        { source: 'desktop', event: 'ipc.request_failed', code: 'NOT_FOUND', count: 1 },
         { source: 'server-core', event: 'ipc.request_failed', code: 'NOT_FOUND', count: 1 },
     ]);
     await observeIpcFailure(
