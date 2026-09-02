@@ -30,6 +30,7 @@ import type {
 import { terminalScope } from './execution-scope';
 import type { TerminalInputReceipt } from './input-queue';
 import { TerminalInputQueue } from './input-queue';
+import { buildShutdownCaptures } from './shutdown-captures';
 
 /**
  * Bounds accepted-but-not-yet-delivered input while allowing short bursts to coalesce. The private protocol has a
@@ -699,6 +700,10 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         this.close(terminalId);
     }
 
+    markCoreStopping(): void {
+        this.supervisor.markCoreStopping?.();
+    }
+
     reassignSession(terminalId: string, sessionId: string): void {
         const identity = this.identities.get(terminalId);
         if (!identity) return;
@@ -761,20 +766,12 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
             .map(({ record }) => record.id)
             .toArray();
         await this.settleHotPaths(liveIds);
-        const snapshots = await this.supervisor.shutdown();
-        const snapshotByTerminal = new Map(
-            snapshots.map((snapshot) => [snapshot.terminalId, snapshot]),
-        );
+        const { failures, snapshots } = await this.supervisor.shutdown(liveIds.length);
         this.retireAllInputQueues('Terminal shut down before input completed');
         this.identities.clear();
         this.resizeQueues.clear();
         this.views.clear();
-        return liveIds.map((terminalId) => ({
-            terminalId,
-            capture: snapshotByTerminal.has(terminalId)
-                ? Promise.resolve(snapshotByTerminal.get(terminalId)!)
-                : Promise.reject(new Error('Terminal Host shutdown omitted the final snapshot')),
-        }));
+        return buildShutdownCaptures(liveIds, snapshots, failures);
     }
 
     onEvent(listener: (event: TerminalExecutionEvent) => void): () => void {

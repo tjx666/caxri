@@ -51,8 +51,8 @@ class InputExitTerminalHostControl implements TerminalHostControl {
         this.input.resolve({ accepted: true });
     }
 
-    shutdown(): Promise<TerminalSnapshot[]> {
-        return Promise.resolve([]);
+    shutdown(): Promise<{ failures: never[]; snapshots: TerminalSnapshot[] }> {
+        return Promise.resolve({ failures: [], snapshots: [] });
     }
 }
 

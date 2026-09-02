@@ -535,7 +535,7 @@ describe('architecture-a3b-terminal-host: RemoteTerminalExecution', () => {
         vi.spyOn(control, 'shutdown').mockImplementationOnce(async () => {
             shutdownStarted.resolve();
             await releaseShutdown.promise;
-            return [snapshot];
+            return { failures: [], snapshots: [snapshot] };
         });
         control.holdInputRequests = true;
         await execution.attach(terminal.id);
