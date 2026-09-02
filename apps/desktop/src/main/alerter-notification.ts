@@ -23,6 +23,10 @@ export interface AlerterNotificationDriver {
 }
 
 interface CreateAlerterNotificationDriverOptions {
+    /**
+     * Absolute path of the image alerter shows as the app icon; omitted, alerter falls back to its own Terminal glyph.
+     */
+    appIconPath?: string;
     candidates?: readonly string[];
     resolveExecutable?: () => Promise<string | undefined>;
     spawnProcess?: (
@@ -32,9 +36,13 @@ interface CreateAlerterNotificationDriverOptions {
     ) => ChildProcess;
 }
 
-export function buildAlerterArguments(notification: AgentSystemNotification): string[] {
+export function buildAlerterArguments(
+    notification: AgentSystemNotification,
+    appIconPath?: string,
+): string[] {
     return [
         '--json',
+        ...(appIconPath === undefined ? [] : ['--app-icon', appIconPath]),
         '--title',
         notification.title,
         '--message',
@@ -135,9 +143,13 @@ export function createAlerterNotificationDriver(
 
                 let output = '';
                 try {
-                    child = spawnProcess(executablePath, buildAlerterArguments(notification), {
-                        stdio: ['ignore', 'pipe', 'ignore'],
-                    });
+                    child = spawnProcess(
+                        executablePath,
+                        buildAlerterArguments(notification, options.appIconPath),
+                        {
+                            stdio: ['ignore', 'pipe', 'ignore'],
+                        },
+                    );
                 } catch {
                     reportFailure('spawn_failed');
                     return;

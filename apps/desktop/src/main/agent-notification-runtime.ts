@@ -8,9 +8,14 @@ import type { BrowserWindow } from 'electron';
 import { createAgentNotificationDelivery } from './agent-notification-delivery';
 import type { AgentNotificationCoordinator } from './agent-notifications';
 import { createAgentNotificationCoordinator } from './agent-notifications';
+import { createAlerterNotificationDriver } from './alerter-notification';
 import type { DesktopServerConnection } from './server-connection';
 
 interface DesktopAgentNotificationOptions {
+    /**
+     * Icon for the alerter fallback used by unsigned builds; see `resolveNotificationAppIconPath`.
+     */
+    appIconPath?: string;
     focusMainWindow: () => Promise<BrowserWindow>;
     getWindow: () => BrowserWindow | undefined;
     logger: () => StructuredLogger | undefined;
@@ -41,12 +46,14 @@ export async function activateAgentNotificationSession(
  * before changing durable selection, so stale system notifications cannot navigate to an archived or deleted Session.
  */
 export function createDesktopAgentNotifications({
+    appIconPath,
     focusMainWindow,
     getWindow,
     logger,
     supervisor,
 }: DesktopAgentNotificationOptions): AgentNotificationCoordinator {
     const delivery = createAgentNotificationDelivery({
+        alerter: createAlerterNotificationDriver({ appIconPath }),
         forceNative: process.env.CAXRI_E2E === '1',
         logger,
     });

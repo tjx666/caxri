@@ -19,7 +19,7 @@ import { isBenignRendererErrorMessage } from '../shared/renderer-error-policy';
 import { shouldEnableAcceptanceAccessibility } from './acceptance-accessibility';
 import { createDesktopAgentNotifications } from './agent-notification-runtime';
 import type { AgentNotificationCoordinator } from './agent-notifications';
-import { resolveDevelopmentDockIconPath } from './app-icon';
+import { resolveDevelopmentDockIconPath, resolveNotificationAppIconPath } from './app-icon';
 import type { AppQuitIntent } from './app-quit';
 import { confirmAppQuit, createAppQuitHandler, notifyAppQuitStopFailure } from './app-quit';
 import { updateArgvConfig } from './argv-config';
@@ -750,6 +750,11 @@ if (ownsProfileInstance) {
             )
                 return;
             agentNotifications = createDesktopAgentNotifications({
+                appIconPath: resolveNotificationAppIconPath({
+                    currentDirectory,
+                    isPackaged: app.isPackaged,
+                    resourcesPath: process.resourcesPath,
+                }),
                 focusMainWindow,
                 getWindow: () => mainWindow,
                 logger: () => mainLogger,

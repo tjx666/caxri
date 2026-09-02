@@ -45,6 +45,9 @@ describe('alerter notification adapter', () => {
             '--group',
             'caxri-agent-session-session-1',
         ]);
+        expect(buildAlerterArguments(notification, '/app/Resources/icon.icns').slice(0, 3)).toEqual(
+            ['--json', '--app-icon', '/app/Resources/icon.icns'],
+        );
     });
 
     it('routes only a content click back into Caxri', () => {
