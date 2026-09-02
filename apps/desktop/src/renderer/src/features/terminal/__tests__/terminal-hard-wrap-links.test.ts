@@ -1,11 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { TERMINAL_DEFAULT_WORD_SEPARATORS } from '../terminal-file-candidate';
 import type { TerminalLinkContext } from '../terminal-links';
-import {
-    joinCodexHardWrappedFileLink,
-    registerTerminalLinks,
-    TERMINAL_DEFAULT_WORD_SEPARATORS,
-} from '../terminal-links';
+import { joinCodexHardWrappedFileLink, registerTerminalLinks } from '../terminal-links';
 import { cellsFor, createTerminal } from './terminal-links-test-helpers';
 
 const FIRST_FRAGMENT = '/Users/tj/code/lobehub-cloud-2-';

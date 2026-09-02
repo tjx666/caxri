@@ -1,6 +1,16 @@
 import type { EditorNavigationTarget, TerminalOscLinkSnapshot } from '@caxri/protocol';
 import type { ILink, Terminal } from '@xterm/xterm';
 
+import type { RawToken } from './terminal-file-candidate';
+import {
+    CJK_PROSE_BOUNDARIES,
+    detachPathCandidateFromCjkProse,
+    hasAmbiguousCjkProsePrefix,
+    isLikelyFilePath,
+    TERMINAL_DEFAULT_WORD_SEPARATORS,
+    trailingCjkProseOffset,
+    unsupportedHomeRanges,
+} from './terminal-file-candidate';
 import {
     parseTerminalFileLocation,
     TERMINAL_FILE_LOCATION_SUFFIX_PATTERN,
@@ -24,7 +34,6 @@ import {
 import type { TerminalLinkReferenceContext } from './terminal-reference-links';
 import { findTerminalReferenceLinks } from './terminal-reference-links';
 
-const CJK_PROSE_BOUNDARIES = new Set(['、', '，', '。', '；', '：', '！', '？']);
 const EXPLICIT_TERMINAL_URL_PATTERN = /https?:\/\/[^\s<>"'`]+/giu;
 /**
  * Plain text needs explicit CJK prose boundaries while OSC 8 targets retain every valid Unicode URL character.
@@ -32,12 +41,6 @@ const EXPLICIT_TERMINAL_URL_PATTERN = /https?:\/\/[^\s<>"'`]+/giu;
 const PLAIN_TEXT_URL_PATTERN = /https?:\/\/[^\s<>"'`、，。；：！？（）]+/giu;
 const TERMINAL_FILE_LINK_HINT_TEXT = '⌘ click to open in editor';
 const TERMINAL_URL_LINK_HINT_TEXT = '⌘ click to open in browser';
-
-/**
- * Matches the VS Code `terminal.integrated.wordSeparators` default (leading space included). The
- * `terminal.wordSeparators` setting overrides it; this constant is only the not-yet-loaded fallback.
- */
-export const TERMINAL_DEFAULT_WORD_SEPARATORS = ' ()[]{}\',"`─‘’“”|';
 
 /**
  * The picker uses a non-virtualized cmdk list, so both descriptor count and retained target bytes need hard bounds even
@@ -124,71 +127,6 @@ export interface TerminalLinkRegistration {
     restoreOscLinks(snapshots: readonly TerminalOscLinkSnapshot[]): void;
 }
 
-/**
- * Only the current user's exact `~/...` shorthand is actionable. Server owns OS user lookup and deliberately rejects
- * other shell expansion forms so the Renderer never guesses at environment or account semantics.
- */
-function isCurrentUserHomePath(path: string): boolean {
-    return /^~\/.+/.test(path);
-}
-
-function isUnsupportedHomePath(path: string): boolean {
-    return (
-        path === '~' ||
-        path === '~/' ||
-        /^~[^/]+(?:\/|$)/.test(path) ||
-        /^\$(?:HOME|\{HOME\})(?:\/|$)/.test(path)
-    );
-}
-
-/**
- * Word separators can split unsupported Home syntax at any configured character and expose a suffix as a false file
- * link. Preserve its original-line range so none of the fragments can become actionable.
- */
-function unsupportedHomeRanges(text: string): Array<{ endIndex: number; startIndex: number }> {
-    return Array.from(text.matchAll(/(?:~[^/\s]+|\$(?:HOME|\{HOME\}))\/\S*/gu), (match) => ({
-        endIndex: match.index + match[0].length,
-        startIndex: match.index,
-    }));
-}
-
-function isLikelyFilePath(path: string): boolean {
-    if (/^[0-9a-f]{7,40}\.\.[0-9a-f]{7,40}$/i.test(path)) return false;
-    if (isCurrentUserHomePath(path)) return true;
-    if (isUnsupportedHomePath(path)) return false;
-    if (/^file:\/\//i.test(path)) return true;
-    if (/^[a-z][a-z\d+.-]*:\/\//i.test(path)) return false;
-    if (path.startsWith('/') || path.startsWith('./') || path.startsWith('../')) return true;
-    /**
-     * A slash alone is not enough evidence for bare CJK prose such as `账单/配置状态`. Require a Han final segment to look
-     * like a filename; an extensionless target can still opt in with an explicit `./`, `../`, absolute, Home, or
-     * file-URL prefix. ASCII extensionless paths such as `src/Makefile` retain the existing Terminal behavior.
-     */
-    if (path.includes('/')) {
-        if (path.startsWith('-')) return false;
-        const finalSegment = path.slice(path.lastIndexOf('/') + 1);
-        if (!/\p{Script=Han}/u.test(finalSegment)) return true;
-        return (
-            /^\.[\w-]+$/u.test(finalSegment) || /^[^/:]+\.[a-z\d][\w-]{0,15}$/iu.test(finalSegment)
-        );
-    }
-    return /^[^/:]+\.[a-z\d][\w-]{0,15}$/i.test(path);
-}
-
-/**
- * A bare first segment containing sentence punctuation is indistinguishable from adjacent CJK prose, so it must not
- * become a link by guessing where the path starts. Explicit `./`, `../`, `/`, and `file://` candidates are detached
- * before this check, while punctuation in later segments remains unambiguous.
- */
-function hasAmbiguousCjkProsePrefix(path: string): boolean {
-    const firstSlash = path.indexOf('/');
-    if (firstSlash <= 0) return false;
-    for (let index = 0; index < firstSlash; index += 1) {
-        if (CJK_PROSE_BOUNDARIES.has(path[index])) return true;
-    }
-    return false;
-}
-
 function locationPathStart(text: string, pathEnd: number, wordSeparators: string): number {
     let start = pathEnd;
     while (start > 0) {
@@ -255,11 +193,6 @@ function findLocationFileLinks(
     return links;
 }
 
-interface RawToken {
-    index: number;
-    text: string;
-}
-
 /**
  * Merges the URL and file passes without re-sorting their already ordered results.
  */
@@ -307,33 +240,6 @@ function tokenizeByWordSeparators(text: string, wordSeparators: string): RawToke
 }
 
 /**
- * Detaches a path suffix from CJK prose only when the suffix has an explicit path marker. Bare Project-relative paths
- * remain ambiguous (`目录。version/file.ts` may be one valid path), so treating every CJK punctuation mark as a separator
- * would corrupt them. The implicit boundaries apply only to the default setting; custom word separators retain exact
- * control over tokenization.
- */
-function detachPathCandidateFromCjkProse(token: RawToken, wordSeparators: string): RawToken {
-    if (wordSeparators !== TERMINAL_DEFAULT_WORD_SEPARATORS) return token;
-    const firstSlash = token.text.indexOf('/');
-    const searchStart = (firstSlash === -1 ? token.text.length : firstSlash) - 1;
-    for (let index = searchStart; index >= 0; index -= 1) {
-        if (!CJK_PROSE_BOUNDARIES.has(token.text[index])) continue;
-        const candidate = token.text.slice(index + 1);
-        const trimmed = trimTerminalLinkToken(candidate);
-        if (
-            !trimmed.text.startsWith('.') &&
-            !trimmed.text.startsWith('/') &&
-            !/^file:\/\//i.test(trimmed.text)
-        )
-            return token;
-        if (!trimmed.text || !isLikelyFilePath(parseTerminalFileLocation(trimmed.text).target))
-            return token;
-        return { index: token.index + index + 1, text: candidate };
-    }
-    return token;
-}
-
-/**
  * Extracts bounded URL and file candidates from rendered text without surrounding prose.
  */
 export function findTerminalLinks(
@@ -368,7 +274,7 @@ export function findTerminalLinks(
     let locationLinkIndex = 0;
     for (const rawToken of tokenizeByWordSeparators(text, wordSeparators)) {
         const token = detachPathCandidateFromCjkProse(rawToken, wordSeparators);
-        const raw = token.text;
+        const raw = token.text.slice(0, trailingCjkProseOffset(token.text, wordSeparators));
         const rawStart = token.index;
         const trimmed = trimTerminalLinkToken(raw);
         if (!trimmed.text) continue;

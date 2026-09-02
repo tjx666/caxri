@@ -40,10 +40,10 @@ import {
 } from './terminal-actions';
 import { isAgentProcessRunning } from './terminal-agent-runtime';
 import { getTerminalExitPresentation } from './terminal-exit-presentation';
+import { TERMINAL_DEFAULT_WORD_SEPARATORS } from './terminal-file-candidate';
 import { terminalFontFamily } from './terminal-fonts';
 import { openTerminalLinkPicker } from './terminal-link-actions';
 import { TerminalLinkPicker } from './terminal-link-picker';
-import { TERMINAL_DEFAULT_WORD_SEPARATORS } from './terminal-links';
 import type { TerminalSearchOptions } from './terminal-search';
 import {
     initialTerminalSearchState,
