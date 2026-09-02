@@ -1,6 +1,6 @@
 {
     "name": "caxri",
-    "version": "0.0.30",
+    "version": "0.0.31",
     "description": "Public ESM API for Caxri extensions.",
     "type": "module",
     "sideEffects": false,
