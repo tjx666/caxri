@@ -144,7 +144,6 @@ const fileName = z
             !name.includes('\0'),
         'File name must not contain path separators',
     );
-const canceled = canceledResultSchema;
 const externalOpenResult = z.discriminatedUnion('status', [
     z.object({ status: z.literal('opened') }),
     z.object({ status: z.literal('canceled') }),
@@ -355,7 +354,7 @@ export const methods = {
     'project.delete': {
         ...desktopWrite,
         params: z.object({ projectId: identifierSchema }),
-        result: z.union([canceled, bootstrapStateSchema]),
+        result: z.union([canceledResultSchema, bootstrapStateSchema]),
     },
     'project.reorder': {
         ...serverWrite,
@@ -390,7 +389,7 @@ export const methods = {
     'session.delete': {
         ...desktopWrite,
         params: z.object({ sessionId: identifierSchema }),
-        result: z.union([canceled, bootstrapStateSchema]),
+        result: z.union([canceledResultSchema, bootstrapStateSchema]),
     },
     'session.select': {
         ...serverWrite,
@@ -504,7 +503,7 @@ export const methods = {
             location: editorNavigationTargetSchema.optional(),
         }),
         result: z.union([
-            canceled,
+            canceledResultSchema,
             z.object({ opened: z.literal(true) }),
             terminalFileLinkAmbiguousResultSchema,
         ]),
@@ -616,7 +615,7 @@ export const methods = {
              */
             hasUnsavedChanges: z.boolean().optional(),
         }),
-        result: z.union([canceled, mutableFileEntrySchema]),
+        result: z.union([canceledResultSchema, mutableFileEntrySchema]),
     },
     'files.read': {
         ...serverRead,
