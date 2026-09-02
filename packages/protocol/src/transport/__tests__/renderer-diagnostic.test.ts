@@ -160,6 +160,17 @@ describe('Renderer diagnostic contract', () => {
         );
     });
 
+    it('accepts a seeded resize burst where changeCount equals sampleCount', () => {
+        const seededDiagnostic = {
+            ...validResizeBurstDiagnostic,
+            sampleCount: 1,
+            changeCount: 1,
+            localAppliedCount: 1,
+            requestCount: 1,
+        };
+        expect(rendererDiagnosticSchema.parse(seededDiagnostic)).toEqual(seededDiagnostic);
+    });
+
     it('accepts a bounded content-free OSC 52 clipboard write failure', () => {
         expect(rendererDiagnosticSchema.parse(validOsc52ClipboardWriteFailureDiagnostic)).toEqual(
             validOsc52ClipboardWriteFailureDiagnostic,
@@ -267,7 +278,7 @@ describe('Renderer diagnostic contract', () => {
 
     it('rejects internally inconsistent resize burst aggregates', () => {
         for (const invalid of [
-            { changeCount: validResizeBurstDiagnostic.sampleCount },
+            { changeCount: validResizeBurstDiagnostic.sampleCount + 1 },
             { localAppliedCount: validResizeBurstDiagnostic.sampleCount + 1 },
             { requestCount: validResizeBurstDiagnostic.sampleCount + 1 },
             { minCols: validResizeBurstDiagnostic.maxCols + 1 },
