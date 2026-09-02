@@ -53,6 +53,13 @@ export class PtyResizeBurstObserver {
         const aggregate = state.accumulator.reset();
         if (!aggregate) return;
         const sampleCount = Math.min(aggregate.sampleCount, RESIZE_BURST_MAX_SAMPLES);
+        const changeCount = Math.min(aggregate.changeCount, sampleCount - 1);
+        /**
+         * Production evidence: repeated same-size resize samples (ResizeObserver firing without a grid change) produced
+         * 72 zero-change `pty.resize_burst` lines across 5 days. A burst with no grid change carries no diagnostic
+         * value, so skip the write entirely rather than recording it.
+         */
+        if (changeCount === 0) return;
         try {
             this.logger.write('info', logEventCatalog.pty.resizeBurst, {
                 fields: {
@@ -60,7 +67,7 @@ export class PtyResizeBurstObserver {
                     terminalId,
                     side: 'terminal-host-pty',
                     sampleCount,
-                    changeCount: Math.min(aggregate.changeCount, sampleCount - 1),
+                    changeCount,
                     startCols: aggregate.start.cols,
                     startRows: aggregate.start.rows,
                     minCols: aggregate.minimum.cols,
