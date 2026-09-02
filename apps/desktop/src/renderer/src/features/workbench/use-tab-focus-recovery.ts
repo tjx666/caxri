@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef } from 'react';
 
 import type { PaneLayout } from '@caxri/protocol';
-import { activePane } from '@caxri/protocol';
 
 import { workTabId } from '../tabs/work-tab-accessibility';
+import type { PaneFocusOrigin } from './tab-focus-recovery';
+import { planTabFocusRecovery } from './tab-focus-recovery';
 
 /**
  * Hands keyboard focus back to a real tab after a layout change destroys the one that had it.
@@ -20,7 +21,7 @@ import { workTabId } from '../tabs/work-tab-accessibility';
  * hear anything. Resolving the target from the fresh layout instead covers all three from one place.
  */
 export function useTabFocusRecovery(layout: PaneLayout | undefined): void {
-    const wasPaneFocused = useRef(false);
+    const focusOrigin = useRef<PaneFocusOrigin>('none');
     const layoutReference = useRef(layout);
     const recover = useCallback((): void => {
         /**
@@ -30,25 +31,21 @@ export function useTabFocusRecovery(layout: PaneLayout | undefined): void {
         requestAnimationFrame(() => {
             // Recovering only from `document.body` — the browser's "nothing is focused" state — keeps this to repairing
             // a loss rather than competing for focus with anything that legitimately took it in the meantime.
-            const current = layoutReference.current;
-            if (!current || !wasPaneFocused.current || document.activeElement !== document.body)
-                return;
-            const pane = activePane(current);
-            const tab =
-                pane.tabs.find((candidate) => candidate.id === pane.activeTabId) ?? pane.tabs.at(0);
-            if (!tab) return;
+            if (document.activeElement !== document.body) return;
+            const target = planTabFocusRecovery(layoutReference.current, focusOrigin.current);
+            if (!target) return;
             /**
              * Scoped to the active pane's own bar: a tab dragged across panes exists twice for the length of the exit
              * animation — the arriving copy plus the leaving `inert` ghost in the old bar — and a document-order lookup
              * by id would find the ghost, where `focus()` silently does nothing.
              */
             const button = document
-                .querySelector(`[data-pane-tab-bar="${CSS.escape(pane.id)}"]`)
-                ?.querySelector<HTMLElement>(`:scope #${CSS.escape(workTabId(tab.id))}`);
+                .querySelector(`[data-pane-tab-bar="${CSS.escape(target.paneId)}"]`)
+                ?.querySelector<HTMLElement>(`:scope #${CSS.escape(workTabId(target.tabId))}`);
             if (!button) return;
             // The same marker `navigate` sets, for the same reason: activating a Terminal otherwise hands focus to
             // xterm, which would undo the WAI-ARIA tab focus this is restoring. `WorkTab` clears it on blur.
-            if (tab.resource.kind === 'terminal') button.dataset.preserveTerminalFocus = 'true';
+            if (target.preserveTerminalFocus) button.dataset.preserveTerminalFocus = 'true';
             button.focus();
         });
     }, []);
@@ -60,7 +57,9 @@ export function useTabFocusRecovery(layout: PaneLayout | undefined): void {
          *
          * The whole pane counts, not just its tab bar: a Terminal hands focus to xterm's helper textarea the moment its
          * pane activates, so a tab-bar-only flag would read "the user left" for the most ordinary state there is, and
-         * switch the recovery off for the tab that Terminal is sitting in.
+         * switch the recovery off for the tab that Terminal is sitting in. Which part of the pane held focus still
+         * matters, though: `planTabFocusRecovery` lets an activated Terminal keep its own auto-focus when the user was
+         * typing in pane content rather than navigating the tab bar.
          */
         const onFocusIn = (event: FocusEvent): void => {
             if (!(event.target instanceof Element)) return;
@@ -71,7 +70,13 @@ export function useTabFocusRecovery(layout: PaneLayout | undefined): void {
              * lands on `document.body` and nothing is left to notice.
              */
             if (event.target.closest('[role="menu"], [role="menuitem"], [role="dialog"]')) return;
-            wasPaneFocused.current = Boolean(event.target.closest('[data-pane-id]'));
+            // Only a work tab itself counts as tab-bar origin: the bar's "+" and editor action buttons are ordinary
+            // controls whose activation should hand focus to the resulting content, not back to a tab.
+            focusOrigin.current = event.target.closest('.work-tab')
+                ? 'tab-bar'
+                : event.target.closest('[data-pane-id]')
+                  ? 'content'
+                  : 'none';
         };
         /**
          * The primary trigger. The `inert` blur that ends a tab's exit animation fires _after_ the layout commit that
@@ -80,7 +85,7 @@ export function useTabFocusRecovery(layout: PaneLayout | undefined): void {
          */
         const onFocusOut = (event: FocusEvent): void => {
             // Focus moving somewhere real is the user's own doing; only focus going nowhere is a loss to repair.
-            if (event.relatedTarget || !wasPaneFocused.current) return;
+            if (event.relatedTarget || focusOrigin.current === 'none') return;
             recover();
         };
         addEventListener('focusin', onFocusIn);
