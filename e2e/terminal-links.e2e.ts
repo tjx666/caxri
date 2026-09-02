@@ -3,9 +3,9 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 import { execFileAsync } from '@caxri/system';
-import type { ElectronApplication } from '@playwright/test';
 import type { MessageBoxOptions } from 'electron';
 
+import type { E2EApp } from './support/electron-app.ts';
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import {
     clickTerminalLink,
@@ -25,7 +25,7 @@ interface LinkProbe {
 }
 
 function linkProbeField<K extends 'confirmations' | 'opened'>(
-    app: ElectronApplication,
+    app: E2EApp,
     probe: LinkProbeName,
     field: K,
 ): Promise<LinkProbe[K] | undefined> {
@@ -36,11 +36,7 @@ function linkProbeField<K extends 'confirmations' | 'opened'>(
     );
 }
 
-function setLinkProbeResponse(
-    app: ElectronApplication,
-    probe: LinkProbeName,
-    response: number,
-): Promise<void> {
+function setLinkProbeResponse(app: E2EApp, probe: LinkProbeName, response: number): Promise<void> {
     return app.evaluate(
         (_electron, [name, value]) => {
             (globalThis as unknown as Record<string, LinkProbe | undefined>)[name]!.response =
