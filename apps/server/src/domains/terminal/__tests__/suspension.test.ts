@@ -38,7 +38,7 @@ function session(id: string, primaryAgentTerminalId: string) {
         hasUnread: false,
         createdAt: START,
         updatedAt: START,
-    } as SessionRecord;
+    } as unknown as SessionRecord;
 }
 
 function createHarness(options: { selected?: string; settings?: Partial<AppSettings> } = {}) {
@@ -56,7 +56,7 @@ function createHarness(options: { selected?: string; settings?: Partial<AppSetti
     const events: ServerEvent[] = [];
     let poller: PollerRegistrationOptions | undefined;
     const suspend = vi.fn((terminalId: string) => {
-        if (!live.has(terminalId)) return;
+        if (!live.has(terminalId)) return Promise.resolve(undefined);
         live.delete(terminalId);
         const record = terminals.get(terminalId)!;
         const suspended = terminal(terminalId, record.sessionId, {

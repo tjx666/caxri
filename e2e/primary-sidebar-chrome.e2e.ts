@@ -584,7 +584,7 @@ test('work tabs divide evenly, leave a draggable titlebar, and pin New Terminal 
     }
 });
 
-test('Session archive hides active navigation without stopping Terminals and can restore', async () => {
+test('Session archive hides active navigation, parks its Terminals, and restores on selection', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-archive-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -604,10 +604,8 @@ test('Session archive hides active navigation without stopping Terminals and can
             'Archived investigation',
         );
         await expect(running.page.locator('.session-card')).toHaveCount(2);
-        const runningBeforeArchive = await pageRequest<number>(
-            running.page,
-            'terminal.runningCount',
-        );
+        const runningCount = () => pageRequest<number>(running.page, 'terminal.runningCount');
+        const runningBeforeArchive = await runningCount();
 
         const secondRow = sessionCard(running.page, secondSessionId).locator('..');
         await secondRow.hover();
@@ -615,9 +613,8 @@ test('Session archive hides active navigation without stopping Terminals and can
 
         await expect(sessionCard(running.page, secondSessionId)).toHaveCount(0);
         await expect(sessionCard(running.page, firstSessionId)).toHaveClass(/active/);
-        await expect
-            .poll(() => pageRequest<number>(running.page, 'terminal.runningCount'))
-            .toBe(runningBeforeArchive);
+        // An archived Session has no viewer, so its live Terminal is parked (suspended) rather than kept resident.
+        await expect.poll(runningCount).toBe(runningBeforeArchive - 1);
         await expect(running.page.locator('.project-group .archived-sessions')).toHaveCount(0);
         // The per-Project archived-count badge was dropped from the primarySidebar, so archived Sessions
         // leave no primarySidebar trace and the manager's only entry point is Settings.
@@ -641,11 +638,12 @@ test('Session archive hides active navigation without stopping Terminals and can
         await restore.click();
 
         await expect(running.page.locator('.session-card')).toHaveCount(2);
-        await expect
-            .poll(() => pageRequest<number>(running.page, 'terminal.runningCount'))
-            .toBe(runningBeforeArchive);
         await dialog.getByRole('button', { name: 'Done' }).click();
         await expect(dialog).toHaveCount(0);
+        // Restoring alone leaves the Terminal parked; selecting the Session relaunches it.
+        await sessionCard(running.page, secondSessionId).click();
+        await expect(sessionCard(running.page, secondSessionId)).toHaveClass(/active/);
+        await expect.poll(runningCount).toBe(runningBeforeArchive);
         const snapshot = await pageRequest<{
             sessions: Array<{ archivedAt?: number; id: string }>;
         }>(running.page, 'app.bootstrap');
