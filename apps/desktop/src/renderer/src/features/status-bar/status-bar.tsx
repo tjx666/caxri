@@ -21,6 +21,7 @@ import {
     Monitor,
     Pause,
     Workflow,
+    ZapOff,
 } from 'lucide-react';
 
 import { useContainerWidth } from '@/hooks/use-container-width';
@@ -57,6 +58,10 @@ import {
     terminalProgressLabel,
     useTerminalProgress,
 } from '../terminal/terminal-progress';
+import {
+    terminalRendererIndicator,
+    useTerminalRendererStatus,
+} from '../terminal/terminal-renderer-status';
 import { useActivePaneTab } from '../workbench/pane-actions';
 import { resolveChipVisibility } from './chip-priority';
 
@@ -199,12 +204,13 @@ function ActiveTerminalStatus({
     terminalId: string;
 }) {
     const progress = useTerminalProgress(terminalId);
+    const renderer = terminalRendererIndicator(useTerminalRendererStatus(terminalId));
     const usage = usePolledQuery(
         'terminal.resources',
         { terminalId },
         { label: 'terminal.resources', intervalMs: 2_000, staleTime: 1_000, retry: false },
     ).data;
-    if (!usage && !progress) return null;
+    if (!usage && !progress && !renderer) return null;
     const childLabel = usage
         ? `${usage.childProcessCount} ${usage.childProcessCount === 1 ? 'child process' : 'child processes'}`
         : undefined;
@@ -218,6 +224,16 @@ function ActiveTerminalStatus({
                 : Gauge;
     return (
         <>
+            {renderer && (
+                <StatusInfo
+                    ariaLabel={renderer.ariaLabel}
+                    className="statusbar-terminal-renderer text-warning"
+                    icon={ZapOff}
+                    title={renderer.title}
+                >
+                    {renderer.label}
+                </StatusInfo>
+            )}
             {progress && (
                 <StatusInfo
                     ariaLabel={terminalProgressAriaLabel(progress)}
