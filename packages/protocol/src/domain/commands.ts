@@ -35,6 +35,7 @@ export const commandIds = [
     'workbench.nextTab',
     'workbench.previousTab',
     'editor.save',
+    'editor.sendReferenceToTerminal',
     'workbench.splitLeft',
     'workbench.splitRight',
     'workbench.splitUp',

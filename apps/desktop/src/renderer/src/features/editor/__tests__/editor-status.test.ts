@@ -1,18 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import type { EditorStatus } from '../editor-status';
 import { editorLanguageLabel, editorStatusKey, useEditorStatusStore } from '../editor-status';
 
-interface EditorStatusFixture {
-    line: number;
-    column: number;
-    selectedCharacters: number;
-    languageId: string;
-}
-
-function status(overrides: Partial<EditorStatusFixture> = {}): EditorStatusFixture {
+function status(overrides: Partial<EditorStatus> = {}): EditorStatus {
     return {
         line: 1,
         column: 1,
+        selectionStartLine: overrides.line ?? 1,
+        selectionEndLine: overrides.line ?? 1,
         selectedCharacters: 0,
         languageId: 'typescript',
         ...overrides,

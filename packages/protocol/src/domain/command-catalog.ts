@@ -260,6 +260,14 @@ export const commandDefinitions: CommandDefinition[] = [
         description: 'Save the active file',
     },
     {
+        id: 'editor.sendReferenceToTerminal',
+        title: 'Send File Reference to Terminal',
+        category: 'Editor',
+        description:
+            'Type the active file path and cursor line (`@path#L12`) into the most recently opened Terminal',
+        keywords: ['mention', 'at', 'line', 'path', 'agent'],
+    },
+    {
         id: 'workbench.splitLeft',
         title: 'Split Left',
         category: 'Workbench',
@@ -535,6 +543,11 @@ export const defaultKeybindings: Keybinding[] = [
     { key: 'cmd+alt+arrowdown', command: 'workbench.focusPaneDown' },
     { key: 'cmd+w', command: 'workbench.closeActiveTab' },
     { key: 'cmd+s', command: 'editor.save' },
+    /**
+     * `Cmd+Alt+K` mirrors the "copy selection reference" chord used with VS Code agent extensions. It must fire while
+     * Monaco owns focus, so the command opts into `allowInEditable`.
+     */
+    { key: 'cmd+alt+k', command: 'editor.sendReferenceToTerminal' },
     ...filesCoreKeybindings,
     { key: 'cmd+2', command: 'secondarySidebar.showGit' },
     { key: 'cmd+3', command: 'secondarySidebar.showStatus' },
@@ -615,5 +628,9 @@ export const defaultKeybindingChanges = [
     {
         type: 'add',
         binding: terminalCompleteAndSubmitKeybinding,
+    },
+    {
+        type: 'add',
+        binding: { key: 'cmd+alt+k', command: 'editor.sendReferenceToTerminal' },
     },
 ] satisfies readonly DefaultKeybindingChange[];
