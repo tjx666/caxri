@@ -11,17 +11,19 @@ import { logEventCatalog, mapWithConcurrency } from '@caxri/system';
 import { parseGitHubRemote } from '@caxri/utils';
 import { z } from 'zod';
 
-import type { AgentEnvironment } from './agents/contract';
-import { defaultAgentEnvironment } from './agents/contract';
-import { resolveAgentTranscriptLocation } from './agents/transcript';
-import type { TranscriptPullRequestScan } from './agents/transcript-pull-requests';
+import type {
+    AgentEnvironment,
+    AgentTranscriptLocation,
+    TranscriptPullRequestScan,
+} from './agents';
 import {
     createTranscriptPullRequestScan,
+    defaultAgentEnvironment,
     resetTranscriptPullRequestScan,
+    resolveAgentTranscriptLocation,
+    scanTranscriptLines,
     scanTranscriptPullRequestLine,
-} from './agents/transcript-pull-requests';
-import { scanTranscriptLines } from './agents/transcript-scan';
-import type { AgentTranscriptLocation } from './agents/transcript-security';
+} from './agents';
 import type { CaxriDatabase } from './db';
 import type { GitService } from './git';
 import { parseGitHubPullRequest } from './project-status';
