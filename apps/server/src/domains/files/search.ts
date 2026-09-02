@@ -30,6 +30,12 @@ export interface SearchServiceOptions {
     workerPath?: string;
 }
 
+/**
+ * `file` matches only regular single-link files (Terminal link resolution); `directory` matches only real directories
+ * (path-browser subpath fallback). Symbolic links never match either kind.
+ */
+export type ProjectSuffixLeafKind = 'directory' | 'file';
+
 export interface ProjectFileSuffixSearchResult {
     matches: FileSearchMatch[];
     scannedDirectories: number;
@@ -186,6 +192,7 @@ export class SearchService {
         startedAt: number,
         maximumDirectories: number,
         maximumMatches: number,
+        leafKind: ProjectSuffixLeafKind,
     ): Promise<SuffixProbeResult> {
         let states = [{ directory, entries }];
         let scannedDirectories = 0;
@@ -202,12 +209,17 @@ export class SearchService {
                     if (entry.name.toLowerCase() !== segment.toLowerCase()) continue;
                     const path = join(state.directory, entry.name);
                     if (isLastSegment) {
-                        // eslint-disable-next-line unicorn/no-break-in-nested-loop -- only regular leaf entries can match
-                        if (!entry.isFile()) continue;
+                        // eslint-disable-next-line unicorn/no-break-in-nested-loop -- only leaf entries of the requested kind can match
+                        if (leafKind === 'file' ? !entry.isFile() : !entry.isDirectory()) continue;
                         try {
                             // eslint-disable-next-line no-await-in-loop -- only matching suffix leaves are verified
                             const stats = await lstat(path);
-                            if (stats.isFile() && stats.nlink === 1) paths.push(path);
+                            if (
+                                leafKind === 'file'
+                                    ? stats.isFile() && stats.nlink === 1
+                                    : stats.isDirectory()
+                            )
+                                paths.push(path);
                         } catch (error) {
                             this.logSkipped(path, error);
                         }
@@ -285,6 +297,7 @@ export class SearchService {
         root: string,
         suffix: string,
         signal: AbortSignal,
+        leafKind: ProjectSuffixLeafKind = 'file',
     ): Promise<ProjectFileSuffixSearchResult> {
         const startedAt = performance.now();
         const rootBefore = await lstat(root);
@@ -337,6 +350,7 @@ export class SearchService {
                 startedAt,
                 this.maxScannedDirectories - scannedDirectories,
                 this.maxResults - matches.length,
+                leafKind,
             );
             scannedDirectories += probe.scannedDirectories;
             matches.push(
@@ -379,7 +393,7 @@ export class SearchService {
             durationMs: performance.now() - startedAt,
             fields: {
                 sessionId,
-                mode: 'path-suffix',
+                mode: leafKind === 'file' ? 'path-suffix' : 'directory-suffix',
                 scannedDirectories,
                 matchCount: canceled ? 0 : matches.length,
                 truncated: canceled ? false : isTruncated,

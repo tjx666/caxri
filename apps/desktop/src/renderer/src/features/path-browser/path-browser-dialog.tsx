@@ -1,6 +1,6 @@
 import { ChevronLeft, CornerDownLeft, FilePlus, FolderPlus } from 'lucide-react';
 
-import { Dialog, DialogContent, DialogTitle } from '../../components/ui/dialog';
+import { Dialog, DialogTitle, PickerDialogContent } from '../../components/ui/dialog';
 import { Input, InputGroup } from '../../components/ui/input';
 import { FileTypeIcon } from '../../icons/files/file-type-icon';
 import { cn } from '../../lib/utilities';
@@ -62,10 +62,7 @@ function PathBrowserContent({
     } = usePathBrowser(projectRoot, sessionId, workbenchProjectId);
 
     return (
-        <DialogContent
-            className="top-[18%] w-[min(620px,calc(100vw-32px))] translate-y-0 overflow-hidden"
-            showCloseButton={false}
-        >
+        <PickerDialogContent className="w-[min(620px,calc(100vw-32px))]">
             <DialogTitle className="sr-only">Open File by Path</DialogTitle>
             <InputGroup appearance="toolbar" size="palette">
                 <button
@@ -197,6 +194,6 @@ function PathBrowserContent({
                 {mode === 'project' && <span>⌫ at start Browse anywhere</span>}
                 <span>Esc Close</span>
             </div>
-        </DialogContent>
+        </PickerDialogContent>
     );
 }

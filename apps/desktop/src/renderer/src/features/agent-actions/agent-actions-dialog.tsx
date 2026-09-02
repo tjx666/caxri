@@ -19,7 +19,7 @@ import {
     CommandItem,
     CommandList,
 } from '../../components/ui/command';
-import { Dialog, DialogContent, DialogTitle } from '../../components/ui/dialog';
+import { Dialog, DialogTitle, PickerDialogContent } from '../../components/ui/dialog';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { caxri } from '../../lib/caxri';
 import { useCaxriQuery } from '../../queries/client';
@@ -212,11 +212,9 @@ export function AgentActionsDialog() {
                 else if (!inputSequenceInFlightReference.current) closePicker();
             }}
         >
-            <DialogContent
-                className="top-[18%] w-[min(560px,calc(100vw-32px))] translate-y-0 overflow-hidden"
+            <PickerDialogContent
                 data-agent-actions-picker=""
                 data-target-terminal-id={terminalId}
-                showCloseButton={false}
                 finalFocus={() => {
                     if (terminalId && shouldRestoreTerminalFocusReference.current)
                         focusTerminalById(terminalId);
@@ -368,7 +366,7 @@ export function AgentActionsDialog() {
                         </span>
                     </div>
                 </div>
-            </DialogContent>
+            </PickerDialogContent>
         </Dialog>
     );
 }
