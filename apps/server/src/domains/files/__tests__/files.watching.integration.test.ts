@@ -3,7 +3,9 @@ import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promi
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { ServerEvent } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
+import type parcelWatcher from '@parcel/watcher';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CaxriDatabase } from '../../db/repository';
@@ -336,6 +338,64 @@ describe('FileService watcher and polling behavior', () => {
 
         await service.close();
         expect(secondUnsubscribe).toHaveBeenCalledOnce();
+        database.close();
+    });
+
+    it('reconciles once and stays native on a must-rescan FSEvents advisory, without falling back', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-file-watch-must-rescan-'));
+        temporaryDirectories.push(directory);
+        const root = join(directory, 'project');
+        await mkdir(root);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const session = database.createSession(database.createProject(root).id, 'shell').session;
+        const events: ServerEvent[] = [];
+        let callback: Parameters<typeof parcelWatcher.subscribe>[1] | undefined;
+        let subscribeCalls = 0;
+        const subscribe: typeof parcelWatcher.subscribe = (_root, onEvents) => {
+            subscribeCalls += 1;
+            callback = onEvents;
+            return Promise.resolve({ unsubscribe: () => Promise.resolve() });
+        };
+        const onRootUnavailable = vi.fn();
+        const logger = new StructuredLogger(join(directory, 'logs'));
+        const service = new FileService(
+            database,
+            (event) => events.push(event),
+            logger,
+            () => 1024,
+            { subscribe, onRootUnavailable },
+        );
+
+        await service.watchSession(session.id);
+        expect(callback).toBeDefined();
+        // FSEventsBackend.cc's MustScanSubDirs advisory: the native stream stays alive, so the callback fires again
+        // with no events and this exact message (see `watch-hub.ts`'s `isMustRescanAdvisory`).
+        callback!(
+            new Error(
+                'Events were dropped by the FSEvents client. File system must be re-scanned.',
+            ),
+            [],
+        );
+
+        await expect
+            .poll(() => events.filter((event) => event.event === 'files.changed'))
+            .toHaveLength(1);
+        const batch = events.find((event) => event.event === 'files.changed')!;
+        expect(batch.payload).toMatchObject({ changes: [], overflow: true });
+        // Only the initial subscribe call: the advisory never degrades to polling, so no resubscribe attempt runs.
+        expect(subscribeCalls).toBe(1);
+        expect(onRootUnavailable).not.toHaveBeenCalled();
+
+        await logger.flush();
+        const records = (await readFile(logger.path, 'utf8'))
+            .trim()
+            .split('\n')
+            .map((line) => JSON.parse(line) as { event: string });
+        expect(records.some((record) => record.event === 'watch_hub.rescan')).toBe(true);
+        expect(records.some((record) => record.event === 'watcher.fallback')).toBe(false);
+        expect(records.some((record) => record.event === 'watch_hub.fallback')).toBe(false);
+
+        await service.close();
         database.close();
     });
 });

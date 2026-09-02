@@ -18,16 +18,13 @@ import {
     CaxriError,
     createCommandDispatcher,
     createProtocolWelcome,
-    fromWireError,
     isBinaryStreamMethod,
     localClientCommandSchema,
     localClientDesktopOperationCommandSchema,
     localClientDesktopReadySchema,
-    localClientDesktopReplySchema,
     localClientDesktopTargetConsumeSchema,
     localClientHelloSchema,
     localClientLeaseRenewSchema,
-    localServerDesktopCommandSchema,
     localServerDesktopOperationReplySchema,
     localServerDesktopTargetReplySchema,
     localServerLeaseRenewedSchema,
@@ -42,20 +39,27 @@ import type { WebSocketServer } from 'ws';
 import { BinaryStreamControl } from './binary-stream-control';
 import { BinaryStreamRuntime } from './binary-stream-runtime';
 import { listenForControlConnections } from './control-listener';
+import type { DesktopLeaseHost, PendingDesktopCommand } from './control-server-desktop-lease';
+import {
+    clearLeaseLivenessProbe,
+    closeReplacedDesktop,
+    DESKTOP_LEASE_MS,
+    didHandleDesktopReply,
+    renewDesktop,
+    revokeDesktop,
+    routeDesktopOperation,
+} from './control-server-desktop-lease';
 import type {
     ClientState,
     ControlServerOptions,
+    ControlSocketTerminationReason,
     DesktopLeaseWaiter,
     OrderedQueueTiming,
-    PendingDesktopCommand,
 } from './control-server-support';
 import {
     assertDurableRecoveryIdentity,
-    closeReplacedDesktop,
     controlCapacityReply,
     controlMessageText,
-    DESKTOP_COMMAND_TIMEOUT_MS,
-    DESKTOP_LEASE_MS,
     executeReply,
     HANDSHAKE_TIMEOUT_MS,
     isConcurrentRead,
@@ -65,6 +69,7 @@ import {
     operatorContext,
     reserveControlRequest,
     shouldSettleOutsideOrderedLane,
+    terminateSocket,
     trackControlRequest,
     untrackControlRequest,
     writeAgentControlEvent,
@@ -110,62 +115,14 @@ export class ControlServer {
         });
     }
 
-    private settleDesktopReply(state: ClientState, raw: unknown): boolean {
-        const parsed = localClientDesktopReplySchema.safeParse(raw);
-        if (!parsed.success) return false;
-        const pending = parsed.data.reply.id
-            ? this.pendingDesktopCommands.get(parsed.data.reply.id)
-            : undefined;
-        if (!pending) return true;
-        if (
-            pending.state !== state ||
-            this.currentDesktop !== state ||
-            parsed.data.generation !== state.desktopLease?.generation
-        )
-            return true;
-        clearTimeout(pending.timer);
-        this.pendingDesktopCommands.delete(parsed.data.reply.id!);
-        if (parsed.data.reply.ok) pending.resolve(parsed.data.reply.result);
-        else pending.reject(fromWireError(parsed.data.reply.error));
-        return true;
-    }
-
-    private rejectDesktopCommands(state: ClientState): void {
-        for (const [id, pending] of this.pendingDesktopCommands) {
-            if (pending.state !== state) continue;
-            clearTimeout(pending.timer);
-            this.pendingDesktopCommands.delete(id);
-            pending.reject(new CaxriError('UNAVAILABLE', 'Desktop capability lease ended'));
-        }
-    }
-
-    private revokeDesktop(state: ClientState, shouldNotifyUnavailable = true): void {
-        if (state.leaseTimer) clearTimeout(state.leaseTimer);
-        state.leaseTimer = undefined;
-        const connectionId = state.context.connection?.connectionId;
-        if (connectionId) {
-            this.binaryStreams.revokeConnection(connectionId, 'stale-generation');
-            this.binaryRuntime.revokeConnection(connectionId, 'stale-generation');
-        }
-        this.rejectDesktopCommands(state);
-        this.clients.delete(state.socket);
-        const wasCurrent = this.currentDesktop === state;
-        if (wasCurrent) this.currentDesktop = undefined;
-        this.options.onClientCountChanged?.(this.clients.size, 'disconnected');
-        if (wasCurrent && shouldNotifyUnavailable) this.options.onDesktopUnavailable?.();
-    }
-
-    private renewDesktop(state: ClientState): DesktopLease {
-        const lease = state.desktopLease;
-        if (!lease || this.currentDesktop !== state)
-            throw new CaxriError('CONFLICT', 'Desktop capability lease is stale');
-        if (state.leaseTimer) clearTimeout(state.leaseTimer);
-        const durationMs = this.options.desktopLeaseDurationMs ?? DESKTOP_LEASE_MS;
-        const renewed = { ...lease, expiresAt: Date.now() + durationMs };
-        state.desktopLease = renewed;
-        state.leaseTimer = setTimeout(() => this.revokeDesktop(state), durationMs);
-        state.leaseTimer.unref();
-        return renewed;
+    /**
+     * Desktop lease arming/revocation lives in `control-server-desktop-lease.ts` as plain `DesktopLeaseHost` functions
+     * (see `DESKTOP_LEASE_GRACE_MS` there). The cast below is safe — `this` structurally satisfies `DesktopLeaseHost`
+     * at runtime; TypeScript only rejects a plain assignment because the members it needs are `private` here, and a
+     * private member can satisfy assignability only against another private member of the exact same class.
+     */
+    private get leaseHost(): DesktopLeaseHost {
+        return this as unknown as DesktopLeaseHost;
     }
 
     private writeCommandReply(
@@ -179,14 +136,20 @@ export class ControlServer {
         if (this.options.shouldDropCommandReply?.(request, reply, context)) {
             release();
             untrackControlRequest(state, request.id);
-            socket.terminate();
+            terminateSocket(socket, 'reply-drop-injected', this.options.logger, context);
             return;
         }
-        writeControlMessage(socket, localServerReplySchema.parse({ type: 'reply', reply }), () => {
-            release();
-            untrackControlRequest(state, request.id);
-            this.options.onReplyFlushed?.(request, reply, context);
-        });
+        writeControlMessage(
+            socket,
+            localServerReplySchema.parse({ type: 'reply', reply }),
+            () => {
+                release();
+                untrackControlRequest(state, request.id);
+                this.options.onReplyFlushed?.(request, reply, context);
+            },
+            this.options.logger,
+            context,
+        );
     }
 
     private async dispatchCommand(
@@ -224,7 +187,13 @@ export class ControlServer {
                 startedAt,
                 timing,
             );
-            writeControlMessage(socket, localServerReplySchema.parse({ type: 'reply', reply }));
+            writeControlMessage(
+                socket,
+                localServerReplySchema.parse({ type: 'reply', reply }),
+                undefined,
+                this.options.logger,
+                state.context,
+            );
             return;
         }
         const release = reserveControlRequest(state);
@@ -238,7 +207,13 @@ export class ControlServer {
                 startedAt,
                 timing,
             );
-            writeControlMessage(socket, localServerReplySchema.parse({ type: 'reply', reply }));
+            writeControlMessage(
+                socket,
+                localServerReplySchema.parse({ type: 'reply', reply }),
+                undefined,
+                this.options.logger,
+                state.context,
+            );
             return;
         }
         trackControlRequest(state, request.id);
@@ -283,7 +258,7 @@ export class ControlServer {
                 logControlRequestOutcome(this.options, request, reply, context, startedAt, timing);
                 this.writeCommandReply(socket, state, request, reply, context, release);
             } catch {
-                socket.terminate();
+                terminateSocket(socket, 'reply-settle-failed', this.options.logger, context);
             }
         };
         if (shouldSettleOutsideLane) {
@@ -320,6 +295,8 @@ export class ControlServer {
                 reply,
             }),
             release,
+            this.options.logger,
+            state.context,
         );
     }
 
@@ -349,12 +326,25 @@ export class ControlServer {
                 reply,
             }),
             release,
+            this.options.logger,
+            state.context,
         );
     }
 
     private accept(socket: WebSocket): void {
         this.sockets.add(socket);
-        const handshakeTimer = setTimeout(() => socket.terminate(), HANDSHAKE_TIMEOUT_MS);
+        /**
+         * Local shorthand: every termination in this handler shares the same socket and logger, so binding them once
+         * here keeps each call site to the part that actually varies.
+         */
+        const terminate = (
+            reason: ControlSocketTerminationReason,
+            context?: CommandExecutionContext,
+        ): void => terminateSocket(socket, reason, this.options.logger, context);
+        const handshakeTimer = setTimeout(
+            () => terminate('handshake-timeout'),
+            HANDSHAKE_TIMEOUT_MS,
+        );
         let state: ClientState | undefined;
         let queue = Promise.resolve();
         let orderedBacklog = 0;
@@ -374,7 +364,7 @@ export class ControlServer {
             state.closed = true;
             state.inFlightRequests = 0;
             if (!this.clients.has(socket)) return;
-            if (state.desktopLease) this.revokeDesktop(state);
+            if (state.desktopLease) revokeDesktop(this.leaseHost, state, true, 'connection-closed');
             else {
                 this.clients.delete(socket);
                 this.options.onClientCountChanged?.(this.clients.size, 'disconnected');
@@ -384,21 +374,21 @@ export class ControlServer {
         socket.on('error', () => {});
         socket.on('message', (data, isBinary) => {
             if (isBinary) {
-                socket.terminate();
+                terminate('binary-frame-received', state?.context);
                 return;
             }
             let raw: unknown;
             try {
                 raw = JSON.parse(controlMessageText(data)) as unknown;
             } catch {
-                socket.terminate();
+                terminate('invalid-message', state?.context);
                 return;
             }
             /**
              * Reverse replies must settle outside the ordered protocol-control queue to avoid a Desktop request
              * deadlocking while Server Core routes a nested window operation back.
              */
-            if (state && this.settleDesktopReply(state, raw)) return;
+            if (state && didHandleDesktopReply(this.leaseHost, state, raw)) return;
             const nestedTarget = state
                 ? localClientDesktopTargetConsumeSchema.safeParse(raw)
                 : undefined;
@@ -408,12 +398,13 @@ export class ControlServer {
              * still bound this lane.
              */
             if (state?.context.principal.kind === 'desktop' && nestedTarget?.success) {
+                const desktopState = state;
                 // This branch intentionally bypasses `queue` to avoid the nested-command
                 // deadlock described above, and the enclosing 'data' handler is synchronous,
                 // so the dispatch here must be fire-and-forget rather than awaited.
                 // eslint-disable-next-line unicorn/prefer-await -- see comment above
-                this.dispatchDesktopTargetConsume(socket, state, nestedTarget.data).catch(() =>
-                    socket.terminate(),
+                this.dispatchDesktopTargetConsume(socket, desktopState, nestedTarget.data).catch(
+                    () => terminate('desktop-target-consume-failed', desktopState.context),
                 );
                 return;
             }
@@ -430,17 +421,26 @@ export class ControlServer {
                         socket,
                         localServerLeaseRenewedSchema.parse({
                             type: 'desktop-lease.renewed',
-                            lease: this.renewDesktop(state),
+                            lease: renewDesktop(this.leaseHost, state),
                         }),
+                        undefined,
+                        this.options.logger,
+                        state.context,
                     );
                 } catch {
-                    socket.terminate();
+                    terminate('lease-renew-stale-generation', state.context);
                 }
                 return;
             }
             const streamTicket = state ? this.binaryStreams.issue(state, raw) : undefined;
             if (streamTicket) {
-                writeControlMessage(socket, streamTicket);
+                writeControlMessage(
+                    socket,
+                    streamTicket,
+                    undefined,
+                    this.options.logger,
+                    state?.context,
+                );
                 return;
             }
             const immediateCommand = state ? localClientCommandSchema.safeParse(raw) : undefined;
@@ -469,7 +469,9 @@ export class ControlServer {
                     this.dispatchCommand(socket, clientState, immediateRequest, undefined, true),
                 );
                 // eslint-disable-next-line unicorn/prefer-await -- the synchronous data callback cannot await
-                cancellation.catch(() => socket.terminate());
+                cancellation.catch(() =>
+                    terminate('cancellation-dispatch-failed', clientState.context),
+                );
                 return;
             }
             // `queue` preserves handshake, control, and mutation order across repeated invocations of this
@@ -486,26 +488,26 @@ export class ControlServer {
                         const hello = localClientHelloSchema.parse(raw);
                         const identity = this.options.identity;
                         if (hello.profileId !== identity.profileId) {
-                            socket.terminate();
+                            terminate('hello-profile-mismatch');
                             return;
                         }
                         let context: CommandExecutionContext;
                         let desktopLease: DesktopLease | undefined;
                         if (hello.credential.kind === 'operator') {
                             if (!isTokenMatch(hello.credential.token, identity.operatorToken)) {
-                                socket.terminate();
+                                terminate('hello-operator-token-mismatch');
                                 return;
                             }
                             context = operatorContext(identity.profileId);
                         } else if (hello.credential.kind === 'agent') {
                             if (!this.options.authenticateAgent) {
-                                socket.terminate();
+                                terminate('hello-agent-auth-unavailable');
                                 return;
                             }
                             try {
                                 context = this.options.authenticateAgent(hello.credential);
                             } catch {
-                                socket.terminate();
+                                terminate('hello-agent-auth-failed');
                                 return;
                             }
                         } else {
@@ -515,7 +517,7 @@ export class ControlServer {
                                 credential.processIdentity !== identity.processIdentity ||
                                 !isTokenMatch(hello.credential.token, credential.desktopToken)
                             ) {
-                                socket.terminate();
+                                terminate('hello-desktop-credential-mismatch');
                                 return;
                             }
                             const generation = ++this.desktopGeneration;
@@ -536,8 +538,8 @@ export class ControlServer {
                             };
                             if (this.currentDesktop) {
                                 const replaced = this.currentDesktop;
-                                this.revokeDesktop(replaced, false);
-                                closeReplacedDesktop(replaced);
+                                revokeDesktop(this.leaseHost, replaced, false, 'replaced');
+                                closeReplacedDesktop(replaced, this.options.logger);
                             }
                         }
                         const protocolIdentity = this.options.protocolIdentity ?? {
@@ -573,7 +575,7 @@ export class ControlServer {
                         this.clients.set(socket, nextState);
                         if (desktopLease) {
                             this.currentDesktop = nextState;
-                            this.renewDesktop(nextState);
+                            renewDesktop(this.leaseHost, nextState);
                         }
                         this.options.onClientCountChanged?.(this.clients.size, 'connected');
                         writeControlMessage(
@@ -585,6 +587,9 @@ export class ControlServer {
                                 ...(desktopLease && { desktopLease: nextState.desktopLease }),
                                 ...welcome,
                             }),
+                            undefined,
+                            this.options.logger,
+                            context,
                         );
                         return;
                     }
@@ -623,8 +628,10 @@ export class ControlServer {
                                 ),
                         );
                         if (isConcurrentRead(operationCommand.data.request.method)) {
-                            // eslint-disable-next-line promise/no-nesting, unicorn/prefer-await -- reads settle outside the ordered lane
-                            dispatch.catch(() => socket.terminate());
+                            // eslint-disable-next-line unicorn/prefer-await -- reads settle outside the ordered lane
+                            dispatch.catch(() =>
+                                terminate('desktop-operation-dispatch-failed', clientState.context),
+                            );
                         } else await dispatch;
                         return;
                     }
@@ -645,13 +652,15 @@ export class ControlServer {
                         ),
                     );
                     if (isConcurrentRead(command.request.method)) {
-                        // eslint-disable-next-line promise/no-nesting, unicorn/prefer-await -- reads settle outside the ordered lane
-                        dispatch.catch(() => socket.terminate());
+                        // eslint-disable-next-line unicorn/prefer-await -- reads settle outside the ordered lane
+                        dispatch.catch(() =>
+                            terminate('command-dispatch-failed', clientState.context),
+                        );
                     } else await dispatch;
                 })
                 // eslint-disable-next-line unicorn/prefer-await -- see queue-chaining note above
                 .catch(() => {
-                    socket.terminate();
+                    terminate('queue-processing-failed', state?.context);
                 })
                 // eslint-disable-next-line unicorn/prefer-await -- see queue-chaining note above
                 .finally(() => {
@@ -692,37 +701,12 @@ export class ControlServer {
     }
 
     /**
-     * Routes one typed window operation to exactly the current Desktop generation.
+     * Routes one typed window operation to exactly the current Desktop generation. Implementation lives in
+     * `routeDesktopOperation` in `control-server-desktop-lease.ts`, alongside the rest of the `DesktopLeaseHost`
+     * group.
      */
     invokeDesktop(operation: DesktopOperation, expectedGeneration: number): Promise<unknown> {
-        const state = this.currentDesktop;
-        const lease = state?.desktopLease;
-        if (!state || !lease || !state.desktopReady)
-            return Promise.reject(new CaxriError('UNAVAILABLE', 'Desktop is unavailable'));
-        if (lease.generation !== expectedGeneration)
-            return Promise.reject(
-                new CaxriError('CONFLICT', 'Desktop capability lease changed before routing'),
-            );
-        const id = randomUUID();
-        return new Promise((resolve, reject) => {
-            const timer = setTimeout(() => {
-                this.pendingDesktopCommands.delete(id);
-                reject(new CaxriError('TIMEOUT', 'Desktop command timed out'));
-            }, DESKTOP_COMMAND_TIMEOUT_MS);
-            this.pendingDesktopCommands.set(id, { reject, resolve, state, timer });
-            writeControlMessage(
-                state.socket,
-                localServerDesktopCommandSchema.parse({
-                    type: 'desktop-command',
-                    lease,
-                    request: {
-                        protocolVersion: CAXRI_PROTOCOL_VERSION,
-                        id,
-                        operation,
-                    },
-                }),
-            );
-        });
+        return routeDesktopOperation(this.leaseHost, operation, expectedGeneration);
     }
 
     async start(): Promise<ServerControlEndpoint> {
@@ -742,21 +726,21 @@ export class ControlServer {
     broadcast(event: ProtocolEventEnvelope | TransientServerEvent): void {
         const projected = typeof event.event === 'string' ? event : event.event;
         if (this.binaryRuntime.deliver(event) || projected.event === 'terminal.output') return;
-        writeDesktopControlEvent(this.currentDesktop, event);
+        writeDesktopControlEvent(this.currentDesktop, event, this.options.logger);
     }
 
     /**
      * Delivers a transient, body-free receipt only to the exact authenticated Agent generation.
      */
     broadcastAgent(endpoint: AgentEndpointReference, event: TransientServerEvent): void {
-        writeAgentControlEvent(this.clients.values(), endpoint, event);
+        writeAgentControlEvent(this.clients.values(), endpoint, event, this.options.logger);
     }
 
     /**
      * Delivers a one-shot Server UI event without placing it in the recoverable event journal.
      */
     broadcastDesktop(event: TransientServerEvent): void {
-        writeDesktopControlEvent(this.currentDesktop, event);
+        writeDesktopControlEvent(this.currentDesktop, event, this.options.logger);
     }
 
     async close(): Promise<void> {
@@ -772,9 +756,16 @@ export class ControlServer {
         this.desktopLeaseWaiters.clear();
         this.binaryRuntime.close();
         this.binaryStreams.close();
-        for (const socket of this.sockets) socket.terminate();
+        for (const socket of this.sockets)
+            terminateSocket(
+                socket,
+                'server-closing',
+                this.options.logger,
+                this.clients.get(socket)?.context,
+            );
         this.sockets.clear();
         this.clients.clear();
+        if (this.currentDesktop) clearLeaseLivenessProbe(this.currentDesktop);
         if (this.currentDesktop?.leaseTimer) clearTimeout(this.currentDesktop.leaseTimer);
         this.currentDesktop = undefined;
         this.options.onClientCountChanged?.(0, 'reset');

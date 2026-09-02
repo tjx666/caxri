@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { TERMINAL_DEFAULT_WORD_SEPARATORS } from '../terminal-file-candidate';
 import { createTerminalLinkScanner } from '../terminal-link-scanner';
 import type { TerminalLinkContext } from '../terminal-links';
-import { MAX_TERMINAL_DETECTED_LINKS, TERMINAL_DEFAULT_WORD_SEPARATORS } from '../terminal-links';
+import { MAX_TERMINAL_DETECTED_LINKS } from '../terminal-links';
 import { createTerminal } from './terminal-links-test-helpers';
 
 describe('createTerminalLinkScanner', () => {

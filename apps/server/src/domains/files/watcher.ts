@@ -131,6 +131,16 @@ export class WatcherService {
     private pendingScope?: WatchScope;
     private pendingEvents = new Map<string, FileChange['kind']>();
     private droppedEvents = 0;
+    /**
+     * Forces the next flushed batch to report `overflow: true` even though no individual change was queued for it. Set
+     * by `triggerRescan` in response to a native "must rescan" advisory: the advisory means some events may have been
+     * coalesced away, but (unlike the polling fallback's `pollDirectories`) there is no maintained signature baseline
+     * to diff against while native, so a targeted create/update/delete list cannot be reconstructed. `overflow` is the
+     * signal every Files consumer already treats as "refetch this scope regardless of the change list" (see
+     * `isDirectoryAffected` in `apps/desktop/src/renderer/src/queries/invalidation.ts`), so reusing it here is the
+     * smallest correct stand-in for a real rescan.
+     */
+    private forceRescanOverflow = false;
     private eventTimer?: NodeJS.Timeout;
     private ruleWatchHandle?: WatchHandle;
     private gitIgnoreRulePollInFlight = false;
@@ -247,6 +257,12 @@ export class WatcherService {
                     },
                 });
                 erroredHandle.startFallback(error);
+            },
+            onRescan: () => {
+                if (generation !== this.watchGeneration) return;
+                const eventScope = this.watchedScope;
+                if (!eventScope) return;
+                this.triggerRescan(eventScope);
             },
             /**
              * Signature-polling fallback over the root and user-expanded directories when the native backend cannot be
@@ -415,7 +431,7 @@ export class WatcherService {
                 sessionId: scope.sessionId,
                 workbenchProjectId: scope.workbenchProjectId,
                 changes,
-                overflow: this.droppedEvents > 0,
+                overflow: this.droppedEvents > 0 || this.forceRescanOverflow,
                 ...(this.gitIgnoreRulesChanged && { gitIgnoreRulesChanged: true as const }),
             },
         });
@@ -434,8 +450,21 @@ export class WatcherService {
         );
         this.pendingEvents.clear();
         this.droppedEvents = 0;
+        this.forceRescanOverflow = false;
         this.gitIgnoreRulesChanged = false;
         this.pendingScope = undefined;
+    }
+
+    /**
+     * Reacts to a native "must rescan" advisory (see `isMustRescanAdvisory` in `watch-hub.ts`) by asking every Files
+     * consumer to refetch this scope, without disturbing the still-live native subscription or Session validation. No
+     * `onRootUnavailable` call here: the root is not unavailable, the advisory just means the incremental change list
+     * the native backend was about to hand us cannot be trusted for one batch.
+     */
+    private triggerRescan(scope: WatchScope): void {
+        this.preparePendingBatch(scope);
+        this.forceRescanOverflow = true;
+        this.scheduleEventBatch();
     }
 
     private async readPathFingerprint(path: string): Promise<string> {
@@ -604,6 +633,7 @@ export class WatcherService {
         this.pendingEvents.clear();
         this.pendingScope = undefined;
         this.droppedEvents = 0;
+        this.forceRescanOverflow = false;
         this.gitIgnoreRulesChanged = false;
         const ruleHandle = this.ruleWatchHandle;
         this.ruleWatchHandle = undefined;

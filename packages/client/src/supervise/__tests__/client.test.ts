@@ -16,7 +16,8 @@ vi.mock('node:fs/promises', async (importOriginal) => ({
     readFile: readFileMock,
 }));
 
-import { discoverServerManifest, ServerClient } from '../client';
+import { ServerClient } from '../client';
+import { discoverServerManifest } from '../discovery';
 import { ensureServer } from '../server-supervisor';
 
 const temporaryDirectories: string[] = [];
@@ -29,40 +30,40 @@ afterEach(async () => {
     await Promise.all(pending.map((path) => rm(path, { recursive: true, force: true })));
 });
 
-describe('ServerClient close notification', () => {
-    /**
-     * The constructor is TypeScript-private (real attachments go through `ServerClient.connect`), so this narrow
-     * lifecycle test instantiates it directly with a socket stand-in.
-     */
-    function createAttachedClient(options: { desktopLease?: unknown } = {}) {
-        const listeners = new Map<string, Array<(...arguments_: unknown[]) => void>>();
-        const socket = {
-            bufferedAmount: 0,
-            close: vi.fn(() => socket.emit('close')),
-            emit(name: string, ...arguments_: unknown[]): void {
-                const registered = listeners.get(name) ?? [];
-                for (const listener of registered) listener(...arguments_);
-            },
-            on(name: string, listener: (...arguments_: unknown[]) => void) {
-                listeners.set(name, [...(listeners.get(name) ?? []), listener]);
-                return socket;
-            },
-            readyState: 1,
-            send: vi.fn((_source: string, callback?: (error?: Error) => void) => callback?.()),
-            terminate: vi.fn(() => socket.emit('close')),
-        };
-        const construct = ServerClient as unknown as new (
-            socket: unknown,
-            welcome: unknown,
-            timeoutMs: number,
-            desktopLease?: unknown,
-        ) => ServerClient;
-        return {
-            client: new construct(socket, { protocolVersion: 1 }, 1000, options.desktopLease),
-            socket,
-        };
-    }
+/**
+ * The constructor is TypeScript-private (real attachments go through `ServerClient.connect`), so this narrow lifecycle
+ * test instantiates it directly with a socket stand-in.
+ */
+function createAttachedClient(options: { desktopLease?: unknown } = {}) {
+    const listeners = new Map<string, Array<(...arguments_: unknown[]) => void>>();
+    const socket = {
+        bufferedAmount: 0,
+        close: vi.fn(() => socket.emit('close')),
+        emit(name: string, ...arguments_: unknown[]): void {
+            const registered = listeners.get(name) ?? [];
+            for (const listener of registered) listener(...arguments_);
+        },
+        on(name: string, listener: (...arguments_: unknown[]) => void) {
+            listeners.set(name, [...(listeners.get(name) ?? []), listener]);
+            return socket;
+        },
+        readyState: 1,
+        send: vi.fn((_source: string, callback?: (error?: Error) => void) => callback?.()),
+        terminate: vi.fn(() => socket.emit('close')),
+    };
+    const construct = ServerClient as unknown as new (
+        socket: unknown,
+        welcome: unknown,
+        timeoutMs: number,
+        desktopLease?: unknown,
+    ) => ServerClient;
+    return {
+        client: new construct(socket, { protocolVersion: 1 }, 1000, options.desktopLease),
+        socket,
+    };
+}
 
+describe('ServerClient close notification', () => {
     it('notifies onClose listeners exactly once when the socket closes', () => {
         const { client, socket } = createAttachedClient();
         const listener = vi.fn();
@@ -134,6 +135,85 @@ describe('ServerClient close notification', () => {
         client.close({ cancelPendingRequests: true });
 
         await expect(pending).rejects.toMatchObject({ code: 'CANCELLED' });
+    });
+
+    it('reports the raw WebSocket close code alongside the revocation reason', () => {
+        const { client, socket } = createAttachedClient();
+        const listener = vi.fn();
+        client.onClose(listener);
+
+        // A real `ws` 'close' event always carries the close code as its first argument; 1006 is the code for an
+        // abnormal closure such as `terminate()` with no close handshake — the shape a suspended-then-revoked
+        // Desktop connection produces (see https://github.com/tjx666/caxri/issues/553).
+        socket.emit('close', 1006);
+
+        expect(listener).toHaveBeenCalledWith(undefined, 1006);
+    });
+
+    it('omits the close code for an explicit local close()', () => {
+        const { client } = createAttachedClient();
+        const listener = vi.fn();
+        client.onClose(listener);
+
+        client.close();
+
+        expect(listener).toHaveBeenCalledWith(undefined, undefined);
+    });
+});
+
+describe('ServerClient.renewLeaseNow', () => {
+    it('sends an immediate lease renewal for the current generation', () => {
+        const { client, socket } = createAttachedClient({
+            desktopLease: { desktopId: 'desktop-1', generation: 7, expiresAt: 1 },
+        });
+        socket.send.mockClear();
+
+        client.renewLeaseNow();
+
+        expect(socket.send).toHaveBeenCalledTimes(1);
+        const [payload] = socket.send.mock.calls[0] as [string];
+        expect(JSON.parse(payload)).toEqual({ type: 'desktop-lease.renew', generation: 7 });
+    });
+
+    it('is a no-op without an active Desktop lease', () => {
+        const { client, socket } = createAttachedClient();
+        socket.send.mockClear();
+
+        client.renewLeaseNow();
+
+        expect(socket.send).not.toHaveBeenCalled();
+    });
+
+    it('is a no-op after the connection has closed', () => {
+        const { client, socket } = createAttachedClient({
+            desktopLease: { desktopId: 'desktop-1', generation: 7, expiresAt: 1 },
+        });
+        client.close();
+        socket.send.mockClear();
+
+        client.renewLeaseNow();
+
+        expect(socket.send).not.toHaveBeenCalled();
+    });
+
+    /**
+     * Regression coverage for https://github.com/tjx666/caxri/issues/553's follow-up: `renewLeaseNow()` is called
+     * fire-and-forget from Electron's `powerMonitor` `resume` handler. When the socket already reports a non-OPEN state
+     * after sleep, `send()` must not drop the renewal silently; it tears down the transport so the existing reconnect
+     * path (driven by the `close` listener) takes over. A socket that still reports OPEN while half-open is not
+     * detectable here; the Server's lease-expiry ping probe covers that case.
+     */
+    it('closes the transport instead of silently dropping the renewal when the socket is not open', () => {
+        const { client, socket } = createAttachedClient({
+            desktopLease: { desktopId: 'desktop-1', generation: 7, expiresAt: 1 },
+        });
+        socket.readyState = 3; // ws.CLOSED
+        socket.send.mockClear();
+
+        client.renewLeaseNow();
+
+        expect(socket.send).not.toHaveBeenCalled();
+        expect(socket.terminate).toHaveBeenCalledTimes(1);
     });
 });
 
@@ -207,7 +287,7 @@ describe('ServerClient WebSocket handshake', () => {
             const closed = vi.fn();
             client.onClose(closed);
 
-            expect(closed).toHaveBeenCalledWith('replaced');
+            expect(closed.mock.calls[0]?.[0]).toBe('replaced');
         } finally {
             client?.close();
             for (const socket of server.clients) socket.terminate();

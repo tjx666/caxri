@@ -7,7 +7,12 @@ import type {
     TerminalResourceUsage,
     TerminalSnapshot,
 } from '@caxri/protocol';
-import { CaxriError, defaultAgentOutputRecoverySettings, toWireError } from '@caxri/protocol';
+import {
+    CaxriError,
+    defaultAgentOutputRecoverySettings,
+    errorMessage,
+    toWireError,
+} from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog, mergeObservationContext, runWithObservationContext } from '@caxri/system';
 import type * as pty from 'node-pty';
@@ -28,6 +33,7 @@ import type {
     TerminalHostAuthority,
     TerminalHostMessage,
     TerminalHostRequestEnvelope,
+    TerminalShutdownFailure,
 } from './protocol';
 import {
     authorizeTerminalHostRequest,
@@ -106,6 +112,20 @@ export class TerminalHostRuntime {
     private readonly generations = new Map<string, number>();
     private readonly identities = new Map<string, RuntimeTerminalIdentity>();
     private readonly recoverySettings = new Map<AgentProvider, AgentOutputRecoverySettings>();
+    /**
+     * Memoizes the one shutdown capture this process ever performs. Both the `host.shutdown` request (Server Core's
+     * normal path) and `stopAfterParentDisconnect` (the SIGTERM/disconnect fallback in `process.ts`) can race to call
+     * this; the second caller must observe the same settled result instead of re-running PTY teardown against
+     * already-cleared identities.
+     */
+    private shutdownCapture?: Promise<{
+        failures: TerminalShutdownFailure[];
+        snapshots: TerminalSnapshot[];
+    }>;
+    /**
+     * Resolved the moment a shutdown capture actually begins; see `waitForShutdownRequest`.
+     */
+    private readonly hostShutdownRequested = Promise.withResolvers<void>();
 
     constructor(private readonly options: TerminalHostRuntimeOptions) {
         if (options.engine) {
@@ -268,6 +288,42 @@ export class TerminalHostRuntime {
         return envelope.scope;
     }
 
+    /**
+     * Captures every live Terminal's final snapshot with `allSettled` instead of `all`: one Terminal whose parser
+     * barrier rejects (e.g. a stuck write queue) must not discard every other Terminal's scrollback, which is the
+     * all-or-nothing failure this method replaces. Memoized on `shutdownCapture` because both the `host.shutdown`
+     * request and the SIGTERM/disconnect fallback (`stopAfterParentDisconnect`) can independently decide to shut down;
+     * the second caller reuses the first's already-settled result instead of tearing down cleared identities again.
+     */
+    private captureShutdown(): Promise<{
+        failures: TerminalShutdownFailure[];
+        snapshots: TerminalSnapshot[];
+    }> {
+        if (this.shutdownCapture) return this.shutdownCapture;
+        this.hostShutdownRequested.resolve();
+        this.shutdownCapture = (async () => {
+            const entries = this.engine.shutdown();
+            const settled = await Promise.allSettled(entries.map(({ capture }) => capture));
+            const snapshots: TerminalSnapshot[] = [];
+            const failures: TerminalShutdownFailure[] = [];
+            settled.forEach((outcome, index) => {
+                if (outcome.status === 'fulfilled') snapshots.push(outcome.value);
+                else
+                    failures.push({
+                        terminalId: entries[index].terminalId,
+                        // Bounded well under the protocol's 4_096-character cap so a pathological error message can
+                        // never fail the reply's own schema validation and abort the shutdown reply.
+                        error: errorMessage(outcome.reason, 'unknown').slice(0, 2_000),
+                    });
+            });
+            this.identities.clear();
+            this.colors.clear();
+            await this.options.agentLauncher?.close();
+            return { failures, snapshots };
+        })();
+        return this.shutdownCapture;
+    }
+
     private async dispatch(envelope: TerminalHostRequestEnvelope): Promise<unknown> {
         const { request } = envelope;
         switch (request.method) {
@@ -283,13 +339,8 @@ export class TerminalHostRuntime {
                     );
                 return { initialized: true };
             case 'host.shutdown': {
-                const snapshots = await Promise.all(
-                    this.engine.shutdown().map(({ capture }) => capture),
-                );
-                this.identities.clear();
-                this.colors.clear();
-                await this.options.agentLauncher?.close();
-                return { stopped: true, snapshots };
+                const { failures, snapshots } = await this.captureShutdown();
+                return { stopped: true, snapshots, ...(failures.length > 0 && { failures }) };
             }
             case 'terminal.reserve':
                 this.reserve(envelope, request.params);
@@ -605,10 +656,38 @@ export class TerminalHostRuntime {
         );
     }
 
+    /**
+     * Resolves once a shutdown capture has actually begun (through either `host.shutdown` or this same method), or
+     * after `timeoutMs` elapses, whichever is first. Terminal Host owns no filesystem or database persistence of its
+     * own — SQLite lives only in Server Core (see `.agents/skills/project-architecture`) — so a bare SIGTERM must not
+     * immediately discard captured snapshots. The entrypoint (`process.ts`) uses this to give Server Core's own
+     * `host.shutdown` request, which walks this exact capture and can persist the result, a bounded chance to arrive
+     * over the still-connected parent IPC channel before falling back to `stopAfterParentDisconnect`.
+     */
+    async waitForShutdownRequest(timeoutMs: number): Promise<boolean> {
+        if (this.shutdownCapture) return true;
+        const timedOut = Symbol('terminal-host-shutdown-wait-timed-out');
+        const requested = async (): Promise<'requested'> => {
+            await this.hostShutdownRequested.promise;
+            return 'requested';
+        };
+        const outcome = await Promise.race([
+            requested(),
+            new Promise<typeof timedOut>((resolve) => {
+                const timer = setTimeout(() => resolve(timedOut), timeoutMs);
+                timer.unref();
+            }),
+        ]);
+        return outcome !== timedOut;
+    }
+
+    /**
+     * SIGTERM/parent-disconnect fallback: captures every live Terminal's final snapshot the same way `host.shutdown`
+     * does, but the result cannot be persisted here (see `waitForShutdownRequest`) and is discarded after capture. Safe
+     * to call after `host.shutdown` already ran — `captureShutdown` reuses its memoized result instead of tearing down
+     * already-cleared identities again.
+     */
     async stopAfterParentDisconnect(): Promise<void> {
-        await Promise.all(this.engine.shutdown().map(({ capture }) => capture));
-        await this.options.agentLauncher?.close();
-        this.identities.clear();
-        this.colors.clear();
+        await this.captureShutdown();
     }
 }

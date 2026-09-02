@@ -1,6 +1,7 @@
 import type { ChildProcess } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { mkdtempSync, rmSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -40,15 +41,18 @@ class FakeChild extends EventEmitter {
 function createSupervisor(): {
     child: FakeChild;
     forkProcess: ReturnType<typeof vi.fn>;
+    logger: StructuredLogger;
     supervisor: TerminalHostSupervisor;
 } {
     const child = new FakeChild();
     const forkProcess = vi.fn(() => child as unknown as ChildProcess);
     const directory = mkdtempSync(join(tmpdir(), 'caxri-terminal-host-supervisor-'));
     temporaryDirectories.push(directory);
+    const logger = new StructuredLogger(join(directory, 'logs'), 'server-core');
     return {
         child,
         forkProcess,
+        logger,
         supervisor: new TerminalHostSupervisor({
             appVersion: '0.0.18',
             bootId,
@@ -56,7 +60,7 @@ function createSupervisor(): {
             commit: 'deadbeef',
             e2eAgentPolicy: { mode: 'real', provider: 'codex' },
             forkProcess,
-            logger: new StructuredLogger(join(directory, 'logs'), 'server-core'),
+            logger,
             outputFlushMs: 1_000,
             terminalHostPath: '/out/main/terminal-host.js',
             userDataPath: directory,
@@ -234,6 +238,51 @@ describe('architecture-a3b-terminal-host: TerminalHostSupervisor', () => {
         });
 
         await expect(resources).rejects.toMatchObject({ code: 'CANCELLED' });
-        await expect(shutdown).resolves.toEqual([]);
+        await expect(shutdown).resolves.toEqual({ failures: [], snapshots: [] });
+    });
+
+    it('scales the host.shutdown timeout with the live Terminal count and logs shutdownFailed once it elapses', async () => {
+        const { child, logger, supervisor } = createSupervisor();
+        await becomeReady(child, supervisor);
+
+        vi.useFakeTimers();
+        try {
+            // 3 live Terminals: MIN_SHUTDOWN_TIMEOUT_MS (5_000) + 3 * SHUTDOWN_TIMEOUT_PER_TERMINAL_MS (1_000) = 8_000.
+            const shutdown = supervisor.shutdown(3);
+            await vi.advanceTimersByTimeAsync(7_999);
+            expect(supervisor.diagnostics().pendingRequestCount).toBe(1);
+
+            await vi.advanceTimersByTimeAsync(1);
+            await shutdown;
+            expect(supervisor.diagnostics().pendingRequestCount).toBe(0);
+        } finally {
+            vi.useRealTimers();
+        }
+
+        await logger.flush();
+        const log = await readFile(logger.path, 'utf8');
+        expect(log).toContain('"event":"terminal_host.shutdown_failed"');
+        expect(log).toContain('"timeoutMs":8000');
+        expect(log).toContain('"expectedSnapshotCount":3');
+    });
+
+    it('caps the scaled host.shutdown timeout at MAX_SHUTDOWN_TIMEOUT_MS', async () => {
+        const { child, logger, supervisor } = createSupervisor();
+        await becomeReady(child, supervisor);
+
+        vi.useFakeTimers();
+        try {
+            const shutdown = supervisor.shutdown(100);
+            await vi.advanceTimersByTimeAsync(30_000);
+            await shutdown;
+        } finally {
+            vi.useRealTimers();
+        }
+
+        await logger.flush();
+        const log = await readFile(logger.path, 'utf8');
+        expect(log).toContain('"event":"terminal_host.shutdown_failed"');
+        expect(log).toContain('"timeoutMs":30000');
+        expect(log).toContain('"expectedSnapshotCount":100');
     });
 });

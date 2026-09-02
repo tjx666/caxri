@@ -559,7 +559,8 @@ describe('local Host transport', () => {
         // Lease replacement severs the replaced Desktop's connection instead of leaving it to
         // poll CONFLICT replies against a socket it no longer owns (GitHub issue #173).
         await expect(first.request('app.health')).rejects.toMatchObject({ code: 'UNAVAILABLE' });
-        await vi.waitFor(() => expect(firstClosed).toHaveBeenCalledWith('replaced'));
+        await vi.waitFor(() => expect(firstClosed).toHaveBeenCalled());
+        expect(firstClosed.mock.calls[0]?.[0]).toBe('replaced');
         expect(server.clientCount()).toBe(1);
         server.broadcast({
             event: 'workbench.changed',

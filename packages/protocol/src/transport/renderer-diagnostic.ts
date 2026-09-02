@@ -108,6 +108,10 @@ export const terminalResizeBurstDiagnosticSchema = z.strictObject({
     terminalId: identifierSchema,
     side: z.literal('renderer-xterm'),
     sampleCount: z.number().int().positive().max(10_000),
+    /**
+     * Grid transitions relative to the grid in force before the burst; `0` means the burst re-sampled the existing grid
+     * and never changed it.
+     */
     changeCount: resizeBurstCountSchema,
     startCols: terminalGridColumnsSchema,
     startRows: terminalGridRowsSchema,
@@ -256,7 +260,9 @@ export const rendererDiagnosticSchema = z
     ])
     .superRefine((diagnostic, context) => {
         if (diagnostic.kind === 'terminal-resize-burst') {
-            if (diagnostic.changeCount >= diagnostic.sampleCount)
+            // A burst seeded from the grid in force before it began can report one transition per real sample
+            // (seed -> sample 1 -> ... -> sample N), so changeCount may equal sampleCount but never exceed it.
+            if (diagnostic.changeCount > diagnostic.sampleCount)
                 addAggregateIssue(context, 'changeCount');
             if (diagnostic.localAppliedCount > diagnostic.sampleCount)
                 addAggregateIssue(context, 'localAppliedCount');

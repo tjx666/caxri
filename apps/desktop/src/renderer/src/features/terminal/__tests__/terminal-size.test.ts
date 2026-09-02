@@ -223,6 +223,64 @@ describe('Terminal resize burst diagnostics', () => {
         expect(disposedEmit).toHaveBeenCalledOnce();
     });
 
+    it('seeds a later burst from the previously reported grid so a one-step resize reads as a change', () => {
+        vi.useFakeTimers();
+        const emit = vi.fn();
+        const tracker = new TerminalResizeBurstTracker({ emit, now: Date.now });
+
+        tracker.sample({ cols: 120, rows: 40 }, { localApplied: true, requestSent: true });
+        vi.advanceTimersByTime(250);
+        expect(emit).toHaveBeenCalledOnce();
+        expect(emit).toHaveBeenLastCalledWith(
+            expect.objectContaining({
+                sampleCount: 1,
+                changeCount: 0,
+                startCols: 120,
+                finalCols: 120,
+            }),
+        );
+
+        tracker.sample({ cols: 130, rows: 40 }, { localApplied: true, requestSent: true });
+        vi.advanceTimersByTime(250);
+
+        expect(emit).toHaveBeenCalledTimes(2);
+        expect(emit).toHaveBeenLastCalledWith(
+            expect.objectContaining({
+                sampleCount: 1,
+                changeCount: 1,
+                startCols: 120,
+                startRows: 40,
+                finalCols: 130,
+                finalRows: 40,
+            }),
+        );
+    });
+
+    it('reports no change when a seeded burst only re-samples the existing grid', () => {
+        vi.useFakeTimers();
+        const emit = vi.fn();
+        const tracker = new TerminalResizeBurstTracker({ emit, now: Date.now });
+
+        tracker.sample({ cols: 120, rows: 40 }, { localApplied: true, requestSent: true });
+        vi.advanceTimersByTime(250);
+        expect(emit).toHaveBeenCalledOnce();
+
+        tracker.sample({ cols: 120, rows: 40 }, { localApplied: false, requestSent: true });
+        vi.advanceTimersByTime(250);
+
+        expect(emit).toHaveBeenCalledTimes(2);
+        expect(emit).toHaveBeenLastCalledWith(
+            expect.objectContaining({
+                sampleCount: 1,
+                changeCount: 0,
+                startCols: 120,
+                startRows: 40,
+                finalCols: 120,
+                finalRows: 40,
+            }),
+        );
+    });
+
     it('keeps the final grid while marking a saturated sample count as truncated', () => {
         vi.useFakeTimers();
         const emit = vi.fn();

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { findTerminalLinks, TERMINAL_DEFAULT_WORD_SEPARATORS } from '../terminal-links';
+import { TERMINAL_DEFAULT_WORD_SEPARATORS } from '../terminal-file-candidate';
+import { findTerminalLinks } from '../terminal-links';
 
 describe('Terminal reference links', () => {
     const referenceContext = {

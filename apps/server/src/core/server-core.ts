@@ -216,15 +216,23 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
     const stop = (reason = 'requested'): Promise<void> => {
         mutationAdmission.close();
         resolveStopping();
+        // Lands even if Terminal Host exits (OS SIGTERM to the tree) before `domainService.shutdown()` runs below.
+        terminalExecution.markCoreStopping?.();
         stopPromise ??= (async () => {
             logger.write('info', logEventCatalog.serverCore.stopping, { fields: { reason } });
             stopEventLoopMonitor();
+            // Yields once so `stopPromise` is assigned below before a synchronous domain-shutdown side effect (e.g. a
+            // state.changed emit) can hit `deliver`'s `if (!stopPromise)` extension-refresh branch.
+            await Promise.resolve();
+            // Captures every live Terminal's snapshot via `host.shutdown` first: the Extension Host's own graceful
+            // shutdown can wait up to 5s for its child to exit, and under the previous ordering that delay let an
+            // OS-initiated SIGTERM beat Core's `host.shutdown` request to Terminal Host.
+            await domainService.shutdown();
             await mobileAccess.close();
             await server?.close();
             agentInbox.close();
             await providerMessaging.close();
             await extensionService?.shutdown();
-            await domainService.shutdown();
             await lease.release();
             logger.write('info', logEventCatalog.serverCore.stopped, { fields: { reason } });
             resolveStopped();

@@ -1,0 +1,135 @@
+import { describe, expect, it } from 'vitest';
+
+import { findTerminalLinks } from '../terminal-links';
+
+/**
+ * Plain-text file candidates glued to CJK prose: the default word separators contain no CJK punctuation, so these
+ * boundaries are inferred from the token itself (`terminal-file-candidate.ts`).
+ */
+describe('findTerminalLinks with CJK prose', () => {
+    it('splits a path from glued CJK prose at a word-separator parenthesis', () => {
+        // Regression: `realpath '/…/串联 (src/api/workflows/es-reindex.ts)'` ENOENT — the CJK
+        // prefix and wrapping parentheses were folded into the clicked path.
+        expect(findTerminalLinks('串联 (src/api/workflows/es-reindex.ts) 已完成')).toEqual([
+            {
+                endIndex: 35,
+                kind: 'file',
+                startIndex: 4,
+                target: 'src/api/workflows/es-reindex.ts',
+                text: 'src/api/workflows/es-reindex.ts',
+            },
+        ]);
+        expect(findTerminalLinks('串联(src/api/workflows/es-reindex.ts)')).toEqual([
+            {
+                endIndex: 34,
+                kind: 'file',
+                startIndex: 3,
+                target: 'src/api/workflows/es-reindex.ts',
+                text: 'src/api/workflows/es-reindex.ts',
+            },
+        ]);
+    });
+
+    it.each(['。', '，', '：'])('splits a path from CJK prose after %s', (separator) => {
+        const text = `说明${separator}.local-config/model-config/meta.json:4`;
+
+        expect(findTerminalLinks(text)).toEqual([
+            {
+                endIndex: text.length,
+                kind: 'file',
+                location: { mode: 'line', startLine: 4, endLine: 4 },
+                startIndex: 3,
+                target: '.local-config/model-config/meta.json',
+                text: '.local-config/model-config/meta.json:4',
+            },
+        ]);
+    });
+
+    it('rejects ambiguous CJK prose while preserving an explicit relative path', () => {
+        expect(findTerminalLinks('说明。workspace/apps/server/src/file.ts:15')).toEqual([]);
+        expect(findTerminalLinks('账单/配置状态给了陌生人。')).toEqual([]);
+        expect(findTerminalLinks('./账单/配置状态 src/Makefile')).toHaveLength(2);
+    });
+
+    it('preserves CJK punctuation inside valid relative paths', () => {
+        expect(findTerminalLinks('./目录。版本/file.ts:8')).toMatchObject([
+            {
+                kind: 'file',
+                target: './目录。版本/file.ts',
+                location: { mode: 'line', startLine: 8, endLine: 8 },
+            },
+        ]);
+        expect(findTerminalLinks('docs/目录。版本/file.ts:8')).toMatchObject([
+            {
+                kind: 'file',
+                target: 'docs/目录。版本/file.ts',
+                location: { mode: 'line', startLine: 8, endLine: 8 },
+            },
+        ]);
+        expect(findTerminalLinks('docs/中文说明.md')).toMatchObject([
+            { kind: 'file', target: 'docs/中文说明.md' },
+        ]);
+    });
+
+    it('cuts glued full-width prose after the final path segment', () => {
+        // Regression: Claude Code prose such as `path（后者含密钥）。` produced no link at all because the
+        // full-width bracket is neither a word separator nor trailing punctuation.
+        const glued = '.local-config/lobehub_router_runtime_config.assembled.json（后者含密钥）。';
+        expect(findTerminalLinks(`    ${glued}`)).toEqual([
+            {
+                endIndex: 62,
+                kind: 'file',
+                startIndex: 4,
+                target: '.local-config/lobehub_router_runtime_config.assembled.json',
+                text: '.local-config/lobehub_router_runtime_config.assembled.json',
+            },
+        ]);
+        expect(findTerminalLinks('见（src/a.ts）和')).toMatchObject([
+            { kind: 'file', target: 'src/a.ts', startIndex: 2, endIndex: 10 },
+        ]);
+        expect(findTerminalLinks('「docs/b.md」。')).toMatchObject([
+            { kind: 'file', target: 'docs/b.md', startIndex: 1, endIndex: 10 },
+        ]);
+        expect(findTerminalLinks('meta.json。')).toMatchObject([
+            { kind: 'file', target: 'meta.json' },
+        ]);
+        expect(findTerminalLinks('账单/配置状态。', ' ')).toEqual([]);
+    });
+
+    it('does not turn a lone slash into a file link', () => {
+        expect(findTerminalLinks('aihubmix1 / aihubmix2 带 modelIdMapping。')).toEqual([]);
+    });
+
+    it('honors custom word separators from the terminal.wordSeparators setting', () => {
+        // Word separators still control fallback tokenization, while the higher-priority local-file
+        // parser recognizes an explicit location independently, matching VS Code's detector order.
+        expect(findTerminalLinks('串联(src/api/x.ts)', ' ')).toMatchObject([
+            { kind: 'file', target: '串联(src/api/x.ts)' },
+        ]);
+        expect(
+            findTerminalLinks('说明。.local-config/model-config/meta.json:4', ' '),
+        ).toMatchObject([
+            {
+                kind: 'file',
+                target: '说明。.local-config/model-config/meta.json',
+                location: { mode: 'line', startLine: 4, endLine: 4 },
+            },
+        ]);
+        const withColonSeparator = findTerminalLinks('src/a.ts:12', ' :');
+        expect(withColonSeparator).toMatchObject([
+            {
+                kind: 'file',
+                target: 'src/a.ts',
+                location: { mode: 'line', startLine: 12, endLine: 12 },
+            },
+        ]);
+    });
+
+    it('keeps maximal CJK prose boundary scanning bounded', () => {
+        const text = '。'.repeat(16_000);
+        const startedAt = performance.now();
+
+        expect(findTerminalLinks(text)).toEqual([]);
+        expect(performance.now() - startedAt).toBeLessThan(500);
+    });
+});

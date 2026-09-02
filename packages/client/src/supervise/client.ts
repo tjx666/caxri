@@ -1,9 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { createHash, randomUUID } from 'node:crypto';
-import type { Stats } from 'node:fs';
-import { lstat, readFile, realpath } from 'node:fs/promises';
-import { join } from 'node:path';
-import process from 'node:process';
+import { randomUUID } from 'node:crypto';
 
 import type {
     BinaryStreamOperation,
@@ -48,18 +44,25 @@ import {
     parseServerOperationRequest,
     parseServerOperationResult,
     protocolFeatures,
-    serverDesktopCredentialSchema,
     serverEndpointUrl,
-    serverManifestSchema,
     toWireError,
 } from '@caxri/protocol';
 import type { RawData } from 'ws';
 import WebSocket from 'ws';
 
 import { BinaryStreamClient } from './binary-stream-client';
+import { discoverDesktopCredential, discoverServerManifest, MAX_MANIFEST_BYTES } from './discovery';
 
-const MAX_MANIFEST_BYTES = 16 * 1024;
 const DEFAULT_TIMEOUT_MS = 15_000;
+/**
+ * Interval between background Desktop lease renewals. Kept well under Server Core's `DESKTOP_LEASE_MS` (60s,
+ * `apps/server/src/core/control-server-support.ts`) so a normally running Desktop renews several times per lease
+ * window. `renewLeaseNow` exists because this interval alone is not enough across a macOS sleep/wake cycle: both
+ * processes suspend together, so a timer that was due mid-sleep only fires once the process resumes, and Server Core's
+ * independently-suspended 60s lease timer can win that race. See `DESKTOP_LEASE_GRACE_MS` on the Server side for the
+ * other half of this fix.
+ */
+const DESKTOP_LEASE_RENEW_MS = 20_000;
 interface PendingRequest {
     parse(value: unknown): unknown;
     reject(error: Error): void;
@@ -86,134 +89,10 @@ export type ServerClientCredential =
           ): Promise<unknown>;
       };
 
-function fileSystemCode(error: unknown): string | undefined {
-    return typeof error === 'object' && error !== null && 'code' in error
-        ? String(Reflect.get(error, 'code'))
-        : undefined;
-}
-
-function profileIdFor(path: string): string {
-    return createHash('sha256').update(path).digest('hex').slice(0, 24);
-}
-
 function controlMessageText(data: RawData): string {
     if (Buffer.isBuffer(data)) return data.toString('utf8');
     if (data instanceof ArrayBuffer) return Buffer.from(data).toString('utf8');
     return Buffer.concat(data).toString('utf8');
-}
-
-/**
- * Server shutdown may unlink discovery data after `lstat`; keep that race classified as absence.
- */
-async function readDiscoveryJson(
-    path: string,
-    notFoundMessage: string,
-    malformedMessage: string,
-): Promise<unknown> {
-    let contents: string;
-    try {
-        contents = await readFile(path, 'utf8');
-    } catch (error) {
-        if (fileSystemCode(error) === 'ENOENT') throw new CaxriError('NOT_FOUND', notFoundMessage);
-        throw new CaxriError('VALIDATION', malformedMessage);
-    }
-    try {
-        return JSON.parse(contents) as unknown;
-    } catch {
-        throw new CaxriError('VALIDATION', malformedMessage);
-    }
-}
-
-/**
- * Reads only the private discovery record; business state always goes through Server commands.
- */
-export async function discoverServerManifest(userDataPath: string): Promise<ServerManifest> {
-    let canonicalPath: string;
-    try {
-        canonicalPath = await realpath(userDataPath);
-    } catch (error) {
-        if (fileSystemCode(error) === 'ENOENT')
-            throw new CaxriError('NOT_FOUND', 'The selected Caxri profile does not exist');
-        throw error;
-    }
-    const directory = join(canonicalPath, 'host');
-    const path = join(directory, 'manifest.json');
-    let metadata: Stats;
-    try {
-        const directoryMetadata = await lstat(directory);
-        if (
-            !directoryMetadata.isDirectory() ||
-            directoryMetadata.isSymbolicLink() ||
-            (directoryMetadata.mode & 0o077) !== 0 ||
-            (typeof process.getuid === 'function' && directoryMetadata.uid !== process.getuid())
-        )
-            throw new CaxriError('PATH_DENIED', 'Caxri Host discovery directory is not private');
-        metadata = await lstat(path);
-    } catch (error) {
-        if (fileSystemCode(error) === 'ENOENT')
-            throw new CaxriError('NOT_FOUND', 'No Caxri Host is running for this profile');
-        throw error;
-    }
-    if (
-        !metadata.isFile() ||
-        metadata.isSymbolicLink() ||
-        (metadata.mode & 0o077) !== 0 ||
-        (typeof process.getuid === 'function' && metadata.uid !== process.getuid())
-    )
-        throw new CaxriError('PATH_DENIED', 'Caxri Host discovery metadata is not private');
-    if (metadata.size > MAX_MANIFEST_BYTES)
-        throw new CaxriError('VALIDATION', 'Caxri Host discovery metadata is oversized');
-    const source = await readDiscoveryJson(
-        path,
-        'No Caxri Host is running for this profile',
-        'Caxri Host discovery metadata is malformed',
-    );
-    const parsed = serverManifestSchema.safeParse(source);
-    if (!parsed.success)
-        throw new CaxriError('VALIDATION', 'Caxri Host discovery metadata is invalid');
-    if (parsed.data.profileId !== profileIdFor(canonicalPath))
-        throw new CaxriError('CONFLICT', 'Caxri Host discovery profile identity does not match');
-    return parsed.data;
-}
-
-/**
- * Reads the Desktop-only credential and binds it to the current Server process identity.
- */
-export async function discoverDesktopCredential(
-    userDataPath: string,
-    manifest: ServerManifest,
-): Promise<ServerDesktopCredential> {
-    const canonicalPath = await realpath(userDataPath);
-    const path = join(canonicalPath, 'host', 'desktop-credential.json');
-    let metadata: Stats;
-    try {
-        metadata = await lstat(path);
-    } catch (error) {
-        if (fileSystemCode(error) === 'ENOENT')
-            throw new CaxriError('NOT_FOUND', 'Caxri Desktop credential is unavailable');
-        throw error;
-    }
-    if (
-        !metadata.isFile() ||
-        metadata.isSymbolicLink() ||
-        (metadata.mode & 0o077) !== 0 ||
-        (typeof process.getuid === 'function' && metadata.uid !== process.getuid()) ||
-        metadata.size > MAX_MANIFEST_BYTES
-    )
-        throw new CaxriError('PATH_DENIED', 'Caxri Desktop credential is not private');
-    const source = await readDiscoveryJson(
-        path,
-        'Caxri Desktop credential is unavailable',
-        'Caxri Desktop credential is malformed',
-    );
-    const parsed = serverDesktopCredentialSchema.safeParse(source);
-    if (!parsed.success) throw new CaxriError('VALIDATION', 'Caxri Desktop credential is invalid');
-    if (
-        parsed.data.profileId !== manifest.profileId ||
-        parsed.data.processIdentity !== manifest.processIdentity
-    )
-        throw new CaxriError('CONFLICT', 'Caxri Desktop credential belongs to another Host');
-    return parsed.data;
 }
 
 /**
@@ -355,10 +234,18 @@ export class ServerClient {
     }
 
     private readonly eventListeners = new Set<(event: LocalServerEvent['event']) => void>();
-    private readonly closeListeners = new Set<(reason?: DesktopLeaseRevocationReason) => void>();
+    private readonly closeListeners = new Set<
+        (reason?: DesktopLeaseRevocationReason, closeCode?: number) => void
+    >();
     private readonly binaryStreams?: BinaryStreamClient;
     private readonly pending = new Map<string, PendingRequest>();
     private closed = false;
+    /**
+     * Raw WebSocket close code captured off the socket's own `close` event, kept only for diagnostics (see
+     * `server_connection.lost` in `apps/desktop/src/main/server-connection.ts`). Absent when this side closed the
+     * connection deliberately before any close frame arrived.
+     */
+    private closeCode?: number;
     private closeReason?: DesktopLeaseRevocationReason;
     private leaseRenewalTimer?: NodeJS.Timeout;
     desktopLease?: DesktopLease;
@@ -391,14 +278,16 @@ export class ServerClient {
             if (isBinary) this.closeTransport();
             else this.receive(controlMessageText(data));
         });
-        socket.on('close', () => this.failPending());
+        socket.on('close', (code) => {
+            this.closeCode = code;
+            this.failPending();
+        });
         socket.on('error', () => this.failPending());
         if (desktopLease) {
-            this.leaseRenewalTimer = setInterval(() => {
-                const generation = this.desktopLease?.generation;
-                if (!generation || this.closed) return;
-                this.send({ type: 'desktop-lease.renew', generation });
-            }, 20_000);
+            this.leaseRenewalTimer = setInterval(
+                () => this.renewDesktopLease(),
+                DESKTOP_LEASE_RENEW_MS,
+            );
             this.leaseRenewalTimer.unref();
         }
     }
@@ -558,7 +447,16 @@ export class ServerClient {
         this.binaryStreams?.close(error);
         const listeners = [...this.closeListeners];
         this.closeListeners.clear();
-        for (const listener of listeners) listener(this.closeReason);
+        for (const listener of listeners) listener(this.closeReason, this.closeCode);
+    }
+
+    /**
+     * Sends the Desktop lease renewal frame; shared by the background interval and `renewLeaseNow`.
+     */
+    private renewDesktopLease(): void {
+        const generation = this.desktopLease?.generation;
+        if (!generation || this.closed) return;
+        this.send({ type: 'desktop-lease.renew', generation });
     }
 
     private send(message: unknown, settled?: (error?: Error) => void): void {
@@ -725,16 +623,30 @@ export class ServerClient {
 
     /**
      * Notifies once when this connection closes for any reason (socket loss, protocol failure, or an explicit
-     * `close()`). An orderly Server lease takeover supplies `replaced`; other closures have no reason. A listener
-     * registered after closure fires synchronously so callers cannot miss the transition.
+     * `close()`). An orderly Server lease takeover supplies `replaced`; other closures have no reason. `closeCode` is
+     * the raw WebSocket close code when a close frame or local `terminate()` produced one, purely for diagnostics. A
+     * listener registered after closure fires synchronously so callers cannot miss the transition.
      */
-    onClose(listener: (reason?: DesktopLeaseRevocationReason) => void): () => void {
+    onClose(
+        listener: (reason?: DesktopLeaseRevocationReason, closeCode?: number) => void,
+    ): () => void {
         if (this.closed) {
-            listener(this.closeReason);
+            listener(this.closeReason, this.closeCode);
             return () => {};
         }
         this.closeListeners.add(listener);
         return () => this.closeListeners.delete(listener);
+    }
+
+    /**
+     * Forces an immediate Desktop lease renewal outside the normal `DESKTOP_LEASE_RENEW_MS` interval. Electron's
+     * `powerMonitor` `resume`/`unlock-screen` events fire once Main's event loop is running again after a macOS sleep,
+     * but the interval timer above only fires on its own next tick — which can land after Server Core's lease timer
+     * (already woken from the same suspend) has fired first. Calling this from the `resume` handler closes that race
+     * instead of waiting for the interval to catch up; it is a no-op without an active Desktop lease.
+     */
+    renewLeaseNow(): void {
+        this.renewDesktopLease();
     }
 
     /**

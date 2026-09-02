@@ -119,6 +119,25 @@ describe('pane layout reducer', () => {
         expect(activeTab(layout)?.resource).toEqual(file('c.ts'));
     });
 
+    it('pins the preview tab when the same file is opened again without preview', () => {
+        const id = ids();
+        let layout = createPaneLayout(file('a.ts'), id);
+        layout = openResource(layout, file('b.ts'), { preview: true }, id);
+        const previewId = activeTab(layout)?.id;
+        layout = valid(openResource(layout, file('b.ts'), {}, id));
+        expect(activePane(layout).tabs).toHaveLength(2);
+        expect(activeTab(layout)?.id).toBe(previewId);
+        expect(activeTab(layout)?.preview).toBeUndefined();
+    });
+
+    it('keeps the preview tab as a preview when previewed again', () => {
+        const id = ids();
+        let layout = createPaneLayout(file('a.ts'), id);
+        layout = openResource(layout, file('b.ts'), { preview: true }, id);
+        layout = valid(openResource(layout, file('b.ts'), { preview: true }, id));
+        expect(activeTab(layout)?.preview).toBe(true);
+    });
+
     it('activates the tab that slid into the closed one place', () => {
         const id = ids();
         let layout = createPaneLayout(file('a.ts'), id);

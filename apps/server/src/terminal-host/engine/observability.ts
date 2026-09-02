@@ -16,6 +16,10 @@ interface PtyResizeBurstState {
     lastSampleAt: number;
     maxDurationTimer?: NodeJS.Timeout;
     quietTimer?: NodeJS.Timeout;
+    /**
+     * Whether this burst was seeded from a grid applied before it began.
+     */
+    seeded: boolean;
     startedAt: number;
 }
 
@@ -38,6 +42,11 @@ function isValidPtyGrid(size: PtyGridSize): boolean {
 export class PtyResizeBurstObserver {
     private readonly bursts = new Map<string, PtyResizeBurstState>();
     private disposed = false;
+    /**
+     * Last applied grid per Terminal, remembered across bursts so the next burst can seed its `start` from the grid
+     * actually in force instead of only its own first sample. Cleared when a Terminal is retired.
+     */
+    private readonly lastGrids = new Map<string, PtyGridSize>();
 
     constructor(private readonly logger: StructuredLogger) {}
 
@@ -53,6 +62,10 @@ export class PtyResizeBurstObserver {
         const aggregate = state.accumulator.reset();
         if (!aggregate) return;
         const sampleCount = Math.min(aggregate.sampleCount, RESIZE_BURST_MAX_SAMPLES);
+        // A seeded burst compares every real sample against the pre-burst grid too, so up to `sampleCount`
+        // transitions are possible; an unseeded burst's first sample has nothing to compare against, so the bound
+        // stays `sampleCount - 1`.
+        const maxChangeCount = state.seeded ? sampleCount : Math.max(0, sampleCount - 1);
         try {
             this.logger.write('info', logEventCatalog.pty.resizeBurst, {
                 fields: {
@@ -60,7 +73,9 @@ export class PtyResizeBurstObserver {
                     terminalId,
                     side: 'terminal-host-pty',
                     sampleCount,
-                    changeCount: Math.min(aggregate.changeCount, sampleCount - 1),
+                    // Grid transitions relative to the grid in force before the burst; 0 means the burst
+                    // re-sampled the existing grid and never changed it.
+                    changeCount: Math.min(aggregate.changeCount, maxChangeCount),
                     startCols: aggregate.start.cols,
                     startRows: aggregate.start.rows,
                     minCols: aggregate.minimum.cols,
@@ -87,11 +102,14 @@ export class PtyResizeBurstObserver {
         const sampledAt = Date.now();
         let state = this.bursts.get(terminalId);
         if (!state) {
+            const previousGrid = this.lastGrids.get(terminalId);
             const created: PtyResizeBurstState = {
                 accumulator: new GridBurstAccumulator(),
                 startedAt: sampledAt,
                 lastSampleAt: sampledAt,
+                seeded: previousGrid !== undefined,
             };
+            if (previousGrid) created.accumulator.seed(previousGrid);
             created.maxDurationTimer = setTimeout(
                 () => this.flush(terminalId, created, 'max-duration'),
                 RESIZE_BURST_MAX_DURATION_MS,
@@ -101,6 +119,7 @@ export class PtyResizeBurstObserver {
         }
         state.lastSampleAt = sampledAt;
         state.accumulator.sample(size);
+        this.lastGrids.set(terminalId, { cols: size.cols, rows: size.rows });
         if (state.quietTimer) clearTimeout(state.quietTimer);
         const current = state;
         state.quietTimer = setTimeout(
@@ -112,12 +131,14 @@ export class PtyResizeBurstObserver {
     disposeTerminal(terminalId: string): void {
         const state = this.bursts.get(terminalId);
         if (state) this.flush(terminalId, state, 'disposed');
+        this.lastGrids.delete(terminalId);
     }
 
     dispose(): void {
         if (this.disposed) return;
         this.disposed = true;
         for (const [terminalId, state] of this.bursts) this.flush(terminalId, state, 'disposed');
+        this.lastGrids.clear();
     }
 }
 

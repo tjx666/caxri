@@ -1,6 +1,6 @@
 const CJK_PROSE_CHARACTER_PATTERN =
     /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
-const LEADING_WRAPPERS = new Set(['(', '[', '{', '<', '"', "'", '`']);
+const LEADING_WRAPPERS = new Set(['(', '[', '{', '<', '"', "'", '`', '（', '【', '「', '『', '《']);
 const TRAILING_PUNCTUATION = new Set(['.', ',', ';', ':', '!', '?', '"', "'", '`']);
 
 export type TerminalLinkClosingBracket = ')' | ']' | '}';

@@ -4,6 +4,10 @@ export interface GridSize {
 }
 
 export interface GridBurstSummary {
+    /**
+     * Grid transitions relative to the grid in force before the burst; `0` means the burst re-sampled the existing grid
+     * and never changed it.
+     */
     changeCount: number;
     final: GridSize;
     maximum: GridSize;
@@ -28,22 +32,38 @@ function copySummary(summary: GridBurstSummary): GridBurstSummary {
 }
 
 /**
- * Deterministically summarizes a grid sequence without retaining individual samples.
+ * Deterministically summarizes a grid sequence without retaining individual samples. Seeding with the grid known before
+ * the burst began lets `changeCount` and `start` describe a genuine before-to-after transition instead of reading a
+ * settled one-step resize as unchanged.
  */
 export class GridBurstAccumulator {
     private summary: GridBurstSummary | undefined;
 
+    private initialSummary(size: GridSize, sampleCount: number): GridBurstSummary {
+        const initial = copyGrid(size);
+        return {
+            changeCount: 0,
+            final: copyGrid(initial),
+            maximum: copyGrid(initial),
+            minimum: copyGrid(initial),
+            sampleCount,
+            start: initial,
+        };
+    }
+
+    /**
+     * Establishes `start`/`minimum`/`maximum`/`final` from a grid observed before this burst began, without counting
+     * toward `sampleCount`. Call at most once, before the first real `sample()` of a burst: the first `sample()` call
+     * afterward still advances `sampleCount` to 1 and compares against this seed, so a single real sample that differs
+     * from the seed reports `sampleCount: 1, changeCount: 1`.
+     */
+    seed(size: GridSize): void {
+        this.summary = this.initialSummary(size, 0);
+    }
+
     sample(size: GridSize): void {
         if (!this.summary) {
-            const initial = copyGrid(size);
-            this.summary = {
-                changeCount: 0,
-                final: copyGrid(initial),
-                maximum: copyGrid(initial),
-                minimum: copyGrid(initial),
-                sampleCount: 1,
-                start: initial,
-            };
+            this.summary = this.initialSummary(size, 1);
             return;
         }
 
