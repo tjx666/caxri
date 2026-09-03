@@ -211,17 +211,40 @@ function reliableAttentionTransition(
 }
 
 /**
- * A metadata probe cannot tell "idle at the prompt since launch" apart from "idle because a turn just finished": Claude
- * Code writes `status: "idle"` into its session metadata the moment it starts, before any turn has run. Only a Session
- * that was observed `running` has a turn the user could be waited on for, so a probed `waiting` raises attention solely
- * from that state. Hook-driven `attentionRequested` signals bypass this because they are explicit.
+ * States in which a probe claims the Agent's turn has ended. A provider writes these the moment it starts too, so on
+ * their own they cannot distinguish "settled since launch" from "settled because a turn just finished".
  */
-function metadataAttentionKind(
+const PROBED_TURN_END_STATES = new Set<AgentActivityState>(['completed', 'waiting']);
+
+/**
+ * States a probed turn-end reading is allowed to replace.
+ *
+ * `running` is the only state carrying a turn the probe can prove ended. `failed` is the blanket marker
+ * {@link shutdownOutcome} stamps on every live Session after an unclean Caxri shutdown, which describes Caxri crashing
+ * rather than the Agent failing: those Terminals are auto-resumed and answering probes again, so keeping it would
+ * strand the recovered Session behind a failure the user can only clear by sending a throwaway message.
+ */
+const PROBE_CORRECTABLE_STATES = new Set<AgentActivityState>(['running', 'failed']);
+
+/**
+ * Keeps the stored state whenever a probed turn-end reading cannot improve on it, so an ambiguous provider reading
+ * never overwrites the more precise state an explicit hook signal recorded.
+ *
+ * Persisting an untrusted turn-end state is what made an already-read Session look permanently unattended: the
+ * PrimarySidebar's acknowledged-waiting cue keyed off `lastActivityState` alone and never consulted
+ * `readAttentionEpoch`, so a probe landing after the user acknowledged a finished turn relit an amber row that no later
+ * read could clear. Hook-driven `attentionRequested` signals bypass this because they are explicit.
+ */
+function metadataActivityState(
     session: Pick<SessionRecord, 'lastActivityState'>,
-    kind: SessionAttentionKind | undefined,
-): SessionAttentionKind | undefined {
-    if (kind === 'waiting' && session.lastActivityState !== 'running') return undefined;
-    return kind;
+    status: AgentActivityState,
+): AgentActivityState {
+    if (
+        PROBED_TURN_END_STATES.has(status) &&
+        !PROBE_CORRECTABLE_STATES.has(session.lastActivityState)
+    )
+        return session.lastActivityState;
+    return status;
 }
 
 export interface AgentLifecycleDecision {
@@ -327,17 +350,14 @@ export function decideAgentMetadataUpdate(
     const terminalTitle =
         normalizeTerminalTitle(agentDisplayTitle(snapshot.title, terminal.title)) ?? terminal.title;
     const isPrimaryAgent = terminal.id === session.primaryAgentTerminalId;
+    const lastActivityState = metadataActivityState(session, snapshot.status);
     const attentionKind = isPrimaryAgent
-        ? reliableAttentionTransition(
-              session,
-              snapshot.status,
-              metadataAttentionKind(session, snapshot.attentionKind),
-          )
+        ? reliableAttentionTransition(session, lastActivityState, snapshot.attentionKind)
         : undefined;
     const isNoOp =
         (!isPrimaryAgent ||
             (session.displayTitle === displayTitle &&
-                session.lastActivityState === snapshot.status)) &&
+                session.lastActivityState === lastActivityState)) &&
         terminal.agentSessionId === agentSessionId &&
         terminal.title === terminalTitle &&
         !attentionKind;
@@ -348,7 +368,7 @@ export function decideAgentMetadataUpdate(
         sessionPatch: isPrimaryAgent
             ? {
                   displayTitle,
-                  lastActivityState: snapshot.status,
+                  lastActivityState,
                   ...(attentionKind && { attentionKind }),
               }
             : undefined,

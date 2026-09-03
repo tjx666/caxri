@@ -25,38 +25,33 @@ describe('Session list status', () => {
                     hasUnread: true,
                     lastAttentionKind: 'completed',
                 }),
-                {},
-                true,
             ),
         ).toEqual({
             ariaLabel:
                 'Needs attention: Finished. The Agent finished its latest turn. Current status: Working. The Agent is running.',
-            emphasis: 'unread',
             kind: 'attention',
         });
     });
 
-    it('keeps acknowledged waiting visible without unread emphasis', () => {
-        expect(sessionStatus(sessionSource('waiting'))).toEqual({
-            ariaLabel:
-                'Needs attention. Waiting for you. The Agent is waiting for input or confirmation.',
-            emphasis: 'persistent',
-            kind: 'attention',
-        });
-    });
+    /**
+     * The amber slot is a call to open the Session, so reading it is the only thing that clears it and nothing else may
+     * bring it back. A second static amber state keyed off `lastActivityState` used to outlive acknowledgement, which
+     * left an already-read Session marked for as long as its Agent sat at an empty prompt.
+     */
+    it.each<AgentActivityState>(['waiting', 'completed', 'failed', 'idle', 'running', 'unknown'])(
+        'leaves an acknowledged %s Session unmarked',
+        (state) => {
+            const acknowledged = sessionSource(state, {
+                hasUnread: false,
+                lastAttentionKind: 'completed',
+            });
 
-    it('clears acknowledged waiting from the selected Session row', () => {
-        expect(sessionStatus(sessionSource('waiting'), {}, true)).toEqual({
-            kind: 'default',
-        });
-    });
+            expect(sessionStatus(acknowledged)).not.toMatchObject({ kind: 'attention' });
+        },
+    );
 
     it('maps running and compaction to the running slot', () => {
         expect(sessionStatus(sessionSource('running'))).toEqual({
-            ariaLabel: 'Working. The Agent is running.',
-            kind: 'running',
-        });
-        expect(sessionStatus(sessionSource('running'), {}, true)).toEqual({
             ariaLabel: 'Working. The Agent is running.',
             kind: 'running',
         });
@@ -68,7 +63,7 @@ describe('Session list status', () => {
         );
     });
 
-    it.each<AgentActivityState>(['completed', 'failed', 'idle', 'unknown'])(
+    it.each<AgentActivityState>(['completed', 'failed', 'idle', 'unknown', 'waiting'])(
         'maps a read %s lifecycle state to the blank default slot',
         (state) => {
             expect(sessionStatus(sessionSource(state))).toEqual({ kind: 'default' });
@@ -76,9 +71,7 @@ describe('Session list status', () => {
     );
 
     it('shows a detached Agent as a static detached slot instead of stale activity', () => {
-        expect(
-            sessionStatus(sessionSource('running'), { lastProcessState: 'detached' }, true),
-        ).toEqual({
+        expect(sessionStatus(sessionSource('running'), { lastProcessState: 'detached' })).toEqual({
             ariaLabel: 'Detached. The Agent was stopped so another client can resume it.',
             kind: 'detached',
         });
@@ -94,7 +87,7 @@ describe('Session list status', () => {
                 sessionSource('completed', { hasUnread: true, lastAttentionKind: 'completed' }),
                 { lastProcessState: 'detached' },
             ),
-        ).toMatchObject({ emphasis: 'unread', kind: 'attention' });
+        ).toMatchObject({ kind: 'attention' });
     });
 
     it('keeps reliable failed attention in the unified unread state', () => {
@@ -102,6 +95,6 @@ describe('Session list status', () => {
             sessionStatus(
                 sessionSource('failed', { hasUnread: true, lastAttentionKind: 'failed' }),
             ),
-        ).toMatchObject({ emphasis: 'unread', kind: 'attention' });
+        ).toMatchObject({ kind: 'attention' });
     });
 });

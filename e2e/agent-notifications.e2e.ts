@@ -108,6 +108,20 @@ setInterval(() => {
 
     try {
         const sourceSessionId = await createProjectSession(running.page, 'claude');
+        /**
+         * A fake turn ends immediately, so the completion threshold would otherwise suppress the notification this test
+         * is about. Claude Code's `idle` metadata reads as a finished turn, which is threshold-gated exactly like every
+         * other provider's completion.
+         */
+        const currentSettings = await pageRequest<{ value: AppSettings }>(
+            running.page,
+            'settings.get',
+        );
+        const thresholdSettings = structuredClone(currentSettings.value);
+        thresholdSettings['agents.notifications.completionThresholdSeconds'] = 0;
+        await pageRequest(running.page, 'settings.update', {
+            source: JSON.stringify(thresholdSettings, null, 2),
+        });
         const startedAt = Date.now();
         await writeClaudeMetadata(config, root, startedAt, 'busy');
         await expect
@@ -181,7 +195,7 @@ setInterval(() => {
             )
             .toEqual([
                 {
-                    body: 'Claude Code is waiting for your input.',
+                    body: 'Claude Code completed a turn.',
                     groupId: 'caxri-agent-sessions',
                     id: `caxri-agent-session-${sourceSessionId}`,
                     title: SESSION_TITLE,

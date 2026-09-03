@@ -7,22 +7,20 @@ import type { SessionStatusTerminal } from './session-status';
 import { sessionStatus } from './session-status';
 
 /**
- * The fixed right-edge status slot shared by the PrimarySidebar and MRU switcher. Unread attention moves, background
- * acknowledged waiting stays still, running spins, a detached Agent shows a static unplugged glyph, and settled states
- * leave the reserved slot empty so rows never reflow as lifecycle signals change.
+ * The fixed right-edge status slot shared by the PrimarySidebar and MRU switcher. Unread attention pings until it is
+ * read, running spins, a detached Agent shows a static unplugged glyph, and settled states leave the reserved slot
+ * empty so rows never reflow as lifecycle signals change.
  */
 export function SessionStatusIndicator({
     className,
-    isCurrentSession = false,
     session,
     terminal,
 }: {
     className?: string;
-    isCurrentSession?: boolean;
     session: SessionRecord;
     terminal?: SessionStatusTerminal;
 }) {
-    const status = sessionStatus(session, terminal, isCurrentSession);
+    const status = sessionStatus(session, terminal);
     if (status.kind === 'default') {
         return (
             <span
@@ -47,7 +45,6 @@ export function SessionStatusIndicator({
                 className,
             )}
             data-agent-operation={terminal?.agentOperation}
-            data-attention-emphasis={status.kind === 'attention' ? status.emphasis : undefined}
             data-attention-kind={
                 status.kind === 'attention' ? session.lastAttentionKind : undefined
             }
@@ -55,13 +52,11 @@ export function SessionStatusIndicator({
         >
             {status.kind === 'attention' ? (
                 <>
-                    {status.emphasis === 'unread' && (
-                        <span
-                            aria-hidden="true"
-                            className="absolute inset-0 rounded-full border border-warning opacity-75 motion-safe:animate-ping motion-reduce:hidden"
-                            data-session-status-ripple=""
-                        />
-                    )}
+                    <span
+                        aria-hidden="true"
+                        className="absolute inset-0 rounded-full border border-warning opacity-75 motion-safe:animate-ping motion-reduce:hidden"
+                        data-session-status-ripple=""
+                    />
                     <span
                         aria-hidden="true"
                         className="size-3.5 rounded-full border border-warning"
