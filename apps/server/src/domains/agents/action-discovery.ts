@@ -150,14 +150,20 @@ async function scanRoot(
             typeof error === 'object' && error && 'code' in error ? String(error.code) : undefined;
         return { actions: [], partial: code !== 'ENOENT' };
     }
+    let canonicalBoundary: string | undefined;
     if (root.boundaryDirectory) {
         try {
-            const canonicalBoundary = await realpath(root.boundaryDirectory);
+            canonicalBoundary = await realpath(root.boundaryDirectory);
             if (!isInside(canonicalBoundary, canonicalRoot)) return { actions: [], partial: true };
         } catch {
             return { actions: [], partial: true };
         }
     }
+    /**
+     * Entries are authorized against the Project boundary, not the narrower discovery root, so a skill symlinked from
+     * elsewhere inside the same Project (e.g. a nested checkout) still resolves instead of being treated as an escape.
+     */
+    const containmentRoot = canonicalBoundary ?? canonicalRoot;
     const queue = [{ directory: canonicalRoot, depth: 0, relativeDirectory: '' }];
     const actions: AgentAction[] = [];
     const seenDirectories = new Set<string>();
@@ -189,10 +195,10 @@ async function scanRoot(
             } catch {
                 isPartial = true;
             }
-            if (canonicalPath && !isInside(canonicalRoot, canonicalPath)) {
+            if (canonicalPath && !isInside(containmentRoot, canonicalPath)) {
                 isPartial = true;
             }
-            if (canonicalPath && isInside(canonicalRoot, canonicalPath)) {
+            if (canonicalPath && isInside(containmentRoot, canonicalPath)) {
                 const relativePath = current.relativeDirectory
                     ? `${current.relativeDirectory}/${entry.name}`
                     : entry.name;

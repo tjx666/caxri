@@ -131,6 +131,40 @@ describe('discoverAgentActions', () => {
         expect(result).toEqual({ actions: [], partial: true });
     });
 
+    it('follows a skill symlink that stays inside the Project boundary but escapes the discovery root', async () => {
+        const project = await temporaryDirectory('caxri-action-nested-project-');
+        const nestedSkills = join(project, 'nested', '.agents', 'skills');
+        await mkdir(join(nestedSkills, 'shared'), { recursive: true });
+        await writeFile(
+            join(nestedSkills, 'shared', 'SKILL.md'),
+            '---\nname: shared\ndescription: Shared across a nested checkout\n---\n',
+        );
+        await mkdir(join(project, '.claude', 'skills'), { recursive: true });
+        await symlink(join(nestedSkills, 'shared'), join(project, '.claude', 'skills', 'shared'));
+
+        const result = await discoverAgentActions(claudeAdapter, [
+            {
+                boundaryDirectory: project,
+                directory: join(project, '.claude', 'skills'),
+                kind: 'skills',
+                scope: 'project',
+            },
+        ]);
+
+        expect(result).toEqual({
+            actions: [
+                {
+                    invocation: '/shared',
+                    kind: 'skill',
+                    description: 'Shared across a nested checkout',
+                    requiresArguments: false,
+                    source: 'project',
+                },
+            ],
+            partial: false,
+        });
+    });
+
     it('ignores skills explicitly hidden from user invocation', async () => {
         const root = await temporaryDirectory('caxri-action-hidden-');
         const skillDirectory = join(root, 'internal');
