@@ -15,13 +15,19 @@ import { Dialog, DialogTitle, PickerDialogContent } from '../../components/ui/di
 import { useCommandShortcut } from '../../lib/keybindings';
 import { useCaxriQuery } from '../../queries/client';
 import { setPaletteOpen, useDialogStore } from '../../stores/dialogs';
-import { useProjects, useSessions } from '../../stores/selectors';
-import { didSelectSession, selectProject } from '../session/session-actions';
+import { useProjects, useSelectedSession, useSessions, useTerminals } from '../../stores/selectors';
+import {
+    didSelectSession,
+    hasDetachedAgentTerminal,
+    hasLiveAgentTerminal,
+    selectProject,
+} from '../session/session-actions';
 import { activeSessionsInSidebarOrder } from '../session/session-activity-order';
 import { didExecuteViewCatalogCommand } from '../view-containers/view-container-commands';
 import {
     getPaletteExtensionCommands,
     getStaticCommandPaletteValue,
+    isCommandVisibleInPalette,
 } from './command-palette-commands';
 
 const NO_RECORDS: never[] = [];
@@ -93,6 +99,15 @@ export function CommandPalette() {
     const projects = useProjects() ?? NO_RECORDS;
     const catalog = useCaxriQuery('viewContainers.catalog', {}, { enabled: isOpen }).data;
     const sessions = activeSessionsInSidebarOrder(projects, useSessions() ?? NO_RECORDS);
+    const selectedSession = useSelectedSession();
+    const terminals = useTerminals();
+    const whenContext = {
+        sessionHasLiveAgent:
+            selectedSession !== undefined && hasLiveAgentTerminal(selectedSession.id, terminals),
+        sessionHasDetachedAgent:
+            selectedSession !== undefined &&
+            hasDetachedAgentTerminal(selectedSession.id, terminals),
+    };
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
             <PickerDialogContent>
@@ -144,7 +159,8 @@ export function CommandPalette() {
                         </CommandGroup>
                         <CommandGroup heading="Commands">
                             {commandDefinitions.map((command) =>
-                                command.requiresArguments ? null : (
+                                command.requiresArguments ||
+                                !isCommandVisibleInPalette(command, whenContext) ? null : (
                                     <CommandRow key={command.id} command={command} />
                                 ),
                             )}
