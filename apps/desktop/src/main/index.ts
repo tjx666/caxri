@@ -606,7 +606,6 @@ if (ownsProfileInstance) {
     app.whenReady()
         // eslint-disable-next-line unicorn/prefer-await -- see comment above
         .then(async () => {
-            wirePowerWake(powerMonitor, () => (quitIntent = 'system-shutdown'), supervisor);
             if (
                 shouldEnableAcceptanceAccessibility({
                     environment: process.env,
@@ -738,6 +737,7 @@ if (ownsProfileInstance) {
                 windowMode: e2eWindowMode,
             });
             supervisor.onEvent(sendEvent);
+            wirePowerWake(powerMonitor, () => (quitIntent = 'system-shutdown'), supervisor);
             if (
                 !(await shouldContinueStartup({
                     dialog,
