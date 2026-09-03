@@ -18,6 +18,7 @@ import { managedAgentLauncherSocketPath } from './agent-launcher/socket-path';
 import { resolveE2ETerminalOutputFlushDelay } from './e2e-options';
 import type { TerminalHostMessage } from './protocol';
 import { TerminalHostRuntime } from './runtime';
+import { installTerminationSignalHandlers } from './termination-signal';
 
 if (!process.connected || !process.send)
     throw new Error(
@@ -95,14 +96,6 @@ const runtime = new TerminalHostRuntime({
 });
 runtimeReference.current = runtime;
 
-/**
- * A bare SIGTERM/SIGINT must not race Server Core's own `host.shutdown` request, which is the only path that persists
- * captured snapshots (Terminal Host owns no filesystem or database access of its own). If the parent IPC channel is
- * still connected when the signal arrives, Server Core is likely mid-`stop()` and about to send that request; give it a
- * bounded window to arrive before falling back to this process's own unmanaged shutdown.
- */
-const TERMINATION_SIGNAL_GRACE_MS = 3_000;
-
 async function stop(exitCode: number): Promise<void> {
     if (lifecycle.isStopping) return;
     lifecycle.isStopping = true;
@@ -128,22 +121,16 @@ process.on('message', (message: unknown) => {
     // eslint-disable-next-line no-void -- Runtime accepts and replies to each private request independently.
     void runtime.accept(message);
 });
-async function stopAfterTerminationSignal(): Promise<void> {
-    if (process.connected) await runtime.waitForShutdownRequest(TERMINATION_SIGNAL_GRACE_MS);
-    await stop(0);
-}
 
 process.once('disconnect', () => {
     // eslint-disable-next-line no-void -- Parent loss intentionally tears down every owned PTY.
     void stop(0);
 });
-process.once('SIGTERM', () => {
-    // eslint-disable-next-line no-void -- Signal fallback uses the same bounded owner shutdown.
-    void stopAfterTerminationSignal();
-});
-process.once('SIGINT', () => {
-    // eslint-disable-next-line no-void -- Signal fallback uses the same bounded owner shutdown.
-    void stopAfterTerminationSignal();
+installTerminationSignalHandlers({
+    target: process,
+    isConnected: () => process.connected,
+    waitForShutdownRequest: (timeoutMs) => runtime.waitForShutdownRequest(timeoutMs),
+    stop,
 });
 
 logger.write('info', logEventCatalog.terminalHost.ready, {
