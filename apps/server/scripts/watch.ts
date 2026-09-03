@@ -57,10 +57,25 @@ const coordinator = new ArtifactRefreshCoordinator({
         if (readyPath) await writeFile(readyPath, 'ready\n', { mode: 0o600 });
     },
 });
+/**
+ * `coordinator.close()` only awaits the Vite watcher and sets `process.exitCode`; it never calls `process.exit()`. Any
+ * lingering handle (an in-flight artifact build, an unreleased chokidar watch) then keeps the event loop alive forever,
+ * orphaning this process after its parent exits. Force the exit here, with a bounded fallback in case `close()` itself
+ * never resolves.
+ */
+const SHUTDOWN_TIMEOUT_MS = 5000;
+
+async function shutdown(exitCode: number): Promise<void> {
+    const forceExit = setTimeout(() => process.exit(exitCode), SHUTDOWN_TIMEOUT_MS);
+    forceExit.unref();
+    await coordinator.close(exitCode);
+    process.exit(exitCode);
+}
+
 watcher.on('event', async (event) => {
     if (event.code === 'ERROR') {
         console.error(event.error);
-        await coordinator.close(1);
+        await shutdown(1);
         return;
     }
     if (event.code !== 'END') return;
@@ -68,9 +83,9 @@ watcher.on('event', async (event) => {
         await coordinator.refresh();
     } catch (error) {
         console.error(error);
-        await coordinator.close(1);
+        await shutdown(1);
     }
 });
 
-process.once('SIGINT', async () => coordinator.close(0));
-process.once('SIGTERM', async () => coordinator.close(0));
+process.once('SIGINT', () => shutdown(0));
+process.once('SIGTERM', () => shutdown(0));
