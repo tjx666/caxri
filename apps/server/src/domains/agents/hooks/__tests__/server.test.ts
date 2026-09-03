@@ -210,7 +210,8 @@ describe('AgentHookServer', () => {
             }
         });
 
-        it('rejects a mismatched provider when the registration is provider-restricted', async () => {
+        it('ignores (without rejecting) a mismatched provider when the registration is provider-restricted', async () => {
+            // Benign nested-CLI case (inherited CAXRI_HOOK_* env): must be an "ok" reply, not a stderr rejection.
             const { server, socketPath, onDiagnostic, onSignal } = await createTestServer();
             try {
                 const token = server.register('terminal-1', 'launch-1', 'codex');
@@ -220,25 +221,28 @@ describe('AgentHookServer', () => {
                     validPayload({ token, provider: 'claude' }),
                 );
 
-                expect(response).toBe('{"ok":false}\n');
+                expect(response).toBe('{"ok":true,"ignored":true}\n');
                 expect(onSignal).not.toHaveBeenCalled();
                 expect(onDiagnostic).toHaveBeenCalledWith(
-                    expect.objectContaining({ outcome: 'rejected', reason: 'providerMismatch' }),
+                    expect.objectContaining({ outcome: 'ignored', reason: 'providerMismatch' }),
                 );
             } finally {
                 await server.close();
             }
         });
 
-        it('rejects a schema version that no longer matches the configured provider schema', async () => {
+        it('accepts a schema version older than the server expects but rejects one that is newer', async () => {
+            // Older builds must accept a signal snapshotted with a lower schema (see authorizationOutcome's JSDoc).
             const { server, socketPath, onDiagnostic, onSignal } = await createTestServer();
             try {
                 const token = server.register('terminal-1', 'launch-1', 'codex');
 
-                const response = await send(socketPath, validPayload({ token, schemaVersion: 1 }));
+                const older = await send(socketPath, validPayload({ token, schemaVersion: 1 }));
+                expect(older).toBe('{"ok":true}\n');
+                expect(onSignal).toHaveBeenCalledOnce();
 
-                expect(response).toBe('{"ok":false}\n');
-                expect(onSignal).not.toHaveBeenCalled();
+                const newer = await send(socketPath, validPayload({ token, schemaVersion: 3 }));
+                expect(newer).toBe('{"ok":false}\n');
                 expect(onDiagnostic).toHaveBeenCalledWith(
                     expect.objectContaining({ outcome: 'rejected', reason: 'schemaMismatch' }),
                 );

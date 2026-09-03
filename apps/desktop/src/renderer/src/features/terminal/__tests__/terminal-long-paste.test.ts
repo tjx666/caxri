@@ -47,9 +47,11 @@ describe('long Terminal paste', () => {
             status: 'summarized';
             summary: string;
         }>();
+        const onDropped = vi.fn();
         const controller = new TerminalLongPasteController({
             canAcceptAgentInput: () => true,
             enabled: () => true,
+            onDropped,
             onFailure: vi.fn(),
             onPendingChange: (value) => pending.push(value),
             paste: (text) => {
@@ -67,6 +69,7 @@ describe('long Terminal paste', () => {
         expect(controller.isPending()).toBe(true);
         expect(controller.intercept('second long paste '.repeat(100))).toBe(true);
         expect(pending).toEqual([true]);
+        expect(onDropped).toHaveBeenCalledOnce();
         request.resolve({
             agentLaunchId: 'launch-1',
             characterCount: 1_145,
@@ -123,6 +126,7 @@ describe('long Terminal paste', () => {
         const controller = new TerminalLongPasteController({
             canAcceptAgentInput: () => true,
             enabled: () => true,
+            onDropped: vi.fn(),
             onFailure,
             onPendingChange: vi.fn(),
             paste,
@@ -141,6 +145,7 @@ describe('long Terminal paste', () => {
         const controller = new TerminalLongPasteController({
             canAcceptAgentInput: () => true,
             enabled: () => true,
+            onDropped: vi.fn(),
             onFailure: vi.fn(),
             onPendingChange: (value) => pending.push(value),
             paste: vi.fn(),
@@ -169,9 +174,11 @@ describe('long Terminal paste', () => {
         const pending: boolean[] = [];
         const paste = vi.fn();
         const request = vi.fn(() => summary.promise);
+        const onDropped = vi.fn();
         const controller = new TerminalLongPasteController({
             canAcceptAgentInput: () => true,
             enabled: () => true,
+            onDropped,
             onFailure: vi.fn(),
             onPendingChange: (value) => pending.push(value),
             paste,
@@ -183,6 +190,7 @@ describe('long Terminal paste', () => {
         const operation = controller.pasteFromClipboard(() => clipboard.promise);
         expect(controller.isPending()).toBe(true);
         expect(controller.intercept('overtaking input')).toBe(true);
+        expect(onDropped).toHaveBeenCalledOnce();
         expect(request).not.toHaveBeenCalled();
         clipboard.resolve('long clipboard text');
         await vi.waitFor(() => expect(request).toHaveBeenCalledWith('long clipboard text'));
@@ -210,6 +218,35 @@ describe('long Terminal paste', () => {
             }),
             'launch-1',
         );
+    });
+
+    it('drops and reports a second clipboard paste while one is still pending', async () => {
+        const clipboard = Promise.withResolvers<string>();
+        const onDropped = vi.fn();
+        const paste = vi.fn();
+        const controller = new TerminalLongPasteController({
+            canAcceptAgentInput: () => true,
+            enabled: () => true,
+            onDropped,
+            onFailure: vi.fn(),
+            onPendingChange: vi.fn(),
+            paste,
+            pasteAgentExact: paste,
+            request: () => new Promise(() => {}),
+            threshold: () => 10,
+        });
+
+        const first = controller.pasteFromClipboard(() => clipboard.promise);
+        expect(controller.isPending()).toBe(true);
+
+        // A second paste arriving while the first is still pending must be dropped, not queued.
+        await controller.pasteFromClipboard(() => Promise.resolve('overtaking clipboard text'));
+
+        expect(onDropped).toHaveBeenCalledOnce();
+        expect(paste).not.toHaveBeenCalled();
+
+        clipboard.resolve('short');
+        await first;
     });
 
     it('formats the path-only fallback as readable lines with the original size', () => {

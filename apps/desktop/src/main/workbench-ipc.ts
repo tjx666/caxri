@@ -3,6 +3,7 @@ import {
     CAXRI_PROTOCOL_VERSION,
     CaxriError,
     isRendererErrorKind,
+    methodFromEnvelope,
     RENDERER_DIAGNOSTIC_CHANNEL,
     RENDERER_ERROR_CHANNELS,
     rendererDiagnosticSchema,
@@ -15,6 +16,13 @@ import type { WebContents } from 'electron';
 import { ipcMain } from 'electron';
 
 import type { createElectronIpcCommandAdapter } from './ipc-command-adapter';
+
+/**
+ * Failure codes that typically originate from ordinary Renderer-side user input (e.g. an unresolved path while the user
+ * is still typing in the path browser) rather than a Caxri defect. These still need to be logged for diagnosability,
+ * but at `warn` instead of `error` so expected input mistakes stop paging as production error beacons.
+ */
+const CALLER_SIDE_WARN_CODES = new Set<string>(['NOT_FOUND', 'VALIDATION']);
 
 export interface WorkbenchIpcOptions {
     isQuitting(): boolean;
@@ -216,9 +224,20 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
              * In-flight reads can outlive the window once quit closes the Server attachment; the consumer is gone.
              */
             if (!reply.ok && reply.error.code !== 'CANCELLED' && !options.isQuitting())
-                options.logger()?.write('error', logEventCatalog.ipc.requestFailed, {
-                    fields: { code: reply.error.code, error: reply.error.message },
-                });
+                options
+                    .logger()
+                    ?.write(
+                        CALLER_SIDE_WARN_CODES.has(reply.error.code) ? 'warn' : 'error',
+                        logEventCatalog.ipc.requestFailed,
+                        {
+                            correlationId: requestIdFromEnvelope(raw) ?? undefined,
+                            fields: {
+                                code: reply.error.code,
+                                error: reply.error.message,
+                                method: methodFromEnvelope(raw),
+                            },
+                        },
+                    );
             return reply;
         } catch (error) {
             /**
@@ -226,9 +245,20 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
              */
             const wire = toWireError(error);
             if (wire.code !== 'CANCELLED' && (!isTrustedRenderer || !options.isQuitting()))
-                options.logger()?.write('error', logEventCatalog.ipc.requestFailed, {
-                    fields: { code: wire.code, error: wire.message },
-                });
+                options
+                    .logger()
+                    ?.write(
+                        CALLER_SIDE_WARN_CODES.has(wire.code) ? 'warn' : 'error',
+                        logEventCatalog.ipc.requestFailed,
+                        {
+                            correlationId: requestIdFromEnvelope(raw) ?? undefined,
+                            fields: {
+                                code: wire.code,
+                                error: wire.message,
+                                method: methodFromEnvelope(raw),
+                            },
+                        },
+                    );
             return {
                 protocolVersion: CAXRI_PROTOCOL_VERSION,
                 id: requestIdFromEnvelope(raw),

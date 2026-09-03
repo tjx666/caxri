@@ -69,6 +69,14 @@ export interface LogWriteOptions extends Pick<
 
 const MAX_LOG_BYTES = 5 * 1024 * 1024;
 /**
+ * Rotated generations kept alongside the live file (`.1` through `.3`, oldest last). Production evidence: with a single
+ * 5MB generation, high-volume routine events (`agent.probe`, `pty.throughput`) rotated real incidents out of the log
+ * within hours. Three generations (~20MB total per process log) buy meaningfully more retention while staying bounded;
+ * raising it further is a tradeoff against disk usage, not a fix for noisy events, which the logging call sites should
+ * already keep to 'debug'/'warn' as appropriate.
+ */
+export const MAX_LOG_GENERATIONS = 3;
+/**
  * Backpressure bound: past this many queued bytes new records are dropped (and counted) instead of growing the heap
  * while the disk is unresponsive.
  */
@@ -287,12 +295,26 @@ export class StructuredLogger {
     private rotateIfNeededSync(incomingBytes: number): void {
         if (this.bytesWritten + incomingBytes <= MAX_LOG_BYTES) return;
         this.bytesWritten = 0;
-        const rotatedPath = `${this.path}.1`;
+        /**
+         * Shift oldest-to-newest (`.2` -> `.3`, `.1` -> `.2`, live -> `.1`) so a mid-shift crash never loses a
+         * generation to a half-completed swap: each rename source is only ever read before it becomes a target.
+         */
+        const oldestPath = `${this.path}.${MAX_LOG_GENERATIONS}`;
         // oxlint-disable-next-line node/no-sync -- deliberate: crash/exit path must not await.
-        rmSync(rotatedPath, { force: true });
+        rmSync(oldestPath, { force: true });
+        for (let generation = MAX_LOG_GENERATIONS - 1; generation >= 1; generation -= 1) {
+            const source = `${this.path}.${generation}`;
+            const target = `${this.path}.${generation + 1}`;
+            try {
+                // oxlint-disable-next-line node/no-sync -- deliberate: crash/exit path must not await.
+                renameSync(source, target);
+            } catch (error) {
+                if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+            }
+        }
         try {
             // oxlint-disable-next-line node/no-sync -- deliberate: crash/exit path must not await.
-            renameSync(this.path, rotatedPath);
+            renameSync(this.path, `${this.path}.1`);
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
         }

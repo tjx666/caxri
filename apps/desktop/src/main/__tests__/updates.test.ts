@@ -241,6 +241,106 @@ describe('UpdateService', () => {
         expect(result.reason).toContain('not publicly available');
     });
 
+    it('degrades a 403 primary rate limit to unavailable and remembers the reset time', async () => {
+        const directory = await temporaryDirectory();
+        const nowMs = 1_700_000_000_000;
+        const resetEpochSeconds = Math.floor(nowMs / 1_000) + 600;
+        const fetch = vi.fn(() =>
+            Promise.resolve(
+                new Response(null, {
+                    status: 403,
+                    headers: { 'x-ratelimit-reset': String(resetEpochSeconds) },
+                }),
+            ),
+        );
+        const service = new UpdateService({
+            currentVersion: '0.0.3',
+            downloadDirectory: directory,
+            enabled: true,
+            fetch,
+            now: () => nowMs,
+            openPath: () => Promise.resolve(''),
+        });
+
+        const result = await service.check();
+        expect(result.status).toBe('unavailable');
+        if (result.status !== 'unavailable') throw new Error('Expected an unavailable state');
+        expect(result.reason).toContain('rate limited');
+
+        // A second check inside the reset window must not call fetch again.
+        const secondResult = await service.check();
+        expect(fetch).toHaveBeenCalledOnce();
+        expect(secondResult.status).toBe('unavailable');
+        if (secondResult.status !== 'unavailable') throw new Error('Expected an unavailable state');
+        expect(secondResult.reason).toContain('rate limited');
+
+        // A user-initiated check bypasses the local window and hits the network again.
+        await service.check({ manual: true });
+        expect(fetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('degrades a 429 secondary rate limit to unavailable using retry-after', async () => {
+        const directory = await temporaryDirectory();
+        const nowMs = 1_700_000_000_000;
+        const fetch = vi.fn(() =>
+            Promise.resolve(new Response(null, { status: 429, headers: { 'retry-after': '30' } })),
+        );
+        const service = new UpdateService({
+            currentVersion: '0.0.3',
+            downloadDirectory: directory,
+            enabled: true,
+            fetch,
+            now: () => nowMs,
+            openPath: () => Promise.resolve(''),
+        });
+
+        const result = await service.check();
+        expect(result.status).toBe('unavailable');
+        if (result.status !== 'unavailable') throw new Error('Expected an unavailable state');
+        expect(result.reason).toContain('rate limited');
+        expect(fetch).toHaveBeenCalledOnce();
+    });
+
+    it('retries the network once the rate limit window has elapsed', async () => {
+        const directory = await temporaryDirectory();
+        const dmg = new TextEncoder().encode('dmg fixture');
+        let nowMs = 1_700_000_000_000;
+        const resetEpochSeconds = Math.floor(nowMs / 1_000) + 60;
+        const rateLimited = vi.fn(() =>
+            Promise.resolve(
+                new Response(null, {
+                    status: 429,
+                    headers: { 'x-ratelimit-reset': String(resetEpochSeconds) },
+                }),
+            ),
+        );
+        const succeed = releaseFetch('0.0.4', dmg);
+        const fetch = vi.fn((input: string): Promise<Response> =>
+            fetch.mock.calls.length === 1 ? rateLimited() : succeed(input),
+        );
+        const service = new UpdateService({
+            currentVersion: '0.0.3',
+            downloadDirectory: directory,
+            enabled: true,
+            fetch,
+            now: () => nowMs,
+            openPath: () => Promise.resolve(''),
+        });
+
+        const first = await service.check();
+        expect(first.status).toBe('unavailable');
+
+        // Still inside the window: no additional network call.
+        await service.check();
+        expect(fetch).toHaveBeenCalledOnce();
+
+        // Move past the recorded reset time and retry.
+        nowMs = resetEpochSeconds * 1_000 + 1;
+        const afterWindow = await service.check();
+        expect(fetch).toHaveBeenCalledTimes(2);
+        expect(afterWindow.status).toBe('available');
+    });
+
     it('keeps non-404 release check failures as diagnosable errors', async () => {
         const directory = await temporaryDirectory();
         const fetch = vi.fn(() => Promise.resolve(new Response(null, { status: 500 })));

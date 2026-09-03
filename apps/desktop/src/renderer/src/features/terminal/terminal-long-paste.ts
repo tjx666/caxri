@@ -39,6 +39,12 @@ interface TerminalLongPasteControllerOptions {
     canAcceptAgentInput(): boolean;
     enabled(): boolean;
     onFailure(): void;
+    /**
+     * Called when a paste arrives while a previous long paste is still being summarized. The controller deliberately
+     * drops the new paste instead of queueing it, so this is the caller's only signal that user input was silently
+     * discarded; wire it to a toast so the drop is not invisible.
+     */
+    onDropped(): void;
     onPendingChange(isPending: boolean): void;
     paste(text: string): void;
     pasteAgentExact(text: string, expectedAgentLaunchId: string): void;
@@ -108,7 +114,10 @@ export class TerminalLongPasteController {
     }
 
     intercept(text: string): boolean {
-        if (this.isPendingValue) return true;
+        if (this.isPendingValue) {
+            this.options.onDropped();
+            return true;
+        }
         if (
             !shouldPrepareLongPaste({
                 canAcceptAgentInput: this.options.canAcceptAgentInput(),
@@ -127,7 +136,10 @@ export class TerminalLongPasteController {
     }
 
     async pasteFromClipboard(readText: () => Promise<string>): Promise<void> {
-        if (this.isPendingValue) return;
+        if (this.isPendingValue) {
+            this.options.onDropped();
+            return;
+        }
         const shouldClaimInput = this.options.canAcceptAgentInput() && this.options.enabled();
         if (!shouldClaimInput) {
             const text = await readText();
@@ -175,6 +187,7 @@ interface TerminalLongPasteRuntimeSnapshot {
  */
 export function createTerminalLongPasteRuntime(options: {
     latest: () => TerminalLongPasteRuntimeSnapshot;
+    onDropped: () => void;
     onFailure: () => void;
     onPendingChange: (isPending: boolean, shouldDisableStdin: boolean) => void;
     paste: (text: string) => void;
@@ -188,6 +201,7 @@ export function createTerminalLongPasteRuntime(options: {
         controller: new TerminalLongPasteController({
             canAcceptAgentInput: () => options.latest().canAcceptAgentInput,
             enabled: () => options.latest().longPasteEnabled,
+            onDropped: options.onDropped,
             onFailure: options.onFailure,
             onPendingChange: (pending) =>
                 options.onPendingChange(
