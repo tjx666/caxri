@@ -89,3 +89,29 @@ watcher.on('event', async (event) => {
 
 process.once('SIGINT', () => shutdown(0));
 process.once('SIGTERM', () => shutdown(0));
+process.once('SIGHUP', () => shutdown(0));
+
+/**
+ * Parent-death detector. When the parent (`scripts/development.ts`) is killed with SIGKILL, OOMs, or the terminal
+ * window is closed without the SIGHUP reaching us, no signal ever arrives here and the watcher lingers forever as an
+ * orphan. Poll `ppid`: once it reads 1 we have been reparented to init, so exit ourselves. macOS has no
+ * `PR_SET_PDEATHSIG`, so polling is the portable option.
+ */
+const ORPHAN_CHECK_INTERVAL_MS = 3000;
+const initialPpid = process.ppid;
+async function shutdownIfOrphaned(): Promise<void> {
+    const currentPpid = process.ppid;
+    if (currentPpid === initialPpid || currentPpid > 1) return;
+    console.error('watch.ts: parent process exited, shutting down');
+    try {
+        await shutdown(0);
+    } catch {
+        process.exit(0);
+    }
+}
+
+const orphanCheck = setInterval(() => {
+    // eslint-disable-next-line no-void -- fire-and-forget orphan probe; errors fall through to process.exit
+    void shutdownIfOrphaned();
+}, ORPHAN_CHECK_INTERVAL_MS);
+orphanCheck.unref();
