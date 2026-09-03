@@ -318,7 +318,7 @@ describe('decideAgentMetadataUpdate', () => {
     });
 
     // Claude Code writes `status: "idle"` at launch before any turn runs; that must not read as "waiting for the user".
-    it('does not raise waiting attention from a probe when the Session never ran a turn', () => {
+    it('keeps the current state when a probe reports waiting for a Session that never ran a turn', () => {
         const primary = terminal({ id: 'claude-1', provider: 'claude' });
         for (const lastActivityState of ['idle', 'unknown', 'completed'] as const) {
             const decision = decideAgentMetadataUpdate(
@@ -332,9 +332,59 @@ describe('decideAgentMetadataUpdate', () => {
                     status: 'waiting',
                 },
             );
-            expect(decision?.sessionPatch).toMatchObject({ lastActivityState: 'waiting' });
-            expect(decision?.sessionPatch?.attentionKind).toBeUndefined();
+            expect(decision).toBeUndefined();
         }
+    });
+
+    /**
+     * A probe reads Claude Code's coarse `status: "idle"`, which cannot distinguish "blocked on the user" from "the
+     * turn finished and the prompt is empty". Persisting that as `waiting` relights the PrimarySidebar's
+     * acknowledged-waiting cue, and that cue never consults read state, so the row stays amber forever for a Session
+     * the user already read.
+     */
+    it('never relights an acknowledged finished Session with an unclearable waiting cue', () => {
+        const primary = terminal({ id: 'claude-1', provider: 'claude' });
+        const acknowledged = session({
+            primaryAgentTerminalId: primary.id,
+            lastActivityState: 'completed',
+            lastAttentionKind: 'completed',
+            attentionEpoch: 3,
+            readAttentionEpoch: 3,
+        });
+
+        const decision = decideAgentMetadataUpdate(primary, acknowledged, {
+            provider: 'claude',
+            attentionKind: 'waiting',
+            available: true,
+            observedAt: 0,
+            status: 'waiting',
+        });
+
+        expect(decision?.sessionPatch?.attentionKind).toBeUndefined();
+        expect(decision?.sessionPatch?.lastActivityState).not.toBe('waiting');
+    });
+
+    /**
+     * An unclean Caxri shutdown marks every live Session `failed`, which describes Caxri crashing rather than the Agent
+     * failing. The Terminals are auto-resumed, so the first probe of the recovered Agent has to clear that marker or
+     * the Session stays flagged until the user sends a throwaway message.
+     */
+    it('lets a probe clear the failed marker an unclean shutdown left on a recovered Session', () => {
+        const primary = terminal({ id: 'claude-1', provider: 'claude' });
+
+        expect(
+            decideAgentMetadataUpdate(
+                primary,
+                session({ primaryAgentTerminalId: primary.id, lastActivityState: 'failed' }),
+                {
+                    provider: 'claude',
+                    attentionKind: 'completed',
+                    available: true,
+                    observedAt: 0,
+                    status: 'completed',
+                },
+            )?.sessionPatch,
+        ).toMatchObject({ lastActivityState: 'completed' });
     });
 
     it('emits only reliable primary-Agent attention state transitions', () => {
@@ -463,7 +513,7 @@ describe('decideAgentMetadataUpdate', () => {
             terminal({ id: 'codex-1', provider: 'codex', title: 'Codex' }),
             session({
                 displayTitle: 'Manual name',
-                lastActivityState: 'idle',
+                lastActivityState: 'running',
                 primaryAgentTerminalId: 'codex-1',
                 titleMode: 'manual',
             }),

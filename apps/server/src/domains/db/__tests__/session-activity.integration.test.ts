@@ -68,8 +68,8 @@ describe('Session Activity persistence', () => {
         expect(secondTouched.lastSessionActivityReason).toBe('agent_waiting');
 
         const agent = database.createSession(project.id, 'codex');
-        // A probed `waiting` only raises attention once the Session was observed running (see
-        // `metadataAttentionKind` in session-policy.ts), so record a turn before the wait.
+        // A probed turn-end state is only trusted once the Session was observed running (see
+        // `metadataActivityState` in session-policy.ts), so record a turn before the wait.
         database.updateAgentMetadata(
             agent.terminal!.id,
             { provider: 'codex', available: true, observedAt: Date.now(), status: 'running' },
@@ -127,6 +127,20 @@ describe('Session Activity persistence', () => {
         temporaryDirectories.push(directory);
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'codex');
+        /**
+         * A probe only proves a turn ended for a Session it already observed `running`, so the waiting generation under
+         * test has to follow a real running turn.
+         */
+        database.updateAgentMetadata(
+            created.terminal!.id,
+            {
+                provider: 'codex',
+                available: true,
+                observedAt: Date.now(),
+                status: 'running',
+            },
+            true,
+        );
         database.updateAgentMetadata(
             created.terminal!.id,
             {
