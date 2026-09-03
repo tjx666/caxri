@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import {
     diagnosticSettings,
     normalizeHome,
+    pickDiagnosticLogNames,
     summarizePerformanceLogs,
     summarizeRecentErrorIds,
 } from '../diagnostics';
@@ -57,6 +58,27 @@ describe('diagnostics redaction', () => {
     ])('redacts common provider token format %s', (token) => {
         expect(redactSecrets(`failure ${token}`)).toBe('failure [REDACTED]');
         expect(redactLogValue(`failure ${token}`)).toBe('failure [REDACTED]');
+    });
+});
+
+describe('diagnostic log discovery', () => {
+    it('includes every rotated generation and excludes unrelated files', () => {
+        expect(
+            pickDiagnosticLogNames([
+                'server-core.jsonl',
+                'server-core.jsonl.1',
+                'server-core.jsonl.2',
+                'server-core.jsonl.3',
+                'server-core.jsonl.bak',
+                'server-core.log',
+                'unknown.jsonl',
+            ]),
+        ).toEqual([
+            'server-core.jsonl',
+            'server-core.jsonl.1',
+            'server-core.jsonl.2',
+            'server-core.jsonl.3',
+        ]);
     });
 });
 

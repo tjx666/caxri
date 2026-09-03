@@ -23,6 +23,16 @@ const DIAGNOSTIC_LOG_NAME = new RegExp(
     'u',
 );
 
+/**
+ * Sorted diagnostic log file names for a profile directory listing. Exposed for unit coverage so that
+ * `DIAGNOSTIC_LOG_NAME` stays aligned with the logger's rotation contract without spinning up the full service.
+ */
+export function pickDiagnosticLogNames(names: string[]): string[] {
+    return names
+        .filter((name) => DIAGNOSTIC_LOG_NAME.test(name))
+        .toSorted((left, right) => left.localeCompare(right));
+}
+
 export function normalizeHome(path: string): string {
     const home = homedir();
     return path === home
@@ -190,9 +200,7 @@ export class DiagnosticsService {
         } catch {
             names = [];
         }
-        const logNames = names
-            .filter((name) => DIAGNOSTIC_LOG_NAME.test(name))
-            .toSorted((left, right) => left.localeCompare(right));
+        const logNames = pickDiagnosticLogNames(names);
         return Promise.all(
             logNames.map(async (name) => {
                 try {
@@ -271,9 +279,7 @@ export class DiagnosticsService {
             updatedAt: terminal.updatedAt,
         }));
         const logDirectory = dirname(this.logger.path);
-        const logNames = (await readdir(logDirectory))
-            .filter((name) => DIAGNOSTIC_LOG_NAME.test(name))
-            .toSorted((left, right) => left.localeCompare(right));
+        const logNames = pickDiagnosticLogNames(await readdir(logDirectory));
         const redactedLogs = await Promise.all(
             logNames.map(async (name) => ({
                 name,

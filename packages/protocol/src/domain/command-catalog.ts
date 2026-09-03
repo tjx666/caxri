@@ -8,6 +8,13 @@ import {
 import type { CommandId } from './commands.js';
 import type { Keybinding } from './domain.js';
 
+/**
+ * Context predicates the palette can evaluate against the currently selected Session so commands only surface when
+ * their target state is real. Kept as a small enum rather than a general when-clause expression because the current
+ * catalog has only two gated commands; a full evaluator is not warranted yet.
+ */
+export type CommandWhen = 'sessionHasLiveAgent' | 'sessionHasDetachedAgent';
+
 export interface CommandDefinition {
     id: CommandId;
     title: string;
@@ -26,6 +33,12 @@ export interface CommandDefinition {
      * invocation path cannot supply those arguments.
      */
     requiresArguments?: boolean;
+    /**
+     * When set, the command palette hides this command unless the predicate is true for the current selection. The
+     * command stays reachable through keybindings and native menus, where invocation from an unrelated state is a
+     * silent no-op — matching the row-menu's existing disabled affordance.
+     */
+    when?: CommandWhen;
     nativeMenu?: {
         menu: NativeMenuId;
         group: number;
@@ -104,6 +117,7 @@ export const commandDefinitions: CommandDefinition[] = [
         category: 'Session',
         description:
             'Stop the selected Session’s Agent Terminals so another client can resume the same conversation',
+        when: 'sessionHasLiveAgent',
         nativeMenu: { menu: 'session', group: 3, order: 0 },
     },
     {
@@ -112,6 +126,7 @@ export const commandDefinitions: CommandDefinition[] = [
         category: 'Session',
         description:
             'Relaunch the selected Session’s detached Agent Terminals and resume their conversations',
+        when: 'sessionHasDetachedAgent',
         nativeMenu: { menu: 'session', group: 3, order: 1 },
     },
     {

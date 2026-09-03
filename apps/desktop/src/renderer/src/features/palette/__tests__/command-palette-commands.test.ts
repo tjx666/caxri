@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
     getPaletteExtensionCommands,
     getStaticCommandPaletteValue,
+    isCommandVisibleInPalette,
 } from '../command-palette-commands';
 
 const catalog: ViewCatalogSnapshot = {
@@ -57,6 +58,43 @@ describe('getPaletteExtensionCommands', () => {
 
     it('fails closed when the catalog is not available', () => {
         expect(getPaletteExtensionCommands(undefined)).toEqual([]);
+    });
+});
+
+describe('isCommandVisibleInPalette', () => {
+    const detach = commandDefinitions.find((command) => command.id === 'session.detach');
+    const resume = commandDefinitions.find((command) => command.id === 'session.resume');
+    const alwaysVisible = commandDefinitions.find((command) => command.id === 'session.create');
+    if (!detach || !resume || !alwaysVisible) {
+        throw new Error('gated commands are missing from the catalog');
+    }
+
+    it('hides gated commands when the current session lacks the matching Agent Terminal', () => {
+        const context = { sessionHasLiveAgent: false, sessionHasDetachedAgent: false };
+        expect(isCommandVisibleInPalette(detach, context)).toBe(false);
+        expect(isCommandVisibleInPalette(resume, context)).toBe(false);
+        expect(isCommandVisibleInPalette(alwaysVisible, context)).toBe(true);
+    });
+
+    it('reveals each gated command only when its own predicate matches', () => {
+        expect(
+            isCommandVisibleInPalette(detach, {
+                sessionHasLiveAgent: true,
+                sessionHasDetachedAgent: false,
+            }),
+        ).toBe(true);
+        expect(
+            isCommandVisibleInPalette(resume, {
+                sessionHasLiveAgent: false,
+                sessionHasDetachedAgent: true,
+            }),
+        ).toBe(true);
+        expect(
+            isCommandVisibleInPalette(detach, {
+                sessionHasLiveAgent: false,
+                sessionHasDetachedAgent: true,
+            }),
+        ).toBe(false);
     });
 });
 
