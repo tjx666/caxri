@@ -1,11 +1,25 @@
 import type {
     CommandDefinition,
+    CommandWhen,
     ContributedCommandDescriptor,
     ViewCatalogSnapshot,
 } from '@caxri/protocol';
 import { commandDefinitions } from '@caxri/protocol';
 
 const STATIC_COMMAND_IDS: ReadonlySet<string> = new Set(commandDefinitions.map(({ id }) => id));
+
+export type CommandPaletteWhenContext = Readonly<Record<CommandWhen, boolean>>;
+
+/**
+ * Hides commands whose `when` predicate is false for the current selection so the palette stays in sync with the
+ * row-menu's disabled affordance. Commands without `when` remain visible.
+ */
+export function isCommandVisibleInPalette(
+    command: CommandDefinition,
+    context: CommandPaletteWhenContext,
+): boolean {
+    return command.when === undefined || context[command.when];
+}
 
 export function getStaticCommandPaletteValue(command: CommandDefinition): string {
     return [

@@ -84,6 +84,13 @@ describe('command registry', () => {
         );
     });
 
+    it('gates Detach/Resume Agent on the current session having the matching Agent Terminal', () => {
+        const detach = commandDefinitions.find((command) => command.id === 'session.detach');
+        const resume = commandDefinitions.find((command) => command.id === 'session.resume');
+        expect(detach?.when).toBe('sessionHasLiveAgent');
+        expect(resume?.when).toBe('sessionHasDetachedAgent');
+    });
+
     it('owns unique native-menu placements and returns them in presentation order', () => {
         const placements = commandDefinitions.flatMap((command) =>
             command.nativeMenu ? [{ command: command.id, ...command.nativeMenu }] : [],
