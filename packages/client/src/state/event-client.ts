@@ -156,9 +156,11 @@ export function createRecoveringEventClient(options: {
     }
 
     async function settleRecovery(state: RecoveryState): Promise<void> {
+        let didFail = false;
         try {
             await recoverUntilCaughtUp(state);
         } catch (error) {
+            didFail = true;
             if (isCurrent(state)) options.onError?.(error);
         } finally {
             if (recovery === state) {
@@ -167,7 +169,13 @@ export function createRecoveringEventClient(options: {
                 state.queued.length = 0;
                 const isOverflowed = state.isQueuedOverflowed;
                 state.isQueuedOverflowed = false;
-                if (isActive && generation === state.generation) {
+                /**
+                 * A failed recovery must drop its queue instead of replaying it: every queued envelope still has the
+                 * same cursor gap, so replaying would reschedule recovery synchronously and, while the transport keeps
+                 * rejecting (for example after Desktop disposal), spin the process in a hot loop. The next live gap or
+                 * an explicit `start()` on reconnect restarts recovery from real input instead.
+                 */
+                if (!didFail && isActive && generation === state.generation) {
                     if (isOverflowed) {
                         // eslint-disable-next-line no-void -- fire-and-forget restart; the resulting promise self-handles its own errors via settleRecovery's try/catch, and this synchronous finally block cannot await it.
                         void scheduleRecovery();

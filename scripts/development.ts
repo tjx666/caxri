@@ -99,6 +99,28 @@ class DevelopmentProcesses {
         }
     }
 
+    async #exitAfterChildren(exitCode: number): Promise<void> {
+        try {
+            await Promise.all(
+                this.#children.map(
+                    (child) =>
+                        new Promise<void>((resolve) => {
+                            if (child.exitCode !== null || child.signalCode !== null)
+                                return resolve();
+                            child.once('exit', () => resolve());
+                        }),
+                ),
+            );
+        } finally {
+            process.exit(exitCode);
+        }
+    }
+
+    /**
+     * Force `process.exit` after signalling the children. Setting `process.exitCode` alone leaves this launcher (and by
+     * extension every child that missed the signal) alive whenever any handle keeps the event loop running. Give the
+     * children a bounded grace period so they can flush their own shutdown, then hard-exit regardless.
+     */
     close(signal: NodeJS.Signals, exitCode: number): void {
         if (this.#isClosing) return;
         this.#isClosing = true;
@@ -106,9 +128,14 @@ class DevelopmentProcesses {
             if (child.exitCode === null && child.signalCode === null) child.kill(signal);
         }
         process.exitCode = exitCode;
+        const forceExit = setTimeout(() => process.exit(exitCode), 5000);
+        forceExit.unref();
+        // eslint-disable-next-line no-void -- fire-and-forget graceful drain; the setTimeout above is the hard fallback
+        void this.#exitAfterChildren(exitCode);
     }
 }
 
 const development = new DevelopmentProcesses();
 process.once('SIGINT', () => development.close('SIGINT', 0));
 process.once('SIGTERM', () => development.close('SIGTERM', 0));
+process.once('SIGHUP', () => development.close('SIGTERM', 0));

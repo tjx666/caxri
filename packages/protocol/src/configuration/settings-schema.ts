@@ -22,6 +22,11 @@ import {
     MAX_TRUSTED_DOMAINS,
     normalizeTrustedDomainRule,
 } from './trusted-domains.js';
+import {
+    MAX_TRUSTED_FOLDER_LENGTH,
+    MAX_TRUSTED_FOLDERS,
+    normalizeTrustedFolderRule,
+} from './trusted-folders.js';
 
 /**
  * VS Code-style defaults for file-tree visibility; dependency and build output stay visible.
@@ -113,6 +118,10 @@ const trustedDomainRuleSchema = z.string().min(1).max(MAX_TRUSTED_DOMAIN_LENGTH)
 
 const trustedDomainsSchema = z.array(trustedDomainRuleSchema).max(MAX_TRUSTED_DOMAINS).default([]);
 
+const trustedFolderRuleSchema = z.string().min(1).max(MAX_TRUSTED_FOLDER_LENGTH);
+
+const trustedFoldersSchema = z.array(trustedFolderRuleSchema).max(MAX_TRUSTED_FOLDERS).default([]);
+
 /**
  * Maps a spec's option tuple to the literal value tuple `z.enum` needs, preserving inference.
  */
@@ -158,6 +167,7 @@ export const appSettingsSchema = z.object({
     ),
     'git.fetchGitHubAvatars': booleanField(spec['git.fetchGitHubAvatars']),
     'security.trustedDomains': trustedDomainsSchema,
+    'security.trustedFolders': trustedFoldersSchema,
     'terminal.defaultWorkingDirectory': nullableStringField(
         spec['terminal.defaultWorkingDirectory'],
     ),
@@ -217,30 +227,56 @@ const agentProvidersFileSchema = z
             ) as unknown as Record<AgentProvider, AgentProviderSettings>,
     );
 
+/**
+ * Normalizes and deduplicates a user-authored rule list, reporting each unparseable entry at its own index.
+ */
+function normalizedRuleList(
+    values: string[],
+    context: z.RefinementCtx,
+    normalizeRule: (value: string) => string | undefined,
+    message: string,
+): string[] {
+    const normalized: string[] = [];
+    const seen = new Set<string>();
+    for (const [index, value] of values.entries()) {
+        const rule = normalizeRule(value);
+        if (!rule) {
+            context.addIssue({ code: 'custom', message, path: [index] });
+            continue;
+        }
+        if (!seen.has(rule)) {
+            seen.add(rule);
+            normalized.push(rule);
+        }
+    }
+    return normalized;
+}
+
 const trustedDomainsFileSchema = z
     .array(trustedDomainRuleSchema)
     .max(MAX_TRUSTED_DOMAINS)
     .default([])
-    .transform((values, context) => {
-        const normalized: string[] = [];
-        const seen = new Set<string>();
-        for (const [index, value] of values.entries()) {
-            const rule = normalizeTrustedDomainRule(value);
-            if (!rule) {
-                context.addIssue({
-                    code: 'custom',
-                    message: 'Expected an HTTP(S) origin or explicit *. subdomain rule',
-                    path: [index],
-                });
-                continue;
-            }
-            if (!seen.has(rule)) {
-                seen.add(rule);
-                normalized.push(rule);
-            }
-        }
-        return normalized;
-    });
+    .transform((values, context) =>
+        normalizedRuleList(
+            values,
+            context,
+            normalizeTrustedDomainRule,
+            'Expected an HTTP(S) origin or explicit *. subdomain rule',
+        ),
+    );
+
+const trustedFoldersFileSchema = z
+    .array(trustedFolderRuleSchema)
+    .max(MAX_TRUSTED_FOLDERS)
+    .default([])
+    .transform((values, context) =>
+        normalizedRuleList(
+            values,
+            context,
+            normalizeTrustedFolderRule,
+            'Expected an absolute folder path',
+        ),
+    );
 
 /**
  * Lenient parser for the user-authored `settings.jsonc`: a partial provider record fills from defaults, `files.exclude`
@@ -251,5 +287,6 @@ const trustedDomainsFileSchema = z
 export const appSettingsFileSchema = appSettingsSchema.extend({
     'agents.providers': agentProvidersFileSchema,
     'security.trustedDomains': trustedDomainsFileSchema,
+    'security.trustedFolders': trustedFoldersFileSchema,
     'files.exclude': filesExcludeFileSchema,
 });

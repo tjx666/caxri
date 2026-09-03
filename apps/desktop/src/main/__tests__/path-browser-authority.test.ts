@@ -16,8 +16,9 @@ import { join } from 'node:path';
 import { MAX_CONFIGURABLE_FILE_BYTES, MAX_FILE_BROWSE_ENTRIES } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { readBoundedExternalContent } from '../external-file-snapshot';
 import type { PathBrowserOpenTarget } from '../path-browser-authority';
-import { createPathBrowserAuthority, readBoundedExternalContent } from '../path-browser-authority';
+import { createPathBrowserAuthority } from '../path-browser-authority';
 import type { DesktopServerConnection } from '../server-connection';
 
 const temporaryDirectories: string[] = [];

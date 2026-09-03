@@ -227,6 +227,26 @@ describe('wire schema versus file schema', () => {
         ).toBe(false);
     });
 
+    it('normalizes and deduplicates trusted-folder rules in the file parser', () => {
+        const parsed = appSettingsFileSchema.parse({
+            'security.trustedFolders': [
+                '/Users/me//.lobehub/',
+                '/Users/me/.lobehub',
+                '/Users/me/other',
+            ],
+        });
+        expect(parsed['security.trustedFolders']).toEqual([
+            '/Users/me/.lobehub',
+            '/Users/me/other',
+        ]);
+        const result = appSettingsFileSchema.safeParse({
+            'security.trustedFolders': ['relative/path'],
+        });
+        expect(result.success).toBe(false);
+        if (!result.success)
+            expect(result.error.issues[0]?.path).toEqual(['security.trustedFolders', 0]);
+    });
+
     it('bounds declarative Terminal reference links without granting executable actions', () => {
         const parsed = appSettingsFileSchema.parse({
             'terminal.referenceLinks': [

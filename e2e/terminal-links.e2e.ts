@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import { execFileAsync } from '@caxri/system';
 import type { MessageBoxOptions } from 'electron';
 
+import type { E2EApp } from './support/electron-app.ts';
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import {
     clickTerminalLink,
@@ -15,6 +16,35 @@ import {
     sessionCard,
     typeTerminal,
 } from './support/helpers.ts';
+
+type LinkProbeName = 'caxriExternalLinkProbe' | 'caxriKeyboardLinkProbe' | 'caxriReferenceProbe';
+interface LinkProbe {
+    confirmations?: string[];
+    opened: string[];
+    response?: number;
+}
+
+function linkProbeField<K extends 'confirmations' | 'opened'>(
+    app: E2EApp,
+    probe: LinkProbeName,
+    field: K,
+): Promise<LinkProbe[K] | undefined> {
+    return app.evaluate(
+        (_electron, [name, key]) =>
+            (globalThis as unknown as Record<string, LinkProbe | undefined>)[name]?.[key],
+        [probe, field] as const,
+    );
+}
+
+function setLinkProbeResponse(app: E2EApp, probe: LinkProbeName, response: number): Promise<void> {
+    return app.evaluate(
+        (_electron, [name, value]) => {
+            (globalThis as unknown as Record<string, LinkProbe | undefined>)[name]!.response =
+                value;
+        },
+        [probe, response] as const,
+    );
+}
 
 test('Terminal links open Project files and confirm URLs through Main', async () => {
     allowE2EErrors([
@@ -41,6 +71,7 @@ test('Terminal links open Project files and confirm URLs through Main', async ()
     const ambiguousBeta = join(root, 'packages', 'beta', 'services', 'shared', 'shared.test.ts');
     const outsideRoot = join(isolatedHome, 'outside-project');
     const outsideFile = join(outsideRoot, 'outside-target.ts');
+    const outsideSecondFile = join(outsideRoot, 'outside-second.ts');
     await Promise.all([
         mkdir(join(root, '.local-config'), { recursive: true }),
         mkdir(dirname(inferredFile), { recursive: true }),
@@ -64,12 +95,13 @@ test('Terminal links open Project files and confirm URLs through Main', async ()
         writeFile(ambiguousAlpha, 'alpha-1\nalpha-2\nalpha-3\n'),
         writeFile(ambiguousBeta, 'beta-1\nbeta-2\nbeta-3\n'),
         writeFile(outsideFile, 'outside first\noutside second\n'),
+        writeFile(outsideSecondFile, 'outside trusted\n'),
     ]);
 
     const running = await launchCaxri({
         userDataDir: userData,
         testRootPath: root,
-        env: { CAXRI_TEST_ROOT_PATHS: JSON.stringify([root, outsideRoot]) },
+        env: { CAXRI_TEST_ROOT_PATHS: JSON.stringify([root]) },
     });
     try {
         await createShellSession(running.page);
@@ -218,22 +250,6 @@ test('Terminal links open Project files and confirm URLs through Main', async ()
             running.page.getByLabel(/Editor position: .*17 characters selected/),
         ).toBeVisible();
 
-        await running.page.getByRole('tab', { name: 'Shell' }).click();
-        const outsideHomeLink = '~/outside-project/outside-target.ts:2:4';
-        await typeTerminal(running.page, String.raw`printf '%s\n' '${outsideHomeLink}'`);
-        await expect(running.page.locator('.xterm-rows')).toContainText(outsideHomeLink);
-        await clickTerminalLink(running.page, outsideHomeLink);
-        await expect(running.page.getByRole('tab', { name: 'outside-target.ts' })).toHaveAttribute(
-            'aria-selected',
-            'true',
-        );
-        await expect(running.page.getByLabel(/^Editor position: Ln 2, Col 4/)).toBeVisible();
-        await expect(
-            running.page.getByRole('treeitem', { name: /outside-project/ }).first(),
-        ).toBeVisible();
-        await sessionCard(running.page, sourceSessionId).click();
-        await expect(running.page.getByRole('tab', { name: 'Shell' })).toBeVisible();
-
         await running.app.evaluate(({ dialog, shell }) => {
             const target = globalThis as typeof globalThis & {
                 caxriExternalLinkProbe?: {
@@ -268,6 +284,68 @@ test('Terminal links open Project files and confirm URLs through Main', async ()
             };
         });
 
+        // External links never create a Project: one prompt, "Trust Folder and Open", then a read-only tab.
+        const bootstrapBefore = await pageRequest<{ projects: unknown[]; sessions: unknown[] }>(
+            running.page,
+            'app.bootstrap',
+        );
+        await setLinkProbeResponse(running.app, 'caxriExternalLinkProbe', 1);
+        await running.page.getByRole('tab', { name: 'Shell' }).click();
+        const outsideHomeLink = '~/outside-project/outside-target.ts:2:4';
+        await typeTerminal(running.page, String.raw`printf '%s\n' '${outsideHomeLink}'`);
+        await expect(running.page.locator('.xterm-rows')).toContainText(outsideHomeLink);
+        await clickTerminalLink(running.page, outsideHomeLink);
+        await expect(running.page.getByRole('tab', { name: 'outside-target.ts' })).toHaveAttribute(
+            'aria-selected',
+            'true',
+        );
+        /**
+         * External tabs have no status-bar position chip (no Git blame either), so the caret is asserted through
+         * Monaco's active gutter line.
+         */
+        await expect(
+            running.page.locator('.monaco-editor').first().locator('.view-lines'),
+        ).toContainText('outside second');
+        await expect(
+            running.page
+                .locator('.monaco-editor')
+                .first()
+                .locator('.line-numbers.active-line-number'),
+        ).toHaveText('2');
+        await expect
+            .poll(() => linkProbeField(running.app, 'caxriExternalLinkProbe', 'confirmations'))
+            .toEqual(['Open outside-target.ts read-only?']);
+
+        await running.page.getByRole('tab', { name: 'Shell' }).click();
+        const trustedHomeLink = '~/outside-project/outside-second.ts';
+        await typeTerminal(running.page, String.raw`printf '%s\n' '${trustedHomeLink}'`);
+        await expect(running.page.locator('.xterm-rows')).toContainText(trustedHomeLink);
+        await clickTerminalLink(running.page, trustedHomeLink);
+        await expect(running.page.getByRole('tab', { name: 'outside-second.ts' })).toHaveAttribute(
+            'aria-selected',
+            'true',
+        );
+        await expect(
+            running.page.locator('.monaco-editor').first().locator('.view-lines'),
+        ).toContainText('outside trusted');
+        expect(
+            await linkProbeField(running.app, 'caxriExternalLinkProbe', 'confirmations'),
+        ).toHaveLength(1);
+        await expect(running.page.getByRole('treeitem', { name: /outside-project/ })).toHaveCount(
+            0,
+        );
+        const bootstrapAfter = await pageRequest<{ projects: unknown[]; sessions: unknown[] }>(
+            running.page,
+            'app.bootstrap',
+        );
+        expect([bootstrapAfter.projects.length, bootstrapAfter.sessions.length]).toEqual([
+            bootstrapBefore.projects.length,
+            bootstrapBefore.sessions.length,
+        ]);
+        await sessionCard(running.page, sourceSessionId).click();
+        await expect(running.page.getByRole('tab', { name: 'Shell' })).toBeVisible();
+        await setLinkProbeResponse(running.app, 'caxriExternalLinkProbe', 0);
+
         await expect(
             pageRequest(running.page, 'external.open', { url: 'not a URL' }),
         ).resolves.toEqual({ status: 'rejected', reason: 'invalid_url' });
@@ -281,14 +359,7 @@ test('Terminal links open Project files and confirm URLs through Main', async ()
         await expect(running.page.locator('.xterm-rows')).toContainText(url);
         await clickTerminalLink(running.page, url);
         await expect
-            .poll(() =>
-                running.app.evaluate(() => {
-                    const target = globalThis as typeof globalThis & {
-                        caxriExternalLinkProbe?: { opened: string[] };
-                    };
-                    return target.caxriExternalLinkProbe?.opened;
-                }),
-            )
+            .poll(() => linkProbeField(running.app, 'caxriExternalLinkProbe', 'opened'))
             .toContain(url);
         await expect(running.page.locator('.toast')).toHaveCount(0);
 
@@ -298,44 +369,30 @@ test('Terminal links open Project files and confirm URLs through Main', async ()
         await expect(running.page.locator('.xterm-rows')).toContainText(cjkBoundaryLine);
         await clickTerminalLink(running.page, cjkBoundaryUrl);
         await expect
-            .poll(() =>
-                running.app.evaluate(() => {
-                    const target = globalThis as typeof globalThis & {
-                        caxriExternalLinkProbe?: { opened: string[] };
-                    };
-                    return target.caxriExternalLinkProbe?.opened;
-                }),
-            )
+            .poll(() => linkProbeField(running.app, 'caxriExternalLinkProbe', 'opened'))
             .toContain(cjkBoundaryUrl);
 
         const canceledUrl = 'https://example.org/canceled';
-        await running.app.evaluate(() => {
-            const target = globalThis as typeof globalThis & {
-                caxriExternalLinkProbe?: { response: number };
-            };
-            target.caxriExternalLinkProbe!.response = 2;
-        });
+        await setLinkProbeResponse(running.app, 'caxriExternalLinkProbe', 2);
         await typeTerminal(running.page, String.raw`printf '%s\n' '${canceledUrl}'`);
         await expect(running.page.locator('.xterm-rows')).toContainText(canceledUrl);
         await clickTerminalLink(running.page, canceledUrl);
         await expect
-            .poll(() =>
-                running.app.evaluate(() => {
-                    const target = globalThis as typeof globalThis & {
-                        caxriExternalLinkProbe?: { confirmations: string[] };
-                    };
-                    return target.caxriExternalLinkProbe?.confirmations.length;
-                }),
+            .poll(
+                async () =>
+                    (await linkProbeField(running.app, 'caxriExternalLinkProbe', 'confirmations'))
+                        ?.length,
             )
-            .toBe(3);
+            // one external file prompt above plus three URL confirmations
+            .toBe(4);
         await expect(running.page.locator('.toast')).toHaveCount(0);
 
         const failedUrl = 'https://example.net/failure';
+        await setLinkProbeResponse(running.app, 'caxriExternalLinkProbe', 0);
         await running.app.evaluate(() => {
             const target = globalThis as typeof globalThis & {
-                caxriExternalLinkProbe?: { failOpen: boolean; response: number };
+                caxriExternalLinkProbe?: { failOpen: boolean };
             };
-            target.caxriExternalLinkProbe!.response = 0;
             target.caxriExternalLinkProbe!.failOpen = true;
         });
         await typeTerminal(running.page, String.raw`printf '%s\n' '${failedUrl}'`);
@@ -356,6 +413,7 @@ test('Terminal links open Project files and confirm URLs through Main', async ()
             }),
         ).resolves.toMatchObject({
             confirmations: [
+                'Open outside-target.ts read-only?',
                 'Open example.com in your default browser?',
                 'Open example.com in your default browser?',
                 'Open example.org in your default browser?',
@@ -447,14 +505,7 @@ test('Terminal references open configured issues and an authorized Git commit', 
         await clickTerminalLink(running.page, 'LOBE-13468');
         await clickTerminalLink(running.page, '#439');
         await expect
-            .poll(() =>
-                running.app.evaluate(() => {
-                    const target = globalThis as typeof globalThis & {
-                        caxriReferenceProbe?: { opened: string[] };
-                    };
-                    return target.caxriReferenceProbe?.opened;
-                }),
-            )
+            .poll(() => linkProbeField(running.app, 'caxriReferenceProbe', 'opened'))
             .toEqual([
                 'https://linear.app/lobehub/issue/13468',
                 'https://github.com/tjx666/caxri/issues/439',
@@ -484,8 +535,6 @@ test('Terminal references open configured issues and an authorized Git commit', 
 
 test('Terminal detected-link picker opens file and OSC 8 links without a pointer', async () => {
     allowE2EErrors([
-        { source: 'desktop', event: 'ipc.request_failed', code: 'PATH_DENIED', count: 1 },
-        { source: 'server-core', event: 'ipc.request_failed', code: 'PATH_DENIED', count: 1 },
         { source: 'server-core', event: 'ipc.request_failed', code: 'NOT_FOUND', count: 1 },
     ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-link-picker-e2e-'));
@@ -612,34 +661,15 @@ test('Terminal detected-link picker opens file and OSC 8 links without a pointer
 
         await openLink(oscUrl, `Open external link ${oscUrl}`);
         await expect
-            .poll(() =>
-                running.app.evaluate(() => {
-                    const target = globalThis as typeof globalThis & {
-                        caxriKeyboardLinkProbe?: { opened: string[] };
-                    };
-                    return target.caxriKeyboardLinkProbe?.opened;
-                }),
-            )
+            .poll(() => linkProbeField(running.app, 'caxriKeyboardLinkProbe', 'opened'))
             .toContain(openedOscUrl);
 
         await openLink(cjkBoundaryUrl, `Open external link ${cjkBoundaryUrl}`);
         await expect
-            .poll(() =>
-                running.app.evaluate(() => {
-                    const target = globalThis as typeof globalThis & {
-                        caxriKeyboardLinkProbe?: { opened: string[] };
-                    };
-                    return target.caxriKeyboardLinkProbe?.opened;
-                }),
-            )
+            .poll(() => linkProbeField(running.app, 'caxriKeyboardLinkProbe', 'opened'))
             .toContain(cjkBoundaryUrl);
 
-        await running.app.evaluate(() => {
-            const target = globalThis as typeof globalThis & {
-                caxriKeyboardLinkProbe?: { response: number };
-            };
-            target.caxriKeyboardLinkProbe!.response = 2;
-        });
+        await setLinkProbeResponse(running.app, 'caxriKeyboardLinkProbe', 2);
         await openLink(url, `Open external link ${url}`);
         await expect(terminalInput).toBeFocused();
         await openLink(rejectedUrl, `Open external link ${rejectedUrl}`);
@@ -708,22 +738,10 @@ test('Terminal detected-link picker opens file and OSC 8 links without a pointer
             .toBeLessThan(terminalWidthBeforeResize);
         await typeTerminal(running.page, String.raw`printf '\033[?1049l'`);
         await expect(running.page.locator('.xterm-rows')).toContainText('OSC link label');
-        await running.app.evaluate(() => {
-            const target = globalThis as typeof globalThis & {
-                caxriKeyboardLinkProbe?: { response: number };
-            };
-            target.caxriKeyboardLinkProbe!.response = 0;
-        });
+        await setLinkProbeResponse(running.app, 'caxriKeyboardLinkProbe', 0);
         await openLink(oscUrl, `Open external link ${oscUrl}`);
         await expect
-            .poll(() =>
-                running.app.evaluate(() => {
-                    const target = globalThis as typeof globalThis & {
-                        caxriKeyboardLinkProbe?: { opened: string[] };
-                    };
-                    return target.caxriKeyboardLinkProbe?.opened;
-                }),
-            )
+            .poll(() => linkProbeField(running.app, 'caxriKeyboardLinkProbe', 'opened'))
             .toEqual([openedOscUrl, cjkBoundaryUrl, openedOscUrl]);
         await openLink(homeLink, `Open file link ${homeLink}`);
         await expect(running.page.getByLabel(/^Editor position: Ln 3, Col 2/)).toBeVisible();
@@ -736,11 +754,17 @@ test('Terminal detected-link picker opens file and OSC 8 links without a pointer
         const deniedLink = deniedFile;
         await printTerminalLink(deniedLink);
         await openLink(deniedLink, `Open file link ${deniedLink}`);
+        await expect(running.page.getByRole('tab', { name: 'denied-target.ts' })).toHaveAttribute(
+            'aria-selected',
+            'true',
+        );
         await expect(
-            running.page
-                .locator('.toast')
-                .filter({ hasText: 'Terminal link target is outside every Project' }),
-        ).toBeVisible();
+            running.page.locator('.monaco-editor').first().locator('.view-lines'),
+        ).toContainText('outside Project root');
+        expect(
+            (await linkProbeField(running.app, 'caxriKeyboardLinkProbe', 'confirmations'))?.at(-1),
+        ).toBe('Open denied-target.ts read-only?');
+        await running.page.getByRole('tab', { name: 'Shell' }).click();
         await expect(terminalInput).toBeFocused();
 
         const missingLink = '~/project/missing-target.ts';

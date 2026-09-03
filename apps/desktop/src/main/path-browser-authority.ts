@@ -1,15 +1,22 @@
-import { Buffer } from 'node:buffer';
 import { randomUUID } from 'node:crypto';
 import type { Dirent } from 'node:fs';
-import { constants } from 'node:fs';
-import { lstat, open, opendir, realpath } from 'node:fs/promises';
+import { lstat, opendir } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 
 import type { MainRequest, MethodResult } from '@caxri/protocol';
-import { CaxriError, MAX_CONFIGURABLE_FILE_BYTES, MAX_FILE_BROWSE_ENTRIES } from '@caxri/protocol';
+import { CaxriError, MAX_FILE_BROWSE_ENTRIES } from '@caxri/protocol';
 import { AsyncSemaphore } from '@caxri/system';
 
+import { readExternalFile } from './external-file-snapshot';
+import type { FileIdentity, RootIdentity } from './path-browser-identity';
+import {
+    authorizeCandidate,
+    directoryIdentity,
+    isSameOrInside,
+    pathFailure,
+    validateDirectory,
+} from './path-browser-identity';
 import {
     memoizedSubpathPrefix,
     projectSubpathSuffix,
@@ -26,18 +33,6 @@ type Snapshot = MethodResult<'pathBrowser.start'>;
 type Entry = Snapshot['entries'][number];
 type BrowserMode = Snapshot['mode'];
 type Opened = MethodResult<'pathBrowser.open'>;
-
-interface RootIdentity {
-    path: string;
-    device: string;
-    inode: string;
-}
-
-interface FileIdentity {
-    device: string;
-    inode: string;
-    root: RootIdentity;
-}
 
 interface Candidate {
     id: string;
@@ -73,15 +68,6 @@ interface ResolvedBrowseInput {
     filter: string;
 }
 
-interface BoundedFileReader {
-    read(
-        buffer: Buffer,
-        offset: number,
-        length: number,
-        position: number,
-    ): Promise<{ bytesRead: number }>;
-}
-
 export interface PathBrowserOpenTarget {
     expectedIdentity: FileIdentity;
     path: string;
@@ -98,112 +84,6 @@ const MAX_SCANNED_ENTRIES = 4_096;
 const MAX_CONCURRENT_BROWSES = 4;
 const MAX_FILTER_LENGTH = 255;
 
-function isSameOrInside(root: string, target: string): boolean {
-    const pathFromRoot = relative(root, target);
-    return (
-        pathFromRoot === '' ||
-        (!isAbsolute(pathFromRoot) && pathFromRoot !== '..' && !pathFromRoot.startsWith(`..${sep}`))
-    );
-}
-
-function pathFailure(error: unknown, fallback: string): never {
-    if (error instanceof CaxriError) throw error;
-    const code = (error as NodeJS.ErrnoException).code;
-    if (code === 'ENOENT' || code === 'ENOTDIR')
-        throw new CaxriError('NOT_FOUND', 'File not found');
-    if (code === 'EACCES' || code === 'EPERM')
-        throw new CaxriError('PATH_DENIED', 'Path is not accessible');
-    /**
-     * Native filesystem errors include the raw absolute path. Path-browser locations stay Main-owned, so only a stable
-     * content-free failure may cross IPC or enter diagnostics.
-     */
-    throw new CaxriError('IO', fallback);
-}
-
-async function directoryIdentity(path: string): Promise<RootIdentity> {
-    try {
-        const before = await lstat(path, { bigint: true });
-        if (before.isSymbolicLink() || !before.isDirectory())
-            throw new CaxriError('PATH_DENIED', 'Browse location is not a directory');
-        const canonicalPath = await realpath(path);
-        const after = await lstat(path, { bigint: true });
-        if (
-            after.isSymbolicLink() ||
-            !after.isDirectory() ||
-            after.dev !== before.dev ||
-            after.ino !== before.ino ||
-            (await realpath(path)) !== canonicalPath
-        )
-            throw new CaxriError('CONFLICT', 'Browse location changed during authorization');
-        return {
-            path: canonicalPath,
-            device: after.dev.toString(),
-            inode: after.ino.toString(),
-        };
-    } catch (error) {
-        return pathFailure(error, 'Unable to inspect browse location');
-    }
-}
-
-async function validateDirectory(directory: RootIdentity): Promise<void> {
-    try {
-        const current = await lstat(directory.path, { bigint: true });
-        if (
-            current.isSymbolicLink() ||
-            !current.isDirectory() ||
-            current.dev.toString() !== directory.device ||
-            current.ino.toString() !== directory.inode ||
-            (await realpath(directory.path)) !== directory.path
-        )
-            throw new CaxriError('CONFLICT', 'Browse location changed after it was listed');
-    } catch (error) {
-        return pathFailure(error, 'Unable to validate browse location');
-    }
-}
-
-async function authorizeCandidate(
-    parent: RootIdentity,
-    candidatePath: string,
-    expected?: Candidate['snapshot'],
-): Promise<{ identity: FileIdentity; kind: 'directory' | 'file'; path: string }> {
-    await validateDirectory(parent);
-    try {
-        const lexicalStats = await lstat(candidatePath, { bigint: true });
-        if (lexicalStats.isSymbolicLink())
-            throw new CaxriError('PATH_DENIED', 'Symbolic links cannot be opened');
-        if (
-            expected &&
-            (expected.device !== lexicalStats.dev.toString() ||
-                expected.inode !== lexicalStats.ino.toString())
-        )
-            throw new CaxriError('CONFLICT', 'Path changed after it was listed');
-        const canonicalPath = await realpath(candidatePath);
-        if (!isSameOrInside(parent.path, canonicalPath) || dirname(canonicalPath) !== parent.path)
-            throw new CaxriError('PATH_DENIED', 'Path escapes its listed directory');
-        const stats = await lstat(canonicalPath, { bigint: true });
-        if (
-            stats.isSymbolicLink() ||
-            stats.dev !== lexicalStats.dev ||
-            stats.ino !== lexicalStats.ino
-        )
-            throw new CaxriError('CONFLICT', 'Path changed during authorization');
-        if (!stats.isDirectory() && !stats.isFile())
-            throw new CaxriError('VALIDATION', 'Path is not a regular file or directory');
-        await validateDirectory(parent);
-        return {
-            identity: {
-                device: stats.dev.toString(),
-                inode: stats.ino.toString(),
-                root: parent,
-            },
-            kind: stats.isDirectory() ? 'directory' : 'file',
-            path: canonicalPath,
-        };
-    } catch (error) {
-        return pathFailure(error, 'Unable to authorize browse entry');
-    }
-}
-
 function displayProjectDirectory(root: string, directory: string): string {
     const value = relative(root, directory).split(sep).join('/');
     return value ? `${value}/` : '';
@@ -211,24 +91,6 @@ function displayProjectDirectory(root: string, directory: string): string {
 
 function trailingSlash(path: string): string {
     return path === '/' ? '/' : `${path}/`;
-}
-
-/**
- * Reads at most one byte beyond the external-file limit. A file can grow after `stat()`, so `readFile()` would allow
- * another process to make Main allocate the entire expanded file before a post-read check could reject it.
- */
-export async function readBoundedExternalContent(file: BoundedFileReader): Promise<Buffer> {
-    const content = Buffer.allocUnsafe(MAX_CONFIGURABLE_FILE_BYTES + 1);
-    let offset = 0;
-    while (offset < content.byteLength) {
-        // eslint-disable-next-line no-await-in-loop -- one bounded file descriptor owns a sequential cursor
-        const { bytesRead } = await file.read(content, offset, content.byteLength - offset, offset);
-        if (bytesRead === 0) break;
-        offset += bytesRead;
-    }
-    if (offset > MAX_CONFIGURABLE_FILE_BYTES)
-        throw new CaxriError('CAPACITY', 'File exceeded the read safety limit');
-    return content.subarray(0, offset);
 }
 
 /**
@@ -263,69 +125,16 @@ async function readExternalDocument(
 ): Promise<Extract<Opened, { kind: 'external' }>> {
     if (!candidate.parent || !candidate.snapshot)
         throw new CaxriError('PATH_DENIED', 'External browse entry is no longer available');
-    const authorized = await authorizeCandidate(
-        candidate.parent,
-        candidate.path,
-        candidate.snapshot,
-    );
-    if (authorized.kind !== 'file')
-        throw new CaxriError('VALIDATION', 'Path is not a regular file');
-    let file: Awaited<ReturnType<typeof open>>;
-    try {
-        file = await open(authorized.path, constants.O_RDONLY | constants.O_NOFOLLOW);
-    } catch (error) {
-        return pathFailure(error, 'Unable to open external file');
-    }
-    try {
-        const opened = await file.stat({ bigint: true });
-        if (
-            !opened.isFile() ||
-            opened.dev.toString() !== authorized.identity.device ||
-            opened.ino.toString() !== authorized.identity.inode
-        )
-            throw new CaxriError('CONFLICT', 'File changed before it was opened');
-        if (opened.nlink > 1n)
-            throw new CaxriError(
-                'PATH_DENIED',
-                'Files with multiple filesystem links cannot be opened',
-            );
-        if (opened.size > BigInt(MAX_CONFIGURABLE_FILE_BYTES))
-            throw new CaxriError(
-                'CAPACITY',
-                `File exceeds the ${MAX_CONFIGURABLE_FILE_BYTES} byte safety limit`,
-            );
-        const boundedContent = await readBoundedExternalContent(file);
-        if (boundedContent.includes(0))
-            throw new CaxriError('IO', 'Binary files cannot be opened in the editor');
-        const current = await lstat(authorized.path, { bigint: true });
-        if (
-            current.isSymbolicLink() ||
-            !current.isFile() ||
-            current.dev !== opened.dev ||
-            current.ino !== opened.ino ||
-            current.nlink > 1n ||
-            (await realpath(authorized.path)) !== authorized.path
-        )
-            throw new CaxriError('CONFLICT', 'File changed while it was opened');
-        await validateDirectory(candidate.parent);
-        return {
-            opened: true,
-            kind: 'external',
-            document: {
-                id: randomUUID(),
-                name: candidate.name,
-                displayPath: authorized.path,
-                content: boundedContent.toString('utf8'),
-                mtimeMs: Number(opened.mtimeMs),
-                size: Number(opened.size),
-                readOnly: true,
-            },
-        };
-    } catch (error) {
-        return pathFailure(error, 'Unable to read external file');
-    } finally {
-        await file.close();
-    }
+    return {
+        opened: true,
+        kind: 'external',
+        document: await readExternalFile(
+            candidate.parent,
+            candidate.path,
+            candidate.name,
+            candidate.snapshot,
+        ),
+    };
 }
 
 /**

@@ -65,6 +65,34 @@ describe('createRecoveringEventClient', () => {
         expect((errors[0] as Error).message).toBe('recovery transport failed');
     });
 
+    it('drops queued envelopes after a failed recovery instead of replaying them into a hot loop', async () => {
+        const errors: unknown[] = [];
+        let recoverCalls = 0;
+        const client = createRecoveringEventClient({
+            emit: () => {},
+            onError: (error) => {
+                errors.push(error);
+            },
+            // oxlint-disable-next-line typescript/require-await -- rejects synchronously like a disposed transport
+            recover: async () => {
+                recoverCalls += 1;
+                throw new Error('Desktop Host connection is no longer active');
+            },
+        });
+        const gapped = {
+            cursor: 5,
+            event: { event: 'state.changed', payload: { kind: 'full', reason: 'unknown' } },
+        } as never;
+
+        // A live envelope with a cursor gap starts recovery; a second one queues behind it.
+        client.receive(gapped);
+        client.receive({ ...(gapped as object), cursor: 6 } as never);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+
+        expect(recoverCalls).toBe(1);
+        expect(errors).toHaveLength(1);
+    });
+
     it('emits a transient event immediately without waiting for recovery to settle', () => {
         const emitted: ServerEvent[] = [];
         const client = createRecoveringEventClient({

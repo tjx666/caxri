@@ -37,6 +37,7 @@ import { isRowModified, isRowResettable, withProviderField } from './settings-va
 import { StringControl } from './string-control';
 import { TerminalReferenceLinksForm } from './terminal-reference-links-form';
 import { TrustedDomainsForm } from './trusted-domains-form';
+import { TrustedFoldersForm } from './trusted-folders-form';
 
 interface SettingRowHandlers {
     onFieldChange: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
@@ -67,6 +68,7 @@ function isFullWidthRow(row: SettingRowDescriptor): boolean {
         'provider-skill-health',
         'terminal-reference-links',
         'trusted-domains',
+        'trusted-folders',
     ].includes(row.binding.type);
 }
 
@@ -376,6 +378,15 @@ function rowControl(properties: SettingRowProperties): {
                         focusRequestId={trustedDomainsFocusRequestId}
                         rules={settings['security.trustedDomains']}
                         onChange={(rules) => onFieldChange('security.trustedDomains', rules)}
+                    />
+                ),
+            };
+        case 'trusted-folders':
+            return {
+                control: (
+                    <TrustedFoldersForm
+                        rules={settings['security.trustedFolders']}
+                        onChange={(rules) => onFieldChange('security.trustedFolders', rules)}
                     />
                 ),
             };

@@ -29,6 +29,13 @@ Clients do not inherit this same-machine capability or gain a way to submit a lo
 Server Core. Add Project, Workbench-root selection, Agent folder selection, and other durable-root
 workflows continue to use native selection and single-use Main grants.
 
+Terminal file links outside every Project reuse the same external snapshot instead of forcing a Project
+to be added. Server Core reports the explicit target as `external` without reading it; Main confirms
+with Open, Trust Folder and Open, or Cancel, and skips the prompt when the `security.trustedFolders`
+Setting already contains the file's folder. A trusted folder is a persisted prompt-skip preference, not
+a root grant: it never creates a Project, never widens Files, Search, Git, Terminal cwd, or save
+authority, and the resulting tab stays read-only and ephemeral.
+
 A future Relay is a separately deployed access service reached outbound by the Server. It stores no
 Caxri domain state and cannot read relayed payloads; end-to-end encryption keeps it outside the Server's
 trust boundary. Relay discovery and notification may be added without creating a second Remote Server

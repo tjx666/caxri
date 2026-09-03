@@ -511,6 +511,8 @@ export class DesktopServerConnection extends EventTarget {
     private disposeLifecycle(): void {
         if (this.lifecycle.status !== 'disposed')
             this.lifecycle = transitionServerConnection(this.lifecycle, { type: 'dispose' });
+        // Disposal is terminal, so no in-flight or queued durable-event recovery may outlive it.
+        this.events?.stop();
         this.unsubscribeServerLifecycle();
     }
 

@@ -28,8 +28,10 @@ import {
     keybindingsFileSchema,
     MAX_CONFIGURATION_SOURCE_BYTES,
     MAX_TRUSTED_DOMAINS,
+    MAX_TRUSTED_FOLDERS,
     normalizeBuiltinTheme,
     normalizeTrustedDomainRule,
+    normalizeTrustedFolderRule,
     pushRecentAgentAction,
     reconcileDefaultKeybindings,
 } from '@caxri/protocol';
@@ -539,6 +541,33 @@ export class ConfigService {
         return mergedSource;
     }
 
+    /**
+     * Appends one already-normalized rule to a bounded allowlist setting, preserving the user's JSONC comments.
+     */
+    private appendTrustedRule(options: {
+        key: 'security.trustedDomains' | 'security.trustedFolders';
+        rule: string | undefined;
+        maximum: number;
+        label: string;
+        invalidMessage: string;
+    }): Promise<void> {
+        return this.mutateSettings(async () => {
+            const { key, rule, maximum, label } = options;
+            if (!rule) throw new CaxriError('VALIDATION', options.invalidMessage);
+            const current = this.settings[key];
+            if (current.includes(rule)) return;
+            if (current.length >= maximum)
+                throw new CaxriError('CAPACITY', `${label} supports at most ${maximum} rules`);
+            const source = applyEdits(
+                this.settingsSource,
+                modify(this.settingsSource, [key], [...current, rule], {
+                    formattingOptions: JSONC_FORMATTING_OPTIONS,
+                }),
+            );
+            await this.update('settings', source);
+        });
+    }
+
     async initialize(): Promise<void> {
         this.assertOpen();
         await mkdir(dirname(this.settingsPath), { recursive: true });
@@ -685,23 +714,22 @@ export class ConfigService {
     }
 
     trustDomain(input: string): Promise<void> {
-        return this.mutateSettings(async () => {
-            const domain = normalizeTrustedDomainRule(input);
-            if (!domain) throw new CaxriError('VALIDATION', 'Invalid trusted domain');
-            const current = this.settings['security.trustedDomains'];
-            if (current.includes(domain)) return;
-            if (current.length >= MAX_TRUSTED_DOMAINS)
-                throw new CaxriError(
-                    'CAPACITY',
-                    `Trusted Domains supports at most ${MAX_TRUSTED_DOMAINS} rules`,
-                );
-            const source = applyEdits(
-                this.settingsSource,
-                modify(this.settingsSource, ['security.trustedDomains'], [...current, domain], {
-                    formattingOptions: JSONC_FORMATTING_OPTIONS,
-                }),
-            );
-            await this.update('settings', source);
+        return this.appendTrustedRule({
+            key: 'security.trustedDomains',
+            rule: normalizeTrustedDomainRule(input),
+            maximum: MAX_TRUSTED_DOMAINS,
+            label: 'Trusted Domains',
+            invalidMessage: 'Invalid trusted domain',
+        });
+    }
+
+    trustFolder(input: string): Promise<void> {
+        return this.appendTrustedRule({
+            key: 'security.trustedFolders',
+            rule: normalizeTrustedFolderRule(input),
+            maximum: MAX_TRUSTED_FOLDERS,
+            label: 'Trusted Folders',
+            invalidMessage: 'Invalid trusted folder',
         });
     }
 
