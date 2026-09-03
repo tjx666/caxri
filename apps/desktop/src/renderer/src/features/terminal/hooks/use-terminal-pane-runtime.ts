@@ -358,6 +358,15 @@ export function useTerminalPaneRuntime({
         let isDisposed = false;
         const longPasteRuntime = createTerminalLongPasteRuntime({
             latest: () => latestReference.current,
+            /**
+             * The controller drops (rather than queues) a paste that arrives while a previous long paste is still being
+             * summarized, so this toast is the user's only feedback that their paste was discarded.
+             */
+            onDropped: () =>
+                pushToast(
+                    'info',
+                    'Previous long paste is still being summarized; paste again in a moment.',
+                ),
             onFailure: () => onError('Long paste could not be prepared'),
             onPendingChange: (pending, shouldDisableStdin) => {
                 xterm.options.disableStdin = shouldDisableStdin;

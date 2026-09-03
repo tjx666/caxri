@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import { allowE2EErrors, expect, test } from './support/fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 import {
     createShellSession,
     launchCaxri,
@@ -127,9 +127,6 @@ test('Cmd+P lazily browses Project paths from Terminal, Editor, and Files focus'
 });
 
 test('Cmd+P removes the Project anchor and opens an external file without a picker or workspace mutation', async () => {
-    allowE2EErrors([
-        { source: 'desktop', event: 'ipc.request_failed', code: 'NOT_FOUND', count: 1 },
-    ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-path-browser-external-e2e-'));
     const root = join(testDirectory, 'project');
     const externalRoot = join(testDirectory, 'external');

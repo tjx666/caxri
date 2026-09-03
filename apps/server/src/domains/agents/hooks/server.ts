@@ -87,10 +87,15 @@ export type AgentHookSignalDiagnostic =
           terminalId: string;
       }
     | {
-          hasAgentSessionId: boolean;
+          hasAgentSessionId?: boolean;
           outcome: 'accepted' | 'ignored';
           phase: AgentLifecyclePhase;
           provider: AgentProvider;
+          /**
+           * Present only when the disposition is `'ignored'` because of a benign provider mismatch (see
+           * {@link AgentHookServer.authorizationOutcome}); the ordinary downstream-ignored path never sets it.
+           */
+          reason?: 'providerMismatch';
           terminalId: string;
       }
     | {
@@ -304,14 +309,26 @@ export class AgentHookServer {
                 return;
             }
             const { packet } = parsed;
-            const rejectionReason = this.authorizationRejection(packet);
-            if (rejectionReason) {
+            const authorization = this.authorizationOutcome(packet);
+            if (authorization?.disposition === 'rejected') {
                 didSettle({
                     ...packetDiagnosticFields(packet),
                     outcome: 'rejected',
-                    reason: rejectionReason,
+                    reason: authorization.reason,
                 });
                 socket.end('{"ok":false}\n');
+                return;
+            }
+            if (authorization?.disposition === 'ignored') {
+                didSettle({
+                    ...packetDiagnosticFields(packet),
+                    outcome: 'ignored',
+                    reason: authorization.reason,
+                });
+                // A benign nested-CLI signal still needs an "ok" reply so the bridge exits 0 instead of printing
+                // "caxri-hook: signal_rejected" to the nested CLI's stderr for a mismatch that is not a security
+                // problem (see the JSDoc on authorizationOutcome).
+                socket.end('{"ok":true,"ignored":true}\n');
                 return;
             }
             if (packet.kind === 'bridgeStarted') {
@@ -351,15 +368,41 @@ export class AgentHookServer {
         });
     }
 
-    private authorizationRejection(
+    /**
+     * Classifies an authenticated-token signal as fully authorized (`undefined`), benign but not actionable
+     * (`'ignored'`), or a genuine security or protocol problem (`'rejected'`).
+     *
+     * `providerMismatch` is `'ignored'` rather than `'rejected'`: a Terminal running provider A's CLI can spawn
+     * provider B's CLI as a nested subprocess (for example, Claude Code shelling out to `codex`), and the
+     * `CAXRI_HOOK_*` environment is inherited by that child process, so the nested CLI's own hook fires with the parent
+     * Terminal's token but its own provider id. That is not a forged or malicious signal, so it should not be logged or
+     * surfaced as a rejection, and the bridge must still see an `"ok"` reply so the nested CLI's hook script does not
+     * print `caxri-hook: signal_rejected` to stderr for something benign.
+     *
+     * `schemaMismatch` only rejects a signal whose `schemaVersion` is _newer_ than this server build expects. The
+     * `--schema N` literal is baked into the shared, global hook config (`~/.claude/settings.json` and Codex's
+     * equivalent) by whichever locally installed Caxri build last wrote it, and every local build reads that same file.
+     * An older running build must therefore keep accepting a signal that carries a schema number from a newer sibling
+     * build, as long as the wire _shape_ of existing phases has not changed — schema bumps to date have been additive
+     * (see `git show b3f718b5`). A genuinely breaking wire change must bump `protocolVersion` instead of relying on
+     * schema rejection to gate compatibility.
+     */
+    private authorizationOutcome(
         signal: HookWireContext,
-    ): AgentHookSignalRejectionReason | undefined {
+    ):
+        | { disposition: 'ignored'; reason: 'providerMismatch' }
+        | { disposition: 'rejected'; reason: AgentHookSignalRejectionReason }
+        | undefined {
         const launch = this.launchesByToken.get(signal.token);
-        if (!launch) return 'unknownToken';
-        if (launch.launchId !== signal.launchId) return 'launchMismatch';
-        if (launch.terminalId !== signal.terminalId) return 'terminalMismatch';
-        if (launch.provider && launch.provider !== signal.provider) return 'providerMismatch';
-        if (this.schemaVersions[signal.provider] !== signal.schemaVersion) return 'schemaMismatch';
+        if (!launch) return { disposition: 'rejected', reason: 'unknownToken' };
+        if (launch.launchId !== signal.launchId)
+            return { disposition: 'rejected', reason: 'launchMismatch' };
+        if (launch.terminalId !== signal.terminalId)
+            return { disposition: 'rejected', reason: 'terminalMismatch' };
+        if (launch.provider && launch.provider !== signal.provider)
+            return { disposition: 'ignored', reason: 'providerMismatch' };
+        if (signal.schemaVersion > this.schemaVersions[signal.provider])
+            return { disposition: 'rejected', reason: 'schemaMismatch' };
         return undefined;
     }
 

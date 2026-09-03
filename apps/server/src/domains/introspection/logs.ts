@@ -12,7 +12,12 @@ import type {
 import { CaxriError, logProcesses, logQueryRecordSchema } from '@caxri/protocol';
 import { isSecretKey, redactLogValue } from '@caxri/system';
 
-const LOG_NAME = new RegExp(String.raw`^(?:${logProcesses.join('|')})\.jsonl(?:\.1)?$`, 'u');
+/**
+ * Matches every rotated generation the logger keeps (`.jsonl`, `.jsonl.1`, `.jsonl.2`, ...). Matching any numeric
+ * suffix rather than hardcoding `StructuredLogger`'s current `MAX_LOG_GENERATIONS` bound keeps this query complete if
+ * that retention window changes without both sites needing to move together.
+ */
+const LOG_NAME = new RegExp(String.raw`^(?:${logProcesses.join('|')})\.jsonl(?:\.\d+)?$`, 'u');
 const DEFAULT_MAXIMUM_RECORDS = 4_096;
 const DEFAULT_MAXIMUM_BYTES_PER_FILE = 512 * 1024;
 

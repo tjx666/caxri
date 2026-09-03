@@ -186,8 +186,19 @@ export function createLocalAgentAdapters(
     ) as Record<AgentProvider, AgentAdapter>;
 }
 
+/**
+ * A probe slower than this is worth surfacing at 'info' even when `available` did not change, since it is the signal an
+ * operator needs to notice a stalled executable discovery or version read.
+ */
+export const SLOW_AGENT_PROBE_MS = 250;
+
 export class AgentService {
     private readonly requests = new SingleFlight<string, AgentSnapshot>();
+    /**
+     * Tracks the last observed `available` per provider so `snapshot()` can log at 'info' only on a real availability
+     * transition, not on every probe. See `snapshot()`'s rationale below.
+     */
+    private readonly lastAvailableByProvider = new Map<AgentProvider, boolean>();
 
     constructor(
         private readonly logger?: StructuredLogger,
@@ -199,8 +210,23 @@ export class AgentService {
         return this.requests.run(snapshotRequestKey(provider, resolvedContext), async () => {
             const startedAt = performance.now();
             const snapshot = await this.adapters[provider].snapshot(resolvedContext);
-            this.logger?.write('info', logEventCatalog.agent.probe, {
-                durationMs: performance.now() - startedAt,
+            const durationMs = performance.now() - startedAt;
+            const previousAvailable = this.lastAvailableByProvider.get(provider);
+            this.lastAvailableByProvider.set(provider, snapshot.available);
+            /**
+             * Production evidence: `agent.probe` at unconditional 'info' produced 10,520 info lines across 5 days (~80%
+             * of server-core.jsonl), evicting real incidents from the single 5MB log generation within hours. Every
+             * provider is polled repeatedly while idle, so an unconditional line is almost always uninformative; only
+             * an availability transition or an unusually slow probe is worth 'info'. The first probe of a provider
+             * counts as a transition so startup timing (see the `performance` skill) keeps its `agent.probe` record.
+             */
+            const level =
+                previousAvailable !== snapshot.available || durationMs > SLOW_AGENT_PROBE_MS
+                    ? 'info'
+                    : 'debug';
+            this.logger?.write(level, logEventCatalog.agent.probe, {
+                correlationId: resolvedContext.correlationId,
+                durationMs,
                 fields: { provider, available: snapshot.available },
             });
             return snapshot;

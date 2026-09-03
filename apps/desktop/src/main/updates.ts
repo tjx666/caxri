@@ -83,6 +83,33 @@ function assertSuccessfulResponse(response: Response, label: string): void {
     if (!response.ok) throw new Error(`${label} failed with status ${response.status}.`);
 }
 
+/**
+ * `true` for both GitHub's primary (403, once the anonymous per-hour quota is exhausted) and secondary (429, once
+ * requests arrive too quickly) rate limits on the release check. Both are expected, temporary conditions rather than a
+ * Caxri defect, so they degrade to `unavailable` the same way the pre-release 404 case does (#244) instead of surfacing
+ * a permanent, retried-every-launch `error`.
+ */
+function isRateLimitedStatus(status: number): boolean {
+    return status === 403 || status === 429;
+}
+
+/**
+ * Reads GitHub's rate-limit reset hint from the response so the next automatic check can skip the network call entirely
+ * until the limit clears, instead of hammering an endpoint that is already rejecting requests. `retry-after` is a
+ * relative delay in seconds (used for secondary/abuse limits); `x-ratelimit-reset` is an absolute Unix epoch in seconds
+ * (used for the primary hourly limit). Returns `undefined` when neither header is present, in which case the caller
+ * does not open a skip window.
+ */
+function rateLimitResumeAt(response: Response, now: number): number | undefined {
+    const retryAfterSeconds = Number(response.headers.get('retry-after'));
+    if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0)
+        return now + retryAfterSeconds * 1_000;
+    const resetEpochSeconds = Number(response.headers.get('x-ratelimit-reset'));
+    if (Number.isFinite(resetEpochSeconds) && resetEpochSeconds > 0)
+        return resetEpochSeconds * 1_000;
+    return undefined;
+}
+
 async function readBoundedResponse(response: Response, maximumBytes: number): Promise<Uint8Array> {
     const declaredLength = Number(response.headers.get('content-length'));
     if (Number.isFinite(declaredLength) && declaredLength > maximumBytes)
@@ -187,6 +214,11 @@ export class UpdateService {
     private checkPromise: Promise<UpdateState> | undefined;
     private downloadPromise: Promise<UpdateState> | undefined;
     private downloadController: AbortController | undefined;
+    /**
+     * Epoch millis before which `check()` skips the network call because GitHub already rate-limited the previous
+     * attempt. `undefined` when no rate limit is currently known.
+     */
+    private rateLimitedUntil: number | undefined;
 
     constructor(private readonly options: UpdateServiceOptions) {
         this.fetch = options.fetch ?? globalThis.fetch;
@@ -222,7 +254,24 @@ export class UpdateService {
                     reason: 'The Caxri release feed is not publicly available yet.',
                 });
             }
+            // GitHub's anonymous release API is subject to both a per-hour primary limit (403) and a
+            // burst secondary limit (429). Both are expected, temporary conditions rather than a
+            // Caxri defect, so this degrades to `unavailable` the same way the 404 pre-release case
+            // does above (#244), and remembers when it is safe to retry so a repeated automatic check
+            // does not immediately re-trigger the same limit.
+            if (isRateLimitedStatus(response.status)) {
+                this.release = undefined;
+                this.readyPath = undefined;
+                this.rateLimitedUntil = rateLimitResumeAt(response, this.now());
+                return this.publish({
+                    status: 'unavailable',
+                    currentVersion: this.options.currentVersion,
+                    reason: 'Update check is rate limited by GitHub; try again later.',
+                });
+            }
             assertSuccessfulResponse(response, 'The GitHub release check');
+            // A successful, non-rate-limited response means the previous rate limit (if any) has cleared.
+            this.rateLimitedUntil = undefined;
             const source = new TextDecoder().decode(
                 await readBoundedResponse(response, MAX_RELEASE_RESPONSE_BYTES),
             );
@@ -416,7 +465,11 @@ export class UpdateService {
         return this.state;
     }
 
-    check(): Promise<UpdateState> {
+    /**
+     * `manual` marks a user-initiated check. It bypasses the locally recorded rate-limit window because the user
+     * explicitly accepted a fresh network round trip; the automatic launch check keeps honoring the window.
+     */
+    check(options: { manual?: boolean } = {}): Promise<UpdateState> {
         if (this.checkPromise) return this.checkPromise;
         if (this.downloadPromise) return Promise.resolve(this.state);
         if (!this.options.enabled)
@@ -425,6 +478,23 @@ export class UpdateService {
                     status: 'unavailable',
                     currentVersion: this.options.currentVersion,
                     reason: 'Update checks are available in packaged Caxri builds.',
+                }),
+            );
+        /**
+         * Skip the network call entirely while still inside a previously recorded GitHub rate-limit window (see
+         * `performCheck`'s 403/429 handling). This is what keeps the automatic launch check from immediately
+         * re-triggering the same limit; a later `check()` call after the window elapses tries the network again.
+         */
+        if (
+            !options.manual &&
+            this.rateLimitedUntil !== undefined &&
+            this.now() < this.rateLimitedUntil
+        )
+            return Promise.resolve(
+                this.publish({
+                    status: 'unavailable',
+                    currentVersion: this.options.currentVersion,
+                    reason: 'Update check is rate limited by GitHub; try again later.',
                 }),
             );
 

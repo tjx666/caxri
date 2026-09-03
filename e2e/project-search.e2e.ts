@@ -9,7 +9,6 @@ import { createProjectSession, launchCaxri, pageRequest } from './support/helper
 
 test('Project search opens name results and reveals grouped content matches', async () => {
     allowE2EErrors([
-        { source: 'desktop', event: 'ipc.request_failed', code: 'VALIDATION', count: 1 },
         { source: 'server-core', event: 'ipc.request_failed', code: 'VALIDATION', count: 1 },
     ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-project-search-e2e-'));

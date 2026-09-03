@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createTestAgentService } from '../../__tests__/create-test-domain-services';
 import { clearExecutableCache, discoverExecutable } from '../discovery';
 import type { AgentAdapter } from '../service';
-import { AgentService } from '../service';
+import { AgentService, SLOW_AGENT_PROBE_MS } from '../service';
 
 const temporaryDirectories: string[] = [];
 
@@ -115,6 +115,111 @@ describe('Agent adapter fallback', () => {
         expect(records.find((record) => record.event === 'agent.probe')?.durationMs).toBeTypeOf(
             'number',
         );
+    });
+
+    it('logs a fast, availability-unchanged probe at debug', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-'));
+        temporaryDirectories.push(directory);
+        const snapshot = vi.fn<AgentAdapter['snapshot']>(() =>
+            Promise.resolve({
+                provider: 'codex',
+                status: 'unknown',
+                observedAt: Date.now(),
+                available: true,
+            }),
+        );
+        const logger = new StructuredLogger(join(directory, 'logs'));
+        const write = vi.spyOn(logger, 'write');
+        const service = createTestAgentService({ codex: { provider: 'codex', snapshot } }, logger);
+
+        await service.snapshot('codex');
+        await service.snapshot('codex');
+
+        const levels = write.mock.calls
+            .filter((call) => call[1] === 'agent.probe')
+            .map((call) => call[0]);
+        /**
+         * Production evidence: unconditional 'info' probes rotated real incidents out of the single 5MB log generation
+         * within hours (see `SLOW_AGENT_PROBE_MS`'s JSDoc). The first probe stays at 'info' so startup timing keeps its
+         * record; repeated non-transitioning probes must stay at 'debug'.
+         */
+        expect(levels).toEqual(['info', 'debug']);
+    });
+
+    it('logs the probe at info when availability transitions from the previous probe', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-'));
+        temporaryDirectories.push(directory);
+        let isAvailable = true;
+        const snapshot = vi.fn<AgentAdapter['snapshot']>(() =>
+            Promise.resolve({
+                provider: 'codex',
+                status: 'unknown',
+                observedAt: Date.now(),
+                available: isAvailable,
+            }),
+        );
+        const logger = new StructuredLogger(join(directory, 'logs'));
+        const write = vi.spyOn(logger, 'write');
+        const service = createTestAgentService({ codex: { provider: 'codex', snapshot } }, logger);
+
+        await service.snapshot('codex');
+        await service.snapshot('codex');
+        isAvailable = false;
+        await service.snapshot('codex');
+
+        const levels = write.mock.calls
+            .filter((call) => call[1] === 'agent.probe')
+            .map((call) => call[0]);
+        expect(levels).toEqual(['info', 'debug', 'info']);
+    });
+
+    it('logs the probe at info when it exceeds the slow-probe threshold, even without an availability change', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-'));
+        temporaryDirectories.push(directory);
+        const snapshot = vi.fn<AgentAdapter['snapshot']>(() =>
+            Promise.resolve({
+                provider: 'codex',
+                status: 'unknown',
+                observedAt: Date.now(),
+                available: true,
+            }),
+        );
+        const logger = new StructuredLogger(join(directory, 'logs'));
+        const write = vi.spyOn(logger, 'write');
+        const service = createTestAgentService({ codex: { provider: 'codex', snapshot } }, logger);
+        const now = vi
+            .spyOn(performance, 'now')
+            .mockReturnValueOnce(0)
+            .mockReturnValueOnce(SLOW_AGENT_PROBE_MS + 1);
+
+        try {
+            await service.snapshot('codex');
+            const call = write.mock.calls.find((entry) => entry[1] === 'agent.probe');
+            expect(call?.[0]).toBe('info');
+        } finally {
+            now.mockRestore();
+        }
+    });
+
+    it('attributes the probe log to its Terminal via correlationId', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-'));
+        temporaryDirectories.push(directory);
+        const snapshot = vi.fn<AgentAdapter['snapshot']>(() =>
+            Promise.resolve({
+                provider: 'codex',
+                status: 'unknown',
+                observedAt: Date.now(),
+                available: true,
+            }),
+        );
+        const logger = new StructuredLogger(join(directory, 'logs'));
+        const write = vi.spyOn(logger, 'write');
+        const service = createTestAgentService({ codex: { provider: 'codex', snapshot } }, logger);
+
+        await service.snapshot('codex', { rootPath: '/project', correlationId: 'terminal-42' });
+
+        const call = write.mock.calls.find((entry) => entry[1] === 'agent.probe');
+        expect(call?.[2]?.correlationId).toBe('terminal-42');
     });
 
     it('does not share a provider probe across Terminal process generations', async () => {

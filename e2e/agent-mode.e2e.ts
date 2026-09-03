@@ -125,12 +125,6 @@ test('the blocked E2E mode shadows host Agents inside a Shell Terminal', async (
 test('real mode rejects unsafe launch args and interactive Agent input', async () => {
     allowE2EErrors([
         {
-            source: 'desktop',
-            event: 'ipc.request_failed',
-            code: 'VALIDATION',
-            count: 1,
-        },
-        {
             source: 'server-core',
             event: 'ipc.request_failed',
             code: 'VALIDATION',
