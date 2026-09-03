@@ -3,7 +3,7 @@ import type { AgentOperation, ProcessState, SessionRecord } from '@caxri/protoco
 import { sessionActivityPresentation } from './session-activity';
 
 export type SessionStatus =
-    | { ariaLabel: string; emphasis: 'persistent' | 'unread'; kind: 'attention' }
+    | { ariaLabel: string; kind: 'attention' }
     | { ariaLabel: string; kind: 'detached' }
     | { ariaLabel: string; kind: 'running' }
     | { kind: 'default' };
@@ -19,14 +19,16 @@ type SessionStatusSource = Pick<
 >;
 
 /**
- * Projects the detailed Agent lifecycle into the single status slot shared by Session lists. Attention outranks current
- * work because it represents an event the user has not acknowledged; a seen-but-still-waiting background Agent remains
- * visible without animation.
+ * Projects the detailed Agent lifecycle into the single status slot shared by Session lists.
+ *
+ * The amber attention slot means exactly one thing: an event the user has not opened yet. It is therefore always the
+ * animated unread state and always clears once the Session is read — there is deliberately no quieter "still waiting"
+ * variant. A second, static amber state keyed off `lastActivityState` alone used to survive acknowledgement, which left
+ * read Sessions marked with a cue no amount of reading could clear and made the animated one impossible to trust.
  */
 export function sessionStatus(
     session: SessionStatusSource,
     terminal: SessionStatusTerminal = {},
-    isCurrentSession = false,
 ): SessionStatus {
     const { agentOperation } = terminal;
     const currentActivity = sessionActivityPresentation(session.lastActivityState, agentOperation);
@@ -41,7 +43,6 @@ export function sessionStatus(
                 : '';
         return {
             ariaLabel: `Needs attention: ${attentionActivity.label}. ${attentionActivity.description}${currentStatus}`,
-            emphasis: 'unread',
             kind: 'attention',
         };
     }
@@ -54,19 +55,6 @@ export function sessionStatus(
         return {
             ariaLabel: 'Detached. The Agent was stopped so another client can resume it.',
             kind: 'detached',
-        };
-    }
-
-    /**
-     * The current Session already exposes its waiting reason in the visible Terminal. Keeping the same yellow dot after
-     * its unread generation is acknowledged makes the row look perpetually unread, while background waiting Sessions
-     * still need a durable status cue.
-     */
-    if (!isCurrentSession && session.lastActivityState === 'waiting') {
-        return {
-            ariaLabel: `Needs attention. ${currentActivity.ariaLabel}`,
-            emphasis: 'persistent',
-            kind: 'attention',
         };
     }
 

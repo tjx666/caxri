@@ -259,9 +259,9 @@ setInterval(() => {
 
         await writeClaudeMetadata(config, root, startedAt, 'idle', 'First Agent');
         await expect(firstStatus).toHaveAttribute('data-session-status', 'attention');
-        await expect(firstStatus).toHaveAttribute('data-attention-emphasis', 'unread');
+        await expect(firstStatus).toHaveAttribute('data-attention-kind', 'completed');
         await expect(firstStatus).toHaveAccessibleName(
-            'Needs attention: Waiting for you. The Agent is waiting for input or confirmation.',
+            'Needs attention: Finished. The Agent finished its latest turn.',
         );
         expect(
             await firstStatus
@@ -292,9 +292,9 @@ setInterval(() => {
         await expect(archiveButton).toHaveCSS('opacity', '0');
         await expect(archiveButton).toHaveCSS('pointer-events', 'none');
         await expect(activityCard).toBeVisible({ timeout: 200 });
-        await expect(activityCard).toContainText('Waiting for you');
-        await expect(activityCard).toContainText('The Agent is waiting for input or confirmation.');
-        await expect(activityCard).toContainText('Unread attention: Waiting for you');
+        await expect(activityCard).toContainText('Finished');
+        await expect(activityCard).toContainText('The Agent finished its latest turn.');
+        await expect(activityCard).toContainText('Unread attention: Finished');
         expect(
             (await pageRequest<{ selectedSessionId?: string }>(running.page, 'app.bootstrap'))
                 .selectedSessionId,
@@ -314,7 +314,7 @@ setInterval(() => {
         await expect(
             running.page
                 .locator(`[data-session-id="${firstSession.id}"]`)
-                .locator('.session-status[data-attention-emphasis="unread"]'),
+                .locator('.session-status[data-session-status="attention"]'),
         ).toBeVisible();
 
         await running.page
@@ -338,7 +338,7 @@ setInterval(() => {
         await expect(
             running.page
                 .locator(`[data-session-id="${firstSession.id}"]`)
-                .locator('.session-status[data-attention-emphasis="unread"]'),
+                .locator('.session-status[data-session-status="attention"]'),
         ).toBeVisible();
         await expect
             .poll(() =>
@@ -362,7 +362,7 @@ setInterval(() => {
             `[data-session-id="${firstSession.id}"] .session-status`,
         );
         await expect(selectedStatus).toHaveAttribute('data-session-status', 'default');
-        await expect(selectedStatus).not.toHaveAttribute('data-attention-emphasis');
+        await expect(selectedStatus).not.toHaveAttribute('data-attention-kind');
         await running.page.screenshot({
             path: testInfo.outputPath('selected-session-attention-cleared.png'),
         });
@@ -375,11 +375,30 @@ setInterval(() => {
                     .evaluateAll((rows) => rows.map((row) => row.dataset.sessionId)),
             )
             .toEqual([firstSession.id, secondSessionId]);
+        /**
+         * Losing selection is not new Agent activity. Claude Code leaves `status: "idle"` in its metadata after a turn
+         * ends, and a routine probe used to persist that as `waiting` over the acknowledged state, which the
+         * PrimarySidebar then rendered as a second static amber cue no amount of reading could clear.
+         */
+        const deselectedStatus = running.page.locator(
+            `[data-session-id="${firstSession.id}"] .session-status`,
+        );
+        await expect(deselectedStatus).toHaveAttribute('data-session-status', 'default');
+        await expect(deselectedStatus).not.toHaveAttribute('data-attention-kind');
+        await running.page.waitForTimeout(600);
+        await expect(deselectedStatus).toHaveAttribute('data-session-status', 'default');
+
+        /**
+         * A second turn is what earns a second unread generation: a probe can only prove a turn ended for a Session it
+         * just observed running, so the Agent has to go busy again first.
+         */
+        await writeClaudeMetadata(config, root, startedAt, 'busy', 'First Agent');
+        await expect(deselectedStatus).toHaveAttribute('data-session-status', 'running');
         await writeClaudeMetadata(config, root, startedAt, 'completed', 'First Agent');
         await expect(
             running.page
                 .locator(`[data-session-id="${firstSession.id}"]`)
-                .locator('.session-status[data-attention-emphasis="unread"]'),
+                .locator('.session-status[data-session-status="attention"]'),
         ).toBeVisible();
 
         await running.app.close();
@@ -387,7 +406,7 @@ setInterval(() => {
         await expect(
             running.page
                 .locator(`[data-session-id="${firstSession.id}"]`)
-                .locator('.session-status[data-attention-emphasis="unread"]'),
+                .locator('.session-status[data-session-status="attention"]'),
         ).toBeVisible();
         await expect
             .poll(() =>

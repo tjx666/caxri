@@ -399,8 +399,10 @@ process.stdin.on('end', () => {
                 processState: 'running',
             }),
         ).resolves.toMatchObject({
-            attentionKind: 'waiting',
+            // Claude Code's `idle` only means no turn is running, never that it is blocked on the user.
+            attentionKind: 'completed',
             sessionId: 'claude-session-2',
+            status: 'completed',
             title: 'Keep this Terminal',
         });
         await expect(

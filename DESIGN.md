@@ -148,9 +148,9 @@ accessible names and hover tooltips.
 Selection is an `--elevated` fill (radius 6), no border and no accent — the primarySidebar stays
 entirely neutral so the focused pane keeps the screen's one accent. Every Session row reserves one
 fixed status slot on the right. Unacknowledged attention wins and uses a warning ring/dot with a
-ping; acknowledged `waiting` keeps the same ring/dot still while the Session is in the background,
-but leaves the current Session's slot blank; active work (including compaction) uses a muted
-spinner; settled, idle, unknown, failed, and exited Sessions leave the slot blank. Thus a
+ping; there is deliberately no second, static amber state, so reading a Session is the only thing
+that clears the slot and nothing can bring it back unread; active work (including compaction) uses
+a muted spinner; settled, idle, unknown, failed, and exited Sessions leave the slot blank. Thus a
 failed process is not a persistent list alert, while reliable unread attention remains visible
 regardless of its exact kind. Motion and shape carry the glance signal without changing title
 weight, and the accessible label plus the Session hover/focus card preserve exact lifecycle and
@@ -252,9 +252,9 @@ disclosures in Files, Source Control, and extension-contributed trees. Do not st
 The Process Explorer window is out of scope (separate style layer, read-only diagnostics).
 
 The Session status icon is the narrow state-motion exception: unread attention pings so a newly
-actionable event is noticeable, running spins, and acknowledged waiting stays static in background
-rows while the current row clears it. The motion belongs inside the icon; swapping among the three
-list projections remains instant.
+actionable event is noticeable, and running spins. Amber always pings — an unread event is the only
+thing that colors the slot — so a still amber dot never competes with it. The motion belongs inside
+the icon; swapping among the three list projections remains instant.
 
 The work-tab `Compacting` accessory is the other state-motion exception: only that word pulses,
 while the Agent icon, Session title, focus accent, and neighboring tabs remain still.
