@@ -6,6 +6,7 @@ import {
     nextPrimarySidebarRowId,
     primarySidebarArchiveIntent,
     primarySidebarHorizontalIntent,
+    primarySidebarRevealRowId,
     rovingPrimarySidebarRowId,
 } from '../primary-sidebar-tree';
 
@@ -32,6 +33,26 @@ describe('flattenPrimarySidebarRows', () => {
     it('skips a collapsed Project entirely so focus never lands on a hidden row', () => {
         const rows = flattenPrimarySidebarRows(projects, (projectId) => projectId !== 'alpha');
         expect(rows.map((row) => row.id)).toEqual(['alpha', 'beta', 'beta-1', 'gamma']);
+    });
+
+    it('closes an expanded Project with hidden Sessions with its reveal row', () => {
+        const rows = flattenPrimarySidebarRows(
+            [{ id: 'alpha', hasHiddenSessions: true, sessionIds: ['alpha-1'] }],
+            () => true,
+        );
+        expect(rows).toEqual([
+            { id: 'alpha', kind: 'project', projectId: 'alpha' },
+            { id: 'alpha-1', kind: 'session', projectId: 'alpha' },
+            { id: primarySidebarRevealRowId('alpha'), kind: 'reveal', projectId: 'alpha' },
+        ]);
+    });
+
+    it('leaves the reveal row out of a collapsed Project', () => {
+        const rows = flattenPrimarySidebarRows(
+            [{ id: 'alpha', hasHiddenSessions: true, sessionIds: ['alpha-1'] }],
+            () => false,
+        );
+        expect(rows.map((row) => row.id)).toEqual(['alpha']);
     });
 });
 
@@ -85,6 +106,18 @@ describe('primarySidebarHorizontalIntent', () => {
             focusRowId: 'alpha',
         });
         expect(primarySidebarHorizontalIntent(sessionRow, true, 'ArrowRight')).toEqual({});
+    });
+
+    it('treats a reveal row like a Session: Left goes to the Project, Right does nothing', () => {
+        const revealRow = {
+            id: primarySidebarRevealRowId('alpha'),
+            kind: 'reveal' as const,
+            projectId: 'alpha',
+        };
+        expect(primarySidebarHorizontalIntent(revealRow, true, 'ArrowLeft')).toEqual({
+            focusRowId: 'alpha',
+        });
+        expect(primarySidebarHorizontalIntent(revealRow, true, 'ArrowRight')).toEqual({});
     });
 });
 
@@ -144,5 +177,14 @@ describe('primarySidebarArchiveIntent', () => {
     it('is always a no-op for a Project row', () => {
         expect(primarySidebarArchiveIntent(projectRow, 'Delete')).toBeUndefined();
         expect(primarySidebarArchiveIntent(projectRow, 'Backspace')).toBeUndefined();
+    });
+
+    it('is always a no-op for a reveal row', () => {
+        const revealRow = {
+            id: primarySidebarRevealRowId('alpha'),
+            kind: 'reveal' as const,
+            projectId: 'alpha',
+        };
+        expect(primarySidebarArchiveIntent(revealRow, 'Delete')).toBeUndefined();
     });
 });

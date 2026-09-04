@@ -1,6 +1,7 @@
 import type { CSSProperties, FocusEvent, KeyboardEvent } from 'react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
+import type { SessionRecord } from '@caxri/protocol';
 import { Plus } from 'lucide-react';
 
 import caxriLogoUrl from '../../assets/caxri-logo.png';
@@ -34,6 +35,11 @@ import {
 import { ProjectGroup } from './project-group';
 import { hasProjectDragType } from './project-order';
 import { SessionHistoryNavigation } from './session-history-navigation';
+import {
+    nextRevealedSessionCount,
+    SESSION_REVEAL_STEP,
+    sessionListWindow,
+} from './session-list-window';
 
 const PRIMARY_SIDEBAR_VERTICAL_KEYS: readonly PrimarySidebarVerticalKey[] = [
     'ArrowDown',
@@ -78,6 +84,11 @@ export function PrimarySidebar() {
     });
     const [animatedProjectIds, setAnimatedProjectIds] = useState<Set<string>>(() => new Set());
     /**
+     * How many Sessions each Project has revealed beyond the default window, keyed by Project id. Deliberately kept in
+     * memory only: a relaunch should start from the short list again, the same way it starts scrolled to the top.
+     */
+    const [revealedSessionCounts, setRevealedSessionCounts] = useState<Record<string, number>>({});
+    /**
      * The last tree row the user actually focused; feeds `rovingPrimarySidebarRowId`'s roving-tabindex resolution.
      */
     const [focusedRowId, setFocusedRowId] = useState<string>();
@@ -95,19 +106,44 @@ export function PrimarySidebar() {
     const isProjectExpanded = projectCollapse.isProjectExpanded;
 
     /**
+     * One windowed Session list per Project, in sidebar order. Shared by the flattened tree rows and the rendered
+     * groups so arrow-key navigation can never reach a Session the window hides.
+     */
+    const projectWindows = useMemo(
+        () =>
+            projects.map((project) => {
+                // Single pass instead of `.filter().map()`: react-doctor's combine-iterations rule
+                // flags the chained form even though both walk the same small `sessions` array.
+                const projectSessions: SessionRecord[] = [];
+                for (const session of sidebarSessions)
+                    if (session.projectId === project.id) projectSessions.push(session);
+                return {
+                    project,
+                    ...sessionListWindow(
+                        projectSessions,
+                        revealedSessionCounts[project.id],
+                        selectedSessionId,
+                    ),
+                };
+            }),
+        [projects, revealedSessionCounts, selectedSessionId, sidebarSessions],
+    );
+
+    /**
      * Flattened row order that Up/Down/Home/End walk; recomputed only when the tree's shape changes.
      */
-    const treeRows = useMemo(() => {
-        const projectNodes = projects.map((project) => {
-            // Single pass instead of `.filter().map()`: react-doctor's combine-iterations rule
-            // flags the chained form even though both walk the same small `sessions` array.
-            const sessionIds: string[] = [];
-            for (const session of sidebarSessions)
-                if (session.projectId === project.id) sessionIds.push(session.id);
-            return { id: project.id, sessionIds };
-        });
-        return flattenPrimarySidebarRows(projectNodes, isProjectExpanded);
-    }, [projects, sidebarSessions, isProjectExpanded]);
+    const treeRows = useMemo(
+        () =>
+            flattenPrimarySidebarRows(
+                projectWindows.map((entry) => ({
+                    hasHiddenSessions: entry.hiddenCount > 0,
+                    id: entry.project.id,
+                    sessionIds: entry.visibleSessions.map((session) => session.id),
+                })),
+                isProjectExpanded,
+            ),
+        [projectWindows, isProjectExpanded],
+    );
 
     /**
      * The single row that owns the tree's roving Tab stop (standard ARIA tree authoring pattern). Falls back through
@@ -136,6 +172,28 @@ export function PrimarySidebar() {
         treeReference.current
             ?.querySelector<HTMLElement>(`[data-row-id="${CSS.escape(rowId)}"]`)
             ?.focus();
+    };
+
+    /**
+     * Steps a Project's Session window forward. The next window is measured from what is on screen right now, so it
+     * always adds exactly the number the reveal row promised — even when the selected-Session guarantee already widened
+     * it past the stored count.
+     */
+    const revealMoreSessions = (
+        projectId: string,
+        visibleSessions: readonly SessionRecord[],
+        hiddenCount: number,
+    ): void => {
+        setRevealedSessionCounts((current) => ({
+            ...current,
+            [projectId]: nextRevealedSessionCount(visibleSessions.length),
+        }));
+        // The final step unmounts the reveal row itself, which would drop the tree's roving Tab stop onto the document
+        // body. Hand focus to the Session row directly above it while that row still exists — the same pre-unmount
+        // handoff the Delete/Backspace archive path performs.
+        const lastVisibleSessionId = visibleSessions.at(-1)?.id;
+        if (lastVisibleSessionId && hiddenCount <= SESSION_REVEAL_STEP)
+            focusRow(lastVisibleSessionId);
     };
 
     /**
@@ -255,19 +313,17 @@ export function PrimarySidebar() {
                 onPointerEnter={() => projectCollapse.setIsHovered(true)}
                 onPointerLeave={() => projectCollapse.setIsHovered(false)}
             >
-                {projects.map((project) => {
-                    const activeSessions = sidebarSessions.filter(
-                        (session) => session.projectId === project.id,
-                    );
-                    return (
+                {projectWindows.map(
+                    ({ hiddenCount, nextRevealCount, project, visibleSessions }) => (
                         <ProjectGroup
                             key={project.id}
                             active={project.id === selectedProjectId}
-                            activeSessions={activeSessions}
                             animateProject={animatedProjectIds.has(project.id)}
                             dragged={projectOrder.draggedProjectId === project.id}
                             expanded={isProjectExpanded(project.id)}
                             focusRenameInput={sessionRename.focusRenameInput}
+                            hiddenSessionCount={hiddenCount}
+                            nextRevealCount={nextRevealCount}
                             onBeginRename={sessionRename.beginRename}
                             onBlurRename={sessionRename.blurRename}
                             onCancelRename={sessionRename.cancelRename}
@@ -281,6 +337,9 @@ export function PrimarySidebar() {
                                 projectOrder.move(project.id, project.displayTitle, delta)
                             }
                             onRenameValueChange={sessionRename.onRenameValueChange}
+                            onRevealMoreSessions={() =>
+                                revealMoreSessions(project.id, visibleSessions, hiddenCount)
+                            }
                             onToggle={() => toggleProject(project.id)}
                             project={project}
                             pullRequests={pullRequests}
@@ -295,9 +354,10 @@ export function PrimarySidebar() {
                             rovingRowId={rovingRowId}
                             selectedSessionId={selectedSessionId}
                             terminals={terminals}
+                            visibleSessions={visibleSessions}
                         />
-                    );
-                })}
+                    ),
+                )}
                 {projects.length === 0 && (
                     <button
                         className="first-session flex min-h-[72px] w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-border bg-transparent p-4 text-muted hover:border-muted hover:text-foreground"
