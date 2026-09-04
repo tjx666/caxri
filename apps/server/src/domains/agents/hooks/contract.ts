@@ -20,6 +20,13 @@ export type AgentLifecyclePhase = (typeof agentLifecyclePhases)[number];
 
 export interface AgentLifecycleSignal {
     /**
+     * Absolute working directory the provider reports for the hook event itself, present on every phase. Claude Code's
+     * built-in `EnterWorktree` moves its own session directory without touching the PTY, so this is the only public
+     * signal that the Agent left the Terminal's launch root. It is the provider's unverified claim: Server Core must
+     * prove it against the owning Project's Git worktree topology before any of it becomes durable state.
+     */
+    agentCwd?: string;
+    /**
      * Provider-native session identifier from the hook payload, when the provider supplies one. Only this opaque id
      * crosses the boundary — prompt and response content never do — so a manual in-terminal resume can rebind the
      * Terminal to the session the Agent actually runs.

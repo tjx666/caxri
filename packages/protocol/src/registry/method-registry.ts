@@ -46,8 +46,6 @@ import {
     pathSchema,
     persistedWindowStateSchema,
     projectRecordSchema,
-    projectStatusOverviewSchema,
-    projectStatusSummarySchema,
     sessionRecordSchema,
     sessionStateSchema,
     terminalKindSchema,
@@ -59,6 +57,10 @@ import {
 import { fileSearchModeSchema, fileSearchResultSchema } from '../domain/file-search.js';
 import { gitInternalMethods, gitMethods } from '../domain/git-contract.js';
 import { projectIconSchema } from '../domain/project-customization.js';
+import {
+    projectStatusOverviewSchema,
+    projectStatusSummarySchema,
+} from '../domain/project-status.js';
 import { sessionRenameTitleSchema } from '../domain/session.js';
 import { sessionPullRequestMethods } from '../domain/session-pull-request.js';
 import {

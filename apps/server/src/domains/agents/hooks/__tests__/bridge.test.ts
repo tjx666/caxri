@@ -39,7 +39,7 @@ describe('stageAgentHookBridge', () => {
         ]);
         expect(wrapperSource).toContain('#!/bin/sh');
         expect(bridgeScript).toContain("require('node:net')");
-        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 12 });
+        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 13 });
         expect(wrapperStats.mode & 0o777).toBe(0o700);
     });
 
@@ -111,7 +111,7 @@ describe('stageAgentHookBridge', () => {
             readFile(bridgePath, 'utf8'),
             readFile(join(binDirectory, 'bridge.cjs'), 'utf8'),
         ]);
-        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 12 });
+        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 13 });
         expect(wrapperSource).toContain('#!/bin/sh');
         expect(scriptSource).toContain("require('node:net')");
     });
@@ -389,6 +389,65 @@ describe('stageAgentHookBridge', () => {
             expect(packets[0]).not.toHaveProperty('tool_response');
             expect(JSON.stringify(packets[0])).not.toContain('/repo');
             expect(JSON.stringify(packets[0])).not.toContain('private terminal output');
+        } finally {
+            await new Promise<void>((resolve) => server.close(() => resolve()));
+        }
+    });
+
+    it.each([
+        {
+            shape: 'an absolute path',
+            cwd: '/repo-worktrees/feature',
+            expected: '/repo-worktrees/feature',
+        },
+        { shape: 'a relative path', cwd: 'repo-worktrees/feature', expected: undefined },
+        { shape: 'an empty string', cwd: '', expected: undefined },
+        { shape: 'a path containing NUL', cwd: '/repo\u{0}/etc', expected: undefined },
+        { shape: 'an overlong path', cwd: `/${'x'.repeat(1_024)}`, expected: undefined },
+        { shape: 'a non-string value', cwd: 42, expected: undefined },
+    ])('forwards the event working directory only when it is $shape', async ({ cwd, expected }) => {
+        const sharedPath = await sharedDirectory();
+        const bridgePath = await stageAgentHookBridge(sharedPath);
+        const socketPath = join(sharedPath, 'cwd.sock');
+        const packets: Array<Record<string, unknown>> = [];
+        const server = createServer((socket) => {
+            socket.setEncoding('utf8');
+            let source = '';
+            socket.on('data', (chunk: string) => {
+                source += chunk;
+            });
+            socket.on('end', () => {
+                packets.push(JSON.parse(source) as Record<string, unknown>);
+                socket.end('{"ok":true}\n');
+            });
+        });
+        server.listen(socketPath);
+        await once(server, 'listening');
+
+        try {
+            const invocation = execFileAsync(
+                bridgePath,
+                ['--provider', 'claude', '--phase', 'turnStarted', '--schema', '8'],
+                {
+                    env: {
+                        CAXRI_HOOK_LAUNCH_ID: 'cwd-launch',
+                        CAXRI_HOOK_RUNTIME: process.execPath,
+                        CAXRI_HOOK_SOCKET: socketPath,
+                        CAXRI_HOOK_TERMINAL_ID: 'cwd-terminal',
+                        CAXRI_HOOK_TOKEN: 'cwd-token',
+                        PATH: process.env.PATH,
+                    },
+                },
+            );
+            invocation.child.stdin?.end(
+                JSON.stringify({ cwd, prompt: 'private prompt text', session_id: 'opaque' }),
+            );
+            await invocation;
+
+            expect(packets).toHaveLength(1);
+            expect(packets[0].agentCwd).toBe(expected);
+            expect(packets[0]).not.toHaveProperty('prompt');
+            expect(JSON.stringify(packets[0])).not.toContain('private prompt text');
         } finally {
             await new Promise<void>((resolve) => server.close(() => resolve()));
         }

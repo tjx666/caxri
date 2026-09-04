@@ -510,6 +510,12 @@ export function handleAgentLifecycleSignal(
     workbenchRoots: WorkbenchRootService,
     signal: AgentLifecycleSignal,
 ): boolean | Promise<boolean> {
+    /**
+     * Runs on every phase, ahead of phase routing: the provider reports its own working directory on all of them, so an
+     * Agent that moved itself is observable without depending on which tool did it. The check short-circuits on an
+     * unchanged directory and never blocks the phase's own handling.
+     */
+    workbenchRoots.observeAgentCwd(signal);
     if (signal.phase === 'shellToolStarted') return workbenchRoots.observeShellToolStarted(signal);
     if (signal.phase === 'shellToolFinished')
         return workbenchRoots.observeShellToolFinished(signal);

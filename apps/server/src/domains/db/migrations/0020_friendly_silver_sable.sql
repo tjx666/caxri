@@ -1,0 +1,1 @@
+ALTER TABLE `terminals` ADD `agent_cwd` text;
