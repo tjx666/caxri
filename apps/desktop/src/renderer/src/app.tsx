@@ -8,6 +8,7 @@ import { TooltipProvider } from './components/ui/tooltip';
 import { AgentActionsDialog } from './features/agent-actions/agent-actions-dialog';
 import { AgentMessageApprovalDialog } from './features/agent-inbox/agent-message-approval-dialog';
 import { BugReportDialog } from './features/bug-report/bug-report-dialog';
+import { ConfirmationDialog } from './features/confirmations/confirmation-dialog';
 import { openFileForSession } from './features/editor/document-actions';
 import { scheduleCodeEditorPreload } from './features/editor/editor-loader';
 import { useExternalDocumentSync } from './features/editor/external-sync';
@@ -229,6 +230,7 @@ export function App() {
                 <AgentMessageApprovalDialog />
                 <SessionMruSwitcher />
                 <WorkbenchRootPrompt />
+                <ConfirmationDialog />
                 <ToastOutlet />
                 <ScreencastOverlay />
             </main>

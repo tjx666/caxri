@@ -153,7 +153,11 @@ process-tree memory, and child count. Transient Agent operations stay with the o
 instead of being duplicated here. Diff tabs show neither file nor Terminal details.
 Caxri status appears ONLY when degraded (`Reconnecting…` / `Caxri stopped`) as a
 `--warning`/`--danger` chip; healthy state shows nothing. The chip is informational — recovery
-lives in the native Relaunch dialog, so the chip never fakes an action it cannot perform.
+lives in the native Relaunch dialog, so the chip never fakes an action it cannot perform. The same
+rule decides when a degraded chip becomes clickable: the Terminal's `DOM` renderer chip is a button
+only while the fallback is the user's own GPU acceleration preference, which it offers to reverse
+through a confirmation; every other fallback reason (WebGL unavailable, context lost, retrying)
+stays a read-only reading because writing that preference again would change nothing.
 Persistent metrics use concise icon-plus-value labels; explanatory prose belongs in their
 accessible names and hover tooltips.
 
@@ -422,7 +426,13 @@ toasts persist until dismissed, others auto-dismiss 4s. Stack bottom-right above
 capped at three.
 
 **Confirmations** — destructive commands (Delete Session, Delete Project) require a native confirm
-dialog naming the target ("Delete session 'api-fix'? Files on disk are not touched.").
+dialog naming the target ("Delete session 'api-fix'? Files on disk are not touched."). Every other
+"are you sure" moment uses the one in-app confirmation modal behind
+`caxri.window.showConfirm({ title, message, confirmLabel, cancelLabel })` — a feature never mounts
+its own. The title asks the question, the message names the consequence, the buttons name the
+outcome ("Turn On", not "Yes"), the confirming button takes initial focus, and Escape, the close
+button, and an outside click all mean Cancel. It carries no danger styling on purpose: anything
+destructive enough to want it belongs in the native dialog above.
 
 ## Interaction rules
 
