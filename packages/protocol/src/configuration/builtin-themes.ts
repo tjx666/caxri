@@ -29,6 +29,11 @@ export const draculaTheme: ThemeTokens = {
         success: '#50fa7b',
         warning: '#f1fa8c',
         danger: '#ff5555',
+        /**
+         * Dracula's lighter purple rather than `#bd93f9`: that value is already this theme's `accent`, and reusing it
+         * would make the Settings palette show two identical swatches for roles DESIGN.md keeps deliberately separate.
+         */
+        merged: '#d6acff',
     },
     terminal: {
         background: '#282a36',
@@ -85,6 +90,7 @@ export const monokaiTheme: ThemeTokens = {
         success: '#a6e22e',
         warning: '#e6db74',
         danger: '#f92672',
+        merged: '#ae81ff',
     },
     terminal: {
         background: '#272822',
@@ -141,6 +147,7 @@ export const oneDarkProTheme: ThemeTokens = {
         success: '#98c379',
         warning: '#e5c07b',
         danger: '#e06c75',
+        merged: '#c678dd',
     },
     terminal: {
         background: '#282c34',
@@ -222,6 +229,10 @@ export const solarizedDarkTheme: ThemeTokens = {
         success: '#859900',
         warning: '#b58900',
         danger: '#dc322f',
+        /**
+         * Solarized violet lifted off `#6c71c4` so the glyph clears 3:1 against both dark chrome surfaces.
+         */
+        merged: '#8f8fd4',
     },
     terminal: {
         background: '#002b36',
@@ -266,6 +277,10 @@ export const solarizedLightTheme: ThemeTokens = {
         success: '#859900',
         warning: '#b58900',
         danger: '#dc322f',
+        /**
+         * Solarized violet darkened off `#6c71c4` so the glyph clears 3:1 against this light theme's raised surfaces.
+         */
+        merged: '#5c5fb0',
     },
     terminal: {
         background: '#fdf6e3',
@@ -321,6 +336,7 @@ export const tokyoNightTheme: ThemeTokens = {
         success: '#73daca',
         warning: '#e0af68',
         danger: '#f7768e',
+        merged: '#bb9af7',
     },
     terminal: {
         background: '#16161e',
@@ -381,6 +397,11 @@ export const oscuraMidnightTheme: ThemeTokens = {
         success: '#4ebe96',
         warning: '#d2d714',
         danger: '#ff5c5c',
+        /**
+         * Oscura ships no saturated violet, so this lifts its muted `#6e678e` magenta into a readable glyph color while
+         * keeping the palette's low-saturation character.
+         */
+        merged: '#a89ec9',
     },
     terminal: {
         background: '#0b0b0f',
@@ -438,6 +459,7 @@ export const vscodeDarkPlusTheme: ThemeTokens = {
         success: '#89d185',
         warning: '#cca700',
         danger: '#f48771',
+        merged: '#c586c0',
     },
     terminal: {
         background: '#1e1e1e',
@@ -535,6 +557,31 @@ export const builtinThemeSources = {
         url: 'https://github.com/microsoft/vscode/blob/main/extensions/theme-defaults/themes/dark_plus.json',
     },
 } as const satisfies Record<BuiltinThemeId, { license: 'MIT'; url: string }>;
+
+/**
+ * Fills in color roles that did not exist when a theme file was written, ahead of schema validation.
+ *
+ * A fixed default hex cannot do this job. `findMatchingBuiltinTheme` compares the whole parsed snapshot, so filling
+ * `merged` with any value other than the preset's own would strip a saved preset's built-in identity;
+ * `normalizeBuiltinTheme` would then rewrite it to `custom-*` and `ConfigService` would persist that downgrade. A
+ * single default is also wrong on contrast grounds — no one violet clears 3:1 on both a dark and a light preset's
+ * chrome. Recovering the preset's own value keeps identity and contrast intact. A genuinely custom theme has no catalog
+ * entry to recover from and falls back to its own `accent`, which is by construction readable on its surfaces.
+ *
+ * Anything that is not a theme-shaped object passes through untouched so the schema still owns rejection.
+ */
+export function upgradeThemeColors(value: unknown): unknown {
+    if (typeof value !== 'object' || value === null) return value;
+    const theme = value as { colors?: unknown; id?: unknown };
+    const colors = theme.colors;
+    if (typeof colors !== 'object' || colors === null || 'merged' in colors) return value;
+    const accent = (colors as { accent?: unknown }).accent;
+    const merged =
+        builtinThemes.find((candidate) => candidate.id === theme.id)?.colors.merged ??
+        (typeof accent === 'string' ? accent : undefined);
+    if (merged === undefined) return value;
+    return { ...theme, colors: { ...colors, merged } };
+}
 
 /**
  * Finds a preset only when every persisted token still matches the current built-in snapshot.

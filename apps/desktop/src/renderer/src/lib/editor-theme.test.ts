@@ -45,6 +45,7 @@ function themeFixture(): ThemeTokens {
             success: '#00ff00',
             warning: '#a00000',
             danger: '#ff0000',
+            merged: '#c000c0',
         },
         terminal: {
             background: '#010101',

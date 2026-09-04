@@ -9,6 +9,7 @@ import {
     draculaTheme,
     themeImportFormats,
     themeTokensSchema as themeSchema,
+    upgradeThemeColors,
 } from '@caxri/protocol';
 import { parseJsonc } from '@caxri/system';
 import { contrastRatio } from '@caxri/utils';
@@ -69,6 +70,12 @@ function parseVsCode(value: Record<string, unknown>, name: string): ThemeTokens 
     );
     theme.colors.border = normalizedHex(colors['panel.border'], theme.colors.border);
     theme.colors.accent = normalizedHex(colors.focusBorder, theme.colors.accent);
+    /**
+     * VS Code has no merged-pull-request color of its own — that lives in the GitHub PR extension — so the chart
+     * palette's purple is the closest workbench-native source. Absent it the value stays whatever `cloneFallback`
+     * seeded, i.e. Dracula's, which is the same fallback every unmapped app color here already uses.
+     */
+    theme.colors.merged = normalizedHex(colors['charts.purple'], theme.colors.merged);
     theme.editor.background = normalizedHex(colors['editor.background'], theme.editor.background);
     theme.editor.foreground = normalizedHex(colors['editor.foreground'], theme.editor.foreground);
     theme.editor.lineHighlight = normalizedHex(
@@ -206,7 +213,7 @@ function parseWarp(source: string, name: string): ThemeTokens {
 }
 
 export function parseCaxriTheme(source: string): ThemeTokens {
-    return themeSchema.parse(parseJsonc(source));
+    return themeSchema.parse(upgradeThemeColors(parseJsonc(source)));
 }
 
 function opaqueColor(value: string): string | undefined {
@@ -233,7 +240,9 @@ function assertImportedThemeContrast(theme: ThemeTokens): void {
  */
 function parseVsCodeOrCustom(source: string, name: string): ThemeTokens {
     const value = parseJsonc(source);
-    const parsed = themeSchema.safeParse(value);
+    // Upgrade first: a Caxri theme exported before a color role existed must still be recognized as one here, or it
+    // would fall through to the VS Code mapping and import as a mangled theme rather than the one the user exported.
+    const parsed = themeSchema.safeParse(upgradeThemeColors(value));
     if (!parsed.success) {
         const theme = parseVsCode(value as Record<string, unknown>, name);
         assertImportedThemeContrast(theme);

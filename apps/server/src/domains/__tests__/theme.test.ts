@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { CaxriError } from '@caxri/protocol';
-import { builtinThemes } from '@caxri/protocol';
+import { builtinThemes, solarizedLightTheme } from '@caxri/protocol';
 import { execFileAsync } from '@caxri/system';
 import { contrastRatio } from '@caxri/utils';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -69,6 +69,45 @@ describe('theme import mapping', () => {
         });
         expect(theme.colors.accent).toBe(draculaTheme.colors.accent);
         expect(theme.warnings).not.toHaveLength(0);
+    });
+
+    it('maps the VS Code chart purple onto the merged role and keeps the seeded fallback without it', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-merged-'));
+        temporaryDirectories.push(directory);
+        const withPurple = join(directory, 'purple.json');
+        await writeFile(
+            withPurple,
+            JSON.stringify({ name: 'Purple', colors: { 'charts.purple': '#8250DF' } }),
+            'utf8',
+        );
+        expect((await importTheme(withPurple, draculaTheme)).colors.merged).toBe('#8250df');
+
+        const without = join(directory, 'plain.json');
+        await writeFile(without, JSON.stringify({ name: 'Plain', colors: {} }), 'utf8');
+        expect((await importTheme(without, draculaTheme)).colors.merged).toBe(
+            draculaTheme.colors.merged,
+        );
+    });
+
+    /**
+     * Regression: a Caxri theme exported before a color role existed must still import as that theme. Validating it
+     * before the backfill would make it fail the Caxri shape and fall through to the VS Code mapping, silently
+     * importing a mangled theme instead of the user's own.
+     */
+    it('still recognizes a Caxri theme exported before the merged role existed', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-legacy-export-'));
+        temporaryDirectories.push(directory);
+        const path = join(directory, 'exported.json');
+        const exported = structuredClone(solarizedLightTheme) as {
+            colors: Record<string, string>;
+        };
+        delete exported.colors.merged;
+        await writeFile(path, JSON.stringify(exported), 'utf8');
+
+        const theme = await importTheme(path, draculaTheme);
+        expect(theme.source).toBe('custom');
+        expect(theme.colors.merged).toBe(solarizedLightTheme.colors.merged);
+        expect(theme.colors.background).toBe(solarizedLightTheme.colors.background);
     });
 
     it('rejects a VS Code theme when mapped app surfaces make the fallback muted color miss AA', async () => {
@@ -294,6 +333,30 @@ describe('theme import mapping', () => {
     });
 });
 
+/**
+ * Shortest angular distance between two hex colors on the HSL hue wheel, in degrees. Local to this file because hue is
+ * only ever asserted here; every other color rule in the app is a contrast ratio.
+ */
+function hueDistance(left: string, right: string): number {
+    const hue = (hex: string): number => {
+        const [red, green, blue] = [1, 3, 5].map((index) =>
+            Number.parseInt(hex.slice(index, index + 2), 16),
+        );
+        const max = Math.max(red, green, blue);
+        const chroma = max - Math.min(red, green, blue);
+        if (chroma === 0) return 0;
+        const sector =
+            max === red
+                ? ((green - blue) / chroma) % 6
+                : max === green
+                  ? (blue - red) / chroma + 2
+                  : (red - green) / chroma + 4;
+        return (sector * 60 + 360) % 360;
+    };
+    const delta = Math.abs(hue(left) - hue(right));
+    return Math.min(delta, 360 - delta);
+}
+
 describe('built-in theme contrast', () => {
     /**
      * `muted` is the UI's secondary-text role, not a syntax color, so it must stay readable on every chrome surface.
@@ -313,6 +376,21 @@ describe('built-in theme contrast', () => {
             const { foreground, background, surface, elevated } = theme.colors;
             for (const backdrop of [background, surface, elevated])
                 expect(contrastRatio(foreground, backdrop), theme.id).toBeGreaterThanOrEqual(4.5);
+        }
+    });
+
+    /**
+     * `merged` paints a 13px glyph rather than text, so WCAG's 3:1 non-text floor applies. Its whole reason for
+     * existing is that a merged pull request must not read as `success` (an open PR whose checks passed), and hue is
+     * what carries that at glyph size — a violet that drifted green in one theme would silently restore the original
+     * bug while still passing a contrast check.
+     */
+    it('keeps the merged glyph readable and hue-separated from success on every theme', () => {
+        for (const theme of builtinThemes) {
+            const { merged, success, background, surface, elevated } = theme.colors;
+            for (const backdrop of [background, surface, elevated])
+                expect(contrastRatio(merged, backdrop), theme.id).toBeGreaterThanOrEqual(3);
+            expect(hueDistance(merged, success), theme.id).toBeGreaterThanOrEqual(60);
         }
     });
 
