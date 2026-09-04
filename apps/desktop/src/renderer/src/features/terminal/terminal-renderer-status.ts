@@ -1,12 +1,41 @@
 import { useCallback, useSyncExternalStore } from 'react';
 
-import type { TerminalRendererStatus } from './terminal-renderer';
+import type { TerminalGpuAcceleration, TerminalRendererStatus } from './terminal-renderer';
 
 export interface TerminalRendererIndicator {
+    /**
+     * Offered only while the fallback is a preference the chip can actually reverse; absent means the chip stays a
+     * read-only reading.
+     */
+    action?: TerminalRendererIndicatorAction;
     ariaLabel: string;
     label: string;
     title: string;
 }
+
+export interface TerminalRendererIndicatorAction {
+    confirmLabel: string;
+    message: string;
+    /**
+     * Written to `terminal.gpuAcceleration` once the user confirms.
+     */
+    preference: TerminalGpuAcceleration;
+    title: string;
+}
+
+/**
+ * Turning GPU acceleration back on is the one renderer fallback the chip can undo by itself, so it is also the only one
+ * that earns a click. `unsupported`, `context-loss`, and `load-failed` describe a WebGL context Caxri cannot obtain;
+ * writing the same preference again would change nothing, and DESIGN.md's status bar redline forbids a chip that
+ * advertises an action it cannot perform.
+ */
+const ENABLE_GPU_ACCELERATION: TerminalRendererIndicatorAction = {
+    confirmLabel: 'Turn On',
+    message:
+        'Terminals switch from the DOM renderer to WebGL immediately, without restarting Caxri or the Terminal. You can turn it off again in Settings.',
+    preference: 'on',
+    title: 'Turn on GPU acceleration?',
+};
 
 /**
  * The status bar only speaks up while a Terminal is degraded: a WebGL renderer is the healthy default and says nothing,
@@ -17,10 +46,15 @@ export function terminalRendererIndicator(
 ): TerminalRendererIndicator | undefined {
     if (status?.mode !== 'dom' || status.reason === 'disposed') return undefined;
     const detail = terminalRendererDetail(status);
+    const action = status.reason === 'disabled' ? ENABLE_GPU_ACCELERATION : undefined;
+    // An actionable chip leads with what clicking does, matching the `Open Process Explorer — …` chips beside it, so
+    // the accessible name and the tooltip promise exactly the same thing.
+    const lead = action ? `${action.title} — ` : '';
     return {
-        ariaLabel: `Terminal renderer: DOM. ${detail}`,
+        ...(action && { action }),
+        ariaLabel: `${lead}Terminal renderer: DOM. ${detail}`,
         label: 'DOM',
-        title: `Terminal is using the DOM renderer. ${detail}`,
+        title: `${lead}Terminal is using the DOM renderer. ${detail}`,
     };
 }
 
