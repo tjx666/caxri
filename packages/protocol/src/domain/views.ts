@@ -212,7 +212,6 @@ const treeItemTooltipRowSchema = z.object({
 });
 const treeItemTooltipRowsSchema = z
     .array(treeItemTooltipRowSchema)
-    .min(1)
     .max(8)
     .refine(
         (rows) =>
@@ -223,8 +222,16 @@ const treeItemTooltipRowsSchema = z
 export const treeItemRichTooltipSchema = z.object({
     kind: z.literal('rich'),
     title: z.string().min(1).max(1_024),
+    /**
+     * Prose that explains the title, such as a provider error's recovery hint. Structured facts belong in `rows`.
+     */
+    description: z.string().min(1).max(1_024).optional(),
     badge: treeItemTooltipBadgeSchema.optional(),
-    rows: treeItemTooltipRowsSchema,
+    /**
+     * Empty when the title (and badge) already carry the whole hover, so a row without structured facts still uses the
+     * same card instead of falling back to the plain-text tooltip.
+     */
+    rows: treeItemTooltipRowsSchema.default([]),
 });
 
 export const treeItemSchema = z
