@@ -4,6 +4,13 @@ import type { SessionActivityPresentation } from './session-activity';
 
 export type SessionPullRequestIcon = 'closed' | 'draft' | 'merged' | 'open';
 
+/**
+ * Extends the shared activity tones with `merged`, which the lifecycle glyphs have no use for. A merged PR cannot
+ * borrow `success`: that tone already means "open, checks passed", and at 13px the two glyphs differ only in shape, so
+ * landed work read as a green CI run.
+ */
+export type SessionPullRequestTone = SessionActivityPresentation['tone'] | 'merged';
+
 export interface SessionPullRequestPresentation {
     ariaLabel: string;
     /**
@@ -14,7 +21,7 @@ export interface SessionPullRequestPresentation {
     /**
      * Colored text/icon classes for the sidebar glyph and hover-card chip.
      */
-    tone: SessionActivityPresentation['tone'];
+    tone: SessionPullRequestTone;
 }
 
 const STATE_LABELS: Record<SessionPullRequest['state'], string> = {
@@ -26,9 +33,10 @@ const STATE_LABELS: Record<SessionPullRequest['state'], string> = {
 
 /**
  * Projects a Session's pull request onto the sidebar glyph. The state lives in the glyph shape so a failing check on an
- * open PR (danger tone) never reads as "closed"; color only adds emphasis. Merged borrows the success tone — it is the
- * "this work landed" signal the row exists for — and CI tone overrides only while the PR is still open, matching the
- * convention shared by Codex, Orca, Synara, and Paseo.
+ * open PR (danger tone) never reads as "closed". Color is the second, faster channel: merged takes its own violet after
+ * sharing `success` with a passing CI run made landed work unreadable at glyph size, matching the merged-is-purple
+ * convention GitHub established. CI tone overrides only while the PR is still open, as in Codex, Orca, Synara, and
+ * Paseo.
  */
 export function sessionPullRequestPresentation(
     pullRequest: SessionPullRequest,
@@ -37,7 +45,7 @@ export function sessionPullRequestPresentation(
     const base = `Pull request #${pullRequest.number} ${label.toLowerCase()}`;
     switch (pullRequest.state) {
         case 'merged':
-            return { ariaLabel: `${base}.`, icon: 'merged', label, tone: 'success' };
+            return { ariaLabel: `${base}.`, icon: 'merged', label, tone: 'merged' };
         case 'closed':
             return { ariaLabel: `${base}.`, icon: 'closed', label, tone: 'danger' };
         case 'draft':
@@ -69,8 +77,10 @@ export function sessionPullRequestPresentation(
     }
 }
 
-export function sessionPullRequestToneClassName(tone: SessionActivityPresentation['tone']): string {
+export function sessionPullRequestToneClassName(tone: SessionPullRequestTone): string {
     switch (tone) {
+        case 'merged':
+            return 'text-merged';
         case 'success':
             return 'text-success';
         case 'warning':

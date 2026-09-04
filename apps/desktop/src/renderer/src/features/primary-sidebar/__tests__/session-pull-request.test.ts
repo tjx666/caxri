@@ -1,7 +1,10 @@
 import type { SessionPullRequest } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { sessionPullRequestPresentation } from '../session-pull-request';
+import {
+    sessionPullRequestPresentation,
+    sessionPullRequestToneClassName,
+} from '../session-pull-request';
 
 function pullRequest(overrides: Partial<SessionPullRequest> = {}): SessionPullRequest {
     return {
@@ -15,12 +18,12 @@ function pullRequest(overrides: Partial<SessionPullRequest> = {}): SessionPullRe
 }
 
 describe('Session pull request presentation', () => {
-    it('encodes merged and closed in the glyph with success and danger tones', () => {
+    it('encodes merged and closed in the glyph with merged and danger tones', () => {
         expect(sessionPullRequestPresentation(pullRequest({ state: 'merged' }))).toEqual({
             ariaLabel: 'Pull request #42 merged.',
             icon: 'merged',
             label: 'Merged',
-            tone: 'success',
+            tone: 'merged',
         });
         expect(sessionPullRequestPresentation(pullRequest({ state: 'closed' }))).toEqual({
             ariaLabel: 'Pull request #42 closed.',
@@ -50,7 +53,21 @@ describe('Session pull request presentation', () => {
         });
         expect(
             sessionPullRequestPresentation(pullRequest({ state: 'merged', checks: 'failure' })),
-        ).toMatchObject({ icon: 'merged', tone: 'success' });
+        ).toMatchObject({ icon: 'merged', tone: 'merged' });
+    });
+
+    /**
+     * The bug this tone exists for: merged and "open, checks passed" both rendered `text-success`, so a landed PR was
+     * indistinguishable from a green CI run at glyph size.
+     */
+    it('separates merged from a passing open PR by color, not only shape', () => {
+        const merged = sessionPullRequestPresentation(pullRequest({ state: 'merged' }));
+        const passing = sessionPullRequestPresentation(pullRequest({ checks: 'success' }));
+        expect(sessionPullRequestToneClassName(merged.tone)).toBe('text-merged');
+        expect(sessionPullRequestToneClassName(passing.tone)).toBe('text-success');
+        expect(sessionPullRequestToneClassName(merged.tone)).not.toBe(
+            sessionPullRequestToneClassName(passing.tone),
+        );
     });
 
     it('keeps drafts neutral regardless of checks', () => {

@@ -401,6 +401,7 @@ export const themeTokensSchema = z.object({
         success: hex,
         warning: hex,
         danger: hex,
+        merged: hex, // landed work; DESIGN.md owns the role, `upgradeThemeColors` backfills older files
     }),
     terminal: z.object({
         background: hex,

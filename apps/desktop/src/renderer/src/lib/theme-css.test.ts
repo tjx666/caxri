@@ -39,6 +39,7 @@ function themeFixture(): ThemeTokens {
             success: '#900000',
             warning: '#a00000',
             danger: '#b00000',
+            merged: '#c00000',
         },
         terminal: {
             background: '#010101',
@@ -78,14 +79,17 @@ function themeFixture(): ThemeTokens {
 
 describe('applyCssTheme', () => {
     it('writes every theme.colors entry to documentElement.style as a --<key> custom property', () => {
-        applyCssTheme(themeFixture());
+        const theme = themeFixture();
+        applyCssTheme(theme);
 
-        expect(setProperty).toHaveBeenCalledTimes(13);
-        expect(setProperty).toHaveBeenCalledWith('--background', '#100000');
-        expect(setProperty).toHaveBeenCalledWith('--surface', '#200000');
-        expect(setProperty).toHaveBeenCalledWith('--foreground', '#400000');
-        expect(setProperty).toHaveBeenCalledWith('--accent', '#800000');
-        expect(setProperty).toHaveBeenCalledWith('--danger', '#b00000');
+        // Derived from the fixture, plus the two foregrounds `applyCssTheme` computes, so a new color role
+        // is covered here automatically instead of failing on a stale literal.
+        const derivedForegrounds = 2;
+        expect(setProperty).toHaveBeenCalledTimes(
+            Object.keys(theme.colors).length + derivedForegrounds,
+        );
+        for (const [token, value] of Object.entries(theme.colors))
+            expect(setProperty).toHaveBeenCalledWith(`--${token}`, value);
     });
 
     it('derives accessible foregrounds for semantic fill colors in every built-in theme', () => {

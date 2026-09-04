@@ -48,12 +48,26 @@ roles below.
 | `--accent`                             | the single focus indicator + primary buttons                                   |
 | `--accent-foreground`                  | text/icons on accent fills (derived, not hardcoded)                            |
 | `--success` / `--warning` / `--danger` | status dots, exit banners, destructive buttons                                 |
+| `--merged`                             | landed work: the merged pull request glyph                                     |
 | `--overlay`                            | dialog backdrop: `color-mix(in srgb, var(--background) 60%, transparent)`      |
 | `--shadow`                             | elevation shadows: translucent black derived once                              |
 | `--indicator`                          | neutral (non-accent) selected-tab underline for secondarySidebar/settings tabs |
 
 Derive `--accent-foreground`, `--overlay`, and `--shadow` in one place from theme colors. The
 status bar uses `--surface` plus a top hairline — never an accent fill.
+
+`--merged` is a role rather than a reuse of `--success` because `--success` already means "an open
+pull request whose checks passed"; sharing it left a landed PR and a green CI run distinguishable
+only by glyph shape at 13px. It is violet in every built-in theme, following the convention GitHub
+established, and it is not `--accent`: two built-in palettes set `accent` to their own `success` or
+`warning` value, so borrowing the focus token would simply recreate the collision. Being a status
+role it is held to WCAG's 3:1 non-text floor on every chrome surface and to a 60° hue separation
+from `success`, both asserted in `domains/__tests__/theme.test.ts`. A theme file saved before a color
+role existed is repaired by `upgradeThemeColors` before validation, which recovers a saved preset's
+own value from the catalog and falls back to a custom theme's `accent`. A fixed default hex is the
+wrong tool here and was tried first: it silently downgraded every non-Dracula preset to `custom-*`
+(`findMatchingBuiltinTheme` compares the whole snapshot) and no single violet clears the contrast
+floor on both dark and light presets.
 
 `--muted` is secondary text, not a syntax comment color. It must clear WCAG AA (4.5:1) against
 `--background`, `--surface`, and `--elevated` alike, and a theme is not free to borrow its

@@ -29,6 +29,7 @@
     --color-warning: var(--warning);
     --color-danger: var(--danger);
     --color-danger-foreground: var(--danger-foreground);
+    --color-merged: var(--merged);
     --color-overlay: var(--overlay);
     --color-shadow: var(--shadow);
     --color-indicator: var(--indicator);
@@ -47,6 +48,7 @@
     --success: #50fa7b;
     --warning: #f1fa8c;
     --danger: #ff5555;
+    --merged: #d6acff;
 
     /* `applyCssTheme` replaces these fallbacks with contrast-checked values for the active theme. */
     --accent-foreground: #282a36;

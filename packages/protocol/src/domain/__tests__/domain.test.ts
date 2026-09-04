@@ -159,6 +159,7 @@ describe('themeTokensSchema hex color validation', () => {
             success: '#000000',
             warning: '#000000',
             danger: '#000000',
+            merged: '#000000',
         },
         terminal: {
             background: '#000000',
