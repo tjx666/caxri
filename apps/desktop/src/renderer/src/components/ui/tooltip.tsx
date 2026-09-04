@@ -2,10 +2,7 @@ import type { PointerEvent as ReactPointerEvent, ReactElement, ReactNode } from 
 import { useRef, useState } from 'react';
 
 import { Tooltip as TooltipPrimitive } from '@base-ui/react/tooltip';
-import type { CommandId } from '@caxri/protocol';
-import { getCommandDefinition } from '@caxri/protocol';
 
-import { useCommandShortcut } from '../../lib/keybindings';
 import { cn } from '../../lib/utilities';
 import { ShortcutBadge } from '../shortcut-badge';
 import type { TooltipCursorAnchor } from '../tooltip-positioning';
@@ -159,21 +156,5 @@ export function Tooltip({
                 </TooltipPrimitive.Positioner>
             </TooltipPrimitive.Portal>
         </TooltipPrimitive.Root>
-    );
-}
-
-export function CommandTooltip({
-    children,
-    commandId,
-}: {
-    children: ReactElement;
-    commandId: CommandId;
-}) {
-    const shortcut = useCommandShortcut(commandId);
-    const command = getCommandDefinition(commandId);
-    return (
-        <Tooltip content={command.description} shortcut={shortcut}>
-            {children}
-        </Tooltip>
     );
 }
