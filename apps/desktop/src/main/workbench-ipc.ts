@@ -24,7 +24,24 @@ import type { createElectronIpcCommandAdapter } from './ipc-command-adapter';
  */
 const CALLER_SIDE_WARN_CODES = new Set<string>(['NOT_FOUND', 'VALIDATION']);
 
+/**
+ * Log level for one failed Renderer request. `UNAVAILABLE` is the code the connection answers with while it is between
+ * attachments, so during recovery it describes an expected, self-healing window rather than a defect: waking the
+ * machine drops the socket for a few hundred milliseconds and every request in flight fails until the reconnect loop
+ * finishes. Outside recovery the same code is a genuine outage (a stopped Agent, an expired Workbench authority) and
+ * keeps `error`.
+ */
+function requestFailureLevel(code: string, isRecovering: boolean): 'error' | 'warn' {
+    if (CALLER_SIDE_WARN_CODES.has(code)) return 'warn';
+    return code === 'UNAVAILABLE' && isRecovering ? 'warn' : 'error';
+}
+
 export interface WorkbenchIpcOptions {
+    /**
+     * Whether the Desktop↔Server connection is currently between attachments with recovery still owned by the reconnect
+     * loop; see `DesktopServerConnection.isRecovering`.
+     */
+    isRecovering(): boolean;
     isQuitting(): boolean;
     logger(): StructuredLogger | undefined;
     onRendererDiagnostic?(diagnostic: TerminalRendererDiagnostic): void;
@@ -227,7 +244,7 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
                 options
                     .logger()
                     ?.write(
-                        CALLER_SIDE_WARN_CODES.has(reply.error.code) ? 'warn' : 'error',
+                        requestFailureLevel(reply.error.code, options.isRecovering()),
                         logEventCatalog.ipc.requestFailed,
                         {
                             correlationId: requestIdFromEnvelope(raw) ?? undefined,
@@ -248,7 +265,7 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
                 options
                     .logger()
                     ?.write(
-                        CALLER_SIDE_WARN_CODES.has(wire.code) ? 'warn' : 'error',
+                        requestFailureLevel(wire.code, options.isRecovering()),
                         logEventCatalog.ipc.requestFailed,
                         {
                             correlationId: requestIdFromEnvelope(raw) ?? undefined,
