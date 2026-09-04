@@ -50,16 +50,22 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
         const grid = processPage.getByRole('treegrid', { name: 'Caxri processes' });
         await expect(grid.getByRole('columnheader')).toHaveCount(4);
         await expect(grid).toContainText('caxri');
-        await expect(grid.locator('button.process-name[title="server-core"]')).toHaveCount(1);
-        await expect(grid.locator('button.process-name[title="extension-host"]')).toHaveCount(1);
-        await expect(grid.locator('button.process-name[title="terminal-host"]')).toHaveCount(1);
+        await expect(
+            grid.locator('button.process-name[data-process-name="server-core"]'),
+        ).toHaveCount(1);
+        await expect(
+            grid.locator('button.process-name[data-process-name="extension-host"]'),
+        ).toHaveCount(1);
+        await expect(
+            grid.locator('button.process-name[data-process-name="terminal-host"]'),
+        ).toHaveCount(1);
         await expect(grid).not.toContainText('/bundles/extension-host.js');
         await expect(grid).not.toContainText('/bundles/terminal-host.js');
         await expect(grid).toContainText(/\/(?:bin\/)?(?:zsh|bash|sh)/);
         const expandedRowCount = await processPage.locator('.process-row').count();
         expect(expandedRowCount).toBeGreaterThan(3);
 
-        const rootProcess = processPage.locator('button.process-name[title="caxri"]');
+        const rootProcess = processPage.locator('button.process-name[data-process-name="caxri"]');
         await rootProcess.click({ modifiers: ['Alt'] });
         await expect(processPage.locator('.process-row')).toHaveCount(1);
         await rootProcess.click();
@@ -106,6 +112,57 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
             'CAXRI_PROCESS_EXPLORER_BENCHMARK',
             JSON.stringify({ samples: sampleDurations.length, maxDurationMs }),
         );
+
+        /**
+         * Header sorting reorders siblings without flattening the tree.
+         */
+        const memoryHeader = grid.getByRole('columnheader', { name: 'Memory (MB)' });
+        const sortByMemory = grid.getByRole('button', { name: 'Sort by Memory (MB)' });
+        await expect(memoryHeader).toHaveAttribute('aria-sort', 'none');
+        await sortByMemory.click();
+        await expect(memoryHeader).toHaveAttribute('aria-sort', 'descending');
+        expect(await processPage.locator('.process-row[aria-level="3"]').count()).toBeGreaterThan(
+            0,
+        );
+        const memoryColumn = await processPage
+            .locator('.process-row[aria-level="2"] [role="gridcell"]:nth-child(3)')
+            .allInnerTexts();
+        expect(memoryColumn.map(Number)).toEqual(
+            memoryColumn.map(Number).toSorted((left, right) => right - left),
+        );
+        await sortByMemory.click();
+        await expect(memoryHeader).toHaveAttribute('aria-sort', 'ascending');
+
+        /**
+         * Dragging a header divider repins that column; double-clicking it returns the name column to auto-fitting the
+         * window.
+         */
+        const nameColumnWidth = (): Promise<number> =>
+            grid
+                .getByRole('columnheader', { name: 'Process Name' })
+                .evaluate((element) => Math.round(element.getBoundingClientRect().width));
+        const autoFittedNameWidth = await nameColumnWidth();
+        const resizer = grid.getByRole('separator', { name: 'Resize Process Name column' });
+        const resizerBox = (await resizer.boundingBox())!;
+        const resizerY = resizerBox.y + resizerBox.height / 2;
+        await processPage.mouse.move(resizerBox.x + resizerBox.width / 2, resizerY);
+        await processPage.mouse.down();
+        await processPage.mouse.move(resizerBox.x + resizerBox.width / 2 - 150, resizerY, {
+            steps: 8,
+        });
+        await processPage.mouse.up();
+        await expect.poll(nameColumnWidth).toBeLessThan(autoFittedNameWidth - 100);
+        await resizer.dblclick();
+        await expect.poll(nameColumnWidth).toBe(autoFittedNameWidth);
+
+        /**
+         * A leaf row has no children to expand, and used to render as a `disabled` button — which Chromium never sends
+         * pointer events to, so its hover explanation silently never appeared.
+         */
+        await grid.locator('button.process-name[data-process-name="extension-host"]').hover();
+        await expect(processPage.locator('.tooltip-popup')).toHaveText('extension-host');
+        await processPage.mouse.move(4, 4);
+        await expect(processPage.locator('.tooltip-popup')).toHaveCount(0);
 
         await running.page.bringToFront();
         const childProcessAction = running.page.getByRole('button', {
