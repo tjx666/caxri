@@ -2,11 +2,18 @@ import type { ObservationContext } from './context.js';
 import { normalizeObservationContext } from './context.js';
 import type { ObservationOwner, ObservationPhase } from './metrics.js';
 
+/**
+ * `cancelled` and `generation-superseded` describe expected non-faults: an explicit caller cancellation and a request
+ * whose owning provider/host generation was replaced. Without them every such outcome had to borrow `unknown`, which
+ * pairs a healthy lifecycle with a fault-shaped remediation.
+ */
 export const failureReasons = [
+    'cancelled',
     'capacity',
     'control-unreachable',
     'core-unavailable',
     'extension-host-exited',
+    'generation-superseded',
     'invalid-message',
     'persistence-unavailable',
     'stream-closed',
