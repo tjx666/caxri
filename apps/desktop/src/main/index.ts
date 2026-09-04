@@ -536,6 +536,7 @@ if (ownsProfileInstance) {
         });
         installWorkbenchIpc({
             isQuitting: () => isQuitStarted,
+            isRecovering: () => supervisor.isRecovering(),
             logger: () => mainLogger,
             onRendererDiagnostic: gpuDiagnostics.recordRendererDiagnostic,
             onEventsReady: () => {

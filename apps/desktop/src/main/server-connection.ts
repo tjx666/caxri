@@ -99,6 +99,16 @@ export interface DesktopServerConnectionOptions {
 const SERVER_REPLACEMENT_EXIT_TIMEOUT_MS = 10_000;
 
 /**
+ * Lifecycle statuses in which the reconnect loop still owns the outage; see
+ * {@link DesktopServerConnection.isRecovering}.
+ */
+const RECOVERING_CONNECTION_STATUSES = new Set<ServerConnectionState['status']>([
+    'attaching',
+    'backoff',
+    'recovering',
+]);
+
+/**
  * Waits for a stopped Server process to disappear so `ensureServer` re-discovery cannot race the old manifest. Signal 0
  * only probes liveness; an `ESRCH` throw means the process is gone. On timeout the caller simply proceeds — the final
  * attempt downgrades a still-stale Server to a warning.
@@ -514,6 +524,17 @@ export class DesktopServerConnection extends EventTarget {
         // Disposal is terminal, so no in-flight or queued durable-event recovery may outlive it.
         this.events?.stop();
         this.unsubscribeServerLifecycle();
+    }
+
+    /**
+     * True while a request may fail with `UNAVAILABLE` purely because the connection is between attachments and the
+     * reconnect loop still owns recovery. `idle` is excluded because nothing retries after a failed initial attachment,
+     * and a failed supervisor is excluded because the loop has stopped re-arming (see `ensureReconnectLoop`); both are
+     * real outages a caller must be told about. `replaced` and `disposed` never reach here — they answer `CANCELLED`.
+     */
+    isRecovering(): boolean {
+        if (this.serverSupervisor.isFailed()) return false;
+        return RECOVERING_CONNECTION_STATUSES.has(this.lifecycle.status);
     }
 
     serverProcessId(): number | undefined {
