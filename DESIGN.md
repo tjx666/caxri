@@ -146,16 +146,22 @@ accessible names and hover tooltips.
 **PrimarySidebar** — flatten the double-box nesting: project groups are a disclosure row
 (Folder/FolderOpen icon + name + count, no border, no card); sessions are flat rows indented 16px.
 Selection is an `--elevated` fill (radius 6), no border and no accent — the primarySidebar stays
-entirely neutral so the focused pane keeps the screen's one accent. Every Session row reserves one
-fixed status slot on the right. Unacknowledged attention wins and uses a warning ring/dot with a
+entirely neutral so the focused pane keeps the screen's one accent. Every Session row ends in one
+fixed-width glyph track that right-aligns its contents — pull request first, then status. The
+track's width never changes, so a title never reflows as glyphs come and go, while whichever glyphs
+do exist always reach the row's right edge rather than floating a slot short of it. Reserve a
+per-glyph slot only where a neighbouring variable-width column would otherwise shift, as the MRU
+switcher's relative timestamp does. Unacknowledged attention wins and uses a warning ring/dot with a
 ping; there is deliberately no second, static amber state, so reading a Session is the only thing
-that clears the slot and nothing can bring it back unread; active work (including compaction) uses
-a muted spinner; settled, idle, unknown, failed, and exited Sessions leave the slot blank. Thus a
+that clears the status and nothing can bring it back unread; active work (including compaction) uses
+a muted spinner; settled, idle, unknown, failed, and exited Sessions render no status, which hands
+the edge position to a pull request glyph. Thus a
 failed process is not a persistent list alert, while reliable unread attention remains visible
 regardless of its exact kind. Motion and shape carry the glance signal without changing title
 weight, and the accessible label plus the Session hover/focus card preserve exact lifecycle and
-attention details. On pointer hover, the Archive action replaces the status in the same slot;
-keyboard focus keeps the status visible because Delete already owns the keyboard action. The Portal
+attention details. On pointer hover, the Archive action replaces the track's trailing glyph in the
+same position; keyboard focus keeps the track visible because Delete already owns the keyboard
+action. The Portal
 card opens to the PrimarySidebar's right after a short hover delay (or immediately on keyboard focus),
 collision-shifts within the viewport, and shows only the full title, Project, primary Agent,
 activity explanation, `Last opened`, and unread-attention metadata. All non-archived Project and
