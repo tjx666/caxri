@@ -1,29 +1,21 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { CliFailureKind, ProjectStatusCommandDependencies } from '../project-status-external';
-import { projectStatusCliError, runProjectStatusCommand } from '../project-status-external';
+import type { ExternalStatusCommandDependencies } from '../command';
+import { externalStatusCommandOperation, runExternalStatusCommand } from '../command';
 
-const NON_LOG_FAILURE_KINDS: Array<Exclude<CliFailureKind, 'other'>> = [
-    'not-found',
-    'not-logged-in',
-    'not-linked',
-    'rate-limited',
-    'timeout',
-];
-
-describe('runProjectStatusCommand', () => {
+describe('runExternalStatusCommand', () => {
     it.each(['gh', 'vc', 'linear'] as const)(
         'resolves %s through the shared login-path boundary',
         async (command) => {
             const resolveExecutable = vi.fn((name: string) =>
                 Promise.resolve(`/login/bin/${name}`),
             );
-            const run = vi.fn<NonNullable<ProjectStatusCommandDependencies['run']>>(() =>
+            const run = vi.fn<NonNullable<ExternalStatusCommandDependencies['run']>>(() =>
                 Promise.resolve({ stdout: 'ok', stderr: '' }),
             );
 
             await expect(
-                runProjectStatusCommand(command, ['status'], '/repo', {
+                runExternalStatusCommand(command, ['status'], '/repo', {
                     resolveExecutable,
                     environment: () =>
                         Promise.resolve({ HOME: '/home/user', PATH: '/login/bin:/usr/bin' }),
@@ -51,18 +43,18 @@ describe('runProjectStatusCommand', () => {
 
     it('preserves the not-found classification for a genuinely missing CLI', async () => {
         await expect(
-            runProjectStatusCommand('gh', [], '/repo', {
+            runExternalStatusCommand('gh', [], '/repo', {
                 resolveExecutable: () => Promise.resolve(undefined),
             }),
         ).rejects.toMatchObject({ command: 'gh', kind: 'not-found' });
     });
 
     it('prevents linear-cli from loading a Project API key through dotenv', async () => {
-        const run = vi.fn<NonNullable<ProjectStatusCommandDependencies['run']>>(() =>
+        const run = vi.fn<NonNullable<ExternalStatusCommandDependencies['run']>>(() =>
             Promise.resolve({ stdout: 'ok', stderr: '' }),
         );
 
-        await runProjectStatusCommand('linear', ['api', 'query'], '/repo', {
+        await runExternalStatusCommand('linear', ['api', 'query'], '/repo', {
             resolveExecutable: () => Promise.resolve('/login/bin/linear'),
             environment: () =>
                 Promise.resolve({
@@ -75,12 +67,22 @@ describe('runProjectStatusCommand', () => {
 
         expect(run.mock.calls[0]?.[2].env).toMatchObject({ LINEAR_API_KEY: '' });
     });
+});
 
-    it.each(NON_LOG_FAILURE_KINDS)('keeps %s errors non-actionable', (kind) => {
-        expect(projectStatusCliError('linear', kind)).not.toHaveProperty('detailsView');
+describe('externalStatusCommandOperation', () => {
+    it('keeps the REST quota probe attributable without logging user content', () => {
+        expect(externalStatusCommandOperation('gh', ['api', 'rate_limit'])).toBe('api.rate_limit');
     });
 
-    it('routes generic CLI failure details to Logs', () => {
-        expect(projectStatusCliError('linear', 'other')).toHaveProperty('detailsView', 'logs');
+    it('reports a pull-request read without its repository or branch', () => {
+        expect(
+            externalStatusCommandOperation('gh', [
+                'pr',
+                'view',
+                'feature/secret-branch',
+                '--repo',
+                'acme/private',
+            ]),
+        ).toBe('pr.view');
     });
 });

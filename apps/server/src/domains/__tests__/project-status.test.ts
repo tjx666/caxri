@@ -4,16 +4,18 @@ import { join } from 'node:path';
 
 import type { GitSummary } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
+import { rememberBounded } from '@caxri/utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { ExternalStatusRunner } from '../external-status';
+import { ExternalStatusCliError } from '../external-status';
 import {
     extractLinearReferences,
     parseGitHubPullRequest,
     parseGitHubRemote,
     ProjectStatusService,
 } from '../project-status';
-import type { ProjectStatusRunner, VercelLink } from '../project-status-external';
-import { rememberVercelLink } from '../project-status-external';
+import type { VercelLink } from '../project-status-external';
 
 const temporaryDirectories: string[] = [];
 const loggers: StructuredLogger[] = [];
@@ -61,7 +63,7 @@ describe('ProjectStatusService', () => {
     it('returns local status before a slow external CLI refresh completes', async () => {
         const external = Promise.withResolvers<string>();
         const refreshed = Promise.withResolvers<void>();
-        const runner = vi.fn<ProjectStatusRunner>((command, arguments_) => {
+        const runner = vi.fn<ExternalStatusRunner>((command, arguments_) => {
             if (command === 'git' && arguments_[0] === 'remote') {
                 return Promise.resolve('git@github.com:lobehub/project.git\n');
             }
@@ -100,7 +102,7 @@ describe('ProjectStatusService', () => {
         let pullRequestNumber = 7;
         const forcedGithub = Promise.withResolvers<string>();
         const emitted = vi.fn();
-        const runner = vi.fn<ProjectStatusRunner>((command, arguments_) => {
+        const runner = vi.fn<ExternalStatusRunner>((command, arguments_) => {
             if (command === 'git' && arguments_[0] === 'remote') {
                 return Promise.resolve('git@github.com:lobehub/project.git\n');
             }
@@ -165,7 +167,7 @@ describe('ProjectStatusService', () => {
         const externalStarted = Promise.withResolvers<void>();
         const external = Promise.withResolvers<string>();
         const emitted = vi.fn();
-        const runner = vi.fn<ProjectStatusRunner>((command, arguments_) => {
+        const runner = vi.fn<ExternalStatusRunner>((command, arguments_) => {
             if (command === 'git' && arguments_[0] === 'remote') {
                 return Promise.resolve('git@github.com:lobehub/project.git\n');
             }
@@ -204,7 +206,7 @@ describe('ProjectStatusService', () => {
         const git = vi.fn((sessionId: string) =>
             sessionId === 'session-a' ? pendingSummary.promise : Promise.resolve(gitSummary),
         );
-        const runner = vi.fn<ProjectStatusRunner>(() => Promise.resolve(''));
+        const runner = vi.fn<ExternalStatusRunner>(() => Promise.resolve(''));
         const service = new ProjectStatusService({ summary: git }, await logger(), runner, {
             emit: emitted,
         });
@@ -250,7 +252,7 @@ describe('ProjectStatusService', () => {
                 },
             ],
         };
-        const runner = vi.fn<ProjectStatusRunner>((command, arguments_) => {
+        const runner = vi.fn<ExternalStatusRunner>((command, arguments_) => {
             if (command === 'git') return Promise.resolve('git@github.com:lobehub/project.git\n');
             if (command === 'gh') {
                 return Promise.resolve(
@@ -301,13 +303,13 @@ describe('ProjectStatusService', () => {
             '--repo',
             'lobehub/project',
             '--json',
-            'number,title,url',
+            'number,title,url,state,isDraft,body,statusCheckRollup,baseRefName,headRefName,baseRefOid,headRefOid',
         ]);
     });
 
     it('assembles GitHub, Linear, and Vercel status with structured CLI arguments', async () => {
         const refreshed = Promise.withResolvers<void>();
-        const runner = vi.fn<ProjectStatusRunner>((command, arguments_) => {
+        const runner = vi.fn<ExternalStatusRunner>((command, arguments_) => {
             if (command === 'git' && arguments_[0] === 'remote') {
                 return Promise.resolve('git@github.com:lobehub/project.git\n');
             }
@@ -446,9 +448,55 @@ describe('ProjectStatusService', () => {
         );
     });
 
+    it('keeps the last known pull request when a later refresh is rate limited', async () => {
+        let isLimited = false;
+        const emitted = vi.fn();
+        const runner = vi.fn<ExternalStatusRunner>((command, arguments_) => {
+            if (command === 'git' && arguments_[0] === 'remote') {
+                return Promise.resolve('git@github.com:lobehub/project.git\n');
+            }
+            if (command === 'git') return Promise.resolve('');
+            if (command === 'gh') {
+                if (isLimited) {
+                    return Promise.reject(
+                        new ExternalStatusCliError('gh', 'rate-limited', 'API rate limit exceeded'),
+                    );
+                }
+                return Promise.resolve(
+                    JSON.stringify({
+                        number: 7,
+                        title: 'Pull request 7',
+                        url: 'https://github.com/lobehub/project/pull/7',
+                    }),
+                );
+            }
+            return Promise.resolve(JSON.stringify({ teams: [] }));
+        });
+        const service = new ProjectStatusService(
+            { summary: () => Promise.resolve(gitSummary) },
+            await logger(),
+            runner,
+            { emit: emitted },
+        );
+
+        await service.summary('session-1');
+        await vi.waitFor(() => expect(emitted).toHaveBeenCalledTimes(1));
+        expect((await service.summary('session-1')).repositories[0]?.pullRequest?.number).toBe(7);
+
+        // A transient limit must not swap a good pull request for an error banner for the whole pause: that is the
+        // symptom the shared projection exists to remove, and the pause can run for an hour.
+        isLimited = true;
+        const refreshed = await service.summary('session-1', 'refresh-1');
+
+        expect(refreshed.repositories[0]?.pullRequest?.number).toBe(7);
+        expect(refreshed.repositories[0]?.errors).not.toContainEqual(
+            expect.objectContaining({ source: 'github' }),
+        );
+    });
+
     it('keeps repositories visible when integrations fail', async () => {
         const refreshed = Promise.withResolvers<void>();
-        const runner = vi.fn<ProjectStatusRunner>((command, arguments_) => {
+        const runner = vi.fn<ExternalStatusRunner>((command, arguments_) => {
             if (command === 'git' && arguments_[0] === 'remote') {
                 return Promise.resolve('https://github.com/lobehub/project.git');
             }
@@ -515,7 +563,7 @@ describe('Project Status parsers', () => {
         const links = new Map<string, VercelLink>();
         const maximum = 256;
         for (let index = 0; index < maximum + 50; index += 1) {
-            rememberVercelLink(
+            rememberBounded(
                 links,
                 `owner/repo-${index}`,
                 { team: 'team', project: `project-${index}` },

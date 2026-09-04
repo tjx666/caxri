@@ -7,8 +7,8 @@ import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { claudeTranscriptPath } from '../agents/providers/claude/paths';
-import type { ProjectStatusRunner } from '../project-status-external';
-import { ProjectStatusCliError } from '../project-status-external';
+import type { ExternalStatusRunner } from '../external-status';
+import { ExternalStatusCliError } from '../external-status';
 import { selectBranchPullRequest, SessionPullRequestService } from '../session-pull-requests';
 
 const temporaryDirectories: string[] = [];
@@ -94,7 +94,7 @@ function pullRequestJson(overrides: Record<string, unknown> = {}): string {
 
 interface Harness {
     emitted: ServerEvent[];
-    runner: ReturnType<typeof vi.fn<ProjectStatusRunner>>;
+    runner: ReturnType<typeof vi.fn<ExternalStatusRunner>>;
     service: SessionPullRequestService;
     setTranscript: (lines: string[]) => Promise<void>;
 }
@@ -121,10 +121,10 @@ async function harness(options: {
     } as unknown as TerminalRecord;
     const sessions = options.sessions ?? [session({ primaryAgentTerminalId: terminal.id })];
     const emitted: ServerEvent[] = [];
-    const runner = vi.fn<ProjectStatusRunner>((command, arguments_) => {
+    const runner = vi.fn<ExternalStatusRunner>((command, arguments_) => {
         if (command === 'git') return Promise.resolve('git@github.com:lobehub/lobehub.git\n');
         if (command === 'gh' && options.gh) return options.gh(arguments_);
-        return Promise.reject(new ProjectStatusCliError('gh', 'other', 'no pull requests found'));
+        return Promise.reject(new ExternalStatusCliError('gh', 'other', 'no pull requests found'));
     });
     const service = new SessionPullRequestService(
         {
@@ -232,7 +232,7 @@ describe('SessionPullRequestService', () => {
             expect(arguments_.slice(0, 3)).toEqual(['pr', 'view', '19024']);
             return Promise.resolve(pullRequestJson());
         });
-        const runner = vi.fn<ProjectStatusRunner>((command, arguments_) =>
+        const runner = vi.fn<ExternalStatusRunner>((command, arguments_) =>
             command === 'git'
                 ? Promise.resolve('git@github.com:lobehub/lobehub.git\n')
                 : gh(arguments_),
@@ -295,20 +295,41 @@ describe('SessionPullRequestService', () => {
 
     it('falls back to the branch lookup and prefers an open PR over a merged one', async () => {
         const gh = vi.fn((arguments_: readonly string[]) => {
+            if (arguments_[1] === 'list') {
+                expect(arguments_.slice(0, 5)).toEqual([
+                    'pr',
+                    'list',
+                    '--repo',
+                    'lobehub/lobehub',
+                    '--head=feat/x',
+                ]);
+                /**
+                 * Discovery only has to rank candidates, so it must never pay for `statusCheckRollup` across a page of
+                 * pull requests. The selected one's checks come from the shared record below.
+                 */
+                expect(arguments_.at(-1)).toBe('number,state,isDraft');
+                return Promise.resolve(
+                    `[${pullRequestJson({ number: 1, state: 'MERGED' })},${pullRequestJson({
+                        number: 2,
+                        state: 'OPEN',
+                        isDraft: true,
+                    })}]`,
+                );
+            }
             expect(arguments_.slice(0, 5)).toEqual([
                 'pr',
-                'list',
+                'view',
+                '2',
                 '--repo',
                 'lobehub/lobehub',
-                '--head=feat/x',
             ]);
             return Promise.resolve(
-                `[${pullRequestJson({ number: 1, state: 'MERGED' })},${pullRequestJson({
+                pullRequestJson({
                     number: 2,
                     state: 'OPEN',
                     isDraft: true,
                     statusCheckRollup: [],
-                })}]`,
+                }),
             );
         });
         const { service } = await harness({ gh });
@@ -339,7 +360,7 @@ describe('SessionPullRequestService', () => {
         let shouldFail = false;
         const gh = vi.fn(() =>
             shouldFail
-                ? Promise.reject(new ProjectStatusCliError('gh', 'rate-limited', 'rate limited'))
+                ? Promise.reject(new ExternalStatusCliError('gh', 'rate-limited', 'rate limited'))
                 : Promise.resolve(pullRequestJson({ state: 'OPEN' })),
         );
         const { service, setTranscript } = await harness({ gh, now: () => now });
@@ -348,7 +369,9 @@ describe('SessionPullRequestService', () => {
         expect(service.snapshot().pullRequests['session-1']?.state).toBe('open');
 
         shouldFail = true;
-        now += 61_000;
+        // Past both this service's own TTL and the shared record's, so the sweep really does re-spawn `gh` and hit
+        // the failure rather than being served a still-fresh projection.
+        now += 91_000;
         await service.refresh();
         expect(gh).toHaveBeenCalledTimes(2);
         expect(service.snapshot().pullRequests['session-1']?.state).toBe('open');
@@ -382,7 +405,13 @@ describe('SessionPullRequestService', () => {
     });
 
     it('keeps sweeping the other Sessions when one checkout cannot be inspected', async () => {
-        const gh = vi.fn(() => Promise.resolve(`[${pullRequestJson({ state: 'OPEN' })}]`));
+        const gh = vi.fn((arguments_: readonly string[]) =>
+            Promise.resolve(
+                arguments_[1] === 'list'
+                    ? `[${pullRequestJson({ state: 'OPEN' })}]`
+                    : pullRequestJson({ state: 'OPEN' }),
+            ),
+        );
         const { emitted, service } = await harness({
             gh,
             sessions: [session(), session({ id: 'session-2' })],

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ConfigService } from '../config';
 import type { CaxriDatabase } from '../db';
 import type { DiagnosticsService } from '../diagnostics';
+import { ExternalStatusHub } from '../external-status';
 import type { FileService } from '../files';
 import type { GitService } from '../git';
 import { currentGitRequestSignal } from '../git/request-signal';
@@ -27,6 +28,7 @@ describe('Runtime service handler cancellation', () => {
             database: {} as CaxriDatabase,
             diagnostics: {} as DiagnosticsService,
             emit: () => {},
+            externalStatus: new ExternalStatusHub(),
             files: {} as FileService,
             git: { sync } as unknown as GitService,
             introspection: {} as ReturnType<typeof createIntrospectionServices>,
