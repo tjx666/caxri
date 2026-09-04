@@ -23,6 +23,7 @@ export type TransientServerEvent = Extract<
             | 'desktop.openRequested'
             | 'host.connectionChanged'
             | 'gpu.recoveryRequested'
+            | 'projectStatus.alert'
             | 'projectStatus.changed'
             | 'sessionPullRequests.changed'
             | 'terminal.output'
@@ -50,6 +51,10 @@ const TRANSIENT_SERVER_EVENT_NAMES = new Set<ServerEvent['event']>([
      */
     'host.connectionChanged',
     'gpu.recoveryRequested',
+    /**
+     * Replaying a delivery alert after a reconnect would re-notify a failure the user already dismissed.
+     */
+    'projectStatus.alert',
     'projectStatus.changed',
     'sessionPullRequests.changed',
     'viewContainers.catalogChanged',

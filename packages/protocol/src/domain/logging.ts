@@ -143,9 +143,12 @@ export const logEventCatalog = {
         unhandledRejection: 'process_explorer.unhandled_rejection',
     },
     projectStatus: {
+        alert: 'project_status.alert',
         cli: 'project_status.cli',
         local: 'project_status.local',
+        notifyFailed: 'project_status.notify_failed',
         overviewGithubUnavailable: 'project_status.overview_github_unavailable',
+        poll: 'project_status.poll',
         refresh: 'project_status.refresh',
         refreshFailed: 'project_status.refresh_failed',
         summary: 'project_status.summary',

@@ -1,4 +1,5 @@
 import type {
+    AppSettings,
     GitSummary,
     ProjectStatusState,
     ServerEvent,
@@ -34,7 +35,7 @@ import {
     runExternalStatusCommand,
 } from './external-status';
 import type { GitService } from './git';
-import { parseGitHubPullRequest } from './project-status';
+import { parseGitHubPullRequest } from './project-status-parse';
 
 /**
  * Merge state moves on human timescales, so an open PR refreshes once a minute while a merged or closed one only
@@ -109,6 +110,11 @@ export interface SessionPullRequestServiceOptions {
     agentEnvironment?: AgentEnvironment;
     emit?: (event: ServerEvent) => void;
     /**
+     * Reads `projectStatus.ignoredChecks` so the sidebar's CI badge aggregates exactly the checks the Status panel
+     * shows. Without it the two surfaces would disagree the moment a user ignores a permanently failing job.
+     */
+    settings?: () => AppSettings;
+    /**
      * Server-wide pull-request projection shared with the Status panel, the status bar, and Source Control.
      */
     github?: GitHubPullRequestStore;
@@ -157,8 +163,9 @@ function projectedChecks(
 function parseSessionPullRequest(
     output: string,
     source: SessionPullRequest['source'],
+    ignoredChecks: readonly string[],
 ): SessionPullRequest | undefined {
-    const parsed = parseGitHubPullRequest(output).pullRequest;
+    const parsed = parseGitHubPullRequest(output, ignoredChecks).pullRequest;
     if (!parsed) return undefined;
     const raw = githubPullRequestStateSchema.safeParse(JSON.parse(output));
     const state = raw.success
@@ -214,6 +221,11 @@ export class SessionPullRequestService {
     private sweep?: Promise<void>;
     private readonly transcriptScans = new Map<string, TranscriptPullRequestScan>();
     private readonly github: GitHubPullRequestStore;
+    /**
+     * Undefined until the first snapshot. Reading settings from the constructor would make merely assembling the Server
+     * depend on configuration being loaded, which it is not obliged to be at that point.
+     */
+    private ignoredChecksSignature?: string;
 
     constructor(
         private readonly database: SessionPullRequestDatabase,
@@ -226,6 +238,27 @@ export class SessionPullRequestService {
         this.now = options.now ?? Date.now;
         this.github =
             options.github ?? new GitHubPullRequestStore(this.runner, { now: () => this.now() });
+    }
+
+    private ignoredChecks(): readonly string[] {
+        return this.options.settings?.()['projectStatus.ignoredChecks'] ?? [];
+    }
+
+    /**
+     * Expires every projection computed under superseded `projectStatus.ignoredChecks` rules. The badge aggregates the
+     * checks that survive the filter, and a merged or closed pull request is otherwise only re-confirmed every fifteen
+     * minutes, so without this a newly ignored job would keep a Session row red for a quarter of an hour. Only a real
+     * rule change pays for it: the re-sweep spends one cheap branch-discovery query per Session, while the expensive
+     * check rollup comes back from the shared pull-request record.
+     */
+    private expireOnIgnoredChecksChange(): void {
+        const signature = JSON.stringify(this.ignoredChecks());
+        const previous = this.ignoredChecksSignature;
+        this.ignoredChecksSignature = signature;
+        if (previous === undefined || previous === signature) return;
+        for (const entry of this.sessions.values()) entry.expiresAt = 0;
+        for (const entry of this.pullRequests.values()) entry.expiresAt = 0;
+        for (const entry of this.branchLookups.values()) entry.expiresAt = 0;
     }
 
     /**
@@ -440,7 +473,9 @@ export class SessionPullRequestService {
                 owner: reference.owner,
                 repo: reference.repo,
             });
-            return output ? parseSessionPullRequest(output, source) : undefined;
+            return output
+                ? parseSessionPullRequest(output, source, this.ignoredChecks())
+                : undefined;
         } catch (error) {
             if (isNoPullRequest(error)) return undefined;
             throw error;
@@ -556,6 +591,7 @@ export class SessionPullRequestService {
      * `sessionPullRequests.changed` event owns UI convergence.
      */
     snapshot(): SessionPullRequests {
+        this.expireOnIgnoredChecksChange();
         const now = this.now();
         const pullRequests: SessionPullRequests['pullRequests'] = {};
         let isStale = false;

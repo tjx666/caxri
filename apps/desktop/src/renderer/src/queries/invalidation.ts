@@ -207,6 +207,23 @@ function invalidateProjectStatusQuery(queryClient: QueryClient, sessionId: strin
     });
 }
 
+/**
+ * Re-asks the Server for delivery status after a settings write. `projectStatus.ignoredChecks` decides which checks the
+ * Status panel rollup and the sidebar CI badge aggregate, and both are served from Server-side caches that survive for
+ * minutes, so an edit would otherwise keep showing the pre-change rollup. The Server compares the rules before spending
+ * anything, so a settings write that leaves them alone answers from cache.
+ */
+function invalidateDeliveryStatusQueries(queryClient: QueryClient): void {
+    // Fire-and-forget: the refreshed queries surface any error through React Query state.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+    void queryClient.invalidateQueries({
+        predicate: (query) => {
+            const [method] = query.queryKey as [CaxriMethod];
+            return method === 'projectStatus.summary' || method === 'session.pullRequests';
+        },
+    });
+}
+
 function invalidateAgentTranscriptQuery(queryClient: QueryClient, terminalId?: string): void {
     // Fire-and-forget: an active transcript viewer renders the refetch result through its query state.
     // eslint-disable-next-line no-void -- targeted query invalidation owns its own error state
@@ -387,6 +404,7 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
             if (!event.payload.error) {
                 invalidateFileTreeQueries(queryClient);
                 removeAgentActionQueries(queryClient);
+                invalidateDeliveryStatusQueries(queryClient);
             }
             return;
         }

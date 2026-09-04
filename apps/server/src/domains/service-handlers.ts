@@ -147,7 +147,12 @@ export function createServiceHandlers(services: {
         git,
         logger,
         externalStatus.run,
-        { agentEnvironment, emit, github: externalStatus.github },
+        {
+            agentEnvironment,
+            emit,
+            github: externalStatus.github,
+            settings: () => configuration.getSettings().value,
+        },
     );
     return {
         'agentActions.list': ({ terminalId }) =>

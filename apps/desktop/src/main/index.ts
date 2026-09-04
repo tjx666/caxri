@@ -17,9 +17,7 @@ import { app, BrowserWindow, dialog, Menu, powerMonitor, shell } from 'electron'
 
 import { isBenignRendererErrorMessage } from '../shared/renderer-error-policy';
 import { shouldEnableAcceptanceAccessibility } from './acceptance-accessibility';
-import { createDesktopAgentNotifications } from './agent-notification-runtime';
-import type { AgentNotificationCoordinator } from './agent-notifications';
-import { resolveDevelopmentDockIconPath, resolveNotificationAppIconPath } from './app-icon';
+import { resolveDevelopmentDockIconPath } from './app-icon';
 import type { AppQuitIntent } from './app-quit';
 import { confirmAppQuit, createAppQuitHandler, notifyAppQuitStopFailure } from './app-quit';
 import { updateArgvConfig } from './argv-config';
@@ -27,6 +25,8 @@ import { discardGitChangesPrompt, trashPrompt } from './confirmations';
 import { consoleErrorLogFields } from './console-error-fields';
 import { decideCrashRecovery } from './crash-policy';
 import { createDesktopLogger } from './desktop-logger';
+import type { DesktopNotifications } from './desktop-notifications';
+import { createDesktopNotifications } from './desktop-notifications';
 import { createDesktopOperationHandler } from './desktop-operations';
 import {
     configureDesktopProfile,
@@ -102,7 +102,7 @@ if (ownsProfileInstance) {
     });
     let processExplorer: ProcessExplorerWindowController;
     let updateService: UpdateService;
-    let agentNotifications: AgentNotificationCoordinator | undefined;
+    let notifications: DesktopNotifications | undefined;
     let isForceWindowClose = false;
     let isQuitStarted = false;
     let quitIntent: AppQuitIntent = 'user';
@@ -138,7 +138,7 @@ if (ownsProfileInstance) {
     });
     function sendEvent(event: ServerEvent): void {
         eventRelay.send(event);
-        agentNotifications?.observe(event);
+        notifications?.observe(event);
     }
     const gpuRecovery = createGpuRecoveryCoordinator({
         app,
@@ -156,7 +156,7 @@ if (ownsProfileInstance) {
     const requestAppQuit = createAppQuitHandler({
         acceptQuit: () => {
             isQuitStarted = true;
-            agentNotifications?.dispose();
+            notifications?.dispose();
         },
         closeDesktop: () => supervisor.shutdown(),
         confirm: (impact) => confirmAppQuit(dialog, mainWindow, impact),
@@ -747,18 +747,17 @@ if (ownsProfileInstance) {
                 }))
             )
                 return;
-            agentNotifications = createDesktopAgentNotifications({
-                appIconPath: resolveNotificationAppIconPath({
-                    currentDirectory,
-                    isPackaged: app.isPackaged,
-                    resourcesPath: process.resourcesPath,
-                }),
+            notifications = createDesktopNotifications({
+                currentDirectory,
                 focusMainWindow,
                 getWindow: () => mainWindow,
+                handleMainMethod,
+                isPackaged: app.isPackaged,
                 logger: () => mainLogger,
+                resourcesPath: process.resourcesPath,
                 supervisor,
             });
-            void agentNotifications.initialize(); // eslint-disable-line no-void -- background-only startup state
+            void notifications.initialize(); // eslint-disable-line no-void -- background-only startup state
             installIpc();
             processExplorer.installIpc();
             await menuRefreshController.refresh();

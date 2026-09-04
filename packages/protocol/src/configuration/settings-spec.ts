@@ -14,6 +14,7 @@ export const settingCategories = [
     { id: 'editor', title: 'Editor' },
     { id: 'security', title: 'Security' },
     { id: 'files', title: 'Files' },
+    { id: 'projectStatus', title: 'Project Status' },
     { id: 'agents', title: 'Agents' },
 ] as const;
 
@@ -359,6 +360,44 @@ export const settingsSpec = [
         max: MAX_CONFIGURABLE_FILE_BYTES,
         default: 2 * MEBIBYTE,
         display: { unit: 'MB', scale: MEBIBYTE, step: 0.5 },
+    },
+    {
+        kind: 'complex',
+        key: 'projectStatus.ignoredChecks',
+        title: 'Ignored checks',
+        description:
+            'Checks left out of the CI rollup, the sidebar badge, and failure notifications',
+        category: 'projectStatus',
+        keywords: [
+            'ci',
+            'check',
+            'github',
+            'workflow',
+            'job',
+            'ignore',
+            'hide',
+            'glob',
+            'pattern',
+            'status',
+        ],
+    },
+    {
+        kind: 'boolean',
+        key: 'projectStatus.notifications.enabled',
+        title: 'Delivery failure notifications',
+        description: 'Notify when a CI check or a Vercel deployment starts failing',
+        category: 'projectStatus',
+        keywords: [
+            'notification',
+            'alert',
+            'ci',
+            'vercel',
+            'deployment',
+            'failure',
+            'build',
+            'broken',
+        ],
+        default: true,
     },
     {
         kind: 'complex',

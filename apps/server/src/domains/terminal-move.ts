@@ -12,11 +12,15 @@ import type { TerminalManager } from './terminal';
 export function createTerminalMoveHandler(dependencies: {
     coordinator: AgentCoordinator;
     database: CaxriDatabase;
+    /**
+     * `moveTerminalToNewSession` makes the new Session the selected one, so this must be the composition root's shared
+     * selection hook — not just the file watcher — or Project Status keeps polling the Session left behind.
+     */
+    observeSelectedSession: (sessionId: string | undefined) => void;
     send: (event: ServerEvent) => void;
     terminals: TerminalManager;
-    watchSessionInBackground: (sessionId: string | undefined) => void;
 }): Pick<DomainHandlers, 'terminal.moveToNewSession'> {
-    const { coordinator, database, send, terminals, watchSessionInBackground } = dependencies;
+    const { coordinator, database, observeSelectedSession, send, terminals } = dependencies;
     return {
         // Moves a live Terminal into a brand-new Session (DB ownership + PTY cache, see
         // `TerminalManager.reassignSession`'s JSDoc for why both must stay in sync).
@@ -25,7 +29,7 @@ export function createTerminalMoveHandler(dependencies: {
             const moved = database.moveTerminalToNewSession(terminalId);
             terminals.reassignSession(terminalId, moved.session.id);
             if (sourceSessionId) coordinator.probeSessionPrimaryAgent(sourceSessionId);
-            watchSessionInBackground(moved.session.id);
+            observeSelectedSession(moved.session.id);
             if (moved.terminal.provider) coordinator.probeTerminal(moved.terminal.id);
             send({
                 event: 'state.changed',
