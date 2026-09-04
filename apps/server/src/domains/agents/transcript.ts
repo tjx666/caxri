@@ -5,7 +5,11 @@ import type { AgentProvider, AgentTranscript } from '@caxri/protocol';
 
 import type { CaxriDatabase } from '../db';
 import type { AgentEnvironment } from './contract';
-import { defaultAgentEnvironment, isOpaqueAgentSessionId } from './contract';
+import {
+    agentProviderStateRoot,
+    defaultAgentEnvironment,
+    isOpaqueAgentSessionId,
+} from './contract';
 import { agentProviders } from './providers';
 import type { AgentTranscriptLocation } from './transcript-security';
 import { openSafeAgentTranscript, resolveSafeAgentTranscriptPath } from './transcript-security';
@@ -35,7 +39,12 @@ function boundAgentIdentity(
         return;
     return {
         agentSessionId: terminal.agentSessionId,
-        cwd: terminal.cwd,
+        /**
+         * Claude Code's `EnterWorktree` moves the Agent's directory mid-session and relocates the existing transcript
+         * file to the matching provider directory. Resolving against the launch root would keep reading a path the
+         * provider has already abandoned, silently stopping every transcript-backed capability.
+         */
+        cwd: agentProviderStateRoot(terminal),
         provider: terminal.provider,
     };
 }

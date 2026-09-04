@@ -22,6 +22,7 @@ interface TerminalRow {
     kind: string;
     provider: string | null;
     cwd: string;
+    agentCwd: string | null;
     title: string;
     ptyTitle: string | null;
     icon: string;
@@ -41,6 +42,7 @@ function mapTerminal(row: TerminalRow): TerminalRecord {
         kind: row.kind as TerminalKind,
         provider: (row.provider as AgentProvider | null) ?? undefined,
         cwd: row.cwd,
+        agentCwd: row.agentCwd ?? undefined,
         title: row.title,
         ptyTitle: row.ptyTitle ?? undefined,
         icon: row.icon,
@@ -179,6 +181,20 @@ export class TerminalsModel {
             .set({ agentSessionId: agentSessionId ?? null, updatedAt: now })
             .where(eq(terminals.id, id))
             .run();
+    }
+
+    /**
+     * Records the Agent's diverged working directory, or clears it when the Agent returned to the launch root. The
+     * caller owns proving the path against Git worktree topology first; this model performs no path authorization.
+     */
+    updateAgentCwd(id: string, agentCwd: string | undefined, now = Date.now()): boolean {
+        return (
+            this.database
+                .update(terminals)
+                .set({ agentCwd: agentCwd ?? null, updatedAt: now })
+                .where(and(eq(terminals.id, id), sql`${terminals.provider} IS NOT NULL`))
+                .run().changes > 0
+        );
     }
 
     updateAgentProcessState(id: string, state: ProcessState, now = Date.now()): void {

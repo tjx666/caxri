@@ -6,6 +6,7 @@ import type { NewWorktreeBehavior, ServerEvent } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import { expect, onTestFinished, vi } from 'vitest';
 
+import type { AgentLifecyclePhase } from '../agents';
 import { CaxriDatabase } from '../db/repository';
 import type { GitService, GitWorktreeTopology } from '../git';
 import { WorkbenchRootService } from '../workbench-roots';
@@ -125,6 +126,25 @@ export function shellFailed(
     options: ShellSignalOptions = {},
 ) {
     return shellSignal(context, 'shellToolFailed', options);
+}
+
+/**
+ * A lifecycle signal carrying the provider's own reported working directory. The default phase is deliberately not a
+ * shell phase: the divergence path must not depend on a Bash tool event.
+ */
+export function agentCwdSignal(
+    context: Awaited<ReturnType<typeof fixture>>,
+    agentCwd: string,
+    options: { launchId?: string; phase?: AgentLifecyclePhase; sessionIndex?: number } = {},
+) {
+    const terminal = context.sessions[options.sessionIndex ?? 0].terminal!;
+    return {
+        agentCwd,
+        launchId: options.launchId ?? 'launch-1',
+        phase: options.phase ?? ('turnStarted' as const),
+        provider: 'codex' as const,
+        terminalId: terminal.id,
+    };
 }
 
 export async function beginWorktreeCreation(

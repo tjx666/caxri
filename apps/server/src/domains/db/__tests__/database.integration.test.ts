@@ -385,6 +385,16 @@ describe('CaxriDatabaseConnection', () => {
                 "UPDATE terminals SET last_agent_process_state = last_process_state WHERE kind <> 'shell' OR provider IS NOT NULL",
             )
             .run();
+        /**
+         * Migration 0019's automatic-naming backfill has likewise already run in the previous released schema, so seed
+         * its outcome here. The assertion below then proves the upgrade preserves real prior-version rows rather than
+         * re-deriving them from a backfill this run no longer performs.
+         */
+        previous
+            .prepare(
+                "UPDATE sessions SET auto_naming_state = 'stopped' WHERE title_mode = 'manual'",
+            )
+            .run();
         previous.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 1}`);
         previous.close();
 
@@ -415,6 +425,11 @@ describe('CaxriDatabaseConnection', () => {
             expect.objectContaining({ id: oldestProject.id, orderIndex: 1 }),
             expect.objectContaining({ id: middleProject.id, orderIndex: 2 }),
         ]);
+        expect(
+            (upgraded.database.pragma('table_info(terminals)') as Array<{ name: string }>).map(
+                ({ name }) => name,
+            ),
+        ).toEqual(expect.arrayContaining(['agent_cwd']));
         expect(upgraded.projects.get(project.id)).not.toHaveProperty('icon');
         expect(
             (upgraded.database.pragma('table_info(projects)') as Array<{ name: string }>).map(
@@ -440,6 +455,7 @@ describe('CaxriDatabaseConnection', () => {
             titleMode: 'manual',
         });
         expect(upgraded.terminals.get('terminal-preserved')).toMatchObject({
+            agentCwd: undefined,
             id: 'terminal-preserved',
             failureReason: undefined,
             lastAgentProcessState: undefined,

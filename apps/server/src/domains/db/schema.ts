@@ -87,6 +87,15 @@ export const terminals = sqliteTable(
         kind: text('kind').notNull(),
         provider: text('provider'),
         cwd: text('cwd').notNull(),
+        /**
+         * Where the hosted Agent CLI reports it is currently working, when that diverges from the PTY's launch `cwd`.
+         * Claude Code's built-in `EnterWorktree` switches its own session directory and relocates the transcript file
+         * to the matching provider directory, while the PTY and this Terminal's authorized launch root are unchanged.
+         * Null means "no divergence observed"; a value is written only after Git topology proved the reported path is a
+         * linked worktree root of the owning Project's repository, and it is used exclusively to derive the provider's
+         * transcript location.
+         */
+        agentCwd: text('agent_cwd'),
         title: text('title').notNull(),
         ptyTitle: text('pty_title'),
         icon: text('icon').notNull(),

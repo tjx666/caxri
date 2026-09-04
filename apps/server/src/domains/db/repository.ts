@@ -24,8 +24,6 @@ import type { ShutdownReason } from '../session-policy';
 import {
     choosePrimaryAgentForNewTerminal,
     choosePrimaryAgentSuccessor,
-    decideAgentLifecycleUpdate,
-    decideAgentMetadataUpdate,
     DEFAULT_SESSION_TITLE,
     defaultTerminalTitle,
     firstActiveSession,
@@ -34,6 +32,7 @@ import {
     sessionActivityReasonForAgentState,
     shutdownOutcome,
 } from '../session-policy';
+import { AgentIdentity } from './agent-identity';
 import type { CaxriDatabaseConnectionOptions as CaxriDatabaseOptions } from './database-connection';
 import { CaxriDatabaseConnection as CaxriDatabase_ } from './database-connection';
 import type {
@@ -53,11 +52,13 @@ import { assertTerminalCapacity } from './terminal-capacity';
  */
 export class CaxriDatabase {
     private readonly db: CaxriDatabase_;
+    private readonly agentIdentity: AgentIdentity;
     readonly protocolState: CaxriDatabase_['protocolState'];
     readonly sessionNaming: CaxriDatabase_['sessionNaming'];
 
     constructor(path: string, options?: CaxriDatabaseOptions) {
         this.db = new CaxriDatabase_(path, options);
+        this.agentIdentity = new AgentIdentity(this.db);
         this.protocolState = this.db.protocolState;
         this.sessionNaming = this.db.sessionNaming;
     }
@@ -223,220 +224,66 @@ export class CaxriDatabase {
         snapshot: AgentSnapshot,
         shouldRecordSessionActivity = false,
     ): boolean {
-        return this.db.transaction(() => {
-            const terminal = this.db.terminals.get(terminalId);
-            if (!terminal) return false;
-            /**
-             * A snapshot for the Terminal's exact hook-bound identity may legitimately duplicate another Terminal that
-             * resumed the same conversation. Only an unbound or different identity is still a heuristic claim.
-             */
-            if (
-                snapshot.sessionId &&
-                snapshot.sessionId !== terminal.agentSessionId &&
-                this.db.terminals
-                    .list()
-                    .some(
-                        (candidate) =>
-                            candidate.id !== terminalId &&
-                            candidate.provider === snapshot.provider &&
-                            candidate.agentSessionId === snapshot.sessionId,
-                    )
-            ) {
-                return false;
-            }
-            const session = this.db.sessions.get(terminal.sessionId);
-            if (!session) return false;
-            const decision = decideAgentMetadataUpdate(terminal, session, snapshot);
-            if (!decision) return false;
-            if (decision.sessionPatch) {
-                const activityReason =
-                    shouldRecordSessionActivity &&
-                    (session.lastActivityState !== decision.sessionPatch.lastActivityState ||
-                        decision.sessionPatch.attentionKind)
-                        ? sessionActivityReasonForAgentState(
-                              decision.sessionPatch.lastActivityState,
-                          )
-                        : undefined;
-                this.db.sessions.setDisplayTitleAndActivity(
-                    session.id,
-                    decision.sessionPatch.displayTitle,
-                    decision.sessionPatch.lastActivityState,
-                    decision.sessionPatch.attentionKind,
-                    activityReason,
-                );
-            }
-            if (decision.terminalTitle !== undefined)
-                this.db.terminals.setTitle(terminal.id, decision.terminalTitle);
-            this.db.terminals.updateAgentSessionId(terminal.id, decision.agentSessionId);
-            return true;
-        });
+        return this.agentIdentity.updateAgentMetadata(
+            terminalId,
+            snapshot,
+            shouldRecordSessionActivity,
+        );
     }
 
-    /**
-     * Applies a validated hook signal without touching Terminal-owned Agent session identity.
-     */
     updateAgentLifecycle(signal: AgentLifecycleSignal): boolean {
-        return this.db.transaction(() => {
-            const terminal = this.db.terminals.get(signal.terminalId);
-            if (!terminal) return false;
-            const session = this.db.sessions.get(terminal.sessionId);
-            if (!session) return false;
-            const decision = decideAgentLifecycleUpdate(
-                terminal,
-                session,
-                signal.provider,
-                signal.phase,
-            );
-            if (!decision) return false;
-            this.db.sessions.setDisplayTitleAndActivity(
-                session.id,
-                session.displayTitle,
-                decision.lastActivityState,
-                decision.attentionKind,
-                sessionActivityReasonForAgentState(decision.lastActivityState),
-            );
-            return true;
-        });
+        return this.agentIdentity.updateAgentLifecycle(signal);
     }
 
     confirmForegroundAgentProvider(terminalId: string, provider: AgentProvider): boolean {
-        return this.db.transaction(() => {
-            const terminal = this.db.terminals.get(terminalId);
-            if (!terminal?.provider) return false;
-            if (terminal.provider === provider)
-                return this.db.terminals.reactivateAgentProcess(terminalId, provider);
-            return this.db.terminals.switchAgentProvider(
-                terminalId,
-                provider,
-                defaultTerminalTitle(provider),
-            );
-        });
+        return this.agentIdentity.confirmForegroundAgentProvider(terminalId, provider);
     }
 
     revokeForegroundAgentProvider(terminalId: string, provider: AgentProvider): boolean {
-        return this.db.terminals.deactivateForegroundAgentProcess(terminalId, provider);
+        return this.agentIdentity.revokeForegroundAgentProvider(terminalId, provider);
     }
 
-    /**
-     * Atomically reclassifies a live Shell after its foreground process confirms an Agent provider. Optional metadata
-     * is committed in the same transaction when it already exists; otherwise the Agent coordinator can publish the
-     * correct Terminal identity before the first provider session record is written.
-     */
     promoteShellToAgent(
         terminalId: string,
         provider: AgentProvider,
         snapshot?: AgentSnapshot,
     ): boolean {
-        return this.db.transaction(() => {
-            const terminal = this.db.terminals.get(terminalId);
-            if (terminal?.kind !== 'shell' || terminal.provider) return false;
-            if (snapshot?.provider !== undefined && snapshot.provider !== provider) return false;
-            const agentSessionId = snapshot?.sessionId?.trim();
-            if (
-                agentSessionId &&
-                this.claimedAgentSessionIdsForProvider(provider, terminalId).includes(
-                    agentSessionId,
-                )
-            )
-                return false;
-            const session = this.db.sessions.get(terminal.sessionId);
-            if (!session) return false;
-            if (
-                !this.db.terminals.promoteShellToAgent(
-                    terminal.id,
-                    provider,
-                    defaultTerminalTitle(provider),
-                )
-            ) {
-                return false;
-            }
-            const promoted = this.db.terminals.get(terminal.id)!;
-            const assignment = choosePrimaryAgentForNewTerminal(session, promoted);
-            if (assignment) this.db.sessions.setPrimaryAgent(session.id, assignment);
-            if (!snapshot) return true;
-            const updatedSession = this.db.sessions.get(session.id)!;
-            const decision = decideAgentMetadataUpdate(promoted, updatedSession, snapshot);
-            if (!decision)
-                throw new CaxriError('INTERNAL', 'Agent promotion produced no metadata update');
-            /**
-             * The submitted launch command already advanced Session Activity; promotion only binds Agent identity.
-             */
-            if (decision.sessionPatch)
-                this.db.sessions.setDisplayTitleAndActivity(
-                    session.id,
-                    decision.sessionPatch.displayTitle,
-                    decision.sessionPatch.lastActivityState,
-                    decision.sessionPatch.attentionKind,
-                );
-            if (decision.terminalTitle !== undefined)
-                this.db.terminals.setTitle(promoted.id, decision.terminalTitle);
-            this.db.terminals.updateAgentSessionId(promoted.id, decision.agentSessionId);
-            return true;
-        });
+        return this.agentIdentity.promoteShellToAgent(terminalId, provider, snapshot);
     }
 
-    /**
-     * Returns identities that heuristic discovery must not assign to another Terminal. Exact authenticated hook signals
-     * may still bind multiple Terminals to the same provider session when the user intentionally resumes it twice.
-     */
     claimedAgentSessionIds(terminalId: string): string[] {
-        const terminal = this.db.terminals.get(terminalId);
-        if (!terminal?.provider) return [];
-        return this.claimedAgentSessionIdsForProvider(terminal.provider, terminalId);
+        return this.agentIdentity.claimedAgentSessionIds(terminalId);
     }
 
     claimedAgentSessionIdsForProvider(
         provider: AgentProvider,
         excludingTerminalId: string,
     ): string[] {
-        const claimed: string[] = [];
-        for (const candidate of this.db.terminals.list())
-            if (
-                candidate.id !== excludingTerminalId &&
-                candidate.provider === provider &&
-                candidate.agentSessionId
-            )
-                claimed.push(candidate.agentSessionId);
-        return claimed;
+        return this.agentIdentity.claimedAgentSessionIdsForProvider(provider, excludingTerminalId);
     }
 
     isAgentSessionClaimedByOtherTerminal(terminalId: string, agentSessionId: string): boolean {
-        return this.claimedAgentSessionIds(terminalId).includes(agentSessionId);
+        return this.agentIdentity.isAgentSessionClaimedByOtherTerminal(terminalId, agentSessionId);
     }
 
-    /**
-     * Rebinds a Terminal to the provider session a validated hook signal reports, so a manual in-terminal resume
-     * updates identity (and, through the next metadata probe, the title). The hook is exact generation-scoped evidence,
-     * so two Terminals may intentionally show the same provider session; uniqueness remains only a heuristic guard.
-     */
     rebindAgentSession(
         terminalId: string,
         provider: AgentProvider,
         agentSessionId: string,
     ): boolean {
-        return this.db.transaction(() => {
-            const terminal = this.db.terminals.get(terminalId);
-            if (!terminal || terminal.provider !== provider) return false;
-            if (terminal.agentSessionId === agentSessionId) return false;
-            this.db.terminals.updateAgentSessionId(terminalId, agentSessionId);
-            return true;
-        });
+        return this.agentIdentity.rebindAgentSession(terminalId, provider, agentSessionId);
     }
 
-    /**
-     * Clears the previous process binding so a restarted Agent cannot inherit its old session.
-     *
-     * The tab title is part of that binding now that it carries the Agent's conversation name: leaving it in place
-     * would show the retired conversation's name against a brand new one until the first probe of the replacement
-     * happens to report a title of its own — and forever if it never does.
-     */
+    setTerminalAgentCwd(
+        terminalId: string,
+        provider: AgentProvider,
+        agentCwd: string | undefined,
+    ): boolean {
+        return this.agentIdentity.setTerminalAgentCwd(terminalId, provider, agentCwd);
+    }
+
     resetAgentMetadataForStart(terminalId: string, startedAt = Date.now()): void {
-        this.db.transaction(() => {
-            const terminal = this.db.terminals.get(terminalId);
-            if (!terminal?.provider) return;
-            this.db.terminals.updateAgentSessionId(terminalId, undefined, startedAt);
-            this.db.terminals.setTitle(terminalId, defaultTerminalTitle(terminal.kind), startedAt);
-        });
+        this.agentIdentity.resetAgentMetadataForStart(terminalId, startedAt);
     }
 
     /**

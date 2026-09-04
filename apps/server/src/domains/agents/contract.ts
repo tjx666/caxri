@@ -205,6 +205,19 @@ export interface AgentProviderDescriptor {
 }
 
 /**
+ * The directory a provider will key its own per-workspace state by — session metadata and transcripts — which is the
+ * directory the Agent process is in, not the one its PTY launched in. They diverge when the Agent moves itself, as
+ * Claude Code's built-in `EnterWorktree` does. `agentCwd` is set only after Git topology proved it, so falling back to
+ * the launch root keeps every Terminal without a proven divergence on exactly its previous behavior.
+ *
+ * This is deliberately not a filesystem authority: path validation still resolves against the Session's authorized
+ * Project root, and `terminals.cwd` remains the Terminal's authorized launch root.
+ */
+export function agentProviderStateRoot(terminal: { agentCwd?: string; cwd: string }): string {
+    return terminal.agentCwd ?? terminal.cwd;
+}
+
+/**
  * Ordered directories from the authorized Project root to a Terminal cwd inside it. A cwd outside the Project is
  * deliberately reduced to the Project root so action discovery never broadens filesystem authority.
  */

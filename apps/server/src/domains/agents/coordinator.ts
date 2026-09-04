@@ -7,6 +7,7 @@ import { CoalescedScheduler } from '../coalesced-scheduler';
 import type { CaxriDatabase } from '../db';
 import { SingleFlight } from '../single-flight';
 import { AgentAttentionTracker } from './attention-tracker';
+import { agentProviderStateRoot } from './contract';
 import type { AgentLifecycleSignal } from './hooks/contract';
 import { AgentLifecycleWatchdogs } from './lifecycle-watchdogs';
 import type { MetadataActivityBaseline } from './metadata-activity-baseline';
@@ -231,7 +232,7 @@ export class AgentCoordinator {
                 agentTurnId: this.lifecycleWatchdogs.agentTurnId(terminal.id),
                 correlationId: terminal.id,
                 excludedAgentSessionIds,
-                rootPath: terminal.cwd,
+                rootPath: agentProviderStateRoot(terminal),
                 processState: terminal.lastProcessState,
                 startedAt: this.startedAtByTerminal.get(terminal.id) ?? terminal.createdAt,
             });
@@ -319,7 +320,7 @@ export class AgentCoordinator {
                 provider,
                 terminal.id,
             ),
-            rootPath: terminal.cwd,
+            rootPath: agentProviderStateRoot(terminal),
             processState: terminal.lastProcessState,
             startedAt: candidate.startedAt,
         });
@@ -374,7 +375,7 @@ export class AgentCoordinator {
                 provider,
                 terminal.id,
             ),
-            rootPath: terminal.cwd,
+            rootPath: agentProviderStateRoot(terminal),
             processState: terminal.lastProcessState,
             startedAt: candidate.startedAt,
         });

@@ -14,6 +14,7 @@ import type { AgentLifecyclePhase, AgentLifecycleSignal } from './contract';
 import { agentLifecyclePhases } from './contract';
 
 const MAX_SIGNAL_BYTES = 4_096;
+const MAX_AGENT_CWD_LENGTH = 1_024;
 const MAX_AGENT_ID_LENGTH = 256;
 const MAX_AGENT_SESSION_ID_LENGTH = 256;
 const MAX_AGENT_TOOL_USE_ID_LENGTH = 256;
@@ -62,6 +63,7 @@ type HookWirePacket = HookWireBridgeStarted | HookWireSignal;
 
 export type AgentHookSignalRejectionReason =
     | 'downstreamRejected'
+    | 'invalidAgentCwd'
     | 'invalidAgentId'
     | 'invalidAgentSessionId'
     | 'invalidAgentToolUseId'
@@ -227,6 +229,20 @@ function parsePacket(
     ) {
         return { reason: 'invalidAgentToolUseId' };
     }
+    /**
+     * Shape-only validation. A path that clears this gate is still an unproven provider claim; it becomes durable state
+     * only after `WorkbenchRootService.observeAgentCwd` matches it against real Git worktree topology.
+     */
+    if (
+        signal.agentCwd !== undefined &&
+        (typeof signal.agentCwd !== 'string' ||
+            signal.agentCwd.length === 0 ||
+            signal.agentCwd.length > MAX_AGENT_CWD_LENGTH ||
+            !signal.agentCwd.startsWith('/') ||
+            signal.agentCwd.includes('\0'))
+    ) {
+        return { reason: 'invalidAgentCwd' };
+    }
     if (
         signal.worktreeCreateIntent !== undefined &&
         (signal.worktreeCreateIntent !== true || !SHELL_TOOL_PHASES.has(signal.phase))
@@ -259,8 +275,8 @@ function packetDiagnosticFields(packet: HookWirePacket) {
 
 /**
  * Authenticated local signal boundary. Provider hooks can report only a phase, opaque PTY generation, bounded opaque
- * provider identifiers, and a worktree-create classification; prompt text, tool arguments, tool results, and provider
- * hook payloads never cross into Caxri.
+ * provider identifiers, a worktree-create classification, and the event's own bounded absolute working directory;
+ * prompt text, tool arguments, tool results, and provider hook payloads never cross into Caxri.
  */
 export class AgentHookServer {
     private readonly launchesByToken = new Map<string, RegisteredLaunch>();
