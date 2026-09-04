@@ -26,6 +26,7 @@ import { setArchivedSessionsOpen, setSettingsOpen } from '../../stores/dialogs';
 import { AgentActionSettingsEditor } from './agent-action-settings-editor';
 import { EnumControl } from './enum-control';
 import { FilesExcludeEditor } from './files-exclude-editor';
+import { IgnoredChecksForm } from './ignored-checks-form';
 import { IntegerControl } from './integer-control';
 import { MobileAccessForm } from './mobile-access-form';
 import { automaticNamingHealthLabel, hookHealthLabel } from './provider-health';
@@ -61,6 +62,7 @@ function isFullWidthRow(row: SettingRowDescriptor): boolean {
     if (row.binding.type === 'setting') return settingsSpecByKey[row.binding.key].kind === 'string';
     return [
         'files-exclude',
+        'ignored-checks',
         'mobile-access',
         'provider-actions',
         'provider-launch',
@@ -387,6 +389,15 @@ function rowControl(properties: SettingRowProperties): {
                     <TrustedFoldersForm
                         rules={settings['security.trustedFolders']}
                         onChange={(rules) => onFieldChange('security.trustedFolders', rules)}
+                    />
+                ),
+            };
+        case 'ignored-checks':
+            return {
+                control: (
+                    <IgnoredChecksForm
+                        rules={settings['projectStatus.ignoredChecks']}
+                        onChange={(rules) => onFieldChange('projectStatus.ignoredChecks', rules)}
                     />
                 ),
             };

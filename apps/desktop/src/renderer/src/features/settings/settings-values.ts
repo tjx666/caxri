@@ -48,6 +48,8 @@ export function isRowModified(binding: SettingRowBinding, context: SettingsValue
             return settings['security.trustedFolders'].length > 0;
         case 'terminal-reference-links':
             return settings['terminal.referenceLinks'].length > 0;
+        case 'ignored-checks':
+            return settings['projectStatus.ignoredChecks'].length > 0;
         case 'files-exclude':
             return !isEqual(settings['files.exclude'], defaultAppSettings['files.exclude']);
         case 'remote-debugging':
@@ -136,6 +138,8 @@ export function rowResetAction(
             return { kind: 'field', key: 'security.trustedFolders', value: [] };
         case 'terminal-reference-links':
             return { kind: 'field', key: 'terminal.referenceLinks', value: [] };
+        case 'ignored-checks':
+            return { kind: 'field', key: 'projectStatus.ignoredChecks', value: [] };
         case 'files-exclude':
             return {
                 kind: 'field',

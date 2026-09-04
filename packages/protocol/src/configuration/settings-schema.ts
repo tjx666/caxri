@@ -14,6 +14,11 @@ import {
     MAX_AGENT_OUTPUT_RECOVERY_PATTERNS,
     MIN_AGENT_OUTPUT_RECOVERY_DELAY_MS,
 } from '../agent/agents.js';
+import {
+    MAX_IGNORED_CHECK_LENGTH,
+    MAX_IGNORED_CHECKS,
+    normalizeIgnoredCheckRule,
+} from './ignored-checks.js';
 import type { IntegerSettingSpec, SettingKey, StringSettingSpec } from './settings-spec.js';
 import { settingsSpecByKey } from './settings-spec.js';
 import { terminalReferenceLinksSchema } from './terminal-reference-links.js';
@@ -122,6 +127,10 @@ const trustedFolderRuleSchema = z.string().min(1).max(MAX_TRUSTED_FOLDER_LENGTH)
 
 const trustedFoldersSchema = z.array(trustedFolderRuleSchema).max(MAX_TRUSTED_FOLDERS).default([]);
 
+const ignoredCheckRuleSchema = z.string().min(1).max(MAX_IGNORED_CHECK_LENGTH);
+
+const ignoredChecksSchema = z.array(ignoredCheckRuleSchema).max(MAX_IGNORED_CHECKS).default([]);
+
 /**
  * Maps a spec's option tuple to the literal value tuple `z.enum` needs, preserving inference.
  */
@@ -166,6 +175,10 @@ export const appSettingsSchema = z.object({
         spec['agents.notifications.completionThresholdSeconds'],
     ),
     'git.fetchGitHubAvatars': booleanField(spec['git.fetchGitHubAvatars']),
+    'projectStatus.ignoredChecks': ignoredChecksSchema,
+    'projectStatus.notifications.enabled': booleanField(
+        spec['projectStatus.notifications.enabled'],
+    ),
     'security.trustedDomains': trustedDomainsSchema,
     'security.trustedFolders': trustedFoldersSchema,
     'terminal.defaultWorkingDirectory': nullableStringField(
@@ -278,6 +291,19 @@ const trustedFoldersFileSchema = z
         ),
     );
 
+const ignoredChecksFileSchema = z
+    .array(ignoredCheckRuleSchema)
+    .max(MAX_IGNORED_CHECKS)
+    .default([])
+    .transform((values, context) =>
+        normalizedRuleList(
+            values,
+            context,
+            normalizeIgnoredCheckRule,
+            'Expected a non-empty check name or glob pattern',
+        ),
+    );
+
 /**
  * Lenient parser for the user-authored `settings.jsonc`: a partial provider record fills from defaults, `files.exclude`
  * merges on top of the shipped exclusions, and trusted-domain rules are normalized and deduplicated. The output always
@@ -286,6 +312,7 @@ const trustedFoldersFileSchema = z
  */
 export const appSettingsFileSchema = appSettingsSchema.extend({
     'agents.providers': agentProvidersFileSchema,
+    'projectStatus.ignoredChecks': ignoredChecksFileSchema,
     'security.trustedDomains': trustedDomainsFileSchema,
     'security.trustedFolders': trustedFoldersFileSchema,
     'files.exclude': filesExcludeFileSchema,

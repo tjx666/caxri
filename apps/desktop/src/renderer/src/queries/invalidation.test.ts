@@ -96,6 +96,21 @@ describe('subscribeRuntimeQueryInvalidation', () => {
         unsubscribe();
     });
 
+    it('re-asks for delivery status after a settings change, so an ignored check applies at once', () => {
+        const queryClient = new QueryClient();
+        const summary = ['projectStatus.summary', { sessionId: 'session-a' }] as const;
+        const pullRequests = ['session.pullRequests', undefined] as const;
+        queryClient.setQueryData(summary, { repositories: [] });
+        queryClient.setQueryData(pullRequests, { pullRequests: {} });
+        const unsubscribe = subscribeRuntimeQueryInvalidation(queryClient);
+
+        mocks.state.handler?.({ event: 'settings.changed', payload: { source: '{}' } });
+
+        expect(queryClient.getQueryState(summary)?.isInvalidated).toBe(true);
+        expect(queryClient.getQueryState(pullRequests)?.isInvalidated).toBe(true);
+        unsubscribe();
+    });
+
     it('invalidates every Session currently routed to the changed Workbench Project, but never Git queries', () => {
         vi.useFakeTimers();
         const queryClient = new QueryClient();

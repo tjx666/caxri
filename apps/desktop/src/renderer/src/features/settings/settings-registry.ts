@@ -25,6 +25,7 @@ export type SettingRowBinding =
     | { type: 'trusted-domains' }
     | { type: 'trusted-folders' }
     | { type: 'terminal-reference-links' }
+    | { type: 'ignored-checks' }
     | { type: 'files-exclude' }
     | { type: 'archived-sessions' }
     | { type: 'mobile-access' }
@@ -313,6 +314,11 @@ const rows: SettingRowDescriptor[] = [
         binding: { type: 'files-exclude' },
     },
     specRow('files.maxFileBytes'),
+    {
+        ...specRow('projectStatus.ignoredChecks'),
+        binding: { type: 'ignored-checks' },
+    },
+    specRow('projectStatus.notifications.enabled'),
     specRow('agents.notifications.enabled'),
     specRow('agents.notifications.completionThresholdSeconds'),
     ...agentProviderIds.flatMap((provider) => providerRows(provider)),
