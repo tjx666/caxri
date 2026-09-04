@@ -59,15 +59,76 @@ export function compareFileEntries(a: FileEntry, b: FileEntry): number {
 }
 
 /**
- * Probes the filesystem for optional display metadata. A dangling or racing symlink is an ordinary state to render, so
- * a failed probe answers `undefined` instead of failing the surrounding listing.
+ * Following a symlink is the only step of a listing that can leave the enumerated directory's own filesystem, so it is
+ * the only step that can block on an unresponsive mount such as a stale network share.
  */
-async function probeOptional<T>(read: () => Promise<T>): Promise<T | undefined> {
-    try {
-        return await read();
-    } catch {
-        return undefined;
-    }
+const SYMLINK_TARGET_PROBE_TIMEOUT_MS = 2_000;
+
+export type SymlinkTargetProbe = <T>(read: () => Promise<T>) => Promise<T | undefined>;
+
+/**
+ * Probes a symlink target for optional display metadata under a per-listing budget. A dangling or racing symlink is an
+ * ordinary state to render, so a failed probe answers `undefined` instead of failing the surrounding listing.
+ *
+ * The timeout is load-bearing rather than defensive. `fs.stat` cannot be cancelled, so a target on a hung mount would
+ * leave `loadList` pending forever; `SingleFlight` evicts a request only when it settles, so every later listing of
+ * that directory would join the dead promise and time out, with no recovery short of restarting Server Core. The first
+ * timeout also spends the budget for the rest of the listing, so one unhealthy mount cannot pin a libuv threadpool
+ * thread per symlink and starve every other file operation. An unprobed link keeps the neutral icon it had before
+ * target resolution existed.
+ */
+export function createSymlinkTargetProbe(
+    timeoutMs: number = SYMLINK_TARGET_PROBE_TIMEOUT_MS,
+): SymlinkTargetProbe {
+    let isBudgetSpent = false;
+    return async <T>(read: () => Promise<T>): Promise<T | undefined> => {
+        if (isBudgetSpent) return undefined;
+        const expiry = Promise.withResolvers<undefined>();
+        const timer = setTimeout(() => {
+            isBudgetSpent = true;
+            expiry.resolve(undefined);
+        }, timeoutMs);
+        try {
+            return await Promise.race([read(), expiry.promise]);
+        } catch {
+            return undefined;
+        } finally {
+            clearTimeout(timer);
+        }
+    };
+}
+
+/**
+ * Reads a symlink's raw target plus one `stat` so the Renderer can pick a folder or typed-file icon instead of an
+ * untyped placeholder. The single follow only asks the target's type: it never enumerates the target, never resolves it
+ * against the Project root, and never relaxes the rule that Caxri refuses to browse, expand, or mutate through a
+ * symlink. A link whose target cannot be described within the listing's probe budget simply reports neither field.
+ */
+export async function describeSymlink(
+    entryPath: string,
+    name: string,
+    probeTarget: SymlinkTargetProbe,
+): Promise<FileEntry> {
+    const [linkTarget, linkKind] = await Promise.all([
+        probeTarget(() => readlink(entryPath)),
+        probeTarget(async () => {
+            try {
+                return (await stat(entryPath)).isDirectory()
+                    ? ('directory' as const)
+                    : ('file' as const);
+            } catch {
+                // A dangling link is an ordinary state to display, not an unanswered probe.
+                return 'broken' as const;
+            }
+        }),
+    ]);
+    return {
+        name,
+        path: entryPath,
+        kind: 'symlink',
+        ...(linkKind !== undefined && { linkKind }),
+        ...(linkTarget !== undefined && { linkTarget }),
+    };
 }
 
 export function boundFileListEntries(entries: readonly FileEntry[]): FileEntry[] {
@@ -271,9 +332,11 @@ export class ListingService {
                       : 1,
             )
             .slice(0, MAX_FILE_LIST_ENTRIES);
+        // One budget per listing, so a hung mount stops being probed after the first slow symlink in this directory.
+        const probeTarget = createSymlinkTargetProbe();
         const [settled, gitIgnoreDecoration] = await Promise.all([
             mapWithConcurrency(boundedVisible, MAX_CONCURRENT_ENTRY_STATS, (entry) =>
-                this.describeEntry(path, entry.name),
+                this.describeEntry(path, entry.name, probeTarget),
             ),
             this.loadGitIgnoredNames(
                 sessionId,
@@ -333,7 +396,11 @@ export class ListingService {
      * tool can rewrite a directory rapidly enough that this is routine, not exceptional, so a single missing entry must
      * never fail the whole listing.
      */
-    private async describeEntry(directory: string, name: string): Promise<FileEntry | undefined> {
+    private async describeEntry(
+        directory: string,
+        name: string,
+        probeTarget: SymlinkTargetProbe,
+    ): Promise<FileEntry | undefined> {
         const entryPath = resolve(directory, name);
         let stats: Awaited<ReturnType<typeof lstat>>;
         try {
@@ -348,35 +415,9 @@ export class ListingService {
                 });
             return undefined;
         }
-        if (stats.isSymbolicLink()) return this.describeSymlink(directory, name);
+        if (stats.isSymbolicLink()) return describeSymlink(entryPath, name, probeTarget);
         if (stats.isDirectory()) return { name, path: entryPath, kind: 'directory' };
         return { name, path: entryPath, kind: 'file', size: stats.size };
-    }
-
-    /**
-     * Reads a symlink's raw target plus one `stat` so the Renderer can pick a folder or typed-file icon instead of an
-     * untyped placeholder. The single follow only asks the target's type: it never enumerates the target, never
-     * resolves it against the Project root, and never relaxes the rule that Caxri refuses to browse, expand, or mutate
-     * through a symlink. Both probes tolerate failure, since a dangling link is an ordinary state to display.
-     */
-    private async describeSymlink(directory: string, name: string): Promise<FileEntry> {
-        const entryPath = resolve(directory, name);
-        const [linkTarget, targetStats] = await Promise.all([
-            probeOptional(() => readlink(entryPath)),
-            probeOptional(() => stat(entryPath)),
-        ]);
-        const entry: FileEntry = {
-            name,
-            path: entryPath,
-            kind: 'symlink',
-            linkKind:
-                targetStats === undefined
-                    ? 'broken'
-                    : targetStats.isDirectory()
-                      ? 'directory'
-                      : 'file',
-        };
-        return linkTarget === undefined ? entry : { ...entry, linkTarget };
     }
 
     listDirectory(
