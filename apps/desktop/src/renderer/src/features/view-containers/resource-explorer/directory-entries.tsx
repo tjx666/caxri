@@ -18,6 +18,8 @@ import { createItem, rememberFile, renameFile } from './file-actions';
 import type { PendingFileOperation } from './file-operation-state';
 import { FileTreeItemMenu } from './file-tree-item-menu';
 import type { EditRequest, FocusTarget } from './file-tree-item-types';
+import { fileTreeLeafIndent, fileTreeRowStyle } from './file-tree-row-style';
+import { fileTreeRowTooltip, symlinkRowDescription } from './resource-explorer-state';
 import { useFileTreeItemInteractions } from './use-file-tree-item-interactions';
 
 export { type EditRequest, type FocusTarget };
@@ -98,7 +100,10 @@ function InlineFileName({
 
     return (
         <form onSubmit={(event) => discard(submit(event))}>
-            <div className="flex h-7 items-center pr-2" style={{ paddingLeft: 23 + depth * 12 }}>
+            <div
+                className="flex h-7 items-center pr-2"
+                style={{ paddingLeft: fileTreeLeafIndent(depth) }}
+            >
                 <Input
                     ref={inputReference}
                     aria-invalid={Boolean(error)}
@@ -122,7 +127,7 @@ function InlineFileName({
                 <div
                     role="alert"
                     className="pr-2 pb-1 text-[11px] text-danger"
-                    style={{ paddingLeft: 23 + depth * 12 }}
+                    style={{ paddingLeft: fileTreeLeafIndent(depth) }}
                 >
                     {error}
                 </div>
@@ -220,7 +225,7 @@ export function DirectoryEntries({
             {isShowEmptyState && (
                 <div
                     className="px-2 py-1 text-[11px] text-muted italic"
-                    style={{ paddingLeft: 23 + depth * 12 }}
+                    style={{ paddingLeft: fileTreeLeafIndent(depth) }}
                 >
                     Empty folder
                 </div>
@@ -230,7 +235,7 @@ export function DirectoryEntries({
                     role="status"
                     aria-live="polite"
                     className="px-2 py-1 text-[11px] text-muted italic"
-                    style={{ paddingLeft: 23 + depth * 12 }}
+                    style={{ paddingLeft: fileTreeLeafIndent(depth) }}
                 >
                     Showing the first {entries.length.toLocaleString()} items
                 </div>
@@ -340,14 +345,12 @@ function FileTreeItem({
             data-git-ignored={entry.gitIgnored}
             data-selected={selectedPath === entry.path}
             draggable={editable && !dragBlocked}
-            style={{ paddingLeft: (entry.kind === 'directory' ? 8 : 23) + depth * 12 }}
-            title={
-                entry.kind === 'symlink'
-                    ? 'Symlink browsing and changes are disabled for safety'
-                    : entry.gitIgnored
-                      ? `${entry.path} (Git ignored)`
-                      : entry.path
-            }
+            style={fileTreeRowStyle({
+                depth,
+                isDirectory: entry.kind === 'directory',
+                isExpanded: expanded,
+            })}
+            title={fileTreeRowTooltip(entry)}
             onClick={(event) => {
                 setSelectedPath(entry.path);
                 if (entry.kind === 'directory') {
@@ -405,7 +408,7 @@ function FileTreeItem({
             <span className="truncate">{entry.name}</span>
             {entry.kind === 'symlink' && (
                 <span id={symlinkReasonId} className="sr-only">
-                    Symlink browsing and changes are disabled for safety
+                    {symlinkRowDescription(entry)}
                 </span>
             )}
         </button>

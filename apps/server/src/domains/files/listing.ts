@@ -1,6 +1,6 @@
 import { Buffer } from 'node:buffer';
 import type { Dirent } from 'node:fs';
-import { lstat, opendir, realpath } from 'node:fs/promises';
+import { lstat, opendir, readlink, realpath, stat } from 'node:fs/promises';
 import { relative, resolve, sep } from 'node:path';
 
 import type { FileEntry, ServerOperationParameters, ServerOperationResult } from '@caxri/protocol';
@@ -40,6 +40,96 @@ export const MAX_FILE_LIST_RESULT_BYTES = 3 * 1024 * 1024;
  * Bounds Server memory and latency before the smaller sorted page and serialized byte limits are applied.
  */
 const MAX_FILE_LIST_SCANNED_ENTRIES = 4_096;
+
+/**
+ * Directories and symlinks that resolve to a directory share the leading group, so a linked folder sorts beside the
+ * real folders it belongs with instead of drifting into the file list.
+ */
+function fileEntryGroup(entry: FileEntry): number {
+    return entry.kind === 'directory' || entry.linkKind === 'directory' ? 0 : 1;
+}
+
+/**
+ * Ranking the group before comparing names keeps the comparator antisymmetric. Comparing `kind` pairwise did not: a
+ * `file`/`symlink` pair answered `1` in both directions, so the surviving order depended on `readdir` order.
+ */
+export function compareFileEntries(a: FileEntry, b: FileEntry): number {
+    const groupDifference = fileEntryGroup(a) - fileEntryGroup(b);
+    return groupDifference === 0 ? a.name.localeCompare(b.name) : groupDifference;
+}
+
+/**
+ * Following a symlink is the only step of a listing that can leave the enumerated directory's own filesystem, so it is
+ * the only step that can block on an unresponsive mount such as a stale network share.
+ */
+const SYMLINK_TARGET_PROBE_TIMEOUT_MS = 2_000;
+
+export type SymlinkTargetProbe = <T>(read: () => Promise<T>) => Promise<T | undefined>;
+
+/**
+ * Probes a symlink target for optional display metadata under a per-listing budget. A dangling or racing symlink is an
+ * ordinary state to render, so a failed probe answers `undefined` instead of failing the surrounding listing.
+ *
+ * The timeout is load-bearing rather than defensive. `fs.stat` cannot be cancelled, so a target on a hung mount would
+ * leave `loadList` pending forever; `SingleFlight` evicts a request only when it settles, so every later listing of
+ * that directory would join the dead promise and time out, with no recovery short of restarting Server Core. The first
+ * timeout also spends the budget for the rest of the listing, so one unhealthy mount cannot pin a libuv threadpool
+ * thread per symlink and starve every other file operation. An unprobed link keeps the neutral icon it had before
+ * target resolution existed.
+ */
+export function createSymlinkTargetProbe(
+    timeoutMs: number = SYMLINK_TARGET_PROBE_TIMEOUT_MS,
+): SymlinkTargetProbe {
+    let isBudgetSpent = false;
+    return async <T>(read: () => Promise<T>): Promise<T | undefined> => {
+        if (isBudgetSpent) return undefined;
+        const expiry = Promise.withResolvers<undefined>();
+        const timer = setTimeout(() => {
+            isBudgetSpent = true;
+            expiry.resolve(undefined);
+        }, timeoutMs);
+        try {
+            return await Promise.race([read(), expiry.promise]);
+        } catch {
+            return undefined;
+        } finally {
+            clearTimeout(timer);
+        }
+    };
+}
+
+/**
+ * Reads a symlink's raw target plus one `stat` so the Renderer can pick a folder or typed-file icon instead of an
+ * untyped placeholder. The single follow only asks the target's type: it never enumerates the target, never resolves it
+ * against the Project root, and never relaxes the rule that Caxri refuses to browse, expand, or mutate through a
+ * symlink. A link whose target cannot be described within the listing's probe budget simply reports neither field.
+ */
+export async function describeSymlink(
+    entryPath: string,
+    name: string,
+    probeTarget: SymlinkTargetProbe,
+): Promise<FileEntry> {
+    const [linkTarget, linkKind] = await Promise.all([
+        probeTarget(() => readlink(entryPath)),
+        probeTarget(async () => {
+            try {
+                return (await stat(entryPath)).isDirectory()
+                    ? ('directory' as const)
+                    : ('file' as const);
+            } catch {
+                // A dangling link is an ordinary state to display, not an unanswered probe.
+                return 'broken' as const;
+            }
+        }),
+    ]);
+    return {
+        name,
+        path: entryPath,
+        kind: 'symlink',
+        ...(linkKind !== undefined && { linkKind }),
+        ...(linkTarget !== undefined && { linkTarget }),
+    };
+}
 
 export function boundFileListEntries(entries: readonly FileEntry[]): FileEntry[] {
     const bounded: FileEntry[] = [];
@@ -168,11 +258,7 @@ export class ListingService {
         /**
          * Dirent metadata stays bound to the opened directory instead of restatting a mutable path.
          */
-        const entries = matches
-            .toSorted((a, b) =>
-                a.kind === b.kind ? a.name.localeCompare(b.name) : a.kind === 'directory' ? -1 : 1,
-            )
-            .slice(0, MAX_FILE_BROWSE_ENTRIES);
+        const entries = matches.toSorted(compareFileEntries).slice(0, MAX_FILE_BROWSE_ENTRIES);
         this.logger.write('info', logEventCatalog.file.browse, {
             durationMs: performance.now() - startedAt,
             fields: {
@@ -246,9 +332,11 @@ export class ListingService {
                       : 1,
             )
             .slice(0, MAX_FILE_LIST_ENTRIES);
+        // One budget per listing, so a hung mount stops being probed after the first slow symlink in this directory.
+        const probeTarget = createSymlinkTargetProbe();
         const [settled, gitIgnoreDecoration] = await Promise.all([
             mapWithConcurrency(boundedVisible, MAX_CONCURRENT_ENTRY_STATS, (entry) =>
-                this.describeEntry(path, entry.name),
+                this.describeEntry(path, entry.name, probeTarget),
             ),
             this.loadGitIgnoredNames(
                 sessionId,
@@ -264,9 +352,7 @@ export class ListingService {
                     ? { ...entry, gitIgnored: true as const }
                     : entry,
             );
-        const sorted = result.toSorted((a, b) =>
-            a.kind === b.kind ? a.name.localeCompare(b.name) : a.kind === 'directory' ? -1 : 1,
-        );
+        const sorted = result.toSorted(compareFileEntries);
         const bounded = boundFileListEntries(sorted);
         const isTruncated =
             !isReachedEnd ||
@@ -310,7 +396,11 @@ export class ListingService {
      * tool can rewrite a directory rapidly enough that this is routine, not exceptional, so a single missing entry must
      * never fail the whole listing.
      */
-    private async describeEntry(directory: string, name: string): Promise<FileEntry | undefined> {
+    private async describeEntry(
+        directory: string,
+        name: string,
+        probeTarget: SymlinkTargetProbe,
+    ): Promise<FileEntry | undefined> {
         const entryPath = resolve(directory, name);
         let stats: Awaited<ReturnType<typeof lstat>>;
         try {
@@ -325,7 +415,7 @@ export class ListingService {
                 });
             return undefined;
         }
-        if (stats.isSymbolicLink()) return { name, path: entryPath, kind: 'symlink' };
+        if (stats.isSymbolicLink()) return describeSymlink(entryPath, name, probeTarget);
         if (stats.isDirectory()) return { name, path: entryPath, kind: 'directory' };
         return { name, path: entryPath, kind: 'file', size: stats.size };
     }

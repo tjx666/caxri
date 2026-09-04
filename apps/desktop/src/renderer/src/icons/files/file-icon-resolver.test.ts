@@ -44,7 +44,39 @@ describe('resolveFileIcon', () => {
         expect(resolveFileIcon({ kind: 'file', name: 'Makefile' }).id).toBe('file_type_gnu');
     });
 
-    it('uses the generic file fallback for symlinks', () => {
+    it('resolves a symlink by what it points at', () => {
+        expect(resolveFileIcon({ kind: 'symlink', linkKind: 'directory', name: 'src' }).id).toBe(
+            'folder_type_src',
+        );
+        expect(
+            resolveFileIcon({ kind: 'symlink', linkKind: 'file', name: 'Component.tsx' }).id,
+        ).toBe('file_type_reactts');
+    });
+
+    it('falls back to the link target when the link name carries no type of its own', () => {
+        expect(
+            resolveFileIcon({
+                kind: 'symlink',
+                linkKind: 'file',
+                linkTarget: '../releases/app-2026.log',
+                name: 'current',
+            }).id,
+        ).toBe('file_type_log');
+        // The link's own name still wins when it is typed.
+        expect(
+            resolveFileIcon({
+                kind: 'symlink',
+                linkKind: 'file',
+                linkTarget: '../releases/app-2026.log',
+                name: 'current.ts',
+            }).id,
+        ).toBe('file_type_typescript');
+    });
+
+    it('keeps the neutral fallback for a broken or unresolved symlink', () => {
+        expect(
+            resolveFileIcon({ kind: 'symlink', linkKind: 'broken', name: 'Component.tsx' }).id,
+        ).toBe('default_file');
         expect(resolveFileIcon({ kind: 'symlink', name: 'current' }).id).toBe('default_file');
     });
 });

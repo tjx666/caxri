@@ -21,11 +21,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CaxriDatabase } from '../../db/repository';
 import {
-    boundFileListEntries,
     ListingService,
     MAX_CONCURRENT_FILE_BROWSES,
     MAX_FILE_BROWSE_SCANNED_ENTRIES,
-    MAX_FILE_LIST_RESULT_BYTES,
 } from '../listing';
 import { FileService } from '../service';
 import { didFingerprintChange, rememberPolledDirectory } from '../watcher';
@@ -114,21 +112,6 @@ describe('FileService', () => {
         });
     });
 
-    it('keeps the serialized directory page below its transport byte budget', () => {
-        const entries = Array.from({ length: 1_024 }, (_unused, index) => ({
-            kind: 'file' as const,
-            name: `entry-${index}.txt`,
-            path: `/${'deep/'.repeat(700)}entry-${index}.txt`,
-        }));
-
-        const bounded = boundFileListEntries(entries);
-
-        expect(bounded.length).toBeLessThan(entries.length);
-        expect(
-            Buffer.byteLength(JSON.stringify({ entries: bounded, truncated: true }), 'utf8'),
-        ).toBeLessThanOrEqual(MAX_FILE_LIST_RESULT_BYTES);
-    });
-
     it('bounds a directory page before it crosses the Files Core transport', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-files-list-bound-'));
         temporaryDirectories.push(directory);
@@ -198,6 +181,57 @@ describe('FileService', () => {
         expect(close).toHaveBeenCalledOnce();
         await service.close();
         database.close();
+    });
+
+    it('describes a symlink by its target so a linked folder reads and sorts as a folder', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-files-symlink-'));
+        temporaryDirectories.push(directory);
+        await mkdir(join(directory, 'project'));
+        const root = await realpath(join(directory, 'project'));
+        await mkdir(join(root, 'real-dir'));
+        await writeFile(join(root, 'real-file.ts'), '', 'utf8');
+        await symlink('real-dir', join(root, 'link-to-dir'));
+        await symlink('real-file.ts', join(root, 'link-to-file'));
+        await symlink('./missing', join(root, 'broken-link'));
+        const listing = new ListingService(
+            () => Promise.resolve({ path: root, root }),
+            new StructuredLogger(join(directory, 'logs')),
+            () => ({}),
+        );
+
+        const { entries } = await listing.listDirectory('session');
+
+        // A linked directory joins the directory group; links to a file, and dangling links, stay with the files.
+        expect(entries.map((entry) => entry.name)).toEqual([
+            'link-to-dir',
+            'real-dir',
+            'broken-link',
+            'link-to-file',
+            'real-file.ts',
+        ]);
+        expect(entries.filter((entry) => entry.kind === 'symlink')).toEqual([
+            {
+                kind: 'symlink',
+                linkKind: 'directory',
+                linkTarget: 'real-dir',
+                name: 'link-to-dir',
+                path: join(root, 'link-to-dir'),
+            },
+            {
+                kind: 'symlink',
+                linkKind: 'broken',
+                linkTarget: './missing',
+                name: 'broken-link',
+                path: join(root, 'broken-link'),
+            },
+            {
+                kind: 'symlink',
+                linkKind: 'file',
+                linkTarget: 'real-file.ts',
+                name: 'link-to-file',
+                path: join(root, 'link-to-file'),
+            },
+        ]);
     });
 
     it('keeps fallback polling bounded without evicting the active root', () => {
