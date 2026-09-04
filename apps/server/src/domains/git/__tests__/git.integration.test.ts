@@ -699,6 +699,53 @@ describe('GitService', () => {
         ).resolves.toMatchObject({ commits: [expect.any(Object)] });
         database.close();
     });
+
+    /**
+     * Production sinks run at `info`, and a successful Git command is the highest-volume record Server Core produces:
+     * on a real profile it plus `git.summary` filled 87% of a 5MB generation, cutting retention to ~38 hours and
+     * evicting the low-volume lifecycle evidence incidents need. The failure path stays at `warn`, so a production log
+     * still shows every Git command that went wrong.
+     */
+    it('keeps a successful Git command out of a production-level log while still recording failures', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-git-log-level-'));
+        temporaryDirectories.push(directory);
+        await execFileAsync('git', ['init', '-b', 'main'], { cwd: directory });
+        await execFileAsync('git', ['config', 'user.email', 'test@example.com'], {
+            cwd: directory,
+        });
+        await execFileAsync('git', ['config', 'user.name', 'Caxri Test'], { cwd: directory });
+        await writeFile(join(directory, 'tracked.txt'), 'tracked\n', 'utf8');
+        await execFileAsync('git', ['add', 'tracked.txt'], { cwd: directory });
+        await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: directory });
+        const database = new CaxriDatabase(join(directory, '.caxri-test.db'));
+        const session = database.createSession(
+            database.createProject(directory).id,
+            'shell',
+        ).session;
+        const logDirectory = join(directory, '.logs');
+        const logger = new StructuredLogger(logDirectory, 'server-core', 'info');
+        const git = trackGitService(new GitService(new ProjectRootResolver(database), logger));
+
+        const summary = await git.summary(session.id);
+        await expect(
+            git.commitDetails({
+                sessionId: session.id,
+                repositoryId: summary.repositories[0].id,
+                sha: 'not-a-commit',
+            }),
+        ).rejects.toThrow();
+        await logger.flush();
+
+        const events = (await readFile(join(logDirectory, 'server-core.jsonl'), 'utf8'))
+            .trim()
+            .split('\n')
+            .map((line) => (JSON.parse(line) as { event: string }).event);
+        // `git.summary` proves Git actually ran; the per-command success record is what must be absent.
+        expect(events).toContain('git.summary');
+        expect(events).not.toContain('git.command');
+        expect(events).toContain('git.command_failed');
+        database.close();
+    });
 });
 
 describe('describeGitFailure', () => {
