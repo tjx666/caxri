@@ -145,6 +145,14 @@ setInterval(() => {
         ]);
         if (!rowBox || !statusBox) throw new Error('Session status layout is unavailable');
         expect(rowBox.x + rowBox.width - (statusBox.x + statusBox.width)).toBeLessThanOrEqual(10);
+        /**
+         * Captured while the Agent is running so the settled assertion further down can prove the row's title keeps its
+         * width as the status glyph comes and goes. The glyph track is a constant width rather than a reserved slot per
+         * glyph, which is what lets a settled Session hand its edge position to a pull request glyph.
+         */
+        const runningTitleWidth = await firstRow
+            .locator('.session-copy')
+            .evaluate((element) => element.getBoundingClientRect().width);
         const selectedBeforeHover = await pageRequest<{ selectedSessionId?: string }>(
             running.page,
             'app.bootstrap',
@@ -387,6 +395,12 @@ setInterval(() => {
         await expect(deselectedStatus).not.toHaveAttribute('data-attention-kind');
         await running.page.waitForTimeout(600);
         await expect(deselectedStatus).toHaveAttribute('data-session-status', 'default');
+        expect(await deselectedStatus.evaluate((element) => element.clientWidth)).toBe(0);
+        expect(
+            await running.page
+                .locator(`[data-session-id="${firstSession.id}"] .session-copy`)
+                .evaluate((element) => element.getBoundingClientRect().width),
+        ).toBe(runningTitleWidth);
 
         /**
          * A second turn is what earns a second unread generation: a probe can only prove a turn ended for a Session it

@@ -7,16 +7,25 @@ import type { SessionStatusTerminal } from './session-status';
 import { sessionStatus } from './session-status';
 
 /**
- * The fixed right-edge status slot shared by the PrimarySidebar and MRU switcher. Unread attention pings until it is
- * read, running spins, a detached Agent shows a static unplugged glyph, and settled states leave the reserved slot
- * empty so rows never reflow as lifecycle signals change.
+ * The right-edge status glyph shared by the PrimarySidebar and MRU switcher. Unread attention pings until it is read,
+ * running spins, and a detached Agent shows a static unplugged glyph.
+ *
+ * A settled Session keeps the element in the DOM (its `data-session-status` is the contract lifecycle assertions read)
+ * but collapses it to nothing, so callers that right-align their glyphs do not strand a neighbour a slot short of the
+ * row's right edge. Callers whose neighbouring column must stay on one vertical line pass `reserveSlot` instead.
  */
 export function SessionStatusIndicator({
     className,
+    reserveSlot = false,
     session,
     terminal,
 }: {
     className?: string;
+    /**
+     * Renders the settled state as a 14px placeholder rather than collapsing it. Use it when a neighbouring
+     * variable-width column — the MRU switcher's relative timestamp — would otherwise shift as the status appears.
+     */
+    reserveSlot?: boolean;
     session: SessionRecord;
     terminal?: SessionStatusTerminal;
 }) {
@@ -25,7 +34,11 @@ export function SessionStatusIndicator({
         return (
             <span
                 aria-hidden="true"
-                className={cn('session-status size-3.5 flex-none', className)}
+                className={cn(
+                    'session-status flex-none',
+                    reserveSlot ? 'size-3.5' : 'hidden',
+                    className,
+                )}
                 data-session-status="default"
             />
         );

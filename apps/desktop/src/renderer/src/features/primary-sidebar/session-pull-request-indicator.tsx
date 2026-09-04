@@ -22,9 +22,9 @@ const ICONS: Record<SessionPullRequestIcon, LucideIcon> = {
 };
 
 /**
- * Fixed-width pull request glyph that sits between the Session title and the lifecycle status slot. It renders nothing
- * (not even a reserved slot) when the Session has no pull request so rows without a delivery keep their full title
- * width; the surrounding row still never reflows because the slot is a constant 14px when present.
+ * Fixed-width pull request glyph that sits between the Session title and the lifecycle status glyph. It renders nothing
+ * when the Session has no pull request; rows do not reflow because the PrimarySidebar's glyph track is a constant width
+ * regardless of how many glyphs it holds.
  */
 export function SessionPullRequestIndicator({
     className,

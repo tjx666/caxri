@@ -161,17 +161,25 @@ function ActiveSessionRow({
                     <strong className="font-medium">{session.displayTitle}</strong>
                 </span>
             )}
-            {!renaming && (
-                <SessionPullRequestIndicator
+            {/*
+             * Fixed-width, right-aligned glyph track. Its width is exactly both glyphs plus their gap, so the title's
+             * available width never changes as a pull request or a lifecycle signal appears, while whichever glyphs do
+             * exist still reach the row's right edge. Reserving a per-glyph slot instead would leave a Session that has
+             * only a pull request floating a slot short of the edge.
+             */}
+            <span className="session-indicators flex w-9 flex-none items-center justify-end gap-2">
+                {!renaming && (
+                    <SessionPullRequestIndicator
+                        className="transition-opacity group-hover/session-row:opacity-0"
+                        pullRequest={pullRequest}
+                    />
+                )}
+                <SessionStatusIndicator
                     className="transition-opacity group-hover/session-row:opacity-0"
-                    pullRequest={pullRequest}
+                    session={session}
+                    terminal={terminal}
                 />
-            )}
-            <SessionStatusIndicator
-                className="transition-opacity group-hover/session-row:opacity-0"
-                session={session}
-                terminal={terminal}
-            />
+            </span>
         </div>
     );
     const row = (
