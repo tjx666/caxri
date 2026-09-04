@@ -1,13 +1,12 @@
 import { homedir } from 'node:os';
 
 import type {
+    AppSettings,
     GitRepositorySummary as GitRepoSummary,
-    ProjectStatusCheck,
     ProjectStatusError,
     ProjectStatusLinearIssue,
     ProjectStatusOverview,
     ProjectStatusRepository as ProjectStatusRepo,
-    ProjectStatusState,
     ProjectStatusSummary,
     ServerEvent,
 } from '@caxri/protocol';
@@ -16,7 +15,6 @@ import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 import { parseGitHubRemote, rememberBounded } from '@caxri/utils';
 import { ProjectStatusSummaryErrorMessage as statusError } from 'caxri';
-import { z } from 'zod';
 
 import type { ExternalStatusRunner, ExternalStatusSource } from './external-status';
 import {
@@ -27,12 +25,23 @@ import {
     runExternalStatusCommand,
 } from './external-status';
 import type { GitService } from './git';
+import { ProjectStatusAlertTracker } from './project-status-alerts';
 import type { VercelLink } from './project-status-external';
 import {
     extractLinearReferences,
     projectStatusCliError,
     vcListArguments,
 } from './project-status-external';
+import {
+    githubPullRequestSchema,
+    LINEAR_ISSUE_QUERY,
+    linearIssueResponseSchema,
+    linearStateType,
+    parseExternalJson,
+    parseGitHubPullRequest,
+    parseVercelList,
+    vercelTeamListSchema,
+} from './project-status-parse';
 import { mapProjectStatusDeployment } from './project-status-vercel';
 import { SingleFlight } from './single-flight';
 
@@ -44,79 +53,25 @@ export { parseGitHubRemote } from '@caxri/utils';
  */
 const VERCEL_LINK_CACHE_LIMIT = 256;
 const SUMMARY_CACHE_LIMIT = 128;
-const SUMMARY_CACHE_TTL_MS = 60_000;
+/**
+ * Cache lifetime adapts to what the snapshot contains, because that is also what paces the resident poller below. A
+ * running CI job or an in-flight deployment changes on a scale of tens of seconds and is exactly when the user wants to
+ * see movement; a settled pull request will not change until someone pushes, so re-asking every minute only spends the
+ * shared `gh`/`vc` budget the limiter is trying to protect.
+ */
+const SUMMARY_PENDING_CACHE_TTL_MS = 20_000;
+const SUMMARY_SETTLED_CACHE_TTL_MS = 120_000;
 /**
  * A failed refresh must back off _further_ than a successful one, never less. The previous 30s retried a rate-limited
  * `gh` twice as often as a healthy one, which is how a transient limit turned into a sustained one.
  */
 const SUMMARY_FAILURE_CACHE_TTL_MS = 5 * 60_000;
-
-const githubCheckSchema = z.object({
-    __typename: z.string().optional(),
-    completedAt: z.string().nullable().optional(),
-    conclusion: z.string().nullable().optional(),
-    context: z.string().optional(),
-    detailsUrl: z.string().optional(),
-    name: z.string().optional(),
-    startedAt: z.string().nullable().optional(),
-    state: z.string().nullable().optional(),
-    status: z.string().nullable().optional(),
-    targetUrl: z.string().optional(),
-    workflowName: z.string().optional(),
-});
-
-type GitHubCheck = z.infer<typeof githubCheckSchema>;
-
-const githubPullRequestSchema = z.object({
-    body: z.string().optional(),
-    number: z.number().int().positive().optional(),
-    statusCheckRollup: z.array(githubCheckSchema).optional(),
-    title: z.string().min(1).optional(),
-    url: z.string().optional(),
-});
-
-const vercelDeploymentSchema = z.object({
-    created: z.number().optional(),
-    name: z.string().optional(),
-    readyState: z.string().optional(),
-    state: z.string().optional(),
-    target: z.enum(['production', 'preview']).nullable().optional(),
-    url: z.string().optional(),
-});
-
-type VercelDeployment = z.infer<typeof vercelDeploymentSchema>;
-
-const vercelDeploymentListSchema = z.union([
-    z.array(vercelDeploymentSchema),
-    z.object({ deployments: z.array(vercelDeploymentSchema).optional() }),
-]);
-
-const vercelTeamSchema = z.object({ slug: z.string().optional() });
-
-const vercelTeamListSchema = z.union([
-    z.array(vercelTeamSchema),
-    z.object({ teams: z.array(vercelTeamSchema).optional() }),
-]);
-
-const linearIssueStateSchema = z.object({
-    name: z.string().optional(),
-    type: z.string().optional(),
-});
-
-const linearIssueSchema = z.object({
-    identifier: z.string().optional(),
-    title: z.string().optional(),
-    url: z.string().optional(),
-    state: linearIssueStateSchema.optional(),
-});
-
-const linearIssueDataSchema = z.object({
-    issue: linearIssueSchema.optional(),
-});
-
-const linearIssueResponseSchema = z.object({
-    data: linearIssueDataSchema.optional(),
-});
+/**
+ * Floor and ceiling for the resident poll. The floor keeps a refresh that is still in flight from being re-triggered in
+ * a tight loop; the ceiling bounds how long a rate-limit back-off can leave the panel unattended.
+ */
+const POLL_MIN_DELAY_MS = 15_000;
+const POLL_MAX_DELAY_MS = 5 * 60_000;
 
 interface RepoContext {
     branch: string;
@@ -155,108 +110,16 @@ export interface ProjectStatusServiceOptions {
      */
     github?: GitHubPullRequestStore;
     now?: () => number;
-}
-
-const LINEAR_STATE_TYPES = new Set<ProjectStatusLinearIssue['stateType']>([
-    'backlog',
-    'canceled',
-    'completed',
-    'duplicate',
-    'started',
-    'triage',
-    'unstarted',
-]);
-
-function linearStateType(value: string | undefined): ProjectStatusLinearIssue['stateType'] {
-    return LINEAR_STATE_TYPES.has(value as ProjectStatusLinearIssue['stateType'])
-        ? (value as ProjectStatusLinearIssue['stateType'])
-        : undefined;
-}
-
-const SUCCESS_RESULTS = new Set(['SUCCESS', 'NEUTRAL', 'SKIPPED', 'COMPLETED']);
-const FAILURE_RESULTS = new Set([
-    'FAILURE',
-    'FAILED',
-    'CANCELLED',
-    'TIMED_OUT',
-    'ACTION_REQUIRED',
-    'STARTUP_FAILURE',
-    'ERROR',
-]);
-const PENDING_RESULTS = new Set(['IN_PROGRESS', 'QUEUED', 'PENDING', 'EXPECTED']);
-const LINEAR_ISSUE_QUERY = `query IssueStatus($id:String!){
-  issue(id:$id){identifier title url state{name type}}
-}`;
-
-function parseExternalJson<T>(value: string, schema: z.ZodType<T>, label: string): T {
-    let parsed: unknown;
-    try {
-        parsed = JSON.parse(value);
-    } catch {
-        throw new CaxriError('VALIDATION', `Invalid ${label} JSON`);
-    }
-    const result = schema.safeParse(parsed);
-    if (!result.success) throw new CaxriError('VALIDATION', `Invalid ${label} payload`);
-    return result.data;
-}
-
-function checkState(check: GitHubCheck): ProjectStatusState {
-    const status = (check.status ?? '').toUpperCase();
-    const result = (check.conclusion ?? check.state ?? '').toUpperCase();
-    if (PENDING_RESULTS.has(status) || PENDING_RESULTS.has(result)) return 'pending';
-    if (FAILURE_RESULTS.has(result)) return 'failure';
-    if (SUCCESS_RESULTS.has(result)) return 'success';
-    return 'neutral';
-}
-
-function aggregateChecks(checks: ProjectStatusCheck[]): ProjectStatusState {
-    if (checks.some((check) => check.state === 'failure')) return 'failure';
-    if (checks.length === 0 || checks.some((check) => check.state === 'pending')) return 'pending';
-    return 'success';
-}
-
-function checkDuration(check: GitHubCheck): number | undefined {
-    if (!check.startedAt || !check.completedAt) return undefined;
-    const duration = Date.parse(check.completedAt) - Date.parse(check.startedAt);
-    return Number.isFinite(duration) && duration >= 0 ? duration : undefined;
-}
-
-export function parseGitHubPullRequest(value: string): {
-    body: string;
-    pullRequest?: ProjectStatusRepo['pullRequest'];
-} {
-    const raw = parseExternalJson(value, githubPullRequestSchema, 'GitHub pull request');
-    if (!raw.number || !raw.title || !raw.url) return { body: raw.body ?? '' };
-    const checks = (raw.statusCheckRollup ?? []).map((check): ProjectStatusCheck => ({
-        name: check.workflowName
-            ? `${check.workflowName} / ${check.name ?? check.context ?? '?'}`
-            : (check.name ?? check.context ?? '?'),
-        state: checkState(check),
-        url: check.detailsUrl ?? check.targetUrl,
-        durationMs: checkDuration(check),
-    }));
-    checks.sort(
-        (a, b) =>
-            ['failure', 'pending', 'success', 'neutral'].indexOf(a.state) -
-            ['failure', 'pending', 'success', 'neutral'].indexOf(b.state),
-    );
-    return {
-        body: raw.body ?? '',
-        pullRequest: {
-            number: raw.number,
-            title: raw.title,
-            url: raw.url,
-            state: aggregateChecks(checks),
-            checks,
-            hiddenCheckCount: 0,
-        },
-    };
-}
-
-function parseVercelList(value: string): VercelDeployment[] {
-    const parsed = parseExternalJson(value, vercelDeploymentListSchema, 'Vercel deployment list');
-    const deployments = Array.isArray(parsed) ? parsed : (parsed.deployments ?? []);
-    return deployments.toSorted((a, b) => (b.created ?? 0) - (a.created ?? 0));
+    /**
+     * Reads current settings for `projectStatus.ignoredChecks` and `projectStatus.notifications.enabled`. A Server
+     * assembled without it behaves as if no check is ignored and no alert is wanted.
+     */
+    settings?: () => AppSettings;
+    /**
+     * Injected in tests so a polling interval can be advanced deterministically instead of waited out.
+     */
+    setTimer?: (callback: () => void, delayMs: number) => NodeJS.Timeout;
+    clearTimer?: (timer: NodeJS.Timeout) => void;
 }
 
 export class ProjectStatusService {
@@ -271,6 +134,10 @@ export class ProjectStatusService {
      */
     private readonly vercelLinks = new Map<string, VercelLink>();
     private readonly github: GitHubPullRequestStore;
+    private readonly alerts = new ProjectStatusAlertTracker();
+    private polledSessionId?: string;
+    private pollTimer?: NodeJS.Timeout;
+    private isPollScheduled = false;
 
     constructor(
         private readonly git: Pick<GitService, 'summary'>,
@@ -284,6 +151,10 @@ export class ProjectStatusService {
 
     private now(): number {
         return this.options.now?.() ?? Date.now();
+    }
+
+    private ignoredChecks(): readonly string[] {
+        return this.options.settings?.()['projectStatus.ignoredChecks'] ?? [];
     }
 
     private async runCommand(
@@ -392,7 +263,15 @@ export class ProjectStatusService {
             repositories: repositories.map(({ repository }) => repository),
             refreshedAt: this.now(),
         };
-        const fingerprint = JSON.stringify(
+        /**
+         * `projectStatus.ignoredChecks` is an input to the rollup rather than a display filter, so a summary computed
+         * under superseded rules is wrong the moment the user edits them. Folding the rules into the fingerprint reuses
+         * the cache's existing "the inputs changed" path instead of adding a second invalidation mechanism, and the
+         * shared pull-request store answers the re-parse from its own record, so the correction normally costs no extra
+         * GitHub query.
+         */
+        const fingerprint = JSON.stringify([
+            this.ignoredChecks(),
             repositories.map(({ context, repository }) => [
                 repository.id,
                 context.branch,
@@ -401,7 +280,7 @@ export class ProjectStatusService {
                 context.owner,
                 context.repo,
             ]),
-        );
+        ]);
         this.logger.write('debug', logEventCatalog.projectStatus.local, {
             durationMs: performance.now() - startedAt,
             fields: { repositories: repositories.length },
@@ -498,7 +377,7 @@ export class ProjectStatusService {
                 repo: context.repo,
             });
             if (!output) return { linearIssues: [], errors: [] };
-            const parsed = parseGitHubPullRequest(output);
+            const parsed = parseGitHubPullRequest(output, this.ignoredChecks());
             const linear = await this.loadLinear(cwd, parsed.body);
             return {
                 pullRequest: parsed.pullRequest,
@@ -651,6 +530,102 @@ export class ProjectStatusService {
         }
     }
 
+    /**
+     * How long this snapshot stays authoritative. An explicit `cacheTtlMs` (tests, and callers that need a fixed
+     * window) wins; otherwise the presence of anything still running decides.
+     */
+    private summaryCacheTtlMs(summary: ProjectStatusSummary, hasFailures: boolean): number {
+        if (hasFailures) return this.options.failureCacheTtlMs ?? SUMMARY_FAILURE_CACHE_TTL_MS;
+        if (this.options.cacheTtlMs !== undefined) return this.options.cacheTtlMs;
+        const isPending = summary.repositories.some(
+            (repo) =>
+                repo.pullRequest?.state === 'pending' ||
+                repo.deployments?.production?.state === 'pending' ||
+                repo.deployments?.preview?.state === 'pending',
+        );
+        return isPending ? SUMMARY_PENDING_CACHE_TTL_MS : SUMMARY_SETTLED_CACHE_TTL_MS;
+    }
+
+    /**
+     * Emits one `projectStatus.alert` per newly failing check or deployment. The tracker is fed even while
+     * notifications are disabled so re-enabling them does not replay every failure that accumulated in the meantime as
+     * if it had just happened.
+     */
+    private publishAlerts(sessionId: string, summary: ProjectStatusSummary): void {
+        const alerts = this.alerts.observe(summary);
+        if (alerts.length === 0) return;
+        if (this.options.settings?.()['projectStatus.notifications.enabled'] !== true) return;
+        for (const alert of alerts) {
+            this.logger.write('info', logEventCatalog.projectStatus.alert, {
+                fields: { kind: alert.kind },
+            });
+            this.options.emit?.({
+                event: 'projectStatus.alert',
+                payload: { sessionId, ...alert },
+            });
+        }
+    }
+
+    private setTimer(callback: () => void, delayMs: number): NodeJS.Timeout {
+        return this.options.setTimer?.(callback, delayMs) ?? setTimeout(callback, delayMs);
+    }
+
+    private clearTimer(timer: NodeJS.Timeout): void {
+        if (this.options.clearTimer) this.options.clearTimer(timer);
+        else clearTimeout(timer);
+    }
+
+    /**
+     * Arms the next resident refresh for the polled Session against its cache expiry, so a snapshot with a running job
+     * is revisited sooner than a settled one and a rate-limited source is left alone.
+     */
+    private schedulePoll(): void {
+        if (this.pollTimer) {
+            this.clearTimer(this.pollTimer);
+            this.pollTimer = undefined;
+        }
+        const sessionId = this.polledSessionId;
+        if (!sessionId) return;
+        const expiresAt = this.summaries.get(sessionId)?.expiresAt ?? 0;
+        const delayMs = Math.min(
+            Math.max(expiresAt - this.now(), POLL_MIN_DELAY_MS),
+            POLL_MAX_DELAY_MS,
+        );
+        const timer = this.setTimer(() => {
+            this.pollTimer = undefined;
+            // Fire-and-forget: `runPoll` owns its own failure logging and re-arms the timer either way.
+            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+            void this.runPoll(sessionId);
+        }, delayMs);
+        // Never hold the Server process open for a background refresh.
+        timer.unref();
+        this.pollTimer = timer;
+    }
+
+    private async runPoll(sessionId: string): Promise<void> {
+        if (this.isPollScheduled || this.polledSessionId !== sessionId) return;
+        this.isPollScheduled = true;
+        const startedAt = performance.now();
+        try {
+            await this.summary(sessionId);
+            this.logger.write('debug', logEventCatalog.projectStatus.poll, {
+                durationMs: performance.now() - startedAt,
+                fields: { result: 'success' },
+            });
+        } catch (error) {
+            this.logger.write('debug', logEventCatalog.projectStatus.poll, {
+                durationMs: performance.now() - startedAt,
+                fields: {
+                    result: 'failure',
+                    code: error instanceof CaxriError ? error.code : 'INTERNAL',
+                },
+            });
+        } finally {
+            this.isPollScheduled = false;
+            if (this.polledSessionId === sessionId) this.schedulePoll();
+        }
+    }
+
     private rememberSummary(sessionId: string, entry: SummaryCacheEntry): void {
         rememberBounded(
             this.summaries,
@@ -686,9 +661,7 @@ export class ProjectStatusService {
                     return;
                 const value = { repositories, refreshedAt: this.now() };
                 const hasFailures = repositories.some((repo) => repo.errors.length > 0);
-                const ttl = hasFailures
-                    ? (this.options.failureCacheTtlMs ?? SUMMARY_FAILURE_CACHE_TTL_MS)
-                    : (this.options.cacheTtlMs ?? SUMMARY_CACHE_TTL_MS);
+                const ttl = this.summaryCacheTtlMs(value, hasFailures);
                 this.rememberSummary(sessionId, {
                     expiresAt: this.now() + ttl,
                     fingerprint,
@@ -703,10 +676,14 @@ export class ProjectStatusService {
                         fields: {
                             repositories: repositories.length,
                             result: hasFailures ? 'failure' : 'success',
+                            ttlMs: ttl,
                         },
                     },
                 );
+                this.publishAlerts(sessionId, value);
                 this.options.emit?.({ event: 'projectStatus.changed', payload: { sessionId } });
+                // The fresh TTL is what paces the next resident poll, so re-arm against it rather than the stale one.
+                this.schedulePoll();
             });
         } catch (error) {
             if (this.sessionGenerations.get(sessionId) !== sessionGeneration) return;
@@ -755,12 +732,35 @@ export class ProjectStatusService {
     }
 
     /**
+     * Names the Session whose delivery status is kept warm in the background. Only the selected Session is polled: it
+     * is the one the Status panel will render, and every extra repository costs another `gh`/`vc` round trip against a
+     * budget shared with the user's own shell.
+     */
+    setPolledSession(sessionId: string | undefined): void {
+        if (this.polledSessionId === sessionId) return;
+        this.polledSessionId = sessionId;
+        this.schedulePoll();
+    }
+
+    /**
+     * Stops the resident poll. Called when the Server shuts down; the cache and alert baselines die with the process.
+     */
+    dispose(): void {
+        this.polledSessionId = undefined;
+        if (!this.pollTimer) return;
+        this.clearTimer(this.pollTimer);
+        this.pollTimer = undefined;
+    }
+
+    /**
      * Prevents a late external refresh from recreating status for a Session that has already been deleted.
      */
     evictSessions(sessionIds: readonly string[]): void {
         for (const sessionId of sessionIds) {
             this.sessionGenerations.delete(sessionId);
             this.summaries.delete(sessionId);
+            // A deleted Session must not keep a background `gh`/`vc` refresh alive on its behalf.
+            if (this.polledSessionId === sessionId) this.setPolledSession(undefined);
         }
     }
 

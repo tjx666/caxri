@@ -2,7 +2,8 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { GitSummary } from '@caxri/protocol';
+import type { GitSummary, ServerEvent } from '@caxri/protocol';
+import { defaultAppSettings } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import { rememberBounded } from '@caxri/utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -11,7 +12,6 @@ import type { ExternalStatusRunner } from '../external-status';
 import { ExternalStatusCliError } from '../external-status';
 import {
     extractLinearReferences,
-    parseGitHubPullRequest,
     parseGitHubRemote,
     ProjectStatusService,
 } from '../project-status';
@@ -35,6 +35,29 @@ async function logger(): Promise<StructuredLogger> {
     const instance = new StructuredLogger(directory);
     loggers.push(instance);
     return instance;
+}
+
+/**
+ * A runner where only the `gh pr view` payload varies: Git reports a GitHub remote and Vercel reports no team, so a
+ * test can drive check state without also standing up a deployment fixture.
+ */
+function githubOnlyRunner(pullRequest: () => unknown): ExternalStatusRunner {
+    return vi.fn<ExternalStatusRunner>((command, arguments_) => {
+        if (command === 'git' && arguments_[0] === 'remote')
+            return Promise.resolve('git@github.com:lobehub/project.git\n');
+        if (command === 'git') return Promise.resolve('');
+        if (command === 'gh') return Promise.resolve(JSON.stringify(pullRequest()));
+        return Promise.resolve(JSON.stringify({ teams: [] }));
+    });
+}
+
+function checkPayload(check: Record<string, unknown>): unknown {
+    return {
+        number: 7,
+        title: 'Ship status panel',
+        url: 'https://github.com/lobehub/project/pull/7',
+        statusCheckRollup: [check],
+    };
 }
 
 const gitSummary: GitSummary = {
@@ -533,6 +556,165 @@ describe('ProjectStatusService', () => {
             externalCalls,
         );
     });
+
+    it.each([
+        { check: { name: 'unit', status: 'IN_PROGRESS' }, delayMs: 20_000, label: 'a running job' },
+        {
+            check: { name: 'unit', conclusion: 'SUCCESS' },
+            delayMs: 120_000,
+            label: 'a settled pull request',
+        },
+    ])(
+        'polls the selected Session in the background, revisiting $label after $delayMs ms',
+        async ({ check, delayMs }) => {
+            const timers: Array<{ callback: () => void; delayMs: number }> = [];
+            const service = new ProjectStatusService(
+                { summary: () => Promise.resolve(gitSummary) },
+                await logger(),
+                githubOnlyRunner(() => checkPayload(check)),
+                {
+                    clearTimer: () => {},
+                    now: () => 1_000_000,
+                    setTimer: (callback, armedDelayMs) => {
+                        timers.push({ callback, delayMs: armedDelayMs });
+                        return { unref: () => {} } as unknown as NodeJS.Timeout;
+                    },
+                    settings: () => defaultAppSettings,
+                },
+            );
+
+            // Nothing is cached yet, so the first arm falls back to the floor rather than firing immediately.
+            service.setPolledSession('session-1');
+            expect(timers).toHaveLength(1);
+            expect(timers[0]?.delayMs).toBe(15_000);
+
+            timers.at(-1)!.callback();
+            await vi.waitFor(() => expect(timers.at(-1)?.delayMs).toBe(delayMs));
+
+            const armed = timers.length;
+            service.dispose();
+            expect(timers).toHaveLength(armed);
+        },
+    );
+
+    it('stops polling a Session that has been deleted', async () => {
+        const timers: Array<{ callback: () => void; delayMs: number }> = [];
+        const service = new ProjectStatusService(
+            { summary: () => Promise.resolve(gitSummary) },
+            await logger(),
+            githubOnlyRunner(() => checkPayload({ name: 'unit', conclusion: 'SUCCESS' })),
+            {
+                clearTimer: () => {},
+                setTimer: (callback, delayMs) => {
+                    timers.push({ callback, delayMs });
+                    return { unref: () => {} } as unknown as NodeJS.Timeout;
+                },
+                settings: () => defaultAppSettings,
+            },
+        );
+
+        service.setPolledSession('session-1');
+        service.evictSessions(['session-1']);
+        const armed = timers.length;
+        timers.at(-1)!.callback();
+        await vi.waitFor(() => expect(timers).toHaveLength(armed));
+    });
+
+    it('re-parses a cached summary when the ignored checks change, without a second gh query', async () => {
+        let ignoredChecks: string[] = [];
+        const runner = githubOnlyRunner(() =>
+            checkPayload({ name: 'flaky', conclusion: 'FAILURE' }),
+        );
+        const service = new ProjectStatusService(
+            { summary: () => Promise.resolve(gitSummary) },
+            await logger(),
+            runner,
+            {
+                // Time never advances, so only the fingerprint — never a TTL — can invalidate the cached summary.
+                now: () => 1_000_000,
+                settings: () => ({
+                    ...defaultAppSettings,
+                    'projectStatus.ignoredChecks': ignoredChecks,
+                }),
+            },
+        );
+        const state = async (): Promise<string | undefined> =>
+            (await service.summary('session-1')).repositories[0]?.pullRequest?.state;
+        const ghCalls = (): number =>
+            vi.mocked(runner).mock.calls.filter(([command]) => command === 'gh').length;
+
+        await vi.waitFor(async () => expect(await state()).toBe('failure'));
+        const queried = ghCalls();
+
+        ignoredChecks = ['flaky'];
+        await vi.waitFor(async () => expect(await state()).toBe('neutral'));
+        // The shared pull-request record answers the re-parse, so correcting the rollup is free.
+        expect(ghCalls()).toBe(queried);
+    });
+
+    it('emits a delivery alert when a check turns into a failure', async () => {
+        let conclusion = 'SUCCESS';
+        const emitted = vi.fn<(event: ServerEvent) => void>();
+        const service = new ProjectStatusService(
+            { summary: () => Promise.resolve(gitSummary) },
+            await logger(),
+            githubOnlyRunner(() => checkPayload({ name: 'unit', conclusion })),
+            { emit: emitted, settings: () => defaultAppSettings },
+        );
+
+        await service.summary('session-1');
+        await vi.waitFor(() => expect(emitted).toHaveBeenCalled());
+        conclusion = 'FAILURE';
+        await service.summary('session-1', 'refresh-1');
+
+        const alerts = (): ServerEvent[] =>
+            emitted.mock.calls
+                .map(([event]) => event)
+                .filter((event) => event.event === 'projectStatus.alert');
+        await vi.waitFor(() =>
+            expect(alerts()).toEqual([
+                {
+                    event: 'projectStatus.alert',
+                    payload: {
+                        sessionId: 'session-1',
+                        kind: 'check',
+                        repository: 'project',
+                        branch: 'feature/status',
+                        name: 'unit',
+                        // No `detailsUrl`, so the alert falls back to the pull request itself.
+                        url: 'https://github.com/lobehub/project/pull/7',
+                    },
+                },
+            ]),
+        );
+    });
+
+    it('keeps the alert baseline current while notifications are disabled, and stays silent', async () => {
+        let conclusion = 'SUCCESS';
+        const emitted = vi.fn<(event: ServerEvent) => void>();
+        const service = new ProjectStatusService(
+            { summary: () => Promise.resolve(gitSummary) },
+            await logger(),
+            githubOnlyRunner(() => checkPayload({ name: 'unit', conclusion })),
+            {
+                emit: emitted,
+                settings: () => ({
+                    ...defaultAppSettings,
+                    'projectStatus.notifications.enabled': false,
+                }),
+            },
+        );
+
+        await service.summary('session-1');
+        await vi.waitFor(() => expect(emitted).toHaveBeenCalled());
+        conclusion = 'FAILURE';
+        await service.summary('session-1', 'refresh-1');
+        await vi.waitFor(() => expect(emitted).toHaveBeenCalledTimes(2));
+
+        expect(emitted.mock.calls.some(([event]) => event.event === 'projectStatus.alert')).toBe(
+            false,
+        );
+    });
 });
 
 describe('Project Status parsers', () => {
@@ -575,30 +757,5 @@ describe('Project Status parsers', () => {
         expect(links.has('owner/repo-0')).toBe(false);
         expect(links.has('owner/repo-49')).toBe(false);
         expect(links.has(`owner/repo-${maximum + 49}`)).toBe(true);
-    });
-
-    it('rejects malformed GitHub pull request JSON as VALIDATION', () => {
-        expect(() => parseGitHubPullRequest('{')).toThrow(
-            expect.objectContaining({ code: 'VALIDATION' }) as Error,
-        );
-        expect(() => parseGitHubPullRequest(JSON.stringify({ number: '11', title: 2 }))).toThrow(
-            expect.objectContaining({ code: 'VALIDATION' }) as Error,
-        );
-    });
-
-    it('maps failed checks ahead of successful checks', () => {
-        expect(
-            parseGitHubPullRequest(
-                JSON.stringify({
-                    number: 1,
-                    title: 'PR',
-                    url: 'https://github.com/a/b/pull/1',
-                    statusCheckRollup: [
-                        { conclusion: 'SUCCESS', name: 'pass' },
-                        { conclusion: 'FAILURE', name: 'fail' },
-                    ],
-                }),
-            ).pullRequest,
-        ).toMatchObject({ state: 'failure', checks: [{ name: 'fail' }, { name: 'pass' }] });
     });
 });

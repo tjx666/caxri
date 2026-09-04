@@ -203,6 +203,7 @@ export async function createDomainServices(
     const projectStatus = new ProjectStatusService(git, logger, externalStatus.run, {
         emit: send,
         github: externalStatus.github,
+        settings: () => configuration.getSettings().value,
     });
     const diagnostics = new DiagnosticsService(
         database,
@@ -359,6 +360,15 @@ export async function createDomainServices(
     });
     const { restoreInterruptedTerminalsInBackground, watchSessionInBackground } =
         createBackgroundTasks(logger, files, restoreInterruptedTerminals);
+    /**
+     * The one place that tells background services which Session is now current. Project Status polls only this
+     * Session, so every path that changes durable selection must go through here: a missed update either leaves the
+     * Status panel cold or keeps spending the shared delivery-CLI budget on a Session nobody is looking at.
+     */
+    const observeSelectedSession = (sessionId: string | undefined): void => {
+        watchSessionInBackground(sessionId);
+        projectStatus.setPolledSession(sessionId);
+    };
     const dispatchService = new AgentDispatchService({
         database,
         coordinator,
@@ -376,6 +386,7 @@ export async function createDomainServices(
     async function close(): Promise<void> {
         if (isClosed) return;
         isClosed = true;
+        projectStatus.dispose();
         terminalRestores.close();
         await terminalSuspension.close();
         await sessionAutoNaming.close();
@@ -480,7 +491,7 @@ export async function createDomainServices(
             database,
             send,
             terminals,
-            watchSessionInBackground,
+            observeSelectedSession,
         }),
         'editor.confirmDiscard': () => mainOwned('editor.confirmDiscard'),
         'diagnostics.export': () => mainOwned('diagnostics.export'),
@@ -552,7 +563,7 @@ export async function createDomainServices(
             projectStatus.evictSessions(affectedSessionIds);
             database.deleteProject(projectId);
             workbenchRoots.projectDeleted(affectedWorkbenchSessions.map((session) => session.id));
-            watchSessionInBackground(selectedSessionId());
+            observeSelectedSession(selectedSessionId());
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'project.delete' } });
             return bootstrapState();
         },
@@ -581,7 +592,7 @@ export async function createDomainServices(
             }
             database.selectSession(created.session.id);
             terminalSuspension.observeSelection();
-            watchSessionInBackground(created.session.id);
+            observeSelectedSession(created.session.id);
             if (created.terminal?.provider) coordinator.probeTerminal(created.terminal.id);
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.create' } });
             return {
@@ -594,7 +605,7 @@ export async function createDomainServices(
                 await workbenchRoots.validateSession(sessionId);
                 database.selectSession(sessionId);
                 terminalSuspension.observeSelection();
-                watchSessionInBackground(sessionId);
+                observeSelectedSession(sessionId);
                 restoreInterruptedTerminalsInBackground(sessionId);
                 coordinator.probeSessionPrimaryAgent(sessionId);
                 send({
@@ -628,7 +639,7 @@ export async function createDomainServices(
             sessionAutoNaming.forgetSession(sessionId);
             const session = database.archiveSession(sessionId);
             await terminalSuspension.suspendSession(sessionId);
-            watchSessionInBackground(selectedSessionId());
+            observeSelectedSession(selectedSessionId());
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.archive' } });
             return session;
         },
@@ -646,7 +657,7 @@ export async function createDomainServices(
                 await workbenchRoots.validateSession(sessionId);
                 database.selectSession(sessionId);
                 terminalSuspension.observeSelection();
-                watchSessionInBackground(sessionId);
+                observeSelectedSession(sessionId);
                 restoreInterruptedTerminalsInBackground(sessionId, { includeDetached: true });
                 coordinator.probeSessionPrimaryAgent(sessionId);
                 send({
@@ -668,7 +679,7 @@ export async function createDomainServices(
             git.evictSessions([sessionId]);
             projectStatus.evictSessions([sessionId]);
             database.deleteSession(sessionId);
-            watchSessionInBackground(selectedSessionId());
+            observeSelectedSession(selectedSessionId());
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.delete' } });
             return bootstrapState();
         },
@@ -764,7 +775,7 @@ export async function createDomainServices(
             userDataPath,
         }),
     };
-    watchSessionInBackground(selectedSessionId());
+    observeSelectedSession(selectedSessionId());
     terminalSuspension.start();
     // Background Terminal restore preserves the three-second startup gate.
     const initialSessionId = selectedSessionId();

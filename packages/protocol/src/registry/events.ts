@@ -167,6 +167,23 @@ export const serverEventPayloads = {
      */
     'projectStatus.changed': z.object({ sessionId: identifierSchema }),
     /**
+     * One-shot delivery-failure alert: a CI check or a Vercel deployment just transitioned into failure. The payload is
+     * deliberately identity-only — repository, branch, the failing item's name, and its public provider URL — so a
+     * system notification can be composed without any build log, diff, or credential crossing the process boundary.
+     * Emitted once per transition; the Runtime owns deduplication, not the notification layer.
+     */
+    'projectStatus.alert': z.object({
+        sessionId: identifierSchema,
+        kind: z.enum(['check', 'deployment']),
+        repository: z.string().min(1).max(256),
+        branch: z.string().min(1).max(512),
+        /**
+         * Failing check name (already `workflow / job` where GitHub reports both), or the deployment environment.
+         */
+        name: z.string().min(1).max(512),
+        url: z.url().optional(),
+    }),
+    /**
      * One-shot invalidation after a background sweep changed the discovered pull request of at least one Session.
      */
     'sessionPullRequests.changed': z.object({ sessionIds: z.array(identifierSchema).max(1_024) }),

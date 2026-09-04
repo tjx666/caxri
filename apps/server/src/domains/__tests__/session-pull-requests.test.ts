@@ -2,7 +2,14 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { GitSummary, ServerEvent, SessionRecord, TerminalRecord } from '@caxri/protocol';
+import type {
+    AppSettings,
+    GitSummary,
+    ServerEvent,
+    SessionRecord,
+    TerminalRecord,
+} from '@caxri/protocol';
+import { defaultAppSettings } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -104,6 +111,7 @@ async function harness(options: {
     gh?: (arguments_: readonly string[]) => Promise<string>;
     now?: () => number;
     sessions?: SessionRecord[];
+    settings?: () => AppSettings;
     summary?: (sessionId: string) => Promise<GitSummary>;
 }): Promise<Harness> {
     const home = await temporaryDirectory('caxri-session-pr-home-');
@@ -141,6 +149,7 @@ async function harness(options: {
             agentEnvironment: { homeDirectory: home, variables: {} },
             emit: (event) => emitted.push(event),
             now: options.now,
+            settings: options.settings,
         },
     );
     const setTranscript = (lines: string[]): Promise<void> =>
@@ -340,6 +349,67 @@ describe('SessionPullRequestService', () => {
             checks: undefined,
             source: 'branch',
         });
+    });
+
+    it('leaves an ignored check out of the sidebar badge, matching the Status panel rollup', async () => {
+        const gh = vi.fn((arguments_: readonly string[]) =>
+            Promise.resolve(
+                arguments_[1] === 'list'
+                    ? `[${pullRequestJson({ number: 19024, state: 'OPEN' })}]`
+                    : pullRequestJson({
+                          state: 'OPEN',
+                          statusCheckRollup: [
+                              { name: 'ci', status: 'COMPLETED', conclusion: 'SUCCESS' },
+                              { name: 'flaky', status: 'COMPLETED', conclusion: 'FAILURE' },
+                          ],
+                      }),
+            ),
+        );
+        const settings = (ignoredChecks: string[]) => () => ({
+            ...defaultAppSettings,
+            'projectStatus.ignoredChecks': ignoredChecks,
+        });
+
+        const reported = await harness({ gh, settings: settings([]) });
+        await reported.service.refresh();
+        expect(reported.service.snapshot().pullRequests['session-1']?.checks).toBe('failure');
+
+        const ignored = await harness({ gh, settings: settings(['flaky']) });
+        await ignored.service.refresh();
+        expect(ignored.service.snapshot().pullRequests['session-1']?.checks).toBe('success');
+    });
+
+    it('re-sweeps the badge when the ignored checks change, instead of waiting out the TTL', async () => {
+        const gh = vi.fn((arguments_: readonly string[]) =>
+            Promise.resolve(
+                arguments_[1] === 'list'
+                    ? `[${pullRequestJson({ number: 19024, state: 'OPEN' })}]`
+                    : pullRequestJson({
+                          state: 'OPEN',
+                          statusCheckRollup: [
+                              { name: 'flaky', status: 'COMPLETED', conclusion: 'FAILURE' },
+                          ],
+                      }),
+            ),
+        );
+        let ignoredChecks: string[] = [];
+        const { service } = await harness({
+            gh,
+            // Time never advances, so only the rule change — never a TTL — can invalidate the projection.
+            now: () => 0,
+            settings: () => ({
+                ...defaultAppSettings,
+                'projectStatus.ignoredChecks': ignoredChecks,
+            }),
+        });
+        await service.refresh();
+        expect(service.snapshot().pullRequests['session-1']?.checks).toBe('failure');
+
+        ignoredChecks = ['flaky'];
+        // `snapshot` notices the superseded rules and expires the projection, which starts the re-sweep it awaits.
+        service.snapshot();
+        await service.refresh();
+        expect(service.snapshot().pullRequests['session-1']?.checks).toBeUndefined();
     });
 
     it('never queries an integration branch and skips archived Sessions', async () => {
