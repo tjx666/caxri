@@ -30,7 +30,7 @@ import {
     safeProcessEnvironment,
 } from '@caxri/system';
 
-import { runExternalCommand } from '../executables';
+import { ExternalStatusHub } from '../external-status';
 import { assertInsideRoot } from '../path-security';
 import type { ProjectRootResolver } from '../project-roots';
 import { SingleFlight } from '../single-flight';
@@ -39,6 +39,7 @@ import { GitChangeTracker } from './change-tracker';
 import { parseCommitFiles, sumCommitNumstat } from './commit-details';
 import { COMMIT_FORMAT, parseCommitLog } from './commit-log';
 import { toGitError } from './errors';
+import { readGitHubPullRequestView } from './github';
 import type { GitMetadataWatcherOptions } from './metadata-watcher';
 import { GitMetadataWatcher } from './metadata-watcher';
 import { GitPullRequestService } from './pull-request';
@@ -107,6 +108,11 @@ interface GitServiceOptions {
      */
     emit?: (event: ServerEvent) => void;
     /**
+     * Shared owner of external delivery-status CLIs. Injected in production so Source Control's pull-request read joins
+     * the same GitHub projection and quota circuit as every other surface.
+     */
+    externalStatus?: ExternalStatusHub;
+    /**
      * Test seam forwarded to the Git metadata watcher.
      */
     subscribe?: GitMetadataWatcherOptions['subscribe'];
@@ -133,12 +139,14 @@ export class GitService {
      */
     private readonly remoteHostByRoot = new Map<string, string | null>();
     private readonly remoteHostRequests = new SingleFlight<string, string | null>();
+    private readonly externalStatus: ExternalStatusHub;
 
     constructor(
         private readonly paths: ProjectRootResolver,
         private readonly logger: StructuredLogger,
         options: GitServiceOptions = {},
     ) {
+        this.externalStatus = options.externalStatus ?? new ExternalStatusHub({ logger });
         this.topologyRegistry = new RepoTopologyRegistry({
             git: (cwd, arguments_) => this.git(cwd, arguments_),
         });
@@ -163,7 +171,14 @@ export class GitService {
         this.repositoryService.attachMetadataWatcher(this.metadataWatcher);
         this.pullRequestService = new GitPullRequestService({
             git: (cwd, arguments_, options) => this.git(cwd, arguments_, options),
-            ghPullRequestView: (cwd) => this.ghPullRequestView(cwd),
+            pullRequestView: (repo, isForced) =>
+                readGitHubPullRequestView(repo, {
+                    github: this.externalStatus.github,
+                    isForced,
+                    logger: this.logger,
+                    originRemote: (rootPath) => this.originRemote(rootPath),
+                    schedule: (work) => this.commands.run(work),
+                }),
             resolveRepository: (sessionId, repoId) => this.resolveRepository(sessionId, repoId),
         });
         this.blameService = new GitBlameService(this.paths, {
@@ -237,58 +252,6 @@ export class GitService {
                     },
                 });
                 throw toGitError(error);
-            }
-        });
-    }
-
-    /**
-     * Reads GitHub PR metadata through fixed `gh` argv without granting the Renderer CLI access.
-     */
-    private async ghPullRequestView(cwd: string): Promise<string> {
-        const startedAt = performance.now();
-        return this.commands.run(async () => {
-            try {
-                // `runExternalCommand` (not a bare `gh` spawn): the packaged GUI app inherits the
-                // constrained launchd PATH without Homebrew directories, so `gh` must be resolved
-                // through the login-shell PATH boundary like every other external CLI.
-                const { stdout } = await runExternalCommand(
-                    'gh',
-                    [
-                        'pr',
-                        'view',
-                        '--json',
-                        'number,title,url,baseRefName,headRefName,baseRefOid,headRefOid',
-                    ],
-                    {
-                        cwd,
-                        timeout: 10_000,
-                        maxBuffer: MAX_GIT_METADATA_BYTES,
-                        ...gitSignalOptions(),
-                        env: { LC_ALL: 'C' },
-                    },
-                );
-                this.logger.write('info', logEventCatalog.git.githubCommand, {
-                    durationMs: performance.now() - startedAt,
-                    fields: { operation: 'pr.view' },
-                });
-                return stdout;
-            } catch (error) {
-                // Deliberately not `NodeJS.ErrnoException` here: that type inherits `Error`'s required
-                // `message: string`, but `error` is `unknown` at this catch boundary and a thrown value
-                // is not guaranteed to be an `Error` instance with a `message` at runtime.
-                const failure = error as { code?: string; message?: string; stderr?: string };
-                const message = `${failure.message ?? ''}\n${failure.stderr ?? ''}`;
-                if (/no pull requests found|could not find pull request/i.test(message)) return '';
-                this.logger.write('warn', logEventCatalog.git.githubCommandFailed, {
-                    durationMs: performance.now() - startedAt,
-                    fields: { operation: 'pr.view', error: errorMessage(error, 'unknown') },
-                });
-                if (failure.code === 'ENOENT')
-                    throw new CaxriError('UNAVAILABLE', 'GitHub CLI is not available on PATH');
-                throw new CaxriError(
-                    'GIT',
-                    'Unable to load the pull request for the current branch',
-                );
             }
         });
     }

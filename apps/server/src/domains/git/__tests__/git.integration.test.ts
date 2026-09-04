@@ -368,6 +368,12 @@ describe('GitService', () => {
         await execFileAsync('git', ['config', 'user.name', 'Caxri Test'], {
             cwd: repoRoot,
         });
+        // The shared GitHub projection keys records by owner/repo, so the pull-request read needs a GitHub `origin`.
+        await execFileAsync(
+            'git',
+            ['remote', 'add', 'origin', 'git@github.com:tjx666/project.git'],
+            { cwd: repoRoot },
+        );
         await writeFile(join(repoRoot, 'tracked.txt'), 'before\n', 'utf8');
         await execFileAsync('git', ['add', 'tracked.txt'], { cwd: repoRoot });
         await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: repoRoot });

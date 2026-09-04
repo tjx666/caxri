@@ -6,6 +6,7 @@ import type {
     ServerOperationParameters,
 } from '@caxri/protocol';
 import { CaxriError, MAX_CONFIGURABLE_FILE_BYTES } from '@caxri/protocol';
+import { rememberBounded } from '@caxri/utils';
 import { z } from 'zod';
 
 import { SingleFlight } from '../single-flight';
@@ -42,7 +43,13 @@ interface GitPullRequestServiceDependencies {
         arguments_: string[],
         options?: { allowFailure?: boolean; maxBufferBytes?: number },
     ): Promise<string>;
-    ghPullRequestView(cwd: string): Promise<string>;
+    /**
+     * Reads the repository's pull request through the Server-wide GitHub projection, so opening a PR diff reuses the
+     * record the sidebar badge and the Status panel already hold instead of spending a query of its own. Resolves to
+     * `undefined` when the branch has no pull request. `isForced` marks an explicit user refresh, which must reach
+     * GitHub rather than reuse the shared record — a force-push changes the head OID this diff is computed from.
+     */
+    pullRequestView(repo: GitRepoSummary, isForced: boolean): Promise<string | undefined>;
     resolveRepository(sessionId: string, repoId: string): Promise<GitRepoSummary>;
 }
 
@@ -163,13 +170,7 @@ export class GitPullRequestService {
 
     private storeCache(cacheKey: string, entry: PullRequestCacheEntry): void {
         this.pruneCache(this.now());
-        this.cache.delete(cacheKey);
-        this.cache.set(cacheKey, entry);
-        while (this.cache.size > this.maximumCacheEntries) {
-            const oldestKey = this.cache.keys().next().value;
-            if (oldestKey === undefined) return;
-            this.cache.delete(oldestKey);
-        }
+        rememberBounded(this.cache, cacheKey, entry, this.maximumCacheEntries);
     }
 
     /**
@@ -224,7 +225,10 @@ export class GitPullRequestService {
         ]);
         return sharedGitRequest(() =>
             this.requests.run(requestKey, async () => {
-                const output = await this.dependencies.ghPullRequestView(repo.rootPath);
+                const output = await this.dependencies.pullRequestView(
+                    repo,
+                    parameters.refresh !== 0,
+                );
                 if (!output) {
                     if (cacheGeneration === this.cacheGeneration)
                         this.storeCache(cacheKey, {
