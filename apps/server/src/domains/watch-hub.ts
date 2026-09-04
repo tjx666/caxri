@@ -166,7 +166,7 @@ class Registration implements WatchHandle {
     nativeRetryDelayMs = NATIVE_RETRY_INITIAL_DELAY_MS;
     /**
      * Open coalescing window for "must rescan" advisories. While it is set, an advisory only counts itself in
-     * {@link rescanCoalesced}; the window's close runs the single catch-up reconcile.
+     * `rescanCoalesced`; the window's close runs the single catch-up reconcile.
      */
     rescanTimer?: NodeJS.Timeout;
     rescanCoalesced = 0;
