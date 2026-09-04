@@ -193,7 +193,12 @@ position stays learnable; the shortcut and command name reach the user through t
 tooltip instead of a bespoke label. Archived Sessions use one stable PrimarySidebar footer entry
 with a global count. Search, filters, Project-grouped results, restore, and delete live in a
 full-width management dialog. Project disclosures contain active Sessions only, so low-frequency
-history never fragments navigation.
+history never fragments navigation. A disclosure renders its five most recently active Sessions
+plus a `Show N more` row that reveals ten more per activation and disappears once the list is
+complete, so a busy Project never buries the Projects below it. The selected Session always
+renders even when it sits below that window, because Session order is activity recency rather than
+visit history. The revealed count is per-Renderer-lifetime: a relaunch starts from the short list
+the same way it starts scrolled to the top.
 
 **Tab strip** — active tab: `--background` fill joining it visually to the pane below,
 `--foreground` text, and a 2px `--accent` top border, VS Code style. Inactive: `--surface` +
