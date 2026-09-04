@@ -19,7 +19,7 @@ import type { PendingFileOperation } from './file-operation-state';
 import { FileTreeItemMenu } from './file-tree-item-menu';
 import type { EditRequest, FocusTarget } from './file-tree-item-types';
 import { fileTreeLeafIndent, fileTreeRowStyle } from './file-tree-row-style';
-import { fileTreeRowTooltip } from './resource-explorer-state';
+import { fileTreeRowTooltip, symlinkRowDescription } from './resource-explorer-state';
 import { useFileTreeItemInteractions } from './use-file-tree-item-interactions';
 
 export { type EditRequest, type FocusTarget };
@@ -408,7 +408,7 @@ function FileTreeItem({
             <span className="truncate">{entry.name}</span>
             {entry.kind === 'symlink' && (
                 <span id={symlinkReasonId} className="sr-only">
-                    Symlink browsing and changes are disabled for safety
+                    {symlinkRowDescription(entry)}
                 </span>
             )}
         </button>

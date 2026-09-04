@@ -11,6 +11,7 @@ import {
     setScopedPathExpanded,
     setScopedSubtreeExpanded,
     setScopedValue,
+    symlinkRowDescription,
 } from '../resource-explorer-state';
 
 describe('Resource Explorer state', () => {
@@ -190,6 +191,18 @@ describe('Resource Explorer state', () => {
         ).toContain('(broken symlink;');
         expect(fileTreeRowTooltip({ kind: 'symlink', path: '/project/stale' })).toBe(
             '/project/stale (symlink; browsing and changes are disabled for safety)',
+        );
+    });
+
+    it('tells a screen reader the same link facts the tooltip shows', () => {
+        expect(
+            symlinkRowDescription({ linkKind: 'directory', linkTarget: '../shared/skills' }),
+        ).toBe('Symlink to ../shared/skills. Browsing and changes are disabled for safety.');
+        expect(symlinkRowDescription({ linkKind: 'broken', linkTarget: './missing' })).toBe(
+            'Symlink to ./missing, which does not resolve. Browsing and changes are disabled for safety.',
+        );
+        expect(symlinkRowDescription({})).toBe(
+            'Symlink. Browsing and changes are disabled for safety.',
         );
     });
 

@@ -130,6 +130,16 @@ export function fileTreeRowTooltip(
 }
 
 /**
+ * The screen-reader description of a symlink row. It carries the same facts the tooltip gives a sighted mouse user —
+ * where the link points and whether it resolves — minus the path already announced as the row's own name.
+ */
+export function symlinkRowDescription(entry: Pick<FileEntry, 'linkKind' | 'linkTarget'>): string {
+    const target = entry.linkTarget === undefined ? '' : ` to ${entry.linkTarget}`;
+    const unresolved = entry.linkKind === 'broken' ? ', which does not resolve' : '';
+    return `Symlink${target}${unresolved}. Browsing and changes are disabled for safety.`;
+}
+
+/**
  * A filesystem root has no useful basename, so the panel caption stays blank instead of echoing separators.
  */
 export function fileTreeRootCaption(rootPath: string): string {
