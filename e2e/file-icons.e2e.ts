@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -37,6 +37,68 @@ test('Files secondarySidebar renders local file, folder, open, and fallback icon
         await expect(
             running.page.locator('[data-file-icon="folder_type_github_opened"]'),
         ).toBeVisible();
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures; the assertions above already produced the test result.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('Files secondarySidebar identifies symlinks by their target instead of an untyped placeholder', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-file-symlinks-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await mkdir(join(root, 'src'), { recursive: true });
+    await writeFile(join(root, 'Component.tsx'), 'export {};\n', 'utf8');
+    await Promise.all([
+        // `dist` is named for what it is, so it must earn a real folder icon rather than the neutral default.
+        symlink('src', join(root, 'dist')),
+        // The link's own name carries no type, so only its target can supply one.
+        symlink('Component.tsx', join(root, 'link-to-component')),
+        symlink('./missing', join(root, 'broken-link')),
+    ]);
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    try {
+        await openAddProjectDialog(running.page);
+        await running.page.getByRole('dialog').getByRole('button', { name: 'Shell' }).click();
+
+        const tree = running.page.getByRole('tree', { name: 'Files' });
+        await expect(
+            tree.locator('[data-symlink-icon="directory"] [data-file-icon="folder_type_dist"]'),
+        ).toBeVisible();
+        await expect(
+            tree.locator('[data-symlink-icon="file"] [data-file-icon="file_type_reactts"]'),
+        ).toBeVisible();
+        await expect(
+            tree.locator('[data-symlink-icon="broken"] [data-file-icon="default_file"]'),
+        ).toBeVisible();
+
+        // A link to a directory belongs with the directories; links to files stay with the files.
+        const rowNames = await tree
+            .getByRole('treeitem')
+            .evaluateAll((rows) =>
+                rows.map((row) => row.textContent.split('Symlink', 1)[0].trim()),
+            );
+        expect(rowNames).toEqual([
+            'dist',
+            'src',
+            'broken-link',
+            'Component.tsx',
+            'link-to-component',
+        ]);
+
+        const directoryLink = tree.getByRole('treeitem').first();
+        await expect(directoryLink).toHaveAttribute(
+            'title',
+            /dist → src \(symlink; browsing and changes are disabled for safety\)$/,
+        );
+        // Looking like a folder must not make the link act like one: it stays inert for pointer and assistive use.
+        await expect(directoryLink).toHaveAttribute('aria-disabled', 'true');
+        await expect(directoryLink).not.toHaveAttribute('aria-expanded', /.*/);
     } finally {
         try {
             await running.app.close();
