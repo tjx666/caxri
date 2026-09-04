@@ -136,7 +136,7 @@ export function ProcessTableHeader({
                         aria-label={column.label}
                         aria-sort={isSorted ? sort.direction : 'none'}
                         className={cn(
-                            'relative flex min-h-[30px] items-stretch border-l border-border',
+                            'relative flex min-h-7 items-stretch border-l border-border',
                             column.key === 'name' && 'border-l-0',
                         )}
                     >
