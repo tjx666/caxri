@@ -7,7 +7,7 @@ import type {
     SessionRecord,
     TerminalRecord,
 } from '@caxri/protocol';
-import { Archive, Paintbrush, RotateCcw, SquarePen } from 'lucide-react';
+import { Archive, ChevronDown, Paintbrush, RotateCcw, SquarePen } from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';
 import { DisclosureMotion } from '../../components/disclosure-motion';
@@ -22,6 +22,7 @@ import {
     didSelectSession,
     resumeAutomaticSessionNaming,
 } from '../session/session-actions';
+import { primarySidebarRevealRowId } from './primary-sidebar-tree';
 import { ProjectIcon } from './project-icon';
 import type { ProjectDropTarget } from './project-order';
 import { hasProjectDragType } from './project-order';
@@ -248,11 +249,18 @@ function ActiveSessionRow({
 
 interface ProjectGroupProperties {
     active: boolean;
-    activeSessions: SessionRecord[];
     animateProject: boolean;
     dragged: boolean;
     expanded: boolean;
     focusRenameInput: (element: HTMLInputElement | null) => void;
+    /**
+     * Sessions the window currently hides; a positive count renders the reveal row.
+     */
+    hiddenSessionCount: number;
+    /**
+     * Sessions the reveal row promises to add, so its label never overstates the final step.
+     */
+    nextRevealCount: number;
     onBeginRename: (sessionId: string, displayTitle: string) => void;
     onBlurRename: () => void;
     onCancelRename: () => void;
@@ -264,6 +272,7 @@ interface ProjectGroupProperties {
     onDrop: (event: DragEvent<HTMLElement>) => void;
     onMove: (delta: -1 | 1) => void;
     onRenameValueChange: (value: string) => void;
+    onRevealMoreSessions: () => void;
     onToggle: () => void;
     project: ProjectRecord;
     projectDropTarget?: ProjectDropTarget;
@@ -280,15 +289,20 @@ interface ProjectGroupProperties {
     rovingRowId?: string;
     selectedSessionId?: string;
     terminals: TerminalRecord[];
+    /**
+     * Sessions the window renders, most recently active first.
+     */
+    visibleSessions: SessionRecord[];
 }
 
 export function ProjectGroup({
     active,
-    activeSessions,
     animateProject,
     dragged,
     expanded,
     focusRenameInput,
+    hiddenSessionCount,
+    nextRevealCount,
     onBeginRename,
     onBlurRename,
     onCancelRename,
@@ -300,6 +314,7 @@ export function ProjectGroup({
     onDrop,
     onMove,
     onRenameValueChange,
+    onRevealMoreSessions,
     onToggle,
     project,
     projectDropTarget,
@@ -310,8 +325,10 @@ export function ProjectGroup({
     rovingRowId,
     selectedSessionId,
     terminals,
+    visibleSessions,
 }: ProjectGroupProperties) {
     const projectDisclosureId = `project-sessions-${project.id}`;
+    const revealRowId = primarySidebarRevealRowId(project.id);
     return (
         <section
             data-project-id={project.id}
@@ -438,7 +455,7 @@ export function ProjectGroup({
                         className="session-list pb-1 pl-4"
                         role="group"
                     >
-                        {activeSessions.map((session) => (
+                        {visibleSessions.map((session) => (
                             <ActiveSessionRow
                                 key={session.id}
                                 focusRenameInput={focusRenameInput}
@@ -461,7 +478,25 @@ export function ProjectGroup({
                                 terminals={terminals}
                             />
                         ))}
-                        {activeSessions.length === 0 && (
+                        {hiddenSessionCount > 0 && (
+                            <div
+                                aria-level={2}
+                                aria-selected={false}
+                                className="session-reveal-row"
+                                role="treeitem"
+                            >
+                                <button
+                                    className="session-reveal flex h-7 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-muted hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
+                                    aria-label={`Show ${nextRevealCount} more ${nextRevealCount === 1 ? 'Session' : 'Sessions'} in ${project.displayTitle}`}
+                                    data-row-id={revealRowId}
+                                    tabIndex={revealRowId === rovingRowId ? 0 : -1}
+                                    onClick={onRevealMoreSessions}
+                                >
+                                    <ChevronDown size={13} /> Show {nextRevealCount} more
+                                </button>
+                            </div>
+                        )}
+                        {visibleSessions.length === 0 && (
                             <button
                                 className="empty-project flex h-7 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-muted hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] hover:text-foreground"
                                 tabIndex={-1}
