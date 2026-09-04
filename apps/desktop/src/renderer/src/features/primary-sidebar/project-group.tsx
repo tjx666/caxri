@@ -479,10 +479,15 @@ export function ProjectGroup({
                             />
                         ))}
                         {hiddenSessionCount > 0 && (
-                            <div aria-level={2} className="session-reveal-row" role="treeitem">
+                            <div
+                                aria-level={2}
+                                aria-selected={false}
+                                className="session-reveal-row"
+                                role="treeitem"
+                            >
                                 <button
                                     className="session-reveal flex h-7 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-muted hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
-                                    aria-label={`Show ${nextRevealCount} more Sessions in ${project.displayTitle}`}
+                                    aria-label={`Show ${nextRevealCount} more ${nextRevealCount === 1 ? 'Session' : 'Sessions'} in ${project.displayTitle}`}
                                     data-row-id={revealRowId}
                                     tabIndex={revealRowId === rovingRowId ? 0 : -1}
                                     onClick={onRevealMoreSessions}
