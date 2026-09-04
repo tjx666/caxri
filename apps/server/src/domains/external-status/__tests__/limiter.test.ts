@@ -168,6 +168,25 @@ describe('ExternalStatusLimiter', () => {
         expect(started.pauseRemainingMs('vc')).toBeGreaterThan(0);
     });
 
+    it('does not re-probe on every request when the CLI cannot report a budget', async () => {
+        let now = 1_000_000;
+        const probeQuota = vi.fn(() => Promise.resolve(undefined));
+        const limiter = new ExternalStatusLimiter({
+            now: () => now,
+            pausePath: await pausePath(),
+            probeQuota,
+        });
+
+        await expect(limiter.guard('gh', () => Promise.resolve('ok'))).resolves.toBe('ok');
+        now += 60_000;
+        await expect(limiter.guard('gh', () => Promise.resolve('ok'))).resolves.toBe('ok');
+        expect(probeQuota).toHaveBeenCalledOnce();
+
+        now += 5 * 60_000;
+        await expect(limiter.guard('gh', () => Promise.resolve('ok'))).resolves.toBe('ok');
+        expect(probeQuota).toHaveBeenCalledTimes(2);
+    });
+
     it('stops polling before the account runs out, leaving points for the user own gh calls', async () => {
         const now = 1_000_000;
         const work = vi.fn(() => Promise.resolve('ok'));
