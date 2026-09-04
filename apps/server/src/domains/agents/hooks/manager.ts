@@ -29,9 +29,10 @@ import type {
     AgentHookDocuments,
     AgentHookEntryStatus,
     AgentLifecycleSignal,
+    AgentSignalDecision,
 } from './contract';
-import type { AgentHookSignalDiagnostic } from './server';
 import { AgentHookServer, pruneStaleAgentHookSockets } from './server';
+import { AgentHookTelemetry } from './telemetry';
 
 const CONFIG_WATCH_SETTLE_MS = 100;
 const CONFIG_FALLBACK_POLL_INTERVAL_MS = 30_000;
@@ -68,7 +69,7 @@ interface AgentHookManagerOptions {
     onAuthorityLost: (provider: AgentProvider) => void;
     onLaunchEnded: (terminalId: string) => void;
     onLaunchStarted: (terminalId: string, launchId: string) => void;
-    onSignal: (signal: AgentLifecycleSignal) => boolean | Promise<boolean>;
+    onSignal: (signal: AgentLifecycleSignal) => AgentSignalDecision | Promise<AgentSignalDecision>;
     hookExecutable: string;
     send: (event: ServerEvent) => void;
     sharedPath?: string;
@@ -218,14 +219,15 @@ export class AgentHookManager {
     private readonly watchHub: WatchHub;
     private readonly ownsWatchHub: boolean;
     private health = defaultHealth();
-    private readonly loggedSignalDiagnostics = new Map<string, Set<string>>();
     private reconcileQueue = Promise.resolve();
     private server?: AgentHookServer;
     private settings?: Record<AgentProvider, AgentProviderSettings>;
+    private readonly telemetry: AgentHookTelemetry;
     private readonly terminalLaunches = new Map<string, TerminalHookLaunch>();
     private readonly profileId: string;
 
     constructor(private readonly options: AgentHookManagerOptions) {
+        this.telemetry = new AgentHookTelemetry(options.logger);
         this.ownsWatchHub = !options.watchHub;
         this.watchHub = options.watchHub ?? new WatchHub({ logger: options.logger });
         this.profileId = createHash('sha256')
@@ -298,6 +300,9 @@ export class AgentHookManager {
                     await this.writeEdits(
                         adapter.remove(documents, this.desired(provider, adapter)),
                         targetById,
+                        provider,
+                        'remove',
+                        status.kind,
                     );
                     documents = await readTargets(targets);
                     status = adapter.inspect(documents, this.desired(provider, adapter)).status;
@@ -310,6 +315,9 @@ export class AgentHookManager {
                 await this.writeEdits(
                     adapter.render(documents, this.desired(provider, adapter)),
                     targetById,
+                    provider,
+                    status.kind === 'absent' ? 'install' : 'repair',
+                    status.kind,
                 );
                 documents = await readTargets(targets);
                 status = adapter.inspect(documents, this.desired(provider, adapter)).status;
@@ -388,9 +396,18 @@ export class AgentHookManager {
         ) as Record<AgentProvider, boolean>;
     }
 
+    /**
+     * Applies an adapter's edit plan and audits each write. The audit exists because these edits rewrite user-global
+     * provider config (`~/.claude/settings.json` and Codex's equivalent) that other tools also write: without it, a
+     * hook that vanished has no local timeline. `action` and `fromStatus` separate a first install from a repair of
+     * drifted entries and from an uninstall. Only the symbolic target id is recorded — never the path or the source.
+     */
     private async writeEdits(
         edits: ReturnType<AgentHookAdapter['render']>,
         targetById: ReadonlyMap<string, AgentHookConfigTarget>,
+        provider: AgentProvider,
+        action: 'install' | 'remove' | 'repair',
+        fromStatus: AgentHookEntryStatus['kind'],
     ): Promise<void> {
         /**
          * Adapter edits are an ordered transaction plan; parallel replacement could expose a mixed provider
@@ -405,6 +422,15 @@ export class AgentHookManager {
             // oxlint-disable-next-line react-doctor/async-await-in-loop
             // eslint-disable-next-line no-await-in-loop -- see doc comment above: edits must apply in order
             await atomicWrite(target.path, edit.source);
+            this.options.logger.write('info', logEventCatalog.agentHooks.configWritten, {
+                fields: {
+                    stage: 'serverCore',
+                    action,
+                    fromStatus,
+                    provider,
+                    targetId: edit.targetId,
+                },
+            });
         }
     }
 
@@ -418,8 +444,26 @@ export class AgentHookManager {
             ...(health.message && { message: health.message }),
         };
         health = { ...hookHealth, ...(automaticNaming && { automaticNaming }) };
-        if (JSON.stringify(this.health[provider]) === JSON.stringify(health)) return;
+        const previous = this.health[provider];
+        if (JSON.stringify(previous) === JSON.stringify(health)) return;
         this.health = { ...this.health, [provider]: health };
+        /**
+         * Only the health `kind` values are logged. A `conflict` or `unparseable` message is adapter-authored from the
+         * user's own provider config and can quote its contents, so it stays on the Settings surface and out of
+         * diagnostics. The kinds alone are enough to place the moment hooks stopped working on a timeline.
+         */
+        this.options.logger.write('info', logEventCatalog.agentHooks.healthChanged, {
+            fields: {
+                stage: 'serverCore',
+                provider,
+                from: previous.kind,
+                to: health.kind,
+                ...(previous.automaticNaming?.kind !== health.automaticNaming?.kind && {
+                    automaticNamingFrom: previous.automaticNaming?.kind ?? 'none',
+                    automaticNamingTo: health.automaticNaming?.kind ?? 'none',
+                }),
+            },
+        });
         this.options.send({ event: 'agentHooks.changed', payload: this.getHealth() });
     }
 
@@ -584,51 +628,18 @@ export class AgentHookManager {
                     agentProviders[provider].hooks?.schemaVersion ?? 0,
                 ]),
             ) as Record<AgentProvider, number>;
-            const logSignalDiagnostic = (diagnostic: AgentHookSignalDiagnostic): void => {
-                if (diagnostic.outcome === 'started') {
-                    const key = `started:${diagnostic.provider}:${diagnostic.phase}`;
-                    const logged =
-                        this.loggedSignalDiagnostics.get(diagnostic.terminalId) ?? new Set();
-                    if (logged.has(key)) return;
-                    logged.add(key);
-                    this.loggedSignalDiagnostics.set(diagnostic.terminalId, logged);
-                    this.options.logger.write('info', logEventCatalog.agentHooks.bridgeStarted, {
-                        fields: {
-                            stage: 'serverCore',
-                            phase: diagnostic.phase,
-                            provider: diagnostic.provider,
-                            terminalId: diagnostic.terminalId,
-                        },
-                    });
-                    return;
-                }
-                const { outcome, ...fields } = diagnostic;
-                if (outcome !== 'rejected' && fields.terminalId && fields.phase) {
-                    const key = `${outcome}:${fields.reason ?? ''}:${fields.provider}:${fields.phase}:${fields.hasAgentSessionId}`;
-                    const logged = this.loggedSignalDiagnostics.get(fields.terminalId) ?? new Set();
-                    if (logged.has(key)) return;
-                    logged.add(key);
-                    this.loggedSignalDiagnostics.set(fields.terminalId, logged);
-                }
-                this.options.logger.write(
-                    outcome === 'accepted' || outcome === 'ignored' ? 'info' : 'warn',
-                    outcome === 'accepted'
-                        ? logEventCatalog.agentHooks.signalAccepted
-                        : outcome === 'ignored'
-                          ? logEventCatalog.agentHooks.signalIgnored
-                          : logEventCatalog.agentHooks.signalRejected,
-                    { fields: { stage: 'serverCore', ...fields } },
-                );
-            };
             this.server = new AgentHookServer(
                 socketPath,
                 schemaVersions,
                 async (signal) => {
-                    if (!this.settings?.[signal.provider].hooks.enabled) return 'ignored';
+                    if (!this.settings?.[signal.provider].hooks.enabled)
+                        return { disposition: 'ignored', reason: 'hooksDisabled' };
                     try {
-                        const isAccepted = await this.options.onSignal(signal);
-                        if (isAccepted) this.markActive(signal.provider);
-                        return isAccepted ? 'accepted' : 'ignored';
+                        const decision = await this.options.onSignal(signal);
+                        if (decision !== 'accepted')
+                            return { disposition: 'ignored', reason: decision };
+                        this.markActive(signal.provider);
+                        return { disposition: 'accepted' };
                     } catch (error) {
                         this.options.logger.write('warn', logEventCatalog.agentHooks.signalFailed, {
                             fields: {
@@ -638,10 +649,10 @@ export class AgentHookManager {
                                 error: errorMessage(error, 'Lifecycle signal failed'),
                             },
                         });
-                        return 'rejected';
+                        return { disposition: 'rejected' };
                     }
                 },
-                logSignalDiagnostic,
+                (diagnostic) => this.telemetry.record(diagnostic),
             );
             await this.server.start();
             await this.reconcile(settings);
@@ -691,6 +702,7 @@ export class AgentHookManager {
         this.endTerminalLaunch(terminalId);
         const token = this.server.register(terminalId, launchId, provider);
         this.terminalLaunches.set(terminalId, { launchId, token });
+        this.telemetry.beginLaunch(terminalId, provider);
         this.options.onLaunchStarted(terminalId, launchId);
         this.options.logger.write('info', logEventCatalog.agentHooks.launchPrepared, {
             fields: { stage: 'serverCore', terminalId, ...(provider && { provider }) },
@@ -711,7 +723,7 @@ export class AgentHookManager {
     endTerminalLaunch(terminalId: string, expectedLaunchId?: string): void {
         const launch = this.terminalLaunches.get(terminalId);
         if (!launch || (expectedLaunchId && launch.launchId !== expectedLaunchId)) return;
-        this.loggedSignalDiagnostics.delete(terminalId);
+        this.telemetry.endLaunch(terminalId);
         this.terminalLaunches.delete(terminalId);
         this.server?.unregister(launch.token);
         this.options.onLaunchEnded(terminalId);

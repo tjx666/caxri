@@ -106,16 +106,16 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
             coordinator.beginTerminalLaunch(terminalId, launchId);
         },
         onSignal: async (signal) => {
-            const handled = await provenance.handleAgentLifecycleSignal(
+            const decision = await provenance.handleAgentLifecycleSignal(
                 coordinator,
                 workbenchRoots,
                 signal,
             );
-            if (handled) {
+            if (decision === 'accepted') {
                 sessionAutoNaming.observe(signal);
                 options.onLifecycleSignal?.(signal);
             }
-            return handled;
+            return decision;
         },
         hookExecutable: dependencies.hookExecutable ?? process.execPath,
         send,

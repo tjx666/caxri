@@ -18,6 +18,51 @@ export const agentLifecyclePhases = [
 
 export type AgentLifecyclePhase = (typeof agentLifecyclePhases)[number];
 
+/**
+ * Why an authenticated lifecycle signal did not become durable state. Every downstream path that declines a signal
+ * names one of these instead of returning a bare `false`: an unexplained drop is indistinguishable in the log from a
+ * lost hook, which is exactly the failure this vocabulary exists to make diagnosable. The values reach structured logs
+ * and are compared against fixed metric labels, so they stay closed and content-free.
+ */
+export type AgentSignalIgnoredReason =
+    /**
+     * The provider's hooks are switched off in settings, so the signal is authenticated but unwanted.
+     */
+    | 'hooksDisabled'
+    /**
+     * A different provider's CLI ran nested inside this Terminal's launch and inherited its hook environment.
+     */
+    | 'providerMismatch'
+    /**
+     * The Terminal exists but its owning Session does not, so no durable state could be attributed.
+     */
+    | 'sessionMissing'
+    /**
+     * The signal carries a superseded launch id: the PTY restarted and an older Agent process is still firing.
+     */
+    | 'staleLaunch'
+    /**
+     * A subagent-scoped signal matched a tracked scope but released nothing yet, because sibling subagents are still
+     * running or no parent completion was waiting on it. This is the ordinary rhythm of a multi-subagent turn, kept
+     * distinct from `subagentUnmatched` so the aggregate does not report healthy sessions as lost hooks.
+     */
+    | 'subagentPending'
+    /**
+     * A subagent-scoped signal did not match any tracked subagent scope, so its `subagentStarted` hook was lost or the
+     * provider omitted the scope id entirely.
+     */
+    | 'subagentUnmatched'
+    /**
+     * The Terminal record is gone, typically because it was closed while its Agent was still running.
+     */
+    | 'terminalMissing';
+
+/**
+ * Result of applying one authenticated lifecycle signal. `'accepted'` means the signal became durable state; every
+ * other value is the reason it did not.
+ */
+export type AgentSignalDecision = 'accepted' | AgentSignalIgnoredReason;
+
 export interface AgentLifecycleSignal {
     /**
      * Absolute working directory the provider reports for the hook event itself, present on every phase. Claude Code's

@@ -6,15 +6,22 @@ import { join } from 'node:path';
 import type { AgentProvider } from '@caxri/protocol';
 import { agentProviderIds } from '@caxri/protocol';
 import type { Mock } from 'vitest';
-import { onTestFinished, vi } from 'vitest';
+import { expect, onTestFinished, vi } from 'vitest';
 
 import type { AgentLifecycleSignal } from '../contract';
-import type { AgentHookSignalDisposition } from '../server';
+import type { AgentHookSignalResult } from '../server';
 import { AgentHookServer } from '../server';
 
 const SCHEMA_VERSIONS = Object.fromEntries(
     agentProviderIds.map((provider) => [provider, 2]),
 ) as Record<AgentProvider, number>;
+
+/**
+ * Every settled diagnostic carries a measured `handlingMs`. Diagnostics are asserted with exact `toHaveBeenCalledWith`
+ * shapes so a newly leaked field fails the privacy contract, which leaves no room for `objectContaining`; this typed
+ * matcher keeps that exactness without spreading an `any` through each expectation.
+ */
+export const anyHandlingMs = expect.any(Number) as number;
 
 export function validPayload(overrides: Record<string, unknown> = {}): string {
     return JSON.stringify({
@@ -50,7 +57,7 @@ export async function send(socketPath: string, payload: string): Promise<string>
 
 type HookSignalHandler = (
     signal: AgentLifecycleSignal,
-) => AgentHookSignalDisposition | Promise<AgentHookSignalDisposition>;
+) => AgentHookSignalResult | Promise<AgentHookSignalResult>;
 
 interface TestHookServer {
     onDiagnostic: Mock;
@@ -65,7 +72,7 @@ interface TestHookServer {
  * this fixture crosses a module boundary and Vitest's inferred spy type is not portable.
  */
 export async function createTestServer(
-    handler: HookSignalHandler = () => 'accepted',
+    handler: HookSignalHandler = () => ({ disposition: 'accepted' }),
 ): Promise<TestHookServer> {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-hook-server-'));
     onTestFinished(() => rm(directory, { recursive: true, force: true }));

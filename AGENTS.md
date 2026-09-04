@@ -127,6 +127,11 @@ directories.
   user files.
 - Diagnostic logs, artifacts, and reports must exclude source contents, Terminal output and
   snapshots, Agent transcripts, credentials, environment values, and secret-like settings.
+- Logs must do two jobs: explain a specific failure after it happened, and measure behavior well
+  enough to reveal a problem nobody reported yet. An outcome recorded without its cause, or
+  deduplicated until its real volume is unknowable, does neither. Give such an event a closed reason
+  enum, a per-lifetime aggregate, or a duration — and record a state transition when it happens, not
+  only the state itself.
 - Until Caxri has a public release, optimize for the current architecture instead of preserving
   compatibility with previous local builds. Do not add protocol adapters, legacy Host controls,
   dual-read/write paths, or migration UI only to keep an unpublished build running. Fail clearly

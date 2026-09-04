@@ -11,7 +11,7 @@ import { CaxriError, errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
-import type { AgentLifecycleSignal } from './agents';
+import type { AgentLifecycleSignal, AgentSignalDecision } from './agents';
 import type { CaxriDatabase } from './db';
 import type { DomainHandlers } from './domain-services';
 import type { GitService, GitWorktreeTopology } from './git';
@@ -422,7 +422,7 @@ export class WorkbenchRootService {
         void this.runQueued(() => this.reconcileAgentCwd(signal, reported)).catch(() => {});
     }
 
-    async observeShellToolStarted(signal: AgentLifecycleSignal): Promise<boolean> {
+    async observeShellToolStarted(signal: AgentLifecycleSignal): Promise<AgentSignalDecision> {
         return this.worktreeAttribution.observeStarted(signal);
     }
 
@@ -430,18 +430,19 @@ export class WorkbenchRootService {
      * Revalidates deletion after every successful Bash tool and attributes creation only when this outcome pairs with
      * the exact classified PreToolUse snapshot. The hook never reports a path or result content.
      */
-    observeShellToolFinished(signal: AgentLifecycleSignal): boolean {
-        if (!this.worktreeAttribution.observeFinished(signal)) return false;
+    observeShellToolFinished(signal: AgentLifecycleSignal): AgentSignalDecision {
+        const attributed = this.worktreeAttribution.observeFinished(signal);
+        if (attributed !== 'accepted') return attributed;
         const terminal = this.options.database.getTerminal(signal.terminalId);
-        if (!terminal) return false;
+        if (!terminal) return 'terminalMissing';
         const session = this.options.database.getSession(terminal.sessionId);
-        if (!session) return false;
+        if (!session) return 'sessionMissing';
         if (session.workbenchProjectId !== session.projectId)
             this.deletionValidations.schedule(session.id);
-        return true;
+        return 'accepted';
     }
 
-    observeShellToolFailed(signal: AgentLifecycleSignal): boolean {
+    observeShellToolFailed(signal: AgentLifecycleSignal): AgentSignalDecision {
         return this.worktreeAttribution.observeFailed(signal);
     }
 
