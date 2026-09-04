@@ -9,6 +9,7 @@ import {
     findMatchingBuiltinTheme,
     normalizeBuiltinTheme,
     solarizedLightTheme,
+    upgradeThemeColors,
 } from '../builtin-themes.js';
 
 describe('built-in themes', () => {
@@ -58,6 +59,43 @@ describe('built-in themes', () => {
                 ),
                 `solarized-light Terminal ${role}`,
             ).toBeGreaterThanOrEqual(4.5);
+    });
+
+    /**
+     * Regression: `merged` shipped after these presets, so a `theme.json` saved earlier has no such key. Backfilling it
+     * with one fixed hex made every non-Dracula preset stop matching its catalog entry, which downgraded it to
+     * `custom-*` — and `ConfigService` persists that downgrade. Recovery has to come from the preset itself.
+     */
+    it('restores a color role added after a saved preset was written, without losing built-in identity', () => {
+        for (const theme of builtinThemes) {
+            const saved = structuredClone(theme) as { colors: Record<string, string> };
+            delete saved.colors.merged;
+
+            const upgraded = themeTokensSchema.parse(upgradeThemeColors(saved));
+            expect(upgraded.colors.merged, theme.id).toBe(theme.colors.merged);
+            expect(findMatchingBuiltinTheme(upgraded)?.id, theme.id).toBe(theme.id);
+            expect(normalizeBuiltinTheme(upgraded).source, theme.id).toBe('builtin');
+        }
+    });
+
+    it('falls back to a custom theme own accent, and leaves non-theme input to the schema', () => {
+        const custom = structuredClone(solarizedLightTheme) as {
+            colors: Record<string, string>;
+            id: string;
+            source: string;
+        };
+        custom.id = 'custom-mine';
+        custom.source = 'custom';
+        delete custom.colors.merged;
+        expect(themeTokensSchema.parse(upgradeThemeColors(custom)).colors.merged).toBe(
+            solarizedLightTheme.colors.accent,
+        );
+
+        // A theme that already carries the role is returned untouched, and junk stays the schema's problem.
+        const intact = structuredClone(solarizedLightTheme);
+        expect(upgradeThemeColors(intact)).toBe(intact);
+        for (const junk of [undefined, null, 42, 'theme', {}, { colors: 'nope' }])
+            expect(upgradeThemeColors(junk)).toBe(junk);
     });
 
     it('matches only exact current snapshots and normalizes edited built-ins to custom themes', () => {

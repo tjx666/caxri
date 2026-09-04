@@ -12,6 +12,7 @@ const THEME_TOKEN_LABELS: Readonly<Record<string, string>> = {
     danger: 'Danger',
     elevated: 'Elevated',
     foreground: 'Foreground',
+    merged: 'Merged',
     muted: 'Muted',
     selection: 'Selection',
     success: 'Success',
