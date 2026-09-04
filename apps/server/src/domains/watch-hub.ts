@@ -25,6 +25,15 @@ const MAX_SNAPSHOT_LABELS = 64;
  */
 const NATIVE_RETRY_INITIAL_DELAY_MS = 5_000;
 const NATIVE_RETRY_MAX_DELAY_MS = 300_000;
+/**
+ * Coalescing window for "must rescan" advisories (see {@link isMustRescanAdvisory}). It has to exceed
+ * `@parcel/watcher`'s own `Debounce::MAX_WAIT_TIME` of 500ms, because writes arriving faster than its 50ms
+ * `MIN_WAIT_TIME` make it force a batch out on that 500ms ceiling — a steady advisory stream for as long as the writes
+ * last. Every window shorter than that ceiling forwards each advisory unchanged, which is why the 75ms Files batch and
+ * the 150ms Renderer invalidation debounce downstream do not protect this path. Doubling the ceiling folds each pair of
+ * forced flushes into one reconcile while capping the extra staleness a coalesced advisory can add at one second.
+ */
+const RESCAN_THROTTLE_MS = 1_000;
 
 type WatchMode = 'native' | 'polling' | 'disposed';
 
@@ -155,6 +164,17 @@ class Registration implements WatchHandle {
      */
     nativeRetryTimer?: NodeJS.Timeout;
     nativeRetryDelayMs = NATIVE_RETRY_INITIAL_DELAY_MS;
+    /**
+     * Open coalescing window for "must rescan" advisories. While it is set, an advisory only counts itself in
+     * {@link rescanCoalesced}; the window's close runs the single catch-up reconcile.
+     */
+    rescanTimer?: NodeJS.Timeout;
+    rescanCoalesced = 0;
+    /**
+     * Message of the newest advisory folded into the open window, so the record written when the window closes
+     * describes the most recent cause rather than the one that opened it.
+     */
+    rescanError?: string;
 
     constructor(
         readonly label: string,
@@ -387,10 +407,7 @@ export class WatchHub {
                             entry.lastEventAt = Date.now();
                             options.onEvents(events);
                         }
-                        this.logger?.write('info', logEventCatalog.watchHub.rescan, {
-                            fields: { label: entry.label, error: errorMessage(error, 'unknown') },
-                        });
-                        options.onRescan?.();
+                        this.handleRescanAdvisory(entry, options, error);
                         return;
                     }
                     this.logger?.write('warn', logEventCatalog.watchHub.watcherError, {
@@ -411,6 +428,73 @@ export class WatchHub {
                 ...(options.ignore && { ignore: [...options.ignore] }),
             },
         );
+    }
+
+    /**
+     * Coalesces "must rescan" advisories into at most one reconcile per {@link RESCAN_THROTTLE_MS}. The first advisory
+     * reconciles immediately, so an isolated one keeps today's zero added latency; every advisory arriving while the
+     * window is open is folded into a single catch-up reconcile at its close. Dropping an advisory is never an option —
+     * each one means the kernel coalesced away events the consumer has not seen — but running one reconcile per
+     * advisory during a `pnpm install` or a rebase spends whole seconds of Git and Files work re-deriving state that
+     * the next advisory invalidates milliseconds later.
+     *
+     * The advisory is also no longer worth one `info` record each: a dense window used to write one per forced flush
+     * for as long as the writes lasted, against a 5MB log generation. One record per reconcile carries how many
+     * advisories it covers instead.
+     */
+    private handleRescanAdvisory(
+        entry: Registration,
+        options: WatchRegistrationOptions,
+        error: unknown,
+    ): void {
+        entry.rescanError = errorMessage(error, 'unknown');
+        if (entry.rescanTimer) {
+            entry.rescanCoalesced += 1;
+            return;
+        }
+        this.runRescan(entry, options, 1);
+        this.openRescanWindow(entry, options);
+    }
+
+    private openRescanWindow(entry: Registration, options: WatchRegistrationOptions): void {
+        if (entry.mode !== 'native' || this.closed) return;
+        entry.rescanCoalesced = 0;
+        entry.rescanTimer = setTimeout(() => {
+            entry.rescanTimer = undefined;
+            const coalesced = entry.rescanCoalesced;
+            entry.rescanCoalesced = 0;
+            if (coalesced === 0 || entry.mode !== 'native' || this.closed) return;
+            this.runRescan(entry, options, coalesced);
+            // Writes that outlast one window keep the throttle armed instead of falling back to one reconcile each.
+            // Re-checked from the top because `onRescan` runs a consumer callback that may have disposed the entry.
+            this.openRescanWindow(entry, options);
+        }, RESCAN_THROTTLE_MS);
+        entry.rescanTimer.unref();
+    }
+
+    /**
+     * Disarms the coalescing window and forgets what it had folded in. Called wherever this registration stops owning
+     * native reconciliation — disposal, and degradation to the polling fallback.
+     */
+    private closeRescanWindow(entry: Registration): void {
+        if (entry.rescanTimer) clearTimeout(entry.rescanTimer);
+        entry.rescanTimer = undefined;
+        entry.rescanCoalesced = 0;
+    }
+
+    private runRescan(
+        entry: Registration,
+        options: WatchRegistrationOptions,
+        advisoryCount: number,
+    ): void {
+        this.logger?.write('info', logEventCatalog.watchHub.rescan, {
+            fields: {
+                label: entry.label,
+                error: entry.rescanError ?? 'unknown',
+                advisoryCount,
+            },
+        });
+        options.onRescan?.();
     }
 
     /**
@@ -503,6 +587,9 @@ export class WatchHub {
         if (entry.mode === 'disposed' || entry.fallbackActive || !entry.fallback) return;
         entry.fallbackActive = true;
         entry.mode = 'polling';
+        // The advisory that armed the window belonged to a native subscription that is now gone; the poll loop owns
+        // reconciliation from here, so a window left armed would spend one more reconcile on nothing.
+        this.closeRescanWindow(entry);
         if (error !== undefined)
             this.logger?.write('warn', logEventCatalog.watchHub.fallback, {
                 fields: { label: entry.label, error: errorMessage(error, 'unknown') },
@@ -541,6 +628,7 @@ export class WatchHub {
         this.recordWatcherCount();
         if (entry.nativeRetryTimer) clearTimeout(entry.nativeRetryTimer);
         entry.nativeRetryTimer = undefined;
+        this.closeRescanWindow(entry);
         this.leaveFallbackTimer(entry);
         const subscription = entry.subscription;
         entry.subscription = undefined;
