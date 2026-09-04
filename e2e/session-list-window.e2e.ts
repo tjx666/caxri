@@ -8,7 +8,11 @@ import type { E2EApp } from './support/electron-app.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
 
-const SESSION_COUNT = 8;
+/**
+ * Enough Sessions that the first reveal leaves the row on screen and the second one drains it, so both the
+ * row-survives-a-step and the row-unmounts-on-the-final-step paths are exercised.
+ */
+const SESSION_COUNT = 16;
 
 async function closeAppQuietly(app: E2EApp): Promise<void> {
     try {
@@ -39,21 +43,29 @@ test('the PrimarySidebar reveals older Sessions on demand and always renders the
             await pageRequest(running.page, 'session.create', { projectId, defaultAgent: null });
 
         const sessionCards = running.page.locator('.session-list .session-card');
-        const reveal = running.page.getByRole('button', { name: /^Show \d+ more Sessions in / });
+        const reveal = running.page.getByRole('button', { name: /^Show \d+ more Sessions? in / });
         await expect(sessionCards).toHaveCount(5);
-        await expect(reveal).toHaveAccessibleName(/^Show 3 more Sessions in /);
+        await expect(reveal).toHaveAccessibleName(/^Show 10 more Sessions in /);
 
-        /**
-         * Reveal from the keyboard: the row is the tree's last stop, and activating it must hand focus to the Session
-         * row above before unmounting itself, or the tree's single Tab stop falls back to the document body.
-         */
+        // The row is the tree's last stop, so End reaches it from the Project heading.
         await running.page.locator('.project-select').focus();
         await running.page.keyboard.press('End');
         await expect(reveal).toBeFocused();
+
+        // A step that leaves Sessions hidden keeps the row — and the keyboard focus that is standing on it.
+        await running.page.keyboard.press('Enter');
+        await expect(sessionCards).toHaveCount(15);
+        await expect(reveal).toHaveAccessibleName(/^Show 1 more Session in /);
+        await expect(reveal).toBeFocused();
+
+        /**
+         * The final step unmounts the row, so it must hand focus to the Session row above it first; otherwise the
+         * tree's single roving Tab stop falls back to the document body.
+         */
         await running.page.keyboard.press('Enter');
         await expect(sessionCards).toHaveCount(SESSION_COUNT);
         await expect(reveal).toHaveCount(0);
-        await expect(sessionCards.nth(4)).toBeFocused();
+        await expect(sessionCards.nth(14)).toBeFocused();
 
         /**
          * The oldest Session sits below the default window, which is exactly the case the selected-Session guarantee
@@ -77,7 +89,7 @@ test('the PrimarySidebar reveals older Sessions on demand and always renders the
             SESSION_COUNT,
         );
         await expect(
-            running.page.getByRole('button', { name: /^Show \d+ more Sessions in / }),
+            running.page.getByRole('button', { name: /^Show \d+ more Sessions? in / }),
         ).toHaveCount(0);
     } finally {
         await closeAppQuietly(running.app);
