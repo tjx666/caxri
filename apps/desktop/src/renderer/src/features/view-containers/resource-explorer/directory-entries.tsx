@@ -18,6 +18,7 @@ import { createItem, rememberFile, renameFile } from './file-actions';
 import type { PendingFileOperation } from './file-operation-state';
 import { FileTreeItemMenu } from './file-tree-item-menu';
 import type { EditRequest, FocusTarget } from './file-tree-item-types';
+import { fileTreeRowTooltip } from './resource-explorer-state';
 import { useFileTreeItemInteractions } from './use-file-tree-item-interactions';
 
 export { type EditRequest, type FocusTarget };
@@ -341,13 +342,7 @@ function FileTreeItem({
             data-selected={selectedPath === entry.path}
             draggable={editable && !dragBlocked}
             style={{ paddingLeft: (entry.kind === 'directory' ? 8 : 23) + depth * 12 }}
-            title={
-                entry.kind === 'symlink'
-                    ? 'Symlink browsing and changes are disabled for safety'
-                    : entry.gitIgnored
-                      ? `${entry.path} (Git ignored)`
-                      : entry.path
-            }
+            title={fileTreeRowTooltip(entry)}
             onClick={(event) => {
                 setSelectedPath(entry.path);
                 if (entry.kind === 'directory') {

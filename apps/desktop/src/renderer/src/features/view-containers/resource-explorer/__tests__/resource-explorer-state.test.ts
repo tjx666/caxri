@@ -5,6 +5,7 @@ import type { PendingFileOperation } from '../file-operation-state';
 import {
     fileOperationsForProject,
     fileTreeRootCaption,
+    fileTreeRowTooltip,
     knownDirectoryChildrenFromQueries,
     scopedValue,
     setScopedPathExpanded,
@@ -166,6 +167,41 @@ describe('Resource Explorer state', () => {
 
         expect(fileOperationsForProject(operations, 'project-b')).toEqual([operations[1]]);
         expect(fileOperationsForProject(operations, undefined)).toEqual([]);
+    });
+
+    it('explains where a symlink points and why it is inert', () => {
+        expect(
+            fileTreeRowTooltip({
+                kind: 'symlink',
+                linkKind: 'directory',
+                linkTarget: '../../lobehub/.agents/skills/acceptance',
+                path: '/project/.agents/skills/acceptance',
+            }),
+        ).toBe(
+            '/project/.agents/skills/acceptance → ../../lobehub/.agents/skills/acceptance (symlink; browsing and changes are disabled for safety)',
+        );
+        expect(
+            fileTreeRowTooltip({
+                kind: 'symlink',
+                linkKind: 'broken',
+                linkTarget: './missing',
+                path: '/project/stale',
+            }),
+        ).toContain('(broken symlink;');
+        expect(fileTreeRowTooltip({ kind: 'symlink', path: '/project/stale' })).toBe(
+            '/project/stale (symlink; browsing and changes are disabled for safety)',
+        );
+    });
+
+    it('shows the path plus the Git-ignored qualifier for an ordinary row', () => {
+        expect(fileTreeRowTooltip({ kind: 'file', path: '/project/a.ts' })).toBe('/project/a.ts');
+        expect(
+            fileTreeRowTooltip({
+                gitIgnored: true,
+                kind: 'directory',
+                path: '/project/out',
+            }),
+        ).toBe('/project/out (Git ignored)');
     });
 
     it('keeps filesystem-root captions blank on POSIX and Windows paths', () => {

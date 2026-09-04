@@ -15,6 +15,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { FileEntry } from '@caxri/protocol';
 import { MAX_FILE_BROWSE_ENTRIES } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -22,6 +23,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CaxriDatabase } from '../../db/repository';
 import {
     boundFileListEntries,
+    compareFileEntries,
     ListingService,
     MAX_CONCURRENT_FILE_BROWSES,
     MAX_FILE_BROWSE_SCANNED_ENTRIES,
@@ -198,6 +200,83 @@ describe('FileService', () => {
         expect(close).toHaveBeenCalledOnce();
         await service.close();
         database.close();
+    });
+
+    it('describes a symlink by its target so a linked folder reads and sorts as a folder', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-files-symlink-'));
+        temporaryDirectories.push(directory);
+        await mkdir(join(directory, 'project'));
+        const root = await realpath(join(directory, 'project'));
+        await mkdir(join(root, 'real-dir'));
+        await writeFile(join(root, 'real-file.ts'), '', 'utf8');
+        await symlink('real-dir', join(root, 'link-to-dir'));
+        await symlink('real-file.ts', join(root, 'link-to-file'));
+        await symlink('./missing', join(root, 'broken-link'));
+        const listing = new ListingService(
+            () => Promise.resolve({ path: root, root }),
+            new StructuredLogger(join(directory, 'logs')),
+            () => ({}),
+        );
+
+        const { entries } = await listing.listDirectory('session');
+
+        // A linked directory joins the directory group; links to a file, and dangling links, stay with the files.
+        expect(entries.map((entry) => entry.name)).toEqual([
+            'link-to-dir',
+            'real-dir',
+            'broken-link',
+            'link-to-file',
+            'real-file.ts',
+        ]);
+        expect(entries.filter((entry) => entry.kind === 'symlink')).toEqual([
+            {
+                kind: 'symlink',
+                linkKind: 'directory',
+                linkTarget: 'real-dir',
+                name: 'link-to-dir',
+                path: join(root, 'link-to-dir'),
+            },
+            {
+                kind: 'symlink',
+                linkKind: 'broken',
+                linkTarget: './missing',
+                name: 'broken-link',
+                path: join(root, 'broken-link'),
+            },
+            {
+                kind: 'symlink',
+                linkKind: 'file',
+                linkTarget: 'real-file.ts',
+                name: 'link-to-file',
+                path: join(root, 'link-to-file'),
+            },
+        ]);
+    });
+
+    it('orders entries independently of the order the filesystem reported them', () => {
+        const entries: FileEntry[] = [
+            { kind: 'file', name: 'b.ts', path: '/root/b.ts' },
+            { kind: 'symlink', linkKind: 'directory', name: 'a-link', path: '/root/a-link' },
+            { kind: 'file', name: 'a.ts', path: '/root/a.ts' },
+            { kind: 'directory', name: 'z-dir', path: '/root/z-dir' },
+            { kind: 'symlink', linkKind: 'file', name: 'c-link', path: '/root/c-link' },
+        ];
+
+        const sorted = entries.toSorted(compareFileEntries).map((entry) => entry.name);
+
+        expect(sorted).toEqual(['a-link', 'z-dir', 'a.ts', 'b.ts', 'c-link']);
+        expect(
+            entries
+                .toReversed()
+                .toSorted(compareFileEntries)
+                .map((entry) => entry.name),
+        ).toEqual(sorted);
+        // The comparator must be antisymmetric; the previous `kind`-pair form answered `1` both ways.
+        for (const a of entries)
+            for (const b of entries)
+                expect(
+                    Math.sign(compareFileEntries(a, b)) + Math.sign(compareFileEntries(b, a)),
+                ).toBe(0);
     });
 
     it('keeps fallback polling bounded without evicting the active root', () => {
