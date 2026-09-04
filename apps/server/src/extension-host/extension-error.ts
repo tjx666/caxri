@@ -1,3 +1,62 @@
+import type { FailureReason, LogRecord, RemediationCategory } from '@caxri/system';
+
+/**
+ * The two outcomes `docs/extensions.md` defines as typed non-faults, for Source Control snapshots as well as Tree RPC.
+ * They are the ordinary result of a Session switch, an extension reconfiguration, or an Extension Host restart racing a
+ * request that is still in flight, and they reach this catch from every generation-checked path — `treeChildren`,
+ * `activate`, `executeCommand`, `viewOperation`, and `workspace.*` calls alike. Neither may be reported as a fault that
+ * recommends restarting a healthy Extension Host: an automated recovery path reading `remediation` would otherwise
+ * restart the process on routine turnover.
+ */
+const NON_FAULT_REASONS: ReadonlyMap<string, FailureReason> = new Map([
+    ['CANCELLED', 'cancelled'],
+    ['GENERATION_EXPIRED', 'generation-superseded'],
+]);
+
+export interface ExtensionRequestFailureRecord {
+    failure: {
+        code: string;
+        owner: 'extension-host';
+        phase: 'execute';
+        reason: FailureReason;
+        remediation: RemediationCategory;
+        retryable: boolean;
+    };
+    level: LogRecord['level'];
+}
+
+/**
+ * Classifies a failed Extension Host request for the diagnostic log. A non-fault drops to `debug` because cancellation
+ * and generation turnover are frequent and expected; keeping them at `warn` spent the production log budget on records
+ * that describe healthy behavior. Real failures keep the original `warn` level and fault shape.
+ */
+export function extensionRequestFailureRecord(code: string): ExtensionRequestFailureRecord {
+    const nonFaultReason = NON_FAULT_REASONS.get(code);
+    if (nonFaultReason)
+        return {
+            failure: {
+                code,
+                owner: 'extension-host',
+                phase: 'execute',
+                reason: nonFaultReason,
+                remediation: 'none',
+                retryable: true,
+            },
+            level: 'debug',
+        };
+    return {
+        failure: {
+            code,
+            owner: 'extension-host',
+            phase: 'execute',
+            reason: 'unknown',
+            remediation: 'restart-extension-host',
+            retryable: false,
+        },
+        level: 'warn',
+    };
+}
+
 /**
  * Normalizes loader and provider failures into the stable Extension Host error taxonomy.
  */

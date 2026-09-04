@@ -25,7 +25,7 @@ import {
     notifyProjectStatusChanged,
     settleApiReply,
 } from './api-factory';
-import { extensionErrorShape } from './extension-error';
+import { extensionErrorShape, extensionRequestFailureRecord } from './extension-error';
 import { installExtensionModuleHooks, replaceExtensionModuleRegistrations } from './module-loader';
 import { createExtensionHostProcessLifecycle } from './process-lifecycle';
 import type {
@@ -169,20 +169,14 @@ async function processRequest(request: ExtensionHostRequest): Promise<void> {
                 const result = await handle(request);
                 send({ type: 'reply', id: request.id, ok: true, result });
             } catch (error) {
-                const failure = extensionErrorShape(error);
-                logger.write('warn', logEventCatalog.extensionHost.error, {
+                const shape = extensionErrorShape(error);
+                const { failure, level } = extensionRequestFailureRecord(shape.code);
+                logger.write(level, logEventCatalog.extensionHost.error, {
                     correlationId: request.id,
-                    fields: { method: request.method, code: failure.code },
-                    failure: {
-                        code: failure.code,
-                        owner: 'extension-host',
-                        phase: 'execute',
-                        reason: 'unknown',
-                        remediation: 'restart-extension-host',
-                        retryable: false,
-                    },
+                    fields: { method: request.method, code: shape.code },
+                    failure,
                 });
-                send({ type: 'reply', id: request.id, ok: false, error: failure });
+                send({ type: 'reply', id: request.id, ok: false, error: shape });
             }
         },
     );
