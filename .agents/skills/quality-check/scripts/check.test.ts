@@ -248,10 +248,15 @@ describe('lintPipelineForFile', () => {
 });
 
 describe('eslintArguments', () => {
-    it('silences explicitly named files that the repository intentionally ignores', () => {
+    /**
+     * The zero-warning threshold is the load-bearing part: ESLint exits 0 on a warning, so omitting it let a focused
+     * check pass on a file the `lint` gate rejects.
+     */
+    it('silences intentionally ignored files while keeping the zero-warning threshold', () => {
         expect(eslintArguments(['tools/oxlint/anti-slop/index.ts'])).toEqual([
             '--fix',
             '--no-warn-ignored',
+            '--max-warnings=0',
             'tools/oxlint/anti-slop/index.ts',
         ]);
     });

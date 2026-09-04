@@ -586,9 +586,12 @@ async function runTool(root: string, executable: string, arguments_: string[]): 
  * Explicit changed-file lists can include intentionally ignored fixtures or vendored sources. ESLint must skip them
  * silently so one ignored file does not turn a valid focused check into a warning failure under the repository's
  * zero-warning policy.
+ *
+ * `--max-warnings=0` mirrors the `lint` script, because ESLint otherwise exits 0 on a warning: without it a focused
+ * check reports a clean file that the CI gate then fails on, which is the one outcome this check exists to prevent.
  */
 export function eslintArguments(files: string[]): string[] {
-    return ['--fix', '--no-warn-ignored', ...files];
+    return ['--fix', '--no-warn-ignored', '--max-warnings=0', ...files];
 }
 
 async function runLint(root: string, files: string[]): Promise<number> {
