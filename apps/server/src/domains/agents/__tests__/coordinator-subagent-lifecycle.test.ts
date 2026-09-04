@@ -43,7 +43,7 @@ describe('AgentCoordinator subagent lifecycle', () => {
                 terminalId: created.terminal!.id,
             });
 
-            const handled = coordinator.observeLifecycleSignal({
+            const decision = coordinator.observeLifecycleSignal({
                 agentId: 'subagent-1',
                 agentSessionId: 'claude-session',
                 launchId: 'launch-1',
@@ -52,7 +52,7 @@ describe('AgentCoordinator subagent lifecycle', () => {
                 terminalId: created.terminal!.id,
             });
 
-            expect(handled).toBe(false);
+            expect(decision).toBe('subagentUnmatched');
             expect(database.getTerminal(created.terminal!.id)?.agentSessionId).toBeUndefined();
             expect(database.getSession(created.session.id)).toMatchObject({
                 attentionEpoch: 0,

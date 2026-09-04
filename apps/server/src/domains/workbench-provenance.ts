@@ -4,7 +4,7 @@ import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
 import type { AgentEndpointLifecycle } from './agent-endpoints';
-import type { AgentCoordinator, AgentLifecycleSignal } from './agents';
+import type { AgentCoordinator, AgentLifecycleSignal, AgentSignalDecision } from './agents';
 import type { CaxriDatabase } from './db';
 import type { GitService, GitWorktreeTopology } from './git';
 import type { WorkbenchRootService } from './workbench-roots';
@@ -172,13 +172,16 @@ export class AgentWorktreeAttribution {
         });
     }
 
-    private hasValidTerminal(signal: AgentLifecycleSignal): boolean {
+    /**
+     * Names which half of the attribution scope is missing so a dropped shell-tool signal is diagnosable from the log
+     * rather than collapsing three distinct causes into one silent `false`.
+     */
+    private terminalScope(signal: AgentLifecycleSignal): AgentSignalDecision {
         const terminal = this.options.database.getTerminal(signal.terminalId);
-        return Boolean(
-            terminal &&
-            terminal.provider === signal.provider &&
-            this.options.database.getSession(terminal.sessionId),
-        );
+        if (!terminal) return 'terminalMissing';
+        if (terminal.provider !== signal.provider) return 'providerMismatch';
+        if (!this.options.database.getSession(terminal.sessionId)) return 'sessionMissing';
+        return 'accepted';
     }
 
     private rememberBaseline(baseline: WorktreeProvenanceBaseline): void {
@@ -471,8 +474,9 @@ export class AgentWorktreeAttribution {
             if (pending.baseline.terminalId === terminalId) this.pendingCreations.delete(key);
     }
 
-    async observeStarted(signal: AgentLifecycleSignal): Promise<boolean> {
-        if (!this.hasValidTerminal(signal)) return false;
+    async observeStarted(signal: AgentLifecycleSignal): Promise<AgentSignalDecision> {
+        const scope = this.terminalScope(signal);
+        if (scope !== 'accepted') return scope;
         if (signal.worktreeCreateIntent && signal.agentToolUseId) {
             const reservation = this.reservePendingCreation(signal);
             if (reservation && !reservation.pending.ambiguous)
@@ -480,21 +484,23 @@ export class AgentWorktreeAttribution {
                     this.capture(reservation.key, reservation.pending),
                 );
         }
-        return true;
+        return 'accepted';
     }
 
-    observeFinished(signal: AgentLifecycleSignal): boolean {
-        if (!this.hasValidTerminal(signal)) return false;
+    observeFinished(signal: AgentLifecycleSignal): AgentSignalDecision {
+        const scope = this.terminalScope(signal);
+        if (scope !== 'accepted') return scope;
         const key = creationKey(signal);
         if (key && signal.worktreeCreateIntent) this.creationValidations.schedule(key);
-        return true;
+        return 'accepted';
     }
 
-    observeFailed(signal: AgentLifecycleSignal): boolean {
-        if (!this.hasValidTerminal(signal)) return false;
+    observeFailed(signal: AgentLifecycleSignal): AgentSignalDecision {
+        const scope = this.terminalScope(signal);
+        if (scope !== 'accepted') return scope;
         const key = creationKey(signal);
         if (key && signal.worktreeCreateIntent) this.pendingCreations.delete(key);
-        return true;
+        return 'accepted';
     }
 
     close(): void {
@@ -509,7 +515,7 @@ export function handleAgentLifecycleSignal(
     coordinator: AgentCoordinator,
     workbenchRoots: WorkbenchRootService,
     signal: AgentLifecycleSignal,
-): boolean | Promise<boolean> {
+): AgentSignalDecision | Promise<AgentSignalDecision> {
     /**
      * Runs on every phase, ahead of phase routing: the provider reports its own working directory on all of them, so an
      * Agent that moved itself is observable without depending on which tool did it. The check short-circuits on an

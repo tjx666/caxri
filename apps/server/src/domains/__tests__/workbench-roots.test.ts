@@ -45,7 +45,7 @@ describe('WorkbenchRootService worktree attribution', () => {
         ]);
 
         await context.service.listOptions(context.sessions[0].session.id);
-        expect(context.service.observeShellToolFinished(shellFinished(context))).toBe(true);
+        expect(context.service.observeShellToolFinished(shellFinished(context))).toBe('accepted');
 
         expect(context.events.filter((event) => event.event === 'workbench.candidate')).toEqual([]);
         await context.service.close();
@@ -65,7 +65,7 @@ describe('WorkbenchRootService worktree attribution', () => {
             context.service.observeShellToolFinished(
                 shellFinished(context, { worktreeCreateIntent: true }),
             ),
-        ).toBe(true);
+        ).toBe('accepted');
 
         await vi.waitFor(() =>
             expect(
@@ -92,12 +92,16 @@ describe('WorkbenchRootService worktree attribution', () => {
         vi.useFakeTimers();
         try {
             for (let index = 0; index < 1_000; index += 1)
-                expect(context.service.observeShellToolFinished(shellFinished(context))).toBe(true);
+                expect(context.service.observeShellToolFinished(shellFinished(context))).toBe(
+                    'accepted',
+                );
             await vi.advanceTimersByTimeAsync(100);
             expect(context.worktreeTopology).toHaveBeenCalledTimes(callsBeforeSignals + 1);
 
             for (let index = 0; index < 1_000; index += 1)
-                expect(context.service.observeShellToolFinished(shellFinished(context))).toBe(true);
+                expect(context.service.observeShellToolFinished(shellFinished(context))).toBe(
+                    'accepted',
+                );
             await vi.advanceTimersByTimeAsync(10_000);
             expect(context.worktreeTopology).toHaveBeenCalledTimes(callsBeforeSignals + 1);
 
@@ -132,12 +136,12 @@ describe('WorkbenchRootService worktree attribution', () => {
             { branch: 'feature/reported', rootPath: secondWorktreeRoot },
         ]);
 
-        expect(context.service.observeShellToolFinished(shellFinished(context))).toBe(true);
+        expect(context.service.observeShellToolFinished(shellFinished(context))).toBe('accepted');
         expect(
             context.service.observeShellToolFinished(
                 shellFinished(context, { worktreeCreateIntent: true }),
             ),
-        ).toBe(true);
+        ).toBe('accepted');
         await vi.waitFor(() =>
             expect(
                 context.events.filter((event) => event.event === 'workbench.candidate'),
@@ -161,7 +165,7 @@ describe('WorkbenchRootService worktree attribution', () => {
                 context.service.observeShellToolFinished(
                     shellFinished(context, { worktreeCreateIntent: true }),
                 ),
-            ).toBe(true);
+            ).toBe('accepted');
             await vi.advanceTimersByTimeAsync(100);
         } finally {
             vi.useRealTimers();
@@ -184,7 +188,7 @@ describe('WorkbenchRootService worktree attribution', () => {
             context.service.observeShellToolFinished(
                 shellFinished(context, { worktreeCreateIntent: true }),
             ),
-        ).toBe(true);
+        ).toBe('accepted');
         await vi.waitFor(() => expect(context.worktreeTopology).toHaveBeenCalledTimes(1));
         expect(context.events.filter((event) => event.event === 'workbench.candidate')).toEqual([]);
         await context.service.close();
@@ -204,12 +208,12 @@ describe('WorkbenchRootService worktree attribution', () => {
             context.service.observeShellToolFailed(
                 shellFailed(context, { worktreeCreateIntent: true }),
             ),
-        ).toBe(true);
+        ).toBe('accepted');
         expect(
             context.service.observeShellToolFinished(
                 shellFinished(context, { worktreeCreateIntent: true }),
             ),
-        ).toBe(true);
+        ).toBe('accepted');
         await vi.waitFor(() => expect(context.worktreeTopology).toHaveBeenCalledTimes(2));
         expect(context.events.filter((event) => event.event === 'workbench.candidate')).toEqual([]);
         await context.service.close();
@@ -225,7 +229,7 @@ describe('WorkbenchRootService worktree attribution', () => {
             context.service.observeShellToolFinished(
                 shellFinished(context, { worktreeCreateIntent: true }),
             ),
-        ).toBe(true);
+        ).toBe('accepted');
         await vi.waitFor(() => expect(context.worktreeTopology).toHaveBeenCalledTimes(3));
         context.setWorktrees([
             { branch: 'main', rootPath: context.ownerRoot },
@@ -237,7 +241,7 @@ describe('WorkbenchRootService worktree attribution', () => {
                 context.service.observeShellToolFinished(
                     shellFinished(context, { worktreeCreateIntent: true }),
                 ),
-            ).toBe(true);
+            ).toBe('accepted');
             await vi.advanceTimersByTimeAsync(100);
         } finally {
             vi.useRealTimers();
@@ -261,7 +265,7 @@ describe('WorkbenchRootService worktree attribution', () => {
             context.service.observeShellToolFinished(
                 shellFinished(context, { worktreeCreateIntent: true }),
             ),
-        ).toBe(true);
+        ).toBe('accepted');
         await vi.waitFor(() =>
             expect(
                 context.events.filter((event) => event.event === 'workbench.candidate'),
@@ -271,7 +275,7 @@ describe('WorkbenchRootService worktree attribution', () => {
             context.service.observeShellToolFinished(
                 shellFinished(context, { worktreeCreateIntent: true }),
             ),
-        ).toBe(true);
+        ).toBe('accepted');
         await vi.waitFor(() => expect(context.worktreeTopology).toHaveBeenCalledTimes(3));
         expect(
             context.events.filter((event) => event.event === 'workbench.candidate'),
@@ -296,7 +300,7 @@ describe('WorkbenchRootService worktree attribution', () => {
             context.service.observeShellToolFinished(
                 shellFinished(context, { worktreeCreateIntent: true }),
             ),
-        ).toBe(true);
+        ).toBe('accepted');
         await vi.waitFor(() => expect(context.worktreeTopology).toHaveBeenCalledTimes(3));
         expect(context.events.filter((event) => event.event === 'workbench.candidate')).toEqual([]);
 
@@ -308,7 +312,7 @@ describe('WorkbenchRootService worktree attribution', () => {
                     worktreeCreateIntent: true,
                 }),
             ),
-        ).toBe(true);
+        ).toBe('accepted');
         await vi.waitFor(() => expect(context.worktreeTopology).toHaveBeenCalledTimes(5));
         expect(context.events.filter((event) => event.event === 'workbench.candidate')).toEqual([]);
         await context.service.close();
@@ -335,7 +339,7 @@ describe('WorkbenchRootService worktree attribution', () => {
                 context.service.observeShellToolFinished(
                     shellFinished(context, { launchId: 'launch-1', worktreeCreateIntent: true }),
                 ),
-            ).toBe(true);
+            ).toBe('accepted');
             expect(
                 context.service.observeShellToolFinished(
                     shellFinished(context, {
@@ -344,7 +348,7 @@ describe('WorkbenchRootService worktree attribution', () => {
                         worktreeCreateIntent: true,
                     }),
                 ),
-            ).toBe(true);
+            ).toBe('accepted');
             await vi.advanceTimersByTimeAsync(100);
         } finally {
             vi.useRealTimers();
@@ -364,7 +368,7 @@ describe('WorkbenchRootService worktree attribution', () => {
                     worktreeCreateIntent: true,
                 }),
             ),
-        ).toBe(true);
+        ).toBe('accepted');
         await vi.waitFor(() => expect(context.worktreeTopology).toHaveBeenCalledTimes(5));
         expect(context.events.filter((event) => event.event === 'workbench.candidate')).toEqual([]);
         await context.service.close();
@@ -391,7 +395,7 @@ describe('WorkbenchRootService worktree attribution', () => {
                 context.service.observeShellToolFinished(
                     shellFinished(context, { launchId: 'launch-1', worktreeCreateIntent: true }),
                 ),
-            ).toBe(true);
+            ).toBe('accepted');
             await vi.advanceTimersByTimeAsync(100);
             expect(context.events.filter((event) => event.event === 'workbench.candidate')).toEqual(
                 [],
@@ -405,7 +409,7 @@ describe('WorkbenchRootService worktree attribution', () => {
                         worktreeCreateIntent: true,
                     }),
                 ),
-            ).toBe(true);
+            ).toBe('accepted');
             await vi.advanceTimersByTimeAsync(100);
         } finally {
             vi.useRealTimers();
@@ -463,7 +467,7 @@ describe('WorkbenchRootService worktree attribution', () => {
                     worktreeCreateIntent: true,
                 }),
             ),
-        ).toBe(true);
+        ).toBe('accepted');
         expect(
             context.service.observeShellToolFinished(
                 shellFinished(context, {
@@ -471,7 +475,7 @@ describe('WorkbenchRootService worktree attribution', () => {
                     worktreeCreateIntent: true,
                 }),
             ),
-        ).toBe(true);
+        ).toBe('accepted');
         await vi.waitFor(() =>
             expect(
                 context.events.filter((event) => event.event === 'workbench.candidate'),
@@ -495,7 +499,7 @@ describe('WorkbenchRootService worktree attribution', () => {
             context.service.observeShellToolFinished(
                 shellFinished(context, { worktreeCreateIntent: true }),
             ),
-        ).toBe(true);
+        ).toBe('accepted');
         await vi.waitFor(() => expect(context.worktreeTopology).toHaveBeenCalledTimes(2));
         expect(context.events.filter((event) => event.event === 'workbench.candidate')).toEqual([]);
         await context.service.close();
@@ -544,7 +548,7 @@ describe('WorkbenchRootService worktree attribution', () => {
             context.service.observeShellToolFinished(
                 shellFinished(context, { worktreeCreateIntent: true }),
             ),
-        ).toBe(true);
+        ).toBe('accepted');
         await vi.waitFor(() =>
             expect(context.database.getSession(context.sessions[0].session.id)).toMatchObject({
                 workbenchProjectId: worktreeProject.id,
@@ -570,7 +574,7 @@ describe('WorkbenchRootService worktree attribution', () => {
             context.service.observeShellToolFinished(
                 shellFinished(context, { worktreeCreateIntent: true }),
             ),
-        ).toBe(true);
+        ).toBe('accepted');
         await vi.waitFor(() =>
             expect(context.database.getSession(context.sessions[0].session.id)).toMatchObject({
                 workbenchProjectId: worktreeProject.id,
@@ -578,7 +582,7 @@ describe('WorkbenchRootService worktree attribution', () => {
         );
 
         context.setWorktrees([{ branch: 'main', rootPath: context.ownerRoot }]);
-        expect(context.service.observeShellToolFinished(shellFinished(context))).toBe(true);
+        expect(context.service.observeShellToolFinished(shellFinished(context))).toBe('accepted');
         await vi.waitFor(() =>
             expect(context.database.getSession(context.sessions[0].session.id)).toMatchObject({
                 workbenchProjectId: context.owner.id,
@@ -600,7 +604,7 @@ describe('WorkbenchRootService worktree attribution', () => {
                     worktreeCreateIntent: true,
                 }),
             ),
-        ).toBe(true);
+        ).toBe('accepted');
         await vi.waitFor(() =>
             expect(context.database.getSession(context.sessions[0].session.id)).toMatchObject({
                 workbenchProjectId: worktreeProject.id,
@@ -622,7 +626,7 @@ describe('WorkbenchRootService worktree attribution', () => {
             context.service.observeShellToolFinished(
                 shellFinished(context, { worktreeCreateIntent: true }),
             ),
-        ).toBe(true);
+        ).toBe('accepted');
         await vi.waitFor(() =>
             expect(
                 context.events.filter((event) => event.event === 'workbench.candidate'),
@@ -685,7 +689,7 @@ describe('WorkbenchRootService worktree attribution', () => {
             context.service.observeShellToolFinished(
                 shellFinished(context, { worktreeCreateIntent: true }),
             ),
-        ).toBe(true);
+        ).toBe('accepted');
         await vi.waitFor(() => expect(context.worktreeTopology).toHaveBeenCalledTimes(3));
         expect(context.events.filter((event) => event.event === 'workbench.candidate')).toEqual([]);
         await context.service.close();

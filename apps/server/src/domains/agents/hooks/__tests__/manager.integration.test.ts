@@ -13,7 +13,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { claudeHookAdapter } from '../../providers/claude/hooks';
 import { codexHookAdapter } from '../../providers/codex/hooks';
-import type { AgentLifecycleSignal } from '../contract';
+import type { AgentLifecycleSignal, AgentSignalDecision } from '../contract';
 import { AgentHookManager, MAX_AGENT_HOOK_CONFIG_BYTES } from '../manager';
 
 const temporaryDirectories: string[] = [];
@@ -53,7 +53,7 @@ describe('AgentHookManager', () => {
             onAuthorityLost: vi.fn(),
             onLaunchEnded: vi.fn(),
             onLaunchStarted: vi.fn(),
-            onSignal: vi.fn(() => true),
+            onSignal: vi.fn(() => 'accepted' as const),
             hookExecutable: process.execPath,
             send: vi.fn(),
             sharedPath: join(directory, 'shared'),
@@ -94,7 +94,7 @@ describe('AgentHookManager', () => {
                 onAuthorityLost: vi.fn(),
                 onLaunchEnded: vi.fn(),
                 onLaunchStarted: vi.fn(),
-                onSignal: vi.fn(() => true),
+                onSignal: vi.fn(() => 'accepted' as const),
                 hookExecutable: process.execPath,
                 send: vi.fn(),
                 sharedPath,
@@ -151,7 +151,7 @@ describe('AgentHookManager', () => {
                 onAuthorityLost,
                 onLaunchEnded: vi.fn(),
                 onLaunchStarted: vi.fn(),
-                onSignal: vi.fn(() => true),
+                onSignal: vi.fn(() => 'accepted' as const),
                 hookExecutable: process.execPath,
                 send: vi.fn(),
                 sharedPath,
@@ -196,7 +196,7 @@ describe('AgentHookManager', () => {
             onAuthorityLost: vi.fn(),
             onLaunchEnded: vi.fn(),
             onLaunchStarted: vi.fn(),
-            onSignal: vi.fn(() => true),
+            onSignal: vi.fn(() => 'accepted' as const),
             hookExecutable: process.execPath,
             send: vi.fn(),
             sharedPath: join(directory, 'shared'),
@@ -237,7 +237,7 @@ describe('AgentHookManager', () => {
                 onAuthorityLost: vi.fn(),
                 onLaunchEnded: vi.fn(),
                 onLaunchStarted: vi.fn(),
-                onSignal: vi.fn(() => true),
+                onSignal: vi.fn(() => 'accepted' as const),
                 hookExecutable: process.execPath,
                 send: vi.fn(),
                 sharedPath,
@@ -270,7 +270,9 @@ describe('AgentHookManager', () => {
         const settings = structuredClone(defaultAgentProviderSettings);
         settings.codex.hooks.enabled = true;
         const events: ServerEvent[] = [];
-        const signals = vi.fn<(signal: AgentLifecycleSignal) => boolean>(() => true);
+        const signals = vi.fn<(signal: AgentLifecycleSignal) => AgentSignalDecision>(
+            () => 'accepted',
+        );
         const launches = vi.fn();
         const logger = new StructuredLogger(join(directory, 'logs'), 'server-core', 'info');
         const manager = new AgentHookManager({
@@ -399,7 +401,7 @@ describe('AgentHookManager', () => {
             );
             await vi.waitFor(() => expect(signals).toHaveBeenCalledTimes(3));
 
-            signals.mockReturnValueOnce(false);
+            signals.mockReturnValueOnce('staleLaunch');
             const ignored = await execFileAsync(
                 bridge,
                 [
@@ -479,8 +481,14 @@ describe('AgentHookManager', () => {
                 fields: { hasAgentSessionId: true, stage: 'serverCore' },
             });
             expect(acceptedLogs).toHaveLength(3);
+            // A downstream drop must name its cause: without the reason this record is indistinguishable from the
+            // benign nested-CLI mismatch asserted below.
             expect(ignoredLog).toMatchObject({
-                fields: { phase: 'sessionIdentified', stage: 'serverCore' },
+                fields: {
+                    phase: 'sessionIdentified',
+                    reason: 'staleLaunch',
+                    stage: 'serverCore',
+                },
             });
             const providerMismatchLog = logRecords.find(
                 (record) =>
@@ -551,7 +559,7 @@ describe('AgentHookManager', () => {
             onAuthorityLost: vi.fn(),
             onLaunchEnded: vi.fn(),
             onLaunchStarted: vi.fn(),
-            onSignal: vi.fn(() => true),
+            onSignal: vi.fn(() => 'accepted' as const),
             hookExecutable: process.execPath,
             send: vi.fn(),
             sharedPath: join(directory, 'shared'),
@@ -588,7 +596,7 @@ describe('AgentHookManager', () => {
             onAuthorityLost: vi.fn(),
             onLaunchEnded: vi.fn(),
             onLaunchStarted: vi.fn(),
-            onSignal: vi.fn(() => true),
+            onSignal: vi.fn(() => 'accepted' as const),
             hookExecutable: process.execPath,
             send: vi.fn(),
             sharedPath: join(directory, 'shared'),
@@ -644,7 +652,7 @@ describe('AgentHookManager', () => {
             onAuthorityLost: vi.fn(),
             onLaunchEnded: vi.fn(),
             onLaunchStarted: vi.fn(),
-            onSignal: vi.fn(() => true),
+            onSignal: vi.fn(() => 'accepted' as const),
             hookExecutable: process.execPath,
             send: vi.fn(),
             sharedPath: join(directory, 'shared'),
@@ -683,7 +691,7 @@ describe('AgentHookManager', () => {
             onAuthorityLost: vi.fn(),
             onLaunchEnded: vi.fn(),
             onLaunchStarted: vi.fn(),
-            onSignal: vi.fn(() => true),
+            onSignal: vi.fn(() => 'accepted' as const),
             hookExecutable: process.execPath,
             send: vi.fn(),
             sharedPath: join(directory, 'shared'),
@@ -740,7 +748,7 @@ describe('AgentHookManager', () => {
             onAuthorityLost: vi.fn(),
             onLaunchEnded: vi.fn(),
             onLaunchStarted: vi.fn(),
-            onSignal: vi.fn(() => true),
+            onSignal: vi.fn(() => 'accepted' as const),
             hookExecutable: process.execPath,
             send: vi.fn(),
             sharedPath: join(directory, 'shared'),

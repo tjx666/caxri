@@ -9,9 +9,9 @@ import process from 'node:process';
 
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
-import type { AgentHookSignalDisposition } from '../server';
+import type { AgentHookSignalResult } from '../server';
 import { pruneStaleAgentHookSockets } from '../server';
-import { createTestServer, send, validPayload } from './server.fixture';
+import { anyHandlingMs, createTestServer, send, validPayload } from './server.fixture';
 
 describe('AgentHookServer', () => {
     describe('authorize()', () => {
@@ -32,11 +32,15 @@ describe('AgentHookServer', () => {
                     }),
                 );
                 expect(onDiagnostic).toHaveBeenCalledWith({
+                    handlingMs: anyHandlingMs,
+                    hasAgentCwd: false,
                     hasAgentSessionId: false,
+                    hasAgentTurnId: false,
                     outcome: 'accepted',
                     phase: 'turnFinished',
                     provider: 'codex',
                     terminalId: 'terminal-1',
+                    worktreeCreateIntent: false,
                 });
             } finally {
                 await server.close();
@@ -62,7 +66,7 @@ describe('AgentHookServer', () => {
 
         it('acknowledges an authenticated signal that the owning Terminal ignores', async () => {
             const { server, socketPath, onDiagnostic } = await createTestServer(
-                vi.fn(() => 'ignored' as const),
+                vi.fn(() => ({ disposition: 'ignored', reason: 'terminalMissing' }) as const),
             );
             try {
                 const token = server.register('terminal-1', 'launch-1');
@@ -71,11 +75,16 @@ describe('AgentHookServer', () => {
 
                 expect(response).toBe('{"ok":true,"ignored":true}\n');
                 expect(onDiagnostic).toHaveBeenCalledWith({
+                    handlingMs: anyHandlingMs,
+                    hasAgentCwd: false,
                     hasAgentSessionId: false,
+                    hasAgentTurnId: false,
                     outcome: 'ignored',
                     phase: 'turnFinished',
                     provider: 'codex',
+                    reason: 'terminalMissing',
                     terminalId: 'terminal-1',
+                    worktreeCreateIntent: false,
                 });
             } finally {
                 await server.close();
@@ -95,6 +104,7 @@ describe('AgentHookServer', () => {
                 expect(response).toBe('{"ok":false}\n');
                 expect(onSignal).not.toHaveBeenCalled();
                 expect(onDiagnostic).toHaveBeenCalledWith({
+                    handlingMs: anyHandlingMs,
                     hasAgentSessionId: false,
                     outcome: 'rejected',
                     phase: 'turnFinished',
@@ -205,7 +215,7 @@ describe('AgentHookServer', () => {
 
         it('rejects a signal when the authenticated downstream handler fails', async () => {
             const { server, socketPath, onDiagnostic } = await createTestServer(
-                vi.fn(() => 'rejected' as const),
+                vi.fn(() => ({ disposition: 'rejected' }) as const),
             );
             try {
                 const token = server.register('terminal-1', 'launch-1', 'codex');
@@ -222,7 +232,7 @@ describe('AgentHookServer', () => {
         });
 
         it('waits for asynchronous downstream provenance before acknowledging the hook', async () => {
-            const pending = Promise.withResolvers<AgentHookSignalDisposition>();
+            const pending = Promise.withResolvers<AgentHookSignalResult>();
             const onSignal = vi.fn(() => pending.promise);
             const { server, socketPath } = await createTestServer(onSignal);
             try {
@@ -230,7 +240,7 @@ describe('AgentHookServer', () => {
                 const response = send(socketPath, validPayload({ token }));
                 await vi.waitFor(() => expect(onSignal).toHaveBeenCalledOnce());
 
-                pending.resolve('accepted');
+                pending.resolve({ disposition: 'accepted' });
 
                 await expect(response).resolves.toBe('{"ok":true}\n');
             } finally {

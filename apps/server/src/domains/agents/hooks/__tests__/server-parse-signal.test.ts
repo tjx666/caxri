@@ -4,7 +4,7 @@ import { createConnection } from 'node:net';
 import { describe, expect, it } from 'vitest';
 
 import type { AgentHookSignalRejectionReason } from '../server';
-import { createTestServer, send, validPayload } from './server.fixture';
+import { anyHandlingMs, createTestServer, send, validPayload } from './server.fixture';
 
 /**
  * Maps a rejection case's description to the reason the wire validator reports for it. Keeping this beside the case
@@ -302,6 +302,7 @@ describe('AgentHookServer parseSignal()', () => {
             expect(response).toBe('{"ok":false}\n');
             expect(onSignal).not.toHaveBeenCalled();
             expect(onDiagnostic).toHaveBeenCalledWith({
+                handlingMs: anyHandlingMs,
                 outcome: 'rejected',
                 reason: expectedRejectionReason(description),
             });
@@ -445,6 +446,7 @@ describe('AgentHookServer parseSignal()', () => {
             expect(onSignal).not.toHaveBeenCalled();
             expect(onDiagnostic).toHaveBeenCalledTimes(1);
             expect(onDiagnostic).toHaveBeenCalledWith({
+                handlingMs: anyHandlingMs,
                 outcome: 'rejected',
                 reason: 'payloadTooLarge',
             });
