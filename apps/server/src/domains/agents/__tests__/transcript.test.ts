@@ -61,6 +61,32 @@ describe('readAgentTranscript', () => {
         return path;
     }
 
+    /**
+     * Claude Code's `EnterWorktree` moves the Agent's directory and relocates the transcript to the matching provider
+     * directory, so a proven divergence must win over the Terminal's launch root.
+     *
+     * @see https://github.com/tjx666/caxri/issues/575
+     */
+    it('resolves against a proven diverged Agent working directory', async () => {
+        const worktree = join(home, 'worktree');
+        const encoded = worktree.replaceAll(/[^a-z0-9]/gi, '-');
+        const directory = join(home, '.claude', 'projects', encoded);
+        await mkdir(directory, { recursive: true });
+        await writeFile(join(directory, 'moved.jsonl'), '{"type":"user"}\n');
+        // The launch-root transcript the provider abandoned must not be the one that is read.
+        await writeTranscript('moved', '{"type":"stale"}\n');
+
+        const database = databaseWith({ ...agentTerminal('moved'), agentCwd: worktree });
+
+        await expect(
+            readAgentTranscript(database, 't1', true, environment()),
+        ).resolves.toMatchObject({
+            exists: true,
+            content: '{"type":"user"}\n',
+            path: join(directory, 'moved.jsonl'),
+        });
+    });
+
     it('returns null for a terminal without a bound agent session', async () => {
         const unbound = databaseWith(agentTerminal(undefined));
         const missing = databaseWith(undefined);

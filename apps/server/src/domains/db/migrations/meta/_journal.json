@@ -141,6 +141,13 @@
             "when": 1788101426106,
             "tag": "0019_mean_mojo",
             "breakpoints": true
+        },
+        {
+            "idx": 20,
+            "version": "6",
+            "when": 1788523602242,
+            "tag": "0020_friendly_silver_sable",
+            "breakpoints": true
         }
     ]
 }

@@ -46,8 +46,18 @@ function reportBridgeStarted() {
   socket.on('data', () => {});
   socket.on('error', () => {});
 }
-// Providers pipe a JSON payload on stdin. Only opaque session, turn, subagent, and tool identifiers plus a bounded
-// worktree-create classification are extracted, so commands, output, prompts, and responses never cross this boundary.
+// Providers pipe a JSON payload on stdin. Only opaque session, turn, subagent, and tool identifiers, a bounded
+// worktree-create classification, and the event's own absolute working directory are extracted, so commands, output,
+// prompts, and responses never cross this boundary.
+const MAX_CWD_LENGTH = 1024;
+// The provider's own cwd for this event, not a tool argument. Server Core proves it against Git worktree topology
+// before it becomes durable, so the bridge only enforces a bounded absolute path with no embedded NUL.
+function readCwd(payload) {
+  const cwd = payload && payload.cwd;
+  if (typeof cwd !== 'string' || cwd.length === 0 || cwd.length > MAX_CWD_LENGTH) return undefined;
+  if (cwd[0] !== '/' || cwd.includes('\0')) return undefined;
+  return cwd;
+}
 function splitShellSegments(command) {
   const segments = [];
   let segment = '';
@@ -178,6 +188,7 @@ function readIdentifiers(callback) {
     if (done) return;
     done = true;
     let agentId;
+    let cwd;
     let sessionId;
     let toolUseId;
     let turnId;
@@ -193,14 +204,17 @@ function readIdentifiers(callback) {
       const toolValue = payload && (payload.tool_use_id ?? payload.toolUseId);
       if (typeof toolValue === 'string' && toolValue.length > 0 && toolValue.length <= 256) toolUseId = toolValue;
       worktreeCreateIntent = hasWorktreeCreateIntent(payload);
+      cwd = readCwd(payload);
     } catch {
       // Common hook fields precede event-specific tool input/results. A large payload is intentionally truncated, but
-      // these bounded opaque identifiers remain recoverable without retaining or parsing provider content.
+      // these bounded opaque identifiers remain recoverable without retaining or parsing provider content. The cwd is
+      // deliberately not recovered here: its character class overlaps provider content, and every later hook event
+      // carries it again, so a truncated payload costs at most one event of latency.
       agentId = prefixString(['agent_id', 'agentId']);
       sessionId = prefixString(['session_id', 'sessionId']);
       turnId = prefixString(['turn_id', 'turnId']);
     }
-    callback({ agentId, sessionId, toolUseId, turnId, worktreeCreateIntent });
+    callback({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateIntent });
   };
   // Stdin may be an interactive TTY when a human runs the bridge by hand; never wait on it.
   const timer = setTimeout(finish, ${BRIDGE_STDIN_TIMEOUT_MS});
@@ -219,8 +233,9 @@ if (!hasAnyLaunchContext) {
   process.exitCode = exitCodes.launchContextUnavailable;
 } else {
 if (process.env.CAXRI_HOOK_RECEIPTS === '1') reportBridgeStarted();
-readIdentifiers(({ agentId, sessionId, toolUseId, turnId, worktreeCreateIntent }) => {
+readIdentifiers(({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateIntent }) => {
   if (agentId) signal.agentId = agentId;
+  if (cwd) signal.agentCwd = cwd;
   if (sessionId) signal.agentSessionId = sessionId;
   if (toolUseId && worktreeCreateIntent) signal.agentToolUseId = toolUseId;
   if (turnId) signal.agentTurnId = turnId;
@@ -262,7 +277,7 @@ readIdentifiers(({ agentId, sessionId, toolUseId, turnId, worktreeCreateIntent }
 }
 `;
 
-const BRIDGE_VERSION = 12;
+const BRIDGE_VERSION = 13;
 
 const BRIDGE_WRAPPER = String.raw`#!/bin/sh
 bridge_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
