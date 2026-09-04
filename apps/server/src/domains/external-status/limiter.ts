@@ -103,6 +103,12 @@ function defaultExternalStatusPausePath(): string {
  */
 export class ExternalStatusLimiter {
     private readonly circuits = new Map<ExternalStatusQuotaSource, SourceCircuit>();
+    /**
+     * When the quota probe last _ran_, as opposed to when it last produced a reading. A CLI that cannot report a
+     * GraphQL budget — unauthenticated, proxied, or stubbed — would otherwise be re-probed before every single request,
+     * silently doubling the `gh` spawns this limiter exists to reduce.
+     */
+    private lastProbeAt = 0;
     private lastReloadAt = 0;
     private pendingReload?: Promise<void>;
     private quota?: GitHubQuota & { probedAt: number };
@@ -140,6 +146,8 @@ export class ExternalStatusLimiter {
             this.quota.probedAt + QUOTA_PROBE_INTERVAL_MS > now
         )
             return;
+        if (this.lastProbeAt !== 0 && this.lastProbeAt + QUOTA_PROBE_INTERVAL_MS > now) return;
+        this.lastProbeAt = now;
         let reading: GitHubQuota | undefined;
         try {
             reading = await probe();
