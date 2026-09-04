@@ -82,6 +82,16 @@ async function createRepresentativeSessions(page: Page): Promise<string[]> {
     }
     const state = await pageRequest<{ sessions: Array<{ id: string }> }>(page, 'app.bootstrap');
     expect(state.sessions).toHaveLength(representativeSessionCount);
+    /**
+     * The PrimarySidebar only renders a Project's five most recent Sessions until the reveal row is activated. The
+     * representative workload is the full list on screen, so reveal it here; the surface budgets above are calibrated
+     * against that row count, and the scenario also switches to the oldest Session, which the default window hides.
+     */
+    const revealMore = page.locator('.session-reveal');
+    if ((await revealMore.count()) > 0) await revealMore.click();
+    await expect(page.locator('.session-list .session-card')).toHaveCount(
+        representativeSessionCount,
+    );
     return sessionIds;
 }
 
