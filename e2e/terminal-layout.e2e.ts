@@ -34,16 +34,26 @@ async function waitForStableTerminalGrid(page: Page, terminalId: string): Promis
      * attachment and initial replay finish, so keyboard probes must wait for the Renderer-owned readiness boundary.
      */
     await expect(pane.locator('.terminal-surface[data-terminal-attached="true"]')).toBeVisible();
-    const sendGridProbe = () =>
-        pageRequest(page, 'terminal.input', {
-            data: `\u{C}${gridProbe}\r`,
-            terminalId,
-        });
     /**
      * This helper verifies the Renderer/PTY grid, not keyboard routing. Send the probe through the Server contract so
      * an xterm remount cannot silently drop keystrokes while its local `disableStdin` state catches up.
      */
-    await sendGridProbe();
+    const sendGridProbe = (leadingClear: string) =>
+        pageRequest(page, 'terminal.input', {
+            data: `${leadingClear}${gridProbe}\r`,
+            terminalId,
+        });
+    /**
+     * Form feed clears fixture output so the first reading cannot be mistaken for text already on the screen.
+     */
+    const sendFirstGridProbe = () => sendGridProbe('\u{C}');
+    /**
+     * A retry appends instead of clearing. Another form feed would erase an in-flight probe's output before it painted,
+     * so under load every sample could land in that blank window and the comparison would never converge. Reading
+     * `.at(-1)` already selects the newest reading out of the accumulated probe lines.
+     */
+    const sendRetryGridProbe = () => sendGridProbe('');
+    await sendFirstGridProbe();
 
     let candidate: string | undefined;
     let matchingSamples = 0;
@@ -110,7 +120,7 @@ async function waitForStableTerminalGrid(page: Page, terminalId: string): Promis
             ) {
                 candidate = undefined;
                 matchingSamples = 0;
-                await sendGridProbe();
+                await sendRetryGridProbe();
                 return { ...rendererState, ptyGrid, stable: false };
             }
             const rendererGrid = rendererState.rendererGrid;
