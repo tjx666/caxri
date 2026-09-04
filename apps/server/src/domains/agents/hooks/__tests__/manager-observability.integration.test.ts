@@ -1,0 +1,220 @@
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import process from 'node:process';
+
+import { defaultAgentProviderSettings } from '@caxri/protocol';
+import { execFileAsync, StructuredLogger } from '@caxri/system';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { codexHookAdapter } from '../../providers/codex/hooks';
+import type { AgentLifecycleSignal, AgentSignalDecision } from '../contract';
+import { AgentHookManager } from '../manager';
+
+const temporaryDirectories: string[] = [];
+
+afterEach(async () => {
+    vi.restoreAllMocks();
+    const pendingCleanup = [...temporaryDirectories];
+    temporaryDirectories.length = 0;
+    await Promise.all(pendingCleanup.map((path) => rm(path, { recursive: true, force: true })));
+});
+
+/**
+ * Covers what the hook boundary records about itself rather than what it installs: the per-launch aggregate that
+ * survives per-signal deduplication, the audit trail for user-global config writes, and health state transitions.
+ */
+describe('AgentHookManager observability', () => {
+    it('aggregates one launch summary, audits config writes, and records health transitions', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-hooks-observability-'));
+        temporaryDirectories.push(directory);
+        const codexHome = join(directory, 'codex');
+        const settings = structuredClone(defaultAgentProviderSettings);
+        settings.codex.hooks.enabled = true;
+        const signals = vi.fn<(signal: AgentLifecycleSignal) => AgentSignalDecision>(
+            () => 'accepted',
+        );
+        const logger = new StructuredLogger(join(directory, 'logs'), 'server-core', 'info');
+        const manager = new AgentHookManager({
+            environment: { homeDirectory: directory, variables: { CODEX_HOME: codexHome } },
+            logger,
+            onAuthorityLost: vi.fn(),
+            onLaunchEnded: vi.fn(),
+            onLaunchStarted: vi.fn(),
+            onSignal: signals,
+            hookExecutable: process.execPath,
+            send: vi.fn(),
+            sharedPath: join(directory, 'shared'),
+            userDataPath: join(directory, 'profile'),
+        });
+        const runBridge = async (
+            bridge: string,
+            environment: NodeJS.ProcessEnv,
+            phase: string,
+            payload?: Record<string, unknown>,
+        ): Promise<void> => {
+            const invocation = execFileAsync(
+                bridge,
+                [
+                    '--source',
+                    'caxri',
+                    '--provider',
+                    'codex',
+                    '--phase',
+                    phase,
+                    '--schema',
+                    String(codexHookAdapter.schemaVersion),
+                ],
+                { env: { ...process.env, ...environment } },
+            );
+            if (payload) invocation.child.stdin?.end(JSON.stringify(payload));
+            await invocation;
+        };
+
+        try {
+            await manager.initialize(settings);
+            const bridge = join(directory, 'shared', 'bin', 'caxri-agent-hook-bridge');
+            const environment = manager.terminalEnvironment('terminal-1', 'codex');
+
+            await runBridge(bridge, environment, 'turnStarted');
+            await vi.waitFor(() => expect(signals).toHaveBeenCalledTimes(1));
+            await runBridge(bridge, environment, 'shellToolStarted', {
+                cwd: '/tmp/caxri-observability-fixture',
+                tool_input: { command: 'git worktree add ../feature feature' },
+                tool_use_id: 'toolu_observability',
+            });
+            await vi.waitFor(() => expect(signals).toHaveBeenCalledTimes(2));
+            signals.mockReturnValueOnce('staleLaunch');
+            await runBridge(bridge, environment, 'turnFinished');
+            await vi.waitFor(() => expect(signals).toHaveBeenCalledTimes(3));
+
+            manager.endTerminalLaunch('terminal-1');
+            settings.codex.hooks.enabled = false;
+            await manager.reconcile(settings);
+
+            await logger.flush();
+            const logSource = await readFile(join(directory, 'logs', 'server-core.jsonl'), 'utf8');
+            const logRecords = logSource
+                .trim()
+                .split('\n')
+                .map((line) => JSON.parse(line) as Record<string, unknown>);
+            const fieldsOf = (event: string): Record<string, unknown> | undefined =>
+                logRecords.find((record) => record.event === event)?.fields as
+                    Record<string, unknown> | undefined;
+
+            /**
+             * The per-signal records are deduplicated, so only this aggregate can prove the real volume: three signals
+             * arrived, two became durable state, and the third names why it did not.
+             */
+            expect(fieldsOf('agent_hooks.launch_summary')).toMatchObject({
+                accepted: 2,
+                ignored: 1,
+                ignoredStaleLaunch: 1,
+                phaseShellToolStarted: 1,
+                phaseTurnFinished: 1,
+                phaseTurnStarted: 1,
+                provider: 'codex',
+                rejected: 0,
+                signals: 3,
+                terminalId: 'terminal-1',
+            });
+            expect(fieldsOf('agent_hooks.launch_summary')).toHaveProperty('firstSignalMs');
+
+            /**
+             * The worktree-following path is only observable through these existence flags; the reported directory and
+             * the classified command must never reach the log.
+             */
+            const shellToolLog = logRecords.find(
+                (record) =>
+                    record.event === 'agent_hooks.signal_accepted' &&
+                    (record.fields as Record<string, unknown> | undefined)?.phase ===
+                        'shellToolStarted',
+            );
+            expect(shellToolLog).toMatchObject({
+                fields: { hasAgentCwd: true, worktreeCreateIntent: true },
+            });
+            expect(logSource).not.toContain('caxri-observability-fixture');
+            expect(logSource).not.toContain('git worktree add');
+
+            const configWrites = logRecords
+                .filter((record) => record.event === 'agent_hooks.config_written')
+                .map((record) => record.fields as Record<string, unknown>);
+            expect(configWrites).toEqual([
+                expect.objectContaining({
+                    action: 'install',
+                    fromStatus: 'absent',
+                    provider: 'codex',
+                }),
+                expect.objectContaining({ action: 'remove', provider: 'codex' }),
+            ]);
+
+            const healthTransitions = logRecords
+                .filter((record) => record.event === 'agent_hooks.health_changed')
+                .map((record) => record.fields as Record<string, unknown>)
+                .filter((fields) => fields.provider === 'codex')
+                .map((fields) => `${String(fields.from)}->${String(fields.to)}`);
+            expect(healthTransitions).toContain('notInstalled->installedPending');
+            expect(healthTransitions).toContain('installedPending->active');
+            expect(healthTransitions.at(-1)).toBe('active->notInstalled');
+
+            const metricNames = logger
+                .metricSnapshot()
+                .series.map((series) => series.name)
+                .filter((name) => name.startsWith('hook.'));
+            expect(metricNames).toContain('hook.signal');
+            expect(metricNames).toContain('hook.latency');
+        } finally {
+            await manager.close();
+        }
+    });
+
+    it('reports a launch that never received a signal', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-hooks-silent-launch-'));
+        temporaryDirectories.push(directory);
+        const codexHome = join(directory, 'codex');
+        const settings = structuredClone(defaultAgentProviderSettings);
+        settings.codex.hooks.enabled = true;
+        const logger = new StructuredLogger(join(directory, 'logs'), 'server-core', 'info');
+        const manager = new AgentHookManager({
+            environment: { homeDirectory: directory, variables: { CODEX_HOME: codexHome } },
+            logger,
+            onAuthorityLost: vi.fn(),
+            onLaunchEnded: vi.fn(),
+            onLaunchStarted: vi.fn(),
+            onSignal: vi.fn(() => 'accepted' as const),
+            hookExecutable: process.execPath,
+            send: vi.fn(),
+            sharedPath: join(directory, 'shared'),
+            userDataPath: join(directory, 'profile'),
+        });
+
+        try {
+            await manager.initialize(settings);
+            manager.terminalEnvironment('terminal-silent', 'codex');
+            manager.endTerminalLaunch('terminal-silent');
+            await logger.flush();
+
+            const summary = (await readFile(join(directory, 'logs', 'server-core.jsonl'), 'utf8'))
+                .trim()
+                .split('\n')
+                .map((line) => JSON.parse(line) as Record<string, unknown>)
+                .find((record) => record.event === 'agent_hooks.launch_summary');
+
+            /**
+             * The loudest record this class emits: hooks were installed and handed to the PTY, and nothing came back.
+             */
+            expect(summary).toMatchObject({
+                fields: {
+                    accepted: 0,
+                    ignored: 0,
+                    rejected: 0,
+                    signals: 0,
+                    terminalId: 'terminal-silent',
+                },
+            });
+            expect(summary?.fields).not.toHaveProperty('firstSignalMs');
+        } finally {
+            await manager.close();
+        }
+    });
+});

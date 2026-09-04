@@ -57,7 +57,7 @@ describe('AgentCoordinator compaction', () => {
                     provider: 'codex',
                     terminalId: created.terminal!.id,
                 }),
-            ).toBe(true);
+            ).toBe('accepted');
             expect(coordinator.agentOperation(created.terminal!.id)).toBe('compacting');
             expect(database.getSession(created.session.id)).toEqual(activityBeforeCompaction);
             expect(events.at(-1)).toEqual({

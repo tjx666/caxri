@@ -732,7 +732,7 @@ describe('AgentCoordinator', () => {
                     provider: 'codex',
                     terminalId: created.terminal!.id,
                 }),
-            ).toBe(false);
+            ).toBe('providerMismatch');
             expect(database.getTerminal(created.terminal!.id)).toMatchObject({
                 kind: 'shell',
                 provider: undefined,

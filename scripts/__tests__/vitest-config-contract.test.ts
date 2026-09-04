@@ -85,6 +85,7 @@ describe('Vitest project partition', () => {
         expect(partition.serialNativeTests).toEqual([
             'apps/server/src/domains/__tests__/agent-hooks.integration.test.ts',
             'apps/server/src/domains/__tests__/configuration.test.ts',
+            'apps/server/src/domains/agents/hooks/__tests__/manager-observability.integration.test.ts',
             'apps/server/src/domains/agents/hooks/__tests__/manager.integration.test.ts',
             'apps/server/src/domains/terminal/__tests__/terminal-process.integration.test.ts',
             'apps/server/src/domains/files/__tests__/files.integration.test.ts',
