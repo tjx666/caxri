@@ -33,9 +33,17 @@ describe('terminalRendererIndicator', () => {
 
     it('explains why the DOM renderer is active', () => {
         expect(terminalRendererIndicator(status({ mode: 'dom', reason: 'disabled' }))).toEqual({
-            ariaLabel: 'Terminal renderer: DOM. GPU acceleration is turned off in Settings.',
+            action: {
+                confirmLabel: 'Turn On',
+                message:
+                    'Terminals switch from the DOM renderer to WebGL immediately, without restarting Caxri or the Terminal. You can turn it off again in Settings.',
+                preference: 'on',
+                title: 'Turn on GPU acceleration?',
+            },
+            ariaLabel:
+                'Turn on GPU acceleration? — Terminal renderer: DOM. GPU acceleration is turned off in Settings.',
             label: 'DOM',
-            title: 'Terminal is using the DOM renderer. GPU acceleration is turned off in Settings.',
+            title: 'Turn on GPU acceleration? — Terminal is using the DOM renderer. GPU acceleration is turned off in Settings.',
         });
         expect(
             terminalRendererIndicator(status({ mode: 'dom', reason: 'unsupported' }))?.title,
@@ -63,6 +71,21 @@ describe('terminalRendererIndicator', () => {
                 }),
             )?.title,
         ).toContain('Retries exhausted');
+    });
+
+    it('offers the switch only for the preference-driven fallback the chip can reverse', () => {
+        expect(
+            terminalRendererIndicator(status({ mode: 'dom', reason: 'disabled' }))?.action
+                ?.preference,
+        ).toBe('on');
+        for (const reason of ['unsupported', 'context-loss', 'load-failed'] as const) {
+            const indicator = terminalRendererIndicator(status({ mode: 'dom', reason }));
+            expect(indicator?.action).toBeUndefined();
+            // A read-only chip must not promise an action in its accessible name or tooltip.
+            expect(indicator?.ariaLabel).toBe(
+                `Terminal renderer: DOM. ${indicator?.title.replace('Terminal is using the DOM renderer. ', '')}`,
+            );
+        }
     });
 });
 

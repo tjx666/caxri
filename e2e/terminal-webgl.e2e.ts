@@ -260,6 +260,42 @@ test('WebGL modes hot-switch and every Terminal recovers from one GPU process lo
         await expect(surface).toHaveAttribute('data-terminal-renderer', 'dom');
         await expect(surface).toHaveAttribute('data-terminal-renderer-reason', 'disabled');
 
+        /**
+         * The status bar chip is the shortest route out of the DOM renderer, so it must survive as a real button with a
+         * confirmation in front of the settings write — not just as a tooltip that explains the slowdown.
+         */
+        const rendererChip = running.page.locator('button.statusbar-terminal-renderer');
+        await expect(rendererChip).toHaveAttribute(
+            'aria-label',
+            'Turn on GPU acceleration? — Terminal renderer: DOM. GPU acceleration is turned off in Settings.',
+        );
+        await rendererChip.click();
+        const confirmation = running.page.locator('.confirmation-dialog');
+        await expect(confirmation).toContainText('Turn on GPU acceleration?');
+        await running.page.keyboard.press('Escape');
+        await expect(confirmation).toHaveCount(0);
+        expect(
+            (
+                await pageRequest<{ value: { 'terminal.gpuAcceleration': string } }>(
+                    running.page,
+                    'settings.get',
+                )
+            ).value['terminal.gpuAcceleration'],
+        ).toBe('off');
+
+        await rendererChip.click();
+        await confirmation.getByRole('button', { name: 'Turn On', exact: true }).click();
+        await expect
+            .poll(async () => {
+                const settings = await pageRequest<{
+                    value: { 'terminal.gpuAcceleration': string };
+                }>(running.page, 'settings.get');
+                return settings.value['terminal.gpuAcceleration'];
+            })
+            .toBe('on');
+        await expect(surface).toHaveAttribute('data-terminal-renderer', 'webgl');
+        await expect(rendererChip).toHaveCount(0);
+
         await applyGpuPreference(running.page, 'Auto');
         await expect(surface).toHaveAttribute('data-terminal-renderer', 'webgl');
         await expect(surface).toHaveAttribute('data-terminal-renderer-reason', 'active');

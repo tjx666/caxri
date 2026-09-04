@@ -1,27 +1,19 @@
-import type { ReactNode } from 'react';
 import { useState } from 'react';
 
 import type { BootstrapState, CaxriMethod, CommandId } from '@caxri/protocol';
 import { isExternalEditorTabPath, parseGitDiffTab } from '@caxri/protocol';
 import { relativeTime } from '@caxri/utils';
 import { useQueryClient } from '@tanstack/react-query';
-import type { LucideIcon } from 'lucide-react';
 import {
     Braces,
     Cast,
-    CircleAlert,
     FileDiff,
     FolderGit2,
-    Gauge,
     GitBranch,
     GitCommitHorizontal,
     GitPullRequest,
     LoaderCircle,
-    MemoryStick,
     Monitor,
-    Pause,
-    Workflow,
-    ZapOff,
 } from 'lucide-react';
 
 import { useContainerWidth } from '@/hooks/use-container-width';
@@ -40,12 +32,11 @@ import {
 import { Separator } from '../../components/ui/separator';
 import { Tooltip } from '../../components/ui/tooltip';
 import { caxri } from '../../lib/caxri';
-import { openExternalUrl } from '../../lib/external-link';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery, useToastOnQueryError } from '../../queries/client';
 import { useSelectedSession, useSelectedWorkbenchProject } from '../../stores/selectors';
 import { sessionViewScope } from '../../stores/session-view';
-import { pushToast, tryCommand } from '../../stores/toasts';
+import { tryCommand } from '../../stores/toasts';
 import { useWorkbenchStore } from '../../stores/workbench';
 import {
     editorLanguageLabel,
@@ -53,17 +44,11 @@ import {
     useEditorStatusStore,
 } from '../editor/editor-status';
 import { useScreencastStore } from '../screencast/screencast';
-import {
-    terminalProgressAriaLabel,
-    terminalProgressLabel,
-    useTerminalProgress,
-} from '../terminal/terminal-progress';
-import {
-    terminalRendererIndicator,
-    useTerminalRendererStatus,
-} from '../terminal/terminal-renderer-status';
 import { useActivePaneTab } from '../workbench/pane-actions';
+import { ActiveTerminalStatus } from './active-terminal-status';
 import { resolveChipVisibility } from './chip-priority';
+import { StatusInfo } from './status-info';
+import { StatusItem, statusItemClassName } from './status-item';
 
 /**
  * No live push exists for delivery metadata, so a stale read is refreshed on a fixed interval.
@@ -73,48 +58,7 @@ const AUTHORIZE_WORKBENCH_ROOT_VALUE = '__authorize_workbench_root__';
 
 type ServerStatus = BootstrapState['runtime']['status'];
 
-const statusItemClassName =
-    'statusbar-item inline-flex h-5 min-w-0 items-center gap-[5px] overflow-hidden rounded border-0 bg-transparent px-[5px] text-foreground no-underline cursor-pointer hover:bg-[color-mix(in_srgb,var(--foreground)_10%,transparent)] focus-visible:outline-none focus-visible:shadow-[0_0_0_1px_var(--foreground)] [&>svg]:flex-none [&>span]:overflow-hidden [&>span]:text-ellipsis [&>span]:whitespace-nowrap';
-
 const statusStateClassName = 'statusbar-state flex-none rounded px-2 text-[10px]';
-const statusInfoClassName =
-    'statusbar-info inline-flex h-5 min-w-0 flex-none items-center gap-[5px] overflow-hidden rounded px-[5px] text-foreground [&>svg]:flex-none [&>span]:overflow-hidden [&>span]:text-ellipsis [&>span]:whitespace-nowrap';
-
-/**
- * DESIGN.md requires explanatory prose in both the accessible name and a hover tooltip: an `aria-label` alone leaves
- * sighted mouse users with less information than assistive tech gets. Wrapped in the shared `Tooltip` primitive rather
- * than a bare `title` attribute so it renders consistently (and visibly) instead of relying on Chromium's native,
- * easy-to-miss tooltip.
- */
-function StatusInfo({
-    announce,
-    ariaLabel,
-    children,
-    className,
-    icon: Icon,
-    title,
-}: {
-    announce?: boolean;
-    ariaLabel: string;
-    children: ReactNode;
-    className?: string;
-    icon?: LucideIcon;
-    title: ReactNode;
-}) {
-    return (
-        <Tooltip content={title}>
-            <span
-                aria-label={ariaLabel}
-                aria-live={announce ? 'polite' : undefined}
-                className={cn(statusInfoClassName, className)}
-                role={announce ? 'status' : undefined}
-            >
-                {Icon && <Icon size={12} />}
-                <span>{children}</span>
-            </span>
-        </Tooltip>
-    );
-}
 
 function ActiveFileStatus({
     sessionId,
@@ -188,105 +132,6 @@ function ActiveFileStatus({
     );
 }
 
-const openProcessExplorer = (): void => executeCommand('processExplorer.open');
-
-function ActiveTerminalStatus({
-    showChildProcessCount,
-    showMemory,
-    terminalId,
-}: {
-    /**
-     * Priority-hidden first as the status bar narrows (see `chip-priority.ts`): both metrics duplicate a live reading
-     * already available in Process Explorer, so hiding them loses no information the user cannot get elsewhere.
-     */
-    showChildProcessCount: boolean;
-    showMemory: boolean;
-    terminalId: string;
-}) {
-    const progress = useTerminalProgress(terminalId);
-    const renderer = terminalRendererIndicator(useTerminalRendererStatus(terminalId));
-    const usage = usePolledQuery(
-        'terminal.resources',
-        { terminalId },
-        { label: 'terminal.resources', intervalMs: 2_000, staleTime: 1_000, retry: false },
-    ).data;
-    if (!usage && !progress && !renderer) return null;
-    const childLabel = usage
-        ? `${usage.childProcessCount} ${usage.childProcessCount === 1 ? 'child process' : 'child processes'}`
-        : undefined;
-    const ProgressIcon =
-        progress?.kind === 'error'
-            ? CircleAlert
-            : progress?.kind === 'paused'
-              ? Pause
-              : progress?.kind === 'indeterminate'
-                ? LoaderCircle
-                : Gauge;
-    return (
-        <>
-            {renderer && (
-                <StatusInfo
-                    ariaLabel={renderer.ariaLabel}
-                    className="statusbar-terminal-renderer text-warning"
-                    icon={ZapOff}
-                    title={renderer.title}
-                >
-                    {renderer.label}
-                </StatusInfo>
-            )}
-            {progress && (
-                <StatusInfo
-                    ariaLabel={terminalProgressAriaLabel(progress)}
-                    className={cn(
-                        'statusbar-terminal-progress tabular-nums',
-                        /**
-                         * `--accent` is reserved for the one focused pane/tab (DESIGN.md principle 2). This badge
-                         * renders for every Terminal with progress, not just the active one, so a background process
-                         * must not borrow the accent color — only the genuinely exceptional states (`error`/`paused`)
-                         * get a status color here; the common "normal" case stays neutral.
-                         */
-                        progress.kind === 'normal' && 'text-muted',
-                        progress.kind === 'error' && 'text-danger',
-                        progress.kind === 'paused' && 'text-warning',
-                    )}
-                    icon={ProgressIcon}
-                    title={terminalProgressAriaLabel(progress)}
-                >
-                    {terminalProgressLabel(progress)}
-                </StatusInfo>
-            )}
-            {/**
-             * Deliberately informational-only, not the primary entry point: "Open Process Explorer" already lives in the native
-             * Help menu and the Command Palette (`processExplorer.open` in `shared/commands.ts`), so it stays reachable regardless
-             * of the active tab. Duplicating it as an always-present status-bar button would compete with those two discoverable
-             * routes for a diagnostic tool most users open rarely; instead this chip earns its place by doubling as a live memory
-             * reading for the active Terminal; clicking it is a convenience shortcut, not a required affordance, which is why it is
-             * allowed to disappear on editor/diff tabs where there is no Terminal metric to show.
-             */}
-            {usage && showMemory && (
-                <StatusItem
-                    ariaLabel={`Open Process Explorer — Terminal memory: ${usage.memoryMb} MB`}
-                    icon={MemoryStick}
-                    title={`Open Process Explorer — Terminal memory: ${usage.memoryMb} MB`}
-                    onClick={openProcessExplorer}
-                >
-                    {usage.memoryMb} MB
-                </StatusItem>
-            )}
-            {usage && childLabel && showChildProcessCount && (
-                <StatusItem
-                    ariaLabel={`Open Process Explorer — Terminal: ${childLabel}`}
-                    icon={Workflow}
-                    title={`Open Process Explorer — Terminal: ${childLabel}`}
-                    onClick={openProcessExplorer}
-                >
-                    {usage.childProcessCount}
-                </StatusItem>
-            )}
-        </>
-    );
-}
-
 /**
  * A healthy status bar says nothing: it only speaks up while Caxri is degraded, in the user's vocabulary rather than
  * naming Server or Runtime.
@@ -310,64 +155,6 @@ const DEGRADED_STATES: Partial<
             'statusbar-state-warning bg-[color-mix(in_srgb,var(--warning)_18%,transparent)] text-warning',
     },
 };
-
-/**
- * Same hover-tooltip contract as {@link StatusInfo}, for the clickable status-bar entries.
- */
-function StatusItem({
-    ariaLabel,
-    children,
-    className,
-    href,
-    icon: Icon,
-    onClick,
-    title,
-}: {
-    ariaLabel: string;
-    children: ReactNode;
-    className?: string;
-    href?: string;
-    icon: LucideIcon;
-    onClick?: () => void;
-    title: ReactNode;
-}) {
-    const content = (
-        <>
-            <Icon size={13} />
-            <span>{children}</span>
-        </>
-    );
-    return (
-        <Tooltip content={title}>
-            {href ? (
-                <a
-                    className={cn(statusItemClassName, className)}
-                    href={href}
-                    rel="noreferrer"
-                    aria-label={ariaLabel}
-                    onClick={(event) => {
-                        // Main denies every `window.open`/target=_blank navigation, so this anchor
-                        // is semantic only — the actual navigation goes through `external.open`.
-                        event.preventDefault();
-                        // eslint-disable-next-line no-void -- intentional floating-promise discard, openExternalUrl reports its own failure
-                        void openExternalUrl(href, (message) => pushToast('error', message));
-                    }}
-                >
-                    {content}
-                </a>
-            ) : (
-                <button
-                    type="button"
-                    className={cn(statusItemClassName, className)}
-                    aria-label={ariaLabel}
-                    onClick={onClick}
-                >
-                    {content}
-                </button>
-            )}
-        </Tooltip>
-    );
-}
 
 /**
  * Screencast Mode has no other persistent cue while active — see `screencast.ts`'s `toggleScreencastMode` for the
