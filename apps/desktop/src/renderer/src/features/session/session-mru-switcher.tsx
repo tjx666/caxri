@@ -124,7 +124,7 @@ function SessionMruRow({
             <span className="flex-none text-[11px] text-muted tabular-nums">
                 {formatSessionRelativeTime(session.lastOpenedAt, now)}
             </span>
-            <SessionStatusIndicator session={session} terminal={terminal} />
+            <SessionStatusIndicator reserveSlot session={session} terminal={terminal} />
         </div>
     );
 }
