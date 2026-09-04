@@ -4,6 +4,8 @@ import type {
     ProjectStatusRepository,
     ProjectStatusState,
     ProjectStatusSummary,
+    TreeItemRichTooltip,
+    TreeItemTooltipRow,
     TreeItemVariant,
 } from 'caxri';
 import {
@@ -49,6 +51,34 @@ const missingGitRepoErrors = new Set<string>([
     ProjectStatusSummaryErrorMessage.missingPrimaryRepository,
 ]);
 
+/**
+ * The parts a row contributes to its hover card. `title` defaults to the row label; the row's own `url` is appended as
+ * the trailing `link` row by {@link richTooltip}.
+ */
+interface StatusTooltip {
+    badge?: TreeItemRichTooltip['badge'];
+    description?: string;
+    rows?: readonly TreeItemTooltipRow[];
+    title?: string;
+}
+
+/**
+ * A tooltip row value is capped at 2048 characters by the process boundary, while a provider URL may be much longer.
+ * Clamping well below that bound keeps one pathological deployment URL from rejecting the whole `getChildren` batch.
+ */
+const MAX_LINK_TEXT_LENGTH = 256;
+
+/**
+ * Drops the scheme so a link stays readable inside the bounded hover card at SecondarySidebar width. The row keeps the
+ * untouched `url`, so a clamped display text still opens the full destination.
+ */
+function linkText(url: string): string {
+    const text = url.replace(/^https?:\/\//, '');
+    return text.length > MAX_LINK_TEXT_LENGTH
+        ? `${text.slice(0, MAX_LINK_TEXT_LENGTH - 1)}…`
+        : text;
+}
+
 function durationLabel(durationMs: number | undefined): string | undefined {
     if (durationMs === undefined) return undefined;
     const seconds = Math.round(durationMs / 1_000);
@@ -67,7 +97,7 @@ function item(
         command?: Command;
         description?: string;
         icon?: string;
-        tooltip?: TreeItem['tooltip'];
+        tooltip?: StatusTooltip;
         url?: string;
         variant?: TreeItemVariant;
     } = {},
@@ -82,8 +112,7 @@ function item(
     treeItem.id = id;
     treeItem.variant = options.variant;
     treeItem.description = options.description;
-    treeItem.tooltip =
-        options.tooltip ?? [label, options.description, options.url].filter(Boolean).join('\n');
+    treeItem.tooltip = richTooltip(label, options.tooltip, options.url);
     treeItem.accessibilityInformation = {
         label: [label, options.description].filter(Boolean).join(', '),
     };
@@ -99,12 +128,35 @@ function item(
     return { item: treeItem, children: options.children };
 }
 
-function deploymentTooltip(
-    title: string,
-    deployment: ProjectStatusDeployment,
-): NonNullable<TreeItem['tooltip']> {
+/**
+ * Every Status row wears the same hover card, so the panel never mixes a rich card with a plain multi-line string. The
+ * row's own destination becomes the trailing `link` row unless the caller already published that URL under a more
+ * specific label, which keeps a deployment from repeating its alias.
+ */
+function richTooltip(
+    label: string,
+    tooltip: StatusTooltip | undefined,
+    url: string | undefined,
+): TreeItemRichTooltip {
+    const rows = tooltip?.rows ?? [];
     return {
         kind: 'rich',
+        title: tooltip?.title ?? label,
+        ...(tooltip?.description && { description: tooltip.description }),
+        ...(tooltip?.badge && { badge: tooltip.badge }),
+        rows:
+            url && rows.every((row) => row.url !== url)
+                ? [...rows, { label: 'link', value: linkText(url), url }]
+                : rows,
+    };
+}
+
+function ignoredChecksLabel(count: number): string {
+    return `${count} ignored check${count === 1 ? '' : 's'}`;
+}
+
+function deploymentTooltip(title: string, deployment: ProjectStatusDeployment): StatusTooltip {
+    return {
         title,
         badge: { label: deployment.state, tone: stateTones[deployment.state] },
         rows: [
@@ -138,11 +190,19 @@ function linearState(
  */
 function buildRepoChildren(repo: ProjectStatusRepository): StatusNode[] {
     const prefix = `status:repo:${repo.id}`;
+    const isDefaultBranch = repo.defaultBranch === repo.branch;
     const nodes: StatusNode[] = [
         item(`${prefix}:branch`, repo.branch, {
-            description: repo.defaultBranch === repo.branch ? 'default' : undefined,
+            description: isDefaultBranch ? 'default' : undefined,
             icon: 'git-branch',
             url: repo.branchUrl,
+            tooltip: {
+                ...(isDefaultBranch && { badge: { label: 'default', tone: 'neutral' } }),
+                rows:
+                    !isDefaultBranch && repo.defaultBranch
+                        ? [{ label: 'default', value: repo.defaultBranch }]
+                        : [],
+            },
         }),
     ];
     for (const issue of repo.linearIssues) {
@@ -155,12 +215,17 @@ function buildRepoChildren(repo: ProjectStatusRepository): StatusNode[] {
                     description: issue.state,
                     icon: stateIcons[state],
                     url: issue.url,
+                    tooltip: {
+                        ...(issue.state && {
+                            badge: { label: issue.state, tone: stateTones[state] },
+                        }),
+                    },
                 },
             ),
         );
     }
     if (repo.deployments) {
-        const { branchDeployments } = repo.deployments;
+        const { branchDeployments, url: deploymentsUrl } = repo.deployments;
         const environments = [...new Set(branchDeployments.map(({ environment }) => environment))];
         nodes.push(
             item(`${prefix}:deployments`, 'Deployments', {
@@ -169,6 +234,16 @@ function buildRepoChildren(repo: ProjectStatusRepository): StatusNode[] {
                         ? `${branchDeployments.length} on ${environments[0]}`
                         : `${branchDeployments.length} on ${repo.branch}`,
                 icon: 'rocket',
+                tooltip: {
+                    rows: [
+                        { label: 'branch', value: repo.branch },
+                        ...environments.map((environment) => ({
+                            label: environment,
+                            value: `${branchDeployments.filter((deployment) => deployment.environment === environment).length}`,
+                        })),
+                        { label: 'project', value: linkText(deploymentsUrl), url: deploymentsUrl },
+                    ],
+                },
                 children: branchDeployments.map((deployment, index) =>
                     item(`${prefix}:branch-deployment:${index}`, deployment.hostname, {
                         description: `${deployment.environment} · ${deployment.state}`,
@@ -196,18 +271,28 @@ function buildRepoChildren(repo: ProjectStatusRepository): StatusNode[] {
     }
     if (repo.pullRequest) {
         const pullRequest = repo.pullRequest;
-        const children = pullRequest.checks.map((check, index) =>
-            item(`${prefix}:check:${index}`, check.name, {
-                description: durationLabel(check.durationMs),
+        const children = pullRequest.checks.map((check, index) => {
+            const duration = durationLabel(check.durationMs);
+            return item(`${prefix}:check:${index}`, check.name, {
+                description: duration,
                 icon: stateIcons[check.state],
                 url: check.url,
-            }),
-        );
+                tooltip: {
+                    badge: { label: check.state, tone: stateTones[check.state] },
+                    rows: [
+                        ...(duration ? [{ label: 'duration', value: duration }] : []),
+                        ...(check.url
+                            ? [{ label: 'logs', value: linkText(check.url), url: check.url }]
+                            : []),
+                    ],
+                },
+            });
+        });
         if (pullRequest.hiddenCheckCount > 0) {
             children.push(
                 item(
                     `${prefix}:hidden-checks`,
-                    `${pullRequest.hiddenCheckCount} ignored check${pullRequest.hiddenCheckCount === 1 ? '' : 's'} hidden`,
+                    `${ignoredChecksLabel(pullRequest.hiddenCheckCount)} hidden`,
                     { icon: 'eye-off' },
                 ),
             );
@@ -216,6 +301,18 @@ function buildRepoChildren(repo: ProjectStatusRepository): StatusNode[] {
             item(`${prefix}:pr`, `#${pullRequest.number} ${pullRequest.title}`, {
                 icon: stateIcons[pullRequest.state],
                 url: pullRequest.url,
+                tooltip: {
+                    badge: { label: pullRequest.state, tone: stateTones[pullRequest.state] },
+                    rows:
+                        pullRequest.hiddenCheckCount > 0
+                            ? [
+                                  {
+                                      label: 'hidden',
+                                      value: ignoredChecksLabel(pullRequest.hiddenCheckCount),
+                                  },
+                              ]
+                            : [],
+                },
                 children,
                 collapsibleState:
                     pullRequest.state === 'failure'
@@ -229,6 +326,10 @@ function buildRepoChildren(repo: ProjectStatusRepository): StatusNode[] {
             item(`${prefix}:error:${error.source}`, error.message, {
                 description: error.hint,
                 icon: 'circle-x',
+                tooltip: {
+                    badge: { label: error.source, tone: 'danger' },
+                    description: error.hint,
+                },
                 ...(error.detailsView === 'logs' && {
                     command: { command: 'caxri.showLogs', title: 'Show Logs' },
                 }),
@@ -246,6 +347,25 @@ export function buildRepoNode(repo: ProjectStatusRepository): StatusNode {
         children: buildRepoChildren(repo),
         collapsibleState: TreeItemCollapsibleState.Expanded,
         variant: 'header',
+        tooltip: {
+            ...(presentation.description && {
+                badge: { label: presentation.description, tone: 'neutral' },
+            }),
+            // The Extension Host strips `rootPath` from the summary it hands extensions, so a repository hover
+            // identifies itself by branch and remote rather than by its location on disk.
+            rows: [
+                { label: 'branch', value: repo.branch },
+                ...(repo.githubUrl
+                    ? [
+                          {
+                              label: 'repository',
+                              value: linkText(repo.githubUrl),
+                              url: repo.githubUrl,
+                          },
+                      ]
+                    : []),
+            ],
+        },
     });
 }
 

@@ -141,9 +141,11 @@ esac
                 height: '32px',
                 iconFlexShrink: '0',
             });
-        await expect(
-            tree.getByRole('treeitem', { name: 'feature/status, default', exact: true }),
-        ).toBeVisible();
+        const branchRow = tree.getByRole('treeitem', {
+            name: 'feature/status, default',
+            exact: true,
+        });
+        await expect(branchRow).toBeVisible();
 
         await expect(refreshButton).not.toHaveAttribute('aria-disabled', 'true');
         await refreshButton.hover();
@@ -160,6 +162,35 @@ esac
          * coalesce the click with the in-flight load and the fixture would miscount it as a missing dispatch.
          */
         await expect(pullRequestA).toBeVisible();
+
+        /**
+         * Hover cards are asserted only after the background delivery-metadata refresh has settled: a tree re-render
+         * under the cursor cancels the pending open and would make these checks flaky.
+         */
+        await branchRow.hover();
+        const branchTooltip = running.page
+            .locator('.tree-item-rich-tooltip:visible')
+            .filter({ hasText: 'feature/status' });
+        await expect(branchTooltip).toBeVisible();
+        await expect(branchTooltip).toContainText('default');
+        // No Status row falls back to the plain tooltip surface any more.
+        await expect(running.page.locator('.tooltip-popup:visible')).toHaveCount(0);
+        await running.page.mouse.move(0, 0);
+        await pullRequestA.hover();
+        // A row whose own destination has no more specific label publishes it once, as the trailing `link` row.
+        const pullRequestTooltip = running.page
+            .locator('.tree-item-rich-tooltip:visible')
+            .filter({ hasText: '#42 Status A' });
+        await expect(pullRequestTooltip).toBeVisible();
+        await expect(pullRequestTooltip).toContainText('failure');
+        await expect(
+            pullRequestTooltip.getByRole('button', {
+                name: 'Open link: github.com/tjx666/project/pull/42',
+                exact: true,
+            }),
+        ).toBeVisible();
+        await running.page.mouse.move(0, 0);
+
         await writeFile(statusDelayPath, '0.4');
         const refreshRequestCount = async (): Promise<number> =>
             (await readFile(statusRequestLogPath, 'utf8')).split('\n').filter(Boolean).length;
@@ -191,18 +222,24 @@ esac
             appCheckBounds.x + appCheckBounds.width / 2,
             appCheckBounds.y + appCheckBounds.height / 2,
         );
-        await expect(
-            running.page.locator('.tooltip-popup:visible').filter({ hasText: 'Test / App' }),
-        ).toBeVisible();
+        const appTooltip = running.page
+            .locator('.tree-item-rich-tooltip:visible')
+            .filter({ hasText: 'Test / App' });
+        await expect(appTooltip).toBeVisible();
+        await expect(appTooltip).toContainText('failure');
+        await expect(appTooltip).toContainText('duration: 2m 5s');
+        // The failing check exposes no details URL, so its card carries no link row and never invents one.
+        await expect(appTooltip.getByRole('button')).toHaveCount(0);
         const pointer = {
             x: packagesCheckBounds.x + packagesCheckBounds.width / 2,
             y: packagesCheckBounds.y + packagesCheckBounds.height / 2,
         };
         await running.page.mouse.move(pointer.x, pointer.y);
         const packagesTooltip = running.page
-            .locator('.tooltip-popup:visible')
+            .locator('.tree-item-rich-tooltip:visible')
             .filter({ hasText: 'Test / Packages' });
         await expect(packagesTooltip).toBeVisible();
+        await expect(packagesTooltip).toContainText('logs:');
         await packagesTooltip.evaluate(async (element) => {
             await Promise.allSettled(
                 element.getAnimations().map((animation) => animation.finished),
@@ -210,7 +247,8 @@ esac
         });
         const tooltipLayout = await packagesTooltip.evaluate((element, currentPointer) => {
             const popupBounds = element.getBoundingClientRect();
-            const content = element.querySelector('span');
+            // The `logs` row holds the long details URL, so it is what must wrap inside the bounded card.
+            const content = element.querySelector(':scope li:last-of-type button span');
             if (!content) throw new Error('Tooltip content is unavailable');
             const contentRange = document.createRange();
             contentRange.selectNodeContents(content);
@@ -318,6 +356,23 @@ esac
 
         const linearError = tree.getByRole('treeitem', { name: /linear: error/i });
         await expect(linearError).toBeVisible();
+        /**
+         * The keyboard steps above left focus on the pull request row, and a focus-opened card stays open by design so
+         * its links remain reachable. Dismiss it before hovering, otherwise the interactive card covers the rows
+         * below.
+         */
+        await running.page.keyboard.press('Escape');
+        await expect(running.page.locator('.tree-item-rich-tooltip:visible')).toHaveCount(0);
+        await linearError.hover();
+        // A provider failure keeps its recovery hint as prose under the heading instead of a labeled list row.
+        const linearErrorTooltip = running.page
+            .locator('.tree-item-rich-tooltip:visible')
+            .filter({ hasText: 'linear: error' });
+        await expect(linearErrorTooltip).toBeVisible();
+        await expect(linearErrorTooltip).toContainText('linear');
+        await expect(linearErrorTooltip).toContainText('See Runtime logs for details.');
+        await expect(linearErrorTooltip.locator('ul')).toHaveCount(0);
+        await running.page.mouse.move(0, 0);
         await expect(running.page.getByRole('region', { name: 'Panel' })).toHaveCount(0);
         await linearError.click();
         await expect(running.page.getByRole('region', { name: 'Panel' })).toBeVisible();
@@ -330,6 +385,9 @@ esac
         await writeFile(statusDelayPath, '0.4');
         await deployments.click();
         await expect(deployments).toHaveAttribute('aria-expanded', 'true');
+        // Clicking focuses the group row and opens its own card; dismiss it so the leaf hover below is the only one.
+        await running.page.keyboard.press('Escape');
+        await expect(running.page.locator('.tree-item-rich-tooltip:visible')).toHaveCount(0);
         const successfulDeployment = tree.getByRole('treeitem', {
             name: 'project-8ykp416o7-tjx666.vercel.app, preview · success',
             exact: true,

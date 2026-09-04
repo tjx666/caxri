@@ -153,8 +153,16 @@ export interface TreeItemTooltipRow {
 export interface TreeItemRichTooltip {
     kind: 'rich';
     title: string;
+    /**
+     * Prose that explains the title, such as a provider error's recovery hint. Structured facts belong in `rows`.
+     */
+    description?: string;
     badge?: { label: string; tone: TreeItemTooltipTone };
-    rows: readonly TreeItemTooltipRow[];
+    /**
+     * Omitted or empty when the title and badge already carry the whole hover, so a row without structured facts keeps
+     * the same card instead of falling back to a plain-text tooltip.
+     */
+    rows?: readonly TreeItemTooltipRow[];
 }
 
 export class TreeItem {

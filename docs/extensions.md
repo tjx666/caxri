@@ -204,10 +204,12 @@ message. It keeps the tree's roving focus and Enter command path, suppresses the
 and disables its visible action while the View refresh is pending. Ordinary tree rows remain the default.
 
 `TreeItem.tooltip` accepts either the existing bounded plain string or a bounded `rich` payload with
-a title, optional semantic badge, and up to eight labeled rows. Rich row values are always rendered
-as text; an optional URL must be credential-free HTTP(S), is validated by the Extension Host, and
-still crosses Main's trusted-origin confirmation before the operating system can open it. Arbitrary
-Markdown, HTML, scripts, commands, and `command:` URLs are not part of this contract.
+a title, an optional prose description, an optional semantic badge, and up to eight labeled rows.
+The rows may be omitted entirely, so a provider can give a row with no structured facts the same
+hover card instead of dropping back to the plain string. Rich descriptions and row values are always
+rendered as text; an optional URL must be credential-free HTTP(S), is validated by the Extension
+Host, and still crosses Main's trusted-origin confirmation before the operating system can open it.
+Arbitrary Markdown, HTML, scripts, commands, and `command:` URLs are not part of this contract.
 
 The shared Renderer owns virtualization, ThemeIcon rendering, roving focus, arrow/Home/End
 navigation, expansion, loading/empty/provider-error rows, local Retry, tooltip presentation, and

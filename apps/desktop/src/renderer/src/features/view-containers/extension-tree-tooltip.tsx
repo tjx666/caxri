@@ -155,8 +155,12 @@ export function ExtensionTreeTooltip({
                 }}
                 onFocusCapture={() => setOpen(true)}
             >
-                <div className="flex items-center gap-1.5 text-[13px] leading-none">
-                    <strong className="font-semibold">{tooltip.title}</strong>
+                {/*
+                 * A title can be a full pull request title or provider error, so the heading wraps and the badge wraps
+                 * with it instead of pinning a tall chip beside a multi-line title.
+                 */}
+                <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1 text-[13px] leading-5">
+                    <strong className="font-semibold wrap-anywhere">{tooltip.title}</strong>
                     {tooltip.badge && (
                         <>
                             <span className="text-muted">·</span>
@@ -171,28 +175,37 @@ export function ExtensionTreeTooltip({
                         </>
                     )}
                 </div>
-                <ul className="mt-2 mb-0 list-disc space-y-1 pl-5 text-[12px] leading-5">
-                    {tooltip.rows.map((row) => (
-                        <li
-                            className="min-w-0"
-                            key={`${row.label}\0${row.value}\0${row.url ?? ''}`}
-                        >
-                            <span className="text-muted">{row.label}: </span>
-                            {row.url ? (
-                                <button
-                                    aria-label={`Open ${row.label}: ${row.value}`}
-                                    className="max-w-full cursor-pointer border-0 bg-transparent p-0 text-left text-accent underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent"
-                                    type="button"
-                                    onClick={() => openTooltipUrl(row.url!)}
-                                >
-                                    <span className="wrap-anywhere">{row.value}</span>
-                                </button>
-                            ) : (
-                                <span className="wrap-anywhere text-foreground">{row.value}</span>
-                            )}
-                        </li>
-                    ))}
-                </ul>
+                {tooltip.description && (
+                    <p className="mt-1 mb-0 text-[12px] leading-5 wrap-anywhere text-muted">
+                        {tooltip.description}
+                    </p>
+                )}
+                {tooltip.rows.length > 0 && (
+                    <ul className="mt-2 mb-0 list-disc space-y-1 pl-5 text-[12px] leading-5">
+                        {tooltip.rows.map((row) => (
+                            <li
+                                className="min-w-0"
+                                key={`${row.label}\0${row.value}\0${row.url ?? ''}`}
+                            >
+                                <span className="text-muted">{row.label}: </span>
+                                {row.url ? (
+                                    <button
+                                        aria-label={`Open ${row.label}: ${row.value}`}
+                                        className="max-w-full cursor-pointer border-0 bg-transparent p-0 text-left text-accent underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent"
+                                        type="button"
+                                        onClick={() => openTooltipUrl(row.url!)}
+                                    >
+                                        <span className="wrap-anywhere">{row.value}</span>
+                                    </button>
+                                ) : (
+                                    <span className="wrap-anywhere text-foreground">
+                                        {row.value}
+                                    </span>
+                                )}
+                            </li>
+                        ))}
+                    </ul>
+                )}
             </HoverCardContent>
         </HoverCard>
     );
