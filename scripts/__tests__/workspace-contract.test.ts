@@ -190,11 +190,13 @@ describe('pnpm workspace contract', () => {
         expect(`^${rootManifest.devDependencies?.['@oxlint/plugins']}`).toBe(
             workspace.catalog?.oxlint,
         );
+        // `--max-warnings=0` mirrors the `lint` script: ESLint exits 0 on a warning, so without it the hook lets
+        // through exactly what CI rejects.
         expect(rootManifest['lint-staged']?.['*.{js,jsx,mjs,cjs}']?.[0]).toBe(
-            'eslint --fix --no-warn-ignored',
+            'eslint --fix --no-warn-ignored --max-warnings=0',
         );
         expect(rootManifest['lint-staged']?.['*.{ts,tsx,mts,cts}']?.[0]).toBe(
-            'eslint --fix --no-warn-ignored',
+            'eslint --fix --no-warn-ignored --max-warnings=0',
         );
         expect(
             lockfiles(root)
