@@ -5,13 +5,20 @@
  */
 
 export interface PrimarySidebarProjectNode {
+    /**
+     * True when the Session window hides at least one Session, which is what puts the reveal row on screen.
+     */
+    hasHiddenSessions?: boolean;
     id: string;
+    /**
+     * Only the Sessions the window actually renders; hidden Sessions must stay out of the row order.
+     */
     sessionIds: readonly string[];
 }
 
 export interface PrimarySidebarTreeRow {
     id: string;
-    kind: 'project' | 'session';
+    kind: 'project' | 'session' | 'reveal';
     /**
      * The owning Project id; equals `id` itself for a Project row.
      */
@@ -19,9 +26,16 @@ export interface PrimarySidebarTreeRow {
 }
 
 /**
+ * Row id of a Project's "show more Sessions" row. Namespaced so it can never collide with a Session id.
+ */
+export function primarySidebarRevealRowId(projectId: string): string {
+    return `reveal-sessions:${projectId}`;
+}
+
+/**
  * Flattens the PrimarySidebar into the exact row order arrow-key navigation should walk: each Project heading, followed
- * by its active Sessions while that Project is expanded. Matches `DisclosureMotion`'s collapsed state exactly so focus
- * never lands on a hidden row.
+ * by its visible Sessions and its reveal row while that Project is expanded. Matches `DisclosureMotion`'s collapsed
+ * state and the Session window exactly so focus never lands on a hidden row.
  */
 export function flattenPrimarySidebarRows(
     projects: readonly PrimarySidebarProjectNode[],
@@ -33,6 +47,12 @@ export function flattenPrimarySidebarRows(
         if (!isExpanded(project.id)) continue;
         for (const sessionId of project.sessionIds)
             rows.push({ id: sessionId, kind: 'session', projectId: project.id });
+        if (project.hasHiddenSessions)
+            rows.push({
+                id: primarySidebarRevealRowId(project.id),
+                kind: 'reveal',
+                projectId: project.id,
+            });
     }
     return rows;
 }
@@ -70,15 +90,15 @@ export interface PrimarySidebarHorizontalIntent {
 
 /**
  * Resolves Left/Right on a tree row per the standard ARIA tree authoring pattern: Right opens a collapsed Project, Left
- * closes an open one. A Session has no children of its own, so Left instead moves focus to its owning Project heading —
- * Sessions are never collapse/expand targets themselves.
+ * closes an open one. A Session or reveal row has no children of its own, so Left instead moves focus to its owning
+ * Project heading — only a Project is a collapse/expand target.
  */
 export function primarySidebarHorizontalIntent(
     row: PrimarySidebarTreeRow,
     isExpanded: boolean,
     key: 'ArrowLeft' | 'ArrowRight',
 ): PrimarySidebarHorizontalIntent {
-    if (row.kind === 'session') return key === 'ArrowLeft' ? { focusRowId: row.projectId } : {};
+    if (row.kind !== 'project') return key === 'ArrowLeft' ? { focusRowId: row.projectId } : {};
     if (key === 'ArrowRight') return isExpanded ? {} : { expanded: true };
     return isExpanded ? { expanded: false } : {};
 }
@@ -108,8 +128,9 @@ export type PrimarySidebarRowKeyIntent = 'archive';
 
 /**
  * Resolves Delete/Backspace on a focused tree row to the archive intent. Only a Session row has an archive action, so a
- * Project row (or any other key) resolves to no intent; the caller is responsible for the actual `archiveSession` side
- * effect (archiving is reversible via the Archived Sessions dialog, so this intentionally skips a confirmation step).
+ * Project or reveal row (or any other key) resolves to no intent; the caller is responsible for the actual
+ * `archiveSession` side effect (archiving is reversible via the Archived Sessions dialog, so this intentionally skips a
+ * confirmation step).
  */
 export function primarySidebarArchiveIntent(
     row: PrimarySidebarTreeRow,

@@ -1,0 +1,65 @@
+import { useCallback, useMemo, useState } from 'react';
+
+import type { ProjectRecord, SessionRecord } from '@caxri/protocol';
+
+import type { SessionListWindow } from '../session-list-window';
+import { nextRevealedSessionCount, sessionListWindow } from '../session-list-window';
+
+export interface ProjectSessionWindow extends SessionListWindow<SessionRecord> {
+    project: ProjectRecord;
+}
+
+interface UseProjectSessionWindowsInput {
+    projects: readonly ProjectRecord[];
+    selectedSessionId: string | undefined;
+    /**
+     * Every active Session already in sidebar order, across all Projects.
+     */
+    sidebarSessions: readonly SessionRecord[];
+}
+
+/**
+ * Owns how many Sessions each Project currently shows. The revealed counts are deliberately kept in memory only: a
+ * relaunch should start from the short list again, the same way it starts scrolled to the top.
+ */
+export function useProjectSessionWindows({
+    projects,
+    selectedSessionId,
+    sidebarSessions,
+}: UseProjectSessionWindowsInput) {
+    const [revealedCounts, setRevealedCounts] = useState<Record<string, number>>({});
+
+    const windows = useMemo(
+        () =>
+            projects.map((project) => {
+                // Single pass instead of `.filter().map()`: react-doctor's combine-iterations rule
+                // flags the chained form even though both walk the same small `sessions` array.
+                const projectSessions: SessionRecord[] = [];
+                for (const session of sidebarSessions)
+                    if (session.projectId === project.id) projectSessions.push(session);
+                return {
+                    project,
+                    ...sessionListWindow(
+                        projectSessions,
+                        revealedCounts[project.id],
+                        selectedSessionId,
+                    ),
+                };
+            }),
+        [projects, revealedCounts, selectedSessionId, sidebarSessions],
+    );
+
+    /**
+     * Steps one Project's window forward. The next window is measured from what is on screen right now, so it always
+     * adds exactly the number the reveal row promised — even when the selected-Session guarantee already widened the
+     * window past the stored count.
+     */
+    const revealMore = useCallback((projectId: string, visibleCount: number): void => {
+        setRevealedCounts((current) => ({
+            ...current,
+            [projectId]: nextRevealedSessionCount(visibleCount),
+        }));
+    }, []);
+
+    return { revealMore, windows };
+}
