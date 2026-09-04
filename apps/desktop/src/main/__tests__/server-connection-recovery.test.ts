@@ -63,6 +63,33 @@ describe('Desktop Server connection recovery', () => {
         expect(connection.isRecovering()).toBe(false);
     });
 
+    /**
+     * `ServerArtifactSupervisor.ensure` throws `CONFLICT` without touching the restart budget when the Server process
+     * is alive but its endpoint keeps refusing, so the supervisor never reports a failure and the loop retries forever.
+     * Only the outage age can end the recovery window for that outage.
+     */
+    it('stops reporting recovery once the outage outlives the reconnect window', async () => {
+        vi.useFakeTimers();
+        const first = mockServerRound();
+        const { connection } = createConnection();
+        await connection.start();
+
+        vi.mocked(ensureServer).mockRejectedValue(
+            new CaxriError(
+                'CONFLICT',
+                'Caxri Host process is alive but its endpoint is unavailable',
+            ),
+        );
+        first.triggerClose(undefined, 1006);
+        expect(connection.isRecovering()).toBe(true);
+
+        await vi.advanceTimersByTimeAsync(119_000);
+        expect(connection.isRecovering()).toBe(true);
+
+        await vi.advanceTimersByTimeAsync(2_000);
+        expect(connection.isRecovering()).toBe(false);
+    });
+
     it('stops reporting recovery once the Core restart budget is exhausted', async () => {
         vi.useFakeTimers();
         const first = mockServerRound();
