@@ -43,6 +43,31 @@ describe('extension view contracts', () => {
             }).tooltip,
         ).toMatchObject({ kind: 'rich', rows: [{ label: 'alias' }, { label: 'inspect' }] });
         expect(
+            treeItemSchema.parse({
+                ...baseItem,
+                tooltip: {
+                    kind: 'rich',
+                    title: 'gh: rate limited',
+                    description: 'Refresh after the API limit resets.',
+                },
+            }).tooltip,
+        ).toEqual({
+            kind: 'rich',
+            title: 'gh: rate limited',
+            description: 'Refresh after the API limit resets.',
+            rows: [],
+        });
+        expect(
+            treeItemSchema.safeParse({
+                ...baseItem,
+                tooltip: {
+                    kind: 'rich',
+                    title: 'preview',
+                    description: 'x'.repeat(1_025),
+                },
+            }).success,
+        ).toBe(false);
+        expect(
             treeItemSchema.safeParse({
                 ...baseItem,
                 tooltip: {

@@ -304,15 +304,22 @@ VS Code's PrimarySidebar-vs-Panel split. The Panel is closed at rest, its tabs s
 natural width, and a trailing close button dismisses it. `Command+J` toggles it. A new surface
 picks its region by content shape, not by which region has room left.
 
-**Project Status deployment hover** — deployment rows follow the VS Code reference hierarchy:
-target or environment plus semantic status in the heading, then compact `alias`, successful
-`inspect: logs`, and optional `created` rows. The rich hover uses the shared PreviewCard surface so
-its HTTP(S) links remain reachable by pointer and keyboard; pointer opens capture the initial cursor
-position, place the card beside the cursor, and flip it from right to left when necessary so the
-cursor's vertical path through adjacent rows remains clear. Keyboard focus falls back to the row
-anchor, and viewport collision keeps the entire card visible. Text values wrap inside the bounded
-card instead of widening the SecondarySidebar. Plain extension tooltips retain the shared compact
-Tooltip surface and the same cursor-side placement behavior.
+**Project Status hover** — every row in the tree wears the same card, so one panel never mixes a
+structured card with a multi-line grey string. The card follows the VS Code reference hierarchy:
+the row's subject plus its semantic status in the heading, then prose that explains that heading,
+then compact `label: value` rows. A repository names its branch and remote, a branch carries a
+`default` badge, a deployment keeps `alias`, successful `inspect: logs`, and optional `created`, a
+check carries its duration and `logs`, and a provider failure puts its recovery hint in the prose
+line rather than forcing it into a list row. The row's own destination appears once, as the
+trailing `link` row, and never a second time under a more specific label. A row with nothing
+structured to add renders heading-only rather than falling back to the plain surface. The rich
+hover uses the shared PreviewCard surface so its HTTP(S) links remain reachable by pointer and
+keyboard; pointer opens capture the initial cursor position, place the card beside the cursor, and
+flip it from right to left when necessary so the cursor's vertical path through adjacent rows
+remains clear. Keyboard focus falls back to the row anchor, and viewport collision keeps the entire
+card visible. Headings, prose, and values all wrap inside the bounded card instead of widening the
+SecondarySidebar. The shared compact Tooltip surface, with the same cursor-side placement behavior,
+remains correct for a genuinely single-line extension tooltip such as a Source Control file path.
 
 An extension tree whose whole surface is unavailable uses one `message` item: a quiet, full-width
 icon/title/description/action state built from the shared Empty primitive, never a long error forced

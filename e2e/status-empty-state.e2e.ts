@@ -69,6 +69,7 @@ test('Project Status presents a non-Git Project as a complete message', async ()
 
         await message.hover();
         await expect(running.page.locator('.tooltip-popup:visible')).toHaveCount(0);
+        await expect(running.page.locator('.tree-item-rich-tooltip:visible')).toHaveCount(0);
 
         await execFileAsync('git', ['init', '-b', 'main'], { cwd: root });
         await execFileAsync('git', ['config', 'user.email', 'caxri@example.com'], { cwd: root });
