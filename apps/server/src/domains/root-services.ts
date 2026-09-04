@@ -11,6 +11,7 @@ import { AgentTranscriptWatcher, resolveAgentTranscriptLocation } from './agents
 import { ConfigService } from './config';
 import { CaxriDatabase } from './db';
 import type { DomainDependencies } from './domain-services';
+import { ExternalStatusHub } from './external-status';
 import { FileService } from './files';
 import { GitService } from './git';
 import { ProjectRootResolver } from './project-roots';
@@ -90,8 +91,15 @@ export async function createRootServices({
     await config.initialize();
     database.setAppState('activeThemeId', config.getTheme().value.id);
 
+    /**
+     * One owner for every `gh`, `linear`, and `vc` query in the Server. Constructed before Git so Source Control, the
+     * Status panel, the status bar, and the sidebar sweep all share a single pull-request projection and a single
+     * per-source rate-limit circuit instead of discovering the same limit four times over.
+     */
+    const externalStatus = new ExternalStatusHub({ logger });
     const git = new GitService(new ProjectRootResolver(database), logger, {
         emit: send,
+        externalStatus,
         watchHub,
     });
     const workbenchRoots = new WorkbenchRootService({
@@ -136,6 +144,7 @@ export async function createRootServices({
             acknowledgeFileMutation(database, files, sessionId, operationId),
         configuration: config,
         database,
+        externalStatus,
         files,
         git,
         transcripts,

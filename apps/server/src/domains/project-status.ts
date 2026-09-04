@@ -14,24 +14,23 @@ import type {
 import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
-import { parseGitHubRemote } from '@caxri/utils';
+import { parseGitHubRemote, rememberBounded } from '@caxri/utils';
 import { ProjectStatusSummaryErrorMessage as statusError } from 'caxri';
 import { z } from 'zod';
 
+import type { ExternalStatusRunner, ExternalStatusSource } from './external-status';
+import {
+    ExternalStatusCliError,
+    externalStatusCommandOperation,
+    GitHubPullRequestStore,
+    isNoPullRequest,
+    runExternalStatusCommand,
+} from './external-status';
 import type { GitService } from './git';
-import type {
-    ProjectStatusCommand,
-    ProjectStatusRunner,
-    VercelLink,
-} from './project-status-external';
+import type { VercelLink } from './project-status-external';
 import {
     extractLinearReferences,
-    isNoPullRequest,
-    ProjectStatusCliError,
     projectStatusCliError,
-    projectStatusCommandOperation,
-    rememberVercelLink,
-    runProjectStatusCommand,
     vcListArguments,
 } from './project-status-external';
 import { mapProjectStatusDeployment } from './project-status-vercel';
@@ -46,7 +45,11 @@ export { parseGitHubRemote } from '@caxri/utils';
 const VERCEL_LINK_CACHE_LIMIT = 256;
 const SUMMARY_CACHE_LIMIT = 128;
 const SUMMARY_CACHE_TTL_MS = 60_000;
-const SUMMARY_FAILURE_CACHE_TTL_MS = 30_000;
+/**
+ * A failed refresh must back off _further_ than a successful one, never less. The previous 30s retried a rate-limited
+ * `gh` twice as often as a healthy one, which is how a transient limit turned into a sustained one.
+ */
+const SUMMARY_FAILURE_CACHE_TTL_MS = 5 * 60_000;
 
 const githubCheckSchema = z.object({
     __typename: z.string().optional(),
@@ -146,6 +149,11 @@ export interface ProjectStatusServiceOptions {
     cacheTtlMs?: number;
     emit?: (event: ServerEvent) => void;
     failureCacheTtlMs?: number;
+    /**
+     * Server-wide pull-request projection. Sharing one store with the sidebar sweep and Source Control is what keeps
+     * the status bar, the Status panel, and the badges on a single `gh pr view` per pull request.
+     */
+    github?: GitHubPullRequestStore;
     now?: () => number;
 }
 
@@ -262,25 +270,29 @@ export class ProjectStatusService {
      * LRU-bounded (see `VERCEL_LINK_CACHE_LIMIT`) so this process-lifetime cache can't grow unbounded.
      */
     private readonly vercelLinks = new Map<string, VercelLink>();
+    private readonly github: GitHubPullRequestStore;
 
     constructor(
         private readonly git: Pick<GitService, 'summary'>,
         private readonly logger: StructuredLogger,
-        private readonly runner: ProjectStatusRunner = runProjectStatusCommand,
+        private readonly runner: ExternalStatusRunner = runExternalStatusCommand,
         private readonly options: ProjectStatusServiceOptions = {},
-    ) {}
+    ) {
+        this.github =
+            options.github ?? new GitHubPullRequestStore(this.runner, { now: () => this.now() });
+    }
 
     private now(): number {
         return this.options.now?.() ?? Date.now();
     }
 
     private async runCommand(
-        command: ProjectStatusCommand,
+        command: ExternalStatusSource,
         arguments_: readonly string[],
         cwd: string,
     ): Promise<string> {
         const startedAt = performance.now();
-        const operation = projectStatusCommandOperation(command, arguments_);
+        const operation = externalStatusCommandOperation(command, arguments_);
         try {
             const result = await this.runner(command, arguments_, cwd);
             this.logger.write('debug', logEventCatalog.projectStatus.cli, {
@@ -290,7 +302,7 @@ export class ProjectStatusService {
             return result;
         } catch (error) {
             const failureKind =
-                error instanceof ProjectStatusCliError ? error.kind : ('other' as const);
+                error instanceof ExternalStatusCliError ? error.kind : ('other' as const);
             this.logger.write(
                 isNoPullRequest(error) ? 'debug' : 'warn',
                 logEventCatalog.projectStatus.cli,
@@ -316,25 +328,20 @@ export class ProjectStatusService {
         let pullRequest: NonNullable<ProjectStatusOverview['repository']>['pullRequest'];
         if (github) {
             try {
-                const output = await this.runCommand(
-                    'gh',
-                    [
-                        'pr',
-                        'view',
-                        repo.branch,
-                        '--repo',
-                        `${github.owner}/${github.repo}`,
-                        '--json',
-                        'number,title,url',
-                    ],
-                    repo.rootPath,
-                );
-                const parsed = parseExternalJson(
-                    output,
-                    githubPullRequestSchema,
-                    'GitHub pull request',
-                );
-                if (parsed.number && parsed.title && parsed.url) {
+                /**
+                 * The shared store, not a direct `gh` spawn: the status bar polls every minute and refetches on window
+                 * focus, and the Status panel wants the same pull request. One record serves both.
+                 */
+                const output = await this.github.view({
+                    branch: repo.branch,
+                    cwd: repo.rootPath,
+                    owner: github.owner,
+                    repo: github.repo,
+                });
+                const parsed = output
+                    ? parseExternalJson(output, githubPullRequestSchema, 'GitHub pull request')
+                    : undefined;
+                if (parsed?.number && parsed.title && parsed.url) {
                     pullRequest = {
                         number: parsed.number,
                         title: parsed.title,
@@ -452,9 +459,12 @@ export class ProjectStatusService {
         };
     }
 
-    private async refreshRepository(prepared: PreparedRepo): Promise<ProjectStatusRepo> {
+    private async refreshRepository(
+        prepared: PreparedRepo,
+        isForced: boolean,
+    ): Promise<ProjectStatusRepo> {
         const [githubState, vercelState] = await Promise.all([
-            this.loadGitHub(prepared.repository.rootPath, prepared.context),
+            this.loadGitHub(prepared.repository.rootPath, prepared.context, isForced),
             this.loadVercel(prepared.context),
         ]);
         return {
@@ -469,6 +479,7 @@ export class ProjectStatusService {
     private async loadGitHub(
         cwd: string,
         context: RepoContext,
+        isForced: boolean,
     ): Promise<
         Pick<ProjectStatusRepo, 'pullRequest' | 'linearIssues'> & {
             errors: ProjectStatusError[];
@@ -478,19 +489,15 @@ export class ProjectStatusService {
             return { linearIssues: [], errors: [] };
         }
         try {
-            const output = await this.runCommand(
-                'gh',
-                [
-                    'pr',
-                    'view',
-                    context.branch,
-                    '--repo',
-                    `${context.owner}/${context.repo}`,
-                    '--json',
-                    'number,title,url,body,statusCheckRollup',
-                ],
+            const output = await this.github.view({
+                branch: context.branch,
                 cwd,
-            );
+                // An explicit user refresh must reach GitHub; an automatic revalidation may reuse the shared record.
+                maxAgeMs: isForced ? 0 : undefined,
+                owner: context.owner,
+                repo: context.repo,
+            });
+            if (!output) return { linearIssues: [], errors: [] };
             const parsed = parseGitHubPullRequest(output);
             const linear = await this.loadLinear(cwd, parsed.body);
             return {
@@ -501,9 +508,9 @@ export class ProjectStatusService {
         } catch (error) {
             if (isNoPullRequest(error)) return { linearIssues: [], errors: [] };
             const failure =
-                error instanceof ProjectStatusCliError
+                error instanceof ExternalStatusCliError
                     ? error
-                    : new ProjectStatusCliError('gh', 'other', String(error));
+                    : new ExternalStatusCliError('gh', 'other', String(error));
             return { linearIssues: [], errors: [projectStatusCliError('gh', failure.kind)] };
         }
     }
@@ -540,9 +547,9 @@ export class ProjectStatusService {
                     };
                 } catch (error) {
                     const failure =
-                        error instanceof ProjectStatusCliError
+                        error instanceof ExternalStatusCliError
                             ? error
-                            : new ProjectStatusCliError('linear', 'other', String(error));
+                            : new ExternalStatusCliError('linear', 'other', String(error));
                     firstError ??= projectStatusCliError('linear', failure.kind);
                     return { identifier: reference.identifier };
                 }
@@ -555,7 +562,7 @@ export class ProjectStatusService {
         const key = `${owner}/${repo}`;
         const cached = this.vercelLinks.get(key);
         if (cached) {
-            rememberVercelLink(this.vercelLinks, key, cached, VERCEL_LINK_CACHE_LIMIT);
+            rememberBounded(this.vercelLinks, key, cached, VERCEL_LINK_CACHE_LIMIT);
             return cached;
         }
         const teamsJson = await this.runCommand(
@@ -579,7 +586,7 @@ export class ProjectStatusService {
             }),
         );
         const link = links.find((candidate): candidate is VercelLink => Boolean(candidate));
-        if (link) rememberVercelLink(this.vercelLinks, key, link, VERCEL_LINK_CACHE_LIMIT);
+        if (link) rememberBounded(this.vercelLinks, key, link, VERCEL_LINK_CACHE_LIMIT);
         return link;
     }
 
@@ -637,22 +644,20 @@ export class ProjectStatusService {
             };
         } catch (error) {
             const failure =
-                error instanceof ProjectStatusCliError
+                error instanceof ExternalStatusCliError
                     ? error
-                    : new ProjectStatusCliError('vc', 'other', String(error));
+                    : new ExternalStatusCliError('vc', 'other', String(error));
             return { errors: [projectStatusCliError('vc', failure.kind)] };
         }
     }
 
     private rememberSummary(sessionId: string, entry: SummaryCacheEntry): void {
-        this.summaries.delete(sessionId);
-        this.summaries.set(sessionId, entry);
-        const maximum = this.options.cacheLimit ?? SUMMARY_CACHE_LIMIT;
-        while (this.summaries.size > Math.max(1, maximum)) {
-            const oldest = this.summaries.keys().next().value;
-            if (!oldest) break;
-            this.summaries.delete(oldest);
-        }
+        rememberBounded(
+            this.summaries,
+            sessionId,
+            entry,
+            this.options.cacheLimit ?? SUMMARY_CACHE_LIMIT,
+        );
     }
 
     /**
@@ -663,6 +668,7 @@ export class ProjectStatusService {
         sessionId: string,
         prepared: PreparedSummary,
         sessionGeneration: number,
+        isForced: boolean,
     ): Promise<void> {
         const fingerprint = prepared.fingerprint;
         if (!fingerprint || this.sessionGenerations.get(sessionId) !== sessionGeneration) return;
@@ -671,7 +677,7 @@ export class ProjectStatusService {
             await this.refreshes.run(refreshKey, async () => {
                 const startedAt = performance.now();
                 const repositories = await Promise.all(
-                    prepared.repositories.map((repo) => this.refreshRepository(repo)),
+                    prepared.repositories.map((repo) => this.refreshRepository(repo, isForced)),
                 );
                 if (
                     this.sessionGenerations.get(sessionId) !== sessionGeneration ||
@@ -732,11 +738,11 @@ export class ProjectStatusService {
         if (isForceRefresh) cached = { ...cached, refreshToken };
         this.rememberSummary(sessionId, cached);
         const source = cached.value ? (cached.expiresAt > this.now() ? 'fresh' : 'stale') : 'local';
-        if (isForceRefresh) await this.refreshSummary(sessionId, prepared, sessionGeneration);
+        if (isForceRefresh) await this.refreshSummary(sessionId, prepared, sessionGeneration, true);
         else if (source !== 'fresh') {
             // The cache event owns UI convergence for automatic stale-while-revalidate loads.
             // eslint-disable-next-line no-void -- background refresh logs its own failure
-            void this.refreshSummary(sessionId, prepared, sessionGeneration);
+            void this.refreshSummary(sessionId, prepared, sessionGeneration, false);
         }
         this.logger.write('info', logEventCatalog.projectStatus.summary, {
             durationMs: performance.now() - startedAt,

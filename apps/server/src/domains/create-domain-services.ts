@@ -52,6 +52,7 @@ export async function createDomainServices(
         acknowledgeFileMutation,
         configuration,
         database,
+        externalStatus,
         files,
         git,
         transcripts,
@@ -199,7 +200,10 @@ export async function createDomainServices(
         watchHub,
     });
     suspensionState.service = terminalSuspension;
-    const projectStatus = new ProjectStatusService(git, logger, undefined, { emit: send });
+    const projectStatus = new ProjectStatusService(git, logger, externalStatus.run, {
+        emit: send,
+        github: externalStatus.github,
+    });
     const diagnostics = new DiagnosticsService(
         database,
         logger,
@@ -749,6 +753,7 @@ export async function createDomainServices(
             database,
             emit: send,
             diagnostics,
+            externalStatus,
             files,
             git,
             introspection,

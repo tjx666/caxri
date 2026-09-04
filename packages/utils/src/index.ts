@@ -3,6 +3,7 @@
  * one, prefer `es-toolkit` when it already ships the function; add here only what the ecosystem does not provide. React
  * hooks belong in `apps/desktop/src/renderer/src/hooks`.
  */
+export * from './bounded-map.js';
 export * from './collect-tree-subtree.js';
 export * from './color-contrast.js';
 export * from './compare-tree-nodes.js';

@@ -18,6 +18,15 @@ test('Git Pull Request mode shows committed PR changes instead of the working tr
     await execFileAsync('git', ['init', '-b', 'main'], { cwd: root });
     await execFileAsync('git', ['config', 'user.email', 'caxri@example.com'], { cwd: root });
     await execFileAsync('git', ['config', 'user.name', 'Caxri E2E'], { cwd: root });
+    /**
+     * The Server-wide GitHub projection keys records by `owner/repo`, so a pull-request read resolves `origin` before
+     * it consults the shared store. A repository with no GitHub remote never reaches `gh` at all.
+     */
+    await execFileAsync(
+        'git',
+        ['remote', 'add', 'origin', 'https://github.com/tjx666/project.git'],
+        { cwd: root },
+    );
     await writeFile(join(root, 'tracked.txt'), 'before\n', 'utf8');
     await execFileAsync('git', ['add', 'tracked.txt'], { cwd: root });
     await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: root });
@@ -37,6 +46,12 @@ test('Git Pull Request mode shows committed PR changes instead of the working tr
     await execFileAsync('git', ['init', '-b', 'nested-main'], { cwd: nested });
     await execFileAsync('git', ['config', 'user.email', 'caxri@example.com'], { cwd: nested });
     await execFileAsync('git', ['config', 'user.name', 'Caxri E2E'], { cwd: nested });
+    // A distinct slug so the nested repository gets its own record instead of joining the root repository's.
+    await execFileAsync(
+        'git',
+        ['remote', 'add', 'origin', 'https://github.com/tjx666/nested.git'],
+        { cwd: nested },
+    );
     await writeFile(join(nested, 'nested.txt'), 'nested\n', 'utf8');
     await execFileAsync('git', ['add', 'nested.txt'], { cwd: nested });
     await execFileAsync('git', ['commit', '-m', 'nested initial'], { cwd: nested });

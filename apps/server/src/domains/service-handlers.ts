@@ -14,6 +14,7 @@ import type { ConfigService } from './config';
 import type { CaxriDatabase } from './db';
 import type { DiagnosticsService } from './diagnostics';
 import type { DomainDependencies, DomainHandlers } from './domain-services';
+import type { ExternalStatusHub } from './external-status';
 import type { FileService } from './files';
 import type { GitService } from './git';
 import { withGitRequestSignal } from './git';
@@ -112,6 +113,7 @@ export function createServiceHandlers(services: {
     database: CaxriDatabase;
     emit: DomainDependencies['send'];
     diagnostics: DiagnosticsService;
+    externalStatus: ExternalStatusHub;
     files: FileService;
     git: GitService;
     introspection: ReturnType<typeof createIntrospectionServices>;
@@ -130,6 +132,7 @@ export function createServiceHandlers(services: {
         database,
         emit,
         diagnostics,
+        externalStatus,
         files,
         git,
         introspection,
@@ -139,10 +142,13 @@ export function createServiceHandlers(services: {
         transcripts,
         userDataPath,
     } = services;
-    const sessionPullRequests = new SessionPullRequestService(database, git, logger, undefined, {
-        agentEnvironment,
-        emit,
-    });
+    const sessionPullRequests = new SessionPullRequestService(
+        database,
+        git,
+        logger,
+        externalStatus.run,
+        { agentEnvironment, emit, github: externalStatus.github },
+    );
     return {
         'agentActions.list': ({ terminalId }) =>
             listAgentActions(
