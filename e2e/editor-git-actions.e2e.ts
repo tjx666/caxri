@@ -17,6 +17,15 @@ test('Editor title actions open the file last-commit and pull-request diffs', as
     await execFileAsync('git', ['init', '-b', 'main'], { cwd: root });
     await execFileAsync('git', ['config', 'user.email', 'caxri@example.com'], { cwd: root });
     await execFileAsync('git', ['config', 'user.name', 'Caxri E2E'], { cwd: root });
+    /**
+     * The Server-wide GitHub projection keys records by `owner/repo`, so a pull-request read resolves `origin` before
+     * it consults the shared store. A repository with no GitHub remote never reaches `gh` at all.
+     */
+    await execFileAsync(
+        'git',
+        ['remote', 'add', 'origin', 'https://github.com/tjx666/project.git'],
+        { cwd: root },
+    );
     await writeFile(join(root, 'tracked.txt'), 'before\n', 'utf8');
     await execFileAsync('git', ['add', 'tracked.txt'], { cwd: root });
     await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: root });

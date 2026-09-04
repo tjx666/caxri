@@ -111,6 +111,11 @@ export const logEventCatalog = {
         uncaughtException: 'desktop.uncaught_exception',
         unhandledRejection: 'desktop.unhandled_rejection',
     },
+    externalStatus: {
+        paused: 'external_status.paused',
+        quota: 'external_status.quota',
+        resumed: 'external_status.resumed',
+    },
     gpu: {
         processGone: 'gpu.process_gone',
         recovery: 'gpu.recovery',

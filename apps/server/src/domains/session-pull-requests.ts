@@ -8,7 +8,7 @@ import type {
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog, mapWithConcurrency } from '@caxri/system';
-import { parseGitHubRemote } from '@caxri/utils';
+import { parseGitHubRemote, rememberBounded } from '@caxri/utils';
 import { z } from 'zod';
 
 import type {
@@ -25,15 +25,16 @@ import {
     scanTranscriptPullRequestLine,
 } from './agents';
 import type { CaxriDatabase } from './db';
+import type { ExternalStatusRunner } from './external-status';
+import {
+    ExternalStatusCliError,
+    externalStatusCommandOperation,
+    GitHubPullRequestStore,
+    isNoPullRequest,
+    runExternalStatusCommand,
+} from './external-status';
 import type { GitService } from './git';
 import { parseGitHubPullRequest } from './project-status';
-import type { ProjectStatusRunner } from './project-status-external';
-import {
-    isNoPullRequest,
-    ProjectStatusCliError,
-    projectStatusCommandOperation,
-    runProjectStatusCommand,
-} from './project-status-external';
 
 /**
  * Merge state moves on human timescales, so an open PR refreshes once a minute while a merged or closed one only
@@ -43,7 +44,11 @@ import {
 const OPEN_TTL_MS = 60_000;
 const SETTLED_TTL_MS = 15 * 60_000;
 const MISSING_TTL_MS = 5 * 60_000;
-const FAILURE_TTL_MS = 2 * 60_000;
+/**
+ * A failed lookup must not retry sooner than a successful one would refresh. Two minutes was already longer than the
+ * open-PR TTL, but a rate-limited `gh` needs the source-level circuit breaker, not a per-Session timer, to recover.
+ */
+const FAILURE_TTL_MS = 5 * 60_000;
 const MAX_CONCURRENT_LOOKUPS = 4;
 const MAX_TRANSCRIPT_SCANS = 128;
 const MAX_PULL_REQUEST_ENTRIES = 256;
@@ -51,7 +56,17 @@ const MAX_PULL_REQUEST_ENTRIES = 256;
  * Integration branches never carry the Session's own delivery, and querying them would cost a `gh` call per sweep.
  */
 const INTEGRATION_BRANCHES = new Set(['main', 'master', 'develop', 'dev', 'trunk', 'HEAD']);
-const PULL_REQUEST_JSON_FIELDS = 'number,title,url,state,isDraft,statusCheckRollup';
+/**
+ * Branch discovery only has to answer "which pull request is this branch's?", so it asks for identity and nothing else.
+ * `statusCheckRollup` here used to multiply the query's GraphQL cost by every candidate returned; the selected pull
+ * request's checks now come from the shared record, which the Status panel and status bar read too.
+ */
+const BRANCH_DISCOVERY_JSON_FIELDS = 'number,state,isDraft';
+/**
+ * Enough candidates to rank an open pull request above a merged and a closed one for the same branch, without paying
+ * for a page of history nobody renders.
+ */
+const MAX_BRANCH_CANDIDATES = '5';
 
 const githubPullRequestStateSchema = z.object({
     isDraft: z.boolean().optional(),
@@ -93,6 +108,10 @@ interface SessionEntry {
 export interface SessionPullRequestServiceOptions {
     agentEnvironment?: AgentEnvironment;
     emit?: (event: ServerEvent) => void;
+    /**
+     * Server-wide pull-request projection shared with the Status panel, the status bar, and Source Control.
+     */
+    github?: GitHubPullRequestStore;
     now?: () => number;
     openTtlMs?: number;
     settledTtlMs?: number;
@@ -103,21 +122,6 @@ type SessionPullRequestDatabase = Pick<CaxriDatabase, 'getTerminal' | 'listSessi
 
 function pullRequestKey(reference: PullRequestReference): string {
     return `${reference.owner}/${reference.repo}#${reference.number}`;
-}
-
-function rememberBounded<Key, Value>(
-    map: Map<Key, Value>,
-    key: Key,
-    value: Value,
-    maximum: number,
-) {
-    map.delete(key);
-    map.set(key, value);
-    while (map.size > maximum) {
-        const oldest = map.keys().next().value;
-        if (oldest === undefined) break;
-        map.delete(oldest);
-    }
 }
 
 /**
@@ -209,16 +213,19 @@ export class SessionPullRequestService {
     private readonly sessions = new Map<string, SessionEntry>();
     private sweep?: Promise<void>;
     private readonly transcriptScans = new Map<string, TranscriptPullRequestScan>();
+    private readonly github: GitHubPullRequestStore;
 
     constructor(
         private readonly database: SessionPullRequestDatabase,
         private readonly git: Pick<GitService, 'summary'>,
         private readonly logger: StructuredLogger,
-        private readonly runner: ProjectStatusRunner = runProjectStatusCommand,
+        private readonly runner: ExternalStatusRunner = runExternalStatusCommand,
         private readonly options: SessionPullRequestServiceOptions = {},
     ) {
         this.environment = options.agentEnvironment ?? defaultAgentEnvironment();
         this.now = options.now ?? Date.now;
+        this.github =
+            options.github ?? new GitHubPullRequestStore(this.runner, { now: () => this.now() });
     }
 
     /**
@@ -315,7 +322,7 @@ export class SessionPullRequestService {
                     lookedUp: false,
                 };
             try {
-                const value = await this.viewPullRequest(session, reference);
+                const value = await this.viewPullRequest(session.rootPath, reference, 'agent');
                 const expiresAt = now + this.ttlFor(value);
                 rememberBounded(
                     this.pullRequests,
@@ -422,23 +429,18 @@ export class SessionPullRequestService {
     }
 
     private async viewPullRequest(
-        session: SessionRecord,
+        cwd: string,
         reference: PullRequestReference,
+        source: SessionPullRequest['source'],
     ): Promise<SessionPullRequest | undefined> {
         try {
-            const output = await this.runCommand(
-                [
-                    'pr',
-                    'view',
-                    String(reference.number),
-                    '--repo',
-                    `${reference.owner}/${reference.repo}`,
-                    '--json',
-                    PULL_REQUEST_JSON_FIELDS,
-                ],
-                session.rootPath,
-            );
-            return parseSessionPullRequest(output, 'agent');
+            const output = await this.github.view({
+                cwd,
+                number: reference.number,
+                owner: reference.owner,
+                repo: reference.repo,
+            });
+            return output ? parseSessionPullRequest(output, source) : undefined;
         } catch (error) {
             if (isNoPullRequest(error)) return undefined;
             throw error;
@@ -474,18 +476,32 @@ export class SessionPullRequestService {
                     '--state',
                     'all',
                     '--limit',
-                    '10',
+                    MAX_BRANCH_CANDIDATES,
                     '--json',
-                    PULL_REQUEST_JSON_FIELDS,
+                    BRANCH_DISCOVERY_JSON_FIELDS,
                 ],
                 github.rootPath,
             );
             const candidates = z
-                .array(z.looseObject({ state: z.string(), isDraft: z.boolean().optional() }))
+                .array(
+                    z.looseObject({
+                        number: z.number().int().positive(),
+                        state: z.string(),
+                        isDraft: z.boolean().optional(),
+                    }),
+                )
                 .parse(JSON.parse(output));
             const selected = selectBranchPullRequest(candidates);
+            /**
+             * Discovery answered _which_ pull request; the shared record answers _what state it is in_, and is the same
+             * record the Status panel and status bar read for this repository.
+             */
             value = selected
-                ? parseSessionPullRequest(JSON.stringify(selected), 'branch')
+                ? await this.viewPullRequest(
+                      github.rootPath,
+                      { number: selected.number, owner: github.owner, repo: github.repo },
+                      'branch',
+                  )
                 : undefined;
             ttl = this.ttlFor(value);
         } catch (error) {
@@ -512,7 +528,7 @@ export class SessionPullRequestService {
 
     private async runCommand(arguments_: readonly string[], cwd: string): Promise<string> {
         const startedAt = performance.now();
-        const operation = projectStatusCommandOperation('gh', arguments_);
+        const operation = externalStatusCommandOperation('gh', arguments_);
         try {
             const result = await this.runner('gh', arguments_, cwd);
             this.logger.write('debug', logEventCatalog.sessionPullRequests.cli, {
@@ -522,7 +538,7 @@ export class SessionPullRequestService {
             return result;
         } catch (error) {
             const failureKind =
-                error instanceof ProjectStatusCliError ? error.kind : ('other' as const);
+                error instanceof ExternalStatusCliError ? error.kind : ('other' as const);
             this.logger.write(
                 isNoPullRequest(error) ? 'debug' : 'warn',
                 logEventCatalog.sessionPullRequests.cli,
