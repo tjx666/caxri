@@ -555,7 +555,7 @@ describe('AgentCoordinator provider switch', () => {
                     provider: 'claude',
                     terminalId: created.terminal!.id,
                 }),
-            ).toBe(false);
+            ).toBe('providerMismatch');
             /**
              * The signal alone must not rebind identity; only the foreground-process probe may.
              */

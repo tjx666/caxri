@@ -10,7 +10,11 @@ import type { AgentProvider } from '@caxri/protocol';
 import { agentProviderIds } from '@caxri/protocol';
 
 import { isOpaqueAgentSessionId } from '../contract';
-import type { AgentLifecyclePhase, AgentLifecycleSignal } from './contract';
+import type {
+    AgentLifecyclePhase,
+    AgentLifecycleSignal,
+    AgentSignalIgnoredReason,
+} from './contract';
 import { agentLifecyclePhases } from './contract';
 
 const MAX_SIGNAL_BYTES = 4_096;
@@ -79,7 +83,24 @@ export type AgentHookSignalRejectionReason =
     | 'transportTimeout'
     | 'unknownToken';
 
-export type AgentHookSignalDisposition = 'accepted' | 'ignored' | 'rejected';
+/**
+ * Outcome of applying one authenticated signal downstream. An ignored signal always names its reason: an unexplained
+ * drop reads identically to a lost hook in the log, which is the failure this contract exists to prevent.
+ */
+export type AgentHookSignalResult =
+    | { disposition: 'accepted' | 'rejected' }
+    | { disposition: 'ignored'; reason: AgentSignalIgnoredReason };
+
+/**
+ * Existence-only detail about the identifiers a signal carried. The values themselves stay on the provider's side of
+ * the boundary; only whether they were present crosses into diagnostics.
+ */
+interface AgentHookSignalPresence {
+    hasAgentCwd?: boolean;
+    hasAgentSessionId?: boolean;
+    hasAgentTurnId?: boolean;
+    worktreeCreateIntent?: boolean;
+}
 
 export type AgentHookSignalDiagnostic =
     | {
@@ -88,26 +109,34 @@ export type AgentHookSignalDiagnostic =
           provider: AgentProvider;
           terminalId: string;
       }
-    | {
-          hasAgentSessionId?: boolean;
-          outcome: 'accepted' | 'ignored';
+    | (AgentHookSignalPresence & {
+          /**
+           * Server-side handling cost for this signal, from the first received byte to the settled disposition. The
+           * bridge abandons the connection after its own 2s socket timeout, so this is the measurement that says how
+           * much headroom is left before signals start being lost to that timeout.
+           */
+          handlingMs?: number;
+          outcome: 'accepted';
           phase: AgentLifecyclePhase;
           provider: AgentProvider;
-          /**
-           * Present only when the disposition is `'ignored'` because of a benign provider mismatch (see
-           * {@link AgentHookServer.authorizationOutcome}); the ordinary downstream-ignored path never sets it.
-           */
-          reason?: 'providerMismatch';
           terminalId: string;
-      }
-    | {
-          hasAgentSessionId?: boolean;
+      })
+    | (AgentHookSignalPresence & {
+          handlingMs?: number;
+          outcome: 'ignored';
+          phase: AgentLifecyclePhase;
+          provider: AgentProvider;
+          reason: AgentSignalIgnoredReason;
+          terminalId: string;
+      })
+    | (AgentHookSignalPresence & {
+          handlingMs?: number;
           outcome: 'rejected';
           phase?: AgentLifecyclePhase;
           provider?: AgentProvider;
           reason: AgentHookSignalRejectionReason;
           terminalId?: string;
-      };
+      });
 
 function isProvider(value: unknown): value is AgentProvider {
     return typeof value === 'string' && agentProviderIds.includes(value as AgentProvider);
@@ -253,12 +282,20 @@ function parsePacket(
     return { packet: signal as unknown as HookWireSignal };
 }
 
+/**
+ * Records only whether each optional identifier was present. `agentCwd` and `worktreeCreateIntent` are what make the
+ * worktree-following path observable at all, and both are existence-only here: the directory and the classified command
+ * never reach diagnostics.
+ */
 function diagnosticFields(signal: HookWireSignal) {
     return {
+        hasAgentCwd: signal.agentCwd !== undefined,
         hasAgentSessionId: signal.agentSessionId !== undefined,
+        hasAgentTurnId: signal.agentTurnId !== undefined,
         phase: signal.phase,
         provider: signal.provider,
         terminalId: signal.terminalId,
+        worktreeCreateIntent: signal.worktreeCreateIntent === true,
     };
 }
 
@@ -290,7 +327,7 @@ export class AgentHookServer {
          */
         private readonly onSignal: (
             signal: AgentLifecycleSignal,
-        ) => AgentHookSignalDisposition | Promise<AgentHookSignalDisposition>,
+        ) => AgentHookSignalResult | Promise<AgentHookSignalResult>,
         private readonly onDiagnostic: (diagnostic: AgentHookSignalDiagnostic) => void = () => {},
     ) {}
 
@@ -298,10 +335,15 @@ export class AgentHookServer {
         socket.setEncoding('utf8');
         let source = '';
         let isSettled = false;
+        let receivedAt: number | undefined;
         const didSettle = (diagnostic: AgentHookSignalDiagnostic): boolean => {
             if (isSettled) return false;
             isSettled = true;
-            this.onDiagnostic(diagnostic);
+            this.onDiagnostic(
+                receivedAt === undefined || diagnostic.outcome === 'started'
+                    ? diagnostic
+                    : { ...diagnostic, handlingMs: performance.now() - receivedAt },
+            );
             return true;
         };
         socket.setTimeout(2_500, () => {
@@ -310,6 +352,7 @@ export class AgentHookServer {
         });
         socket.on('data', (chunk: string) => {
             if (isSettled) return;
+            receivedAt ??= performance.now();
             source += chunk;
             if (Buffer.byteLength(source, 'utf8') > MAX_SIGNAL_BYTES) {
                 didSettle({ outcome: 'rejected', reason: 'payloadTooLarge' });
@@ -353,28 +396,34 @@ export class AgentHookServer {
                 return;
             }
             const signal = packet;
-            let disposition: AgentHookSignalDisposition;
+            let result: AgentHookSignalResult;
             try {
-                disposition = await this.onSignal(signal);
+                result = await this.onSignal(signal);
             } catch {
-                disposition = 'rejected';
+                result = { disposition: 'rejected' };
             }
             if (
                 !didSettle(
-                    disposition === 'rejected'
+                    result.disposition === 'rejected'
                         ? {
                               ...diagnosticFields(signal),
                               outcome: 'rejected',
                               reason: 'downstreamRejected',
                           }
-                        : { ...diagnosticFields(signal), outcome: disposition },
+                        : result.disposition === 'ignored'
+                          ? {
+                                ...diagnosticFields(signal),
+                                outcome: 'ignored',
+                                reason: result.reason,
+                            }
+                          : { ...diagnosticFields(signal), outcome: 'accepted' },
                 )
             )
                 return;
             socket.end(
-                disposition === 'accepted'
+                result.disposition === 'accepted'
                     ? '{"ok":true}\n'
-                    : disposition === 'ignored'
+                    : result.disposition === 'ignored'
                       ? '{"ok":true,"ignored":true}\n'
                       : '{"ok":false}\n',
             );

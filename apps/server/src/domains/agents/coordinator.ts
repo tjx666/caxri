@@ -8,7 +8,7 @@ import type { CaxriDatabase } from '../db';
 import { SingleFlight } from '../single-flight';
 import { AgentAttentionTracker } from './attention-tracker';
 import { agentProviderStateRoot } from './contract';
-import type { AgentLifecycleSignal } from './hooks/contract';
+import type { AgentLifecycleSignal, AgentSignalDecision } from './hooks/contract';
 import { AgentLifecycleWatchdogs } from './lifecycle-watchdogs';
 import type { MetadataActivityBaseline } from './metadata-activity-baseline';
 import {
@@ -575,10 +575,11 @@ export class AgentCoordinator {
      * for status; until then metadata remains a completion fallback when a later hook is lost, and it always owns
      * identity/title/usage. A parent completion claims authority even while child aggregation defers its lifecycle.
      */
-    observeLifecycleSignal(signal: AgentLifecycleSignal): boolean {
-        if (this.launchIdsByTerminal.get(signal.terminalId) !== signal.launchId) return false;
+    observeLifecycleSignal(signal: AgentLifecycleSignal): AgentSignalDecision {
+        if (this.launchIdsByTerminal.get(signal.terminalId) !== signal.launchId)
+            return 'staleLaunch';
         const terminal = this.database.getTerminal(signal.terminalId);
-        if (!terminal) return false;
+        if (!terminal) return 'terminalMissing';
         /**
          * Hook environment is inherited by every child of a Shell PTY so an alias-launched Agent can use it later. It
          * is not provider identity: only the independent foreground-process and metadata promotion paths may establish
@@ -607,10 +608,10 @@ export class AgentCoordinator {
             ) {
                 existing.agentSessionId = signal.agentSessionId;
             }
-            return false;
+            return 'providerMismatch';
         }
         const work = this.work.observe(signal);
-        if (work.handled !== undefined) return work.handled;
+        if (work.outcome !== undefined) return work.outcome;
         if (signal.phase === 'turnFinished')
             this.hookAuthoritativeLaunchIds.set(signal.terminalId, signal.launchId);
         const isToolBatchFinished = signal.phase === 'toolBatchFinished';
@@ -675,7 +676,7 @@ export class AgentCoordinator {
         if (shouldRefreshMetadata) this.refreshes.schedule(signal.terminalId);
         if (!work.deferCompletion && (!isToolBatchFinished || didResolveAttention))
             this.applyLifecycle(signal);
-        return true;
+        return 'accepted';
     }
 
     /**

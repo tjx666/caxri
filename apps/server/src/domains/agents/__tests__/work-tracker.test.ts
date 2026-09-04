@@ -24,9 +24,13 @@ describe('AgentWorkTracker', () => {
         expect(tracker.observe(signal('turnFinished')).deferCompletion).toBe(true);
 
         tracker.observe(signal('turnStarted'));
+        /**
+         * The scope was tracked and closed cleanly; only the parent completion it might have released is gone. That is
+         * `subagentPending`, not the lost-hook anomaly `subagentUnmatched`.
+         */
         expect(tracker.observe(signal('turnFinished', 'subagent-1'))).toEqual({
             deferCompletion: false,
-            handled: false,
+            outcome: 'subagentPending',
         });
         expect(onDeferredParentFinished).not.toHaveBeenCalled();
     });
@@ -39,11 +43,49 @@ describe('AgentWorkTracker', () => {
         tracker.observe(signal('turnFinished'));
         expect(tracker.observe(signal('turnStarted', 'subagent-1'))).toEqual({
             deferCompletion: false,
-            handled: true,
+            outcome: 'accepted',
         });
         tracker.observe(signal('turnFinished', 'subagent-1'));
 
         expect(onDeferredParentFinished).toHaveBeenCalledOnce();
+    });
+
+    /**
+     * A multi-subagent turn is the common case, and every intermediate completion in it lands on the same "nothing
+     * changed" branch as a genuinely lost hook. They must not share one diagnostic reason: the launch aggregate counts
+     * these, and folding them together reports a healthy session as a stream of dropped signals.
+     */
+    it('separates an intermediate subagent completion from a scope that was never tracked', () => {
+        const tracker = new AgentWorkTracker(vi.fn());
+
+        expect(tracker.observe(signal('subagentStarted', 'subagent-1'))).toEqual({
+            deferCompletion: false,
+            outcome: 'accepted',
+        });
+        tracker.observe(signal('subagentStarted', 'subagent-2'));
+        expect(tracker.observe(signal('turnFinished')).deferCompletion).toBe(true);
+
+        expect(tracker.observe(signal('turnFinished', 'subagent-2'))).toEqual({
+            deferCompletion: false,
+            outcome: 'subagentPending',
+        });
+        expect(tracker.observe(signal('turnFinished', 'subagent-unknown'))).toEqual({
+            deferCompletion: false,
+            outcome: 'subagentUnmatched',
+        });
+        expect(tracker.observe(signal('subagentStarted'))).toEqual({
+            deferCompletion: false,
+            outcome: 'subagentUnmatched',
+        });
+        expect(tracker.observe(signal('subagentStarted', 'subagent-1'))).toEqual({
+            deferCompletion: false,
+            outcome: 'subagentPending',
+        });
+
+        expect(tracker.observe(signal('turnFinished', 'subagent-1'))).toEqual({
+            deferCompletion: false,
+            outcome: 'accepted',
+        });
     });
 
     it('forgets deferred work when the Terminal launch ends', () => {

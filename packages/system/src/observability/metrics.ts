@@ -4,6 +4,14 @@ export const observationMetricNames = [
     'connection.buffered_bytes',
     'connection.count',
     'connection.closed',
+    /**
+     * Server-side handling cost of one Agent lifecycle hook signal, in milliseconds.
+     */
+    'hook.latency',
+    /**
+     * One Agent lifecycle hook signal admitted at the socket boundary, counted by outcome.
+     */
+    'hook.signal',
     'persistence.contention',
     'persistence.latency',
     'process.memory',

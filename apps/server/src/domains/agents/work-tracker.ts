@@ -1,4 +1,4 @@
-import type { AgentLifecycleSignal } from './hooks/contract';
+import type { AgentLifecycleSignal, AgentSignalDecision } from './hooks/contract';
 
 interface TerminalAgentWork {
     activeSubagents: Map<string, number>;
@@ -6,9 +6,25 @@ interface TerminalAgentWork {
     staleTimeout?: NodeJS.Timeout;
 }
 
+/**
+ * What one subagent-scoped signal did, in the same closed vocabulary the hook boundary logs. A `boolean` cannot carry
+ * this: the ordinary "matched a scope, siblings still running" case and the anomalous "no scope owns this" case both
+ * mean the coordinator changes nothing, and collapsing them makes every healthy multi-subagent turn look like a lost
+ * hook in the launch aggregate.
+ */
+export type AgentWorkOutcome = Extract<
+    AgentSignalDecision,
+    'accepted' | 'subagentPending' | 'subagentUnmatched'
+>;
+
 export interface AgentWorkObservation {
     deferCompletion: boolean;
-    handled?: boolean;
+    outcome?: AgentWorkOutcome;
+}
+
+interface SubagentFinish {
+    deferredParentFinish?: AgentLifecycleSignal;
+    outcome: AgentWorkOutcome;
 }
 
 interface AgentWorkTrackerOptions {
@@ -73,8 +89,9 @@ export class AgentWorkTracker {
         work.staleTimeout = timeout;
     }
 
-    private subagentStarted(signal: AgentLifecycleSignal): boolean {
-        if (!signal.agentId) return false;
+    private subagentStarted(signal: AgentLifecycleSignal): AgentWorkOutcome {
+        // A subagent phase with no scope id cannot be tracked at all, which is the provider anomaly worth counting.
+        if (!signal.agentId) return 'subagentUnmatched';
         let work = this.workByTerminal.get(signal.terminalId);
         if (!work) {
             work = { activeSubagents: new Map() };
@@ -83,7 +100,8 @@ export class AgentWorkTracker {
         const isNew = !work.activeSubagents.has(signal.agentId);
         work.activeSubagents.set(signal.agentId, Date.now());
         if (work.deferredParentFinish) this.armStaleTimeout(signal.terminalId, work);
-        return isNew;
+        // A repeated start for a scope already tracked refreshes its evidence but opens nothing new.
+        return isNew ? 'accepted' : 'subagentPending';
     }
 
     private touchSubagent(signal: AgentLifecycleSignal): void {
@@ -115,30 +133,37 @@ export class AgentWorkTracker {
         return true;
     }
 
-    private subagentFinished(signal: AgentLifecycleSignal): AgentLifecycleSignal | undefined {
-        if (!signal.agentId) return;
+    private subagentFinished(signal: AgentLifecycleSignal): SubagentFinish {
+        if (!signal.agentId) return { outcome: 'subagentUnmatched' };
         const work = this.workByTerminal.get(signal.terminalId);
-        if (!work?.activeSubagents.delete(signal.agentId)) return;
+        // No tracked scope owns this completion: its `subagentStarted` hook never arrived.
+        if (!work?.activeSubagents.delete(signal.agentId)) return { outcome: 'subagentUnmatched' };
         if (work.activeSubagents.size > 0) {
             if (work.deferredParentFinish) this.armStaleTimeout(signal.terminalId, work);
-            return;
+            // Matched, but siblings are still running, so the parent completion stays deferred.
+            return { outcome: 'subagentPending' };
         }
         this.clearStaleTimeout(work);
         this.workByTerminal.delete(signal.terminalId);
-        return work.deferredParentFinish;
+        // The last child left. Only a parent finish that was actually waiting becomes durable state here.
+        return work.deferredParentFinish
+            ? { deferredParentFinish: work.deferredParentFinish, outcome: 'accepted' }
+            : { outcome: 'subagentPending' };
     }
 
     observe(signal: AgentLifecycleSignal): AgentWorkObservation {
         if (signal.phase === 'subagentStarted')
-            return { deferCompletion: false, handled: this.subagentStarted(signal) };
+            return { deferCompletion: false, outcome: this.subagentStarted(signal) };
         if (signal.agentId && signal.phase === 'turnFinished') {
-            const deferredParentFinish = this.subagentFinished(signal);
-            if (deferredParentFinish) this.onDeferredParentFinished(deferredParentFinish);
-            return { deferCompletion: false, handled: Boolean(deferredParentFinish) };
+            const finish = this.subagentFinished(signal);
+            if (finish.deferredParentFinish)
+                this.onDeferredParentFinished(finish.deferredParentFinish);
+            return { deferCompletion: false, outcome: finish.outcome };
         }
         if (signal.agentId) {
             this.touchSubagent(signal);
-            if (signal.phase === 'turnStarted') return { deferCompletion: false, handled: true };
+            if (signal.phase === 'turnStarted')
+                return { deferCompletion: false, outcome: 'accepted' };
         } else if (signal.phase === 'turnStarted') this.parentStarted(signal.terminalId);
         return {
             deferCompletion: signal.phase === 'turnFinished' && this.deferParentFinish(signal),

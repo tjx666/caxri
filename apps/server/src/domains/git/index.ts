@@ -219,7 +219,9 @@ export class GitService {
                     execution.child.stdin?.end(options.input);
                 }
                 const { stdout } = await execution;
-                this.logger.write('info', logEventCatalog.git.command, {
+                // Debug, not info: on a real profile `git.command` plus `git.summary` filled 87% of a 5MB generation
+                // and cut retention to ~38h, rotating out the lifecycle evidence incidents need. Failures stay at warn.
+                this.logger.write('debug', logEventCatalog.git.command, {
                     durationMs: performance.now() - queuedAt,
                     fields: { operation: classifyGitOperation(arguments_), ...timing() },
                 });
