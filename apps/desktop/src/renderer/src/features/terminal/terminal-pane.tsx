@@ -11,6 +11,7 @@ import {
     Unplug,
 } from 'lucide-react';
 
+import { CommandTooltip } from '../../components/command-tooltip';
 import { Button } from '../../components/ui/button';
 import {
     ContextMenu,
@@ -20,7 +21,7 @@ import {
     ContextMenuTrigger,
 } from '../../components/ui/context-menu';
 import { Spinner } from '../../components/ui/spinner';
-import { CommandTooltip, Tooltip } from '../../components/ui/tooltip';
+import { Tooltip } from '../../components/ui/tooltip';
 import { useCommandShortcut } from '../../lib/keybindings';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';

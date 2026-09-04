@@ -2,9 +2,10 @@ import type { CommandId } from '@caxri/protocol';
 import { FilePlus, FolderPlus, Search, SquareMinus } from 'lucide-react';
 
 import { getRegisteredCommand } from '../../../commands/registry';
+import { CommandTooltip } from '../../../components/command-tooltip';
 import { PanelHeader } from '../../../components/panel-header';
 import { Button } from '../../../components/ui/button';
-import { CommandTooltip, Tooltip } from '../../../components/ui/tooltip';
+import { Tooltip } from '../../../components/ui/tooltip';
 import { useCommandShortcut } from '../../../lib/keybindings';
 import { cn } from '../../../lib/utilities';
 import { useControlledViewActionCommand } from '../controlled-view-context';

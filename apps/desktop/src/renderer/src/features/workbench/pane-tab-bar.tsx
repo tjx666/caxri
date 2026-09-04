@@ -15,10 +15,11 @@ import { pathBasename } from '@caxri/utils';
 import { CircleAlert, Pause, Plus } from 'lucide-react';
 import { AnimatePresence, domAnimation, LazyMotion } from 'motion/react';
 
+import { CommandTooltip } from '../../components/command-tooltip';
 import { Button } from '../../components/ui/button';
 import { ContextMenuItem } from '../../components/ui/context-menu';
 import { Spinner } from '../../components/ui/spinner';
-import { CommandTooltip, Tooltip } from '../../components/ui/tooltip';
+import { Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
 import { useChromeLayoutStore } from '../../stores/chrome-layout';
 import { useSelectedSession, useSessionState, useTerminal } from '../../stores/selectors';

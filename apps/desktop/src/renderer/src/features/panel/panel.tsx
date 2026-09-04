@@ -1,8 +1,8 @@
 import { X } from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';
+import { CommandTooltip } from '../../components/command-tooltip';
 import { Button } from '../../components/ui/button';
-import { CommandTooltip } from '../../components/ui/tooltip';
 import { useChromeLayoutStore } from '../../stores/chrome-layout';
 import { ViewContainerSurface } from '../view-containers/view-container-surface';
 

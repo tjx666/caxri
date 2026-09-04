@@ -2,8 +2,8 @@ import type { CSSProperties } from 'react';
 
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 
+import { CommandTooltip } from '../../components/command-tooltip';
 import { Button } from '../../components/ui/button';
-import { CommandTooltip } from '../../components/ui/tooltip';
 import { navigateSessionHistory } from '../session/session-actions';
 import type { SessionNavigationDirection } from '../session/session-navigation-history';
 import { useSessionNavigationHistoryStore } from '../session/session-navigation-history';

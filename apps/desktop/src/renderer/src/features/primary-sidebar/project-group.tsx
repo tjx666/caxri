@@ -10,10 +10,11 @@ import type {
 import { Archive, ChevronDown, Paintbrush, RotateCcw, SquarePen } from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';
+import { CommandTooltip } from '../../components/command-tooltip';
 import { DisclosureMotion } from '../../components/disclosure-motion';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
-import { CommandTooltip, Tooltip } from '../../components/ui/tooltip';
+import { Tooltip } from '../../components/ui/tooltip';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { cn } from '../../lib/utilities';
 import {
