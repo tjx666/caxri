@@ -1,6 +1,6 @@
 import { Buffer } from 'node:buffer';
 import type { Dirent } from 'node:fs';
-import { lstat, opendir, realpath } from 'node:fs/promises';
+import { lstat, opendir, readlink, realpath, stat } from 'node:fs/promises';
 import { relative, resolve, sep } from 'node:path';
 
 import type { FileEntry, ServerOperationParameters, ServerOperationResult } from '@caxri/protocol';
@@ -40,6 +40,35 @@ export const MAX_FILE_LIST_RESULT_BYTES = 3 * 1024 * 1024;
  * Bounds Server memory and latency before the smaller sorted page and serialized byte limits are applied.
  */
 const MAX_FILE_LIST_SCANNED_ENTRIES = 4_096;
+
+/**
+ * Directories and symlinks that resolve to a directory share the leading group, so a linked folder sorts beside the
+ * real folders it belongs with instead of drifting into the file list.
+ */
+function fileEntryGroup(entry: FileEntry): number {
+    return entry.kind === 'directory' || entry.linkKind === 'directory' ? 0 : 1;
+}
+
+/**
+ * Ranking the group before comparing names keeps the comparator antisymmetric. Comparing `kind` pairwise did not: a
+ * `file`/`symlink` pair answered `1` in both directions, so the surviving order depended on `readdir` order.
+ */
+export function compareFileEntries(a: FileEntry, b: FileEntry): number {
+    const groupDifference = fileEntryGroup(a) - fileEntryGroup(b);
+    return groupDifference === 0 ? a.name.localeCompare(b.name) : groupDifference;
+}
+
+/**
+ * Probes the filesystem for optional display metadata. A dangling or racing symlink is an ordinary state to render, so
+ * a failed probe answers `undefined` instead of failing the surrounding listing.
+ */
+async function probeOptional<T>(read: () => Promise<T>): Promise<T | undefined> {
+    try {
+        return await read();
+    } catch {
+        return undefined;
+    }
+}
 
 export function boundFileListEntries(entries: readonly FileEntry[]): FileEntry[] {
     const bounded: FileEntry[] = [];
@@ -168,11 +197,7 @@ export class ListingService {
         /**
          * Dirent metadata stays bound to the opened directory instead of restatting a mutable path.
          */
-        const entries = matches
-            .toSorted((a, b) =>
-                a.kind === b.kind ? a.name.localeCompare(b.name) : a.kind === 'directory' ? -1 : 1,
-            )
-            .slice(0, MAX_FILE_BROWSE_ENTRIES);
+        const entries = matches.toSorted(compareFileEntries).slice(0, MAX_FILE_BROWSE_ENTRIES);
         this.logger.write('info', logEventCatalog.file.browse, {
             durationMs: performance.now() - startedAt,
             fields: {
@@ -264,9 +289,7 @@ export class ListingService {
                     ? { ...entry, gitIgnored: true as const }
                     : entry,
             );
-        const sorted = result.toSorted((a, b) =>
-            a.kind === b.kind ? a.name.localeCompare(b.name) : a.kind === 'directory' ? -1 : 1,
-        );
+        const sorted = result.toSorted(compareFileEntries);
         const bounded = boundFileListEntries(sorted);
         const isTruncated =
             !isReachedEnd ||
@@ -325,9 +348,35 @@ export class ListingService {
                 });
             return undefined;
         }
-        if (stats.isSymbolicLink()) return { name, path: entryPath, kind: 'symlink' };
+        if (stats.isSymbolicLink()) return this.describeSymlink(directory, name);
         if (stats.isDirectory()) return { name, path: entryPath, kind: 'directory' };
         return { name, path: entryPath, kind: 'file', size: stats.size };
+    }
+
+    /**
+     * Reads a symlink's raw target plus one `stat` so the Renderer can pick a folder or typed-file icon instead of an
+     * untyped placeholder. The single follow only asks the target's type: it never enumerates the target, never
+     * resolves it against the Project root, and never relaxes the rule that Caxri refuses to browse, expand, or mutate
+     * through a symlink. Both probes tolerate failure, since a dangling link is an ordinary state to display.
+     */
+    private async describeSymlink(directory: string, name: string): Promise<FileEntry> {
+        const entryPath = resolve(directory, name);
+        const [linkTarget, targetStats] = await Promise.all([
+            probeOptional(() => readlink(entryPath)),
+            probeOptional(() => stat(entryPath)),
+        ]);
+        const entry: FileEntry = {
+            name,
+            path: entryPath,
+            kind: 'symlink',
+            linkKind:
+                targetStats === undefined
+                    ? 'broken'
+                    : targetStats.isDirectory()
+                      ? 'directory'
+                      : 'file',
+        };
+        return linkTarget === undefined ? entry : { ...entry, linkTarget };
     }
 
     listDirectory(

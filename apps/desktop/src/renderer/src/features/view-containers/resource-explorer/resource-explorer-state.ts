@@ -1,3 +1,4 @@
+import type { FileEntry } from '@caxri/protocol';
 import { collectTreeSubtree, pathBasename } from '@caxri/utils';
 
 import type { PendingFileOperation } from './file-operation-state';
@@ -112,6 +113,20 @@ export function fileOperationsForProject(
     projectId: string | undefined,
 ): PendingFileOperation[] {
     return operations.filter((operation) => operation.projectId === projectId);
+}
+
+/**
+ * A symlink row states where it points and why it is inert, because its icon can otherwise be mistaken for the real
+ * folder or file it mirrors. Every other row shows its path plus the Git-ignored qualifier.
+ */
+export function fileTreeRowTooltip(
+    entry: Pick<FileEntry, 'gitIgnored' | 'kind' | 'linkKind' | 'linkTarget' | 'path'>,
+): string {
+    if (entry.kind !== 'symlink')
+        return entry.gitIgnored ? `${entry.path} (Git ignored)` : entry.path;
+    const target = entry.linkTarget === undefined ? '' : ` → ${entry.linkTarget}`;
+    const linkKind = entry.linkKind === 'broken' ? 'broken symlink' : 'symlink';
+    return `${entry.path}${target} (${linkKind}; browsing and changes are disabled for safety)`;
 }
 
 /**

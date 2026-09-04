@@ -450,6 +450,16 @@ export const fileEntrySchema = z.object({
     kind: z.enum(['file', 'directory', 'symlink']),
     size: z.number().optional(),
     gitIgnored: z.literal(true).optional(),
+    /**
+     * What a `symlink` entry points at, so the Renderer can show a folder or typed file icon instead of an untyped
+     * placeholder. `broken` covers an unresolvable target. Absent on every other kind.
+     */
+    linkKind: z.enum(['file', 'directory', 'broken']).optional(),
+    /**
+     * The raw, unresolved `readlink` value of a `symlink` entry, shown in its tooltip. Never resolved against the
+     * Project root: Caxri deliberately refuses to browse through symlinks, so this is display metadata only.
+     */
+    linkTarget: z.string().optional(),
 });
 
 export const mutableFileEntrySchema = z.object({
