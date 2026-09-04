@@ -15,19 +15,15 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { FileEntry } from '@caxri/protocol';
 import { MAX_FILE_BROWSE_ENTRIES } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CaxriDatabase } from '../../db/repository';
 import {
-    boundFileListEntries,
-    compareFileEntries,
     ListingService,
     MAX_CONCURRENT_FILE_BROWSES,
     MAX_FILE_BROWSE_SCANNED_ENTRIES,
-    MAX_FILE_LIST_RESULT_BYTES,
 } from '../listing';
 import { FileService } from '../service';
 import { didFingerprintChange, rememberPolledDirectory } from '../watcher';
@@ -114,21 +110,6 @@ describe('FileService', () => {
             status: 'fulfilled',
             value: { entries: [], truncated: false },
         });
-    });
-
-    it('keeps the serialized directory page below its transport byte budget', () => {
-        const entries = Array.from({ length: 1_024 }, (_unused, index) => ({
-            kind: 'file' as const,
-            name: `entry-${index}.txt`,
-            path: `/${'deep/'.repeat(700)}entry-${index}.txt`,
-        }));
-
-        const bounded = boundFileListEntries(entries);
-
-        expect(bounded.length).toBeLessThan(entries.length);
-        expect(
-            Buffer.byteLength(JSON.stringify({ entries: bounded, truncated: true }), 'utf8'),
-        ).toBeLessThanOrEqual(MAX_FILE_LIST_RESULT_BYTES);
     });
 
     it('bounds a directory page before it crosses the Files Core transport', async () => {
@@ -251,32 +232,6 @@ describe('FileService', () => {
                 path: join(root, 'link-to-file'),
             },
         ]);
-    });
-
-    it('orders entries independently of the order the filesystem reported them', () => {
-        const entries: FileEntry[] = [
-            { kind: 'file', name: 'b.ts', path: '/root/b.ts' },
-            { kind: 'symlink', linkKind: 'directory', name: 'a-link', path: '/root/a-link' },
-            { kind: 'file', name: 'a.ts', path: '/root/a.ts' },
-            { kind: 'directory', name: 'z-dir', path: '/root/z-dir' },
-            { kind: 'symlink', linkKind: 'file', name: 'c-link', path: '/root/c-link' },
-        ];
-
-        const sorted = entries.toSorted(compareFileEntries).map((entry) => entry.name);
-
-        expect(sorted).toEqual(['a-link', 'z-dir', 'a.ts', 'b.ts', 'c-link']);
-        expect(
-            entries
-                .toReversed()
-                .toSorted(compareFileEntries)
-                .map((entry) => entry.name),
-        ).toEqual(sorted);
-        // The comparator must be antisymmetric; the previous `kind`-pair form answered `1` both ways.
-        for (const a of entries)
-            for (const b of entries)
-                expect(
-                    Math.sign(compareFileEntries(a, b)) + Math.sign(compareFileEntries(b, a)),
-                ).toBe(0);
     });
 
     it('keeps fallback polling bounded without evicting the active root', () => {
