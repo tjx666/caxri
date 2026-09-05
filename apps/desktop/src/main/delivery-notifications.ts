@@ -85,12 +85,15 @@ export function createDeliveryNotificationCoordinator(
         const { url } = alert;
         notifications.get(id)?.close();
         notifications.delete(id);
-        const handle = options.showNotification({ id, ...deliveryNotificationText(alert) }, () => {
-            notifications.delete(id);
-            if (!url) return;
-            // Notification callbacks are synchronous; the queue owns async failure handling.
-            tail = runScheduled(tail, () => options.openFailure(url));
-        });
+        const handle = options.showNotification(
+            { id, groupId: 'caxri-delivery', ...deliveryNotificationText(alert) },
+            () => {
+                notifications.delete(id);
+                if (!url) return;
+                // Notification callbacks are synchronous; the queue owns async failure handling.
+                tail = runScheduled(tail, () => options.openFailure(url));
+            },
+        );
         if (handle) track(id, handle);
     };
 
