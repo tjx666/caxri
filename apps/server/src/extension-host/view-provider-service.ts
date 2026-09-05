@@ -21,6 +21,11 @@ interface ViewProviderRegistration {
     generation: number;
     subscription?: DisposableLike;
     provider: SourceControlProvider;
+    /**
+     * Set only by host-driven retirement ({@link retireViewProviders}). The extension owns the registration's
+     * Disposable, so map identity alone cannot corroborate a `GENERATION_EXPIRED` the provider throws (issue #606).
+     */
+    retired?: boolean;
 }
 
 const providers = new Map<string, ViewProviderRegistration>();
@@ -211,7 +216,7 @@ export async function executeViewOperation(parameters: {
             error,
             {
                 cancelled: cancellation.token.isCancellationRequested,
-                generationExpired: providers.get(parameters.viewId) !== registration,
+                generationExpired: registration.retired === true,
                 scope,
             },
             'View provider failed',
@@ -237,6 +242,7 @@ export function didCancelViewRequest(requestId: string): boolean {
 export function retireViewProviders(extensionId?: string): void {
     for (const [viewId, registration] of providers)
         if (extensionId === undefined || registration.extensionId === extensionId) {
+            registration.retired = true;
             registration.subscription?.dispose();
             providers.delete(viewId);
         }

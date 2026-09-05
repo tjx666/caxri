@@ -40,9 +40,10 @@ interface PendingApiRequest {
      * A `workspace.request` issued outside any host-supplied view event context, so the call declared its own
      * `no-session` scope. Server Core's controlled-view fence rejects such a call with `CANCELLED` whenever a Session
      * is active; that reports the extension's mis-scoped call, not the host's own turnover, so it must neither be
-     * minted host-originated nor mark the issuing request (issue #606). The one host-driven case this misses — a
-     * Session becoming active between issue and admission of a call made while none was — is deliberately kept a fault
-     * rather than opening the channel to extension-provoked rejections.
+     * minted host-originated nor mark the issuing request (issue #606). No host-driven case is lost: Server Core's
+     * `activeContextForApi` already rejects every `workspace.request` with `PROJECT_SCOPE_DENIED` while no Session is
+     * active, so a self-declared `no-session` call can never succeed and each of its rejections is the extension's own
+     * mis-scoping.
      */
     selfScoped?: boolean;
     timer?: NodeJS.Timeout;

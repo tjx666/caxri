@@ -174,6 +174,50 @@ describe('controlled view provider runtime', () => {
         },
     );
 
+    it("keeps a provider's own GENERATION_EXPIRED a fault when it disposed its own registration", async () => {
+        // The registration Disposable is extension-owned state; disposing it from inside `provideView` must not
+        // manufacture the turnover that would launder a forged non-fault code.
+        const subscription = createControlledViewRegistrationApi({
+            extensionId: 'publisher.fixture',
+            generation: 3,
+            viewKinds: new Map([['publisher.fixture.sourceControl', 'source-control']]),
+            assertCurrent: () => {},
+            send: () => {},
+        }).registerSourceControlProvider('publisher.fixture.sourceControl', {
+            provideView: () => {
+                subscription.dispose();
+                throw Object.assign(new Error('real failure'), { code: 'GENERATION_EXPIRED' });
+            },
+            provideHistoryPage: () => ({ items: [], revision: '1' }),
+            provideHistoryDetails: () => {
+                throw new Error('unused');
+            },
+            runAction: () => ({ effects: [], refresh: false, revision: '1' }),
+        });
+
+        const rejection = await rejectionOf(snapshot('snapshot-self-disposed'));
+        expect(rejection).toMatchObject({ code: 'GENERATION_EXPIRED', message: 'real failure' });
+        expect(isHostOriginatedError(rejection)).toBe(false);
+    });
+
+    it("re-mints a provider's own GENERATION_EXPIRED once the host retired its registration", async () => {
+        const started = Promise.withResolvers<void>();
+        const gate = Promise.withResolvers<void>();
+        registerSnapshotProvider(async () => {
+            started.resolve();
+            await gate.promise;
+            throw Object.assign(new Error('superseded'), { code: 'GENERATION_EXPIRED' });
+        });
+        const request = snapshot('snapshot-host-retired');
+        await started.promise;
+        retireViewProviders('publisher.fixture');
+        gate.resolve();
+
+        const rejection = await rejectionOf(request);
+        expect(rejection).toMatchObject({ code: 'GENERATION_EXPIRED', message: 'superseded' });
+        expect(isHostOriginatedError(rejection)).toBe(true);
+    });
+
     it('strips host origin from a host-minted error a provider re-throws with current host state', async () => {
         // An extension can capture a rejection it received from a `caxri.*` API call and throw it from its provider.
         const captured = hostError('GENERATION_EXPIRED', 'Extension API binding has expired');
