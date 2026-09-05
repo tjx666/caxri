@@ -29,12 +29,14 @@ import type { AgentProviderSessionRenameContext } from '../../../contract';
 import { clearExecutableCache } from '../../../discovery';
 import { AgentService, createLocalAgentAdapters } from '../../../service';
 import { claudeProvider, renameClaudeSession } from '..';
+import { clearClaudeMetadataCache } from '../metadata-cache';
 import { claudeTranscriptPath, claudeTranscriptRoot } from '../paths';
 
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
     clearExecutableCache();
+    clearClaudeMetadataCache();
     mocks.runExternalCommand.mockReset();
     vi.unstubAllEnvs();
     const pendingCleanup = [...temporaryDirectories];
