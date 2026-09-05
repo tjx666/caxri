@@ -234,6 +234,7 @@ export class TerminalExecutionEngine {
         if (this.terminals.get(live.record.id) !== live) return false;
         if (provider) assertE2EAgentInput(readE2EAgentPolicy(), provider);
         live.metricInputBytes += Buffer.byteLength(data, 'utf8');
+        live.throughput.firstInputAt ??= Date.now();
         live.metricTimer ??= setTimeout(() => this.flushMetrics(live), 1_000);
         live.process.write(data);
         return true;

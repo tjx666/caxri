@@ -58,6 +58,8 @@ describe('PTY observability', () => {
             { droppedBytes: 0, inputBytes: 0, outputBytes: 40 },
             2_000,
         );
+        // The engine stamps the first input write itself; the window carrying it closes later, at 3_500.
+        tally.firstInputAt = 2_700;
         recordPtyThroughputWindow(
             logger,
             'terminal-1',
@@ -81,7 +83,7 @@ describe('PTY observability', () => {
             [
                 'info',
                 'pty.first_input',
-                { durationMs: 2_500, fields: { terminalId: 'terminal-1', inputBytes: 8 } },
+                { durationMs: 1_700, fields: { terminalId: 'terminal-1', inputBytes: 8 } },
             ],
         ]);
         const throughputWrites = write.mock.calls.filter((call) => call[1] === 'pty.throughput');

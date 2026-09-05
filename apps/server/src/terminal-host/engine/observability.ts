@@ -156,6 +156,12 @@ export interface PtyThroughputObservation {
 export interface PtyThroughputTally {
     droppedBytes: number;
     /**
+     * Wall-clock time of the first input write, stamped by the engine when the bytes are actually written rather than
+     * when their aggregation window closes, so `pty.first_input.durationMs` is a measured delay like every other
+     * startup locator instead of one quantized to the one-second window boundary.
+     */
+    firstInputAt?: number;
+    /**
      * Whether the one-shot `pty.first_input` record has already been written for this lifetime.
      */
     firstInputLogged: boolean;
@@ -227,7 +233,7 @@ export function recordPtyThroughputWindow(
     if (tally.firstInputLogged || observation.inputBytes === 0) return;
     tally.firstInputLogged = true;
     logger.write('info', logEventCatalog.pty.firstInput, {
-        durationMs: now - tally.startedAt,
+        durationMs: (tally.firstInputAt ?? now) - tally.startedAt,
         fields: { terminalId, inputBytes: observation.inputBytes },
     });
 }
