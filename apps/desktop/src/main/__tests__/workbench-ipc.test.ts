@@ -1,4 +1,4 @@
-import { RENDERER_DIAGNOSTIC_CHANNEL } from '@caxri/protocol';
+import { CaxriError, RENDERER_DIAGNOSTIC_CHANNEL } from '@caxri/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const electronMock = vi.hoisted(() => {
@@ -47,6 +47,7 @@ describe('workbench IPC sender boundary', () => {
         write.mockClear();
         installWorkbenchIpc({
             isQuitting: () => false,
+            isRecovering: () => false,
             logger: () => ({ write }) as never,
             onEventsReady,
             onRendererDiagnostic,
@@ -394,6 +395,7 @@ describe('workbench IPC sender boundary', () => {
         let isQuitting = false;
         installWorkbenchIpc({
             isQuitting: () => isQuitting,
+            isRecovering: () => false,
             logger: () => ({ write }) as never,
             renderer: () => renderer as never,
             transport: { dispatch: () => completion.promise, negotiate },
@@ -420,6 +422,7 @@ describe('workbench IPC sender boundary', () => {
         const write = vi.fn();
         installWorkbenchIpc({
             isQuitting: () => false,
+            isRecovering: () => false,
             logger: () => ({ write }) as never,
             renderer: () => renderer as never,
             transport: {
@@ -453,6 +456,7 @@ describe('workbench IPC sender boundary', () => {
         const write = vi.fn();
         installWorkbenchIpc({
             isQuitting: () => false,
+            isRecovering: () => false,
             logger: () => ({ write }) as never,
             renderer: () => renderer as never,
             transport: {
@@ -483,6 +487,7 @@ describe('workbench IPC sender boundary', () => {
         const write = vi.fn();
         installWorkbenchIpc({
             isQuitting: () => false,
+            isRecovering: () => false,
             logger: () => ({ write }) as never,
             renderer: () => renderer as never,
             transport: {
@@ -517,6 +522,7 @@ describe('workbench IPC sender boundary', () => {
         const write = vi.fn();
         installWorkbenchIpc({
             isQuitting: () => false,
+            isRecovering: () => false,
             logger: () => ({ write }) as never,
             renderer: () => renderer as never,
             transport: {
@@ -542,4 +548,125 @@ describe('workbench IPC sender boundary', () => {
             fields: { code: 'IO', error: 'Disk read failed', method: 'files.read' },
         });
     });
+
+    it.each([
+        ['warn', true],
+        ['error', false],
+    ] as const)(
+        'logs an UNAVAILABLE request failure at %s while recovering is %s',
+        async (level, isRecovering) => {
+            const write = vi.fn();
+            installWorkbenchIpc({
+                isQuitting: () => false,
+                isRecovering: () => isRecovering,
+                logger: () => ({ write }) as never,
+                renderer: () => renderer as never,
+                transport: {
+                    dispatch: () =>
+                        Promise.resolve({
+                            protocolVersion: 2,
+                            id: 'wake-1',
+                            ok: false,
+                            error: {
+                                code: 'UNAVAILABLE',
+                                message: 'Desktop is not connected to the Caxri Host',
+                            },
+                        }),
+                    negotiate,
+                },
+            });
+            const request = electronMock.handles.get('caxri:request')!;
+
+            await request(
+                { sender: renderer },
+                { protocolVersion: 2, id: 'wake-1', method: 'sessions.list', params: {} },
+            );
+
+            expect(write).toHaveBeenCalledExactlyOnceWith(level, 'ipc.request_failed', {
+                correlationId: 'wake-1',
+                fields: {
+                    code: 'UNAVAILABLE',
+                    error: 'Desktop is not connected to the Caxri Host',
+                    method: 'sessions.list',
+                },
+            });
+        },
+    );
+
+    it('keeps a non-UNAVAILABLE failure at error even while the connection is recovering', async () => {
+        const write = vi.fn();
+        installWorkbenchIpc({
+            isQuitting: () => false,
+            isRecovering: () => true,
+            logger: () => ({ write }) as never,
+            renderer: () => renderer as never,
+            transport: {
+                dispatch: () =>
+                    Promise.resolve({
+                        protocolVersion: 2,
+                        id: 'io-2',
+                        ok: false,
+                        error: { code: 'IO', message: 'Disk read failed' },
+                    }),
+                negotiate,
+            },
+        });
+        const request = electronMock.handles.get('caxri:request')!;
+
+        await request(
+            { sender: renderer },
+            { protocolVersion: 2, id: 'io-2', method: 'files.read', params: {} },
+        );
+
+        expect(write).toHaveBeenCalledExactlyOnceWith('error', 'ipc.request_failed', {
+            correlationId: 'io-2',
+            fields: { code: 'IO', error: 'Disk read failed', method: 'files.read' },
+        });
+    });
+
+    /**
+     * The recovery window reaches the `catch` branch too: a dispatch that rejects rather than returning a failed reply
+     * is the same expected outage, so both failure log sites must classify it identically.
+     */
+    it.each([
+        ['warn', true],
+        ['error', false],
+    ] as const)(
+        'logs a thrown UNAVAILABLE failure at %s while recovering is %s',
+        async (level, isRecovering) => {
+            const write = vi.fn();
+            installWorkbenchIpc({
+                isQuitting: () => false,
+                isRecovering: () => isRecovering,
+                logger: () => ({ write }) as never,
+                renderer: () => renderer as never,
+                transport: {
+                    dispatch: () =>
+                        Promise.reject(
+                            new CaxriError(
+                                'UNAVAILABLE',
+                                'Desktop is not connected to the Caxri Host',
+                            ),
+                        ),
+                    negotiate,
+                },
+            });
+            const request = electronMock.handles.get('caxri:request')!;
+
+            const reply = await request(
+                { sender: renderer },
+                { protocolVersion: 2, id: 'wake-2', method: 'sessions.list', params: {} },
+            );
+
+            expect(reply).toMatchObject({ ok: false, error: { code: 'UNAVAILABLE' } });
+            expect(write).toHaveBeenCalledExactlyOnceWith(level, 'ipc.request_failed', {
+                correlationId: 'wake-2',
+                fields: {
+                    code: 'UNAVAILABLE',
+                    error: 'Desktop is not connected to the Caxri Host',
+                    method: 'sessions.list',
+                },
+            });
+        },
+    );
 });

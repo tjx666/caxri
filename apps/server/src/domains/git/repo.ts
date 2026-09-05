@@ -17,6 +17,7 @@ import { SingleFlight } from '../single-flight';
 import type { GitChangeTracker } from './change-tracker';
 import { toGitError } from './errors';
 import type { GitMetadataWatcher } from './metadata-watcher';
+import { MissingRepoRootCache } from './missing-root-cache';
 import { sharedGitRequest } from './request-signal';
 import type { RepoStatus } from './status';
 import { parseGitLineStats, parseGitStatus, RepoStatusStore } from './status';
@@ -200,6 +201,7 @@ export class GitRepoService {
     private readonly childCache = new Map<string, ChildCacheEntry>();
     private readonly refreshNonces = new Map<string, number>();
     private readonly sessionGenerations = new Map<string, number>();
+    private readonly missingRepositoryRoots = new MissingRepoRootCache();
     private nextSessionGeneration = 0;
     private metadataWatcher?: GitMetadataWatcher;
 
@@ -433,6 +435,9 @@ export class GitRepoService {
         options: { force: boolean; sessionGeneration: number },
     ): Promise<GitSummary> {
         const { root: projectRoot } = await this.paths.resolveSessionPath(sessionId);
+        const cachedFailure = await this.missingRepositoryRoots.lookup(projectRoot, options.force);
+        if (cachedFailure !== undefined)
+            return { isRepository: false, repositories: [], error: cachedFailure };
         try {
             const approvedRoots = (
                 await Promise.all(
@@ -534,13 +539,12 @@ export class GitRepoService {
             return { isRepository: true, repositories };
         } catch (error) {
             /**
-             * A missing or unapproved repository is reported in the summary, never as a rejection.
+             * A missing or unapproved repository is reported in the summary, never as a rejection. The cache stores
+             * this exact message so a replayed failure is byte-identical to the one it stands in for.
              */
-            return {
-                isRepository: false,
-                repositories: [],
-                error: toGitError(error).message,
-            };
+            const failure = toGitError(error).message;
+            await this.missingRepositoryRoots.remember(projectRoot, failure);
+            return { isRepository: false, repositories: [], error: failure };
         }
     }
 

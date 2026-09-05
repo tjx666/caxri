@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { extensionErrorShape } from '../extension-error';
+import { extensionErrorShape, extensionRequestFailureRecord } from '../extension-error';
 
 describe('extensionErrorShape', () => {
     it('classifies CommonJS access to the ESM-only caxri API', () => {
@@ -35,5 +35,38 @@ describe('extensionErrorShape', () => {
 
         expect(shaped.code).toHaveLength(100);
         expect(shaped.message).toHaveLength(2_048);
+    });
+});
+
+describe('extensionRequestFailureRecord', () => {
+    it.each([
+        ['CANCELLED', 'cancelled'],
+        ['GENERATION_EXPIRED', 'generation-superseded'],
+    ])('reports %s as a retryable non-fault at debug', (code, reason) => {
+        expect(extensionRequestFailureRecord(code)).toEqual({
+            failure: {
+                code,
+                owner: 'extension-host',
+                phase: 'execute',
+                reason,
+                remediation: 'none',
+                retryable: true,
+            },
+            level: 'debug',
+        });
+    });
+
+    it('keeps a real provider failure at warn with the restart remediation', () => {
+        expect(extensionRequestFailureRecord('ACTIVATION_FAILED')).toEqual({
+            failure: {
+                code: 'ACTIVATION_FAILED',
+                owner: 'extension-host',
+                phase: 'execute',
+                reason: 'unknown',
+                remediation: 'restart-extension-host',
+                retryable: false,
+            },
+            level: 'warn',
+        });
     });
 });

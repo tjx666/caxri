@@ -29,7 +29,12 @@ export type ServerConnectionTransition =
 
 export const initialServerConnectionState: ServerConnectionState = { status: 'idle' };
 
-function reconnectContext(state: ServerConnectionState): ReconnectContext | undefined {
+/**
+ * The reconnect bookkeeping a state carries, or `undefined` when no reconnect loop owns it. Exported because the "am I
+ * between attachments" question belongs to this model: `attaching` alone cannot answer it, since the first attachment
+ * shares that status and carries no outage of its own.
+ */
+export function reconnectContext(state: ServerConnectionState): ReconnectContext | undefined {
     switch (state.status) {
         case 'backoff':
         case 'recovering':

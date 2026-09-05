@@ -318,6 +318,102 @@ describe('WatchHub', () => {
         await hub.close();
     });
 
+    /**
+     * Writes denser than `@parcel/watcher`'s 50ms debounce make it force a batch out on its 500ms ceiling for as long
+     * as they last, so advisories arrive at that cadence rather than once per real overflow.
+     */
+    it('coalesces a dense advisory stream into one reconcile per throttle window', async () => {
+        const { callbacks, subscribe } = nativeSubscribe();
+        const { logger, write } = writeLogger();
+        const hub = new WatchHub({ subscribe, logger });
+        const onRescan = vi.fn();
+        await hub.register({
+            label: 'rescan-throttle',
+            root: '/watched',
+            onEvents: () => {},
+            onRescan,
+        });
+
+        for (let advisory = 0; advisory < 6; advisory += 1) {
+            callbacks[0]?.(new Error(MUST_RESCAN_MESSAGE), []);
+            // eslint-disable-next-line no-await-in-loop -- the 500ms arrival cadence is the behavior under test
+            await vi.advanceTimersByTimeAsync(500);
+        }
+
+        // The first advisory reconciles immediately; the remaining five collapse into one reconcile per 1000ms window.
+        expect(onRescan).toHaveBeenCalledTimes(4);
+        const advisoryCounts = write.mock.calls
+            .filter((call) => call[1] === 'watch_hub.rescan')
+            .map((call) => (call[2] as { fields: { advisoryCount: number } }).fields.advisoryCount);
+        expect(advisoryCounts).toEqual([1, 1, 2, 2]);
+        await hub.close();
+    });
+
+    it('still forwards events carried by an advisory that the throttle window coalesces', async () => {
+        const { callbacks, subscribe } = nativeSubscribe();
+        const hub = new WatchHub({ subscribe });
+        const events: string[] = [];
+        const onRescan = vi.fn();
+        await hub.register({
+            label: 'rescan-coalesced-events',
+            root: '/watched',
+            onEvents: (batch) => events.push(...batch.map((event) => event.path)),
+            onRescan,
+        });
+
+        callbacks[0]?.(new Error(MUST_RESCAN_MESSAGE), []);
+        callbacks[0]?.(new Error(MUST_RESCAN_MESSAGE), [
+            { type: 'update', path: '/watched/second.ts' },
+        ]);
+
+        expect(onRescan).toHaveBeenCalledOnce();
+        expect(events).toEqual(['/watched/second.ts']);
+        await hub.close();
+    });
+
+    it('stops the throttle window when the registration degrades to its polling fallback', async () => {
+        const { callbacks, subscribe } = nativeSubscribe();
+        const hub = new WatchHub({ subscribe });
+        const onRescan = vi.fn();
+        const handle = await hub.register({
+            label: 'rescan-fallback',
+            root: '/watched',
+            onEvents: () => {},
+            onRescan,
+            fallback: { intervalMs: 10_000, pollOnce: () => {} },
+        });
+
+        callbacks[0]?.(new Error(MUST_RESCAN_MESSAGE), []);
+        callbacks[0]?.(new Error(MUST_RESCAN_MESSAGE), []);
+        handle.startFallback(new CaxriError('UNAVAILABLE', 'native backend lost'));
+        await vi.advanceTimersByTimeAsync(2000);
+
+        // The poll loop owns reconciliation once native is gone; the coalesced advisory must not add one more.
+        expect(handle.mode).toBe('polling');
+        expect(onRescan).toHaveBeenCalledOnce();
+        await hub.close();
+    });
+
+    it('stops the throttle window when the registration is disposed mid-stream', async () => {
+        const { callbacks, subscribe } = nativeSubscribe();
+        const hub = new WatchHub({ subscribe });
+        const onRescan = vi.fn();
+        const handle = await hub.register({
+            label: 'rescan-dispose',
+            root: '/watched',
+            onEvents: () => {},
+            onRescan,
+        });
+
+        callbacks[0]?.(new Error(MUST_RESCAN_MESSAGE), []);
+        callbacks[0]?.(new Error(MUST_RESCAN_MESSAGE), []);
+        await handle.dispose();
+        await vi.advanceTimersByTimeAsync(5000);
+
+        expect(onRescan).toHaveBeenCalledOnce();
+        await hub.close();
+    });
+
     it('retries a fallback-degraded native subscription with exponential backoff and restores native mode', async () => {
         const unsubscribe = vi.fn(() => Promise.resolve());
         const callbacks: SubscribeCallback[] = [];
