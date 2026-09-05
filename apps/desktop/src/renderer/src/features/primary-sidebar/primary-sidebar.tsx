@@ -21,6 +21,7 @@ import {
     beginSessionCreation,
     canResumeAutomaticSessionNaming,
     resumeAutomaticSessionNaming,
+    SESSION_PULL_REQUESTS_REFETCH_INTERVAL_MS,
 } from '../session/session-actions';
 import { activeSessionsInSidebarOrder } from '../session/session-activity-order';
 import { useProjectCollapse } from './hooks/use-project-collapse';
@@ -54,11 +55,6 @@ import { useProjectOrder } from './hooks/use-project-order';
 import { useSessionRename } from './hooks/use-session-rename';
 
 const NO_RECORDS: never[] = [];
-/**
- * The Server sweep owns delivery-CLI pacing per Session; this poll only asks for the latest projection, and the
- * `sessionPullRequests.changed` event refetches early when a sweep changes something.
- */
-const SESSION_PULL_REQUESTS_REFETCH_INTERVAL_MS = 60_000;
 /**
  * Vite serves this repo-only asset in development without bundling it into production.
  */

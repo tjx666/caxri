@@ -22,6 +22,7 @@ import {
     hasDetachedAgentTerminal,
     hasLiveAgentTerminal,
     selectProject,
+    SESSION_PULL_REQUESTS_REFETCH_INTERVAL_MS,
 } from '../session/session-actions';
 import { activeSessionsInSidebarOrder } from '../session/session-activity-order';
 import { didExecuteViewCatalogCommand } from '../view-containers/view-container-commands';
@@ -107,12 +108,12 @@ export function CommandPalette() {
     const catalog = useCaxriQuery('viewContainers.catalog', {}, { enabled: isOpen }).data;
     /**
      * Shares the PrimarySidebar's polled snapshot, so the palette offers Open Pull Request exactly when the row shows a
-     * glyph. `staleTime: Infinity` keeps this observer from refetching on open: the sidebar's poll owns freshness, and
-     * a palette open must not pull the Server's `gh` sweep forward.
+     * glyph. The `staleTime` matches the sidebar's poll cadence so an open never pulls the Server's `gh` sweep forward
+     * while the sidebar is mounted, yet a hidden sidebar still leaves the palette refreshing at that same rate.
      */
     const pullRequests = useCaxriQuery('session.pullRequests', undefined, {
         enabled: isOpen,
-        staleTime: Infinity,
+        staleTime: SESSION_PULL_REQUESTS_REFETCH_INTERVAL_MS,
     }).data;
     const sessions = activeSessionsInSidebarOrder(projects, useSessions() ?? NO_RECORDS);
     const selectedSession = useSelectedSession();

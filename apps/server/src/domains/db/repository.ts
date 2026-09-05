@@ -205,8 +205,9 @@ export class CaxriDatabase {
             if (!this.removeProjectRow(projectId))
                 throw new CaxriError('NOT_FOUND', 'Project not found');
             /**
-             * The selection can name any row this cascade removed, not only the Project the user acted on: a Session
-             * inside an owned worktree Project selects that Project.
+             * The selection normally names the deleted Project itself. It is checked against every cascaded row anyway:
+             * `createSession` refuses owned Projects now, but a database written by an earlier build can still select
+             * one, and the fallback must not leave the Renderer pointing at a removed row.
              */
             const selectedProjectId = this.db.appState.get('lastSelectedProjectId');
             if (!selectedProjectId || !cascadedProjectIds.includes(selectedProjectId)) return;

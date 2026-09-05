@@ -216,6 +216,38 @@ describe('openTerminalFileLink', () => {
         expect(electronMock.dialog.showMessageBox).not.toHaveBeenCalled();
     });
 
+    it('cancels instead of creating a Session when the linked worktree Project lost its bound Session', async () => {
+        const request = vi.fn((method: string) => {
+            if (method === 'terminal.fileLink.resolve')
+                return Promise.resolve({
+                    status: 'authorized',
+                    identity,
+                    path: '/worktree/file.ts',
+                    projectId: 'worktree-1',
+                    sourceSessionId: 'source-session',
+                });
+            if (method === 'app.bootstrap')
+                return Promise.resolve({
+                    ...bootstrap([{ id: 'session-1', displayTitle: 'Session' }]),
+                    projects: [
+                        { id: 'project-1', displayTitle: 'Project' },
+                        { id: 'worktree-1', displayTitle: 'worktree', ownerProjectId: 'project-1' },
+                    ],
+                });
+            return Promise.reject(new Error(`Unexpected method: ${method}`));
+        });
+        const { instance } = authority({ getServer: server(request) });
+
+        await expect(
+            instance.openTerminalFileLink({
+                terminalId: 'terminal-1',
+                target: '/worktree/file.ts',
+            }),
+        ).resolves.toEqual({ canceled: true });
+        expect(request).not.toHaveBeenCalledWith('session.create', expect.anything());
+        expect(request).not.toHaveBeenCalledWith('desktop.openFile', expect.anything());
+    });
+
     it('returns ambiguous authorized candidates to the Renderer without opening or prompting', async () => {
         const candidates = [
             {
