@@ -105,6 +105,11 @@ export function CommandPalette() {
      */
     const projectResults = topLevelProjects(projects);
     const catalog = useCaxriQuery('viewContainers.catalog', {}, { enabled: isOpen }).data;
+    /**
+     * Shares the PrimarySidebar's polled snapshot, so the palette offers Open Pull Request exactly when the row shows a
+     * glyph. Nothing is fetched here: the sidebar keeps that query warm.
+     */
+    const pullRequests = useCaxriQuery('session.pullRequests', undefined, { enabled: isOpen }).data;
     const sessions = activeSessionsInSidebarOrder(projects, useSessions() ?? NO_RECORDS);
     const selectedSession = useSelectedSession();
     const terminals = useTerminals();
@@ -114,6 +119,9 @@ export function CommandPalette() {
         sessionHasDetachedAgent:
             selectedSession !== undefined &&
             hasDetachedAgentTerminal(selectedSession.id, terminals),
+        sessionHasPullRequest:
+            selectedSession !== undefined &&
+            pullRequests?.pullRequests[selectedSession.id] !== undefined,
     };
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>

@@ -91,6 +91,12 @@ describe('command registry', () => {
         expect(resume?.when).toBe('sessionHasDetachedAgent');
     });
 
+    it('gates Open Pull Request on the current session carrying a pull request', () => {
+        const open = commandDefinitions.find((command) => command.id === 'session.openPullRequest');
+        expect(open?.when).toBe('sessionHasPullRequest');
+        expect(open?.nativeMenu).toBeUndefined();
+    });
+
     it('owns unique native-menu placements and returns them in presentation order', () => {
         const placements = commandDefinitions.flatMap((command) =>
             command.nativeMenu ? [{ command: command.id, ...command.nativeMenu }] : [],

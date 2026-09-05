@@ -1,6 +1,11 @@
 import type { ReactElement } from 'react';
 
-import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
+import type {
+    ProjectRecord,
+    SessionPullRequest,
+    SessionRecord,
+    TerminalRecord,
+} from '@caxri/protocol';
 
 import {
     ContextMenu,
@@ -17,6 +22,7 @@ import {
     hasDetachedAgentTerminal,
     hasLiveAgentTerminal,
     openProjectInExternalEditor,
+    openSessionPullRequest,
     resumeSession,
 } from '../session/session-actions';
 
@@ -30,6 +36,7 @@ export function SessionRowMenu({
     onBeginRename,
     onOpenChange,
     project,
+    pullRequest,
     session,
     terminals,
 }: {
@@ -37,11 +44,13 @@ export function SessionRowMenu({
     onBeginRename: () => void;
     onOpenChange?: (isOpen: boolean) => void;
     project: ProjectRecord;
+    pullRequest?: SessionPullRequest;
     session: SessionRecord;
     terminals: TerminalRecord[];
 }) {
     const deleteShortcut = useCommandShortcut('session.delete');
     const openInEditorShortcut = useCommandShortcut('project.openInEditor');
+    const openPullRequestShortcut = useCommandShortcut('session.openPullRequest');
     const detached = hasDetachedAgentTerminal(session.id, terminals);
     const canDetach = hasLiveAgentTerminal(session.id, terminals);
     return (
@@ -76,6 +85,14 @@ export function SessionRowMenu({
                 >
                     Open Project in Editor
                 </ContextMenuItem>
+                {pullRequest && (
+                    <ContextMenuItem
+                        hint={openPullRequestShortcut}
+                        onClick={() => openSessionPullRequest(pullRequest)}
+                    >
+                        Open Pull Request #{pullRequest.number}
+                    </ContextMenuItem>
+                )}
                 <ContextMenuSeparator />
                 <ContextMenuItem hint={deleteShortcut} onClick={() => deleteSession(session.id)}>
                     Delete Session…

@@ -266,6 +266,7 @@ function ActiveSessionRow({
             onBeginRename={onBeginRename}
             onOpenChange={setMenuOpen}
             project={project}
+            pullRequest={pullRequest}
             session={session}
             terminals={terminals}
         >
