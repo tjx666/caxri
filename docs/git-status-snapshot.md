@@ -156,7 +156,11 @@ of productions only. Windows close lazily on the next refresh after they elapse,
 there is no timer. Production Server Core always logs at `info`
 (`apps/server/src/core/process.ts`), so a log reader sees every _changed_ production and the
 per-window aggregate, not every production; the startup benchmark's `gitSummariesFresh` therefore
-counts changed productions, and refresh volume is read from `git.refresh_summary` after close.
+counts changed productions and does not observe an identical restore snapshot. Refresh volume,
+including repeated productions and `maxDurationMs`, is visible only in `git.refresh_summary`, so a
+slow production that changed nothing shows up there rather than as its own `info` record.
+`statusCoalesced` counts status reads served from the cached snapshot inside one production; a
+forced production re-reads status, so it is expected to be `0` on the refresh path.
 
 **Summary coalescing and the refresh nonce.** `GitRepoService.summary` single-flights per
 `sessionId#sessionGeneration`; the `refresh` nonce is deliberately not part of the key
@@ -165,11 +169,15 @@ flight. A forcing nonce that arrives mid-flight queues exactly one trailing forc
 after the current producer settles, and every further force during that window shares it, so a
 Session never runs two Git batches concurrently while a user refresh still observes state that
 postdates the click. On the Extension side, `GitProvider` only advances its Server-facing nonce for
-a user-initiated refresh (the panel's Refresh, Sync, and Discard actions and the `caxri.git.refresh`
-command, all funnelled through `executeAction`); watcher-driven `git.changed` and active-context
-re-reads reuse the previous nonce and join the Server's current generation. `git.pullRequestChanges`
-receives the same nonce. A force that waits behind the in-flight producer logs a `debug`
-`git.summary` record with `outcome: queued` (`shared: true` when it joined an already queued run).
+a user-initiated refresh (the panel's Refresh, Sync, and Discard actions through `executeAction`,
+and the `caxri.git.refresh` palette command through `forceRefresh`; both advance the nonce via
+`requestForcedRefresh`); watcher-driven `git.changed` and active-context re-reads reuse the previous
+nonce and join the Server's current generation. A re-read that carries the forcing nonce while its
+trailing run is still queued waits for that run instead of joining the pre-click producer.
+`git.pullRequestChanges` has no last-seen-nonce memory (any nonzero `refresh` bypasses its cache),
+so the provider sends the nonce there once per user action and `0` on every later re-read. A force
+that waits behind the in-flight producer logs a `debug` `git.summary` record with `outcome: queued`
+(`shared: true` when it joined an already queued run).
 
 **Bounded working-tree projection.** `loadStatus` parses `git status --porcelain=v2 -z
 --untracked-files=all` into `parsed.files`, computes `changedFileCount` as the _true_ count, and

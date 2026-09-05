@@ -98,6 +98,10 @@ export interface WorkspaceGit {
         scope: { kind: 'all' } | { kind: 'file'; path: string },
         token?: CancellationToken,
     ): Promise<{ canceled: true } | null>;
+    /**
+     * `refresh` is not the `summary` nonce: Host has no last-seen memory for this read, so any nonzero value bypasses
+     * the Pull Request cache and its single-flight key. Pass a nonzero value once per user action and `0` otherwise.
+     */
     pullRequestChanges(
         repoId: string,
         refresh?: number,

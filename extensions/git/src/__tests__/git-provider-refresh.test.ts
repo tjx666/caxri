@@ -60,4 +60,43 @@ describe('GitProvider refresh nonce', () => {
         cancellation.dispose();
         provider.dispose();
     });
+
+    /**
+     * `git.pullRequestChanges` bypasses its Server cache for any nonzero `refresh`, so the never-decreasing
+     * `forceSequence` must reach it once per user action and never on the watcher-driven re-reads that follow.
+     */
+    it('forces the Pull Request detail once per action and sends 0 on later watcher re-reads', async () => {
+        const { git, provider } = createHarness();
+        const cancellation = new CancellationTokenSource();
+
+        const view = await provider.provideView(
+            { scopeId, preferredModeId: 'pull-request', refresh: 1 },
+            cancellation.token,
+        );
+        await vi.waitFor(() => expect(git.pullRequestChanges).toHaveBeenCalledOnce());
+        await provider.runAction(
+            { actionId: view.refreshAction.id, scopeId, revision: view.revision },
+            cancellation.token,
+        );
+        await provider.provideView(
+            { scopeId, preferredModeId: 'pull-request', refresh: 2 },
+            cancellation.token,
+        );
+        await vi.waitFor(() => expect(git.pullRequestChanges).toHaveBeenCalledTimes(2));
+        const forcedNonce = git.pullRequestChanges.mock.calls.at(-1)![1];
+        expect(forcedNonce).toBeGreaterThan(0);
+        expect(git.summary.mock.calls.at(-1)![0]).toBe(forcedNonce);
+
+        provider.refresh(scopeId);
+        await provider.provideView(
+            { scopeId, preferredModeId: 'pull-request', refresh: 3 },
+            cancellation.token,
+        );
+        await vi.waitFor(() => expect(git.pullRequestChanges).toHaveBeenCalledTimes(3));
+        expect(git.pullRequestChanges.mock.calls.at(-1)![1]).toBe(0);
+        expect(git.summary.mock.calls.at(-1)![0]).toBe(forcedNonce);
+
+        cancellation.dispose();
+        provider.dispose();
+    });
 });

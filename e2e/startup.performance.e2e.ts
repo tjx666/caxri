@@ -360,8 +360,10 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
         expectTimedEvent(serverCoreBoot);
         expectTimedEvent(terminalSpawn);
         expectTimedEvent(fileList);
-        // Every fresh summary production across cold start and restore stays under the gate; a
-        // joined/coalesced consumer never spawns its own command chain so only `fresh` is timed.
+        // Every *changed* fresh summary production stays under the gate: Server Core logs at `info`,
+        // where GitSummaryTelemetry keeps only productions whose fingerprint changed, and the restore
+        // launch reuses the preserved Server Core, so an identical restore snapshot is not in this set.
+        // A joined/coalesced consumer never spawns its own command chain so only `fresh` is timed.
         expect(gitSummaries.length).toBeGreaterThan(0);
         for (const summaryRecord of gitSummaries) expectTimedEvent(summaryRecord);
         expect(Number(coldGitSummaryFields?.commandCount)).toBeGreaterThan(0);

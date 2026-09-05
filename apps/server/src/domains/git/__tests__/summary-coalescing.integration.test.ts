@@ -120,6 +120,47 @@ describe('GitService summary coalescing', () => {
     });
 
     /**
+     * The forcing nonce is remembered as soon as the force is accepted, but its trailing run starts only after the
+     * in-flight producer settles. A re-read that repeats the nonce during that gap must wait for the forced run, not
+     * join the pre-click producer and render a snapshot that predates the user's action.
+     */
+    it('lets a same-nonce re-read wait for the queued forced run instead of joining the stale producer', async () => {
+        const { directory, git, logger, session } = await createStatusFixture(
+            'caxri-git-queued-reread-',
+        );
+        const plain = git.summary(session.id);
+        await writeFile(join(directory, 'late.txt'), 'late\n', 'utf8');
+        const forced = git.summary(session.id, 1, 'extension');
+        const reread = git.summary(session.id, 1, 'extension');
+        const [, a, b] = await Promise.all([plain, forced, reread]);
+        expect(b).toEqual(a);
+        expect(b.repositories[0].files.map((file) => file.path)).toContain('late.txt');
+        const records = await gitSummaryRecords(logger);
+        expect(records.filter((record) => record.outcome === 'joined')).toEqual([]);
+        expect(records.filter((record) => record.outcome === 'queued')).toEqual([
+            { outcome: 'queued', requester: 'extension', shared: false },
+            { outcome: 'queued', requester: 'extension', shared: true },
+        ]);
+        expect(await statusCommandCount(logger)).toBe(2);
+    });
+
+    /**
+     * Server close flushes every open aggregate, but a production still in flight settles afterwards and must take the
+     * post-eviction flush path instead of reopening a window that nothing publishes.
+     */
+    it('publishes the aggregate of a production that settles after the service was closed', async () => {
+        const { git, logger, session } = await createStatusFixture('caxri-git-close-race-');
+        const inFlight = git.summary(session.id);
+        await git.close();
+        await inFlight;
+        expect(
+            (await loggedRecords(logger))
+                .filter((record) => record.event === 'git.refresh_summary')
+                .map((record) => record.fields?.refreshes),
+        ).toEqual([1]);
+    });
+
+    /**
      * Eviction flushes the Session's refresh aggregate, but a production that was already in flight settles afterwards
      * and would otherwise reopen a window that only Server close publishes.
      */

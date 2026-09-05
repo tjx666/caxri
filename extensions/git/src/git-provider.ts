@@ -58,6 +58,12 @@ interface GitProviderScopeState {
      * (#584).
      */
     forceSequence: number;
+    /**
+     * `forceSequence` value most recently handed to `git.pullRequestChanges`, per repository. Unlike `git.summary`, the
+     * Server treats any nonzero `refresh` there as an unconditional cache bypass, so the provider must send the nonce
+     * once per user action and fall back to `0` for every later watcher-driven re-read.
+     */
+    pullRequestForcedSequences: Map<string, number>;
 }
 
 interface DetailTask {
@@ -111,6 +117,7 @@ export class GitProvider implements SourceControlProvider {
             commitOpenSequence: 0,
             mode: 'working',
             pullRequests: new Map(),
+            pullRequestForcedSequences: new Map(),
             repositories: new Map(),
             actionSequence: 0,
             forceSequence: 0,
@@ -240,15 +247,21 @@ export class GitProvider implements SourceControlProvider {
             status: 'loading',
         };
         state.pullRequests.set(repo.id, detail);
+        /**
+         * Only a user action forces the Server (#584). `git.pullRequestChanges` has no last-seen-nonce memory: any
+         * nonzero `refresh` bypasses its cache and single-flight key, so the nonce is sent once per action and
+         * watcher-driven re-reads send `0`. Marked before the call so a cancelled request does not re-force.
+         */
+        const isForced = (state.pullRequestForcedSequences.get(repo.id) ?? 0) < state.forceSequence;
+        state.pullRequestForcedSequences.set(repo.id, state.forceSequence);
+        const refresh = isForced ? state.forceSequence : 0;
         this.enqueueDetail({
             cancellation,
             run: async () => {
                 try {
-                    // Same nonce contract as `git.summary`: only a user action forces the Server; watcher-driven
-                    // re-reads must not bypass the Pull Request cache or defeat its single-flight key (#584).
                     const value = await this.workspace.git.pullRequestChanges(
                         repo.id,
-                        state.forceSequence,
+                        refresh,
                         cancellation.token,
                     );
                     this.setDetailResult(state, state.pullRequests, repo.id, detail, value);
@@ -308,8 +321,11 @@ export class GitProvider implements SourceControlProvider {
     }
 
     /**
-     * Every dispatch path (panel actions, command palette, Renderer commands) funnels through here so a command that
-     * reports `refresh: true` advances the Server-facing nonce exactly once, whichever entry point ran it.
+     * Panel actions (`runAction`) and Renderer commands (`executeCommand`) funnel through here so a command that
+     * reports `refresh: true` advances the Server-facing nonce exactly once. The command palette's `caxri.git.refresh`
+     * is the one exception: its dispatch has no result channel and `executeCommand` resolves scope by repository
+     * argument rather than the active context, so `extension.ts` binds it to `forceRefresh`, which advances the same
+     * nonce through `requestForcedRefresh`.
      */
     private async executeAction(
         state: GitProviderScopeState,

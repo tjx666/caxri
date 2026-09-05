@@ -631,9 +631,13 @@ export class GitRepoService {
 
     /**
      * Publishes every open per-Session refresh aggregate at the Server lifecycle boundary so the last window of a run
-     * is not lost with the process.
+     * is not lost with the process. Session generations are dropped as well: a production still in flight then settles
+     * as a superseded generation and takes the post-eviction flush path instead of reopening a window nobody
+     * publishes.
      */
     close(): void {
+        this.sessionGenerations.clear();
+        this.refreshNonces.clear();
         this.telemetry.flush();
     }
 
@@ -661,7 +665,14 @@ export class GitRepoService {
         const reason = isForce ? 'refresh' : 'request';
         const key = `${sessionId}#${sessionGeneration}`;
         const inFlight = this.summaries.get(key);
-        if (inFlight && !isForce) {
+        /**
+         * The nonce is remembered when the force is accepted, but its trailing run only starts after the current
+         * producer settles. A re-read carrying that same nonce during the gap must wait for the queued forced run
+         * rather than join the pre-click producer, or the user's refresh would render a stale snapshot.
+         */
+        const awaitsQueuedForce =
+            !isForce && refresh > 0 && refresh === lastNonce && this.summaries.isQueued(key);
+        if (inFlight && !isForce && !awaitsQueuedForce) {
             this.telemetry.recordJoined(sessionId, requester);
             return sharedGitRequest(() => inFlight);
         }
@@ -669,7 +680,9 @@ export class GitRepoService {
             this.telemetry.recordQueued(sessionId, requester, this.summaries.isQueued(key));
         const load = () => this.loadSummary(sessionId, reason, sessionGeneration, requester);
         return sharedGitRequest(() =>
-            isForce ? this.summaries.runAfter(key, load) : this.summaries.run(key, load),
+            isForce || awaitsQueuedForce
+                ? this.summaries.runAfter(key, load)
+                : this.summaries.run(key, load),
         );
     }
 

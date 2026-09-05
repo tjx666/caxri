@@ -80,6 +80,7 @@ export interface GitWorktreeTopology {
 }
 export { describeGitFailure } from './errors';
 export { withGitRequestSignal } from './request-signal';
+export type { GitSummaryRequester } from './summary-trace';
 
 /**
  * Subcommand-bearing Git operations whose second argv token is required to attribute a command in structured logs
