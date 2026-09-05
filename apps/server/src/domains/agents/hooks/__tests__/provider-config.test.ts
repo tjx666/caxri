@@ -214,13 +214,13 @@ describe('Agent provider hook configuration adapters', () => {
     it.each([
         {
             adapter: codexHookAdapter,
-            previousSchema: 8,
+            previousSchema: codexHookAdapter.schemaVersion - 1,
             provider: 'codex' as const,
             target: 'hooks',
         },
         {
             adapter: claudeHookAdapter,
-            previousSchema: 8,
+            previousSchema: claudeHookAdapter.schemaVersion - 1,
             provider: 'claude' as const,
             target: 'settings',
         },
