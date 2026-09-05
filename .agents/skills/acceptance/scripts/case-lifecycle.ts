@@ -35,6 +35,12 @@ const lifecycleLaunchSchema = z.object({
     cleanupCompleted: z.boolean(),
     cleanupRequested: z.boolean(),
     completedAt: z.string().nullable(),
+    /**
+     * Present when the launcher completed its own receipt with the profile still present (a detached Server generation
+     * kept it alive) and the stop adapter removed the profile afterwards. `cleanupCompleted` is then true, and this
+     * field says who verified the removal so the receipt still distinguishes deferred cleanup from launcher cleanup.
+     */
+    deferredCleanup: lifecycleForcedCompletionSchema.optional(),
     forcedCompletion: lifecycleForcedCompletionSchema.optional(),
     id: z.string().min(1),
     profileIdentity: z.string().min(1),
@@ -178,6 +184,12 @@ export async function completeCaseLifecycle(
 /**
  * Completes a launch on behalf of a launcher that could not, e.g. because the stop adapter had to force-kill it.
  * Returns `already_completed` when the launcher won the race so the adapter never overwrites a genuine receipt.
+ *
+ * One completed receipt is still amended: when the launcher honestly recorded `cleanupRequested` without
+ * `cleanupCompleted` because a detached Server generation kept the profile in use, and the adapter has since verified
+ * the profile is gone, the cleanup is recorded as completed with a `deferredCleanup` marker and `cleanup_recorded` is
+ * returned. Without this, every isolated case whose Server Core outlived Electron failed `report.ts finalize` even
+ * though the profile had been removed.
  */
 export async function forceCompleteCaseLifecycle(
     reportDirectory: string,
@@ -188,13 +200,24 @@ export async function forceCompleteCaseLifecycle(
         launchId: string;
     } & LifecycleForcedCompletion,
     completedAt = new Date().toISOString(),
-): Promise<'completed' | 'already_completed'> {
+): Promise<'completed' | 'already_completed' | 'cleanup_recorded'> {
     const directory = await validateExistingReportDirectory(reportDirectory);
     const path = join(directory, lifecycleEvidencePath(input.caseId));
     const receipt = caseLifecycleReceiptSchema.parse(JSON.parse(await readFile(path, 'utf8')));
     const launch = receipt.launches.find(({ id }) => id === input.launchId);
     if (!launch) throw new Error('Acceptance lifecycle launch is not recorded');
-    if (launch.completedAt) return 'already_completed';
+    if (launch.completedAt) {
+        if (!input.cleanupCompleted || !launch.cleanupRequested || launch.cleanupCompleted)
+            return 'already_completed';
+        launch.cleanupCompleted = true;
+        // The caller's reason describes the launcher outcome; the marker states what was actually verified here.
+        launch.deferredCleanup = {
+            reason: `${input.source} verified the profile was removed after the launcher completed its receipt`,
+            source: input.source,
+        };
+        await writeJsonAtomically(path, caseLifecycleReceiptSchema.parse(receipt));
+        return 'cleanup_recorded';
+    }
     launch.cleanupRequested = input.cleanupRequested;
     launch.cleanupCompleted = input.cleanupCompleted;
     launch.completedAt = completedAt;

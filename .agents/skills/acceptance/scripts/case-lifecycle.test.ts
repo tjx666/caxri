@@ -7,6 +7,7 @@ import { afterAll, afterEach, describe, expect, it } from 'vitest';
 
 import {
     beginCaseLifecycle,
+    completeCaseLifecycle,
     forceCompleteCaseLifecycle,
     markCaseLifecycleReady,
     repairCaseLifecycle,
@@ -145,6 +146,84 @@ describe('Acceptance case lifecycle repair', () => {
             id: 'terminal-layout',
             name: '终端内容填满工作区',
             observation: '启动器被强制结束后回执仍然完整。',
+            status: 'pass',
+            surface: 'desktop',
+        };
+        await Promise.all([
+            writeFile(resultPath, `${JSON.stringify(result, null, 2)}\n`),
+            writeFile(join(directory, 'assets/terminal.png'), 'image'),
+        ]);
+        await expect(finalizeReport({ directory, requirement })).resolves.toMatchObject({
+            summary: { passed: 1, verdict: 'pass' },
+        });
+    });
+
+    it('records deferred cleanup on a completed receipt once the profile is verified gone', async () => {
+        const directory = await reportDirectory();
+        await initialize(directory);
+        const launchId = await beginCaseLifecycle(directory, {
+            caseId: 'terminal-layout',
+            profileIdentity: 'deferred-profile',
+            stateIsolation: { mode: 'isolated' },
+        });
+        await markCaseLifecycleReady(directory, { caseId: 'terminal-layout', launchId });
+        // The launcher completed honestly while a detached Server generation still held the profile.
+        await completeCaseLifecycle(directory, {
+            caseId: 'terminal-layout',
+            cleanupCompleted: false,
+            cleanupRequested: true,
+            launchId,
+        });
+        // An unverified profile never upgrades the record.
+        await expect(
+            forceCompleteCaseLifecycle(directory, {
+                caseId: 'terminal-layout',
+                cleanupCompleted: false,
+                cleanupRequested: true,
+                launchId,
+                reason: 'launcher exited',
+                source: 'stop-electron',
+            }),
+        ).resolves.toBe('already_completed');
+        await expect(
+            forceCompleteCaseLifecycle(directory, {
+                caseId: 'terminal-layout',
+                cleanupCompleted: true,
+                cleanupRequested: true,
+                launchId,
+                reason: 'launcher exited',
+                source: 'stop-electron',
+            }),
+        ).resolves.toBe('cleanup_recorded');
+        const receipt = JSON.parse(
+            await readFile(join(directory, 'assets/terminal-layout-state-isolation.json'), 'utf8'),
+        ) as { launches: Array<Record<string, unknown>> };
+        expect(receipt.launches[0]).toMatchObject({
+            cleanupCompleted: true,
+            deferredCleanup: { source: 'stop-electron' },
+        });
+        expect(receipt.launches[0].forcedCompletion).toBeUndefined();
+        // Idempotent: a second stop finds nothing left to record.
+        await expect(
+            forceCompleteCaseLifecycle(directory, {
+                caseId: 'terminal-layout',
+                cleanupCompleted: true,
+                cleanupRequested: true,
+                launchId,
+                reason: 'launcher exited',
+                source: 'stop-electron',
+            }),
+        ).resolves.toBe('already_completed');
+
+        // Finalize now accepts the case: the profile is gone and the receipt says who verified it.
+        const resultPath = join(directory, 'result.json');
+        const result = parseReport(await readFile(resultPath, 'utf8'));
+        result.cases[0] = {
+            category: '终端布局',
+            evidence: ['assets/terminal.png', 'assets/terminal-layout-state-isolation.json'],
+            id: 'terminal-layout',
+            name: '终端内容填满工作区',
+            observation: '停止脚本在启动器之后完成了配置目录清理。',
             status: 'pass',
             surface: 'desktop',
         };

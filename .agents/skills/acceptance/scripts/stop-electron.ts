@@ -191,6 +191,11 @@ async function completeLifecycleReceiptIfPending(
                 LAUNCHER_OUTCOME_LABEL[launcherOutcome]
             } launcher`,
         );
+    } else if (result === 'cleanup_recorded') {
+        dependencies.log(
+            `Recorded deferred profile cleanup for Acceptance case ${acceptanceCase.id}: the launcher completed its ` +
+                'receipt while a detached Server generation still held the profile',
+        );
     }
 }
 
