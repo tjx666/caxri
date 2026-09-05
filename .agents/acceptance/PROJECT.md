@@ -69,8 +69,11 @@ Android, and iOS Simulator product surfaces.
   signaling, preserves state on a mismatch or timeout, and does not return success until CDP and all
   captured owned processes are gone. A live launcher owns its own teardown: it receives SIGTERM
   alone and is force-killed only after `--launcher-grace-ms` (default 30000) without teardown
-  progress; the adapter then completes the case's state-isolation receipt itself, so the receipt is
-  whole after every successful stop.
+  progress, or once four grace periods have elapsed regardless of progress; the adapter logs the
+  measured teardown duration and then completes the case's state-isolation receipt itself, so that
+  receipt is whole after every successful stop. The Agent-fixture receipt of a fixture-backed case is
+  still written only by the launcher; a fixture launch stranded by a force-kill has no repair
+  command yet.
 - **Already-running detection:** the adapter compares the recorded launcher PID
   and immutable process identity. It refuses to replace a verified live owner
   and treats a recycled PID as stale state. A declared restart may carry the same verified Server Core

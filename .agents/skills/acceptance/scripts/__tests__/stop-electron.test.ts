@@ -344,6 +344,11 @@ describe('Acceptance Electron stopper', () => {
      * grace and force deadline is still evaluated against real elapsed milliseconds.
      */
     function launcherScenario(input: {
+        /**
+         * Period of a CDP probe that keeps flipping between reachable and unreachable, as a stalled main thread
+         * produces against the 500ms probe timeout.
+         */
+        cdpFlapPeriodMs?: number;
         electronExitsAt?: number;
         launcherExitsAt: number;
         launcherGraceMs?: number;
@@ -353,20 +358,31 @@ describe('Acceptance Electron stopper', () => {
         const liveProcessIds = new Set([111, 333]);
         const isLauncherAlive = () => liveProcessIds.has(111) && clock < input.launcherExitsAt;
         const isServerCoreAlive = () => liveProcessIds.has(333) && isLauncherAlive();
+        const isElectronAlive = () =>
+            isLauncherAlive() && clock < (input.electronExitsAt ?? Infinity);
+        const isCdpReachable = () =>
+            isElectronAlive() &&
+            (input.cdpFlapPeriodMs === undefined ||
+                Math.floor(clock / input.cdpFlapPeriodMs) % 2 === 0);
         const kill = vi.fn((pid: number, signal: NodeJS.Signals) => {
             if (signal === 'SIGKILL') liveProcessIds.delete(pid);
         });
         const dependencies_ = dependencies({
-            isCdpReachable: vi.fn(() => Promise.resolve(isLauncherAlive())),
+            isCdpReachable: vi.fn(() => Promise.resolve(isCdpReachable())),
             isOwnedLauncher: vi.fn(() => Promise.resolve(isLauncherAlive())),
             isOwnedProcess: vi.fn(({ pid }: { pid: number }) =>
                 Promise.resolve(
-                    pid === 111 ? isLauncherAlive() : pid === 333 ? isServerCoreAlive() : false,
+                    pid === 111
+                        ? isLauncherAlive()
+                        : pid === 222
+                          ? isElectronAlive()
+                          : pid === 333
+                            ? isServerCoreAlive()
+                            : false,
                 ),
             ),
-            isOwnedRuntime: vi.fn(() =>
-                Promise.resolve(isLauncherAlive() && clock < (input.electronExitsAt ?? Infinity)),
-            ),
+            // Mirrors the real helper: the runtime stays owned while either the launcher or the window is alive.
+            isOwnedRuntime: vi.fn(() => Promise.resolve(isLauncherAlive() || isElectronAlive())),
             kill,
             now: () => clock,
             readRuntime: vi.fn().mockResolvedValue(
@@ -453,7 +469,8 @@ describe('Acceptance Electron stopper', () => {
     });
 
     it('extends the launcher grace while teardown is still making progress', async () => {
-        const { kill, run } = launcherScenario({
+        // The window exit at 25s is the only progress signal; it is observed through the window's own identity.
+        const { deps, kill, run } = launcherScenario({
             electronExitsAt: 25_000,
             launcherExitsAt: 45_000,
             launcherGraceMs: 30_000,
@@ -462,6 +479,40 @@ describe('Acceptance Electron stopper', () => {
         await expect(run()).resolves.toBeUndefined();
 
         expect(kill).not.toHaveBeenCalledWith(111, 'SIGKILL');
+        expect(deps.isOwnedProcess).toHaveBeenCalledWith({
+            identity: 'electron identity',
+            pid: 222,
+        });
+        expect(deps.log).toHaveBeenCalledWith(
+            expect.stringMatching(
+                /^Acceptance launcher exited after 45\d{3}ms \(\d+ polls, grace 30000ms\)$/,
+            ),
+        );
+    });
+
+    it('force-kills a launcher whose progress never converges once the absolute deadline passes', async () => {
+        const { deps, kill, run } = launcherScenario({
+            cdpFlapPeriodMs: 500,
+            launcherExitsAt: Infinity,
+            launcherGraceMs: 1_000,
+        });
+        vi.mocked(deps.forceCompleteCaseLifecycle).mockResolvedValue('completed');
+
+        await expect(run()).resolves.toBeUndefined();
+
+        expect(kill).toHaveBeenCalledWith(111, 'SIGKILL');
+        expect(deps.log).toHaveBeenCalledWith(
+            expect.stringContaining('exceeded the 4000ms deadline'),
+        );
+        expect(deps.log).toHaveBeenCalledWith(
+            expect.stringMatching(/^Acceptance launcher deadline-killed after 4\d{3}ms/),
+        );
+        expect(deps.forceCompleteCaseLifecycle).toHaveBeenCalledWith(
+            expect.any(String),
+            expect.objectContaining({
+                reason: expect.stringContaining('absolute deadline') as string,
+            }),
+        );
     });
 
     it('records unverified cleanup honestly when the profile still exists after a forced stop', async () => {
@@ -496,9 +547,14 @@ describe('Acceptance Electron stopper', () => {
         );
     });
 
-    it('skips the receipt when runtime state predates receipt ownership', async () => {
+    it('says so when runtime state records no receipt ownership instead of skipping silently', async () => {
         const { deps, run } = launcherScenario({ launcherExitsAt: 0, withReceipt: false });
         await run();
         expect(deps.forceCompleteCaseLifecycle).not.toHaveBeenCalled();
+        expect(deps.log).toHaveBeenCalledWith(
+            expect.stringContaining(
+                'records no lifecycle receipt ownership; if its launch is still pending, close it with `report.ts repair-lifecycle --dir <round> --case-id stop-case --reason "<why>"`',
+            ),
+        );
     });
 });

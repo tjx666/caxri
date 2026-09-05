@@ -26,6 +26,12 @@ const RUNTIME_PATH = join(PROJECT_ROOT, '.records', 'acceptance', 'runtime.json'
  * window, so the launcher is only escalated after this long without any observable teardown progress.
  */
 const DEFAULT_LAUNCHER_GRACE_MS = 30_000;
+/**
+ * Progress can keep renewing the grace: a stalled main thread makes the CDP probe flap and a restarted Server
+ * generation moves the live count. This multiple of the grace is the absolute ceiling of the launcher tier, so a
+ * teardown that never converges is still escalated and the stop always returns.
+ */
+const LAUNCHER_DEADLINE_MULTIPLIER = 4;
 const OWNED_PROCESS_FORCE_DELAY_MS = 5_000;
 const OWNED_PROCESS_DEADLINE_MS = 10_000;
 const POLL_INTERVAL_MS = 250;
@@ -134,13 +140,22 @@ function parseLauncherGrace(argv: string[]): StopElectronOptions {
  * Completes the launcher's lifecycle receipt when the launcher could not. The launcher normally writes it in its own
  * `finally`; `already_completed` means it did, and nothing is overwritten.
  */
-type LauncherOutcome = 'absent' | 'exited' | 'force_killed';
+type LauncherOutcome = 'absent' | 'exited' | 'force_killed' | 'deadline_killed';
 
 const RECEIPT_COMPLETION_REASON: Record<LauncherOutcome, string> = {
     absent: 'the launcher was already gone when stop-electron ran',
+    deadline_killed:
+        'stop-electron force-killed the launcher because its teardown exceeded the absolute deadline',
     exited: 'the launcher exited without completing its lifecycle receipt',
     force_killed:
         'stop-electron force-killed the launcher after it stopped making teardown progress',
+};
+
+const LAUNCHER_OUTCOME_LABEL: Record<LauncherOutcome, string> = {
+    absent: 'already-gone',
+    deadline_killed: 'deadline-killed',
+    exited: 'exited',
+    force_killed: 'force-killed',
 };
 
 async function completeLifecycleReceiptIfPending(
@@ -149,7 +164,16 @@ async function completeLifecycleReceiptIfPending(
     dependencies: StopElectronDependencies,
 ): Promise<void> {
     const acceptanceCase = runtime.acceptanceCase;
-    if (!acceptanceCase?.reportDirectory || !acceptanceCase.lifecycleLaunchId) return;
+    if (!acceptanceCase) return;
+    if (!acceptanceCase.reportDirectory || !acceptanceCase.lifecycleLaunchId) {
+        // Recorded with its cause so a pending receipt is not first discovered at `report.ts finalize`.
+        dependencies.log(
+            `Runtime state for Acceptance case ${acceptanceCase.id} records no lifecycle receipt ownership; ` +
+                'if its launch is still pending, close it with ' +
+                `\`report.ts repair-lifecycle --dir <round> --case-id ${acceptanceCase.id} --reason "<why>"\``,
+        );
+        return;
+    }
     const cleanupCompleted =
         runtime.ownedUserData && (await dependencies.isOwnedUserDataRemoved(runtime));
     const result = await dependencies.forceCompleteCaseLifecycle(acceptanceCase.reportDirectory, {
@@ -163,9 +187,7 @@ async function completeLifecycleReceiptIfPending(
     if (result === 'completed') {
         dependencies.log(
             `Completed lifecycle receipt for Acceptance case ${acceptanceCase.id} on behalf of the ${
-                { absent: 'already-gone', exited: 'exited', force_killed: 'force-killed' }[
-                    launcherOutcome
-                ]
+                LAUNCHER_OUTCOME_LABEL[launcherOutcome]
             } launcher`,
         );
     }
@@ -278,50 +300,69 @@ export async function stopElectron(
         return liveProcesses;
     };
 
+    const desktopOwner =
+        runtime.electronPid && runtime.electronIdentity
+            ? { identity: runtime.electronIdentity, pid: runtime.electronPid }
+            : undefined;
     let launcherOutcome: LauncherOutcome = 'absent';
     if (await dependencies.isOwnedLauncher(runtime)) {
         const launcher = { identity: runtime.launcherIdentity, pid: runtime.launcherPid };
         await signalOnce(launcher, 'SIGTERM');
         launcherOutcome = 'exited';
         /**
-         * Progress means the launcher's teardown is visibly advancing: the window ownership or CDP endpoint went away,
-         * or an owned process exited. Each of those can only happen a bounded number of times, so a launcher that keeps
-         * progressing still converges while a stuck one is escalated after one quiet grace period.
+         * Progress means the launcher's teardown is visibly advancing: the window process exited, the CDP endpoint went
+         * away, or an owned process exited. The window is probed by its own identity rather than through
+         * `isOwnedRuntime`, which reports the runtime as owned for as long as the launcher itself is alive and so could
+         * never register the window's exit here. A launcher that keeps progressing is left alone until the absolute
+         * deadline; a quiet one is escalated after one grace period.
          */
-        let lastProgressAt = dependencies.now();
+        const startedAt = dependencies.now();
+        const deadline = startedAt + launcherGraceMs * LAUNCHER_DEADLINE_MULTIPLIER;
+        let lastProgressAt = startedAt;
         let previousSnapshot: string | undefined;
+        let pollCount = 0;
         // This is a poll loop: each iteration must await the previous liveness check and retry
         // delay before deciding whether to poll again, so the awaits below are intentionally
         // sequential.
         for (;;) {
             // eslint-disable-next-line no-await-in-loop -- the launcher's exact identity gates every poll
             if (!(await dependencies.isOwnedLauncher(runtime))) break;
+            pollCount += 1;
             // eslint-disable-next-line no-await-in-loop -- discovery persists new Server generations before signaling
             await captureCurrentProcesses();
             // eslint-disable-next-line no-await-in-loop -- one ordered ownership snapshot per poll
-            const [isDesktopOwned, isCdpReachable, liveProcesses] = await Promise.all([
-                dependencies.isOwnedRuntime(runtime),
+            const [isWindowAlive, isCdpReachable, liveProcesses] = await Promise.all([
+                desktopOwner ? dependencies.isOwnedProcess(desktopOwner) : false,
                 dependencies.isCdpReachable(runtime.cdpUrl),
                 countLiveProcesses(),
             ]);
-            const snapshot = `${isDesktopOwned}:${isCdpReachable}:${liveProcesses.length}`;
+            const snapshot = `${isWindowAlive}:${isCdpReachable}:${liveProcesses.length}`;
             const now = dependencies.now();
             if (previousSnapshot !== undefined && snapshot !== previousSnapshot) {
                 lastProgressAt = now;
             }
             previousSnapshot = snapshot;
-            if (now - lastProgressAt >= launcherGraceMs) {
+            const isQuiet = now - lastProgressAt >= launcherGraceMs;
+            if (isQuiet || now >= deadline) {
                 dependencies.log(
-                    `Acceptance launcher made no teardown progress for ${launcherGraceMs}ms; force-killing it`,
+                    isQuiet
+                        ? `Acceptance launcher made no teardown progress for ${launcherGraceMs}ms; force-killing it`
+                        : `Acceptance launcher teardown exceeded the ${deadline - startedAt}ms deadline; force-killing it`,
                 );
                 // eslint-disable-next-line no-await-in-loop -- escalation retains the exact launcher identity
                 await signalOnce(launcher, 'SIGKILL');
-                launcherOutcome = 'force_killed';
+                launcherOutcome = isQuiet ? 'force_killed' : 'deadline_killed';
                 break;
             }
             // eslint-disable-next-line no-await-in-loop
             await dependencies.sleep(POLL_INTERVAL_MS);
         }
+        // Measured so teardown creeping toward the grace is visible before force-kills return (#611).
+        dependencies.log(
+            `Acceptance launcher ${LAUNCHER_OUTCOME_LABEL[launcherOutcome]} after ${
+                dependencies.now() - startedAt
+            }ms (${pollCount} polls, grace ${launcherGraceMs}ms)`,
+        );
     }
 
     /**
@@ -329,10 +370,6 @@ export async function stopElectron(
      * generation, an Extension Host orphan — is now signaled directly with the short force escalation.
      */
     await captureCurrentProcesses();
-    const desktopOwner =
-        runtime.electronPid && runtime.electronIdentity
-            ? { identity: runtime.electronIdentity, pid: runtime.electronPid }
-            : undefined;
     if (desktopOwner) await signalOnce(desktopOwner, 'SIGTERM');
     for (const ownedProcess of capturedProcesses.values()) {
         if (ownedProcess.role === 'server-core') {
