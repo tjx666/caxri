@@ -65,11 +65,11 @@
     },
     "lint-staged": {
         "*.{js,jsx,mjs,cjs}": [
-            "eslint --fix --no-warn-ignored",
+            "eslint --fix --no-warn-ignored --max-warnings=0",
             "prettier --write"
         ],
         "*.{ts,tsx,mts,cts}": [
-            "eslint --fix --no-warn-ignored",
+            "eslint --fix --no-warn-ignored --max-warnings=0",
             "oxlint -c .oxlintrc.json --type-aware --fix --no-error-on-unmatched-pattern",
             "prettier --write"
         ],

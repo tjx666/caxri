@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import type { ServerConnectionState } from '../state-machine';
-import { initialServerConnectionState, transitionServerConnection } from '../state-machine';
+import {
+    initialServerConnectionState,
+    reconnectContext,
+    transitionServerConnection,
+} from '../state-machine';
 
 function transition(
     state: ServerConnectionState,
@@ -21,6 +25,25 @@ describe('Desktop Server connection state machine', () => {
         expect(attaching).toEqual({ status: 'attaching', mode: 'initial' });
         expect(attached).toEqual({ status: 'attached' });
         expect(transition(attached, { type: 'desktop-ready' })).toEqual({ status: 'ready' });
+    });
+
+    /**
+     * The two `attaching` states share a status but not a meaning: only the reconnect one owns an outage. Callers that
+     * classify "between attachments" read this rather than the bare status, so the distinction is asserted here.
+     */
+    it('gives an outage only to the reconnect attachment', () => {
+        expect(reconnectContext({ status: 'attaching', mode: 'initial' })).toBeUndefined();
+        expect(reconnectContext(initialServerConnectionState)).toBeUndefined();
+        expect(reconnectContext({ status: 'attached' })).toBeUndefined();
+        expect(
+            reconnectContext({
+                status: 'attaching',
+                mode: 'reconnect',
+                attempt: 2,
+                outageStartedAtMs: 1_000,
+                readiness: 'announced',
+            }),
+        ).toMatchObject({ outageStartedAtMs: 1_000 });
     });
 
     it('retains outage timing and readiness across failed reconnect attempts', () => {

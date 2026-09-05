@@ -5,6 +5,7 @@ import type { RecoveringEventClient, ServerConnectionState } from '@caxri/client
 import {
     createRecoveringEventClient,
     initialServerConnectionState,
+    reconnectContext,
     transitionServerConnection,
 } from '@caxri/client';
 import type {
@@ -97,6 +98,17 @@ export interface DesktopServerConnectionOptions {
 }
 
 const SERVER_REPLACEMENT_EXIT_TIMEOUT_MS = 10_000;
+
+/**
+ * How long an outage may be treated as the reconnect window; see {@link DesktopServerConnection.isRecovering}. The case
+ * this classification exists for is a sleep/wake reattach, which settles in seconds, but the bound is sized against the
+ * loop's worst case instead: a single attempt may burn the supervisor's 15s readiness deadline before failing, and the
+ * backoff between attempts grows to a 10s cap, so a reattach that only succeeds on its sixth attempt still completes
+ * inside two minutes. A tighter bound would report a slow but healthy recovery as a fault, which is the noise this
+ * classification was added to remove. The bound exists only so an outage that never resolves stops being downgraded
+ * forever.
+ */
+const RECOVERY_WINDOW_MS = 120_000;
 
 /**
  * Waits for a stopped Server process to disappear so `ensureServer` re-discovery cannot race the old manifest. Signal 0
@@ -514,6 +526,26 @@ export class DesktopServerConnection extends EventTarget {
         // Disposal is terminal, so no in-flight or queued durable-event recovery may outlive it.
         this.events?.stop();
         this.unsubscribeServerLifecycle();
+    }
+
+    /**
+     * True while a request may fail with `UNAVAILABLE` purely because the connection is between attachments and the
+     * reconnect loop still owns recovery. `idle` is excluded because nothing retries after a failed initial attachment,
+     * and a failed supervisor is excluded because the loop has stopped re-arming (see `ensureReconnectLoop`); both are
+     * real outages a caller must be told about. `replaced` and `disposed` never reach here — they answer `CANCELLED`.
+     * The first attachment is excluded through {@link reconnectContext}: it shares the `attaching` status but owns no
+     * outage, so a failure there is not a reconnect.
+     *
+     * A failed supervisor is not the only permanent outage. `ServerArtifactSupervisor.ensure` throws `CONFLICT` without
+     * touching the restart budget when the Server process is alive but its authenticated endpoint keeps refusing, so
+     * `isFailed()` never becomes true and the loop retries forever. Bounding the window by outage age is what keeps
+     * that case reported as a fault instead of an endless reconnect.
+     */
+    isRecovering(): boolean {
+        if (this.serverSupervisor.isFailed()) return false;
+        const context = reconnectContext(this.lifecycle);
+        if (context === undefined) return false;
+        return Date.now() - context.outageStartedAtMs < RECOVERY_WINDOW_MS;
     }
 
     serverProcessId(): number | undefined {
