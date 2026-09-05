@@ -11,6 +11,7 @@ import {
 
 const notification = {
     body: 'Claude Code is waiting for your input.',
+    groupId: 'caxri-agent-sessions',
     id: 'caxri-agent-session-session-1',
     title: 'Background session',
 };

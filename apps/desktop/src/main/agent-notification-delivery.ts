@@ -110,15 +110,10 @@ export function createAgentNotificationDelivery({
                 }
                 try {
                     /**
-                     * Only the two fields Electron's `NotificationConstructorOptions` declares are forwarded. Electron
-                     * copies unknown options onto the instance, so passing the whole Caxri notification also gave it an
-                     * `id`, which made the call read as if macOS replaced a banner by that identity. Nothing in
-                     * Electron acts on it; only the alerter path uses the id for grouping.
+                     * Every field of the Caxri notification is a declared Electron option; see the
+                     * `AgentSystemNotification` JSDoc for what `id` and `groupId` do on macOS.
                      */
-                    nativeNotification = new NativeNotification({
-                        body: notification.body,
-                        title: notification.title,
-                    });
+                    nativeNotification = new NativeNotification(notification);
                     nativeNotification.on('click', handleNativeClick);
                     nativeNotification.on('failed', handleNativeFailure);
                     nativeNotification.show();

@@ -165,6 +165,7 @@ describe('Agent notification coordinator', () => {
         expect(test.shown).toEqual([
             {
                 id: 'caxri-agent-session-session-1',
+                groupId: 'caxri-agent-sessions',
                 title: 'Investigate hooks',
                 body: 'Claude Code is waiting for your input.',
             },

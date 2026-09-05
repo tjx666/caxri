@@ -7,12 +7,15 @@ import type {
 } from '@caxri/protocol';
 import { agentProviderCatalog } from '@caxri/protocol';
 
+/**
+ * The two identity fields are real Electron `NotificationConstructorOptions` on macOS and Windows, not Caxri-private
+ * bookkeeping: `id` maps to the `UNNotificationRequest` identifier, so a later banner with the same `id` replaces the
+ * one still on screen, and `groupId` maps to the `threadIdentifier` that stacks Caxri's banners together in
+ * Notification Center. The alerter backend reproduces the same replacement rule through its `--group` flag.
+ */
 export interface AgentSystemNotification {
     body: string;
-    /**
-     * Caxri's own replacement identity for a Session's banner. It is not an Electron option: the native backend
-     * receives only `title` and `body`, and alerter maps this onto its `--group` flag.
-     */
+    groupId: string;
     id: string;
     title: string;
 }
@@ -160,6 +163,7 @@ export function createAgentNotificationCoordinator(
         const handle = options.showNotification(
             {
                 id: `caxri-agent-session-${session.id}`,
+                groupId: 'caxri-agent-sessions',
                 title: session.displayTitle,
                 body,
             },
