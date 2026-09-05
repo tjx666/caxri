@@ -37,7 +37,7 @@ describe('GPU incident budget', () => {
         expect(budget.recordIncident('incident-1')).toBe(true);
     });
 
-    it('caches the WebGL2 probe per GPU incident generation', () => {
+    it('caches only a positive WebGL2 probe per GPU incident generation', () => {
         const probeWebgl2 = vi.fn(() => true);
         const budget = createGpuIncidentBudget({ probeWebgl2 });
 
@@ -45,14 +45,30 @@ describe('GPU incident budget', () => {
         expect(budget.isWebgl2Available()).toBe(true);
         expect(probeWebgl2).toHaveBeenCalledOnce();
 
+        // A new incident invalidates the positive answer.
         budget.recordIncident('incident-1');
-        probeWebgl2.mockReturnValueOnce(false);
-        expect(budget.isWebgl2Available()).toBe(false);
-        expect(budget.isWebgl2Available()).toBe(false);
+        expect(budget.isWebgl2Available()).toBe(true);
         expect(probeWebgl2).toHaveBeenCalledTimes(2);
 
         budget.applyPreference('on');
         budget.applyPreference('auto');
+        expect(budget.isWebgl2Available()).toBe(true);
+        expect(probeWebgl2).toHaveBeenCalledTimes(3);
+    });
+
+    it('re-probes after a negative answer so the GPU process returning is observed', () => {
+        const probeWebgl2 = vi.fn(() => false);
+        const budget = createGpuIncidentBudget({ probeWebgl2 });
+        budget.recordIncident('incident-1');
+
+        // The GPU is still relaunching: every retry attempt and every later-mounted pane asks again.
+        expect(budget.isWebgl2Available()).toBe(false);
+        expect(budget.isWebgl2Available()).toBe(false);
+        expect(probeWebgl2).toHaveBeenCalledTimes(2);
+
+        // The GPU process is back; the next probe sees it without a new incident or preference change.
+        probeWebgl2.mockReturnValue(true);
+        expect(budget.isWebgl2Available()).toBe(true);
         expect(budget.isWebgl2Available()).toBe(true);
         expect(probeWebgl2).toHaveBeenCalledTimes(3);
     });

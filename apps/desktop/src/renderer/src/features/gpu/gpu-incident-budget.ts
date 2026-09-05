@@ -39,7 +39,7 @@ export function createGpuIncidentBudget(options: GpuIncidentBudgetOptions): GpuI
     let appliedPreference: TerminalGpuAcceleration | undefined;
     let incidentCount = 0;
     let generation = 0;
-    let cachedProbe: { generation: number; result: boolean } | undefined;
+    let webgl2ConfirmedGeneration: number | undefined;
 
     function reset(): void {
         incidentIds.clear();
@@ -75,14 +75,18 @@ export function createGpuIncidentBudget(options: GpuIncidentBudgetOptions): GpuI
             return incidentCount >= threshold;
         },
         /**
-         * Probing creates and discards a real WebGL2 context, so during an incident storm every pane retry and
-         * preference change would manufacture throwaway contexts that compete with live Terminals. The answer only
-         * changes when the GPU process does, so it is cached per incident generation.
+         * A positive probe creates and discards a real WebGL2 context, so during an incident storm every pane retry and
+         * preference change would manufacture throwaway contexts that compete with live Terminals. Only a GPU incident
+         * can turn a working GPU into a broken one, so a positive answer is cached per incident generation. A negative
+         * answer is never cached: the GPU process comes back without any Renderer-visible event, a failed
+         * `getContext('webgl2')` allocates nothing, and remembering it would make the backoff retries and every
+         * later-mounted pane inherit a `false` observed during the restart gap until the next incident.
          */
         isWebgl2Available(): boolean {
-            if (cachedProbe?.generation !== generation)
-                cachedProbe = { generation, result: options.probeWebgl2() };
-            return cachedProbe.result;
+            if (webgl2ConfirmedGeneration === generation) return true;
+            const available = options.probeWebgl2();
+            if (available) webgl2ConfirmedGeneration = generation;
+            return available;
         },
     };
 }
