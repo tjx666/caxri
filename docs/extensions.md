@@ -151,7 +151,10 @@ history, details, and action calls carry an opaque request ID, cancellation toke
 and Server-owned Session/Workbench Project context. The Extension Host scopes `workspace.git` calls to
 that context, Server Core rechecks the grant, and the Git domain remains the final authorization boundary. Explicit
 cancellation is a typed `CANCELLED` non-fault; superseded provider or Extension Host generations fail with
-`GENERATION_EXPIRED`. Extensions cannot submit a Session ID, repository path, shell command, or
+`GENERATION_EXPIRED`. Neither code is a reserved word of the Extension API: a provider may throw any
+`code`, including these two. Only Caxri-originated cancellation and generation turnover are classified
+as non-faults; an error thrown by extension code is always logged as a real fault regardless of which
+`code` it carries. Extensions cannot submit a Session ID, repository path, shell command, or
 native API request. The Git domain owns Git execution, repository discovery, approved-repository identity,
 and the bounded Desktop bridge used by discard confirmation. A discard request carries only an
 opaque repository ID and either an all-changes intent or a relative file path; the Git domain derives the

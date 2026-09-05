@@ -30,6 +30,7 @@ import {
     TreeItemCollapsibleState,
 } from 'caxri';
 
+import { hostError } from './extension-error';
 import type {
     ExtensionHostMessage,
     ExtensionHostRegistration,
@@ -143,9 +144,7 @@ function send(message: ExtensionHostMessage): void {
 function assertCurrent(extensionId: string, generation: number): ExtensionInstance {
     const runtime = extensions.get(extensionId);
     if (!runtime || runtime.registration.generation !== generation)
-        throw Object.assign(new Error(`Extension generation expired: ${extensionId}`), {
-            code: 'GENERATION_EXPIRED',
-        });
+        throw hostError('GENERATION_EXPIRED', `Extension generation expired: ${extensionId}`);
     return runtime;
 }
 
@@ -452,10 +451,7 @@ export function extensionApiBinding(apiToken: string): ApiBinding {
     const runtime = extensions
         .values()
         .find(({ registration }) => registration.apiToken === apiToken);
-    if (!runtime)
-        throw Object.assign(new Error('Extension API binding has expired'), {
-            code: 'GENERATION_EXPIRED',
-        });
+    if (!runtime) throw hostError('GENERATION_EXPIRED', 'Extension API binding has expired');
     return runtime.apiBinding;
 }
 
@@ -467,17 +463,13 @@ function assertBindingCurrent(registration: ExtensionHostRegistration): Extensio
         runtime.registration.generation !== registration.generation ||
         runtime.registration.apiToken !== registration.apiToken
     )
-        throw Object.assign(new Error('Extension API binding has expired'), {
-            code: 'GENERATION_EXPIRED',
-        });
+        throw hostError('GENERATION_EXPIRED', 'Extension API binding has expired');
     return runtime;
 }
 
 function assertInstanceCurrent(runtime: ExtensionInstance): void {
     if (extensions.get(runtime.registration.extensionId) !== runtime || runtime.retired)
-        throw Object.assign(new Error('Extension generation expired during the request'), {
-            code: 'GENERATION_EXPIRED',
-        });
+        throw hostError('GENERATION_EXPIRED', 'Extension generation expired during the request');
 }
 
 export async function activateExtension(extensionId: string, generation: number): Promise<void> {
@@ -559,9 +551,10 @@ function isRequestCancelled(cancellation: CancellationTokenSource): boolean {
 
 function assertRefreshCurrent(provider: ProviderRegistration, refreshEpoch: number): void {
     if (provider.refreshEpoch !== refreshEpoch)
-        throw Object.assign(new Error('Tree provider refreshed while the request was running'), {
-            code: 'GENERATION_EXPIRED',
-        });
+        throw hostError(
+            'GENERATION_EXPIRED',
+            'Tree provider refreshed while the request was running',
+        );
 }
 
 export async function getTreeChildren(parameters: {
@@ -587,14 +580,10 @@ export async function getTreeChildren(parameters: {
         ? provider.elements.get(parameters.parentHandle)
         : undefined;
     if (parent === undefined && parameters.parentHandle)
-        throw Object.assign(new Error('Tree handle belongs to an expired generation'), {
-            code: 'GENERATION_EXPIRED',
-        });
+        throw hostError('GENERATION_EXPIRED', 'Tree handle belongs to an expired generation');
     const parentDepth = parameters.parentHandle ? provider.depths.get(parameters.parentHandle) : -1;
     if (parentDepth === undefined)
-        throw Object.assign(new Error('Tree handle depth belongs to an expired generation'), {
-            code: 'GENERATION_EXPIRED',
-        });
+        throw hostError('GENERATION_EXPIRED', 'Tree handle depth belongs to an expired generation');
     const childDepth = parentDepth + 1;
     if (childDepth > MAX_VIEW_TREE_DEPTH)
         throw Object.assign(new Error('Tree provider exceeded the depth limit'), {

@@ -4,6 +4,7 @@ import { isNonExpiringViewOperation } from '@caxri/protocol';
 import { currentObservationContext, mergeObservationContext } from '@caxri/system';
 import type { CancellationToken, DisposableLike } from 'caxri';
 
+import { hostError } from './extension-error';
 import type { ExtensionHostApiRequest, ExtensionHostMessage } from './protocol';
 
 type ExtensionHostApiRequestIdentity =
@@ -43,9 +44,7 @@ const pendingApi = new Map<string, PendingApiRequest>();
 const SERVER_API_TIMEOUT_MS = 15_000;
 
 function cancellationError(): Error {
-    return Object.assign(new Error('Extension Host API request was cancelled'), {
-        code: 'CANCELLED',
-    });
+    return hostError('CANCELLED', 'Extension Host API request was cancelled');
 }
 
 function clearPending(id: string, pending: PendingApiRequest): void {
@@ -153,25 +152,26 @@ export function settleApiReply(
     if (!pending) return;
     clearPending(message.id, pending);
     if (!isApiTokenCurrent(pending.apiToken)) {
-        pending.reject(
-            Object.assign(new Error('Extension generation was reconfigured'), {
-                code: 'GENERATION_EXPIRED',
-            }),
-        );
+        pending.reject(hostError('GENERATION_EXPIRED', 'Extension generation was reconfigured'));
         return;
     }
     if (message.ok) pending.resolve(message.result);
+    /**
+     * This rebuilds an error from Server Core's own reply rather than from anything an extension threw, so it is
+     * host-originated the same way a locally-raised `CANCELLED` / `GENERATION_EXPIRED` is.
+     */
     else
         pending.reject(
-            Object.assign(new Error(message.error?.message ?? 'Host API request failed'), {
-                code: message.error?.code ?? 'EXTENSION_HOST_UNAVAILABLE',
-            }),
+            hostError(
+                message.error?.code ?? 'EXTENSION_HOST_UNAVAILABLE',
+                message.error?.message ?? 'Host API request failed',
+            ),
         );
 }
 
 export function rejectPendingApiRequests(message: string, code = 'GENERATION_EXPIRED'): void {
     for (const [id, pending] of pendingApi) {
         clearPending(id, pending);
-        pending.reject(Object.assign(new Error(message), { code }));
+        pending.reject(hostError(code, message));
     }
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { extensionErrorShape, extensionRequestFailureRecord } from '../extension-error';
+import { extensionErrorShape, extensionRequestFailureRecord, hostError } from '../extension-error';
 
 describe('extensionErrorShape', () => {
     it('classifies CommonJS access to the ESM-only caxri API', () => {
@@ -42,8 +42,9 @@ describe('extensionRequestFailureRecord', () => {
     it.each([
         ['CANCELLED', 'cancelled'],
         ['GENERATION_EXPIRED', 'generation-superseded'],
-    ])('reports %s as a retryable non-fault at debug', (code, reason) => {
-        expect(extensionRequestFailureRecord(code)).toEqual({
+    ])('reports a host-originated %s as a retryable non-fault at debug', (code, reason) => {
+        const error = hostError(code, 'host-originated');
+        expect(extensionRequestFailureRecord(code, error)).toEqual({
             failure: {
                 code,
                 owner: 'extension-host',
@@ -56,8 +57,28 @@ describe('extensionRequestFailureRecord', () => {
         });
     });
 
+    it.each(['CANCELLED', 'GENERATION_EXPIRED'])(
+        'keeps an extension-forged %s at warn with the restart remediation',
+        (code) => {
+            // An extension provider can throw a matching code, but never through `hostError`.
+            const forged = Object.assign(new Error('boom'), { code });
+            expect(extensionRequestFailureRecord(code, forged)).toEqual({
+                failure: {
+                    code,
+                    owner: 'extension-host',
+                    phase: 'execute',
+                    reason: 'unknown',
+                    remediation: 'restart-extension-host',
+                    retryable: false,
+                },
+                level: 'warn',
+            });
+        },
+    );
+
     it('keeps a real provider failure at warn with the restart remediation', () => {
-        expect(extensionRequestFailureRecord('ACTIVATION_FAILED')).toEqual({
+        const error = Object.assign(new Error('activation failed'), { code: 'ACTIVATION_FAILED' });
+        expect(extensionRequestFailureRecord('ACTIVATION_FAILED', error)).toEqual({
             failure: {
                 code: 'ACTIVATION_FAILED',
                 owner: 'extension-host',

@@ -22,6 +22,7 @@ import {
     notifyGitChanged,
     notifyProjectStatusChanged,
 } from '../api-factory';
+import { isHostOriginatedError } from '../extension-error';
 import type { ExtensionHostRegistration } from '../protocol';
 import { currentViewEventContext, executeViewOperation } from '../view-provider-service';
 
@@ -310,7 +311,15 @@ describe('Extension Host API factory', () => {
         });
         await new Promise((resolve) => setImmediate(resolve));
         expect(cancelTreeRequest('view-cancel-request')).toEqual({ cancelled: true });
-        await expect(pending).rejects.toMatchObject({ code: 'CANCELLED' });
+        let cancellation: unknown;
+        try {
+            await pending;
+        } catch (error) {
+            cancellation = error;
+        }
+        expect(cancellation).toMatchObject({ code: 'CANCELLED' });
+        // A real cancellation is minted through `hostError`, unlike a code an extension could forge itself.
+        expect(isHostOriginatedError(cancellation)).toBe(true);
         expect(isCancellationObserved).toBe(true);
 
         configureExtensions([registration(2, 'source-control')]);
@@ -330,16 +339,21 @@ describe('Extension Host API factory', () => {
         configureExtensions([registration(1, 'source-control')]);
 
         expect(cancelTreeRequest('cancel-before-registration')).toEqual({ cancelled: true });
-        await expect(
-            executeViewOperation({
+        let tombstoneRejection: unknown;
+        try {
+            await executeViewOperation({
                 extensionId: 'publisher.fixture',
                 generation: 1,
                 viewId: 'publisher.fixture.tree',
                 operation: 'source.snapshot',
                 arguments: { refresh: 0 },
                 requestId: 'cancel-before-registration',
-            }),
-        ).rejects.toMatchObject({ code: 'CANCELLED' });
+            });
+        } catch (error) {
+            tombstoneRejection = error;
+        }
+        expect(tombstoneRejection).toMatchObject({ code: 'CANCELLED' });
+        expect(isHostOriginatedError(tombstoneRejection)).toBe(true);
     });
 
     it('rejects providers that exceed the item limit', async () => {
@@ -420,6 +434,35 @@ describe('Extension Host API factory', () => {
         ).resolves.toEqual({
             items: [expect.objectContaining({ handle: '2:1', label: 'fresh' })],
         });
+    });
+
+    it('does not treat an extension-forged CANCELLED code as host-originated', async () => {
+        configureExtensions([registration()]);
+        extensionApiBinding('fixture-token-1').api.views.registerTreeDataProvider(
+            'publisher.fixture.tree',
+            {
+                // An extension provider can throw any code, including one that collides with a Caxri non-fault code.
+                getChildren: () => {
+                    throw Object.assign(new Error('boom'), { code: 'CANCELLED' });
+                },
+                getTreeItem: (element: string) => new TreeItem(element),
+            },
+        );
+        let forgedRejection: unknown;
+        try {
+            await getTreeChildren({
+                extensionId: 'publisher.fixture',
+                generation: 1,
+                viewId: 'publisher.fixture.tree',
+                requestId: 'forged-cancelled-request',
+            });
+        } catch (error) {
+            forgedRejection = error;
+        }
+        // Code passthrough is unchanged: the caller still observes `code: 'CANCELLED'`.
+        expect(forgedRejection).toMatchObject({ code: 'CANCELLED', message: 'boom' });
+        // But origin, not the code string, decides classification: this was never minted through `hostError`.
+        expect(isHostOriginatedError(forgedRejection)).toBe(false);
     });
 
     it('discards a request that started before a provider root refresh', async () => {

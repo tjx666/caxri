@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import type { CaxriApi, DisposableLike, SourceControlChange, SourceControlProvider } from 'caxri';
 import { CancellationTokenSource, Disposable } from 'caxri';
 
+import { hostError } from './extension-error';
 import type {
     ExtensionHostMessage,
     ExtensionViewEventScope,
@@ -184,9 +185,7 @@ export async function executeViewOperation(parameters: {
     context?: ExtensionViewEventScope;
 }): Promise<unknown> {
     if (didConsumeCancelTombstone(parameters.requestId))
-        throw Object.assign(new Error('View request was cancelled before registration'), {
-            code: 'CANCELLED',
-        });
+        throw hostError('CANCELLED', 'View request was cancelled before registration');
     const registration = providers.get(parameters.viewId);
     if (
         !registration ||
@@ -216,18 +215,14 @@ export async function executeViewOperation(parameters: {
             ? withViewEventContext(parameters.context, invoke)
             : invoke());
         if (providers.get(parameters.viewId) !== registration)
-            throw Object.assign(new Error('View provider generation expired'), {
-                code: 'GENERATION_EXPIRED',
-            });
+            throw hostError('GENERATION_EXPIRED', 'View provider generation expired');
         /**
          * Reads must not commit a late result after cancellation. An action is different: cancellation is advisory once
          * its provider has crossed a mutation boundary, so a successfully returned result is authoritative.
          */
         // oxlint-disable-next-line typescript/no-unnecessary-condition -- asynchronous cancellation race
         if (parameters.operation !== 'source.action' && cancellation.token.isCancellationRequested)
-            throw Object.assign(new Error('View request was cancelled'), {
-                code: 'CANCELLED',
-            });
+            throw hostError('CANCELLED', 'View request was cancelled');
         return result;
     } catch (error) {
         throw providerFailure(error);
