@@ -17,7 +17,7 @@ import type { ResolvedSessionPath } from '../project-roots';
 import { ProjectRootResolver } from '../project-roots';
 import type { OpenFile } from './documents';
 import { DocumentService } from './documents';
-import type { GitIgnoreDecorator, OpenDirectory } from './listing';
+import type { GitIgnoreDecorator, ListingServiceOptions, OpenDirectory } from './listing';
 import { ListingService } from './listing';
 import type { FileMutationJournalOptions, FileMutationOperationScope } from './mutation-journal';
 import { FileMutationJournal } from './mutation-journal';
@@ -39,6 +39,10 @@ const COPY_OPERATION_GROUP = 'files.copy';
 
 export interface FileServiceOptions extends WatcherServiceOptions {
     decorateGitIgnored?: GitIgnoreDecorator;
+    /**
+     * Symlink follow budget factory shared by listing and browsing; see `ListingServiceOptions`.
+     */
+    listing?: ListingServiceOptions;
     fileTreeExcludes?: () => AppSettings['files.exclude'];
     maximumPendingOperations?: number;
     mutationJournal?: FileMutationJournalOptions;
@@ -99,6 +103,7 @@ export class FileService {
             options.decorateGitIgnored,
             (sessionId, paths) => this.watcher.noteGitIgnoreRulePaths(sessionId, paths),
             options.openDirectory,
+            options.listing,
         );
         this.searcher = new SearchService(resolveSessionPath, logger, maxFileBytes, options.search);
         this.mutations = new FileMutationService(resolveSessionPath, logger, options.mutations);

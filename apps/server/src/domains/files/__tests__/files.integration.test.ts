@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer';
-import type { Dir, Dirent } from 'node:fs';
+import type { Dir } from 'node:fs';
 import type * as FsPromises from 'node:fs/promises';
 import {
     mkdir,
@@ -15,18 +15,14 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { MAX_FILE_BROWSE_ENTRIES } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CaxriDatabase } from '../../db/repository';
-import {
-    ListingService,
-    MAX_CONCURRENT_FILE_BROWSES,
-    MAX_FILE_BROWSE_SCANNED_ENTRIES,
-} from '../listing';
+import { ListingService } from '../listing';
 import { FileService } from '../service';
 import { didFingerprintChange, rememberPolledDirectory } from '../watcher';
+import { fakeDirent } from './listing-fixtures';
 
 /**
  * `node:fs/promises` is a non-configurable ESM namespace, so `vi.spyOn` cannot patch `lstat` directly. `vi.hoisted`
@@ -56,14 +52,6 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 });
 
 const temporaryDirectories: string[] = [];
-
-function fakeDirent(name: string, kind: 'directory' | 'file' = 'file'): Dirent {
-    return {
-        isDirectory: () => kind === 'directory',
-        isSymbolicLink: () => false,
-        name,
-    } as Dirent;
-}
 
 afterEach(async () => {
     const paths = temporaryDirectories.slice();
@@ -499,248 +487,5 @@ describe('FileService', () => {
             'visible.ts',
         ]);
         database.close();
-    });
-
-    it('bounds path browsing while a name refinement can reach entries beyond the first page', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-file-browse-limit-'));
-        temporaryDirectories.push(directory);
-        await Promise.all(
-            Array.from({ length: MAX_FILE_BROWSE_ENTRIES + 5 }, (_, index) =>
-                writeFile(
-                    join(directory, `file-${String(index).padStart(3, '0')}.txt`),
-                    'x',
-                    'utf8',
-                ),
-            ),
-        );
-        await writeFile(join(directory, 'zz-target.txt'), 'target', 'utf8');
-        const targetPath = await realpath(join(directory, 'zz-target.txt'));
-        const database = new CaxriDatabase(join(directory, 'state.db'));
-        const session = database.createSession(
-            database.createProject(directory).id,
-            'shell',
-        ).session;
-        const service = new FileService(
-            database,
-            () => {},
-            new StructuredLogger(join(directory, 'logs')),
-            () => 1024,
-        );
-
-        const initial = await service.browse({ sessionId: session.id, query: '' });
-        expect(initial.entries).toHaveLength(MAX_FILE_BROWSE_ENTRIES);
-        expect(initial.truncated).toBe(true);
-        expect(initial.entries.some((entry) => entry.name === 'zz-target.txt')).toBe(false);
-
-        await expect(service.browse({ sessionId: session.id, query: 'target' })).resolves.toEqual({
-            entries: [
-                {
-                    kind: 'file',
-                    name: 'zz-target.txt',
-                    path: targetPath,
-                },
-            ],
-            truncated: false,
-        });
-        database.close();
-    });
-
-    it('supersedes an older path refinement before continuing its directory scan', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-file-browse-refine-'));
-        temporaryDirectories.push(directory);
-        await Promise.all([
-            writeFile(join(directory, 'first.txt'), 'first', 'utf8'),
-            writeFile(join(directory, 'second.txt'), 'second', 'utf8'),
-        ]);
-        const database = new CaxriDatabase(join(directory, 'state.db'));
-        const session = database.createSession(
-            database.createProject(directory).id,
-            'shell',
-        ).session;
-        const firstReadEntered = Promise.withResolvers<void>();
-        const releaseFirstRead = Promise.withResolvers<void>();
-        let openCount = 0;
-        const openDirectory = vi.fn(() => {
-            openCount += 1;
-            const entries = [fakeDirent(openCount === 1 ? 'first.txt' : 'second.txt')];
-            let index = 0;
-            return Promise.resolve({
-                close: () => Promise.resolve(),
-                read: async () => {
-                    if (openCount === 1 && index === 0) {
-                        firstReadEntered.resolve();
-                        await releaseFirstRead.promise;
-                    }
-                    return entries[index++] ?? null;
-                },
-            } as unknown as Dir);
-        });
-        const service = new FileService(
-            database,
-            () => {},
-            new StructuredLogger(join(directory, 'logs')),
-            () => 1024,
-            { openDirectory },
-        );
-
-        const first = service.browse({ sessionId: session.id, query: 'first' });
-        await firstReadEntered.promise;
-        const second = service.browse({ sessionId: session.id, query: 'second' });
-        await expect.poll(() => openDirectory.mock.calls.length).toBe(2);
-        releaseFirstRead.resolve();
-
-        await expect(first).resolves.toEqual({ entries: [], truncated: true });
-        await expect(second).resolves.toMatchObject({
-            entries: [{ name: 'second.txt' }],
-            truncated: false,
-        });
-        database.close();
-    });
-
-    it('supersedes an older directory and bounds active browsing across Sessions', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-file-browse-concurrency-'));
-        temporaryDirectories.push(directory);
-        const database = new CaxriDatabase(join(directory, 'state.db'));
-        const sessions = await Promise.all(
-            Array.from({ length: MAX_CONCURRENT_FILE_BROWSES + 2 }, async (_, index) => {
-                const root = join(directory, `project-${index}`);
-                const nested = join(root, 'nested');
-                await mkdir(nested, { recursive: true });
-                return {
-                    directory: nested,
-                    session: database.createSession(database.createProject(root).id, 'shell')
-                        .session,
-                };
-            }),
-        );
-        const releaseReads = Promise.withResolvers<void>();
-        let active = 0;
-        let maximumActive = 0;
-        const openDirectory = vi.fn(() => {
-            active += 1;
-            maximumActive = Math.max(maximumActive, active);
-            let isRead = false;
-            return Promise.resolve({
-                close: () => {
-                    active -= 1;
-                    return Promise.resolve();
-                },
-                read: async () => {
-                    if (isRead) return null;
-                    isRead = true;
-                    await releaseReads.promise;
-                    return null;
-                },
-            } as unknown as Dir);
-        });
-        const service = new FileService(
-            database,
-            () => {},
-            new StructuredLogger(join(directory, 'logs')),
-            () => 1024,
-            { openDirectory },
-        );
-        const previousDirectory = service.browse({
-            sessionId: sessions[0].session.id,
-            query: '',
-        });
-        await expect.poll(() => openDirectory.mock.calls.length).toBe(1);
-        const requests = [
-            previousDirectory,
-            service.browse({
-                sessionId: sessions[0].session.id,
-                directory: sessions[0].directory,
-                query: '',
-            }),
-            ...sessions
-                .slice(1)
-                .map(({ directory: path, session }) =>
-                    service.browse({ sessionId: session.id, directory: path, query: '' }),
-                ),
-        ];
-        await expect.poll(() => openDirectory.mock.calls.length).toBe(MAX_CONCURRENT_FILE_BROWSES);
-        expect(maximumActive).toBe(MAX_CONCURRENT_FILE_BROWSES);
-        releaseReads.resolve();
-        await expect(previousDirectory).resolves.toEqual({ entries: [], truncated: true });
-        await Promise.all(requests);
-        expect(maximumActive).toBe(MAX_CONCURRENT_FILE_BROWSES);
-        database.close();
-    });
-
-    it('caps a no-match path refinement and closes its directory handle', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-file-browse-scan-limit-'));
-        temporaryDirectories.push(directory);
-        const database = new CaxriDatabase(join(directory, 'state.db'));
-        const session = database.createSession(
-            database.createProject(directory).id,
-            'shell',
-        ).session;
-        let readCount = 0;
-        const close = vi.fn(() => Promise.resolve());
-        const service = new FileService(
-            database,
-            () => {},
-            new StructuredLogger(join(directory, 'logs')),
-            () => 1024,
-            {
-                openDirectory: () =>
-                    Promise.resolve({
-                        close,
-                        read: () => {
-                            readCount += 1;
-                            return Promise.resolve(fakeDirent(`entry-${readCount}.txt`));
-                        },
-                    } as unknown as Dir),
-            },
-        );
-        await expect(service.browse({ sessionId: session.id, query: 'absent' })).resolves.toEqual({
-            entries: [],
-            truncated: true,
-        });
-        expect(readCount).toBe(MAX_FILE_BROWSE_SCANNED_ENTRIES);
-        expect(close).toHaveBeenCalledOnce();
-        database.close();
-    });
-
-    it('uses opened-directory metadata without restatting entries through a mutable path', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-file-browse-dirent-'));
-        temporaryDirectories.push(directory);
-        await writeFile(join(directory, 'inside.txt'), 'inside', 'utf8');
-        const entryPath = await realpath(join(directory, 'inside.txt'));
-        const database = new CaxriDatabase(join(directory, 'state.db'));
-        const session = database.createSession(
-            database.createProject(directory).id,
-            'shell',
-        ).session;
-        const service = new FileService(
-            database,
-            () => {},
-            new StructuredLogger(join(directory, 'logs')),
-            () => 1024,
-        );
-        let entryRestats = 0;
-        setLstatOverride((path) => {
-            if (path === entryPath) entryRestats += 1;
-            return;
-        });
-
-        try {
-            await expect(
-                service.browse({ sessionId: session.id, query: 'inside' }),
-            ).resolves.toEqual({
-                entries: [
-                    {
-                        kind: 'file',
-                        name: 'inside.txt',
-                        path: entryPath,
-                    },
-                ],
-                truncated: false,
-            });
-            expect(entryRestats).toBe(0);
-        } finally {
-            setLstatOverride(undefined);
-            database.close();
-        }
     });
 });

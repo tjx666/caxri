@@ -7,6 +7,7 @@ import { cn } from '../../lib/utilities';
 import { setPathBrowserOpen, useDialogStore } from '../../stores/dialogs';
 import { useSelectedSession, useSelectedWorkbenchProject } from '../../stores/selectors';
 import { describeFailure } from '../../stores/toasts';
+import { symlinkRowDescription } from '../view-containers/resource-explorer/resource-explorer-state';
 import { runPathBrowserDetached, usePathBrowser } from './use-path-browser';
 
 export function PathBrowserDialog() {
@@ -154,6 +155,11 @@ function PathBrowserContent({
                             <button
                                 key={entry.id}
                                 id={`${listboxId}-option-${index}`}
+                                aria-describedby={
+                                    entry.kind === 'symlink'
+                                        ? `${listboxId}-option-${index}-reason`
+                                        : undefined
+                                }
                                 aria-disabled={entry.kind === 'symlink'}
                                 aria-selected={index === effectiveSelectedIndex}
                                 className={cn(
@@ -164,11 +170,24 @@ function PathBrowserContent({
                                 role="option"
                                 type="button"
                                 disabled={entry.kind === 'symlink'}
+                                title={
+                                    entry.kind === 'symlink'
+                                        ? symlinkRowDescription(entry)
+                                        : undefined
+                                }
                                 onClick={() => choose(entry)}
                                 onMouseMove={() => selectIndex(index)}
                             >
                                 <FileTypeIcon entry={entry} />
                                 <span className="min-w-0 flex-1 truncate">{entry.name}</span>
+                                {entry.kind === 'symlink' && (
+                                    <span
+                                        id={`${listboxId}-option-${index}-reason`}
+                                        className="sr-only"
+                                    >
+                                        {symlinkRowDescription(entry)}
+                                    </span>
+                                )}
                                 {entry.kind === 'directory' && (
                                     <CornerDownLeft
                                         aria-label="Directory"

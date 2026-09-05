@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { MAX_CONFIGURABLE_FILE_BYTES } from '../configuration/settings-spec.js';
-import { identifierSchema, pathSchema } from '../domain/domain.js';
+import { fileEntrySchema, identifierSchema, pathSchema } from '../domain/domain.js';
 import { commandPolicy } from '../transport/method-spec.js';
 
 export const MAX_PATH_BROWSER_ENTRIES = 200;
@@ -21,6 +21,13 @@ const pathBrowserEntryName = z.string().min(1).max(255);
 const pathBrowserEntry = z.object({
     id: identifierSchema,
     kind: z.enum(['directory', 'file', 'symlink']),
+    /**
+     * Display-only symlink metadata, reused from the Server file entry so the dialog row carries the same folder/file
+     * icon, tooltip, and screen-reader rationale as the Files tree. Main forwards what Server Core probed; it never
+     * resolves or authorizes the target.
+     */
+    linkKind: fileEntrySchema.shape.linkKind,
+    linkTarget: fileEntrySchema.shape.linkTarget,
     name: pathBrowserEntryName,
     size: z.number().int().nonnegative().optional(),
 });
