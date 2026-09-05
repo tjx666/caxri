@@ -68,6 +68,72 @@ it can inspect the existing Renderer.
 the owned `--cdp` port on every command. See the canonical
 [agent-browser workflow](../skills/acceptance/references/agent-browser.md).
 
+## Reaching the owned Electron endpoint with `agent-browser connect`
+
+**Situation:** A round needs `agent-browser` attached to the CDP port the Acceptance launcher already
+owns.
+
+**Does not work:** `agent-browser --session <name> connect <port>`. Despite the verb, it launches a
+fresh Chromium and leaves the session pointed at `about:blank`, so every later command inspects an
+empty page instead of the Caxri Renderer, and the stray browser has to be cleaned up.
+
+**Works:** `--cdp <port>` is the attach flag. Repeat
+`agent-browser --cdp <port> --session <name> --no-pin-tab` on every command. In zsh, keep that prefix
+in an array (`AB=(agent-browser --cdp 9222 ...)` then `"${AB[@]}" press ...`); an unquoted scalar is
+not word-split and fails with `command not found`. See the canonical
+[agent-browser workflow](../skills/acceptance/references/agent-browser.md).
+
+## Choosing an Agent Terminal while bootstrapping an isolated Project
+
+**Situation:** `Cmd+O` opens the Add Project flow and the "Choose the default Terminal" dialog offers
+`Claude Code`, `Codex`, `Shell`, and `Start without a Terminal`.
+
+**Does not work:** Picking an Agent or `Shell` when the case does not need a Terminal. Acceptance
+blocks Agent shims, so the Agent buttons render an executable-not-found panel, and `Shell` renders a
+live prompt. Both put the machine's shell prompt, user name, and Project path into every later
+screenshot of that launch — private values the round must never capture, so the artifact has to be
+deleted and the case relaunched.
+
+**Works:** Choose `Start without a Terminal` unless the case's own claim is about the Terminal.
+Declare `agentFixture` in the frozen plan when fake Agent processes are genuinely required. Also
+snapshot before focusing any dialog `@ref`: ref numbering is assigned per launch, so a ref memorized
+from an earlier launch silently activates a different button.
+
+## Naming a repository test suite in a frozen Acceptance plan item
+
+**Situation:** A plan item's `method` or `category` explains that some part of the contract is
+carried by a unit test, a lint gate, or a type-check.
+
+**Does not work:** Leaving that sentence in the plan. LobeHub's ingest screens every plan item's
+title, category, and method for programmatic-test vocabulary — including the Chinese 单测 /
+单元测试 / 类型检查 — and silently drops the entire matching check from the round. The published
+round then carries one fewer check and its verdict is recomputed upward, so a locally blocked case
+can surface remotely as a clean pass. Go's publication readback fails closed on the mismatch, and the
+already-ingested round is immutable.
+
+**Works:** Keep the plan item strictly about the outcome a person judges, and put the supporting-test
+explanation in `report.md`, which is not screened. If a round was already published with a dropped
+check, retain it with `state.ts acceptance-orphan` and republish the corrected round; never delete
+remote history. See the canonical
+[Go Acceptance loop](../skills/go/references/acceptance-loop.md).
+
+## Stopping a slow-cleanup Acceptance launch through the adapter alone
+
+**Situation:** A case leaves the isolated instance with heavy runtime state — for example a Project
+watcher driven to FSEvents overflow — and `stop-electron.ts` is then invoked normally.
+
+**Does not work:** Relying on the adapter's own escalation. It SIGTERMs Server Core alongside the
+launcher and escalates everything, launcher included, to SIGKILL five seconds later. The launcher
+writes the case's state-isolation receipt in its `finally`, so a cleanup slower than that window
+loses the receipt. `report.ts finalize` then rejects the round and `start-electron.ts` refuses to
+relaunch the same case, leaving hand-editing the evidence file as the only exit. Tracked as
+[#611](https://github.com/tjx666/caxri/issues/611).
+
+**Works:** Send `SIGTERM` to the `launcherPid` recorded in `.records/acceptance/runtime.json` and
+wait for it to exit on its own before invoking `stop-electron.ts`; the launcher tears down its own
+children and writes a complete receipt. Confirm cleanup with `ps` plus a CDP probe and verify the
+temporary profile directory is gone.
+
 ## Passing an Acceptance screenshot path positionally
 
 **Situation:** A settled screenshot must be written beneath the round's
