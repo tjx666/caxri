@@ -61,6 +61,8 @@ export function terminalRendererIndicator(
 function terminalRendererDetail(status: TerminalRendererStatus): string {
     if (status.reason === 'disabled') return 'GPU acceleration is turned off in Settings.';
     if (status.reason === 'unsupported') return 'WebGL2 is unavailable in this window.';
+    if (status.reason === 'context-loss-limit')
+        return 'The GPU process crashed repeatedly; WebGL stays off until GPU acceleration is changed in Settings or Caxri restarts.';
     const cause =
         status.reason === 'context-loss' ? 'The WebGL context was lost.' : 'WebGL failed to load.';
     if (status.retryState === 'exhausted')

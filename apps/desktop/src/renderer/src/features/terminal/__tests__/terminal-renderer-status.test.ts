@@ -73,12 +73,25 @@ describe('terminalRendererIndicator', () => {
         ).toContain('Retries exhausted');
     });
 
+    it('explains a session pinned to DOM after repeated GPU incidents', () => {
+        expect(
+            terminalRendererIndicator(status({ mode: 'dom', reason: 'context-loss-limit' }))?.title,
+        ).toBe(
+            'Terminal is using the DOM renderer. The GPU process crashed repeatedly; WebGL stays off until GPU acceleration is changed in Settings or Caxri restarts.',
+        );
+    });
+
     it('offers the switch only for the preference-driven fallback the chip can reverse', () => {
         expect(
             terminalRendererIndicator(status({ mode: 'dom', reason: 'disabled' }))?.action
                 ?.preference,
         ).toBe('on');
-        for (const reason of ['unsupported', 'context-loss', 'load-failed'] as const) {
+        for (const reason of [
+            'unsupported',
+            'context-loss',
+            'context-loss-limit',
+            'load-failed',
+        ] as const) {
             const indicator = terminalRendererIndicator(status({ mode: 'dom', reason }));
             expect(indicator?.action).toBeUndefined();
             // A read-only chip must not promise an action in its accessible name or tooltip.
