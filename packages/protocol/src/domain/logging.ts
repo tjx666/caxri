@@ -162,6 +162,7 @@ export const logEventCatalog = {
         attach: 'pty.attach',
         exitFinalizeFailed: 'pty.exit_finalize_failed',
         exited: 'pty.exited',
+        firstInput: 'pty.first_input',
         lifecycleRetireFailed: 'pty.lifecycle_retire_failed',
         outputRecoveryCancelled: 'pty.output_recovery_cancelled',
         outputRecoveryCompleted: 'pty.output_recovery_completed',
@@ -176,6 +177,7 @@ export const logEventCatalog = {
         spawned: 'pty.spawned',
         resizeBurst: 'pty.resize_burst',
         throughput: 'pty.throughput',
+        throughputSummary: 'pty.throughput_summary',
     },
     renderer: {
         consoleError: 'renderer.console_error',

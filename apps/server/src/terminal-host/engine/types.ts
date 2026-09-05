@@ -4,6 +4,7 @@ import type * as pty from 'node-pty';
 import type { TerminalOutputQueue } from './buffer';
 import type { TerminalColorQueryResponder } from './color-query';
 import type { TerminalImageOutputFilter, TerminalImageRecoveryFilter } from './image-recovery';
+import type { PtyThroughputTally } from './observability';
 import type { AgentOutputRecovery } from './output-recovery';
 import type { TerminalScreenState } from './screen';
 
@@ -21,6 +22,7 @@ export interface LiveTerminal {
     metricOutputBytes: number;
     metricInputBytes: number;
     metricDroppedBytes: number;
+    throughput: PtyThroughputTally;
     activityTimer?: NodeJS.Timeout;
     outputTimer?: NodeJS.Timeout;
     metricTimer?: NodeJS.Timeout;

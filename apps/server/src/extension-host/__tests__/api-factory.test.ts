@@ -1,7 +1,3 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-
 import type { CancellationToken, SourceControlProvider } from 'caxri';
 import {
     EventEmitter,
@@ -9,74 +5,24 @@ import {
     TreeItem,
     TreeItemCollapsibleState,
 } from 'caxri';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import {
     activateExtension,
     cancelTreeRequest,
     configureExtensions,
-    disposeAllExtensions,
     extensionApiBinding,
     getTreeChildren,
     notifyActiveContextChanged,
     notifyGitChanged,
     notifyProjectStatusChanged,
 } from '../api-factory';
-import type { ExtensionHostRegistration } from '../protocol';
-import { currentViewEventContext, executeViewOperation } from '../view-provider-service';
+import { isHostOriginatedError } from '../extension-error';
+import { currentViewEventContext } from '../view-event-context';
+import { executeViewOperation } from '../view-provider-service';
+import { installExtensionFixture, registration } from './api-factory.fixture';
 
-const fixture = { extensionRoot: '' };
-
-beforeEach(async () => {
-    fixture.extensionRoot = await mkdtemp(join(tmpdir(), 'caxri-extension-api-'));
-    await writeFile(join(fixture.extensionRoot, 'extension.mjs'), 'export function activate() {}');
-});
-
-afterEach(async () => {
-    disposeAllExtensions();
-    await rm(fixture.extensionRoot, { force: true, recursive: true });
-});
-
-function registration(
-    generation = 1,
-    viewType: 'source-control' | 'tree' = 'tree',
-): ExtensionHostRegistration {
-    return {
-        extensionId: 'publisher.fixture',
-        generation,
-        apiToken: `fixture-token-${generation}`,
-        rootPath: fixture.extensionRoot,
-        entryPath: join(fixture.extensionRoot, 'extension.mjs'),
-        grants: ['projects.read'],
-        projectIds: ['project-1'],
-        manifest: {
-            name: 'publisher.fixture',
-            version: '1.0.0',
-            type: 'module',
-            main: './extension.mjs',
-            engines: { caxri: '^0.0.17' },
-            caxri: { capabilities: ['projects.read'] },
-            contributes: {
-                viewsContainers: {
-                    secondarySidebar: [
-                        {
-                            id: 'publisher.fixture',
-                            title: 'Fixture',
-                            icon: { kind: 'resource', path: 'fixture.svg' },
-                        },
-                    ],
-                    panel: [],
-                },
-                views: {
-                    'publisher.fixture': [
-                        { id: 'publisher.fixture.tree', name: 'Fixture', type: viewType },
-                    ],
-                },
-                commands: [],
-            },
-        },
-    };
-}
+installExtensionFixture();
 
 describe('Extension Host API factory', () => {
     it('binds public runtime values into each extension generation', () => {
@@ -310,7 +256,15 @@ describe('Extension Host API factory', () => {
         });
         await new Promise((resolve) => setImmediate(resolve));
         expect(cancelTreeRequest('view-cancel-request')).toEqual({ cancelled: true });
-        await expect(pending).rejects.toMatchObject({ code: 'CANCELLED' });
+        let cancellation: unknown;
+        try {
+            await pending;
+        } catch (error) {
+            cancellation = error;
+        }
+        expect(cancellation).toMatchObject({ code: 'CANCELLED' });
+        // A real cancellation is minted through `hostError`, unlike a code an extension could forge itself.
+        expect(isHostOriginatedError(cancellation)).toBe(true);
         expect(isCancellationObserved).toBe(true);
 
         configureExtensions([registration(2, 'source-control')]);
@@ -330,16 +284,21 @@ describe('Extension Host API factory', () => {
         configureExtensions([registration(1, 'source-control')]);
 
         expect(cancelTreeRequest('cancel-before-registration')).toEqual({ cancelled: true });
-        await expect(
-            executeViewOperation({
+        let tombstoneRejection: unknown;
+        try {
+            await executeViewOperation({
                 extensionId: 'publisher.fixture',
                 generation: 1,
                 viewId: 'publisher.fixture.tree',
                 operation: 'source.snapshot',
                 arguments: { refresh: 0 },
                 requestId: 'cancel-before-registration',
-            }),
-        ).rejects.toMatchObject({ code: 'CANCELLED' });
+            });
+        } catch (error) {
+            tombstoneRejection = error;
+        }
+        expect(tombstoneRejection).toMatchObject({ code: 'CANCELLED' });
+        expect(isHostOriginatedError(tombstoneRejection)).toBe(true);
     });
 
     it('rejects providers that exceed the item limit', async () => {

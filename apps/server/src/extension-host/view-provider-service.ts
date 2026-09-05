@@ -1,20 +1,31 @@
-import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 
 import type { CaxriApi, DisposableLike, SourceControlChange, SourceControlProvider } from 'caxri';
 import { CancellationTokenSource, Disposable } from 'caxri';
 
+import {
+    createProviderRequestScope,
+    hostError,
+    providerFailure,
+    withProviderRequestScope,
+} from './extension-error';
 import type {
     ExtensionHostMessage,
     ExtensionViewEventScope,
     ExtensionViewOperation,
 } from './protocol';
+import { currentViewEventContext, withViewEventContext } from './view-event-context';
 
 interface ViewProviderRegistration {
     extensionId: string;
     generation: number;
     subscription?: DisposableLike;
     provider: SourceControlProvider;
+    /**
+     * Set only by host-driven retirement ({@link retireViewProviders}). The extension owns the registration's
+     * Disposable, so map identity alone cannot corroborate a `GENERATION_EXPIRED` the provider throws (issue #606).
+     */
+    retired?: boolean;
 }
 
 const providers = new Map<string, ViewProviderRegistration>();
@@ -22,7 +33,6 @@ const cancellations = new Map<string, CancellationTokenSource>();
 const cancelTombstones = new Map<string, number>();
 const MAX_CANCEL_TOMBSTONES = 256;
 const CANCEL_TOMBSTONE_TTL_MS = 30_000;
-const viewEventContext = new AsyncLocalStorage<ExtensionViewEventScope>();
 
 function pruneCancelTombstones(now = Date.now()): void {
     for (const [requestId, expiresAt] of cancelTombstones)
@@ -36,31 +46,6 @@ function didConsumeCancelTombstone(requestId: string): boolean {
     if (!cancelTombstones.has(requestId)) return false;
     cancelTombstones.delete(requestId);
     return true;
-}
-
-/**
- * Keeps provider events emitted while a Server notification or extension command is running tied to that request's
- * Workbench Root. Events without an active scope are deliberately dropped instead of becoming global UI broadcasts.
- */
-export function withViewEventContext<Result>(
-    context: ExtensionViewEventScope,
-    callback: () => Result,
-): Result {
-    return viewEventContext.run(context, callback);
-}
-
-export function currentViewEventContext(): ExtensionViewEventScope | undefined {
-    return viewEventContext.getStore();
-}
-
-function providerFailure(error: unknown): Error {
-    if (error instanceof Error && 'code' in error) return error;
-    return Object.assign(
-        new Error(error instanceof Error ? error.message : 'View provider failed'),
-        {
-            code: 'PROVIDER_FAILED',
-        },
-    );
 }
 
 function registerProvider(
@@ -184,9 +169,7 @@ export async function executeViewOperation(parameters: {
     context?: ExtensionViewEventScope;
 }): Promise<unknown> {
     if (didConsumeCancelTombstone(parameters.requestId))
-        throw Object.assign(new Error('View request was cancelled before registration'), {
-            code: 'CANCELLED',
-        });
+        throw hostError('CANCELLED', 'View request was cancelled before registration');
     const registration = providers.get(parameters.viewId);
     if (
         !registration ||
@@ -201,36 +184,43 @@ export async function executeViewOperation(parameters: {
             code: 'PROVIDER_CAPACITY',
         });
     const cancellation = new CancellationTokenSource();
+    const scope = createProviderRequestScope();
     cancellations.set(parameters.requestId, cancellation);
     try {
         const arguments_ = record(parameters.arguments);
         const invoke = (): Promise<unknown> =>
-            executeSourceControlOperation(
-                registration.provider,
-                parameters.operation,
-                arguments_,
-                cancellation,
-                parameters.context,
+            withProviderRequestScope(scope, () =>
+                executeSourceControlOperation(
+                    registration.provider,
+                    parameters.operation,
+                    arguments_,
+                    cancellation,
+                    parameters.context,
+                ),
             );
         const result = await (parameters.context
             ? withViewEventContext(parameters.context, invoke)
             : invoke());
         if (providers.get(parameters.viewId) !== registration)
-            throw Object.assign(new Error('View provider generation expired'), {
-                code: 'GENERATION_EXPIRED',
-            });
+            throw hostError('GENERATION_EXPIRED', 'View provider generation expired');
         /**
          * Reads must not commit a late result after cancellation. An action is different: cancellation is advisory once
          * its provider has crossed a mutation boundary, so a successfully returned result is authoritative.
          */
         // oxlint-disable-next-line typescript/no-unnecessary-condition -- asynchronous cancellation race
         if (parameters.operation !== 'source.action' && cancellation.token.isCancellationRequested)
-            throw Object.assign(new Error('View request was cancelled'), {
-                code: 'CANCELLED',
-            });
+            throw hostError('CANCELLED', 'View request was cancelled');
         return result;
     } catch (error) {
-        throw providerFailure(error);
+        throw providerFailure(
+            error,
+            {
+                cancelled: cancellation.token.isCancellationRequested,
+                generationExpired: registration.retired === true,
+                scope,
+            },
+            'View provider failed',
+        );
     } finally {
         cancellations.delete(parameters.requestId);
         cancellation.dispose();
@@ -252,6 +242,7 @@ export function didCancelViewRequest(requestId: string): boolean {
 export function retireViewProviders(extensionId?: string): void {
     for (const [viewId, registration] of providers)
         if (extensionId === undefined || registration.extensionId === extensionId) {
+            registration.retired = true;
             registration.subscription?.dispose();
             providers.delete(viewId);
         }

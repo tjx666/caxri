@@ -2,9 +2,12 @@ import type { StructuredLogger } from '@caxri/system';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+    createPtyThroughputTally,
     PtyResizeBurstObserver,
     recordPtyDroppedBytes,
     recordPtyThroughput,
+    recordPtyThroughputSummary,
+    recordPtyThroughputWindow,
 } from '../observability';
 
 function resizeLogger() {
@@ -40,6 +43,98 @@ describe('PTY observability', () => {
             outcome: 'overflow',
         });
         expect(recordMetric).toHaveBeenCalledTimes(2);
+    });
+
+    it('keeps steady-state windows in the metrics layer and writes info only for first input', () => {
+        const recordMetric = vi.fn<StructuredLogger['recordMetric']>();
+        const write = vi.fn<StructuredLogger['write']>();
+        const logger = { recordMetric, write } as unknown as StructuredLogger;
+        const tally = createPtyThroughputTally(1_000);
+
+        recordPtyThroughputWindow(
+            logger,
+            'terminal-1',
+            tally,
+            { droppedBytes: 0, inputBytes: 0, outputBytes: 40 },
+            2_000,
+        );
+        // The engine stamps the first input write itself; the window carrying it closes later, at 3_500.
+        tally.firstInputAt = 2_700;
+        recordPtyThroughputWindow(
+            logger,
+            'terminal-1',
+            tally,
+            { droppedBytes: 0, inputBytes: 8, outputBytes: 100 },
+            3_500,
+        );
+        recordPtyThroughputWindow(
+            logger,
+            'terminal-1',
+            tally,
+            { droppedBytes: 0, inputBytes: 8, outputBytes: 20 },
+            4_500,
+        );
+
+        expect(recordMetric.mock.calls.filter((call) => call[0] === 'pty.throughput')).toHaveLength(
+            3,
+        );
+        const infoWrites = write.mock.calls.filter((call) => call[0] === 'info');
+        expect(infoWrites).toEqual([
+            [
+                'info',
+                'pty.first_input',
+                { durationMs: 1_700, fields: { terminalId: 'terminal-1', inputBytes: 8 } },
+            ],
+        ]);
+        const throughputWrites = write.mock.calls.filter((call) => call[1] === 'pty.throughput');
+        expect(throughputWrites).toHaveLength(3);
+        expect(throughputWrites.map((call) => call[0])).toEqual(['debug', 'debug', 'debug']);
+        expect(tally).toMatchObject({
+            droppedBytes: 0,
+            firstInputLogged: true,
+            inputBytes: 16,
+            outputBytes: 160,
+            peakWindowBytes: 108,
+            windows: 3,
+        });
+    });
+
+    it('keeps dropped bytes at warn and restores lifetime totals in the retirement summary', () => {
+        const recordMetric = vi.fn<StructuredLogger['recordMetric']>();
+        const write = vi.fn<StructuredLogger['write']>();
+        const logger = { recordMetric, write } as unknown as StructuredLogger;
+        const tally = createPtyThroughputTally(1_000);
+
+        recordPtyThroughputWindow(
+            logger,
+            'terminal-1',
+            tally,
+            { droppedBytes: 5, inputBytes: 0, outputBytes: 300 },
+            2_000,
+        );
+        recordPtyThroughputSummary(logger, 'terminal-1', tally, 'exited', 9_000);
+
+        expect(write).toHaveBeenNthCalledWith(1, 'warn', 'pty.throughput', {
+            fields: { terminalId: 'terminal-1', inputBytes: 0, outputBytes: 300, droppedBytes: 5 },
+        });
+        expect(write).toHaveBeenNthCalledWith(2, 'info', 'pty.throughput_summary', {
+            durationMs: 8_000,
+            fields: {
+                terminalId: 'terminal-1',
+                reason: 'exited',
+                inputBytes: 0,
+                outputBytes: 300,
+                droppedBytes: 5,
+                peakWindowBytes: 300,
+                windows: 1,
+            },
+        });
+        expect(write).toHaveBeenCalledTimes(2);
+        expect(recordMetric).toHaveBeenCalledWith('pty.dropped_bytes', 5, {
+            owner: 'terminal-host',
+            phase: 'transfer',
+            outcome: 'overflow',
+        });
     });
 
     it('writes one bounded summary after 250ms of resize quiet', () => {

@@ -123,7 +123,7 @@ describe('TerminalManager process integration', () => {
             'CAXRI_INTEGRATION_OK',
         );
         // The logger now drains writes asynchronously, so poll the log file instead of reading
-        // it once: the `pty.spawned`/`pty.throughput` records may not be flushed to disk yet.
+        // it once: the `pty.spawned`/`pty.first_input` records may not be flushed to disk yet.
         await vi.waitFor(async () => {
             const records = (await readFile(join(directory, 'logs', 'server-core.jsonl'), 'utf8'))
                 .trim()
@@ -141,7 +141,7 @@ describe('TerminalManager process integration', () => {
                 'number',
             );
             expect(
-                records.find((record) => record.event === 'pty.throughput')?.fields?.inputBytes,
+                records.find((record) => record.event === 'pty.first_input')?.fields?.inputBytes,
             ).toBeGreaterThan(0);
         });
         await drainTrackedPtys();
