@@ -24,10 +24,12 @@ const runtime: RuntimeState = {
 function dependencies(overrides: Partial<StopElectronDependencies> = {}): StopElectronDependencies {
     return {
         discoverOwnedProcesses: vi.fn().mockResolvedValue([]),
+        forceCompleteCaseLifecycle: vi.fn().mockResolvedValue('already_completed'),
         isCdpReachable: vi.fn().mockResolvedValue(false),
-        isOwnedLauncher: vi.fn().mockResolvedValue(true),
+        isOwnedLauncher: vi.fn().mockResolvedValue(false),
         isOwnedProcess: vi.fn().mockResolvedValue(true),
         isOwnedRuntime: vi.fn().mockResolvedValue(false),
+        isOwnedUserDataRemoved: vi.fn().mockResolvedValue(true),
         kill: vi.fn(),
         log: vi.fn(),
         now: () => 0,
@@ -97,6 +99,7 @@ describe('Acceptance Electron stopper', () => {
             .mockResolvedValueOnce(false)
             .mockResolvedValueOnce(false);
         const live = dependencies({
+            isOwnedLauncher: vi.fn().mockResolvedValueOnce(true).mockResolvedValue(false),
             isOwnedProcess: vi.fn(({ pid }: { pid: number }) => Promise.resolve(pid !== 333)),
             isOwnedRuntime,
             readRuntime: vi.fn().mockResolvedValue(
@@ -114,6 +117,8 @@ describe('Acceptance Electron stopper', () => {
         expect(live.unlinkRuntime).toHaveBeenCalledOnce();
         expect(live.removeOwnedUserData).toHaveBeenCalledOnce();
         expect(live.log).toHaveBeenCalledWith('Stopped owned Caxri acceptance instance');
+        // Runtime state written before receipt ownership was recorded has nothing to complete.
+        expect(live.forceCompleteCaseLifecycle).not.toHaveBeenCalled();
     });
 
     it('signals Electron when the launcher is gone but the Electron identity is still owned', async () => {
@@ -332,5 +337,255 @@ describe('Acceptance Electron stopper', () => {
         );
         expect(live.unlinkRuntime).not.toHaveBeenCalled();
         expect(live.removeOwnedUserData).not.toHaveBeenCalled();
+    });
+
+    /**
+     * Virtual clock: `now` reads the clock and `sleep` advances it, so a whole slow teardown runs instantly while every
+     * grace and force deadline is still evaluated against real elapsed milliseconds.
+     */
+    function launcherScenario(input: {
+        /**
+         * Period of a CDP probe that keeps flipping between reachable and unreachable, as a stalled main thread
+         * produces against the 500ms probe timeout.
+         */
+        cdpFlapPeriodMs?: number;
+        electronExitsAt?: number;
+        launcherExitsAt: number;
+        launcherGraceMs?: number;
+        /**
+         * By default the window and Server Core exit with the launcher, as a launcher that finishes its own teardown
+         * leaves them. A launcher killed mid-teardown strands them instead, and they then only die to SIGKILL.
+         */
+        orphansOutliveLauncher?: boolean;
+        withReceipt?: boolean;
+    }) {
+        let clock = 0;
+        const liveProcessIds = new Set([111, 222, 333]);
+        const isLauncherAlive = () => liveProcessIds.has(111) && clock < input.launcherExitsAt;
+        const isOwnedByLauncher = () =>
+            (input.orphansOutliveLauncher ?? false) || isLauncherAlive();
+        const isServerCoreAlive = () => liveProcessIds.has(333) && isOwnedByLauncher();
+        const isElectronAlive = () =>
+            liveProcessIds.has(222) &&
+            isOwnedByLauncher() &&
+            clock < (input.electronExitsAt ?? Infinity);
+        const isCdpReachable = () =>
+            isElectronAlive() &&
+            (input.cdpFlapPeriodMs === undefined ||
+                Math.floor(clock / input.cdpFlapPeriodMs) % 2 === 0);
+        const kill = vi.fn((pid: number, signal: NodeJS.Signals) => {
+            if (signal === 'SIGKILL') liveProcessIds.delete(pid);
+        });
+        const dependencies_ = dependencies({
+            isCdpReachable: vi.fn(() => Promise.resolve(isCdpReachable())),
+            isOwnedLauncher: vi.fn(() => Promise.resolve(isLauncherAlive())),
+            isOwnedProcess: vi.fn(({ pid }: { pid: number }) =>
+                Promise.resolve(
+                    pid === 111
+                        ? isLauncherAlive()
+                        : pid === 222
+                          ? isElectronAlive()
+                          : pid === 333
+                            ? isServerCoreAlive()
+                            : false,
+                ),
+            ),
+            // Mirrors the real helper: the runtime stays owned while either the launcher or the window is alive.
+            isOwnedRuntime: vi.fn(() => Promise.resolve(isLauncherAlive() || isElectronAlive())),
+            kill,
+            now: () => clock,
+            readRuntime: vi.fn().mockResolvedValue(
+                JSON.stringify({
+                    ...runtime,
+                    acceptanceCase:
+                        input.withReceipt === false
+                            ? runtime.acceptanceCase
+                            : {
+                                  ...runtime.acceptanceCase,
+                                  lifecycleLaunchId: 'launch-1',
+                                  reportDirectory: '/repo/.records/acceptance/round-1',
+                              },
+                    ownedProcesses: [
+                        { identity: 'live server core', pid: 333, role: 'server-core' },
+                    ],
+                }),
+            ),
+            sleep: vi.fn((milliseconds: number) => {
+                clock += milliseconds;
+                return Promise.resolve();
+            }),
+        });
+        return {
+            deps: dependencies_,
+            kill,
+            run: () => stopElectron(dependencies_, { launcherGraceMs: input.launcherGraceMs }),
+        };
+    }
+
+    it('lets a slow launcher finish its own teardown instead of killing it after five seconds', async () => {
+        const { deps, kill, run } = launcherScenario({ launcherExitsAt: 12_000 });
+
+        await expect(run()).resolves.toBeUndefined();
+
+        expect(kill).toHaveBeenCalledWith(111, 'SIGTERM');
+        expect(kill).not.toHaveBeenCalledWith(111, 'SIGKILL');
+        // Server Core belongs to the launcher while it is alive; it exits with the launcher and is never signaled.
+        expect(kill).not.toHaveBeenCalledWith(333, 'SIGTERM');
+        expect(kill).not.toHaveBeenCalledWith(333, 'SIGKILL');
+        expect(deps.forceCompleteCaseLifecycle).toHaveBeenCalledWith(
+            '/repo/.records/acceptance/round-1',
+            expect.objectContaining({
+                caseId: 'stop-case',
+                launchId: 'launch-1',
+                source: 'stop-electron',
+            }),
+        );
+        expect(deps.log).not.toHaveBeenCalledWith(
+            expect.stringContaining('Completed lifecycle receipt'),
+        );
+        expect(deps.log).toHaveBeenCalledWith('Stopped owned Caxri acceptance instance');
+    });
+
+    it('force-kills a launcher that stops making progress and completes the receipt itself', async () => {
+        const { deps, kill, run } = launcherScenario({
+            launcherExitsAt: Infinity,
+            launcherGraceMs: 30_000,
+        });
+        vi.mocked(deps.forceCompleteCaseLifecycle).mockResolvedValue('completed');
+
+        await expect(run()).resolves.toBeUndefined();
+
+        expect(kill).toHaveBeenCalledWith(111, 'SIGTERM');
+        expect(kill).toHaveBeenCalledWith(111, 'SIGKILL');
+        expect(kill).not.toHaveBeenCalledWith(333, 'SIGKILL');
+        expect(deps.log).toHaveBeenCalledWith(
+            expect.stringContaining('no teardown progress for 30000ms'),
+        );
+        expect(deps.forceCompleteCaseLifecycle).toHaveBeenCalledWith(
+            '/repo/.records/acceptance/round-1',
+            {
+                caseId: 'stop-case',
+                cleanupCompleted: true,
+                cleanupRequested: true,
+                launchId: 'launch-1',
+                reason: expect.stringContaining('force-killed the launcher') as string,
+                source: 'stop-electron',
+            },
+        );
+        expect(deps.log).toHaveBeenCalledWith(
+            expect.stringContaining('on behalf of the force-killed launcher'),
+        );
+    });
+
+    it('extends the launcher grace while teardown is still making progress', async () => {
+        // The window exit at 25s is the only progress signal; it is observed through the window's own identity.
+        const { deps, kill, run } = launcherScenario({
+            electronExitsAt: 25_000,
+            launcherExitsAt: 45_000,
+            launcherGraceMs: 30_000,
+        });
+
+        await expect(run()).resolves.toBeUndefined();
+
+        expect(kill).not.toHaveBeenCalledWith(111, 'SIGKILL');
+        expect(deps.isOwnedProcess).toHaveBeenCalledWith({
+            identity: 'electron identity',
+            pid: 222,
+        });
+        expect(deps.log).toHaveBeenCalledWith(
+            expect.stringMatching(
+                /^Acceptance launcher exited after 45\d{3}ms \(\d+ polls, grace 30000ms\)$/,
+            ),
+        );
+    });
+
+    it('force-kills a launcher whose progress never converges once the absolute deadline passes', async () => {
+        const { deps, kill, run } = launcherScenario({
+            cdpFlapPeriodMs: 500,
+            launcherExitsAt: Infinity,
+            launcherGraceMs: 1_000,
+        });
+        vi.mocked(deps.forceCompleteCaseLifecycle).mockResolvedValue('completed');
+
+        await expect(run()).resolves.toBeUndefined();
+
+        expect(kill).toHaveBeenCalledWith(111, 'SIGKILL');
+        expect(deps.log).toHaveBeenCalledWith(
+            expect.stringContaining('exceeded the 3000ms deadline'),
+        );
+        expect(deps.log).toHaveBeenCalledWith(
+            expect.stringMatching(/^Acceptance launcher deadline-killed after 3\d{3}ms/),
+        );
+        expect(deps.forceCompleteCaseLifecycle).toHaveBeenCalledWith(
+            expect.any(String),
+            expect.objectContaining({
+                reason: expect.stringContaining('absolute deadline') as string,
+            }),
+        );
+    });
+
+    it('hands the window and Server Core a deadline-killed launcher stranded to the owned-process tier', async () => {
+        const { deps, kill, run } = launcherScenario({
+            cdpFlapPeriodMs: 500,
+            launcherExitsAt: Infinity,
+            launcherGraceMs: 1_000,
+            orphansOutliveLauncher: true,
+        });
+        vi.mocked(deps.forceCompleteCaseLifecycle).mockResolvedValue('completed');
+
+        await expect(run()).resolves.toBeUndefined();
+
+        const signals = kill.mock.calls.map(([pid, signal]) => `${signal}:${pid}`);
+        expect(signals.indexOf('SIGKILL:111')).toBeLessThan(signals.indexOf('SIGTERM:222'));
+        expect(signals.indexOf('SIGTERM:222')).toBeLessThan(signals.indexOf('SIGKILL:222'));
+        expect(signals.indexOf('SIGTERM:333')).toBeLessThan(signals.indexOf('SIGKILL:333'));
+        expect(deps.forceCompleteCaseLifecycle).toHaveBeenCalledWith(
+            expect.any(String),
+            expect.objectContaining({ launchId: 'launch-1', source: 'stop-electron' }),
+        );
+        expect(deps.log).toHaveBeenCalledWith('Stopped owned Caxri acceptance instance');
+    });
+
+    it('records unverified cleanup honestly when the profile still exists after a forced stop', async () => {
+        const { deps, run } = launcherScenario({
+            launcherExitsAt: Infinity,
+            launcherGraceMs: 1_000,
+        });
+        vi.mocked(deps.isOwnedUserDataRemoved).mockResolvedValue(false);
+
+        await run();
+
+        expect(deps.forceCompleteCaseLifecycle).toHaveBeenCalledWith(
+            expect.any(String),
+            expect.objectContaining({ cleanupCompleted: false, cleanupRequested: true }),
+        );
+    });
+
+    it('completes the receipt when the launcher was already gone before the stop', async () => {
+        const { deps, run } = launcherScenario({ launcherExitsAt: 0 });
+        vi.mocked(deps.forceCompleteCaseLifecycle).mockResolvedValue('completed');
+        await run();
+        expect(deps.forceCompleteCaseLifecycle).toHaveBeenCalledWith(
+            '/repo/.records/acceptance/round-1',
+            expect.objectContaining({
+                launchId: 'launch-1',
+                reason: expect.stringContaining('already gone') as string,
+                source: 'stop-electron',
+            }),
+        );
+        expect(deps.log).toHaveBeenCalledWith(
+            expect.stringContaining('on behalf of the already-gone launcher'),
+        );
+    });
+
+    it('says so when runtime state records no receipt ownership instead of skipping silently', async () => {
+        const { deps, run } = launcherScenario({ launcherExitsAt: 0, withReceipt: false });
+        await run();
+        expect(deps.forceCompleteCaseLifecycle).not.toHaveBeenCalled();
+        expect(deps.log).toHaveBeenCalledWith(
+            expect.stringContaining(
+                'records no lifecycle receipt ownership; if its launch is still pending, close it with `report.ts repair-lifecycle --dir <round> --case-id stop-case --reason "<why>"`',
+            ),
+        );
     });
 });

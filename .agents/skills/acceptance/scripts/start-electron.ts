@@ -24,19 +24,18 @@ import {
     validateAcceptanceAgentFixture,
 } from './agent-fixtures';
 import { assertAcceptanceBuildCommit } from './build-identity';
+import {
+    beginCaseLifecycle,
+    completeCaseLifecycle,
+    markCaseLifecycleReady,
+} from './case-lifecycle';
 import { prepareMacosAcceptanceApp, waitForMacosAcceptanceProcess } from './macos-app-identity';
 import {
     createMacosAcceptanceLaunchController,
     settleMacosAcceptanceLaunch,
 } from './macos-launch-lifecycle';
 import { assertNativeDialogAuthorization } from './native-dialog-authorization';
-import {
-    beginCaseLifecycle,
-    completeCaseLifecycle,
-    loadAcceptanceCasePlan,
-    markCaseLifecycleReady,
-    validateAcceptanceCaseLaunch,
-} from './report';
+import { loadAcceptanceCasePlan, validateAcceptanceCaseLaunch } from './report';
 import type { RuntimeState } from './runtime-state';
 import {
     discoverOwnedProcesses,
@@ -49,6 +48,13 @@ import {
     runtimeStateSchema,
     writeRuntimeState,
 } from './runtime-state';
+import {
+    hasBooleanOption,
+    help,
+    parseOptions,
+    stringOption,
+    stringOptions,
+} from './start-electron-options';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const PROJECT_ROOT = resolve(dirname(SCRIPT_PATH), '../../../..');
@@ -102,11 +108,6 @@ const WATCHED_BUILD_INPUT_EXTENSIONS = new Set([
     '.woff2',
 ]);
 const OWNED_PROCESS_DISCOVERY_TIMEOUT_MS = 10_000;
-
-type OptionValue = string | true;
-// Partial (not Record<string, OptionValue[]>): the object starts empty and keys are only
-// populated for flags actually present on argv, so an arbitrary key genuinely may be absent.
-type ParsedOptions = Partial<Record<string, OptionValue[]>>;
 
 interface ElectronLaunchSpecInput {
     agentEnvironment?: NodeJS.ProcessEnv;
@@ -170,56 +171,6 @@ const defaultWaitForCdpDependencies: WaitForCdpDependencies = {
     now: Date.now,
     sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
 };
-
-function parseOptions(argv: string[]): ParsedOptions {
-    const options: ParsedOptions = {};
-    for (let index = 0; index < argv.length; index += 1) {
-        const token = argv[index];
-        if (!token.startsWith('--')) throw new Error(`Expected an option, received: ${token}`);
-        const key = token.slice(2);
-        const next = argv[index + 1];
-        (options[key] ??= []).push(next && !next.startsWith('--') ? argv[++index] : true);
-    }
-    return options;
-}
-
-function stringOptions(options: ParsedOptions, key: string): string[] {
-    const values = options[key] ?? [];
-    if (values.includes(true)) throw new Error(`--${key} requires a value`);
-    return values as string[];
-}
-
-function stringOption(options: ParsedOptions, key: string): string | undefined {
-    const values = options[key] ?? [];
-    if (values.length > 1) throw new Error(`--${key} may only be provided once`);
-    const value = values[0];
-    if (value === true) throw new Error(`--${key} requires a value`);
-    return value;
-}
-
-function hasBooleanOption(options: ParsedOptions, key: string): boolean {
-    const values = options[key] ?? [];
-    if (values.length > 1) throw new Error(`--${key} may only be provided once`);
-    if (values.some((value) => value !== true)) throw new Error(`--${key} does not take a value`);
-    return values.length === 1;
-}
-
-function help(): string {
-    return `Start an isolated Caxri Electron acceptance instance
-
-Options:
-  --port N               CDP port (default: 9222)
-  --test-root PATH       Project root selected in Caxri; repeat to queue roots (default: repository root)
-  --agent-fixture ID     Plan-declared, repository-owned fake Agent fixture
-  --native-dialog        Explicit-current-request exception: use the real macOS picker
-  --case-id ID           Stable ASCII id for this isolated Acceptance case
-  --report-dir DIR       Frozen round containing this case plan and lifecycle evidence
-  --case-mode MODE       isolated (default) or restart
-  --reuse-user-data PATH Reuse this case's frozen caxri-acceptance-user-<profile-id>-* profile
-  --cleanup-reused-user-data
-                         Remove the validated reusable profile when this launch stops
-  --help                 Show this message`;
-}
 
 /**
  * Keeps the executable, structured argv, and isolated environment in one testable launch contract.
@@ -655,7 +606,12 @@ async function main(): Promise<void> {
                 if (!launchingElectronIdentity)
                     throw new Error('Could not establish Acceptance Electron identity');
                 runtime = {
-                    acceptanceCase,
+                    // stop-electron completes this launch's receipt when this launcher cannot (#611).
+                    acceptanceCase: {
+                        ...acceptanceCase,
+                        lifecycleLaunchId,
+                        reportDirectory: plannedCase.directory,
+                    },
                     cdpUrl: `http://127.0.0.1:${port}`,
                     electronIdentity: launchingElectronIdentity,
                     electronPid,

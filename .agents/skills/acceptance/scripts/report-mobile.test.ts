@@ -7,14 +7,13 @@ import { fileURLToPath } from 'node:url';
 
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 
-import type { InitializeReportInput } from './report';
 import {
     beginCaseLifecycle,
     completeCaseLifecycle,
-    finalizeReport,
-    initializeReport,
     markCaseLifecycleReady,
-} from './report';
+} from './case-lifecycle';
+import type { InitializeReportInput } from './report';
+import { finalizeReport, initializeReport } from './report';
 
 const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
 const TEST_ROOT = join(

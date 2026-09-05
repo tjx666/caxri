@@ -10,14 +10,16 @@ import {
     completeAgentFixtureLifecycle,
     validateAgentFixtureEvidence,
 } from './agent-fixture-lifecycle';
-import { createTerminalFixturePreflightReceipt } from './fixture-preflight';
-import type { InitializeReportInput } from './report';
 import {
     beginCaseLifecycle,
     completeCaseLifecycle,
+    markCaseLifecycleReady,
+} from './case-lifecycle';
+import { createTerminalFixturePreflightReceipt } from './fixture-preflight';
+import type { InitializeReportInput } from './report';
+import {
     finalizeReport,
     initializeReport,
-    markCaseLifecycleReady,
     rebindReportHead,
     validateAcceptanceCaseLaunch,
 } from './report';

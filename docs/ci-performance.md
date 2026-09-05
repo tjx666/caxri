@@ -119,6 +119,13 @@ changing workflow wiring.
   unchanged full platform gates overlap exact-head E2E. The platform gates keep their original
   fail-fast order, while E2E still attempts both pools and the manifest even if another validation
   surface fails.
+- The disposable checkout verifies the synthetic merge's raw parents. When `main` advanced while the
+  run was queued, the merge ref's base parent no longer equals the event-payload base; the checkout
+  accepts that drift only after proving the payload base is an ancestor of the merge-ref base, then
+  continues with the merge-ref base (also as `CAXRI_REACT_DOCTOR_BASE`) and prints one
+  `CAXRI_CHECKS_BASE_DRIFT {json}` line. A merge ref whose head parent is not the run's PR head is
+  stale and fails closed with all SHAs; rerunning the job reuses the same frozen payload, so the
+  only remedy is to rebase and force-push.
 - Exact-head E2E verifies native modules and builds once. It then runs `parallel-safe` with three
   namespaced workers followed by `desktop-exclusive` with one worker on the same `m2-24`; a failed
   first pool does not suppress the second pool. The `workflow_dispatch` worker input stays bounded

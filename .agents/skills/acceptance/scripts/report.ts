@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { lstat, mkdir, readFile, realpath, rename, writeFile } from 'node:fs/promises';
 import { dirname, extname, isAbsolute, join, resolve } from 'node:path';
 import process from 'node:process';
@@ -8,6 +7,13 @@ import { z } from 'zod';
 
 import { validateAgentFixtureEvidence } from './agent-fixture-lifecycle';
 import { acceptanceAgentFixtureIds } from './agent-fixtures';
+import type { StateIsolation } from './case-lifecycle';
+import {
+    caseLifecycleReceiptSchema,
+    lifecycleEvidencePath,
+    repairCaseLifecycle,
+    stateIsolationSchema,
+} from './case-lifecycle';
 import {
     createTerminalFixturePreflightReceipt,
     terminalFixturePreflightReceiptSchema,
@@ -48,15 +54,6 @@ const REQUIRED_EVIDENCE_TYPES = [
 const requiredEvidenceSchema = z.union([
     z.enum(REQUIRED_EVIDENCE_TYPES),
     z.object({ hint: z.string().optional(), type: z.enum(REQUIRED_EVIDENCE_TYPES) }),
-]);
-const stateIsolationSchema = z.discriminatedUnion('mode', [
-    z.object({ mode: z.literal('isolated') }),
-    z.object({ checkpointId: z.string().min(1), mode: z.literal('readonly_checkpoint') }),
-    z.object({
-        cleanupOwner: z.literal('final_launch'),
-        mode: z.literal('restart'),
-        profileId: z.string().min(1),
-    }),
 ]);
 const planItemSchema = z
     .looseObject({
@@ -118,24 +115,6 @@ type CaseStatus = (typeof CASE_STATUSES)[number];
 type RequiredEvidenceType = (typeof REQUIRED_EVIDENCE_TYPES)[number];
 type OptionValue = string | true;
 type Options = Record<string, OptionValue>;
-export type StateIsolation = z.infer<typeof stateIsolationSchema>;
-const lifecycleLaunchSchema = z.object({
-    cleanupCompleted: z.boolean(),
-    cleanupRequested: z.boolean(),
-    completedAt: z.string().nullable(),
-    id: z.string().min(1),
-    profileIdentity: z.string().min(1),
-    ready: z.boolean(),
-    startedAt: z.string(),
-});
-const caseLifecycleReceiptSchema = z.object({
-    caseId: z.string().min(1),
-    launches: z.array(lifecycleLaunchSchema).min(1),
-    profileIdentity: z.string().min(1),
-    schemaVersion: z.literal(1),
-    stateIsolation: stateIsolationSchema,
-});
-type CaseLifecycleReceipt = z.infer<typeof caseLifecycleReceiptSchema>;
 export interface InitializeReportInput {
     branch?: string;
     commit?: string;
@@ -151,9 +130,6 @@ export interface FinalizeReportInput {
     conclusion?: string;
     directory: string;
     requirement: string;
-}
-function lifecycleEvidencePath(caseId: string): string {
-    return `assets/${encodeURIComponent(caseId)}-state-isolation.json`;
 }
 function preflightEvidencePath(caseId: string): string {
     return `assets/${encodeURIComponent(caseId)}-fixture-preflight.json`;
@@ -188,115 +164,6 @@ export function validateAcceptanceCaseLaunch(
         throw new Error('A declared restart case must reuse its frozen profile');
     }
     return { profileId: stateIsolation.profileId };
-}
-
-export async function beginCaseLifecycle(
-    reportDirectory: string,
-    input: { caseId: string; profileIdentity: string; stateIsolation: StateIsolation },
-    startedAt = new Date().toISOString(),
-): Promise<string> {
-    const directory = await validateExistingReportDirectory(reportDirectory);
-    const path = join(directory, lifecycleEvidencePath(input.caseId));
-    let receipt: CaseLifecycleReceipt;
-    try {
-        const metadata = await lstat(path);
-        if (metadata.isSymbolicLink() || !metadata.isFile()) {
-            throw new Error('Acceptance lifecycle receipt must be a direct regular file');
-        }
-        receipt = caseLifecycleReceiptSchema.parse(JSON.parse(await readFile(path, 'utf8')));
-        if (
-            receipt.caseId !== input.caseId ||
-            JSON.stringify(receipt.stateIsolation) !== JSON.stringify(input.stateIsolation)
-        ) {
-            throw new Error('Acceptance lifecycle receipt does not match the frozen case profile');
-        }
-        if (receipt.launches.some(({ completedAt }) => completedAt === null)) {
-            throw new Error('Previous Acceptance case launch has not completed');
-        }
-        if (input.stateIsolation.mode === 'isolated') {
-            if (
-                receipt.launches.some(
-                    ({ cleanupCompleted, cleanupRequested }) =>
-                        !cleanupRequested || !cleanupCompleted,
-                )
-            ) {
-                throw new Error('An isolated Acceptance launch must clean up before retry');
-            }
-            if (
-                receipt.launches.some(
-                    ({ profileIdentity }) => profileIdentity === input.profileIdentity,
-                )
-            ) {
-                throw new Error('An isolated Acceptance retry must use a fresh profile');
-            }
-            receipt.profileIdentity = input.profileIdentity;
-        } else {
-            if (receipt.profileIdentity !== input.profileIdentity) {
-                throw new Error(
-                    'Acceptance lifecycle receipt does not match the frozen case profile',
-                );
-            }
-            if (receipt.launches.at(-1)?.cleanupCompleted) {
-                throw new Error('Acceptance restart profile was already cleaned up');
-            }
-        }
-    } catch (error: unknown) {
-        if (errorCode(error) !== 'ENOENT') throw error;
-        receipt = {
-            caseId: input.caseId,
-            launches: [],
-            profileIdentity: input.profileIdentity,
-            schemaVersion: 1,
-            stateIsolation: input.stateIsolation,
-        };
-    }
-    const launchId = randomUUID();
-    receipt.launches.push({
-        cleanupCompleted: false,
-        cleanupRequested: false,
-        completedAt: null,
-        id: launchId,
-        profileIdentity: input.profileIdentity,
-        ready: false,
-        startedAt,
-    });
-    await writeJsonAtomically(path, caseLifecycleReceiptSchema.parse(receipt));
-    return launchId;
-}
-
-export async function markCaseLifecycleReady(
-    reportDirectory: string,
-    input: { caseId: string; launchId: string },
-): Promise<void> {
-    const directory = await validateExistingReportDirectory(reportDirectory);
-    const path = join(directory, lifecycleEvidencePath(input.caseId));
-    const receipt = caseLifecycleReceiptSchema.parse(JSON.parse(await readFile(path, 'utf8')));
-    const launch = receipt.launches.find(({ id }) => id === input.launchId);
-    if (!launch || launch.completedAt) throw new Error('Acceptance lifecycle launch is not active');
-    launch.ready = true;
-    await writeJsonAtomically(path, receipt);
-}
-
-export async function completeCaseLifecycle(
-    reportDirectory: string,
-    input: {
-        caseId: string;
-        cleanupCompleted: boolean;
-        cleanupRequested: boolean;
-        launchId: string;
-    },
-    completedAt = new Date().toISOString(),
-): Promise<void> {
-    const directory = await validateExistingReportDirectory(reportDirectory);
-    const path = join(directory, lifecycleEvidencePath(input.caseId));
-    const receipt = caseLifecycleReceiptSchema.parse(JSON.parse(await readFile(path, 'utf8')));
-    const launch = receipt.launches.find(({ id }) => id === input.launchId);
-    if (!launch || launch.completedAt)
-        throw new Error('Acceptance lifecycle launch is not pending');
-    launch.cleanupRequested = input.cleanupRequested;
-    launch.cleanupCompleted = input.cleanupCompleted;
-    launch.completedAt = completedAt;
-    await writeJsonAtomically(path, receipt);
 }
 
 async function freezeRequirement(parent: string, requirement: string): Promise<void> {
@@ -715,12 +582,26 @@ async function main(argv: string[]): Promise<void> {
         console.log(reportCliHelp());
         return;
     }
-    if (command !== 'init' && command !== 'rebind-head' && command !== 'finalize') {
+    if (
+        command !== 'init' &&
+        command !== 'rebind-head' &&
+        command !== 'repair-lifecycle' &&
+        command !== 'finalize'
+    ) {
         throw new Error(`Unknown command: ${command}`);
     }
     const options = parseOptions(tokens);
     const directory = option(options, 'dir', true);
     if (!directory) throw new Error('Missing report directory');
+
+    if (command === 'repair-lifecycle') {
+        const caseId = option(options, 'case-id', true);
+        const reason = option(options, 'reason', true);
+        if (!caseId || !reason) throw new Error('Missing lifecycle repair input');
+        const result = await repairCaseLifecycle(directory, { caseId, reason });
+        console.log(JSON.stringify(result, null, 2));
+        return;
+    }
 
     if (command === 'rebind-head') {
         const commit = option(options, 'commit', true);
@@ -768,8 +649,8 @@ async function main(argv: string[]): Promise<void> {
         console.log(path);
         return;
     }
-    // `command` can only be 'finalize' here: 'help'/'--help' returned above, and 'init' and
-    // 'rebind-head' were each handled (and returned) by the branches above.
+    // `command` can only be 'finalize' here: 'help'/'--help' returned above, and 'init',
+    // 'rebind-head', and 'repair-lifecycle' were each handled (and returned) by the branches above.
     const report = await finalizeReport({
         conclusion: option(options, 'conclusion'),
         directory,

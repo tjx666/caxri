@@ -169,6 +169,18 @@ fails. Stop and fully clean the previous launch first, then start again with a f
 profile. The lifecycle receipt preserves every attempt; finalization accepts the history only when
 at least one launch became ready and every attempt completed cleanup.
 
+A launch the launcher could not complete itself is closed by `stop-electron.ts` with a
+`forcedCompletion` record naming the source and reason. If a launch is still pending after the
+instance is gone, close it with an explicit reason instead of editing the file:
+
+```bash
+bun run .agents/skills/acceptance/scripts/report.ts repair-lifecycle \
+  --dir .records/acceptance/<report>/round-1 --case-id <case-id> --reason "<why the launcher never completed>"
+```
+
+For an isolated case the repair verifies the profile directory is already gone before it records
+cleanup; a restart launch is closed without claiming cleanup of its shared profile.
+
 ## Finalize before publication
 
 After every placeholder has an observed `pass`, `fail`, or `blocked` result,

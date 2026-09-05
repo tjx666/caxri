@@ -117,22 +117,24 @@ check, retain it with `state.ts acceptance-orphan` and republish the corrected r
 remote history. See the canonical
 [Go Acceptance loop](../skills/go/references/acceptance-loop.md).
 
-## Stopping a slow-cleanup Acceptance launch through the adapter alone
+## Recovering a case whose launcher never completed its receipt
 
-**Situation:** A case leaves the isolated instance with heavy runtime state — for example a Project
-watcher driven to FSEvents overflow — and `stop-electron.ts` is then invoked normally.
+**Situation:** `report.ts finalize` rejects a round with
+`Case <id> state-isolation receipt does not match the frozen plan`, and `start-electron.ts` refuses
+the same case with `Previous Acceptance case launch has not completed`. The launch entry in
+`assets/<case-id>-state-isolation.json` still has `completedAt: null`.
 
-**Does not work:** Relying on the adapter's own escalation. It SIGTERMs Server Core alongside the
-launcher and escalates everything, launcher included, to SIGKILL five seconds later. The launcher
-writes the case's state-isolation receipt in its `finally`, so a cleanup slower than that window
-loses the receipt. `report.ts finalize` then rejects the round and `start-electron.ts` refuses to
-relaunch the same case, leaving hand-editing the evidence file as the only exit. Tracked as
-[#611](https://github.com/tjx666/caxri/issues/611).
+**Does not work:** Deleting or editing the receipt by hand. That rewrites the evidence chain the
+report is supposed to prove.
 
-**Works:** Send `SIGTERM` to the `launcherPid` recorded in `.records/acceptance/runtime.json` and
-wait for it to exit on its own before invoking `stop-electron.ts`; the launcher tears down its own
-children and writes a complete receipt. Confirm cleanup with `ps` plus a CDP probe and verify the
-temporary profile directory is gone.
+**Works:** Stop the instance through `stop-electron.ts` first. The adapter lets the launcher finish
+its own teardown, escalates only after a long quiet period or once three grace periods have
+elapsed regardless of progress, and completes the receipt itself when the launcher could not; a
+launch closed this way carries `forcedCompletion` naming the source and reason. If the receipt is still pending afterwards — for example the launcher was killed by
+something other than the adapter — run
+`bun run .agents/skills/acceptance/scripts/report.ts repair-lifecycle --dir <round> --case-id <id> --reason "<why>"`.
+It closes the pending launch with the reason on record and, for an isolated case, only after
+verifying the profile directory is gone. See [#611](https://github.com/tjx666/caxri/issues/611).
 
 ## Passing an Acceptance screenshot path positionally
 
