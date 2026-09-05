@@ -16,6 +16,7 @@ export const terminalRendererDiagnosticSchema = z.strictObject({
     reason: z.enum([
         'active',
         'context-loss',
+        'context-loss-limit',
         'disabled',
         'disposed',
         'load-failed',
@@ -24,6 +25,7 @@ export const terminalRendererDiagnosticSchema = z.strictObject({
     trigger: z.enum([
         'atlas-clear-failed',
         'dispose',
+        'gpu-incident-limit',
         'gpu-process-recovery',
         'preference-change',
         'visibility-restore',
