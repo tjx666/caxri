@@ -128,6 +128,10 @@ const borderlessChromeFiles = [
     'features/workbench/panel-divider.tsx',
     'features/workbench/pane-tab-bar.tsx',
     'features/status-bar/status-bar.tsx',
+    'features/status-bar/active-file-status.tsx',
+    'features/status-bar/branch-picker.tsx',
+    'features/status-bar/screencast-mode-chip.tsx',
+    'features/status-bar/workbench-root-picker.tsx',
     'features/secondary-sidebar/secondary-sidebar.tsx',
     'features/settings/settings-dialog.tsx',
     // features/primary-sidebar/primary-sidebar.tsx and features/process-explorer/process-explorer-app.tsx
