@@ -69,7 +69,7 @@ function hooksSource(documents: AgentHookDocuments): string | undefined {
 
 export const codexHookAdapter: AgentHookAdapter = {
     bindings,
-    schemaVersion: 8,
+    schemaVersion: 9,
     configTargets: (environment) => {
         const home = codexHome(environment.homeDirectory, environment.variables.CODEX_HOME);
         return [

@@ -309,7 +309,6 @@ const agentHookHealthKindSchema = z.enum([
     'installedPending',
     'active',
     'stale',
-    'newer',
     'drifted',
     'conflict',
     'error',
