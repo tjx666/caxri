@@ -1,136 +1,33 @@
-import { useState } from 'react';
-
-import type { BootstrapState, CaxriMethod, CommandId } from '@caxri/protocol';
+import type { BootstrapState, CommandId } from '@caxri/protocol';
 import { isExternalEditorTabPath, parseGitDiffTab } from '@caxri/protocol';
-import { relativeTime } from '@caxri/utils';
-import { useQueryClient } from '@tanstack/react-query';
-import {
-    Braces,
-    Cast,
-    FileDiff,
-    FolderGit2,
-    GitBranch,
-    GitCommitHorizontal,
-    GitPullRequest,
-    LoaderCircle,
-    Monitor,
-} from 'lucide-react';
+import { FileDiff, GitPullRequest, Monitor } from 'lucide-react';
 
 import { useContainerWidth } from '@/hooks/use-container-width';
-import { useDebouncedValue } from '@/hooks/use-debounced-value';
-import { useNow } from '@/hooks/use-now';
 import { usePolledQuery } from '@/hooks/use-polled-query';
 
 import { executeCommand } from '../../commands/execute';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '../../components/ui/select';
-import { Separator } from '../../components/ui/separator';
 import { Tooltip } from '../../components/ui/tooltip';
-import { caxri } from '../../lib/caxri';
 import { cn } from '../../lib/utilities';
-import { useCaxriQuery, useToastOnQueryError } from '../../queries/client';
+import { useCaxriQuery } from '../../queries/client';
 import { useSelectedSession, useSelectedWorkbenchProject } from '../../stores/selectors';
-import { sessionViewScope } from '../../stores/session-view';
-import { tryCommand } from '../../stores/toasts';
 import { useWorkbenchStore } from '../../stores/workbench';
-import {
-    editorLanguageLabel,
-    editorStatusKey,
-    useEditorStatusStore,
-} from '../editor/editor-status';
-import { useScreencastStore } from '../screencast/screencast';
 import { useActivePaneTab } from '../workbench/pane-actions';
+import { ActiveFileStatus } from './active-file-status';
 import { ActiveTerminalStatus } from './active-terminal-status';
+import { BranchPicker } from './branch-picker';
 import { resolveChipVisibility } from './chip-priority';
-import { StatusInfo } from './status-info';
-import { StatusItem, statusItemClassName } from './status-item';
+import { ScreencastModeChip } from './screencast-mode-chip';
+import { StatusItem } from './status-item';
+import { WorkbenchRootPicker } from './workbench-root-picker';
 
 /**
  * No live push exists for delivery metadata, so a stale read is refreshed on a fixed interval.
  */
 const PROJECT_OVERVIEW_REFETCH_INTERVAL_MS = 60_000;
-const AUTHORIZE_WORKBENCH_ROOT_VALUE = '__authorize_workbench_root__';
 
 type ServerStatus = BootstrapState['runtime']['status'];
 
 const statusStateClassName = 'statusbar-state flex-none rounded px-2 text-[10px]';
-
-function ActiveFileStatus({
-    sessionId,
-    path,
-    workbenchProjectId,
-}: {
-    sessionId: string;
-    path: string;
-    workbenchProjectId: string;
-}) {
-    const key = editorStatusKey(sessionViewScope(sessionId, workbenchProjectId), path);
-    const editorStatus = useEditorStatusStore((state) => state.statuses[key]);
-    const line = useDebouncedValue(editorStatus?.line ?? 1, 150);
-    const now = useNow(30_000);
-    const blame = useCaxriQuery(
-        'git.blame',
-        { sessionId, path, line },
-        { staleTime: 60_000, retry: false },
-    ).data;
-    const language = editorLanguageLabel(editorStatus?.languageId ?? 'plaintext');
-    const cursor = editorStatus
-        ? `Ln ${editorStatus.line}, Col ${editorStatus.column}`
-        : 'Ln 1, Col 1';
-    const selection = editorStatus?.selectedCharacters ?? 0;
-    return (
-        <>
-            {blame && (
-                <StatusInfo
-                    ariaLabel={
-                        blame.uncommitted
-                            ? `Git blame: uncommitted changes on line ${line}`
-                            : `Git blame: ${blame.author}, ${relativeTime(blame.authoredAt, now)}, ${blame.subject}`
-                    }
-                    className="statusbar-blame max-w-[420px]"
-                    icon={GitCommitHorizontal}
-                    title={
-                        blame.uncommitted ? (
-                            `Uncommitted changes · line ${line}`
-                        ) : (
-                            // The tooltip primitive doesn't collapse `\n` like a native `title`
-                            // attribute would, so the three-line author/sha/subject summary needs
-                            // an explicit `whitespace-pre-line` wrapper to keep its line breaks.
-                            <span className="whitespace-pre-line">
-                                {`${blame.author} · ${new Date(blame.authoredAt).toLocaleString()}\n${blame.sha}\n${blame.subject}`}
-                            </span>
-                        )
-                    }
-                >
-                    {blame.uncommitted
-                        ? 'Uncommitted changes'
-                        : `${blame.author}, ${relativeTime(blame.authoredAt, now)} · ${blame.subject}`}
-                </StatusInfo>
-            )}
-            <StatusInfo
-                ariaLabel={`Editor position: ${cursor}${selection > 0 ? `, ${selection} characters selected` : ''}`}
-                className="statusbar-selection"
-                title="Editor selection"
-            >
-                {selection > 0 && `${selection} selected · `}
-                {cursor}
-            </StatusInfo>
-            <StatusInfo
-                ariaLabel={`File type: ${language}`}
-                className="statusbar-language"
-                icon={Braces}
-                title="File type"
-            >
-                {language}
-            </StatusInfo>
-        </>
-    );
-}
 
 /**
  * A healthy status bar says nothing: it only speaks up while Caxri is degraded, in the user's vocabulary rather than
@@ -155,38 +52,6 @@ const DEGRADED_STATES: Partial<
             'statusbar-state-warning bg-[color-mix(in_srgb,var(--warning)_18%,transparent)] text-warning',
     },
 };
-
-/**
- * Screencast Mode has no other persistent cue while active — see `screencast.ts`'s `toggleScreencastMode` for the
- * paired toast. Muted tokens keep it quiet per DESIGN.md's status bar redline (only degraded Server state earns a loud
- * chip); clicking replays the same toggle command a keybinding or the command palette would run.
- */
-const screencastChipClassName = 'text-muted';
-
-/**
- * The chip name alone implies recording safety it does not provide, so both the accessible name and the hover tooltip
- * spell out the actual behavior: Screencast Mode only overlays click ripples and a privacy-filtered keystroke badge
- * (see `screencast.ts`'s `describeScreencastKey`) — it never hides or redacts anything already visible on screen, so
- * source code and Terminal output stay exactly as exposed as they would be without it.
- */
-const SCREENCAST_CHIP_LABEL =
-    'Screencast Mode is on — click to turn it off. It overlays click ripples and keystroke hints for recording; it does not hide or redact anything already on screen.';
-
-function ScreencastModeChip() {
-    const isEnabled = useScreencastStore((state) => state.enabled);
-    if (!isEnabled) return null;
-    return (
-        <StatusItem
-            icon={Cast}
-            ariaLabel={SCREENCAST_CHIP_LABEL}
-            title={SCREENCAST_CHIP_LABEL}
-            className={screencastChipClassName}
-            onClick={() => executeCommand('developer.toggleScreencastMode')}
-        >
-            Screencast
-        </StatusItem>
-    );
-}
 
 /**
  * `projectStatus.overview` may shell out to a delivery CLI (e.g. `gh`) for the pull request, so it stays on the 60s
@@ -229,217 +94,6 @@ function useProjectOverview(sessionId: string | undefined) {
             deletions: primary.deletions,
         },
     };
-}
-
-const BRANCH_SWITCH_DEPENDENCIES = new Set<CaxriMethod>([
-    'git.summary',
-    'git.overview',
-    'git.branches',
-    'git.diffDocument',
-    'git.pullRequestChanges',
-    'git.pullRequestDiffDocument',
-    'git.commits',
-    'git.commitDetails',
-    'git.blame',
-    'git.fileHead',
-    'projectStatus.overview',
-    'projectStatus.summary',
-]);
-
-function BranchPicker({
-    branch,
-    repositoryId,
-    sessionId,
-}: {
-    branch: string;
-    repositoryId: string;
-    sessionId: string;
-}) {
-    const queryClient = useQueryClient();
-    const [open, setOpen] = useState(false);
-    const [switching, setSwitching] = useState(false);
-    const now = useNow(30_000);
-    const branchesQuery = useCaxriQuery(
-        'git.branches',
-        { sessionId, repositoryId },
-        { enabled: open },
-    );
-    useToastOnQueryError(branchesQuery.isError, branchesQuery.error, 'Unable to list branches');
-    const loadedBranches = branchesQuery.data ?? [];
-    // The current branch is pinned first; the rest keep the Server's most-recent-commit order.
-    // Before the query resolves only the current branch is known, without a commit time.
-    const branches: Array<{ name: string; committedAt?: number }> = [
-        loadedBranches.find((candidate) => candidate.name === branch) ?? { name: branch },
-        ...loadedBranches.filter((candidate) => candidate.name !== branch),
-    ];
-
-    const switchBranch = async (nextBranch: string | null): Promise<void> => {
-        if (!nextBranch || nextBranch === branch || switching) return;
-        setSwitching(true);
-        try {
-            const result = await tryCommand('Unable to switch branch', () =>
-                caxri.request('git.switchBranch', {
-                    sessionId,
-                    repositoryId,
-                    branch: nextBranch,
-                }),
-            );
-            if (result === undefined) return;
-            await queryClient.invalidateQueries({
-                predicate: (query) => {
-                    const [method, parameters] = query.queryKey as [
-                        CaxriMethod,
-                        { sessionId?: string } | undefined,
-                    ];
-                    return (
-                        BRANCH_SWITCH_DEPENDENCIES.has(method) &&
-                        parameters?.sessionId === sessionId
-                    );
-                },
-            });
-        } finally {
-            setSwitching(false);
-        }
-    };
-
-    return (
-        <Select
-            value={branch}
-            open={open}
-            disabled={switching}
-            onOpenChange={setOpen}
-            onValueChange={(value) => {
-                // eslint-disable-next-line no-void -- intentional floating-promise discard, switchBranch() reports its own errors via tryCommand
-                void switchBranch(value);
-            }}
-        >
-            <SelectTrigger
-                showIcon={false}
-                aria-label={`Switch branch from ${branch}`}
-                title={`Switch branch from ${branch}`}
-                className={cn(
-                    statusItemClassName,
-                    'h-5 w-auto max-w-full justify-start px-[5px] text-[11px]',
-                )}
-            >
-                <GitBranch size={13} />
-                <SelectValue>{branch}</SelectValue>
-            </SelectTrigger>
-            <SelectContent className="max-w-96 min-w-48">
-                {branches.map(({ name, committedAt }) => (
-                    <SelectItem key={name} value={name} className="max-w-96">
-                        <span className="flex min-w-0 items-baseline gap-2">
-                            <span className="overflow-hidden text-ellipsis whitespace-nowrap">
-                                {name}
-                            </span>
-                            {committedAt !== undefined && (
-                                <span className="flex-none text-[11px] text-muted">
-                                    {relativeTime(committedAt, now)}
-                                </span>
-                            )}
-                        </span>
-                    </SelectItem>
-                ))}
-                {branchesQuery.isLoading && (
-                    <div className="flex items-center gap-1.5 px-2 py-1.5 text-[12px] text-muted">
-                        <LoaderCircle className="animate-spin" size={12} />
-                        Loading branches…
-                    </div>
-                )}
-            </SelectContent>
-        </Select>
-    );
-}
-
-function WorkbenchRootPicker({ branch, sessionId }: { branch?: string; sessionId: string }) {
-    const session = useSelectedSession();
-    const workbenchProject = useSelectedWorkbenchProject();
-    const [open, setOpen] = useState(false);
-    const [switching, setSwitching] = useState(false);
-    const rootsQuery = useCaxriQuery(
-        'session.workbenchRoots',
-        { sessionId },
-        { enabled: open, staleTime: 0 },
-    );
-    useToastOnQueryError(rootsQuery.isError, rootsQuery.error, 'Unable to list Workbench Roots');
-    if (!session || !workbenchProject) return null;
-    const roots = rootsQuery.data ?? [
-        {
-            projectId: workbenchProject.id,
-            displayTitle: workbenchProject.displayTitle,
-            branch: branch ?? 'No branch',
-            owner: workbenchProject.id === session.projectId,
-        },
-    ];
-    const current = roots.find((root) => root.projectId === session.workbenchProjectId) ?? roots[0];
-    const switchRoot = async (projectId: string | null): Promise<void> => {
-        if (!projectId || switching) return;
-        setSwitching(true);
-        try {
-            if (projectId === AUTHORIZE_WORKBENCH_ROOT_VALUE) {
-                const selected = await tryCommand('Unable to authorize Workbench Root', () =>
-                    caxri.request('session.authorizeWorkbenchRoot', { sessionId }),
-                );
-                if (selected && !('canceled' in selected))
-                    await useWorkbenchStore.getState().refresh();
-                return;
-            }
-            if (projectId === session.workbenchProjectId) return;
-            const selected = await tryCommand('Unable to switch Workbench Root', () =>
-                caxri.request('session.selectWorkbenchRoot', { sessionId, projectId }),
-            );
-            if (selected) await useWorkbenchStore.getState().refresh();
-        } finally {
-            setSwitching(false);
-        }
-    };
-    return (
-        <Select
-            value={session.workbenchProjectId}
-            open={open}
-            disabled={switching}
-            onOpenChange={setOpen}
-            onValueChange={(value) => {
-                // eslint-disable-next-line no-void -- intentional floating-promise discard, switchRoot() reports its own errors via tryCommand
-                void switchRoot(value);
-            }}
-        >
-            <SelectTrigger
-                showIcon={false}
-                aria-label={`Switch Workbench Root from ${current.displayTitle}, branch ${current.branch}`}
-                title={workbenchProject.rootPath}
-                className={cn(
-                    statusItemClassName,
-                    'h-5 w-auto max-w-full justify-start px-[5px] text-[11px]',
-                )}
-            >
-                <FolderGit2 size={13} />
-                {/**
-                 * The trigger shows only the root's title: the adjacent BranchPicker already renders the same branch, so repeating it
-                 * here made the status bar read "title · branch · branch". The dropdown items keep "title · branch" because the branch
-                 * is what tells parallel worktree roots apart.
-                 */}
-                <SelectValue>{current.displayTitle}</SelectValue>
-            </SelectTrigger>
-            <SelectContent className="max-w-96 min-w-56">
-                {roots.map((root) => (
-                    <SelectItem key={root.projectId} value={root.projectId} className="max-w-96">
-                        {root.displayTitle} · {root.branch}
-                    </SelectItem>
-                ))}
-                <Separator className="my-1" />
-                <SelectItem value={AUTHORIZE_WORKBENCH_ROOT_VALUE} className="max-w-96">
-                    Authorize another worktree…
-                </SelectItem>
-                {rootsQuery.isLoading && (
-                    <div className="flex items-center gap-1.5 px-2 py-1.5 text-[12px] text-muted">
-                        <LoaderCircle className="animate-spin" size={12} />
-                        Loading Workbench Roots…
-                    </div>
-                )}
-            </SelectContent>
-        </Select>
-    );
 }
 
 function showSecondarySidebar(command: Extract<CommandId, `secondarySidebar.show${string}`>): void {
