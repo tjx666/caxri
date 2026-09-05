@@ -149,6 +149,116 @@ export interface PtyThroughputObservation {
 }
 
 /**
+ * Per-lifetime throughput totals for one live PTY. Every one-second aggregation window that carried bytes adds to these
+ * counters, so the lifetime summary written at retirement can restore the session's total volume, its busiest window,
+ * and how many windows were active without the log keeping one record per window.
+ */
+export interface PtyThroughputTally {
+    droppedBytes: number;
+    /**
+     * Whether the one-shot `pty.first_input` record has already been written for this lifetime.
+     */
+    firstInputLogged: boolean;
+    inputBytes: number;
+    outputBytes: number;
+    /**
+     * Largest `inputBytes + outputBytes` observed in a single aggregation window.
+     */
+    peakWindowBytes: number;
+    startedAt: number;
+    /**
+     * Number of aggregation windows that carried at least one byte.
+     */
+    windows: number;
+}
+
+export type PtyRetireReason = 'discarded' | 'exited' | 'restart' | 'shutdown';
+
+export function createPtyThroughputTally(startedAt: number): PtyThroughputTally {
+    return {
+        droppedBytes: 0,
+        firstInputLogged: false,
+        inputBytes: 0,
+        outputBytes: 0,
+        peakWindowBytes: 0,
+        startedAt,
+        windows: 0,
+    };
+}
+
+/**
+ * Records one closed aggregation window for a live PTY.
+ *
+ * Steady-state throughput is owned by the metrics layer: `pty.throughput` enters the bounded metric registry on every
+ * window while the matching log record stays at `debug`, below the Terminal Host's `info` floor. Only two conditions
+ * still write durable records from a window: dropped bytes remain a `warn` `pty.throughput` record (the anomaly signal
+ * `terminal-recovery.e2e.ts` waits for), and the first window that carried input writes one `pty.first_input` record so
+ * the startup benchmark keeps a low-frequency liveness signal.
+ *
+ * History: 24c4eb18 first silenced the per-second `info` record and 614cccee reverted it because
+ * `e2e/startup.performance.e2e.ts` waited on `pty.throughput` with `inputBytes > 0`. That consumer and the Terminal
+ * integration test now wait on `pty.first_input`, so the per-window record can stay at `debug` without timing out the
+ * release benchmark. See #590 and #605.
+ */
+export function recordPtyThroughputWindow(
+    logger: StructuredLogger,
+    terminalId: string,
+    tally: PtyThroughputTally,
+    observation: PtyThroughputObservation,
+    now = Date.now(),
+): void {
+    recordPtyThroughput(logger, observation);
+    tally.windows += 1;
+    tally.inputBytes += observation.inputBytes;
+    tally.outputBytes += observation.outputBytes;
+    tally.droppedBytes += observation.droppedBytes;
+    tally.peakWindowBytes = Math.max(
+        tally.peakWindowBytes,
+        observation.inputBytes + observation.outputBytes,
+    );
+    logger.write(observation.droppedBytes > 0 ? 'warn' : 'debug', logEventCatalog.pty.throughput, {
+        fields: {
+            terminalId,
+            inputBytes: observation.inputBytes,
+            outputBytes: observation.outputBytes,
+            droppedBytes: observation.droppedBytes,
+        },
+    });
+    if (tally.firstInputLogged || observation.inputBytes === 0) return;
+    tally.firstInputLogged = true;
+    logger.write('info', logEventCatalog.pty.firstInput, {
+        durationMs: now - tally.startedAt,
+        fields: { terminalId, inputBytes: observation.inputBytes },
+    });
+}
+
+/**
+ * Writes the single per-lifetime `pty.throughput_summary` record when a PTY retires. Totals, the peak window, and the
+ * active-window count let an operator restore a session's volume from one record; `reason` explains which lifecycle
+ * path ended it. Quiet lifetimes still write the record so an unexpectedly silent PTY is visible.
+ */
+export function recordPtyThroughputSummary(
+    logger: StructuredLogger,
+    terminalId: string,
+    tally: PtyThroughputTally,
+    reason: PtyRetireReason,
+    now = Date.now(),
+): void {
+    logger.write('info', logEventCatalog.pty.throughputSummary, {
+        durationMs: now - tally.startedAt,
+        fields: {
+            terminalId,
+            reason,
+            inputBytes: tally.inputBytes,
+            outputBytes: tally.outputBytes,
+            droppedBytes: tally.droppedBytes,
+            peakWindowBytes: tally.peakWindowBytes,
+            windows: tally.windows,
+        },
+    });
+}
+
+/**
  * Aggregates PTY transfer pressure without retaining Terminal IDs, input, output, or per-chunk samples.
  */
 export function recordPtyThroughput(

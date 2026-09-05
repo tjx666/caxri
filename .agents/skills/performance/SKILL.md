@@ -24,9 +24,9 @@ description: Measure and protect Caxri startup, Server Core responsiveness, and 
 3. Read the correlated Desktop Main, Server Core, Terminal Host, and Extension Host JSONL logs
    from the active runtime profile's `<userData>/logs/` directory. Use `app.ready`,
    `server_connection.attached`, `window.ready_to_show`, `server_core.ready`, `pty.spawned`,
-   `file.list`, `git.command`, `agent.probe`, `watcher.ready`, and `pty.throughput` to locate the
-   owner. Add timing logs at operation boundaries for new non-trivial work so regressions remain
-   attributable.
+   `file.list`, `git.command`, `agent.probe`, `watcher.ready`, `pty.first_input`, and
+   `pty.throughput_summary` to locate the owner. Add timing logs at operation boundaries for new
+   non-trivial work so regressions remain attributable.
 4. Preserve privacy: timings, counts, IDs, relative paths, and byte totals are allowed; terminal
    output, source contents, prompts, credentials, environment values, and agent transcripts are
    not.

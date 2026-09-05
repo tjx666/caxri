@@ -208,7 +208,7 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
         const serverResources = await measureServerOwnerResources(serverPid);
         // The logger now drains writes asynchronously, so poll the log files instead of reading
         // them once: the final Core, Desktop, and Terminal Host records may not be flushed to disk yet. Poll every
-        // owning process so moving PTY execution does not make the throughput gate silently inspect the wrong log.
+        // owning process so moving PTY execution does not make the first-input gate silently inspect the wrong log.
         let records: PerformanceLog[] = [];
         let desktopRecords: PerformanceLog[] = [];
         let terminalHostRecords: PerformanceLog[] = [];
@@ -240,7 +240,7 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
                         ) &&
                         terminalHostRecords.some(
                             (record) =>
-                                record.event === 'pty.throughput' &&
+                                record.event === 'pty.first_input' &&
                                 Number(record.fields?.inputBytes) > 0,
                         )
                     );
@@ -276,8 +276,10 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
         const windowReady = desktopRecords.findLast(
             (record) => record.event === 'window.ready_to_show',
         );
+        // Steady-state throughput lives in the metrics layer; the one-shot `pty.first_input` record is the
+        // low-frequency liveness signal that proves Renderer input reached the PTY (#590).
         const inputThroughput = terminalHostRecords.find(
-            (record) => record.event === 'pty.throughput' && Number(record.fields?.inputBytes) > 0,
+            (record) => record.event === 'pty.first_input' && Number(record.fields?.inputBytes) > 0,
         );
         const ipcFailures = records.filter(
             (record) => record.event === 'ipc.request_failed',

@@ -22,10 +22,13 @@ import { TerminalAttachments } from './attachments';
 import { TerminalOutputQueue } from './buffer';
 import { oscColorReply, TerminalColorQueryResponder } from './color-query';
 import { TerminalImageOutputFilter, TerminalImageRecoveryFilter } from './image-recovery';
+import type { PtyRetireReason } from './observability';
 import {
+    createPtyThroughputTally,
     PtyResizeBurstObserver,
     recordPtyDroppedBytes,
-    recordPtyThroughput,
+    recordPtyThroughputSummary,
+    recordPtyThroughputWindow,
 } from './observability';
 import type { AgentOutputRecovery } from './output-recovery';
 import { ensureLiveOutputRecovery, hasConfiguredOutputRecovery } from './output-recovery-manager';
@@ -166,30 +169,18 @@ export class TerminalExecutionEngine {
             live.metricDroppedBytes === 0
         )
             return;
-        recordPtyThroughput(this.options.logger, {
+        recordPtyThroughputWindow(this.options.logger, live.record.id, live.throughput, {
             inputBytes: live.metricInputBytes,
             outputBytes: live.metricOutputBytes,
             droppedBytes: live.metricDroppedBytes,
         });
-        this.options.logger.write(
-            live.metricDroppedBytes > 0 ? 'warn' : 'info',
-            ptyLogEvents.throughput,
-            {
-                fields: {
-                    terminalId: live.record.id,
-                    inputBytes: live.metricInputBytes,
-                    outputBytes: live.metricOutputBytes,
-                    droppedBytes: live.metricDroppedBytes,
-                },
-            },
-        );
         live.metricInputBytes = 0;
         live.metricOutputBytes = 0;
         live.metricDroppedBytes = 0;
     }
 
     private async onExit(live: LiveTerminal, exitCode: number, signal?: number): Promise<void> {
-        const capture = this.retire(live, true);
+        const capture = this.retire(live, true, 'exited');
         if (!capture) return;
         await this.options.onExit({ capture, exitCode, record: live.record, signal });
     }
@@ -200,11 +191,16 @@ export class TerminalExecutionEngine {
         live.metricTimer = clearScheduledTimer(live.metricTimer);
     }
 
-    private retire(live: LiveTerminal, shouldCapture: false): undefined;
-    private retire(live: LiveTerminal, shouldCapture: true): Promise<TerminalSnapshot> | undefined;
+    private retire(live: LiveTerminal, shouldCapture: false, reason: PtyRetireReason): undefined;
+    private retire(
+        live: LiveTerminal,
+        shouldCapture: true,
+        reason: PtyRetireReason,
+    ): Promise<TerminalSnapshot> | undefined;
     private retire(
         live: LiveTerminal,
         shouldCapture: boolean,
+        reason: PtyRetireReason,
     ): Promise<TerminalSnapshot> | undefined {
         if (this.terminals.get(live.record.id) !== live) return;
         this.clearTimers(live);
@@ -212,6 +208,7 @@ export class TerminalExecutionEngine {
         live.droppedBytes += live.imageOutput.finish(live.outputQueue);
         this.flushOutput(live);
         this.flushMetrics(live);
+        recordPtyThroughputSummary(this.options.logger, live.record.id, live.throughput, reason);
         this.resizeObserver.disposeTerminal(live.record.id);
         if (shouldCapture) {
             const colorTail = live.colorQuery?.finish() ?? '';
@@ -308,6 +305,7 @@ export class TerminalExecutionEngine {
             metricOutputBytes: 0,
             metricInputBytes: 0,
             metricDroppedBytes: 0,
+            throughput: createPtyThroughputTally(Date.now()),
         };
         this.terminals.set(input.record.id, live);
         child.onData((data) => this.onData(live, data));
@@ -329,7 +327,7 @@ export class TerminalExecutionEngine {
     discard(terminalId: string): void {
         const live = this.terminals.get(terminalId);
         if (!live) return;
-        this.retire(live, false);
+        this.retire(live, false, 'discarded');
         live.process.kill();
     }
 
@@ -433,7 +431,7 @@ export class TerminalExecutionEngine {
         const isPreserveAttachment = this.attachments.has(terminalId);
         const preservedSize = this.attachments.size(terminalId);
         if (live) {
-            const capture = this.retire(live, true);
+            const capture = this.retire(live, true, 'restart');
             live.process.kill();
             if (isPreserveAttachment) this.attachments.attach(terminalId, preservedSize);
             return capture;
@@ -484,7 +482,7 @@ export class TerminalExecutionEngine {
         this.attachments.wakeAll();
         const finalizations: Array<{ terminalId: string; capture: Promise<TerminalSnapshot> }> = [];
         for (const live of this.terminals.values()) {
-            const capture = this.retire(live, true);
+            const capture = this.retire(live, true, 'shutdown');
             if (capture) finalizations.push({ terminalId: live.record.id, capture });
             live.process.kill();
         }
