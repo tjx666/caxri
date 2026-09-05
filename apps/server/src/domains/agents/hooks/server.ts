@@ -445,12 +445,12 @@ export class AgentHookServer {
      * print `caxri-hook: signal_rejected` to stderr for something benign.
      *
      * `schemaMismatch` only rejects a signal whose `schemaVersion` is _newer_ than this server build expects. The
-     * `--schema N` literal is baked into the shared, global hook config (`~/.claude/settings.json` and Codex's
-     * equivalent) by whichever locally installed Caxri build last wrote it, and every local build reads that same file.
-     * An older running build must therefore keep accepting a signal that carries a schema number from a newer sibling
-     * build, as long as the wire _shape_ of existing phases has not changed — schema bumps to date have been additive
-     * (see `git show b3f718b5`). A genuinely breaking wire change must bump `protocolVersion` instead of relying on
-     * schema rejection to gate compatibility.
+     * bridge learns the schema from the `CAXRI_HOOK_SCHEMA_*` launch environment of the Terminal that ran it, and that
+     * environment came from this very instance, so a mismatch is not a routine multi-build situation any more (issue
+     * #557 moved the schema out of the shared provider file for exactly that reason). It remains a bound rather than an
+     * equality check because the token, not the schema, authenticates the launch: schema bumps to date have been
+     * additive (see `git show b3f718b5`), and a genuinely breaking wire change must bump `protocolVersion` instead of
+     * relying on schema rejection to gate compatibility.
      */
     private authorizationOutcome(
         signal: HookWireContext,

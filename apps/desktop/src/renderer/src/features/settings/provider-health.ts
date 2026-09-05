@@ -29,8 +29,6 @@ export function hookHealthLabel(
                 return 'Active';
             case 'stale':
                 return 'Out of date — restart Agent Terminals to update it';
-            case 'newer':
-                return 'Managed by a newer version of Caxri';
             case 'drifted':
                 return 'Changed outside Caxri — restart Agent Terminals to reapply it';
             case 'conflict':

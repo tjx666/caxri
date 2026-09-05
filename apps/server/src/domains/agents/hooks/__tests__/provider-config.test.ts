@@ -76,8 +76,10 @@ describe('Agent provider hook configuration adapters', () => {
         ).hooks;
 
         expect(
-            claudeHookAdapter.inspect(new Map([['settings', installed]]), desired('claude', 8))
-                .status,
+            claudeHookAdapter.inspect(
+                new Map([['settings', installed]]),
+                desired('claude', claudeHookAdapter.schemaVersion),
+            ).status,
         ).toEqual({ kind: 'current' });
         expect(installedHooks.PostToolUse).toHaveLength(1);
         expect(installedHooks.PostToolUse[0]).toMatchObject({ matcher: '^Bash$' });
@@ -86,7 +88,7 @@ describe('Agent provider hook configuration adapters', () => {
 
         const removed = claudeHookAdapter.remove(
             new Map([['settings', installed]]),
-            desired('claude', 8),
+            desired('claude', claudeHookAdapter.schemaVersion),
         )[0].source;
         expect(JSON.parse(removed)).toEqual(foreign);
     });
@@ -162,14 +164,17 @@ describe('Agent provider hook configuration adapters', () => {
 
     it('updates only stale Caxri entries and leaves a newer Codex schema untouched', () => {
         const current = install(codexHookAdapter, 'hooks', '{}\n', 'codex');
-        const stale = current.replaceAll('--schema 8', '--schema 7');
+        const stale = current.replaceAll(
+            `--schema ${codexHookAdapter.schemaVersion}`,
+            '--schema 7',
+        );
         expect(
             codexHookAdapter.inspect(
                 new Map([
                     ['hooks', stale],
                     ['config', undefined],
                 ]),
-                desired('codex', 8),
+                desired('codex', codexHookAdapter.schemaVersion),
             ).status,
         ).toEqual({ kind: 'stale', installedSchema: 7 });
 
@@ -178,27 +183,30 @@ describe('Agent provider hook configuration adapters', () => {
                 ['hooks', stale],
                 ['config', undefined],
             ]),
-            desired('codex', 8),
+            desired('codex', codexHookAdapter.schemaVersion),
         )[0].source;
         expect(updated).not.toContain('--schema 7');
 
-        const newer = updated.replaceAll('--schema 8', '--schema 9');
+        const newer = updated.replaceAll(
+            `--schema ${codexHookAdapter.schemaVersion}`,
+            () => `--schema ${codexHookAdapter.schemaVersion + 1}`,
+        );
         expect(
             codexHookAdapter.inspect(
                 new Map([
                     ['hooks', newer],
                     ['config', undefined],
                 ]),
-                desired('codex', 8),
+                desired('codex', codexHookAdapter.schemaVersion),
             ).status,
-        ).toEqual({ kind: 'newer', installedSchema: 9 });
+        ).toEqual({ kind: 'newer', installedSchema: codexHookAdapter.schemaVersion + 1 });
         expect(
             codexHookAdapter.remove(
                 new Map([
                     ['hooks', newer],
                     ['config', undefined],
                 ]),
-                desired('codex', 8),
+                desired('codex', codexHookAdapter.schemaVersion),
             ),
         ).toHaveLength(0);
     });
@@ -206,13 +214,13 @@ describe('Agent provider hook configuration adapters', () => {
     it.each([
         {
             adapter: codexHookAdapter,
-            previousSchema: 7,
+            previousSchema: 8,
             provider: 'codex' as const,
             target: 'hooks',
         },
         {
             adapter: claudeHookAdapter,
-            previousSchema: 7,
+            previousSchema: 8,
             provider: 'claude' as const,
             target: 'settings',
         },

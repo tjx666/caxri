@@ -11,7 +11,6 @@ import { defaultAgentProviderSettings } from '@caxri/protocol';
 import { execFileAsync, StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { claudeHookAdapter } from '../../providers/claude/hooks';
 import { codexHookAdapter } from '../../providers/codex/hooks';
 import type { AgentLifecycleSignal, AgentSignalDecision } from '../contract';
 import { AgentHookManager, MAX_AGENT_HOOK_CONFIG_BYTES } from '../manager';
@@ -311,16 +310,7 @@ describe('AgentHookManager', () => {
             const bridge = join(directory, 'shared', 'bin', 'caxri-agent-hook-bridge');
             const rejected = await execFileAsync(
                 bridge,
-                [
-                    '--source',
-                    'caxri',
-                    '--provider',
-                    'codex',
-                    '--phase',
-                    'turnFinished',
-                    '--schema',
-                    String(codexHookAdapter.schemaVersion),
-                ],
+                ['--source', 'caxri', '--provider', 'codex', '--phase', 'turnFinished'],
                 {
                     env: {
                         ...process.env,
@@ -340,8 +330,6 @@ describe('AgentHookManager', () => {
                     'codex',
                     '--phase',
                     'turnFinished',
-                    '--schema',
-                    String(codexHookAdapter.schemaVersion),
                     '--reply',
                     'empty-json',
                 ],
@@ -356,16 +344,7 @@ describe('AgentHookManager', () => {
              */
             const payloadInvocation = execFileAsync(
                 bridge,
-                [
-                    '--source',
-                    'caxri',
-                    '--provider',
-                    'codex',
-                    '--phase',
-                    'turnStarted',
-                    '--schema',
-                    String(codexHookAdapter.schemaVersion),
-                ],
+                ['--source', 'caxri', '--provider', 'codex', '--phase', 'turnStarted'],
                 { env: { ...process.env, ...environment } },
             );
             payloadInvocation.child.stdin?.end(
@@ -387,16 +366,7 @@ describe('AgentHookManager', () => {
 
             await execFileAsync(
                 bridge,
-                [
-                    '--source',
-                    'caxri',
-                    '--provider',
-                    'codex',
-                    '--phase',
-                    'turnStarted',
-                    '--schema',
-                    String(codexHookAdapter.schemaVersion),
-                ],
+                ['--source', 'caxri', '--provider', 'codex', '--phase', 'turnStarted'],
                 { env: { ...process.env, ...environment } },
             );
             await vi.waitFor(() => expect(signals).toHaveBeenCalledTimes(3));
@@ -404,16 +374,7 @@ describe('AgentHookManager', () => {
             signals.mockReturnValueOnce('staleLaunch');
             const ignored = await execFileAsync(
                 bridge,
-                [
-                    '--source',
-                    'caxri',
-                    '--provider',
-                    'codex',
-                    '--phase',
-                    'sessionIdentified',
-                    '--schema',
-                    String(codexHookAdapter.schemaVersion),
-                ],
+                ['--source', 'caxri', '--provider', 'codex', '--phase', 'sessionIdentified'],
                 { env: { ...process.env, ...environment } },
             );
             expect(ignored.stderr).toBe('');
@@ -427,16 +388,7 @@ describe('AgentHookManager', () => {
              */
             const providerMismatch = await execFileAsync(
                 bridge,
-                [
-                    '--source',
-                    'caxri',
-                    '--provider',
-                    'claude',
-                    '--phase',
-                    'turnFinished',
-                    '--schema',
-                    String(claudeHookAdapter.schemaVersion),
-                ],
+                ['--source', 'caxri', '--provider', 'claude', '--phase', 'turnFinished'],
                 { env: { ...process.env, ...environment } },
             );
             expect(providerMismatch.stderr).toBe('');
@@ -524,16 +476,7 @@ describe('AgentHookManager', () => {
             expect(await readHooks(join(codexHome, 'hooks.json'))).toEqual({});
             await execFileAsync(
                 bridge,
-                [
-                    '--source',
-                    'caxri',
-                    '--provider',
-                    'codex',
-                    '--phase',
-                    'turnFinished',
-                    '--schema',
-                    String(codexHookAdapter.schemaVersion),
-                ],
+                ['--source', 'caxri', '--provider', 'codex', '--phase', 'turnFinished'],
                 { env: { ...process.env, ...environment } },
             );
             expect(signals).toHaveBeenCalledTimes(4);
@@ -713,7 +656,7 @@ describe('AgentHookManager', () => {
         }
     });
 
-    it('never downgrades or uninstalls entries owned by a newer Caxri schema', async () => {
+    it('never downgrades or uninstalls entries owned by a newer Caxri schema, even behind a conflict', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-hooks-newer-'));
         temporaryDirectories.push(directory);
         const codexHome = join(directory, 'codex');
@@ -727,7 +670,7 @@ describe('AgentHookManager', () => {
                                 {
                                     type: 'command',
                                     command:
-                                        "'/newer/bridge' --source caxri --provider codex --phase turnFinished --schema 9",
+                                        "'/newer/bridge' --source caxri --provider codex --phase turnFinished --schema 99",
                                     timeout: 1,
                                 },
                             ],
@@ -757,7 +700,7 @@ describe('AgentHookManager', () => {
 
         try {
             await manager.initialize(settings);
-            expect(manager.getHealth().codex.kind).toBe('newer');
+            expect(manager.getHealth().codex.kind).toBe('installedPending');
             expect(await readFile(hooksPath, 'utf8')).toBe(newerSource);
 
             await writeFile(

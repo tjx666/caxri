@@ -7,7 +7,6 @@ import { defaultAgentProviderSettings } from '@caxri/protocol';
 import { execFileAsync, StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { codexHookAdapter } from '../../providers/codex/hooks';
 import type { AgentLifecycleSignal, AgentSignalDecision } from '../contract';
 import { AgentHookManager } from '../manager';
 
@@ -55,16 +54,7 @@ describe('AgentHookManager observability', () => {
         ): Promise<void> => {
             const invocation = execFileAsync(
                 bridge,
-                [
-                    '--source',
-                    'caxri',
-                    '--provider',
-                    'codex',
-                    '--phase',
-                    phase,
-                    '--schema',
-                    String(codexHookAdapter.schemaVersion),
-                ],
+                ['--source', 'caxri', '--provider', 'codex', '--phase', phase],
                 { env: { ...process.env, ...environment } },
             );
             if (payload) invocation.child.stdin?.end(JSON.stringify(payload));

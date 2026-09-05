@@ -120,6 +120,11 @@ export interface AgentHookConfigTarget {
 export interface DesiredHookInstall {
     bridgePath: string;
     provider: AgentProvider;
+    /**
+     * Ordering token for the shared provider file: a manager repairs owned entries with a lower version and never
+     * touches entries with a higher one. It is not what the socket validates against; that value reaches the bridge
+     * through the launch environment.
+     */
     schemaVersion: number;
 }
 
@@ -155,6 +160,11 @@ interface AgentHookSupport {
  */
 export interface AgentHookAdapter {
     readonly bindings: readonly AgentHookBinding[];
+    /**
+     * Bump whenever `bindings`, the rendered command, or the hook timeout changes. Two builds with equal versions but
+     * different rendered entries have no ordering token to settle on, so they would rewrite the shared provider file
+     * back and forth forever (issue #557).
+     */
     readonly schemaVersion: number;
     autoNamingConflict?(documents: AgentHookDocuments): string | undefined;
     configTargets(environment: AgentEnvironment): readonly AgentHookConfigTarget[];
