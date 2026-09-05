@@ -352,14 +352,23 @@ describe('Acceptance Electron stopper', () => {
         electronExitsAt?: number;
         launcherExitsAt: number;
         launcherGraceMs?: number;
+        /**
+         * By default the window and Server Core exit with the launcher, as a launcher that finishes its own teardown
+         * leaves them. A launcher killed mid-teardown strands them instead, and they then only die to SIGKILL.
+         */
+        orphansOutliveLauncher?: boolean;
         withReceipt?: boolean;
     }) {
         let clock = 0;
-        const liveProcessIds = new Set([111, 333]);
+        const liveProcessIds = new Set([111, 222, 333]);
         const isLauncherAlive = () => liveProcessIds.has(111) && clock < input.launcherExitsAt;
-        const isServerCoreAlive = () => liveProcessIds.has(333) && isLauncherAlive();
+        const isOwnedByLauncher = () =>
+            (input.orphansOutliveLauncher ?? false) || isLauncherAlive();
+        const isServerCoreAlive = () => liveProcessIds.has(333) && isOwnedByLauncher();
         const isElectronAlive = () =>
-            isLauncherAlive() && clock < (input.electronExitsAt ?? Infinity);
+            liveProcessIds.has(222) &&
+            isOwnedByLauncher() &&
+            clock < (input.electronExitsAt ?? Infinity);
         const isCdpReachable = () =>
             isElectronAlive() &&
             (input.cdpFlapPeriodMs === undefined ||
@@ -502,10 +511,10 @@ describe('Acceptance Electron stopper', () => {
 
         expect(kill).toHaveBeenCalledWith(111, 'SIGKILL');
         expect(deps.log).toHaveBeenCalledWith(
-            expect.stringContaining('exceeded the 4000ms deadline'),
+            expect.stringContaining('exceeded the 3000ms deadline'),
         );
         expect(deps.log).toHaveBeenCalledWith(
-            expect.stringMatching(/^Acceptance launcher deadline-killed after 4\d{3}ms/),
+            expect.stringMatching(/^Acceptance launcher deadline-killed after 3\d{3}ms/),
         );
         expect(deps.forceCompleteCaseLifecycle).toHaveBeenCalledWith(
             expect.any(String),
@@ -513,6 +522,28 @@ describe('Acceptance Electron stopper', () => {
                 reason: expect.stringContaining('absolute deadline') as string,
             }),
         );
+    });
+
+    it('hands the window and Server Core a deadline-killed launcher stranded to the owned-process tier', async () => {
+        const { deps, kill, run } = launcherScenario({
+            cdpFlapPeriodMs: 500,
+            launcherExitsAt: Infinity,
+            launcherGraceMs: 1_000,
+            orphansOutliveLauncher: true,
+        });
+        vi.mocked(deps.forceCompleteCaseLifecycle).mockResolvedValue('completed');
+
+        await expect(run()).resolves.toBeUndefined();
+
+        const signals = kill.mock.calls.map(([pid, signal]) => `${signal}:${pid}`);
+        expect(signals.indexOf('SIGKILL:111')).toBeLessThan(signals.indexOf('SIGTERM:222'));
+        expect(signals.indexOf('SIGTERM:222')).toBeLessThan(signals.indexOf('SIGKILL:222'));
+        expect(signals.indexOf('SIGTERM:333')).toBeLessThan(signals.indexOf('SIGKILL:333'));
+        expect(deps.forceCompleteCaseLifecycle).toHaveBeenCalledWith(
+            expect.any(String),
+            expect.objectContaining({ launchId: 'launch-1', source: 'stop-electron' }),
+        );
+        expect(deps.log).toHaveBeenCalledWith('Stopped owned Caxri acceptance instance');
     });
 
     it('records unverified cleanup honestly when the profile still exists after a forced stop', async () => {

@@ -128,9 +128,9 @@ the same case with `Previous Acceptance case launch has not completed`. The laun
 report is supposed to prove.
 
 **Works:** Stop the instance through `stop-electron.ts` first. The adapter lets the launcher finish
-its own teardown, escalates only after a long quiet period, and completes the receipt itself when
-the launcher could not; a launch closed this way carries `forcedCompletion` naming the source and
-reason. If the receipt is still pending afterwards — for example the launcher was killed by
+its own teardown, escalates only after a long quiet period or once three grace periods have
+elapsed regardless of progress, and completes the receipt itself when the launcher could not; a
+launch closed this way carries `forcedCompletion` naming the source and reason. If the receipt is still pending afterwards — for example the launcher was killed by
 something other than the adapter — run
 `bun run .agents/skills/acceptance/scripts/report.ts repair-lifecycle --dir <round> --case-id <id> --reason "<why>"`.
 It closes the pending launch with the reason on record and, for an isolated case, only after

@@ -29,9 +29,10 @@ const DEFAULT_LAUNCHER_GRACE_MS = 30_000;
 /**
  * Progress can keep renewing the grace: a stalled main thread makes the CDP probe flap and a restarted Server
  * generation moves the live count. This multiple of the grace is the absolute ceiling of the launcher tier, so a
- * teardown that never converges is still escalated and the stop always returns.
+ * teardown that never converges is still escalated. With the default grace the launcher tier ends within 90s and the
+ * owned-process tier within a further 10s, inside the 120s budget an agent shell gives the documented stop command.
  */
-const LAUNCHER_DEADLINE_MULTIPLIER = 4;
+const LAUNCHER_DEADLINE_MULTIPLIER = 3;
 const OWNED_PROCESS_FORCE_DELAY_MS = 5_000;
 const OWNED_PROCESS_DEADLINE_MS = 10_000;
 const POLL_INTERVAL_MS = 250;
