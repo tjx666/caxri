@@ -105,6 +105,7 @@ export const logEventCatalog = {
         githubCommand: 'git.github_command',
         githubCommandFailed: 'git.github_command_failed',
         metadataWatcherReady: 'git.metadata_watcher_ready',
+        refreshSummary: 'git.refresh_summary',
         summary: 'git.summary',
     },
     desktop: {

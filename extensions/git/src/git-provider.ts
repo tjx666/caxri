@@ -51,6 +51,19 @@ interface GitProviderScopeState {
     revision: string;
     revisionSequence: number;
     refreshSequence: number;
+    /**
+     * Server-facing refresh nonce. Only a user-initiated refresh (panel Refresh, Sync, Discard, or the
+     * `caxri.git.refresh` command) advances it; watcher-driven and active-context re-reads keep the previous value so
+     * the Server joins its current generation instead of forcing a parallel full re-discovery on every `git.changed`
+     * (#584).
+     */
+    forceSequence: number;
+    /**
+     * `forceSequence` value most recently handed to `git.pullRequestChanges`, per repository. Unlike `git.summary`, the
+     * Server treats any nonzero `refresh` there as an unconditional cache bypass, so the provider must send the nonce
+     * once per user action and fall back to `0` for every later watcher-driven re-read.
+     */
+    pullRequestForcedSequences: Map<string, number>;
 }
 
 interface DetailTask {
@@ -104,8 +117,10 @@ export class GitProvider implements SourceControlProvider {
             commitOpenSequence: 0,
             mode: 'working',
             pullRequests: new Map(),
+            pullRequestForcedSequences: new Map(),
             repositories: new Map(),
             actionSequence: 0,
+            forceSequence: 0,
             refreshSequence: 0,
             revision: '0',
             revisionSequence: 0,
@@ -232,13 +247,21 @@ export class GitProvider implements SourceControlProvider {
             status: 'loading',
         };
         state.pullRequests.set(repo.id, detail);
+        /**
+         * Only a user action forces the Server (#584). `git.pullRequestChanges` has no last-seen-nonce memory: any
+         * nonzero `refresh` bypasses its cache and single-flight key, so the nonce is sent once per action and
+         * watcher-driven re-reads send `0`. Marked before the call so a cancelled request does not re-force.
+         */
+        const isForced = (state.pullRequestForcedSequences.get(repo.id) ?? 0) < state.forceSequence;
+        state.pullRequestForcedSequences.set(repo.id, state.forceSequence);
+        const refresh = isForced ? state.forceSequence : 0;
         this.enqueueDetail({
             cancellation,
             run: async () => {
                 try {
                     const value = await this.workspace.git.pullRequestChanges(
                         repo.id,
-                        state.refreshSequence,
+                        refresh,
                         cancellation.token,
                     );
                     this.setDetailResult(state, state.pullRequests, repo.id, detail, value);
@@ -282,7 +305,39 @@ export class GitProvider implements SourceControlProvider {
             throw providerError('GENERATION_EXPIRED', 'Source Control model revision expired');
     }
 
+    private statesFor(scopeId?: string): GitProviderScopeState[] {
+        if (!scopeId) return this.scopes.values().toArray();
+        const state = this.scopes.get(scopeId);
+        return state ? [state] : [];
+    }
+
+    /**
+     * The Server compares the nonce against the last one it saw for the Session, and that memory outlives this
+     * Extension Host process. Anchoring the nonce to wall-clock time keeps a user refresh forcing after a Host restart
+     * reset local state to zero; the `+ 1` floor keeps two actions in the same millisecond distinct.
+     */
+    private requestForcedRefresh(state: GitProviderScopeState): void {
+        state.forceSequence = Math.max(state.forceSequence + 1, Date.now());
+    }
+
+    /**
+     * Panel actions (`runAction`) and Renderer commands (`executeCommand`) funnel through here so a command that
+     * reports `refresh: true` advances the Server-facing nonce exactly once. The command palette's `caxri.git.refresh`
+     * is the one exception: its dispatch has no result channel and `executeCommand` resolves scope by repository
+     * argument rather than the active context, so `extension.ts` binds it to `forceRefresh`, which advances the same
+     * nonce through `requestForcedRefresh`.
+     */
     private async executeAction(
+        state: GitProviderScopeState,
+        command: ActionRegistration['command'],
+        token: CancellationToken,
+    ): Promise<Omit<SourceControlActionResult, 'revision'>> {
+        const result = await this.dispatchCommand(state, command, token);
+        if (result.refresh) this.requestForcedRefresh(state);
+        return result;
+    }
+
+    private async dispatchCommand(
         state: GitProviderScopeState,
         command: ActionRegistration['command'],
         token: CancellationToken,
@@ -382,7 +437,7 @@ export class GitProvider implements SourceControlProvider {
             this.clearDetails(state);
         }
         const revision = this.nextRevision(state);
-        const rawSummary = await this.workspace.git.summary(state.refreshSequence, token);
+        const rawSummary = await this.workspace.git.summary(state.forceSequence, token);
         assertNotCancelled(token);
         if (revision !== state.revision)
             throw providerError('GENERATION_EXPIRED', 'Source Control snapshot was superseded');
@@ -625,18 +680,24 @@ export class GitProvider implements SourceControlProvider {
         this.changed.fire({ kind: 'selection', selectedModeId: mode });
     }
 
+    /**
+     * Watcher-driven or context-driven re-read: drops cached details and asks the Renderer to re-read the view, but
+     * keeps the Server-facing nonce so the Server joins its current generation instead of forcing a re-discovery.
+     */
     refresh(scopeId?: string): void {
-        const scopedState = scopeId ? this.scopes.get(scopeId) : undefined;
-        const states: Iterable<GitProviderScopeState> = scopeId
-            ? scopedState
-                ? [scopedState]
-                : []
-            : this.scopes.values();
-        for (const state of states) {
+        for (const state of this.statesFor(scopeId)) {
             this.clearDetails(state);
             this.nextRevision(state);
         }
         this.changed.fire({ kind: 'refresh' });
+    }
+
+    /**
+     * User-initiated refresh outside the panel (command palette): forces the Server like the panel's Refresh action.
+     */
+    forceRefresh(scopeId?: string): void {
+        for (const state of this.statesFor(scopeId)) this.requestForcedRefresh(state);
+        this.refresh(scopeId);
     }
 
     dispose(): void {

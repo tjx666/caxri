@@ -9,7 +9,7 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError, MAX_GIT_STATUS_FILES } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog, mapWithConcurrency } from '@caxri/system';
+import { mapWithConcurrency } from '@caxri/system';
 
 import { isOutsideRoot } from '../path-security';
 import type { ProjectRootResolver } from '../project-roots';
@@ -21,6 +21,8 @@ import { MissingRepoRootCache } from './missing-root-cache';
 import { sharedGitRequest } from './request-signal';
 import type { RepoStatus } from './status';
 import { parseGitLineStats, parseGitStatus, RepoStatusStore } from './status';
+import { GitSummaryTelemetry } from './summary-telemetry';
+import type { GitSummaryRequester, SummaryTrace } from './summary-trace';
 import type { RepoTopologyRegistry } from './topology';
 
 const MAX_CONCURRENT_GIT_COMMANDS = 8;
@@ -103,21 +105,6 @@ interface GitRepoServiceOptions {
     tracker: GitChangeTracker;
 }
 
-/**
- * Per-summary attribution counters for the `git.summary` producer boundary event. Every Git command spawned on behalf
- * of one summary increments `commandCount`, which is what the startup benchmark asserts on instead of individual
- * `git.command` records.
- */
-interface SummaryTrace {
-    commandCount: number;
-    worktreeListed: number;
-    worktreeApproved: number;
-    childRepositories: number;
-    statusFresh: number;
-    statusJoined: number;
-    statusCoalesced: number;
-}
-
 interface ChildCacheEntry {
     approvedKey: string;
     children: RepoRoot[];
@@ -196,19 +183,26 @@ function isHiddenByChildRepo(
  * here so it is never duplicated by a sibling service.
  */
 export class GitRepoService {
+    /**
+     * Keyed by Session lifetime; a force arriving mid-flight queues one trailing run that every further force shares
+     * instead of racing a parallel producer. See {@link GitRepoService.summary}.
+     */
     private readonly summaries = new SingleFlight<string, GitSummary>();
     private readonly statuses = new RepoStatusStore<RepoStatus>();
     private readonly childCache = new Map<string, ChildCacheEntry>();
     private readonly refreshNonces = new Map<string, number>();
     private readonly sessionGenerations = new Map<string, number>();
     private readonly missingRepositoryRoots = new MissingRepoRootCache();
+    private readonly telemetry: GitSummaryTelemetry;
     private nextSessionGeneration = 0;
     private metadataWatcher?: GitMetadataWatcher;
 
     constructor(
         private readonly paths: ProjectRootResolver,
         private readonly options: GitRepoServiceOptions,
-    ) {}
+    ) {
+        this.telemetry = new GitSummaryTelemetry(options.logger);
+    }
 
     /**
      * Funnel for every Git command issued on behalf of one summary so the producer boundary event can attribute an
@@ -323,9 +317,11 @@ export class GitRepoService {
         sessionId: string,
         reason: 'request' | 'refresh',
         sessionGeneration: number,
+        requester: GitSummaryRequester,
     ): Promise<GitSummary> {
         const startedAt = performance.now();
         const trace: SummaryTrace = {
+            requester,
             commandCount: 0,
             worktreeListed: 0,
             worktreeApproved: 0,
@@ -357,21 +353,17 @@ export class GitRepoService {
             this.sessionGenerations.delete(sessionId);
             this.refreshNonces.delete(sessionId);
         }
-        this.options.logger.write('info', logEventCatalog.git.summary, {
-            durationMs: performance.now() - startedAt,
-            fields: {
-                ...trace,
-                fileCount: summary.repositories.reduce(
-                    (total, repo) => total + repo.files.length,
-                    0,
-                ),
-                generation: summary.repositories[0]?.generation ?? 0,
-                truncated: summary.repositories.some((repo) => repo.truncated),
-                isRepository: summary.isRepository,
-                outcome: 'fresh',
-                reason,
-            },
+        this.telemetry.recordProduced(sessionId, summary, performance.now() - startedAt, {
+            ...trace,
+            fileCount: summary.repositories.reduce((total, repo) => total + repo.files.length, 0),
+            generation: summary.repositories[0]?.generation ?? 0,
+            truncated: summary.repositories.some((repo) => repo.truncated),
+            isRepository: summary.isRepository,
+            reason,
         });
+        // A production that settles after its Session was evicted must not leave a window behind that only Server
+        // close would publish; flush it now so eviction stays the last word for that Session.
+        if (!isCurrentSessionGeneration) this.telemetry.flush([sessionId]);
         return summary;
     }
 
@@ -629,6 +621,7 @@ export class GitRepoService {
         for (const sessionId of sessionIds) this.sessionGenerations.delete(sessionId);
         this.options.tracker.evictSessions(sessionIds);
         for (const sessionId of sessionIds) this.refreshNonces.delete(sessionId);
+        this.telemetry.flush(sessionIds);
         this.retainReferencedRepositoryState();
         // Fire-and-forget: eviction must never block on watcher teardown; failures downgrade to
         // the watcher's own polling fallback and are logged there.
@@ -637,10 +630,30 @@ export class GitRepoService {
     }
 
     /**
-     * `refresh` is a monotonic user nonce: a value above the Session's last seen nonce forces the newest generation
-     * (fresh topology and status) instead of joining cached snapshots.
+     * Publishes every open per-Session refresh aggregate at the Server lifecycle boundary so the last window of a run
+     * is not lost with the process. Session generations are dropped as well: a production still in flight then settles
+     * as a superseded generation and takes the post-eviction flush path instead of reopening a window nobody
+     * publishes.
      */
-    summary(sessionId: string, refresh = 0): Promise<GitSummary> {
+    close(): void {
+        this.sessionGenerations.clear();
+        this.refreshNonces.clear();
+        this.telemetry.flush();
+    }
+
+    /**
+     * `refresh` is a monotonic user nonce: a value above the Session's last seen nonce forces the newest generation
+     * (fresh topology and status) instead of joining cached snapshots. Coalescing is keyed by Session lifetime only,
+     * never by the nonce: keying on the nonce made a forced refresh and a plain read for the same Session run as two
+     * parallel full producers (#584, the defect class of #556). A plain read joins whatever is in flight; a force
+     * arriving mid-flight queues one trailing forced run that starts after the current producer settles, so its
+     * snapshot postdates the user's action with one Git batch per Session.
+     */
+    summary(
+        sessionId: string,
+        refresh = 0,
+        requester: GitSummaryRequester = 'renderer',
+    ): Promise<GitSummary> {
         let sessionGeneration = this.sessionGenerations.get(sessionId);
         if (sessionGeneration === undefined) {
             sessionGeneration = ++this.nextSessionGeneration;
@@ -649,20 +662,32 @@ export class GitRepoService {
         const lastNonce = this.refreshNonces.get(sessionId) ?? 0;
         const isForce = refresh > lastNonce;
         if (isForce) this.refreshNonces.set(sessionId, refresh);
-        const key = `${sessionId}#${sessionGeneration}#${refresh}`;
-        if (this.summaries.has(key))
-            this.options.logger.write('debug', logEventCatalog.git.summary, {
-                fields: { outcome: 'joined', reason: isForce ? 'refresh' : 'request' },
-            });
+        const reason = isForce ? 'refresh' : 'request';
+        const key = `${sessionId}#${sessionGeneration}`;
+        const inFlight = this.summaries.get(key);
+        /**
+         * The nonce is remembered when the force is accepted, but its trailing run only starts after the current
+         * producer settles. A re-read carrying that same nonce during the gap must wait for the queued forced run
+         * rather than join the pre-click producer, or the user's refresh would render a stale snapshot.
+         */
+        const awaitsQueuedForce =
+            !isForce && refresh > 0 && refresh === lastNonce && this.summaries.isQueued(key);
+        if (inFlight && !isForce && !awaitsQueuedForce) {
+            this.telemetry.recordJoined(sessionId, requester);
+            return sharedGitRequest(() => inFlight);
+        }
+        if (inFlight)
+            this.telemetry.recordQueued(sessionId, requester, this.summaries.isQueued(key));
+        const load = () => this.loadSummary(sessionId, reason, sessionGeneration, requester);
         return sharedGitRequest(() =>
-            this.summaries.run(key, () =>
-                this.loadSummary(sessionId, isForce ? 'refresh' : 'request', sessionGeneration),
-            ),
+            isForce || awaitsQueuedForce
+                ? this.summaries.runAfter(key, load)
+                : this.summaries.run(key, load),
         );
     }
 
     async resolveRepository(sessionId: string, repoIdValue: string): Promise<GitRepoSummary> {
-        const summary = await this.summary(sessionId);
+        const summary = await this.summary(sessionId, 0, 'repository');
         const repo = summary.repositories.find((candidate) => candidate.id === repoIdValue);
         if (!repo)
             throw new CaxriError(
@@ -678,7 +703,7 @@ export class GitRepoService {
     async discardSnapshot(sessionId: string, repoIdValue: string): Promise<GitDiscardSnapshot> {
         // Refresh the projection before hashing the status stream; that stream remains the consent-race authority.
         const refresh = (this.refreshNonces.get(sessionId) ?? 0) + 1;
-        const summary = await this.summary(sessionId, refresh);
+        const summary = await this.summary(sessionId, refresh, 'discard');
         const repo = summary.repositories.find((candidate) => candidate.id === repoIdValue);
         if (!repo)
             throw new CaxriError(

@@ -205,6 +205,19 @@ describe('ExtensionService Git workspace API authority', () => {
         );
     });
 
+    it('stamps the Extension Host requester on git.summary over any extension-supplied value', async () => {
+        const registration = await start(['git.read']);
+
+        await harness.requestApi!(
+            apiRequest(registration, 'git.summary', { refresh: 3, requester: 'renderer' }),
+        );
+        expect(workspaceRequest).toHaveBeenCalledWith(
+            'git.summary',
+            { refresh: 3, requester: 'extension', sessionId: 'session-1' },
+            { sessionId: 'session-1', workbenchProjectId: 'project-1' },
+        );
+    });
+
     it('denies a Git mutation when the extension declared only read capability', async () => {
         const registration = await start(['git.read']);
 

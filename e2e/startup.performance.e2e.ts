@@ -261,6 +261,9 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
         const gitCommand = records.findLast((record) => record.event === 'git.command');
         // The three-second Git gate covers the whole summary production (discovery + status +
         // numstat wall time and command count), not the last individual `git.command` record.
+        // Server Core logs at `info`, where a production whose result repeats the previous one for
+        // the Session is not written (#604); this therefore counts changed productions, which always
+        // includes the cold one of each Server lifetime.
         const gitSummaries = records.filter(
             (record) => record.event === 'git.summary' && record.fields?.outcome === 'fresh',
         );
@@ -359,8 +362,10 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
         expectTimedEvent(serverCoreBoot);
         expectTimedEvent(terminalSpawn);
         expectTimedEvent(fileList);
-        // Every fresh summary production across cold start and restore stays under the gate; a
-        // joined/coalesced consumer never spawns its own command chain so only `fresh` is timed.
+        // Every *changed* fresh summary production stays under the gate: Server Core logs at `info`,
+        // where GitSummaryTelemetry keeps only productions whose fingerprint changed, and the restore
+        // launch reuses the preserved Server Core, so an identical restore snapshot is not in this set.
+        // A joined/coalesced consumer never spawns its own command chain so only `fresh` is timed.
         expect(gitSummaries.length).toBeGreaterThan(0);
         for (const summaryRecord of gitSummaries) expectTimedEvent(summaryRecord);
         expect(Number(coldGitSummaryFields?.commandCount)).toBeGreaterThan(0);

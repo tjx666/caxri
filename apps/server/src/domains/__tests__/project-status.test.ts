@@ -238,7 +238,7 @@ describe('ProjectStatusService', () => {
         await vi.waitFor(() => expect(emitted).toHaveBeenCalledOnce());
         emitted.mockClear();
         const stale = service.summary('session-a');
-        await vi.waitFor(() => expect(git).toHaveBeenCalledWith('session-a'));
+        await vi.waitFor(() => expect(git).toHaveBeenCalledWith('session-a', 0, 'projectStatus'));
         service.evictSessions(['session-a']);
         pendingSummary.resolve(gitSummary);
         await stale;

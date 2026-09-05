@@ -187,7 +187,7 @@ export class ProjectStatusService {
     }
 
     private async loadOverview(sessionId: string): Promise<ProjectStatusOverview> {
-        const gitSummary = await this.git.summary(sessionId);
+        const gitSummary = await this.git.summary(sessionId, 0, 'projectStatus');
         if (!gitSummary.isRepository) {
             return { refreshedAt: this.now(), error: gitSummary.error };
         }
@@ -246,7 +246,7 @@ export class ProjectStatusService {
 
     private async prepareSummary(sessionId: string): Promise<PreparedSummary> {
         const startedAt = performance.now();
-        const gitSummary = await this.git.summary(sessionId);
+        const gitSummary = await this.git.summary(sessionId, 0, 'projectStatus');
         if (!gitSummary.isRepository) {
             return {
                 repositories: [],

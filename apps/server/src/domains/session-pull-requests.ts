@@ -441,7 +441,7 @@ export class SessionPullRequestService {
     private async primaryRepository(
         session: SessionRecord,
     ): Promise<GitSummary['repositories'][number] | undefined> {
-        const summary = await this.git.summary(session.id);
+        const summary = await this.git.summary(session.id, 0, 'pullRequests');
         if (!summary.isRepository) return undefined;
         return summary.repositories.find((candidate) => candidate.kind === 'primary');
     }

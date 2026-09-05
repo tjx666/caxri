@@ -224,8 +224,8 @@ export function createServiceHandlers(services: {
             emit({ event: 'state.changed', payload: { kind: 'full', reason: 'project.setIcon' } });
             return project;
         },
-        'git.summary': ({ sessionId, refresh }, signal) =>
-            withGitRequestSignal(signal, () => git.summary(sessionId, refresh)),
+        'git.summary': ({ sessionId, refresh, requester }, signal) =>
+            withGitRequestSignal(signal, () => git.summary(sessionId, refresh, requester)),
         'git.overview': ({ sessionId }) => git.overview(sessionId),
         'git.branches': (parameters) => git.branches(parameters),
         'git.switchBranch': (parameters) => git.switchBranch(parameters),
