@@ -16,6 +16,10 @@ import {
 } from './support/helpers.ts';
 
 const SESSION_TITLE = 'Background notification source';
+/**
+ * `AGENT_METADATA_REFRESH_DELAY_MS` (2 seconds) in the Server's Agent coordinator, plus slack for the probe itself.
+ */
+const TRAILING_PROBE_SETTLE_MS = 2_500;
 
 async function waitForReceipt(path: string): Promise<void> {
     await expect
@@ -334,6 +338,8 @@ setInterval(() => {
     } catch {
       fs.writeFileSync(trigger + '.receipt', 'failed');
     }
+    // A real Claude prints while it works; this output schedules the trailing metadata probe the test races against.
+    process.stdout.write('hook ' + name + '\r\n');
   }
 }, 25);
 process.stdin.setRawMode?.(true);
@@ -383,6 +389,14 @@ process.stdout.write('Fake Claude subagent lifecycle ready\r\n');
         );
         await writeFile(join(config, 'turn-started'), '', 'utf8');
         await waitForReceipt(join(config, 'turn-started.receipt'));
+        /**
+         * The fake never writes Claude session metadata, so the trailing probe scheduled 2 seconds after PTY output
+         * reads `unknown`. Waiting here lands that probe between `turnStarted` and the parent's `Stop`, the only window
+         * in which the Server used to let it demote the hook-established `running` (issue #568). The scheduler is a
+         * throttle, so the wait must sit inside the window: once `Stop` restores hook authority the same probe is
+         * preserved, which is why the original case only failed on a machine slower than the delay.
+         */
+        await running.page.waitForTimeout(TRAILING_PROBE_SETTLE_MS);
         const sourceRow = running.page.locator(`[data-session-id="${sourceSessionId}"]`);
         const sourceStatus = sourceRow.locator('.session-status');
         await expect(sourceStatus).toHaveAttribute('data-session-status', 'running');

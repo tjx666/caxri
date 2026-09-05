@@ -152,6 +152,81 @@ describe('AgentCoordinator subagent lifecycle', () => {
         }
     });
 
+    it('keeps a hook-started turn running when a probe has no provider evidence', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-claude-turn-probe-unknown-'));
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'claude');
+        /**
+         * The exact shape `AgentService.snapshot` produces for a live process whose Claude store cannot be matched yet:
+         * the process is alive (`unknown`), nothing else is known.
+         */
+        const snapshot = vi.fn<AgentAdapter['snapshot']>(() =>
+            Promise.resolve({
+                available: true,
+                observedAt: Date.now(),
+                provider: 'claude',
+                status: 'unknown',
+            }),
+        );
+        const coordinator = new AgentCoordinator(
+            database,
+            createAgents(snapshot),
+            () => {},
+            new StructuredLogger(join(directory, 'logs')),
+        );
+        const terminalId = created.terminal!.id;
+        const signal = (
+            phase: 'turnStarted' | 'turnFinished' | 'subagentStarted',
+            agentId?: string,
+        ) =>
+            coordinator.observeLifecycleSignal({
+                ...(agentId && { agentId }),
+                launchId: 'launch-1',
+                phase,
+                provider: 'claude',
+                terminalId,
+            });
+
+        try {
+            coordinator.beginTerminalLaunch(terminalId, 'launch-1');
+            await coordinator.probeTerminalNow(terminalId);
+            signal('turnStarted');
+            signal('subagentStarted', 'subagent-1');
+
+            await coordinator.probeTerminalNow(terminalId);
+            expect(database.getSession(created.session.id)).toMatchObject({
+                attentionEpoch: 0,
+                hasUnread: false,
+                lastActivityState: 'running',
+            });
+
+            signal('turnFinished');
+            await coordinator.probeTerminalNow(terminalId);
+            expect(database.getSession(created.session.id)).toMatchObject({
+                attentionEpoch: 0,
+                hasUnread: false,
+                lastActivityState: 'running',
+            });
+
+            signal('turnFinished', 'subagent-1');
+            expect(database.getSession(created.session.id)).toMatchObject({
+                attentionEpoch: 1,
+                hasUnread: true,
+                lastActivityState: 'completed',
+                lastAttentionKind: 'completed',
+            });
+            await coordinator.probeTerminalNow(terminalId);
+            expect(database.getSession(created.session.id)).toMatchObject({
+                attentionEpoch: 1,
+                lastActivityState: 'completed',
+            });
+        } finally {
+            coordinator.close();
+            database.close();
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
+
     it('keeps deferred hook lifecycle authoritative over Claude metadata probes', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-claude-subagent-metadata-'));
         const database = new CaxriDatabase(join(directory, 'state.db'));
