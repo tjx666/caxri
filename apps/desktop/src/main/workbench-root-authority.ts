@@ -61,9 +61,17 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
         const selected = sessions.find((session) => session.id === state.selectedSessionId);
         if (selected) return selected.id;
         if (sessions.length === 1) return sessions[0].id;
-        if (sessions.length === 0)
+        if (sessions.length === 0) {
+            /**
+             * Server Core resolves a link into an auto-registered worktree Project only while a live Session uses it as
+             * its Workbench Root, and it refuses to create a Session inside such a Project. If that binding vanished
+             * between resolve and open, cancel instead of asking for a Session the Server would reject.
+             */
+            const project = state.projects.find((candidate) => candidate.id === projectId);
+            if (project?.ownerProjectId !== undefined) return undefined;
             return (await server.request('session.create', { projectId, defaultAgent: null }))
                 .session.id;
+        }
 
         const projectTitle =
             state.projects.find((project) => project.id === projectId)?.displayTitle ?? 'Project';

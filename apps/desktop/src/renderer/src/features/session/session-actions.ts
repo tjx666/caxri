@@ -220,6 +220,13 @@ export function resumeSelectedSession(): void {
 }
 
 /**
+ * The Server sweep owns delivery-CLI pacing per Session; the PrimarySidebar poll only asks for the latest projection at
+ * this cadence, and the `sessionPullRequests.changed` event refetches early when a sweep changes something. The palette
+ * uses the same number as its `staleTime`, so a hidden sidebar still leaves the palette self-refreshing at that rate.
+ */
+export const SESSION_PULL_REQUESTS_REFETCH_INTERVAL_MS = 60_000;
+
+/**
  * The Session's pull request as the PrimarySidebar last learned it. Read from the shared query cache rather than
  * refetched: the sidebar polls `session.pullRequests` for every row, so the palette and row menu answer from the same
  * snapshot the glyph is drawn from and never race a second lookup against it.
