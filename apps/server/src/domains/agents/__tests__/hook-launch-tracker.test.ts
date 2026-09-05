@@ -33,4 +33,17 @@ describe('HookLaunchTracker', () => {
         tracker.markTurnStarted('terminal', 'launch-1');
         expect(tracker.isTurnInFlight('terminal', 'launch-1')).toBe(true);
     });
+
+    it('ends an in-flight turn on a user interrupt without granting authority', () => {
+        const tracker = new HookLaunchTracker(() => 0);
+
+        tracker.markTurnStarted('terminal', 'launch-1');
+        tracker.markTurnInterrupted('terminal');
+        expect(tracker.isTurnInFlight('terminal', 'launch-1')).toBe(false);
+        expect(tracker.isAuthoritative('terminal', 'launch-1')).toBe(false);
+
+        tracker.markAuthoritative('terminal', 'launch-1');
+        tracker.markTurnInterrupted('terminal');
+        expect(tracker.isAuthoritative('terminal', 'launch-1')).toBe(true);
+    });
 });

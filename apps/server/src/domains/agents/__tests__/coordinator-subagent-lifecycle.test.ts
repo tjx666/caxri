@@ -227,6 +227,53 @@ describe('AgentCoordinator subagent lifecycle', () => {
         }
     });
 
+    it('lets a probe demote a hook-started turn after the user interrupts it', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-claude-turn-interrupted-'));
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'claude');
+        const snapshot = vi.fn<AgentAdapter['snapshot']>(() =>
+            Promise.resolve({
+                available: true,
+                observedAt: Date.now(),
+                provider: 'claude',
+                status: 'unknown',
+            }),
+        );
+        const coordinator = new AgentCoordinator(
+            database,
+            createAgents(snapshot),
+            () => {},
+            new StructuredLogger(join(directory, 'logs')),
+        );
+        const terminalId = created.terminal!.id;
+
+        try {
+            coordinator.beginTerminalLaunch(terminalId, 'launch-1');
+            await coordinator.probeTerminalNow(terminalId);
+            coordinator.observeLifecycleSignal({
+                launchId: 'launch-1',
+                phase: 'turnStarted',
+                provider: 'claude',
+                terminalId,
+            });
+            await coordinator.probeTerminalNow(terminalId);
+            expect(database.getSession(created.session.id)?.lastActivityState).toBe('running');
+
+            /**
+             * Neither provider fires `Stop` for a user interrupt, so the standalone Escape is the only evidence that
+             * the turn ended; the next probe must be free to read the idle process again.
+             */
+            coordinator.observeInput(terminalId, '\u{1B}');
+            expect(database.getSession(created.session.id)?.lastActivityState).toBe('running');
+            await coordinator.probeTerminalNow(terminalId);
+            expect(database.getSession(created.session.id)?.lastActivityState).toBe('unknown');
+        } finally {
+            coordinator.close();
+            database.close();
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
+
     it('keeps deferred hook lifecycle authoritative over Claude metadata probes', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-claude-subagent-metadata-'));
         const database = new CaxriDatabase(join(directory, 'state.db'));

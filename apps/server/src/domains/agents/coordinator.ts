@@ -10,7 +10,7 @@ import { AgentAttentionTracker } from './attention-tracker';
 import { agentProviderStateRoot } from './contract';
 import { HookLaunchTracker } from './hook-launch-tracker';
 import type { AgentLifecycleSignal, AgentSignalDecision } from './hooks/contract';
-import { AgentLifecycleWatchdogs } from './lifecycle-watchdogs';
+import { AgentLifecycleWatchdogs, isStandaloneEscape } from './lifecycle-watchdogs';
 import type { MetadataActivityBaseline } from './metadata-activity-baseline';
 import {
     isMetadataActivityBaselineMatch,
@@ -477,6 +477,7 @@ export class AgentCoordinator {
             state = { command: '', isBracketedPaste: false, valid: true };
         }
         this.lifecycleWatchdogs.observeInput(terminalId, data);
+        if (isStandaloneEscape(data)) this.hookLaunches.markTurnInterrupted(terminalId);
         let didSubmit = false;
         for (let index = 0; index < data.length; index += 1) {
             if (data.startsWith(BRACKETED_PASTE_START, index)) {
