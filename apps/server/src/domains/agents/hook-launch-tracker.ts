@@ -38,6 +38,23 @@ export class HookLaunchTracker {
         this.turns.set(terminalId, { launchId, startedAt: this.now() });
     }
 
+    /**
+     * Ends the in-flight turn without granting authority: the user interrupted the Agent at the PTY (a standalone
+     * Escape), and neither provider promises a `Stop` hook for that path. Claude documents that `Stop` does not run for
+     * a user interrupt (https://docs.anthropic.com/en/docs/claude-code/hooks#stop), and Codex aborts the same way. The
+     * next probe re-derives the activity state from provider evidence, or demotes an `unknown` reading as it did before
+     * the turn started, instead of pinning `running` for {@link HOOK_TURN_PRESERVE_MS} even though the Agent is back at
+     * its prompt.
+     *
+     * The keystroke is taken at face value: an Escape the TUI consumes for something else (dismissing a picker) also
+     * drops the turn, which is the bounded, self-healing side of the trade because the next lifecycle hook
+     * re-establishes `running`. Unlike the other mutators this one is not launch-scoped: the coordinator forgets the
+     * Terminal on every launch boundary, so only the current launch's turn can be present here.
+     */
+    markTurnInterrupted(terminalId: string): void {
+        this.turns.delete(terminalId);
+    }
+
     isAuthoritative(terminalId: string, launchId: string | undefined): boolean {
         const hookLaunchId = this.authoritativeLaunchIds.get(terminalId);
         return hookLaunchId !== undefined && hookLaunchId === launchId;

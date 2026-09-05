@@ -1,5 +1,13 @@
 import type { AgentOperation } from '@caxri/protocol';
 
+/**
+ * A single Escape byte submitted on its own is the user interrupting the Agent. Exact matching excludes Shift+Enter and
+ * navigation escape sequences, which arrive as longer payloads.
+ */
+export function isStandaloneEscape(data: string): boolean {
+    return data === '\u{1B}';
+}
+
 interface RunningTurnIdentity {
     agentTurnId: string;
     launchId: string;
@@ -65,10 +73,10 @@ export class AgentLifecycleWatchdogs {
 
     /**
      * Codex may abort compaction on a standalone Escape without emitting `PostCompact`. The coordinator calls this only
-     * after a live PTY accepts the bytes; exact matching excludes Shift+Enter and navigation escape sequences.
+     * after a live PTY accepts the bytes.
      */
     observeInput(terminalId: string, data: string): void {
-        if (data === '\u{1B}') this.clearCompaction(terminalId);
+        if (isStandaloneEscape(data)) this.clearCompaction(terminalId);
     }
 
     startCompaction(terminalId: string): void {
