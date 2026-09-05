@@ -9,7 +9,7 @@ import type {
     ServerOperationParameters,
     ServerOperationResult,
 } from '@caxri/protocol';
-import { CaxriError, MAX_FILE_LOCATE_DIRECTORY_MATCHES } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
 import type { CaxriDatabase } from '../db';
@@ -30,6 +30,7 @@ import type {
     SearchServiceOptions,
 } from './search';
 import { SearchService } from './search';
+import { shallowestProjectPath } from './shallowest-project-path';
 import type { WatcherServiceOptions } from './watcher';
 import { WatcherService } from './watcher';
 
@@ -355,8 +356,10 @@ export class FileService {
     }
 
     /**
-     * Path-browser fallback: locates Project-local directories whose relative path ends with `suffix`, so a relative
-     * path copied without its leading directories (for example from Agent output) can still be browsed.
+     * Path-browser fallback: locates the Project-local directory whose relative path ends with `suffix`, so a relative
+     * path copied without its leading directories (for example from Agent output) can still be browsed. The shallowest
+     * match wins, and that selection rule is owned here rather than by the caller so the returned path and the rule
+     * that produced it cannot drift apart.
      */
     async locateDirectory(
         parameters: ServerOperationParameters<'files.locateDirectory'>,
@@ -385,11 +388,12 @@ export class FileService {
         }
         if (result.canceled) throw new CaxriError('CANCELLED', 'Directory lookup was superseded');
         return {
-            paths: result.matches
-                .slice(0, MAX_FILE_LOCATE_DIRECTORY_MATCHES)
-                .map((match) => match.path),
-            truncated:
-                result.truncated || result.matches.length > MAX_FILE_LOCATE_DIRECTORY_MATCHES,
+            path:
+                shallowestProjectPath(
+                    root,
+                    result.matches.map((match) => match.path),
+                ) ?? null,
+            truncated: result.truncated,
         };
     }
 

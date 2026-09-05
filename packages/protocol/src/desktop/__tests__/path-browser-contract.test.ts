@@ -23,6 +23,13 @@ describe('path browser contract', () => {
         ).toBe(true);
     });
 
+    it('returns one shallowest located directory instead of a raw match list', () => {
+        const schema = pathBrowserServerMethods['files.locateDirectory'].result;
+        expect(schema.safeParse({ path: null, truncated: true }).success).toBe(true);
+        expect(schema.safeParse({ path: '/x', truncated: false }).success).toBe(true);
+        expect(schema.safeParse({ paths: [], truncated: false }).success).toBe(false);
+    });
+
     it('strips raw filesystem paths from snapshots before they reach the Renderer', () => {
         const parsed = pathBrowserMethods['pathBrowser.start'].result.parse({
             browserId: 'a142df47-520c-496d-bafb-645c95da6501',

@@ -170,7 +170,7 @@ describe('path browser authority', () => {
         });
     });
 
-    it('falls back to the shallowest Project directory matching a relative path suffix', async () => {
+    it('lists the shallowest Project directory Server Core located for a relative path suffix', async () => {
         const ownerRoot = await temporaryDirectory('caxri-path-owner-');
         const workbenchRoot = await temporaryDirectory('caxri-path-worktree-');
         const canonicalWorkbenchRoot = await realpath(workbenchRoot);
@@ -187,7 +187,7 @@ describe('path browser authority', () => {
                 if (method === 'files.locateDirectory') {
                     const { suffix } = parameters as { suffix: string };
                     return Promise.resolve({
-                        paths: suffix === 'packages/bank' ? [deep, shallow] : [],
+                        path: suffix === 'packages/bank' ? shallow : null,
                         truncated: false,
                     });
                 }
@@ -252,6 +252,72 @@ describe('path browser authority', () => {
             }),
         ).rejects.toMatchObject({ code: 'NOT_FOUND' });
         expect(request).not.toHaveBeenCalledWith('files.locateDirectory', expect.anything());
+    });
+
+    it('ignores a located directory Server Core reported outside the browse root', async () => {
+        const ownerRoot = await temporaryDirectory('caxri-path-owner-');
+        const workbenchRoot = await temporaryDirectory('caxri-path-worktree-');
+        const outside = join(await realpath(ownerRoot), 'packages', 'bank');
+        await mkdir(outside, { recursive: true });
+        const { authority, request } = authorityOptions(ownerRoot, workbenchRoot, {
+            request(method: string) {
+                if (method === 'app.bootstrap')
+                    return Promise.resolve(bootstrap(ownerRoot, workbenchRoot));
+                if (method === 'files.browse')
+                    return Promise.resolve({ entries: [], truncated: false });
+                if (method === 'files.locateDirectory')
+                    return Promise.resolve({ path: outside, truncated: false });
+                return Promise.reject(new Error(`Unexpected method: ${method}`));
+            },
+        });
+        const initial = await authority.start({ sessionId: 'session-1' });
+
+        await expect(
+            authority.browse({
+                browserId: initial.browserId,
+                mode: 'project',
+                input: 'packages/bank/index.ts',
+            }),
+        ).rejects.toMatchObject({ code: 'NOT_FOUND', message: 'File not found' });
+
+        // The rejected path must never become a memoized prefix, so a deeper suffix stays a negative memo hit.
+        request.mockClear();
+        await expect(
+            authority.browse({
+                browserId: initial.browserId,
+                mode: 'project',
+                input: 'packages/bank/src/index.ts',
+            }),
+        ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+        expect(request).not.toHaveBeenCalledWith('files.locateDirectory', expect.anything());
+    });
+
+    it('reports the Project as too large when the locate traversal was truncated without a match', async () => {
+        const ownerRoot = await temporaryDirectory('caxri-path-owner-');
+        const workbenchRoot = await temporaryDirectory('caxri-path-worktree-');
+        const { authority } = authorityOptions(ownerRoot, workbenchRoot, {
+            request(method: string) {
+                if (method === 'app.bootstrap')
+                    return Promise.resolve(bootstrap(ownerRoot, workbenchRoot));
+                if (method === 'files.browse')
+                    return Promise.resolve({ entries: [], truncated: false });
+                if (method === 'files.locateDirectory')
+                    return Promise.resolve({ path: null, truncated: true });
+                return Promise.reject(new Error(`Unexpected method: ${method}`));
+            },
+        });
+        const initial = await authority.start({ sessionId: 'session-1' });
+
+        await expect(
+            authority.browse({
+                browserId: initial.browserId,
+                mode: 'project',
+                input: 'packages/bank/index.ts',
+            }),
+        ).rejects.toMatchObject({
+            code: 'NOT_FOUND',
+            message: 'File not found; the Project is too large to locate a matching folder',
+        });
     });
 
     it('live-lists Home, parent, relative, and absolute free paths with opaque entries', async () => {
