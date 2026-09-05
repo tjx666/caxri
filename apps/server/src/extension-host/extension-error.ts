@@ -61,11 +61,16 @@ export function isHostOriginatedError(error: unknown): boolean {
  * API layer records the host's decision here, keyed to the request through `AsyncLocalStorage` rather than through
  * anything the extension can reach.
  *
- * Only host-expired API calls are recorded. A `CANCELLED` API rejection is not: it is driven by the token the extension
- * passed to the call, which may be the extension's own `CancellationTokenSource`; when it is the host's request token,
- * {@link HostRequestState.cancelled} already corroborates it.
+ * A `CANCELLED` is recorded only when it arrives in Server Core's own reply — the controlled-view scope fence rejects a
+ * `workspace.request` whose Session is no longer active with that code — and never when it follows the token the
+ * extension passed to the call, which may be the extension's own `CancellationTokenSource`. When that token is the
+ * host's request token, {@link HostRequestState.cancelled} already corroborates it.
  */
 export interface ProviderRequestScope {
+    /**
+     * Server Core rejected at least one API call this request issued with `CANCELLED` on its own initiative.
+     */
+    hostCancelledApiCall: boolean;
     /**
      * Server Core or the Extension Host generation check expired at least one API call this request issued.
      */
@@ -75,12 +80,12 @@ export interface ProviderRequestScope {
 const providerRequestScope = new AsyncLocalStorage<ProviderRequestScope>();
 
 export function createProviderRequestScope(): ProviderRequestScope {
-    return { hostExpiredApiCall: false };
+    return { hostCancelledApiCall: false, hostExpiredApiCall: false };
 }
 
 /**
  * Runs one provider call so that every `caxri.*` API request it issues, directly or through awaited continuations, can
- * be attributed back to `scope` by {@link recordHostApiExpiry}.
+ * be attributed back to `scope` by {@link recordHostApiRejection}.
  */
 export function withProviderRequestScope<Result>(
     scope: ProviderRequestScope,
@@ -94,12 +99,18 @@ export function currentProviderRequestScope(): ProviderRequestScope | undefined 
 }
 
 /**
- * Marks the owning provider request when the host itself rejects one of its API calls with `GENERATION_EXPIRED`. Called
- * by the API request layer with the scope captured when the call was issued, so a rejection delivered from the IPC
- * message handler still lands on the right request.
+ * Marks the owning provider request when the host itself rejects one of its API calls with a non-fault code. Called by
+ * the API request layer with the scope captured when the call was issued, so a rejection delivered from the IPC message
+ * handler still lands on the right request. The caller decides whether a rejection was the host's own decision; see
+ * {@link ProviderRequestScope} for the `CANCELLED` rule.
  */
-export function recordHostApiExpiry(scope: ProviderRequestScope | undefined, code: string): void {
-    if (scope && code === 'GENERATION_EXPIRED') scope.hostExpiredApiCall = true;
+export function recordHostApiRejection(
+    scope: ProviderRequestScope | undefined,
+    code: string,
+): void {
+    if (!scope) return;
+    if (code === 'CANCELLED') scope.hostCancelledApiCall = true;
+    else if (code === 'GENERATION_EXPIRED') scope.hostExpiredApiCall = true;
 }
 
 /**
@@ -132,7 +143,8 @@ function readErrorCode(error: unknown): string | undefined {
 }
 
 /**
- * Normalizes a failure that crossed extension code (a provider call) into a fresh host-owned error.
+ * Normalizes a failure that crossed extension code — a provider call, a contributed command, or `activate()` — into a
+ * fresh host-owned error.
  *
  * The returned object is always new, so any `hostError` membership the extension may have obtained — for example by
  * re-throwing a rejection it received from a `caxri.*` API call — never survives the trip. The non-fault codes are
@@ -140,25 +152,45 @@ function readErrorCode(error: unknown): string | undefined {
  *
  * - The bundled Git extension's own `assertNotCancelled` throws its own `CANCELLED` after the host cancelled the request
  *   (issue #587's Source Control Session-switch records);
- * - A provider registration or extension instance turned over while the provider was running;
- * - Server Core expired an API call the provider awaited (a Session switch mid-`git.summary`), which the bundled
- *   providers propagate unchanged and which is recorded in the request's {@link ProviderRequestScope}.
+ * - A provider registration or extension instance turned over while the extension code was running;
+ * - Server Core cancelled or expired an API call the extension awaited (a Session switch mid-`git.summary`), which the
+ *   bundled providers propagate unchanged and which is recorded in the request's {@link ProviderRequestScope}.
  *
- * Each of those is the host's decision reported back, not a provider fault. A `CANCELLED` or `GENERATION_EXPIRED` the
- * host cannot corroborate stays a fault, so a provider cannot silence a real failure by choosing the code (issue
- * #606).
+ * Each of those is the host's decision reported back, not an extension fault. A `CANCELLED` or `GENERATION_EXPIRED` the
+ * host cannot corroborate stays a fault, so extension code cannot silence a real failure by choosing the code (issue
+ * #606). `fallbackCode` keeps each boundary's existing wire code for an uncoded failure.
  */
 export function providerFailure(
     error: unknown,
     host: HostRequestState,
     fallbackMessage: string,
+    fallbackCode = 'PROVIDER_FAILED',
 ): Error {
     const code = readErrorCode(error);
     const message = error instanceof Error ? error.message : code ? String(error) : fallbackMessage;
-    if (code === 'CANCELLED' && host.cancelled) return hostError(code, message);
+    if (code === 'CANCELLED' && (host.cancelled || host.scope.hostCancelledApiCall))
+        return hostError(code, message);
     if (code === 'GENERATION_EXPIRED' && (host.generationExpired || host.scope.hostExpiredApiCall))
         return hostError(code, message);
-    return Object.assign(new Error(message), { code: code ?? 'PROVIDER_FAILED' });
+    return Object.assign(new Error(message), { code: code ?? fallbackCode });
+}
+
+/**
+ * Runs extension code — a provider call, a contributed command, or `activate()` — inside `scope` and normalizes any
+ * failure through {@link providerFailure}. `hostState` is read at catch time so turnover that happened while the
+ * extension code was running still corroborates. Pass a shared `scope` when several calls belong to one request.
+ */
+export async function runExtensionCode<Result>(
+    call: () => Promise<Result> | Result,
+    hostState: () => Omit<HostRequestState, 'scope'>,
+    fallback: { message: string; code?: string },
+    scope = createProviderRequestScope(),
+): Promise<Result> {
+    try {
+        return await withProviderRequestScope(scope, call);
+    } catch (error) {
+        throw providerFailure(error, { ...hostState(), scope }, fallback.message, fallback.code);
+    }
 }
 
 export interface ExtensionRequestFailureRecord {

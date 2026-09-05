@@ -116,60 +116,54 @@ describe('controlled view provider runtime', () => {
         expect(isHostOriginatedError(rejection)).toBe(false);
     });
 
-    it("re-mints Server Core's Session-switch expiry that a provider propagates from its own API call", async () => {
-        // Mirrors extensions/git/src/git-provider.ts `provideView`: `await this.workspace.git.summary(...)` has no
-        // catch, so when the active Session changes mid-read Server Core's GENERATION_EXPIRED reaches the boundary
-        // unchanged. Host state at the boundary (registration, token) is untouched by a Session switch, so only the
-        // API layer's record of its own decision can keep this the #587 debug non-fault.
-        const sent: ExtensionHostMessage[] = [];
-        registerSnapshotProvider(async () => {
-            await requestServerApi(
-                {
-                    apiToken: 'fixture-token',
-                    extensionId: 'publisher.fixture',
-                    generation: 3,
-                    assertCurrent: () => {},
-                    isApiTokenCurrent: () => true,
-                    send: (message) => sent.push(message),
-                },
-                {
-                    method: 'workspace.request',
-                    params: {
-                        operation: 'git.summary',
-                        arguments: { refresh: 0 },
-                        context: {
-                            kind: 'session',
-                            sessionId: 'session-1',
-                            workbenchProjectId: 'project-1',
+    it.each([
+        ['GENERATION_EXPIRED', 'Active Project changed while the extension request was running'],
+        ['CANCELLED', 'Controlled view scope is no longer active'],
+    ])(
+        "re-mints Server Core's own Session-switch %s that a provider propagates from its API call",
+        async (code, message) => {
+            // Mirrors extensions/git/src/git-provider.ts `provideView`: `await this.workspace.git.summary(...)` has no
+            // catch, so when the active Session changes mid-read Server Core's rejection (GENERATION_EXPIRED after the
+            // domain read, CANCELLED from the controlled-view scope fence before it) reaches the boundary unchanged. Host
+            // state at the boundary (registration, token) is untouched by a Session switch, so only the API layer's
+            // record of its own decision can keep this the #587 debug non-fault.
+            const sent: ExtensionHostMessage[] = [];
+            registerSnapshotProvider(async () => {
+                await requestServerApi(
+                    {
+                        apiToken: 'fixture-token',
+                        extensionId: 'publisher.fixture',
+                        generation: 3,
+                        assertCurrent: () => {},
+                        isApiTokenCurrent: () => true,
+                        send: (message) => sent.push(message),
+                    },
+                    {
+                        method: 'workspace.request',
+                        params: {
+                            operation: 'git.summary',
+                            arguments: { refresh: 0 },
+                            context: {
+                                kind: 'session',
+                                sessionId: 'session-1',
+                                workbenchProjectId: 'project-1',
+                            },
                         },
                     },
-                },
-            );
-            return model;
-        });
-        const request = snapshot('snapshot-session-switch');
-        await new Promise((resolve) => setTimeout(resolve, 0));
-        const issued = sent.find((message) => message.type === 'api-request');
-        expect(issued).toBeDefined();
-        settleApiReply(
-            {
-                id: issued!.id,
-                ok: false,
-                error: {
-                    code: 'GENERATION_EXPIRED',
-                    message: 'Active Project changed while the extension request was running',
-                },
-            },
-            () => true,
-        );
+                );
+                return model;
+            });
+            const request = snapshot(`snapshot-session-switch-${code}`);
+            await new Promise((resolve) => setTimeout(resolve, 0));
+            const issued = sent.find((message) => message.type === 'api-request');
+            expect(issued).toBeDefined();
+            settleApiReply({ id: issued!.id, ok: false, error: { code, message } }, () => true);
 
-        const rejection = await rejectionOf(request);
-        expect(rejection).toMatchObject({
-            code: 'GENERATION_EXPIRED',
-            message: 'Active Project changed while the extension request was running',
-        });
-        expect(isHostOriginatedError(rejection)).toBe(true);
-    });
+            const rejection = await rejectionOf(request);
+            expect(rejection).toMatchObject({ code, message });
+            expect(isHostOriginatedError(rejection)).toBe(true);
+        },
+    );
 
     it('strips host origin from a host-minted error a provider re-throws with current host state', async () => {
         // An extension can capture a rejection it received from a `caxri.*` API call and throw it from its provider.

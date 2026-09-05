@@ -5,7 +5,7 @@ import { currentObservationContext, mergeObservationContext } from '@caxri/syste
 import type { CancellationToken, DisposableLike } from 'caxri';
 
 import type { ProviderRequestScope } from './extension-error';
-import { currentProviderRequestScope, hostError, recordHostApiExpiry } from './extension-error';
+import { currentProviderRequestScope, hostError, recordHostApiRejection } from './extension-error';
 import type { ExtensionHostApiRequest, ExtensionHostMessage } from './protocol';
 
 type ExtensionHostApiRequestIdentity =
@@ -36,6 +36,11 @@ interface PendingApiRequest {
      */
     scope?: ProviderRequestScope;
     timer?: NodeJS.Timeout;
+    /**
+     * The call's own token was cancelled while the request stayed pending for an authoritative reply. A `CANCELLED`
+     * reply that follows is then the token's doing, not Server Core's own decision.
+     */
+    tokenCancelled?: boolean;
     sendCancel(): void;
 }
 
@@ -61,11 +66,13 @@ function clearPending(id: string, pending: PendingApiRequest): void {
 
 /**
  * Rejects on the host's own behalf. Besides minting the error host-originated, this tells the owning provider request
- * that the host expired one of its API calls, so a provider that propagates the rejection unchanged is still classified
- * as a non-fault at the provider boundary.
+ * that the host cancelled or expired one of its API calls, so a provider that propagates the rejection unchanged is
+ * still classified as a non-fault at the provider boundary. A `CANCELLED` that merely echoes the call's own token is
+ * not the host's decision and is not recorded.
  */
 function rejectAsHost(pending: PendingApiRequest, code: string, message: string): void {
-    recordHostApiExpiry(pending.scope, code);
+    if (!(code === 'CANCELLED' && pending.tokenCancelled))
+        recordHostApiRejection(pending.scope, code);
     pending.reject(hostError(code, message));
 }
 
@@ -141,6 +148,7 @@ export function requestServerApi<Result>(
         pending.cancellation = token?.onCancellationRequested(() => {
             const current = pendingApi.get(id);
             if (current !== pending) return;
+            pending.tokenCancelled = true;
             pending.sendCancel();
             /**
              * A mutation cancel is a request to stop before its point of no return, not proof that it stopped. Server

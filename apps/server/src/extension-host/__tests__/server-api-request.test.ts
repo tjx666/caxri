@@ -280,6 +280,62 @@ describe('provider request scope attribution', () => {
         );
         await expect(settled(failed)).resolves.toMatchObject({ code: 'GIT_FAILED' });
 
-        expect(scope.hostExpiredApiCall).toBe(false);
+        expect(scope).toEqual({ hostCancelledApiCall: false, hostExpiredApiCall: false });
+    });
+
+    it("marks the issuing request when Server Core's reply cancels the call on its own", async () => {
+        const sent: ExtensionHostMessage[] = [];
+        const scope = createProviderRequestScope();
+        const request = withProviderRequestScope(scope, () =>
+            requestServerApi({ ...apiContext, send: (message) => sent.push(message) }, summary),
+        );
+        const issued = sent.find((message) => message.type === 'api-request');
+        // The controlled-view scope fence in Server Core rejects a request whose Session is no longer active.
+        settleApiReply(
+            {
+                id: issued!.id,
+                ok: false,
+                error: { code: 'CANCELLED', message: 'Controlled view scope is no longer active' },
+            },
+            () => true,
+        );
+
+        await expect(settled(request)).resolves.toMatchObject({ code: 'CANCELLED' });
+        expect(scope.hostCancelledApiCall).toBe(true);
+    });
+
+    it("does not mark a CANCELLED reply that echoes the call's own token on a non-expiring mutation", async () => {
+        const sent: ExtensionHostMessage[] = [];
+        const scope = createProviderRequestScope();
+        const source = new CancellationTokenSource();
+        const request = withProviderRequestScope(scope, () =>
+            requestServerApi(
+                { ...apiContext, send: (message) => sent.push(message) },
+                {
+                    method: 'workspace.request',
+                    params: {
+                        operation: 'git.sync',
+                        arguments: { repositoryId: 'repository-1' },
+                        context,
+                    },
+                },
+                source.token,
+            ),
+        );
+        const issued = sent.find((message) => message.type === 'api-request');
+        // A mutation waits for the authoritative reply, so the extension's own cancellation surfaces as a Server
+        // Core CANCELLED reply; that reply is the token's doing and must not corroborate.
+        source.cancel();
+        settleApiReply(
+            {
+                id: issued!.id,
+                ok: false,
+                error: { code: 'CANCELLED', message: 'Sync was cancelled' },
+            },
+            () => true,
+        );
+
+        await expect(settled(request)).resolves.toMatchObject({ code: 'CANCELLED' });
+        expect(scope.hostCancelledApiCall).toBe(false);
     });
 });

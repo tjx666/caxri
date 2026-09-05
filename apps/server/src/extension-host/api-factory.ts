@@ -30,11 +30,12 @@ import {
     TreeItemCollapsibleState,
 } from 'caxri';
 
+import type { HostRequestState } from './extension-error';
 import {
     createProviderRequestScope,
     hostError,
     providerFailure,
-    withProviderRequestScope,
+    runExtensionCode,
 } from './extension-error';
 import type {
     ExtensionHostMessage,
@@ -493,7 +494,12 @@ export async function activateExtension(extensionId: string, generation: number)
             throw Object.assign(new Error(`Extension ${extensionId} does not export activate()`), {
                 code: 'ACTIVATION_FAILED',
             });
-        await module.activate(runtime.context);
+        const activate = module.activate;
+        await runExtensionCode(
+            () => activate(runtime.context),
+            () => ({ cancelled: false, generationExpired: !isInstanceCurrent(runtime) }),
+            { message: 'Extension activation failed', code: 'ACTIVATION_FAILED' },
+        );
         assertInstanceCurrent(runtime);
     })();
     await runtime.activation;
@@ -593,35 +599,27 @@ export async function getTreeChildren(parameters: {
     const refreshEpoch = provider.refreshEpoch;
     const scope = createProviderRequestScope();
     cancellations.set(parameters.requestId, cancellation);
-    const invokeProvider = <Result>(call: () => Result): Result =>
-        withProviderRequestScope(scope, () =>
-            parameters.context ? withViewEventContext(parameters.context, call) : call(),
-        );
     /**
-     * Evaluated at catch time so turnover that happened while the provider was running counts. The provider's own
-     * refresh epoch is not consulted here; see `HostRequestState.generationExpired`.
+     * Read at catch time so turnover that happened while the provider was running counts. The provider's own refresh
+     * epoch is not consulted here; see `HostRequestState.generationExpired`.
      */
-    const treeProviderFailure = (error: unknown): Error =>
-        providerFailure(
-            error,
-            {
-                cancelled: isRequestCancelled(cancellation),
-                generationExpired:
-                    !isInstanceCurrent(runtime) || providers.get(parameters.viewId) !== provider,
-                scope,
-            },
-            'Tree provider failed',
+    const treeHostState = (): Omit<HostRequestState, 'scope'> => ({
+        cancelled: isRequestCancelled(cancellation),
+        generationExpired:
+            !isInstanceCurrent(runtime) || providers.get(parameters.viewId) !== provider,
+    });
+    const invokeProvider = <Result>(call: () => Promise<Result> | Result): Promise<Result> =>
+        runExtensionCode(
+            () => (parameters.context ? withViewEventContext(parameters.context, call) : call()),
+            treeHostState,
+            { message: 'Tree provider failed' },
+            scope,
         );
     try {
-        let children: readonly unknown[];
-        try {
-            children =
-                (await invokeProvider(() =>
-                    provider.provider.getChildren(parent, cancellation.token),
-                )) ?? [];
-        } catch (error) {
-            throw treeProviderFailure(error);
-        }
+        const children =
+            (await invokeProvider(() =>
+                provider.provider.getChildren(parent, cancellation.token),
+            )) ?? [];
         assertInstanceCurrent(runtime);
         assertRefreshCurrent(provider, refreshEpoch);
         if (isRequestCancelled(cancellation)) return { items: [] };
@@ -631,12 +629,7 @@ export async function getTreeChildren(parameters: {
             });
         const stagedItems = await Promise.all(
             children.map(async (element) => {
-                let item: TreeItem | null | undefined;
-                try {
-                    item = await invokeProvider(() => provider.provider.getTreeItem(element));
-                } catch (error) {
-                    throw treeProviderFailure(error);
-                }
+                const item = await invokeProvider(() => provider.provider.getTreeItem(element));
                 if (!item)
                     throw Object.assign(new Error('Tree provider returned an empty TreeItem'), {
                         code: 'PROVIDER_FAILED',
@@ -716,7 +709,7 @@ export async function getTreeChildren(parameters: {
                     }),
                 });
             } catch (error) {
-                throw treeProviderFailure(error);
+                throw providerFailure(error, { ...treeHostState(), scope }, 'Tree provider failed');
             }
             return { dto, element, handle };
         });
@@ -764,7 +757,17 @@ export async function executeExtensionCommand(parameters: {
         throw Object.assign(new Error(`Command is not registered: ${parameters.commandId}`), {
             code: 'ACTIVATION_FAILED',
         });
-    await withViewEventContext(parameters.context, () => command.run(...parameters.arguments));
+    // Commands have no host cancellation token, so only instance/registration turnover or a host-rejected API call can
+    // corroborate a non-fault code; a re-thrown host-minted error loses its origin here like at a provider.
+    await runExtensionCode(
+        () => withViewEventContext(parameters.context, () => command.run(...parameters.arguments)),
+        () => ({
+            cancelled: false,
+            generationExpired:
+                !isInstanceCurrent(runtime) || commands.get(parameters.commandId) !== command,
+        }),
+        { message: 'Extension command failed', code: 'ACTIVATION_FAILED' },
+    );
     assertInstanceCurrent(runtime);
     return { executed: true };
 }
