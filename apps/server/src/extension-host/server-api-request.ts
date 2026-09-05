@@ -4,7 +4,10 @@ import { isNonExpiringViewOperation } from '@caxri/protocol';
 import { currentObservationContext, mergeObservationContext } from '@caxri/system';
 import type { CancellationToken, DisposableLike } from 'caxri';
 
+import type { ProviderRequestScope } from './extension-error';
+import { currentProviderRequestScope, hostError, recordHostApiRejection } from './extension-error';
 import type { ExtensionHostApiRequest, ExtensionHostMessage } from './protocol';
+import { currentViewEventContext } from './view-event-context';
 
 type ExtensionHostApiRequestIdentity =
     'apiToken' | 'extensionId' | 'generation' | 'id' | 'observation' | 'type';
@@ -28,7 +31,27 @@ interface PendingApiRequest {
     cancellation?: DisposableLike;
     resolve(value: unknown): void;
     reject(error: Error): void;
+    /**
+     * The provider request that issued this call, captured at issue time because the reply arrives on the IPC message
+     * handler, outside that request's async context.
+     */
+    scope?: ProviderRequestScope;
+    /**
+     * A `workspace.request` issued outside any host-supplied view event context, so the call declared its own
+     * `no-session` scope. Server Core's controlled-view fence rejects such a call with `CANCELLED` whenever a Session
+     * is active; that reports the extension's mis-scoped call, not the host's own turnover, so it must neither be
+     * minted host-originated nor mark the issuing request (issue #606). No host-driven case is lost: Server Core's
+     * `activeContextForApi` already rejects every `workspace.request` with `PROJECT_SCOPE_DENIED` while no Session is
+     * active, so a self-declared `no-session` call can never succeed and each of its rejections is the extension's own
+     * mis-scoping.
+     */
+    selfScoped?: boolean;
     timer?: NodeJS.Timeout;
+    /**
+     * The call's own token was cancelled while the request stayed pending for an authoritative reply. A `CANCELLED`
+     * reply that follows is then the token's doing, not Server Core's own decision.
+     */
+    tokenCancelled?: boolean;
     sendCancel(): void;
 }
 
@@ -43,15 +66,25 @@ const pendingApi = new Map<string, PendingApiRequest>();
 const SERVER_API_TIMEOUT_MS = 15_000;
 
 function cancellationError(): Error {
-    return Object.assign(new Error('Extension Host API request was cancelled'), {
-        code: 'CANCELLED',
-    });
+    return hostError('CANCELLED', 'Extension Host API request was cancelled');
 }
 
 function clearPending(id: string, pending: PendingApiRequest): void {
     pendingApi.delete(id);
     if (pending.timer) clearTimeout(pending.timer);
     pending.cancellation?.dispose();
+}
+
+/**
+ * Rejects on the host's own behalf. Besides minting the error host-originated, this tells the owning provider request
+ * that the host cancelled or expired one of its API calls, so a provider that propagates the rejection unchanged is
+ * still classified as a non-fault at the provider boundary. A `CANCELLED` that merely echoes the call's own token is
+ * not the host's decision and is not recorded.
+ */
+function rejectAsHost(pending: PendingApiRequest, code: string, message: string): void {
+    if (!(code === 'CANCELLED' && pending.tokenCancelled))
+        recordHostApiRejection(pending.scope, code);
+    pending.reject(hostError(code, message));
 }
 
 function requestTimeout(request: ServerApiRequestInput): number | undefined {
@@ -119,12 +152,16 @@ export function requestServerApi<Result>(
             apiToken: context.apiToken,
             resolve,
             reject,
+            scope: currentProviderRequestScope(),
+            selfScoped:
+                request.method === 'workspace.request' && currentViewEventContext() === undefined,
             timer,
             sendCancel: () => context.send({ type: 'api-cancel', id }),
         };
         pending.cancellation = token?.onCancellationRequested(() => {
             const current = pendingApi.get(id);
             if (current !== pending) return;
+            pending.tokenCancelled = true;
             pending.sendCancel();
             /**
              * A mutation cancel is a request to stop before its point of no return, not proof that it stopped. Server
@@ -153,25 +190,30 @@ export function settleApiReply(
     if (!pending) return;
     clearPending(message.id, pending);
     if (!isApiTokenCurrent(pending.apiToken)) {
-        pending.reject(
-            Object.assign(new Error('Extension generation was reconfigured'), {
-                code: 'GENERATION_EXPIRED',
-            }),
-        );
+        rejectAsHost(pending, 'GENERATION_EXPIRED', 'Extension generation was reconfigured');
         return;
     }
-    if (message.ok) pending.resolve(message.result);
-    else
-        pending.reject(
-            Object.assign(new Error(message.error?.message ?? 'Host API request failed'), {
-                code: message.error?.code ?? 'EXTENSION_HOST_UNAVAILABLE',
-            }),
-        );
+    if (message.ok) {
+        pending.resolve(message.result);
+        return;
+    }
+    const code = message.error?.code ?? 'EXTENSION_HOST_UNAVAILABLE';
+    const description = message.error?.message ?? 'Host API request failed';
+    // See `PendingApiRequest.selfScoped`: the fence answered the extension's own scoping, not a host decision.
+    if (code === 'CANCELLED' && pending.selfScoped) {
+        pending.reject(Object.assign(new Error(description), { code }));
+        return;
+    }
+    /**
+     * This rebuilds an error from Server Core's own reply rather than from anything an extension threw, so it is
+     * host-originated the same way a locally-raised `CANCELLED` / `GENERATION_EXPIRED` is.
+     */
+    rejectAsHost(pending, code, description);
 }
 
 export function rejectPendingApiRequests(message: string, code = 'GENERATION_EXPIRED'): void {
     for (const [id, pending] of pendingApi) {
         clearPending(id, pending);
-        pending.reject(Object.assign(new Error(message), { code }));
+        rejectAsHost(pending, code, message);
     }
 }

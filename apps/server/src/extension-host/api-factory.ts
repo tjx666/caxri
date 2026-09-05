@@ -30,6 +30,13 @@ import {
     TreeItemCollapsibleState,
 } from 'caxri';
 
+import type { HostRequestState } from './extension-error';
+import {
+    createProviderRequestScope,
+    hostError,
+    providerFailure,
+    runExtensionCode,
+} from './extension-error';
 import type {
     ExtensionHostMessage,
     ExtensionHostRegistration,
@@ -47,12 +54,11 @@ import {
 } from './server-api-request';
 import type { TreeRefreshBatch } from './tree-refresh-coalescing';
 import { mergeTreeRefresh } from './tree-refresh-coalescing';
+import { currentViewEventContext, withViewEventContext } from './view-event-context';
 import {
     createControlledViewRegistrationApi,
-    currentViewEventContext,
     didCancelViewRequest,
     retireViewProviders,
-    withViewEventContext,
 } from './view-provider-service';
 import { createWorkspaceApiClient } from './workspace-api-client';
 
@@ -143,9 +149,7 @@ function send(message: ExtensionHostMessage): void {
 function assertCurrent(extensionId: string, generation: number): ExtensionInstance {
     const runtime = extensions.get(extensionId);
     if (!runtime || runtime.registration.generation !== generation)
-        throw Object.assign(new Error(`Extension generation expired: ${extensionId}`), {
-            code: 'GENERATION_EXPIRED',
-        });
+        throw hostError('GENERATION_EXPIRED', `Extension generation expired: ${extensionId}`);
     return runtime;
 }
 
@@ -452,10 +456,7 @@ export function extensionApiBinding(apiToken: string): ApiBinding {
     const runtime = extensions
         .values()
         .find(({ registration }) => registration.apiToken === apiToken);
-    if (!runtime)
-        throw Object.assign(new Error('Extension API binding has expired'), {
-            code: 'GENERATION_EXPIRED',
-        });
+    if (!runtime) throw hostError('GENERATION_EXPIRED', 'Extension API binding has expired');
     return runtime.apiBinding;
 }
 
@@ -467,17 +468,17 @@ function assertBindingCurrent(registration: ExtensionHostRegistration): Extensio
         runtime.registration.generation !== registration.generation ||
         runtime.registration.apiToken !== registration.apiToken
     )
-        throw Object.assign(new Error('Extension API binding has expired'), {
-            code: 'GENERATION_EXPIRED',
-        });
+        throw hostError('GENERATION_EXPIRED', 'Extension API binding has expired');
     return runtime;
 }
 
+function isInstanceCurrent(runtime: ExtensionInstance): boolean {
+    return extensions.get(runtime.registration.extensionId) === runtime && !runtime.retired;
+}
+
 function assertInstanceCurrent(runtime: ExtensionInstance): void {
-    if (extensions.get(runtime.registration.extensionId) !== runtime || runtime.retired)
-        throw Object.assign(new Error('Extension generation expired during the request'), {
-            code: 'GENERATION_EXPIRED',
-        });
+    if (!isInstanceCurrent(runtime))
+        throw hostError('GENERATION_EXPIRED', 'Extension generation expired during the request');
 }
 
 export async function activateExtension(extensionId: string, generation: number): Promise<void> {
@@ -492,7 +493,12 @@ export async function activateExtension(extensionId: string, generation: number)
             throw Object.assign(new Error(`Extension ${extensionId} does not export activate()`), {
                 code: 'ACTIVATION_FAILED',
             });
-        await module.activate(runtime.context);
+        const activate = module.activate;
+        await runExtensionCode(
+            () => activate(runtime.context),
+            () => ({ cancelled: false, generationExpired: !isInstanceCurrent(runtime) }),
+            { message: 'Extension activation failed', code: 'ACTIVATION_FAILED' },
+        );
         assertInstanceCurrent(runtime);
     })();
     await runtime.activation;
@@ -502,20 +508,6 @@ function collapsibleState(value: number): TreeItemDto['collapsibleState'] {
     if (value === TreeItemCollapsibleState.Collapsed) return 'collapsed';
     if (value === TreeItemCollapsibleState.Expanded) return 'expanded';
     return 'none';
-}
-
-function providerErrorMessage(error: unknown): string {
-    return error instanceof Error ? error.message : String(error);
-}
-
-function providerFailure(error: unknown): Error {
-    if (error instanceof Error && 'code' in error) return error;
-    if (typeof error === 'object' && error !== null && 'code' in error)
-        return Object.assign(new Error(providerErrorMessage(error)), { code: error.code });
-    return Object.assign(
-        new Error(error instanceof Error ? error.message : 'Tree provider failed'),
-        { code: 'PROVIDER_FAILED' },
-    );
 }
 
 function stableTreeHandle(id: string): string {
@@ -559,9 +551,10 @@ function isRequestCancelled(cancellation: CancellationTokenSource): boolean {
 
 function assertRefreshCurrent(provider: ProviderRegistration, refreshEpoch: number): void {
     if (provider.refreshEpoch !== refreshEpoch)
-        throw Object.assign(new Error('Tree provider refreshed while the request was running'), {
-            code: 'GENERATION_EXPIRED',
-        });
+        throw hostError(
+            'GENERATION_EXPIRED',
+            'Tree provider refreshed while the request was running',
+        );
 }
 
 export async function getTreeChildren(parameters: {
@@ -587,14 +580,10 @@ export async function getTreeChildren(parameters: {
         ? provider.elements.get(parameters.parentHandle)
         : undefined;
     if (parent === undefined && parameters.parentHandle)
-        throw Object.assign(new Error('Tree handle belongs to an expired generation'), {
-            code: 'GENERATION_EXPIRED',
-        });
+        throw hostError('GENERATION_EXPIRED', 'Tree handle belongs to an expired generation');
     const parentDepth = parameters.parentHandle ? provider.depths.get(parameters.parentHandle) : -1;
     if (parentDepth === undefined)
-        throw Object.assign(new Error('Tree handle depth belongs to an expired generation'), {
-            code: 'GENERATION_EXPIRED',
-        });
+        throw hostError('GENERATION_EXPIRED', 'Tree handle depth belongs to an expired generation');
     const childDepth = parentDepth + 1;
     if (childDepth > MAX_VIEW_TREE_DEPTH)
         throw Object.assign(new Error('Tree provider exceeded the depth limit'), {
@@ -607,19 +596,28 @@ export async function getTreeChildren(parameters: {
         });
     const cancellation = new CancellationTokenSource();
     const refreshEpoch = provider.refreshEpoch;
+    const scope = createProviderRequestScope();
     cancellations.set(parameters.requestId, cancellation);
+    /**
+     * Read at catch time so turnover that happened while the provider was running counts. The provider's own refresh
+     * epoch is not consulted here; see `HostRequestState.generationExpired`.
+     */
+    const treeHostState = (): Omit<HostRequestState, 'scope'> => ({
+        cancelled: isRequestCancelled(cancellation),
+        generationExpired: !isInstanceCurrent(runtime),
+    });
+    const invokeProvider = <Result>(call: () => Promise<Result> | Result): Promise<Result> =>
+        runExtensionCode(
+            () => (parameters.context ? withViewEventContext(parameters.context, call) : call()),
+            treeHostState,
+            { message: 'Tree provider failed' },
+            scope,
+        );
     try {
-        let children: readonly unknown[];
-        try {
-            children =
-                (await (parameters.context
-                    ? withViewEventContext(parameters.context, () =>
-                          provider.provider.getChildren(parent, cancellation.token),
-                      )
-                    : provider.provider.getChildren(parent, cancellation.token))) ?? [];
-        } catch (error) {
-            throw providerFailure(error);
-        }
+        const children =
+            (await invokeProvider(() =>
+                provider.provider.getChildren(parent, cancellation.token),
+            )) ?? [];
         assertInstanceCurrent(runtime);
         assertRefreshCurrent(provider, refreshEpoch);
         if (isRequestCancelled(cancellation)) return { items: [] };
@@ -629,16 +627,7 @@ export async function getTreeChildren(parameters: {
             });
         const stagedItems = await Promise.all(
             children.map(async (element) => {
-                let item: TreeItem | null | undefined;
-                try {
-                    item = await (parameters.context
-                        ? withViewEventContext(parameters.context, () =>
-                              provider.provider.getTreeItem(element),
-                          )
-                        : provider.provider.getTreeItem(element));
-                } catch (error) {
-                    throw providerFailure(error);
-                }
+                const item = await invokeProvider(() => provider.provider.getTreeItem(element));
                 if (!item)
                     throw Object.assign(new Error('Tree provider returned an empty TreeItem'), {
                         code: 'PROVIDER_FAILED',
@@ -718,7 +707,7 @@ export async function getTreeChildren(parameters: {
                     }),
                 });
             } catch (error) {
-                throw providerFailure(error);
+                throw providerFailure(error, { ...treeHostState(), scope }, 'Tree provider failed');
             }
             return { dto, element, handle };
         });
@@ -766,7 +755,13 @@ export async function executeExtensionCommand(parameters: {
         throw Object.assign(new Error(`Command is not registered: ${parameters.commandId}`), {
             code: 'ACTIVATION_FAILED',
         });
-    await withViewEventContext(parameters.context, () => command.run(...parameters.arguments));
+    // Commands have no host cancellation token, so only instance/registration turnover or a host-rejected API call can
+    // corroborate a non-fault code; a re-thrown host-minted error loses its origin here like at a provider.
+    await runExtensionCode(
+        () => withViewEventContext(parameters.context, () => command.run(...parameters.arguments)),
+        () => ({ cancelled: false, generationExpired: !isInstanceCurrent(runtime) }),
+        { message: 'Extension command failed', code: 'ACTIVATION_FAILED' },
+    );
     assertInstanceCurrent(runtime);
     return { executed: true };
 }

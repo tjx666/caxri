@@ -170,7 +170,7 @@ async function processRequest(request: ExtensionHostRequest): Promise<void> {
                 send({ type: 'reply', id: request.id, ok: true, result });
             } catch (error) {
                 const shape = extensionErrorShape(error);
-                const { failure, level } = extensionRequestFailureRecord(shape.code);
+                const { failure, level } = extensionRequestFailureRecord(shape.code, error);
                 logger.write(level, logEventCatalog.extensionHost.error, {
                     correlationId: request.id,
                     fields: { method: request.method, code: shape.code },
