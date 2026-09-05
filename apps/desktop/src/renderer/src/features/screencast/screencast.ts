@@ -104,7 +104,7 @@ export function screencastToggleToastMessage(isEnabled: boolean): string {
 /**
  * The overlay's ripples are the only in-context feedback while Screencast Mode is active, and they only appear after a
  * click or keystroke — the toggle itself was previously silent. A toast confirms the transition immediately; the
- * persistent status-bar chip (see `status-bar.tsx`) covers the rest of the active session.
+ * persistent status-bar chip (see `screencast-mode-chip.tsx`) covers the rest of the active session.
  */
 export function toggleScreencastMode(): void {
     useScreencastStore.getState().toggle();

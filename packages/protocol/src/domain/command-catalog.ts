@@ -11,9 +11,10 @@ import type { Keybinding } from './domain.js';
 /**
  * Context predicates the palette can evaluate against the currently selected Session so commands only surface when
  * their target state is real. Kept as a small enum rather than a general when-clause expression because the current
- * catalog has only two gated commands; a full evaluator is not warranted yet.
+ * catalog has only three gated commands; a full evaluator is not warranted yet.
  */
-export type CommandWhen = 'sessionHasLiveAgent' | 'sessionHasDetachedAgent';
+export type CommandWhen =
+    'sessionHasLiveAgent' | 'sessionHasDetachedAgent' | 'sessionHasPullRequest';
 
 export interface CommandDefinition {
     id: CommandId;
@@ -128,6 +129,14 @@ export const commandDefinitions: CommandDefinition[] = [
             'Relaunch the selected Session’s detached Agent Terminals and resume their conversations',
         when: 'sessionHasDetachedAgent',
         nativeMenu: { menu: 'session', group: 3, order: 1 },
+    },
+    {
+        id: 'session.openPullRequest',
+        title: 'Open Pull Request',
+        category: 'Session',
+        description: 'Open the selected Session’s pull request on GitHub in the browser',
+        keywords: ['pr', 'github'],
+        when: 'sessionHasPullRequest',
     },
     {
         id: 'session.selectNext',

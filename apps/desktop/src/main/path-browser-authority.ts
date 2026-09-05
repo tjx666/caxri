@@ -17,11 +17,7 @@ import {
     pathFailure,
     validateDirectory,
 } from './path-browser-identity';
-import {
-    memoizedSubpathPrefix,
-    projectSubpathSuffix,
-    shallowestProjectPath,
-} from './path-browser-subpath';
+import { memoizedSubpathPrefix, projectSubpathSuffix } from './path-browser-subpath';
 import type { DesktopServerConnection } from './server-connection';
 
 type StartParameters = Extract<MainRequest, { method: 'pathBrowser.start' }>['params'];
@@ -37,6 +33,12 @@ type Opened = MethodResult<'pathBrowser.open'>;
 interface Candidate {
     id: string;
     kind: Entry['kind'];
+    /**
+     * Display-only symlink metadata forwarded from Server Core. Main never resolves or authorizes the target; a symlink
+     * candidate stays unopenable regardless of what its target turned out to be.
+     */
+    linkKind?: Entry['linkKind'];
+    linkTarget?: Entry['linkTarget'];
     name: string;
     path: string;
     parent?: RootIdentity;
@@ -173,7 +175,13 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
 
     function replaceCandidates(context: BrowserContext, candidates: Candidate[]): Entry[] {
         context.candidates = new Map(candidates.map((candidate) => [candidate.id, candidate]));
-        return candidates.map(({ id, kind, name }) => ({ id, kind, name }));
+        return candidates.map(({ id, kind, linkKind, linkTarget, name }) => ({
+            id,
+            kind,
+            ...(linkKind !== undefined && { linkKind }),
+            ...(linkTarget !== undefined && { linkTarget }),
+            name,
+        }));
     }
 
     function snapshot(
@@ -238,6 +246,8 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
         const candidates = result.entries.map((entry) => ({
             id: randomUUID(),
             kind: entry.kind,
+            ...(entry.linkKind !== undefined && { linkKind: entry.linkKind }),
+            ...(entry.linkTarget !== undefined && { linkTarget: entry.linkTarget }),
             name: entry.name,
             path: entry.path,
         }));
@@ -254,8 +264,8 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
     /**
      * VS Code-style subpath fallback: when the typed directory does not exist under the current directory, look for a
      * Project-local directory whose path ends with those segments (for example `packages/x/` copied from Agent output
-     * while the Project holds `lobehub/packages/x/`). The shallowest match wins so the breadcrumb stays predictable;
-     * Server Core bounds and excludes the traversal, and Main revalidates the chosen directory before listing it.
+     * while the Project holds `lobehub/packages/x/`). Server Core bounds and excludes the traversal and picks the
+     * shallowest match so the breadcrumb stays predictable; Main revalidates that directory before listing it.
      */
     async function locateProjectDirectory(
         context: BrowserContext,
@@ -297,10 +307,12 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
             suffix: key,
         });
         const depth = key.split('/').length;
-        const best = shallowestProjectPath(
-            context.root.path,
-            located.paths.filter((path) => isSameOrInside(context.root.path, path)),
-        );
+        // Server Core already picked the shallowest match; Main still refuses a path outside this browser's root so a
+        // hostile or stale response can never be memoized into `context.locatedSuffixes`.
+        const best =
+            located.path !== null && isSameOrInside(context.root.path, located.path)
+                ? located.path
+                : undefined;
         if (!best) {
             if (located.truncated)
                 throw new CaxriError(
@@ -360,6 +372,8 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
                         if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
                         return pathFailure(error, 'Unable to inspect browse entry');
                     }
+                    // Free mode browses outside every Project authority, so it stops at the entry's own `lstat`
+                    // and never follows a link target for display metadata.
                     candidates.push({
                         id: randomUUID(),
                         kind: stats.isSymbolicLink()

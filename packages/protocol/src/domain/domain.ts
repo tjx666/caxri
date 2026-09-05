@@ -98,7 +98,24 @@ export const projectRecordSchema = z.object({
     createdAt: z.number(),
     lastOpenedAt: z.number(),
     icon: projectIconSchema.optional(),
+    /**
+     * Present only on a worktree Project Caxri auto-registered on the named owner's behalf. Such a Project keeps every
+     * authorization capability but is hidden from the PrimarySidebar's top level; a root the user added themselves
+     * never carries it.
+     */
+    ownerProjectId: identifierSchema.optional(),
 });
+
+/**
+ * Whether a Project occupies a top-level slot in the PrimarySidebar. A non-null `ownerProjectId` marks a worktree Caxri
+ * auto-registered on another Project's behalf: still a fully authorized Project, but a branch working location inside
+ * one checkout rather than a separate project entry point, so it is presented on the Session row that works in it
+ * instead. Shared here so the Renderer, the deletion fallback, and Project ordering cannot drift apart on what "visible
+ * Project" means.
+ */
+export function isTopLevelProject(project: Pick<ProjectRecord, 'ownerProjectId'>): boolean {
+    return project.ownerProjectId === undefined;
+}
 
 export const sessionRecordSchema = z.object({
     id: identifierSchema,

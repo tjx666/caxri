@@ -16,11 +16,13 @@ import { useCommandShortcut } from '../../lib/keybindings';
 import { useCaxriQuery } from '../../queries/client';
 import { setPaletteOpen, useDialogStore } from '../../stores/dialogs';
 import { useProjects, useSelectedSession, useSessions, useTerminals } from '../../stores/selectors';
+import { topLevelProjects } from '../primary-sidebar/project-visibility';
 import {
     didSelectSession,
     hasDetachedAgentTerminal,
     hasLiveAgentTerminal,
     selectProject,
+    SESSION_PULL_REQUESTS_REFETCH_INTERVAL_MS,
 } from '../session/session-actions';
 import { activeSessionsInSidebarOrder } from '../session/session-activity-order';
 import { didExecuteViewCatalogCommand } from '../view-containers/view-container-commands';
@@ -97,7 +99,22 @@ export function CommandPalette() {
     const isOpen = useDialogStore((state) => state.paletteOpen);
     const onOpenChange = setPaletteOpen;
     const projects = useProjects() ?? NO_RECORDS;
+    /**
+     * Only the Projects group filters. Selecting an auto-registered worktree Project does nothing — it can never own a
+     * Session — so offering it is a dead result. Session ordering and the Session subtitles below stay on the full
+     * list, or a Session working in a worktree would lose its Project name.
+     */
+    const projectResults = topLevelProjects(projects);
     const catalog = useCaxriQuery('viewContainers.catalog', {}, { enabled: isOpen }).data;
+    /**
+     * Shares the PrimarySidebar's polled snapshot, so the palette offers Open Pull Request exactly when the row shows a
+     * glyph. The `staleTime` matches the sidebar's poll cadence so an open never pulls the Server's `gh` sweep forward
+     * while the sidebar is mounted, yet a hidden sidebar still leaves the palette refreshing at that same rate.
+     */
+    const pullRequests = useCaxriQuery('session.pullRequests', undefined, {
+        enabled: isOpen,
+        staleTime: SESSION_PULL_REQUESTS_REFETCH_INTERVAL_MS,
+    }).data;
     const sessions = activeSessionsInSidebarOrder(projects, useSessions() ?? NO_RECORDS);
     const selectedSession = useSelectedSession();
     const terminals = useTerminals();
@@ -107,6 +124,9 @@ export function CommandPalette() {
         sessionHasDetachedAgent:
             selectedSession !== undefined &&
             hasDetachedAgentTerminal(selectedSession.id, terminals),
+        sessionHasPullRequest:
+            selectedSession !== undefined &&
+            pullRequests?.pullRequests[selectedSession.id] !== undefined,
     };
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -120,7 +140,7 @@ export function CommandPalette() {
                     <CommandList>
                         <CommandEmpty>No Project, Session, or command found.</CommandEmpty>
                         <CommandGroup heading="Projects">
-                            {projects.map((project) => (
+                            {projectResults.map((project) => (
                                 <CommandItem
                                     key={project.id}
                                     value={`Project ${project.displayTitle} ${project.rootPath}`}

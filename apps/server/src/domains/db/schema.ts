@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm';
+import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
 import { index, integer, primaryKey, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core';
 
 /**
@@ -18,6 +19,18 @@ export const projects = sqliteTable(
         lastOpenedAt: integer('last_opened_at').notNull(),
         iconName: text('icon_name'),
         iconColor: text('icon_color'),
+        /**
+         * Non-null marks this row as a worktree Caxri auto-registered on behalf of the owning Project: it stays a fully
+         * authorized Project, but the PrimarySidebar hides it so linked worktrees never inflate the top-level list.
+         * NULL is a root the user added themselves, including a worktree directory they chose to adopt as its own
+         * Project.
+         *
+         * Deliberately declared without `onDelete`: drizzle-kit's generated `ALTER TABLE ... ADD COLUMN` drops the ON
+         * DELETE action (see `0009_mature_agent_zero.sql`, generated from a column declared with `onDelete: 'set
+         * null'`), which would split fresh from upgraded databases. `CaxriDatabase.deleteProject` cascades owned rows
+         * explicitly instead.
+         */
+        ownerProjectId: text('owner_project_id').references((): AnySQLiteColumn => projects.id),
     },
     (table) => [
         unique().on(table.rootPath),

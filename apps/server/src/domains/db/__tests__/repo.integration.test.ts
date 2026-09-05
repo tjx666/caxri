@@ -263,6 +263,120 @@ describe('CaxriDatabase', () => {
         database.close();
     });
 
+    it('deletes the worktree Projects registered on a deleted Project behalf, and nothing else', async () => {
+        const directory = await temporaryDirectory('caxri-db-owned-project-delete-');
+        const ownerRoot = join(directory, 'owner');
+        const worktreeRoot = join(directory, 'worktree');
+        const otherRoot = join(directory, 'other');
+        await Promise.all([mkdir(ownerRoot), mkdir(worktreeRoot), mkdir(otherRoot)]);
+        await writeFile(join(worktreeRoot, 'worktree-only.txt'), 'user-owned', 'utf8');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const owner = database.createProject(ownerRoot);
+        const worktree = database.createProject(worktreeRoot, owner.id);
+        const other = database.createProject(otherRoot);
+        const ownerSession = database.createSession(owner.id, 'shell');
+        const otherSession = database.createSession(other.id, 'shell');
+        database.selectWorkbenchProject(ownerSession.session.id, worktree.id);
+
+        database.deleteProject(owner.id);
+
+        expect(database.listProjects().map(({ id }) => id)).toEqual([other.id]);
+        expect(database.listSessions().map(({ id }) => id)).toEqual([otherSession.session.id]);
+        expect(database.getTerminal(ownerSession.terminal!.id)).toBeUndefined();
+        expect(database.getTerminal(otherSession.terminal!.id)).toBeDefined();
+        // Deletion is metadata only; the worktree directory and its files are the user's.
+        expect(await readFile(join(worktreeRoot, 'worktree-only.txt'), 'utf8')).toBe('user-owned');
+        database.close();
+    });
+
+    it('never falls back to a hidden worktree Project when the selected Project is deleted', async () => {
+        const directory = await temporaryDirectory('caxri-db-owned-project-fallback-');
+        const keeperRoot = join(directory, 'keeper');
+        const worktreeRoot = join(directory, 'worktree');
+        const selectedRoot = join(directory, 'selected');
+        await Promise.all([mkdir(keeperRoot), mkdir(worktreeRoot), mkdir(selectedRoot)]);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const keeper = database.createProject(keeperRoot);
+        const worktree = database.createProject(worktreeRoot, keeper.id);
+        const selected = database.createProject(selectedRoot);
+        const keeperSession = database.createSession(keeper.id, 'shell');
+        database.createSession(selected.id, 'shell');
+        /**
+         * `order_index` is data, not an invariant the fallback may lean on: an owned row can sort first in a database
+         * written by an earlier build. Reproduce that so the fallback is proven to skip hidden rows by ownership.
+         */
+        const setOrder = database.database.prepare(
+            'UPDATE projects SET order_index = ? WHERE id = ?',
+        );
+        setOrder.run(0, worktree.id);
+        setOrder.run(1, keeper.id);
+        expect(database.listProjects().map(({ id }) => id)).toEqual([
+            worktree.id,
+            keeper.id,
+            selected.id,
+        ]);
+
+        database.deleteProject(selected.id);
+
+        expect(database.getAppState('lastSelectedProjectId')).toBe(keeper.id);
+        expect(database.getAppState('lastSelectedSessionId')).toBe(keeperSession.session.id);
+        database.close();
+    });
+
+    it('refuses a Session inside an auto-registered worktree Project', async () => {
+        const directory = await temporaryDirectory('caxri-db-owned-project-session-');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const owner = database.createProject(join(directory, 'owner'));
+        const worktree = database.createProject(join(directory, 'worktree'), owner.id);
+
+        // The PrimarySidebar hides the worktree row, so a Session there would have no row to live under.
+        expect(() => database.createSession(worktree.id, 'shell')).toThrow(
+            /auto-registered worktree Project/,
+        );
+        expect(database.listSessions()).toEqual([]);
+        database.close();
+    });
+
+    it('attaches a worktree registered on behalf of an owned Project to the top-level owner', async () => {
+        const directory = await temporaryDirectory('caxri-db-owned-project-chain-');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const owner = database.createProject(join(directory, 'owner'));
+        const worktree = database.createProject(join(directory, 'worktree'), owner.id);
+
+        // A one-level chain is what the single-level delete cascade relies on.
+        const sibling = database.createProject(join(directory, 'sibling'), worktree.id);
+        expect(sibling.ownerProjectId).toBe(owner.id);
+        expect(() => database.createProject(join(directory, 'orphan'), 'missing')).toThrow(
+            /Owning Project not found/,
+        );
+
+        database.deleteProject(owner.id);
+        expect(database.listProjects()).toEqual([]);
+        database.close();
+    });
+
+    it('reorders only the Projects the PrimarySidebar shows, keeping hidden worktrees last', async () => {
+        const directory = await temporaryDirectory('caxri-db-owned-project-reorder-');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const first = database.createProject(join(directory, 'first'));
+        const worktree = database.createProject(join(directory, 'worktree'), first.id);
+        const second = database.createProject(join(directory, 'second'));
+
+        // Position 1 is the second visible slot; the hidden row between them must not absorb the move.
+        expect(database.reorderProject(first.id, 1).map(({ id }) => id)).toEqual([
+            second.id,
+            first.id,
+            worktree.id,
+        ]);
+        expect(() => database.reorderProject(worktree.id, 0)).toThrow(
+            /current Project and valid position/,
+        );
+        expect(() => database.reorderProject(first.id, 2)).toThrow(
+            /current Project and valid position/,
+        );
+        database.close();
+    });
+
     it('falls back to another Project and its most recent Session when the selected Project is deleted', async () => {
         const directory = await temporaryDirectory('caxri-db-project-fallback-');
         const database = new CaxriDatabase(join(directory, 'state.db'));

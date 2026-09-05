@@ -25,6 +25,7 @@ export interface CommandContext {
         deleteSelected(): void;
         detachSelected(): void;
         navigateHistory(direction: SessionNavigationDirection): void;
+        openPullRequestSelected(): void;
         resumeSelected(): void;
         selectAdjacent(delta: 1 | -1): void;
         switchMru(invocation?: SessionMruShortcutInvocation): void;
