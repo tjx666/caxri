@@ -119,8 +119,7 @@ export class AutoNamingAttempt {
     /**
      * @param now The service's injected clock, shared with the cooldown and interval gates.
      * @param enqueuedAt When the trigger entered the queue, so `queued` covers the concurrency semaphore wait too.
-     * @param ordinal 1-based count of attempts this Session slot has started, the per-lifetime aggregate that makes the
-     *   real volume behind a repeated reason visible.
+     * @param ordinal 1-based count of attempts this Session slot has started, exposing repeated-reason volume.
      */
     constructor(
         private readonly now: () => number,
