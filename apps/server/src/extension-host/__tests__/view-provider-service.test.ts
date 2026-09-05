@@ -70,7 +70,10 @@ describe('controlled view provider runtime', () => {
         throw new Error('expected the request to reject');
     }
 
-    function snapshot(requestId: string): Promise<unknown> {
+    function snapshot(
+        requestId: string,
+        context?: { kind: 'session'; sessionId: string; workbenchProjectId: string },
+    ): Promise<unknown> {
         return executeViewOperation({
             extensionId: 'publisher.fixture',
             generation: 3,
@@ -78,6 +81,7 @@ describe('controlled view provider runtime', () => {
             operation: 'source.snapshot',
             arguments: { refresh: 0 },
             requestId,
+            ...(context && { context }),
         });
     }
 
@@ -153,7 +157,12 @@ describe('controlled view provider runtime', () => {
                 );
                 return model;
             });
-            const request = snapshot(`snapshot-session-switch-${code}`);
+            // Server Core supplies the request's view context; the provider's `caxri.*` call inherits it.
+            const request = snapshot(`snapshot-session-switch-${code}`, {
+                kind: 'session',
+                sessionId: 'session-1',
+                workbenchProjectId: 'project-1',
+            });
             await new Promise((resolve) => setTimeout(resolve, 0));
             const issued = sent.find((message) => message.type === 'api-request');
             expect(issued).toBeDefined();

@@ -124,10 +124,11 @@ export interface HostRequestState {
      */
     cancelled: boolean;
     /**
-     * The provider registration or extension instance this request was issued against is no longer current. A tree
-     * provider's own refresh epoch is deliberately NOT part of this: the provider fires that refresh itself, so it
-     * could manufacture the corroboration for a forged `GENERATION_EXPIRED`. The host still expires a request that
-     * returns normally after its own refresh through `assertRefreshCurrent`, minted as host-originated there.
+     * The extension instance this request was issued against is no longer current. Only host-driven turnover counts. A
+     * tree provider's own refresh epoch and a provider's or command's own registration identity are deliberately NOT
+     * part of this: the extension fires that refresh and owns that registration's Disposable, so either could
+     * manufacture the corroboration for a forged `GENERATION_EXPIRED`. The host still expires a request that returns
+     * normally after its own refresh through `assertRefreshCurrent`, minted as host-originated there.
      */
     generationExpired: boolean;
     /**
@@ -167,7 +168,10 @@ export function providerFailure(
     fallbackCode = 'PROVIDER_FAILED',
 ): Error {
     const code = readErrorCode(error);
-    const message = error instanceof Error ? error.message : code ? String(error) : fallbackMessage;
+    // A thrown string (`throw 'Cannot find module x'`) still carries the only description that crosses the wire.
+    const message =
+        (error instanceof Error ? error.message : typeof error === 'string' ? error : '') ||
+        fallbackMessage;
     if (code === 'CANCELLED' && (host.cancelled || host.scope.hostCancelledApiCall))
         return hostError(code, message);
     if (code === 'GENERATION_EXPIRED' && (host.generationExpired || host.scope.hostExpiredApiCall))

@@ -201,7 +201,12 @@ describe('providerFailure', () => {
             code: 'PROVIDER_FAILED',
             message: 'exploded',
         });
+        // A non-Error throw keeps its text; only a nullish or empty throw falls back to the boundary's message.
         expect(providerFailure('nope', current, 'Tree provider failed')).toMatchObject({
+            code: 'PROVIDER_FAILED',
+            message: 'nope',
+        });
+        expect(providerFailure(undefined, current, 'Tree provider failed')).toMatchObject({
             code: 'PROVIDER_FAILED',
             message: 'Tree provider failed',
         });

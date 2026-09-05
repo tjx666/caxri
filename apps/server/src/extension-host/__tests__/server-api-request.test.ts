@@ -2,9 +2,14 @@ import { runWithObservationContext } from '@caxri/system';
 import { CancellationTokenSource } from 'caxri';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createProviderRequestScope, withProviderRequestScope } from '../extension-error';
+import {
+    createProviderRequestScope,
+    isHostOriginatedError,
+    withProviderRequestScope,
+} from '../extension-error';
 import type { ExtensionHostMessage } from '../protocol';
 import { rejectPendingApiRequests, requestServerApi, settleApiReply } from '../server-api-request';
+import { withViewEventContext } from '../view-event-context';
 
 const context = {
     kind: 'session' as const,
@@ -286,8 +291,11 @@ describe('provider request scope attribution', () => {
     it("marks the issuing request when Server Core's reply cancels the call on its own", async () => {
         const sent: ExtensionHostMessage[] = [];
         const scope = createProviderRequestScope();
-        const request = withProviderRequestScope(scope, () =>
-            requestServerApi({ ...apiContext, send: (message) => sent.push(message) }, summary),
+        // The call runs under the view context Server Core supplied for the provider request.
+        const request = withViewEventContext(context, () =>
+            withProviderRequestScope(scope, () =>
+                requestServerApi({ ...apiContext, send: (message) => sent.push(message) }, summary),
+            ),
         );
         const issued = sent.find((message) => message.type === 'api-request');
         // The controlled-view scope fence in Server Core rejects a request whose Session is no longer active.
@@ -300,8 +308,38 @@ describe('provider request scope attribution', () => {
             () => true,
         );
 
-        await expect(settled(request)).resolves.toMatchObject({ code: 'CANCELLED' });
+        const rejection = await settled(request);
+        expect(rejection).toMatchObject({ code: 'CANCELLED' });
+        expect(isHostOriginatedError(rejection)).toBe(true);
         expect(scope.hostCancelledApiCall).toBe(true);
+    });
+
+    it('keeps a CANCELLED reply to a call issued outside any view context a plain fault', async () => {
+        const sent: ExtensionHostMessage[] = [];
+        const scope = createProviderRequestScope();
+        // No `withViewEventContext`: this is `activate()` or a timer calling `caxri.workspace.*` while a Session is
+        // active. The fence rejects the call's self-declared `no-session` scope, which the extension provoked, so
+        // it must not corroborate a CANCELLED the extension throws next (issue #606).
+        const request = withProviderRequestScope(scope, () =>
+            requestServerApi({ ...apiContext, send: (message) => sent.push(message) }, summary),
+        );
+        const issued = sent.find((message) => message.type === 'api-request');
+        settleApiReply(
+            {
+                id: issued!.id,
+                ok: false,
+                error: { code: 'CANCELLED', message: 'Controlled view scope is no longer active' },
+            },
+            () => true,
+        );
+
+        const rejection = await settled(request);
+        expect(rejection).toMatchObject({
+            code: 'CANCELLED',
+            message: 'Controlled view scope is no longer active',
+        });
+        expect(isHostOriginatedError(rejection)).toBe(false);
+        expect(scope.hostCancelledApiCall).toBe(false);
     });
 
     it("does not mark a CANCELLED reply that echoes the call's own token on a non-expiring mutation", async () => {

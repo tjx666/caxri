@@ -54,12 +54,11 @@ import {
 } from './server-api-request';
 import type { TreeRefreshBatch } from './tree-refresh-coalescing';
 import { mergeTreeRefresh } from './tree-refresh-coalescing';
+import { currentViewEventContext, withViewEventContext } from './view-event-context';
 import {
     createControlledViewRegistrationApi,
-    currentViewEventContext,
     didCancelViewRequest,
     retireViewProviders,
-    withViewEventContext,
 } from './view-provider-service';
 import { createWorkspaceApiClient } from './workspace-api-client';
 
@@ -605,8 +604,7 @@ export async function getTreeChildren(parameters: {
      */
     const treeHostState = (): Omit<HostRequestState, 'scope'> => ({
         cancelled: isRequestCancelled(cancellation),
-        generationExpired:
-            !isInstanceCurrent(runtime) || providers.get(parameters.viewId) !== provider,
+        generationExpired: !isInstanceCurrent(runtime),
     });
     const invokeProvider = <Result>(call: () => Promise<Result> | Result): Promise<Result> =>
         runExtensionCode(
@@ -761,11 +759,7 @@ export async function executeExtensionCommand(parameters: {
     // corroborate a non-fault code; a re-thrown host-minted error loses its origin here like at a provider.
     await runExtensionCode(
         () => withViewEventContext(parameters.context, () => command.run(...parameters.arguments)),
-        () => ({
-            cancelled: false,
-            generationExpired:
-                !isInstanceCurrent(runtime) || commands.get(parameters.commandId) !== command,
-        }),
+        () => ({ cancelled: false, generationExpired: !isInstanceCurrent(runtime) }),
         { message: 'Extension command failed', code: 'ACTIVATION_FAILED' },
     );
     assertInstanceCurrent(runtime);

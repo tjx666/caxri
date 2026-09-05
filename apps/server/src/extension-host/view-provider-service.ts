@@ -1,4 +1,3 @@
-import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 
 import type { CaxriApi, DisposableLike, SourceControlChange, SourceControlProvider } from 'caxri';
@@ -15,6 +14,7 @@ import type {
     ExtensionViewEventScope,
     ExtensionViewOperation,
 } from './protocol';
+import { currentViewEventContext, withViewEventContext } from './view-event-context';
 
 interface ViewProviderRegistration {
     extensionId: string;
@@ -28,7 +28,6 @@ const cancellations = new Map<string, CancellationTokenSource>();
 const cancelTombstones = new Map<string, number>();
 const MAX_CANCEL_TOMBSTONES = 256;
 const CANCEL_TOMBSTONE_TTL_MS = 30_000;
-const viewEventContext = new AsyncLocalStorage<ExtensionViewEventScope>();
 
 function pruneCancelTombstones(now = Date.now()): void {
     for (const [requestId, expiresAt] of cancelTombstones)
@@ -42,21 +41,6 @@ function didConsumeCancelTombstone(requestId: string): boolean {
     if (!cancelTombstones.has(requestId)) return false;
     cancelTombstones.delete(requestId);
     return true;
-}
-
-/**
- * Keeps provider events emitted while a Server notification or extension command is running tied to that request's
- * Workbench Root. Events without an active scope are deliberately dropped instead of becoming global UI broadcasts.
- */
-export function withViewEventContext<Result>(
-    context: ExtensionViewEventScope,
-    callback: () => Result,
-): Result {
-    return viewEventContext.run(context, callback);
-}
-
-export function currentViewEventContext(): ExtensionViewEventScope | undefined {
-    return viewEventContext.getStore();
 }
 
 function registerProvider(

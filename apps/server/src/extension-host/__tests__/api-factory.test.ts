@@ -18,7 +18,8 @@ import {
     notifyProjectStatusChanged,
 } from '../api-factory';
 import { isHostOriginatedError } from '../extension-error';
-import { currentViewEventContext, executeViewOperation } from '../view-provider-service';
+import { currentViewEventContext } from '../view-event-context';
+import { executeViewOperation } from '../view-provider-service';
 import { installExtensionFixture, registration } from './api-factory.fixture';
 
 installExtensionFixture();

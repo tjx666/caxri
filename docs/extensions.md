@@ -156,7 +156,9 @@ cancellation is a typed `CANCELLED` non-fault; superseded provider or Extension 
 state, never from the error object: a `CANCELLED` is a non-fault only when the host itself cancelled that request, and a
 `GENERATION_EXPIRED` only when the host's provider registration or extension instance actually turned over, or when
 Server Core itself cancelled or expired a `caxri.*` call the extension awaited during that request (a Session switch
-mid-read). A tree provider's own refresh is extension-triggered and does not count. Any other error thrown by
+mid-read). Extension-triggered state does not count: a tree provider's own refresh, a registration the extension
+disposed itself, or a `caxri.*` call made outside any Server-supplied view context (from `activate()` or a timer)
+that the controlled-view scope fence rejected. Any other error thrown by
 extension code — from a provider, a contributed command, or `activate()` — is logged as a real fault regardless of
 which `code` it carries, and a host-minted rejection an extension re-throws gains nothing from its origin. Server Core's wire handling of these two
 codes (retrying a superseded tree read, converting a superseded read into `CANCELLED` for the Renderer) is unchanged

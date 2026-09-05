@@ -277,9 +277,74 @@ describe('Extension Host failure classification', () => {
                 code: 'ACTIVATION_FAILED',
                 message: 'boom',
             });
+
+            // A non-Error throw keeps its text: the message is the only description that crosses the wire.
+            Object.assign(globalThis, { __caxriFixtureActivationError: 'Cannot find module x' });
+            configureExtensions([registration(3)]);
+            await expect(activateExtension('publisher.fixture', 3)).rejects.toMatchObject({
+                code: 'ACTIVATION_FAILED',
+                message: 'Cannot find module x',
+            });
         } finally {
             Reflect.deleteProperty(globalThis, '__caxriFixtureActivationError');
         }
+    });
+
+    it("keeps a command's own GENERATION_EXPIRED a fault when it disposed its own registration", async () => {
+        // The registration Disposable is extension-owned state, like a tree provider's own refresh: disposing it from
+        // inside `run()` must not manufacture the turnover that would launder a forged non-fault code.
+        const registered = registration();
+        registered.manifest.contributes.commands = [
+            { command: 'publisher.fixture.command', title: 'Fixture' },
+        ];
+        configureExtensions([registered]);
+        const { api } = extensionApiBinding('fixture-token-1');
+        const subscription = api.commands.registerCommand('publisher.fixture.command', () => {
+            subscription.dispose();
+            throw Object.assign(new Error('real command failure'), { code: 'GENERATION_EXPIRED' });
+        });
+
+        const rejection = await rejectionOf(
+            executeExtensionCommand({
+                extensionId: 'publisher.fixture',
+                generation: 1,
+                commandId: 'publisher.fixture.command',
+                arguments: [],
+                context: viewContext,
+            }),
+        );
+        expect(rejection).toMatchObject({
+            code: 'GENERATION_EXPIRED',
+            message: 'real command failure',
+        });
+        expect(isHostOriginatedError(rejection)).toBe(false);
+    });
+
+    it("keeps a tree provider's own GENERATION_EXPIRED a fault when it disposed its own registration", async () => {
+        configureExtensions([registration()]);
+        const { api } = extensionApiBinding('fixture-token-1');
+        const subscription = api.views.registerTreeDataProvider('publisher.fixture.tree', {
+            getChildren: () => {
+                subscription.dispose();
+                throw Object.assign(new Error('real tree failure'), { code: 'GENERATION_EXPIRED' });
+            },
+            getTreeItem: (element: string) => new TreeItem(element),
+        });
+
+        const rejection = await rejectionOf(
+            getTreeChildren({
+                extensionId: 'publisher.fixture',
+                generation: 1,
+                viewId: 'publisher.fixture.tree',
+                requestId: 'self-disposed-tree-request',
+                context: viewContext,
+            }),
+        );
+        expect(rejection).toMatchObject({
+            code: 'GENERATION_EXPIRED',
+            message: 'real tree failure',
+        });
+        expect(isHostOriginatedError(rejection)).toBe(false);
     });
 
     it("keeps a tree provider's own GENERATION_EXPIRED a fault when only its own refresh fired", async () => {
