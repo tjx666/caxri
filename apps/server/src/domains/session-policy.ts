@@ -2,6 +2,7 @@ import type {
     AgentActivityState,
     AgentSnapshot,
     ProcessState,
+    ProjectRecord,
     SessionActivityReason,
     SessionAttentionKind,
     SessionRecord,
@@ -12,6 +13,7 @@ import type {
 import {
     agentProviderCatalog,
     compareSessionActivityRecency,
+    isTopLevelProject,
     normalizeTerminalTitle,
     removePaneTerminal,
 } from '@caxri/protocol';
@@ -391,6 +393,17 @@ export function firstActiveSession(
         .filter((session) => session.archivedAt === undefined && session.id !== excludedSessionId)
         .toSorted(compareSessionActivityRecency)
         .at(0);
+}
+
+/**
+ * Picks the Project a fallback selection may land on. An auto-registered worktree Project (`ownerProjectId` set) is
+ * deliberately skipped: the PrimarySidebar never renders it, so selecting one would leave the user with no highlighted
+ * Project row and no obvious way back.
+ */
+export function firstSelectableProject(
+    records: readonly ProjectRecord[],
+): ProjectRecord | undefined {
+    return records.find((project) => isTopLevelProject(project));
 }
 
 /**

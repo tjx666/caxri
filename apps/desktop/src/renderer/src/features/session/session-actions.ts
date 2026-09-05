@@ -308,9 +308,20 @@ export function deleteSelectedProject(): void {
     void tryCommand('Project deletion failed', async () => {
         const result = await caxri.request('project.delete', { projectId: project.id });
         if ('canceled' in result) return;
+        /**
+         * The Server deletes the worktree Projects auto-registered on this Project's behalf in the same transaction, so
+         * their Sessions disappear too. `refreshWorkbench` only replaces bootstrap state; per-Session view state and
+         * cached queries need this explicit cleanup or they would outlive the rows they describe.
+         */
+        const deletedProjectIds = new Set([
+            project.id,
+            ...bootstrap.projects
+                .filter((candidate) => candidate.ownerProjectId === project.id)
+                .map((candidate) => candidate.id),
+        ]);
         const removedSessionIds: string[] = [];
         for (const session of bootstrap.sessions)
-            if (session.projectId === project.id) removedSessionIds.push(session.id);
+            if (deletedProjectIds.has(session.projectId)) removedSessionIds.push(session.id);
         useSessionViewStore.getState().dropSessions(removedSessionIds);
         removeSessionQueries(queryClient, removedSessionIds);
         await refreshWorkbench();

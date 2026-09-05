@@ -1,4 +1,4 @@
-import type { SessionRecord, SessionState, TerminalRecord } from '@caxri/protocol';
+import type { ProjectRecord, SessionRecord, SessionState, TerminalRecord } from '@caxri/protocol';
 import {
     agentProviderCatalog,
     agentProviderIds,
@@ -14,6 +14,7 @@ import {
     decideAgentMetadataUpdate,
     DEFAULT_SESSION_TITLE,
     defaultTerminalTitle,
+    firstSelectableProject,
     processExitActivityState,
     selectFallbackAfterDeletion,
     sessionActivityReasonForAgentState,
@@ -608,6 +609,39 @@ describe('decideAgentMetadataUpdate', () => {
             agentSessionId: 'resumed-session',
             sessionPatch: { lastActivityState: 'running' },
         });
+    });
+});
+
+describe('firstSelectableProject', () => {
+    function project(overrides: Partial<ProjectRecord> = {}): ProjectRecord {
+        return {
+            id: 'project-1',
+            rootPath: '/repo',
+            displayTitle: 'repo',
+            orderIndex: 0,
+            createdAt: 0,
+            lastOpenedAt: 0,
+            ...overrides,
+        };
+    }
+
+    it('skips worktree Projects the PrimarySidebar never renders', () => {
+        const worktree = project({ id: 'project-worktree', ownerProjectId: 'project-owner' });
+        const owner = project({ id: 'project-owner' });
+
+        expect(firstSelectableProject([worktree, owner])).toBe(owner);
+    });
+
+    it('returns nothing when every remaining Project is a hidden worktree', () => {
+        expect(
+            firstSelectableProject([project({ ownerProjectId: 'project-owner' })]),
+        ).toBeUndefined();
+    });
+
+    it('returns the first Project when none is owned', () => {
+        const first = project({ id: 'project-first' });
+
+        expect(firstSelectableProject([first, project({ id: 'project-second' })])).toBe(first);
     });
 });
 

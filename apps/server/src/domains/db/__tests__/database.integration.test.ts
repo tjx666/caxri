@@ -435,7 +435,18 @@ describe('CaxriDatabaseConnection', () => {
             (upgraded.database.pragma('table_info(projects)') as Array<{ name: string }>).map(
                 ({ name }) => name,
             ),
-        ).toEqual(expect.arrayContaining(['icon_name', 'icon_color']));
+        ).toEqual(expect.arrayContaining(['icon_name', 'icon_color', 'owner_project_id']));
+        /**
+         * No row in a pre-existing database can be attributed to an owner, so every Project stays top-level and the
+         * PrimarySidebar shows exactly what it showed before the upgrade.
+         */
+        expect(
+            upgraded.database
+                .prepare('SELECT id FROM projects WHERE owner_project_id IS NOT NULL')
+                .all(),
+        ).toEqual([]);
+        for (const upgradedProject of upgraded.projects.list())
+            expect(upgradedProject).not.toHaveProperty('ownerProjectId');
         expect(upgraded.sessions.get('session-preserved')).toMatchObject({
             lastSessionActivityAt: 1,
             lastSessionActivityReason: 'created',
@@ -496,6 +507,33 @@ describe('CaxriDatabaseConnection', () => {
             'terminal-codex',
         ]);
         upgraded.close();
+    });
+
+    it('records worktree ownership on automatic registration and clears it on a manual add', async () => {
+        const directory = await temporaryDirectory('caxri-db-project-owner-');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const owner = database.projects.create(join(directory, 'owner'));
+        const worktreeRoot = join(directory, 'worktree');
+
+        const registered = database.projects.create(worktreeRoot, owner.id);
+        expect(registered.ownerProjectId).toBe(owner.id);
+        expect(database.projects.listOwnedBy(owner.id).map(({ id }) => id)).toEqual([
+            registered.id,
+        ]);
+        expect(owner).not.toHaveProperty('ownerProjectId');
+
+        // Re-registration is idempotent and never re-points an existing row's ownership.
+        expect(database.projects.create(worktreeRoot, owner.id)).toMatchObject({
+            id: registered.id,
+            ownerProjectId: owner.id,
+        });
+
+        // Adding the same root manually is an explicit user choice, so the row becomes top-level.
+        const adopted = database.projects.create(worktreeRoot);
+        expect(adopted.id).toBe(registered.id);
+        expect(adopted).not.toHaveProperty('ownerProjectId');
+        expect(database.projects.listOwnedBy(owner.id)).toEqual([]);
+        database.close();
     });
 
     it('restricts the database and WAL sidecar files to the current user', async () => {

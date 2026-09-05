@@ -1,6 +1,7 @@
 import type { CSSProperties, FocusEvent, KeyboardEvent } from 'react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
+import type { ProjectRecord } from '@caxri/protocol';
 import { Plus } from 'lucide-react';
 
 import caxriLogoUrl from '../../assets/caxri-logo.png';
@@ -35,6 +36,7 @@ import {
 } from './primary-sidebar-tree';
 import { ProjectGroup } from './project-group';
 import { hasProjectDragType } from './project-order';
+import { sessionWorktreeProject, topLevelProjects } from './project-visibility';
 import { SessionHistoryNavigation } from './session-history-navigation';
 import { SESSION_REVEAL_STEP } from './session-list-window';
 
@@ -64,7 +66,16 @@ const primarySidebarLogoUrl = import.meta.env.DEV ? '/src/assets/caxri-logo-dev.
 const onAddProject = (): void => executeCommand('project.create');
 
 export function PrimarySidebar() {
-    const loadedProjects = useProjects();
+    const allProjects = useProjects();
+    /**
+     * The tree is the only consumer that hides auto-registered worktree Projects. Filtering once here — before order,
+     * collapse, activity order, and the Session windows read it — keeps every derived structure agreeing on which rows
+     * exist; `allProjects` stays available for resolving a Session's Workbench Root below.
+     */
+    const loadedProjects = useMemo(
+        () => (allProjects ? topLevelProjects(allProjects) : undefined),
+        [allProjects],
+    );
     const projects = loadedProjects ?? NO_RECORDS;
     const sessions = useSessions() ?? NO_RECORDS;
     const terminals = useTerminals();
@@ -94,6 +105,18 @@ export function PrimarySidebar() {
         () => activeSessionsInSidebarOrder(projects, sessions),
         [projects, sessions],
     );
+    /**
+     * Workbench Root Projects keyed by Session id, for the Sessions currently working outside their own Project. This
+     * is what replaces the hidden top-level worktree entry, so it must resolve against the full Project list.
+     */
+    const worktreeProjects = useMemo(() => {
+        const resolved: Record<string, ProjectRecord> = {};
+        for (const session of sidebarSessions) {
+            const worktree = sessionWorktreeProject(session, allProjects ?? NO_RECORDS);
+            if (worktree) resolved[session.id] = worktree;
+        }
+        return resolved;
+    }, [allProjects, sidebarSessions]);
 
     const isProjectExpanded = projectCollapse.isProjectExpanded;
 
@@ -322,6 +345,7 @@ export function PrimarySidebar() {
                             selectedSessionId={selectedSessionId}
                             terminals={terminals}
                             visibleSessions={visibleSessions}
+                            worktreeProjects={worktreeProjects}
                         />
                     );
                 })}

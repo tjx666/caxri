@@ -60,6 +60,7 @@ export function SessionActivityCard({
     suppressed = false,
     terminal,
     trigger,
+    worktreeProject,
 }: {
     project: ProjectRecord;
     pullRequest?: SessionPullRequest;
@@ -70,6 +71,11 @@ export function SessionActivityCard({
     suppressed?: boolean;
     terminal?: TerminalRecord;
     trigger: ReactElement;
+    /**
+     * Workbench Root Project when this Session works in a linked worktree. The row marker is decorative, so this card
+     * is where the fact becomes readable — both as a metadata row and in the row's accessible description.
+     */
+    worktreeProject?: ProjectRecord;
 }) {
     const accessibleDescriptionId = useId();
     const [open, setOpen] = useState(false);
@@ -91,6 +97,7 @@ export function SessionActivityCard({
         `Agent ${agentLabel}.`,
         activity.ariaLabel,
         pullRequestPresentation?.ariaLabel,
+        worktreeProject && `Working in worktree ${worktreeProject.displayTitle}.`,
         `Last opened ${lastOpened}.`,
         unread ? `${unread}.` : undefined,
     ]
@@ -193,6 +200,14 @@ export function SessionActivityCard({
                             {pullRequest.title}
                         </span>
                     </a>
+                )}
+                {worktreeProject && (
+                    <div className="session-card-worktree mt-2 flex items-center justify-between gap-3 text-[10px] text-muted">
+                        <span className="flex-none">Worktree</span>
+                        <span className="min-w-0 truncate text-right text-foreground">
+                            {worktreeProject.displayTitle}
+                        </span>
+                    </div>
                 )}
                 <div className="mt-2 flex items-center justify-between gap-3 text-[10px] text-muted">
                     <span>Last opened</span>
