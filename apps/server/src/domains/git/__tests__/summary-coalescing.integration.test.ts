@@ -1,0 +1,121 @@
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { execFileAsync, StructuredLogger } from '@caxri/system';
+import { afterEach, describe, expect, it } from 'vitest';
+
+import { CaxriDatabase } from '../../db/repository';
+import { ProjectRootResolver } from '../../project-roots';
+import { GitService } from '..';
+
+const temporaryDirectories: string[] = [];
+const gitServices: GitService[] = [];
+
+function trackGitService(git: GitService): GitService {
+    gitServices.push(git);
+    return git;
+}
+
+afterEach(async () => {
+    const servicesToClose = [...gitServices];
+    gitServices.length = 0;
+    await Promise.allSettled(servicesToClose.map((git) => git.close()));
+    const directoriesToRemove = [...temporaryDirectories];
+    temporaryDirectories.length = 0;
+    await Promise.all(
+        directoriesToRemove.map((path) => rm(path, { recursive: true, force: true })),
+    );
+});
+
+async function createStatusFixture(prefix: string) {
+    const directory = await mkdtemp(join(tmpdir(), prefix));
+    temporaryDirectories.push(directory);
+    await execFileAsync('git', ['init', '-b', 'main'], { cwd: directory });
+    await execFileAsync('git', ['config', 'user.email', 'test@example.com'], { cwd: directory });
+    await execFileAsync('git', ['config', 'user.name', 'Caxri Test'], { cwd: directory });
+    await writeFile(join(directory, 'tracked.txt'), 'before\n', 'utf8');
+    await execFileAsync('git', ['add', 'tracked.txt'], { cwd: directory });
+    await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: directory });
+    await writeFile(join(directory, 'tracked.txt'), 'after\n', 'utf8');
+    const database = new CaxriDatabase(join(directory, '.caxri-test.db'));
+    const session = database.createSession(database.createProject(directory).id, 'shell').session;
+    const logger = new StructuredLogger(join(directory, '.logs'));
+    const git = trackGitService(new GitService(new ProjectRootResolver(database), logger));
+    return { database, directory, git, logger, session };
+}
+
+interface LoggedRecord {
+    event: string;
+    fields?: Record<string, unknown>;
+}
+
+async function loggedRecords(logger: StructuredLogger): Promise<LoggedRecord[]> {
+    await logger.flush();
+    return (await readFile(logger.path, 'utf8'))
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line) as LoggedRecord);
+}
+
+async function gitSummaryRecords(
+    logger: StructuredLogger,
+): Promise<Array<Record<string, unknown>>> {
+    return (await loggedRecords(logger))
+        .filter((record) => record.event === 'git.summary')
+        .map((record) => record.fields ?? {});
+}
+
+async function statusCommandCount(logger: StructuredLogger): Promise<number> {
+    return (await loggedRecords(logger)).filter(
+        (record) => record.event === 'git.command' && record.fields?.operation === 'status',
+    ).length;
+}
+
+describe('GitService summary coalescing', () => {
+    /**
+     * Regression for #584: the coalescing key used to embed the caller's `refresh` nonce, so the Source Control
+     * provider's forced refresh and the Renderer's plain read for the same Session ran as two parallel producers.
+     */
+    it('joins a plain read into an in-flight forced refresh instead of running a parallel producer', async () => {
+        const { git, logger, session } = await createStatusFixture('caxri-git-join-force-');
+        const [forced, plain] = await Promise.all([
+            git.summary(session.id, 1, 'extension'),
+            git.summary(session.id, 0, 'overview'),
+        ]);
+        expect(plain).toEqual(forced);
+        expect(forced.repositories[0].files.map((file) => file.path)).toContain('tracked.txt');
+        const records = await gitSummaryRecords(logger);
+        expect(records.filter((record) => record.outcome === 'fresh')).toHaveLength(1);
+        expect(records.find((record) => record.outcome === 'fresh')).toMatchObject({
+            reason: 'refresh',
+            requester: 'extension',
+            statusFresh: 1,
+        });
+        expect(records.filter((record) => record.outcome === 'joined')).toEqual([
+            { outcome: 'joined', requester: 'overview' },
+        ]);
+        expect(await statusCommandCount(logger)).toBe(1);
+    });
+
+    it('queues one trailing forced refresh behind an in-flight summary and shares it between forces', async () => {
+        const { directory, git, logger, session } =
+            await createStatusFixture('caxri-git-trailing-');
+        const plain = git.summary(session.id);
+        // Lands after the plain read started but before any forced snapshot may be taken.
+        await writeFile(join(directory, 'late.txt'), 'late\n', 'utf8');
+        const forcedA = git.summary(session.id, 1);
+        const forcedB = git.summary(session.id, 2);
+        const [, a, b] = await Promise.all([plain, forcedA, forcedB]);
+        expect(b).toEqual(a);
+        expect(a.repositories[0].files.map((file) => file.path)).toContain('late.txt');
+        const records = await gitSummaryRecords(logger);
+        const fresh = records.filter((record) => record.outcome === 'fresh');
+        expect(fresh.map((record) => record.reason)).toEqual(['request', 'refresh']);
+        expect(records.filter((record) => record.outcome === 'queued')).toEqual([
+            { outcome: 'queued', requester: 'renderer', shared: false },
+            { outcome: 'queued', requester: 'renderer', shared: true },
+        ]);
+        expect(await statusCommandCount(logger)).toBe(2);
+    });
+});

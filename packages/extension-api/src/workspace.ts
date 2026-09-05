@@ -78,6 +78,11 @@ export interface GitCommitDetails {
 }
 
 export interface WorkspaceGit {
+    /**
+     * `refresh` is a monotonic nonce, not a counter of reads: only a value above the last one Host saw for this Session
+     * forces fresh topology and status. Re-reads driven by `onDidChangeGit` or an active-context change should pass the
+     * previous nonce so they join Host's current generation instead of forcing a parallel full refresh.
+     */
     summary(refresh?: number, token?: CancellationToken): Promise<GitSummary>;
     /**
      * Requests cancellation before the native mutation boundary. The promise still waits for Host's authoritative

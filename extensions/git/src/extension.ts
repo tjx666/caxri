@@ -30,7 +30,7 @@ export function activate(context: ExtensionContext): void {
             provider.setMode('pull-request', currentScopeId()),
         ),
         caxri.commands.registerCommand('caxri.git.refresh', () =>
-            provider.refresh(currentScopeId()),
+            provider.forceRefresh(currentScopeId()),
         ),
         caxri.commands.registerCommand('caxri.git.openCommit', async (repoId, sha) => {
             const scopeId = currentScopeId();

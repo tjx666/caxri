@@ -134,8 +134,22 @@ increments a `SummaryTrace.commandCount`; the trace also tracks `worktreeListed`
 the `git.summary` boundary log event (`loadSummary`, `apps/server/src/domains/git/repo.ts:361-394`) reports
 instead of leaving attribution to individual `git.command` records — fields: `durationMs`,
 `commandCount`, `worktreeListed`, `worktreeApproved`, `childRepositories`, `fileCount`,
-`generation`, `truncated`, `isRepository`, `outcome`, `reason` (`'request' | 'refresh'`), plus the
-per-status outcome counters.
+`generation`, `truncated`, `isRepository`, `outcome`, `reason` (`'request' | 'refresh'`), `requester`
+(the closed entry-point enum `GitSummaryRequester`: `renderer`, `extension`, `overview`, `repository`,
+`discard`, `projectStatus`, `pullRequests`, `terminal`), plus the per-status outcome counters.
+
+**Summary coalescing and the refresh nonce.** `GitRepoService.summary` single-flights per
+`sessionId#sessionGeneration`; the `refresh` nonce is deliberately not part of the key
+([issue #584](https://github.com/tjx666/caxri/issues/584)). A plain read joins whatever producer is in
+flight. A forcing nonce that arrives mid-flight queues exactly one trailing forced run that starts
+after the current producer settles, and every further force during that window shares it, so a
+Session never runs two Git batches concurrently while a user refresh still observes state that
+postdates the click. On the Extension side, `GitProvider` only advances its Server-facing nonce for
+a user-initiated refresh (the panel's Refresh, Sync, and Discard actions and the `caxri.git.refresh`
+command, all funnelled through `executeAction`); watcher-driven `git.changed` and active-context
+re-reads reuse the previous nonce and join the Server's current generation. `git.pullRequestChanges`
+receives the same nonce. A force that waits behind the in-flight producer logs a `debug`
+`git.summary` record with `outcome: queued` (`shared: true` when it joined an already queued run).
 
 **Bounded working-tree projection.** `loadStatus` parses `git status --porcelain=v2 -z
 --untracked-files=all` into `parsed.files`, computes `changedFileCount` as the _true_ count, and

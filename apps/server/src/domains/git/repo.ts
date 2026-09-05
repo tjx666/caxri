@@ -21,6 +21,7 @@ import { MissingRepoRootCache } from './missing-root-cache';
 import { sharedGitRequest } from './request-signal';
 import type { RepoStatus } from './status';
 import { parseGitLineStats, parseGitStatus, RepoStatusStore } from './status';
+import type { GitSummaryRequester, SummaryTrace } from './summary-trace';
 import type { RepoTopologyRegistry } from './topology';
 
 const MAX_CONCURRENT_GIT_COMMANDS = 8;
@@ -103,21 +104,6 @@ interface GitRepoServiceOptions {
     tracker: GitChangeTracker;
 }
 
-/**
- * Per-summary attribution counters for the `git.summary` producer boundary event. Every Git command spawned on behalf
- * of one summary increments `commandCount`, which is what the startup benchmark asserts on instead of individual
- * `git.command` records.
- */
-interface SummaryTrace {
-    commandCount: number;
-    worktreeListed: number;
-    worktreeApproved: number;
-    childRepositories: number;
-    statusFresh: number;
-    statusJoined: number;
-    statusCoalesced: number;
-}
-
 interface ChildCacheEntry {
     approvedKey: string;
     children: RepoRoot[];
@@ -196,6 +182,10 @@ function isHiddenByChildRepo(
  * here so it is never duplicated by a sibling service.
  */
 export class GitRepoService {
+    /**
+     * Keyed by Session lifetime; a force arriving mid-flight queues one trailing run that every further force shares
+     * instead of racing a parallel producer. See {@link GitRepoService.summary}.
+     */
     private readonly summaries = new SingleFlight<string, GitSummary>();
     private readonly statuses = new RepoStatusStore<RepoStatus>();
     private readonly childCache = new Map<string, ChildCacheEntry>();
@@ -323,9 +313,11 @@ export class GitRepoService {
         sessionId: string,
         reason: 'request' | 'refresh',
         sessionGeneration: number,
+        requester: GitSummaryRequester,
     ): Promise<GitSummary> {
         const startedAt = performance.now();
         const trace: SummaryTrace = {
+            requester,
             commandCount: 0,
             worktreeListed: 0,
             worktreeApproved: 0,
@@ -638,9 +630,17 @@ export class GitRepoService {
 
     /**
      * `refresh` is a monotonic user nonce: a value above the Session's last seen nonce forces the newest generation
-     * (fresh topology and status) instead of joining cached snapshots.
+     * (fresh topology and status) instead of joining cached snapshots. Coalescing is keyed by Session lifetime only,
+     * never by the nonce: keying on the nonce made a forced refresh and a plain read for the same Session run as two
+     * parallel full producers (#584, the defect class of #556). A plain read joins whatever is in flight; a force
+     * arriving mid-flight queues one trailing forced run that starts after the current producer settles, so its
+     * snapshot postdates the user's action with one Git batch per Session.
      */
-    summary(sessionId: string, refresh = 0): Promise<GitSummary> {
+    summary(
+        sessionId: string,
+        refresh = 0,
+        requester: GitSummaryRequester = 'renderer',
+    ): Promise<GitSummary> {
         let sessionGeneration = this.sessionGenerations.get(sessionId);
         if (sessionGeneration === undefined) {
             sessionGeneration = ++this.nextSessionGeneration;
@@ -649,20 +649,29 @@ export class GitRepoService {
         const lastNonce = this.refreshNonces.get(sessionId) ?? 0;
         const isForce = refresh > lastNonce;
         if (isForce) this.refreshNonces.set(sessionId, refresh);
-        const key = `${sessionId}#${sessionGeneration}#${refresh}`;
-        if (this.summaries.has(key))
+        const reason = isForce ? 'refresh' : 'request';
+        const key = `${sessionId}#${sessionGeneration}`;
+        const inFlight = this.summaries.get(key);
+        if (inFlight && !isForce) {
             this.options.logger.write('debug', logEventCatalog.git.summary, {
-                fields: { outcome: 'joined', reason: isForce ? 'refresh' : 'request' },
+                fields: { outcome: 'joined', requester },
             });
+            return sharedGitRequest(() => inFlight);
+        }
+        // A force that waits behind the in-flight producer (or shares an already queued trailing run) leaves its own
+        // record, so the log still shows how many user refreshes were folded into one Git batch and which ones waited.
+        if (inFlight)
+            this.options.logger.write('debug', logEventCatalog.git.summary, {
+                fields: { outcome: 'queued', requester, shared: this.summaries.isQueued(key) },
+            });
+        const load = () => this.loadSummary(sessionId, reason, sessionGeneration, requester);
         return sharedGitRequest(() =>
-            this.summaries.run(key, () =>
-                this.loadSummary(sessionId, isForce ? 'refresh' : 'request', sessionGeneration),
-            ),
+            isForce ? this.summaries.runAfter(key, load) : this.summaries.run(key, load),
         );
     }
 
     async resolveRepository(sessionId: string, repoIdValue: string): Promise<GitRepoSummary> {
-        const summary = await this.summary(sessionId);
+        const summary = await this.summary(sessionId, 0, 'repository');
         const repo = summary.repositories.find((candidate) => candidate.id === repoIdValue);
         if (!repo)
             throw new CaxriError(
@@ -678,7 +687,7 @@ export class GitRepoService {
     async discardSnapshot(sessionId: string, repoIdValue: string): Promise<GitDiscardSnapshot> {
         // Refresh the projection before hashing the status stream; that stream remains the consent-race authority.
         const refresh = (this.refreshNonces.get(sessionId) ?? 0) + 1;
-        const summary = await this.summary(sessionId, refresh);
+        const summary = await this.summary(sessionId, refresh, 'discard');
         const repo = summary.repositories.find((candidate) => candidate.id === repoIdValue);
         if (!repo)
             throw new CaxriError(

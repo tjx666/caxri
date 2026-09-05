@@ -47,6 +47,7 @@ import { loadTerminalReferenceContext, resolveTerminalCommitLink } from './refer
 import { parseGitRemoteHost } from './remote-host';
 import { computeRepoId, GitRepoService } from './repo';
 import { gitSignalOptions, sharedGitRequest } from './request-signal';
+import type { GitSummaryRequester } from './summary-trace';
 import { RepoTopologyRegistry } from './topology';
 import { GitWorkingTreeService } from './working-tree';
 
@@ -183,7 +184,7 @@ export class GitService {
         });
         this.blameService = new GitBlameService(this.paths, {
             git: (cwd, arguments_, options) => this.git(cwd, arguments_, options),
-            summary: (sessionId) => this.summary(sessionId),
+            summary: (sessionId) => this.summary(sessionId, 0, 'repository'),
         });
         this.workingTreeService = new GitWorkingTreeService({
             git: (cwd, arguments_, options_) => this.git(cwd, arguments_, options_),
@@ -394,13 +395,18 @@ export class GitService {
         return chunks.filter(Boolean).join('\n');
     }
 
-    summary(sessionId: string, refresh = 0): Promise<GitSummary> {
-        return this.repositoryService.summary(sessionId, refresh);
+    summary(
+        sessionId: string,
+        refresh = 0,
+        requester: GitSummaryRequester = 'renderer',
+    ): Promise<GitSummary> {
+        return this.repositoryService.summary(sessionId, refresh, requester);
     }
 
     async referenceContext(sessionId: string): Promise<TerminalReferenceContext> {
-        return loadTerminalReferenceContext(await this.summary(sessionId), (rootPath) =>
-            this.originRemote(rootPath),
+        return loadTerminalReferenceContext(
+            await this.summary(sessionId, 0, 'terminal'),
+            (rootPath) => this.originRemote(rootPath),
         );
     }
 
@@ -410,7 +416,7 @@ export class GitService {
         terminalCwd: string,
     ): Promise<TerminalCommitLinkResolution> {
         return resolveTerminalCommitLink(
-            await this.summary(sessionId),
+            await this.summary(sessionId, 0, 'terminal'),
             reference,
             terminalCwd,
             (rootPath, arguments_) => this.git(rootPath, arguments_, { allowFailure: true }),
@@ -422,7 +428,7 @@ export class GitService {
      * joins the same producer instead of running a second `git status`.
      */
     async overview(sessionId: string): Promise<GitOverview> {
-        const summary = await this.summary(sessionId);
+        const summary = await this.summary(sessionId, 0, 'overview');
         return {
             isRepository: summary.isRepository,
             ...(summary.error !== undefined && { error: summary.error }),

@@ -13,6 +13,7 @@ import {
     gitOverviewSchema,
     gitPullRequestChangesSchema,
     gitSummarySchema,
+    gitSummaryWireRequesterSchema,
     identifierSchema,
     pathSchema,
 } from './domain.js';
@@ -62,6 +63,7 @@ export const gitMethods = {
              * generation instead of joining a cached snapshot.
              */
             refresh: z.number().int().nonnegative().default(0),
+            requester: gitSummaryWireRequesterSchema.default('renderer'),
         }),
         result: gitSummarySchema,
     },
