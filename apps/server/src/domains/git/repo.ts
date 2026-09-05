@@ -9,7 +9,7 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError, MAX_GIT_STATUS_FILES } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog, mapWithConcurrency } from '@caxri/system';
+import { mapWithConcurrency } from '@caxri/system';
 
 import { isOutsideRoot } from '../path-security';
 import type { ProjectRootResolver } from '../project-roots';
@@ -21,6 +21,7 @@ import { MissingRepoRootCache } from './missing-root-cache';
 import { sharedGitRequest } from './request-signal';
 import type { RepoStatus } from './status';
 import { parseGitLineStats, parseGitStatus, RepoStatusStore } from './status';
+import { GitSummaryTelemetry } from './summary-telemetry';
 import type { GitSummaryRequester, SummaryTrace } from './summary-trace';
 import type { RepoTopologyRegistry } from './topology';
 
@@ -192,13 +193,16 @@ export class GitRepoService {
     private readonly refreshNonces = new Map<string, number>();
     private readonly sessionGenerations = new Map<string, number>();
     private readonly missingRepositoryRoots = new MissingRepoRootCache();
+    private readonly telemetry: GitSummaryTelemetry;
     private nextSessionGeneration = 0;
     private metadataWatcher?: GitMetadataWatcher;
 
     constructor(
         private readonly paths: ProjectRootResolver,
         private readonly options: GitRepoServiceOptions,
-    ) {}
+    ) {
+        this.telemetry = new GitSummaryTelemetry(options.logger);
+    }
 
     /**
      * Funnel for every Git command issued on behalf of one summary so the producer boundary event can attribute an
@@ -349,21 +353,17 @@ export class GitRepoService {
             this.sessionGenerations.delete(sessionId);
             this.refreshNonces.delete(sessionId);
         }
-        this.options.logger.write('info', logEventCatalog.git.summary, {
-            durationMs: performance.now() - startedAt,
-            fields: {
-                ...trace,
-                fileCount: summary.repositories.reduce(
-                    (total, repo) => total + repo.files.length,
-                    0,
-                ),
-                generation: summary.repositories[0]?.generation ?? 0,
-                truncated: summary.repositories.some((repo) => repo.truncated),
-                isRepository: summary.isRepository,
-                outcome: 'fresh',
-                reason,
-            },
+        this.telemetry.recordProduced(sessionId, summary, performance.now() - startedAt, {
+            ...trace,
+            fileCount: summary.repositories.reduce((total, repo) => total + repo.files.length, 0),
+            generation: summary.repositories[0]?.generation ?? 0,
+            truncated: summary.repositories.some((repo) => repo.truncated),
+            isRepository: summary.isRepository,
+            reason,
         });
+        // A production that settles after its Session was evicted must not leave a window behind that only Server
+        // close would publish; flush it now so eviction stays the last word for that Session.
+        if (!isCurrentSessionGeneration) this.telemetry.flush([sessionId]);
         return summary;
     }
 
@@ -621,11 +621,20 @@ export class GitRepoService {
         for (const sessionId of sessionIds) this.sessionGenerations.delete(sessionId);
         this.options.tracker.evictSessions(sessionIds);
         for (const sessionId of sessionIds) this.refreshNonces.delete(sessionId);
+        this.telemetry.flush(sessionIds);
         this.retainReferencedRepositoryState();
         // Fire-and-forget: eviction must never block on watcher teardown; failures downgrade to
         // the watcher's own polling fallback and are logged there.
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void this.metadataWatcher?.retainOnly(this.options.tracker.referencedRepositoryKeys());
+    }
+
+    /**
+     * Publishes every open per-Session refresh aggregate at the Server lifecycle boundary so the last window of a run
+     * is not lost with the process.
+     */
+    close(): void {
+        this.telemetry.flush();
     }
 
     /**
@@ -653,17 +662,11 @@ export class GitRepoService {
         const key = `${sessionId}#${sessionGeneration}`;
         const inFlight = this.summaries.get(key);
         if (inFlight && !isForce) {
-            this.options.logger.write('debug', logEventCatalog.git.summary, {
-                fields: { outcome: 'joined', requester },
-            });
+            this.telemetry.recordJoined(sessionId, requester);
             return sharedGitRequest(() => inFlight);
         }
-        // A force that waits behind the in-flight producer (or shares an already queued trailing run) leaves its own
-        // record, so the log still shows how many user refreshes were folded into one Git batch and which ones waited.
         if (inFlight)
-            this.options.logger.write('debug', logEventCatalog.git.summary, {
-                fields: { outcome: 'queued', requester, shared: this.summaries.isQueued(key) },
-            });
+            this.telemetry.recordQueued(sessionId, requester, this.summaries.isQueued(key));
         const load = () => this.loadSummary(sessionId, reason, sessionGeneration, requester);
         return sharedGitRequest(() =>
             isForce ? this.summaries.runAfter(key, load) : this.summaries.run(key, load),

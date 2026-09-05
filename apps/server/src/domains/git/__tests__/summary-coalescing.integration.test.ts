@@ -118,4 +118,25 @@ describe('GitService summary coalescing', () => {
         ]);
         expect(await statusCommandCount(logger)).toBe(2);
     });
+
+    /**
+     * Eviction flushes the Session's refresh aggregate, but a production that was already in flight settles afterwards
+     * and would otherwise reopen a window that only Server close publishes.
+     */
+    it('publishes the aggregate of a production that settles after its Session was evicted', async () => {
+        const { git, logger, session } = await createStatusFixture('caxri-git-evict-race-');
+        const inFlight = git.summary(session.id);
+        git.evictSessions([session.id]);
+        await inFlight;
+        const aggregates = (await loggedRecords(logger)).filter(
+            (record) => record.event === 'git.refresh_summary',
+        );
+        expect(aggregates.map((record) => record.fields?.refreshes)).toEqual([1]);
+        await git.close();
+        expect(
+            (await loggedRecords(logger)).filter(
+                (record) => record.event === 'git.refresh_summary',
+            ),
+        ).toHaveLength(1);
+    });
 });

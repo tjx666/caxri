@@ -47,14 +47,18 @@ async function createFixture(prefix: string) {
         session,
         /**
          * Per-summary Git command attribution from the `git.summary` producer boundary. Counting `git.command` records
-         * directly would also pick up background metadata work that is not part of discovery.
+         * directly would also pick up background metadata work that is not part of discovery. A repeated result is
+         * written at `debug` (#604), so select producer records by outcome rather than by level.
          */
         summaryCommandCounts: () =>
             write.mock.calls
-                .filter((call) => call[1] === 'git.summary' && call[0] === 'info')
+                .filter((call) => call[1] === 'git.summary')
                 .map(
-                    (call) => (call[2] as { fields: { commandCount: number } }).fields.commandCount,
-                ),
+                    (call) =>
+                        (call[2] as { fields: { commandCount: number; outcome: string } }).fields,
+                )
+                .filter((fields) => fields.outcome === 'fresh')
+                .map((fields) => fields.commandCount),
     };
 }
 

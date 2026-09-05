@@ -261,6 +261,9 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
         const gitCommand = records.findLast((record) => record.event === 'git.command');
         // The three-second Git gate covers the whole summary production (discovery + status +
         // numstat wall time and command count), not the last individual `git.command` record.
+        // Server Core logs at `info`, where a production whose result repeats the previous one for
+        // the Session is not written (#604); this therefore counts changed productions, which always
+        // includes the cold one of each Server lifetime.
         const gitSummaries = records.filter(
             (record) => record.event === 'git.summary' && record.fields?.outcome === 'fresh',
         );

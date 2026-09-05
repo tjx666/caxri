@@ -44,7 +44,7 @@ from any sibling worktree join the same topology entry without spawning Git.
 
 `apps/server/src/domains/git/status.ts` — `RepoStatusStore<Status>` is generation-keyed per canonical worktree
 root. `status(rootPath, load)` reports one of three outcomes, all counted per-summary in the
-`SummaryTrace` (`apps/server/src/domains/git/repo.ts:69-77`, `statusFresh` / `statusJoined` / `statusCoalesced`)
+`SummaryTrace` (`apps/server/src/domains/git/summary-trace.ts`, `statusFresh` / `statusJoined` / `statusCoalesced`)
 and rolled into the `git.summary` log event:
 
 - **fresh** — no entry exists at the current generation; this call becomes the producer.
@@ -131,12 +131,32 @@ generation-keyed `childCache` bounded to 256 entries (`MAX_CHILD_CACHE_ENTRIES`)
 Every Git command spawned on behalf of one summary is funneled through `tracedGit`, which
 increments a `SummaryTrace.commandCount`; the trace also tracks `worktreeListed`,
 `worktreeApproved`, `childRepositories`, and the fresh/joined/coalesced status counts. This is what
-the `git.summary` boundary log event (`loadSummary`, `apps/server/src/domains/git/repo.ts:361-394`) reports
+the `git.summary` boundary log event (`loadSummary`, `apps/server/src/domains/git/repo.ts`) reports
 instead of leaving attribution to individual `git.command` records — fields: `durationMs`,
 `commandCount`, `worktreeListed`, `worktreeApproved`, `childRepositories`, `fileCount`,
 `generation`, `truncated`, `isRepository`, `outcome`, `reason` (`'request' | 'refresh'`), `requester`
 (the closed entry-point enum `GitSummaryRequester`: `renderer`, `extension`, `overview`, `repository`,
 `discard`, `projectStatus`, `pullRequests`, `terminal`), plus the per-status outcome counters.
+
+**Production log volume.** `GitSummaryTelemetry` (`apps/server/src/domains/git/summary-telemetry.ts`)
+is the only writer of `git.summary` records and owns their level
+([issue #604](https://github.com/tjx666/caxri/issues/604)). A production (`outcome: fresh`) is written
+at `info` only when its result differs from the previous one for that Session and carries
+`changed: true`; a repeat is written at `debug` with `changed: false`, so a steady-state watcher storm
+no longer fills the 5MB `server-core` generation. The comparison is a per-repository fingerprint of
+id, kind, branch, head, ahead/behind, additions/deletions, `changedFileCount`, `truncated`, and a
+SHA-256 of the sorted `path|status` file list — compared in memory, never written, so a same-count
+change to which files are dirty still counts as a transition. `joined` and `queued` records are
+always `debug`. Volume is restored by one `git.refresh_summary` record at `info` per Session per
+60-second activity window: `refreshes`, `changed`, `repeated`, `joined`, `queued`, `commandCount`, the
+three status counters, `totalDurationMs`, `maxDurationMs`, `durationMs` from the first to the last
+counted refresh (idle time after a burst is not included), `reason*` counts, and `requester*` counts
+of productions only. Windows close lazily on the next refresh after they elapse, on Session eviction
+(`evictSessions`, including a production that settles after eviction), and on `GitService.close()`;
+there is no timer. Production Server Core always logs at `info`
+(`apps/server/src/core/process.ts`), so a log reader sees every _changed_ production and the
+per-window aggregate, not every production; the startup benchmark's `gitSummariesFresh` therefore
+counts changed productions, and refresh volume is read from `git.refresh_summary` after close.
 
 **Summary coalescing and the refresh nonce.** `GitRepoService.summary` single-flights per
 `sessionId#sessionGeneration`; the `refresh` nonce is deliberately not part of the key
@@ -183,7 +203,7 @@ asserts against it rather than the last `git.command` record.
 
 ## Lifecycle and cleanup
 
-- `GitRepoService.evictSessions` (`apps/server/src/domains/git/repo.ts:626-637`) drops per-Session projections
+- `GitRepoService.evictSessions` (`apps/server/src/domains/git/repo.ts`) drops per-Session projections
   from the tracker, prunes `refreshNonces`, retains only status snapshots and child-cache entries
   for roots still referenced by a live Session, and asks the metadata watcher to `retainOnly` the
   still-referenced repository keys.

@@ -570,6 +570,7 @@ export class GitService {
     async close(): Promise<void> {
         this.pullRequestService.clear();
         this.remoteHostByRoot.clear();
+        this.repositoryService.close();
         this.changeTracker.close();
         await this.metadataWatcher.close();
     }
