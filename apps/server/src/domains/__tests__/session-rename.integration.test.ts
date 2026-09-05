@@ -134,7 +134,9 @@ describe('Session rename', () => {
             const pendingState = await runtime.handlers['app.bootstrap']({});
             expect(
                 pendingState.sessions.find((session) => session.id === created.session.id),
-            ).toMatchObject({ displayTitle: 'Untitled', titleMode: 'automatic' });
+                // The probe has already replaced the neutral default with the provider placeholder; the point here is
+                // that the requested manual title is not persisted until the provider accepts it.
+            ).toMatchObject({ displayTitle: 'Codex session', titleMode: 'automatic' });
 
             providerAcceptance.resolve({ displayTitle: 'Focused investigation (2)' });
             await expect(pendingRename).resolves.toMatchObject({

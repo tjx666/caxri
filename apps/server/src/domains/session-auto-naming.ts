@@ -23,6 +23,7 @@ import {
     AutoNamingReasonTally,
     highFrequencyAutoNamingReasons,
 } from './session-auto-naming-metrics';
+import { isPlaceholderSessionTitle } from './session-policy';
 import type { SessionRenameService } from './session-rename';
 
 const MAX_SESSION_SLOTS = 128;
@@ -208,9 +209,10 @@ export class SessionAutoNamingService {
      * two are recorded apart instead of collapsing into one reason.
      */
     private ineligibleReason(trigger: NamingTrigger): AutoNamingReason {
-        return this.database.getSession(trigger.sessionId)?.autoNamingState === 'active'
-            ? 'targetIneligible'
-            : 'autoNamingStopped';
+        const session = this.database.getSession(trigger.sessionId);
+        // A Session that no longer exists is ineligible, not a Session whose user stopped automatic naming.
+        if (!session) return 'targetIneligible';
+        return session.autoNamingState === 'active' ? 'targetIneligible' : 'autoNamingStopped';
     }
 
     /**
@@ -299,8 +301,9 @@ export class SessionAutoNamingService {
         }
         slot.lastAttemptAt = now;
         slot.lastAttemptBytes = source.byteLength;
-        source.currentProviderTitle ??=
-            current.session.displayTitle === 'Untitled' ? undefined : current.session.displayTitle;
+        source.currentProviderTitle ??= isPlaceholderSessionTitle(current.session.displayTitle)
+            ? undefined
+            : current.session.displayTitle;
         attempt.enter('branchRead');
         source.gitBranch ??= await readAgentTitleGitBranch(current.terminal.cwd);
         if (!this.isLatest(trigger.sessionId, slot, trigger))
@@ -379,7 +382,13 @@ export class SessionAutoNamingService {
                      */
                     if (controller.signal.aborted)
                         this.finishAttempt(slot, trigger, attempt, 'cancelled', 'aborted');
-                    else {
+                    else if (!this.database.getSession(trigger.sessionId)) {
+                        /**
+                         * The Session was deleted while the provider call was in flight. Reporting provider health here
+                         * would degrade the Settings indicator for a rejection that only means the target went away.
+                         */
+                        this.finishAttempt(slot, trigger, attempt, 'skipped', 'targetIneligible');
+                    } else {
                         const at = this.now();
                         slot.lastFailureAt = at;
                         slot.tally.record('failed', attempt.durationMs(at));
@@ -468,6 +477,11 @@ export class SessionAutoNamingService {
         this.slots.delete(sessionId);
     }
 
+    /**
+     * A Terminal row is the only mapping back to its Session. When the row is already gone the owning Session was
+     * deleted or archived, and {@link forgetSession} has invalidated the slot; there is nothing left to cancel, so the
+     * missing mapping is an expected silent exit rather than a lost invalidation.
+     */
     forgetTerminal(terminalId: string): void {
         const sessionId = this.database.getTerminal(terminalId)?.sessionId;
         if (sessionId) this.invalidateSession(sessionId);
@@ -491,6 +505,18 @@ export class SessionAutoNamingService {
         }
         const resumed = await this.renames.resumeAutomaticNaming(sessionId);
         if (!resumed) throw new CaxriError('NOT_FOUND', 'Session not found');
+        /**
+         * Resuming is an explicit request for a name now. The throttles exist to stop Caxri renaming a Session it just
+         * named, but they outlive the stop: keeping them would silently swallow the first turn after the user asked for
+         * naming back, which reads as the button doing nothing. The reset happens only once the resume is accepted, so
+         * a rejected request cannot widen the window for a Session Caxri does not own.
+         */
+        const slot = this.slots.get(sessionId);
+        if (slot) {
+            slot.lastAttemptAt = undefined;
+            slot.lastAttemptBytes = undefined;
+            slot.lastFailureAt = undefined;
+        }
         return resumed;
     }
 

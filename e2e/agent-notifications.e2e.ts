@@ -182,7 +182,6 @@ setInterval(() => {
                 running.app.evaluate(() => {
                     interface RecordedNotification {
                         body: string;
-                        groupId: string;
                         id: string;
                         title: string;
                     }
@@ -191,7 +190,6 @@ setInterval(() => {
                     };
                     return (state.__caxriAgentNotifications ?? []).map((notification) => ({
                         body: notification.body,
-                        groupId: notification.groupId,
                         id: notification.id,
                         title: notification.title,
                     }));
@@ -200,7 +198,6 @@ setInterval(() => {
             .toEqual([
                 {
                     body: 'Claude Code completed a turn.',
-                    groupId: 'caxri-agent-sessions',
                     id: `caxri-agent-session-${sourceSessionId}`,
                     title: SESSION_TITLE,
                 },

@@ -82,7 +82,9 @@ describe('AgentCoordinator provider title propagation', () => {
             await expect
                 .poll(() => database.getTerminal(created.terminal!.id)?.agentSessionId)
                 .toBe(claudeSessionId);
-            expect(database.getSession(created.session.id)?.displayTitle).toBe('Untitled');
+            expect(database.getSession(created.session.id)?.displayTitle).toBe(
+                'Claude Code session',
+            );
         } finally {
             coordinator.close();
             database.close();
@@ -147,7 +149,7 @@ describe('AgentCoordinator provider title propagation', () => {
             await expect
                 .poll(() => database.getTerminal(created.terminal!.id)?.agentSessionId)
                 .toBe(codexSessionId);
-            expect(database.getSession(created.session.id)?.displayTitle).toBe('Untitled');
+            expect(database.getSession(created.session.id)?.displayTitle).toBe('Codex session');
 
             const updatedState = new Database(join(stateDirectory, 'state_1.sqlite'));
             updatedState
@@ -157,7 +159,10 @@ describe('AgentCoordinator provider title propagation', () => {
             coordinator.observeOutput(created.terminal!.id);
 
             await new Promise((resolve) => setTimeout(resolve, 25));
-            expect(database.getSession(created.session.id)?.displayTitle).toBe('Untitled');
+            expect(database.getSession(created.session.id)?.displayTitle).toBe('Codex session');
+            expect(database.getSession(created.session.id)?.displayTitle).not.toContain(
+                provisionalTitle,
+            );
 
             const finalState = new Database(join(stateDirectory, 'state_1.sqlite'));
             finalState
