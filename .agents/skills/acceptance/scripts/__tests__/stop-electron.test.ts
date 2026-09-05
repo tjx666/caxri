@@ -24,10 +24,12 @@ const runtime: RuntimeState = {
 function dependencies(overrides: Partial<StopElectronDependencies> = {}): StopElectronDependencies {
     return {
         discoverOwnedProcesses: vi.fn().mockResolvedValue([]),
+        forceCompleteCaseLifecycle: vi.fn().mockResolvedValue('already_completed'),
         isCdpReachable: vi.fn().mockResolvedValue(false),
-        isOwnedLauncher: vi.fn().mockResolvedValue(true),
+        isOwnedLauncher: vi.fn().mockResolvedValue(false),
         isOwnedProcess: vi.fn().mockResolvedValue(true),
         isOwnedRuntime: vi.fn().mockResolvedValue(false),
+        isOwnedUserDataRemoved: vi.fn().mockResolvedValue(true),
         kill: vi.fn(),
         log: vi.fn(),
         now: () => 0,
@@ -97,6 +99,7 @@ describe('Acceptance Electron stopper', () => {
             .mockResolvedValueOnce(false)
             .mockResolvedValueOnce(false);
         const live = dependencies({
+            isOwnedLauncher: vi.fn().mockResolvedValueOnce(true).mockResolvedValue(false),
             isOwnedProcess: vi.fn(({ pid }: { pid: number }) => Promise.resolve(pid !== 333)),
             isOwnedRuntime,
             readRuntime: vi.fn().mockResolvedValue(
@@ -114,6 +117,8 @@ describe('Acceptance Electron stopper', () => {
         expect(live.unlinkRuntime).toHaveBeenCalledOnce();
         expect(live.removeOwnedUserData).toHaveBeenCalledOnce();
         expect(live.log).toHaveBeenCalledWith('Stopped owned Caxri acceptance instance');
+        // Runtime state written before receipt ownership was recorded has nothing to complete.
+        expect(live.forceCompleteCaseLifecycle).not.toHaveBeenCalled();
     });
 
     it('signals Electron when the launcher is gone but the Electron identity is still owned', async () => {
@@ -332,5 +337,168 @@ describe('Acceptance Electron stopper', () => {
         );
         expect(live.unlinkRuntime).not.toHaveBeenCalled();
         expect(live.removeOwnedUserData).not.toHaveBeenCalled();
+    });
+
+    /**
+     * Virtual clock: `now` reads the clock and `sleep` advances it, so a whole slow teardown runs instantly while every
+     * grace and force deadline is still evaluated against real elapsed milliseconds.
+     */
+    function launcherScenario(input: {
+        electronExitsAt?: number;
+        launcherExitsAt: number;
+        launcherGraceMs?: number;
+        withReceipt?: boolean;
+    }) {
+        let clock = 0;
+        const liveProcessIds = new Set([111, 333]);
+        const isLauncherAlive = () => liveProcessIds.has(111) && clock < input.launcherExitsAt;
+        const isServerCoreAlive = () => liveProcessIds.has(333) && isLauncherAlive();
+        const kill = vi.fn((pid: number, signal: NodeJS.Signals) => {
+            if (signal === 'SIGKILL') liveProcessIds.delete(pid);
+        });
+        const dependencies_ = dependencies({
+            isCdpReachable: vi.fn(() => Promise.resolve(isLauncherAlive())),
+            isOwnedLauncher: vi.fn(() => Promise.resolve(isLauncherAlive())),
+            isOwnedProcess: vi.fn(({ pid }: { pid: number }) =>
+                Promise.resolve(
+                    pid === 111 ? isLauncherAlive() : pid === 333 ? isServerCoreAlive() : false,
+                ),
+            ),
+            isOwnedRuntime: vi.fn(() =>
+                Promise.resolve(isLauncherAlive() && clock < (input.electronExitsAt ?? Infinity)),
+            ),
+            kill,
+            now: () => clock,
+            readRuntime: vi.fn().mockResolvedValue(
+                JSON.stringify({
+                    ...runtime,
+                    acceptanceCase:
+                        input.withReceipt === false
+                            ? runtime.acceptanceCase
+                            : {
+                                  ...runtime.acceptanceCase,
+                                  lifecycleLaunchId: 'launch-1',
+                                  reportDirectory: '/repo/.records/acceptance/round-1',
+                              },
+                    ownedProcesses: [
+                        { identity: 'live server core', pid: 333, role: 'server-core' },
+                    ],
+                }),
+            ),
+            sleep: vi.fn((milliseconds: number) => {
+                clock += milliseconds;
+                return Promise.resolve();
+            }),
+        });
+        return {
+            deps: dependencies_,
+            kill,
+            run: () => stopElectron(dependencies_, { launcherGraceMs: input.launcherGraceMs }),
+        };
+    }
+
+    it('lets a slow launcher finish its own teardown instead of killing it after five seconds', async () => {
+        const { deps, kill, run } = launcherScenario({ launcherExitsAt: 12_000 });
+
+        await expect(run()).resolves.toBeUndefined();
+
+        expect(kill).toHaveBeenCalledWith(111, 'SIGTERM');
+        expect(kill).not.toHaveBeenCalledWith(111, 'SIGKILL');
+        // Server Core belongs to the launcher while it is alive; it exits with the launcher and is never signaled.
+        expect(kill).not.toHaveBeenCalledWith(333, 'SIGTERM');
+        expect(kill).not.toHaveBeenCalledWith(333, 'SIGKILL');
+        expect(deps.forceCompleteCaseLifecycle).toHaveBeenCalledWith(
+            '/repo/.records/acceptance/round-1',
+            expect.objectContaining({
+                caseId: 'stop-case',
+                launchId: 'launch-1',
+                source: 'stop-electron',
+            }),
+        );
+        expect(deps.log).not.toHaveBeenCalledWith(
+            expect.stringContaining('Completed lifecycle receipt'),
+        );
+        expect(deps.log).toHaveBeenCalledWith('Stopped owned Caxri acceptance instance');
+    });
+
+    it('force-kills a launcher that stops making progress and completes the receipt itself', async () => {
+        const { deps, kill, run } = launcherScenario({
+            launcherExitsAt: Infinity,
+            launcherGraceMs: 30_000,
+        });
+        vi.mocked(deps.forceCompleteCaseLifecycle).mockResolvedValue('completed');
+
+        await expect(run()).resolves.toBeUndefined();
+
+        expect(kill).toHaveBeenCalledWith(111, 'SIGTERM');
+        expect(kill).toHaveBeenCalledWith(111, 'SIGKILL');
+        expect(kill).not.toHaveBeenCalledWith(333, 'SIGKILL');
+        expect(deps.log).toHaveBeenCalledWith(
+            expect.stringContaining('no teardown progress for 30000ms'),
+        );
+        expect(deps.forceCompleteCaseLifecycle).toHaveBeenCalledWith(
+            '/repo/.records/acceptance/round-1',
+            {
+                caseId: 'stop-case',
+                cleanupCompleted: true,
+                cleanupRequested: true,
+                launchId: 'launch-1',
+                reason: expect.stringContaining('force-killed the launcher') as string,
+                source: 'stop-electron',
+            },
+        );
+        expect(deps.log).toHaveBeenCalledWith(
+            expect.stringContaining('on behalf of the force-killed launcher'),
+        );
+    });
+
+    it('extends the launcher grace while teardown is still making progress', async () => {
+        const { kill, run } = launcherScenario({
+            electronExitsAt: 25_000,
+            launcherExitsAt: 45_000,
+            launcherGraceMs: 30_000,
+        });
+
+        await expect(run()).resolves.toBeUndefined();
+
+        expect(kill).not.toHaveBeenCalledWith(111, 'SIGKILL');
+    });
+
+    it('records unverified cleanup honestly when the profile still exists after a forced stop', async () => {
+        const { deps, run } = launcherScenario({
+            launcherExitsAt: Infinity,
+            launcherGraceMs: 1_000,
+        });
+        vi.mocked(deps.isOwnedUserDataRemoved).mockResolvedValue(false);
+
+        await run();
+
+        expect(deps.forceCompleteCaseLifecycle).toHaveBeenCalledWith(
+            expect.any(String),
+            expect.objectContaining({ cleanupCompleted: false, cleanupRequested: true }),
+        );
+    });
+
+    it('completes the receipt when the launcher was already gone before the stop', async () => {
+        const { deps, run } = launcherScenario({ launcherExitsAt: 0 });
+        vi.mocked(deps.forceCompleteCaseLifecycle).mockResolvedValue('completed');
+        await run();
+        expect(deps.forceCompleteCaseLifecycle).toHaveBeenCalledWith(
+            '/repo/.records/acceptance/round-1',
+            expect.objectContaining({
+                launchId: 'launch-1',
+                reason: expect.stringContaining('already gone') as string,
+                source: 'stop-electron',
+            }),
+        );
+        expect(deps.log).toHaveBeenCalledWith(
+            expect.stringContaining('on behalf of the already-gone launcher'),
+        );
+    });
+
+    it('skips the receipt when runtime state predates receipt ownership', async () => {
+        const { deps, run } = launcherScenario({ launcherExitsAt: 0, withReceipt: false });
+        await run();
+        expect(deps.forceCompleteCaseLifecycle).not.toHaveBeenCalled();
     });
 });

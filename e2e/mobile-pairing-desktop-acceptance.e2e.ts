@@ -4,7 +4,7 @@ import process from 'node:process';
 
 import { execFileAsync } from '@caxri/system';
 
-import { markCaseLifecycleReady } from '../.agents/skills/acceptance/scripts/report.ts';
+import { markCaseLifecycleReady } from '../.agents/skills/acceptance/scripts/case-lifecycle.ts';
 import { expect, test } from './support/fixtures.ts';
 import { revealSettingsSection } from './support/helpers.ts';
 import { createMobileAcceptanceFixture } from './support/mobile-acceptance-fixture.ts';

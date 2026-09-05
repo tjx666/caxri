@@ -67,7 +67,10 @@ Android, and iOS Simulator product surfaces.
   immutable launcher/window identities recorded in the runtime file plus the Server Core that owns
   that profile's kernel lock and its exact artifact children. It rechecks every identity before
   signaling, preserves state on a mismatch or timeout, and does not return success until CDP and all
-  captured owned processes are gone.
+  captured owned processes are gone. A live launcher owns its own teardown: it receives SIGTERM
+  alone and is force-killed only after `--launcher-grace-ms` (default 30000) without teardown
+  progress; the adapter then completes the case's state-isolation receipt itself, so the receipt is
+  whole after every successful stop.
 - **Already-running detection:** the adapter compares the recorded launcher PID
   and immutable process identity. It refuses to replace a verified live owner
   and treats a recycled PID as stale state. A declared restart may carry the same verified Server Core

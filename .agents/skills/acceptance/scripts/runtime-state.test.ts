@@ -10,6 +10,7 @@ import {
     errorCode,
     getProcessCommand,
     getProcessIdentity,
+    isAcceptanceProfileIdentityRemoved,
     isAlive,
     isOwnedLauncher,
     isOwnedRuntime,
@@ -297,13 +298,13 @@ describe('Acceptance runtime ownership', () => {
                 'settings-case',
             ]);
             expect(new Set(profiles.map(({ userDataDir }) => userDataDir)).size).toBe(4);
-            expect(
-                profiles.every(({ acceptanceCase }) => acceptanceCase?.mode === 'isolated'),
-            ).toBe(true);
+            expect(profiles.every(({ acceptanceCase }) => acceptanceCase.mode === 'isolated')).toBe(
+                true,
+            );
             expect(
                 profiles.every(
                     ({ acceptanceCase }) =>
-                        acceptanceCase?.requiresTerminalFixturePreflight === true,
+                        acceptanceCase.requiresTerminalFixturePreflight === true,
                 ),
             ).toBe(true);
         } finally {
@@ -316,6 +317,18 @@ describe('Acceptance runtime ownership', () => {
         );
     });
 
+    it('probes only a direct temp-directory child when checking a profile identity', async () => {
+        for (const identity of ['', '.', '..', 'nested/profile', '/etc']) {
+            // eslint-disable-next-line no-await-in-loop -- sequential assertions keep the failing identity readable
+            await expect(isAcceptanceProfileIdentityRemoved(identity)).rejects.toThrow(
+                'must be a directory name',
+            );
+        }
+        await expect(
+            isAcceptanceProfileIdentityRemoved(`caxri-acceptance-missing-${process.pid}`),
+        ).resolves.toBe(true);
+    });
+
     it('records an explicit non-Terminal frame-capture plan without weakening the default', async () => {
         const profile = await prepareAcceptanceUserData({
             caseId: 'non-terminal-recording',
@@ -323,7 +336,7 @@ describe('Acceptance runtime ownership', () => {
             requiresTerminalFixturePreflight: false,
         });
         try {
-            expect(profile.acceptanceCase?.requiresTerminalFixturePreflight).toBe(false);
+            expect(profile.acceptanceCase.requiresTerminalFixturePreflight).toBe(false);
         } finally {
             await removeOwnedUserData(profile);
         }
