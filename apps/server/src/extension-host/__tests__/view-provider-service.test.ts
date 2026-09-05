@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { hostError, isHostOriginatedError } from '../extension-error';
 import type { ExtensionHostMessage } from '../protocol';
+import { requestServerApi, settleApiReply } from '../server-api-request';
 import {
     createControlledViewRegistrationApi,
     didCancelViewRequest,
@@ -113,6 +114,61 @@ describe('controlled view provider runtime', () => {
         const rejection = await rejectionOf(snapshot('snapshot-forged'));
         expect(rejection).toMatchObject({ code: 'CANCELLED', message: 'boom' });
         expect(isHostOriginatedError(rejection)).toBe(false);
+    });
+
+    it("re-mints Server Core's Session-switch expiry that a provider propagates from its own API call", async () => {
+        // Mirrors extensions/git/src/git-provider.ts `provideView`: `await this.workspace.git.summary(...)` has no
+        // catch, so when the active Session changes mid-read Server Core's GENERATION_EXPIRED reaches the boundary
+        // unchanged. Host state at the boundary (registration, token) is untouched by a Session switch, so only the
+        // API layer's record of its own decision can keep this the #587 debug non-fault.
+        const sent: ExtensionHostMessage[] = [];
+        registerSnapshotProvider(async () => {
+            await requestServerApi(
+                {
+                    apiToken: 'fixture-token',
+                    extensionId: 'publisher.fixture',
+                    generation: 3,
+                    assertCurrent: () => {},
+                    isApiTokenCurrent: () => true,
+                    send: (message) => sent.push(message),
+                },
+                {
+                    method: 'workspace.request',
+                    params: {
+                        operation: 'git.summary',
+                        arguments: { refresh: 0 },
+                        context: {
+                            kind: 'session',
+                            sessionId: 'session-1',
+                            workbenchProjectId: 'project-1',
+                        },
+                    },
+                },
+            );
+            return model;
+        });
+        const request = snapshot('snapshot-session-switch');
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        const issued = sent.find((message) => message.type === 'api-request');
+        expect(issued).toBeDefined();
+        settleApiReply(
+            {
+                id: issued!.id,
+                ok: false,
+                error: {
+                    code: 'GENERATION_EXPIRED',
+                    message: 'Active Project changed while the extension request was running',
+                },
+            },
+            () => true,
+        );
+
+        const rejection = await rejectionOf(request);
+        expect(rejection).toMatchObject({
+            code: 'GENERATION_EXPIRED',
+            message: 'Active Project changed while the extension request was running',
+        });
+        expect(isHostOriginatedError(rejection)).toBe(true);
     });
 
     it('strips host origin from a host-minted error a provider re-throws with current host state', async () => {

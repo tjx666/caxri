@@ -4,7 +4,8 @@ import { isNonExpiringViewOperation } from '@caxri/protocol';
 import { currentObservationContext, mergeObservationContext } from '@caxri/system';
 import type { CancellationToken, DisposableLike } from 'caxri';
 
-import { hostError } from './extension-error';
+import type { ProviderRequestScope } from './extension-error';
+import { currentProviderRequestScope, hostError, recordHostApiExpiry } from './extension-error';
 import type { ExtensionHostApiRequest, ExtensionHostMessage } from './protocol';
 
 type ExtensionHostApiRequestIdentity =
@@ -29,6 +30,11 @@ interface PendingApiRequest {
     cancellation?: DisposableLike;
     resolve(value: unknown): void;
     reject(error: Error): void;
+    /**
+     * The provider request that issued this call, captured at issue time because the reply arrives on the IPC message
+     * handler, outside that request's async context.
+     */
+    scope?: ProviderRequestScope;
     timer?: NodeJS.Timeout;
     sendCancel(): void;
 }
@@ -51,6 +57,16 @@ function clearPending(id: string, pending: PendingApiRequest): void {
     pendingApi.delete(id);
     if (pending.timer) clearTimeout(pending.timer);
     pending.cancellation?.dispose();
+}
+
+/**
+ * Rejects on the host's own behalf. Besides minting the error host-originated, this tells the owning provider request
+ * that the host expired one of its API calls, so a provider that propagates the rejection unchanged is still classified
+ * as a non-fault at the provider boundary.
+ */
+function rejectAsHost(pending: PendingApiRequest, code: string, message: string): void {
+    recordHostApiExpiry(pending.scope, code);
+    pending.reject(hostError(code, message));
 }
 
 function requestTimeout(request: ServerApiRequestInput): number | undefined {
@@ -118,6 +134,7 @@ export function requestServerApi<Result>(
             apiToken: context.apiToken,
             resolve,
             reject,
+            scope: currentProviderRequestScope(),
             timer,
             sendCancel: () => context.send({ type: 'api-cancel', id }),
         };
@@ -152,7 +169,7 @@ export function settleApiReply(
     if (!pending) return;
     clearPending(message.id, pending);
     if (!isApiTokenCurrent(pending.apiToken)) {
-        pending.reject(hostError('GENERATION_EXPIRED', 'Extension generation was reconfigured'));
+        rejectAsHost(pending, 'GENERATION_EXPIRED', 'Extension generation was reconfigured');
         return;
     }
     if (message.ok) pending.resolve(message.result);
@@ -161,17 +178,16 @@ export function settleApiReply(
      * host-originated the same way a locally-raised `CANCELLED` / `GENERATION_EXPIRED` is.
      */
     else
-        pending.reject(
-            hostError(
-                message.error?.code ?? 'EXTENSION_HOST_UNAVAILABLE',
-                message.error?.message ?? 'Host API request failed',
-            ),
+        rejectAsHost(
+            pending,
+            message.error?.code ?? 'EXTENSION_HOST_UNAVAILABLE',
+            message.error?.message ?? 'Host API request failed',
         );
 }
 
 export function rejectPendingApiRequests(message: string, code = 'GENERATION_EXPIRED'): void {
     for (const [id, pending] of pendingApi) {
         clearPending(id, pending);
-        pending.reject(hostError(code, message));
+        rejectAsHost(pending, code, message);
     }
 }

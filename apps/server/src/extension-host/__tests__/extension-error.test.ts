@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    createProviderRequestScope,
     extensionErrorShape,
     extensionRequestFailureRecord,
     hostError,
     isHostOriginatedError,
     providerFailure,
+    recordHostApiExpiry,
 } from '../extension-error';
 
 describe('extensionErrorShape', () => {
@@ -100,7 +102,11 @@ describe('extensionRequestFailureRecord', () => {
 });
 
 describe('providerFailure', () => {
-    const current = { cancelled: false, generationExpired: false };
+    const current = {
+        cancelled: false,
+        generationExpired: false,
+        scope: createProviderRequestScope(),
+    };
 
     it('re-mints a provider-thrown CANCELLED as host-originated once the host cancelled the request', () => {
         // The bundled Git extension's `assertNotCancelled` throws its own plain CANCELLED after the host cancelled (#587).
@@ -122,6 +128,34 @@ describe('providerFailure', () => {
             ),
         ).toBe(true);
         expect(isHostOriginatedError(providerFailure(thrown, current, 'fallback'))).toBe(false);
+    });
+
+    it('re-mints a propagated GENERATION_EXPIRED once the host expired an API call the request issued', () => {
+        // The bundled Git and Status providers await `caxri.*` calls without a catch, so Server Core's own
+        // Session-switch rejection reaches the boundary as-is; the API layer records that decision on the scope.
+        const scope = createProviderRequestScope();
+        recordHostApiExpiry(scope, 'GENERATION_EXPIRED');
+        const propagated = Object.assign(
+            new Error('Active Project changed while the extension request was running'),
+            { code: 'GENERATION_EXPIRED' },
+        );
+        const failure = providerFailure(propagated, { ...current, scope }, 'fallback');
+        expect(failure).toMatchObject({ code: 'GENERATION_EXPIRED', message: propagated.message });
+        expect(isHostOriginatedError(failure)).toBe(true);
+        expect(extensionRequestFailureRecord('GENERATION_EXPIRED', failure).level).toBe('debug');
+    });
+
+    it('records only host-expired API calls on the request scope', () => {
+        const scope = createProviderRequestScope();
+        // A CANCELLED API rejection follows the token the extension passed, which may be its own; it never
+        // corroborates, and neither does a scope-less call.
+        recordHostApiExpiry(scope, 'CANCELLED');
+        recordHostApiExpiry(undefined, 'GENERATION_EXPIRED');
+        expect(scope.hostExpiredApiCall).toBe(false);
+        const forged = Object.assign(new Error('boom'), { code: 'GENERATION_EXPIRED' });
+        expect(
+            isHostOriginatedError(providerFailure(forged, { ...current, scope }, 'fallback')),
+        ).toBe(false);
     });
 
     it('keeps a provider-thrown non-fault code a fault when the host cannot corroborate it', () => {

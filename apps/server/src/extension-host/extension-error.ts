@@ -1,3 +1,5 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
+
 import type { FailureReason, LogRecord, RemediationCategory } from '@caxri/system';
 
 /**
@@ -52,9 +54,58 @@ export function isHostOriginatedError(error: unknown): boolean {
 }
 
 /**
- * What the host itself knows about the request whose provider call just failed. Both facts come from host-owned state
- * (the request's own `CancellationTokenSource`, the provider/instance registration and refresh epoch), never from the
- * error object.
+ * Host-private ledger of what the host itself did to the `caxri.*` API calls one provider request issued. A provider
+ * that awaits `workspace.git.summary(...)` or `workspace.getProjectStatus(...)` receives Server Core's own
+ * `GENERATION_EXPIRED` when the active Session changes mid-read, and the bundled providers let that rejection propagate
+ * unchanged. The boundary cannot tell that outcome from a provider-forged code by looking at the error object, so the
+ * API layer records the host's decision here, keyed to the request through `AsyncLocalStorage` rather than through
+ * anything the extension can reach.
+ *
+ * Only host-expired API calls are recorded. A `CANCELLED` API rejection is not: it is driven by the token the extension
+ * passed to the call, which may be the extension's own `CancellationTokenSource`; when it is the host's request token,
+ * {@link HostRequestState.cancelled} already corroborates it.
+ */
+export interface ProviderRequestScope {
+    /**
+     * Server Core or the Extension Host generation check expired at least one API call this request issued.
+     */
+    hostExpiredApiCall: boolean;
+}
+
+const providerRequestScope = new AsyncLocalStorage<ProviderRequestScope>();
+
+export function createProviderRequestScope(): ProviderRequestScope {
+    return { hostExpiredApiCall: false };
+}
+
+/**
+ * Runs one provider call so that every `caxri.*` API request it issues, directly or through awaited continuations, can
+ * be attributed back to `scope` by {@link recordHostApiExpiry}.
+ */
+export function withProviderRequestScope<Result>(
+    scope: ProviderRequestScope,
+    callback: () => Result,
+): Result {
+    return providerRequestScope.run(scope, callback);
+}
+
+export function currentProviderRequestScope(): ProviderRequestScope | undefined {
+    return providerRequestScope.getStore();
+}
+
+/**
+ * Marks the owning provider request when the host itself rejects one of its API calls with `GENERATION_EXPIRED`. Called
+ * by the API request layer with the scope captured when the call was issued, so a rejection delivered from the IPC
+ * message handler still lands on the right request.
+ */
+export function recordHostApiExpiry(scope: ProviderRequestScope | undefined, code: string): void {
+    if (scope && code === 'GENERATION_EXPIRED') scope.hostExpiredApiCall = true;
+}
+
+/**
+ * What the host itself knows about the request whose provider call just failed. Every fact comes from host-owned state
+ * — the request's own `CancellationTokenSource`, the provider/instance registration, and the
+ * {@link ProviderRequestScope} the API layer wrote to — never from the error object.
  */
 export interface HostRequestState {
     /**
@@ -62,10 +113,16 @@ export interface HostRequestState {
      */
     cancelled: boolean;
     /**
-     * The provider registration, extension instance, or refresh epoch this request was issued against is no longer
-     * current.
+     * The provider registration or extension instance this request was issued against is no longer current. A tree
+     * provider's own refresh epoch is deliberately NOT part of this: the provider fires that refresh itself, so it
+     * could manufacture the corroboration for a forged `GENERATION_EXPIRED`. The host still expires a request that
+     * returns normally after its own refresh through `assertRefreshCurrent`, minted as host-originated there.
      */
     generationExpired: boolean;
+    /**
+     * The API calls this request issued; see {@link ProviderRequestScope}.
+     */
+    scope: ProviderRequestScope;
 }
 
 function readErrorCode(error: unknown): string | undefined {
@@ -79,11 +136,17 @@ function readErrorCode(error: unknown): string | undefined {
  *
  * The returned object is always new, so any `hostError` membership the extension may have obtained — for example by
  * re-throwing a rejection it received from a `caxri.*` API call — never survives the trip. The non-fault codes are
- * re-minted as host-originated only when host state proves the outcome: the bundled Git extension's own
- * `assertNotCancelled` throws its own `CANCELLED` after the host cancelled the request (issue #587's Source Control
- * Session-switch records), and that is the host's decision reported back, not a provider fault. A `CANCELLED` or
- * `GENERATION_EXPIRED` the host cannot corroborate stays a fault, so a provider cannot silence a real failure by
- * choosing the code (issue #606).
+ * re-minted as host-originated only when host state proves the outcome:
+ *
+ * - The bundled Git extension's own `assertNotCancelled` throws its own `CANCELLED` after the host cancelled the request
+ *   (issue #587's Source Control Session-switch records);
+ * - A provider registration or extension instance turned over while the provider was running;
+ * - Server Core expired an API call the provider awaited (a Session switch mid-`git.summary`), which the bundled
+ *   providers propagate unchanged and which is recorded in the request's {@link ProviderRequestScope}.
+ *
+ * Each of those is the host's decision reported back, not a provider fault. A `CANCELLED` or `GENERATION_EXPIRED` the
+ * host cannot corroborate stays a fault, so a provider cannot silence a real failure by choosing the code (issue
+ * #606).
  */
 export function providerFailure(
     error: unknown,
@@ -93,7 +156,8 @@ export function providerFailure(
     const code = readErrorCode(error);
     const message = error instanceof Error ? error.message : code ? String(error) : fallbackMessage;
     if (code === 'CANCELLED' && host.cancelled) return hostError(code, message);
-    if (code === 'GENERATION_EXPIRED' && host.generationExpired) return hostError(code, message);
+    if (code === 'GENERATION_EXPIRED' && (host.generationExpired || host.scope.hostExpiredApiCall))
+        return hostError(code, message);
     return Object.assign(new Error(message), { code: code ?? 'PROVIDER_FAILED' });
 }
 
@@ -116,8 +180,10 @@ export interface ExtensionRequestFailureRecord {
  *
  * The non-fault classification requires BOTH a matching code in {@link NON_FAULT_REASONS} AND
  * `isHostOriginatedError(error)`. An extension provider can throw `Object.assign(new Error('boom'), { code: 'CANCELLED'
- * })` and reuse the exact same code string, but only an error minted through {@link hostError} is Caxri-originated — so
- * an extension-thrown error is always logged as a real fault regardless of its `code` (issue #606).
+ * })` and reuse the exact same code string, but only an error minted through {@link hostError} is Caxri-originated.
+ * Origin for a failure that crossed a provider call is never the throwing code's: {@link providerFailure} establishes it
+ * from host-owned request state, so a provider-thrown code is a non-fault only when the host corroborates the outcome
+ * and a real fault otherwise (issue #606).
  */
 export function extensionRequestFailureRecord(
     code: string,

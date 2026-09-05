@@ -112,7 +112,9 @@ describe('PTY throughput metrics', () => {
             expect(infoWritesFor('pty.throughput')).toHaveLength(0);
             expect(infoWritesFor('pty.first_input')).toHaveLength(1);
             const firstInput = infoWritesFor('pty.first_input')[0]?.[2];
-            expect(firstInput?.durationMs).toBeTypeOf('number');
+            // The write happened right after spawn; the window carrying it closed ~1 s later. A stamp taken at
+            // the window boundary would report ~1_050 ms, so this bound fails if the engine stops stamping the write.
+            expect(firstInput?.durationMs).toBeLessThan(500);
             expect(firstInput?.fields).toEqual({ terminalId, inputBytes: 8 });
 
             // Attach a view and push output past its 256KB queue in a single chunk to force a real drop.

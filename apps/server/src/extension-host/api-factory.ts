@@ -30,7 +30,12 @@ import {
     TreeItemCollapsibleState,
 } from 'caxri';
 
-import { hostError, providerFailure } from './extension-error';
+import {
+    createProviderRequestScope,
+    hostError,
+    providerFailure,
+    withProviderRequestScope,
+} from './extension-error';
 import type {
     ExtensionHostMessage,
     ExtensionHostRegistration,
@@ -586,16 +591,24 @@ export async function getTreeChildren(parameters: {
         });
     const cancellation = new CancellationTokenSource();
     const refreshEpoch = provider.refreshEpoch;
+    const scope = createProviderRequestScope();
     cancellations.set(parameters.requestId, cancellation);
+    const invokeProvider = <Result>(call: () => Result): Result =>
+        withProviderRequestScope(scope, () =>
+            parameters.context ? withViewEventContext(parameters.context, call) : call(),
+        );
+    /**
+     * Evaluated at catch time so turnover that happened while the provider was running counts. The provider's own
+     * refresh epoch is not consulted here; see `HostRequestState.generationExpired`.
+     */
     const treeProviderFailure = (error: unknown): Error =>
         providerFailure(
             error,
             {
                 cancelled: isRequestCancelled(cancellation),
                 generationExpired:
-                    !isInstanceCurrent(runtime) ||
-                    providers.get(parameters.viewId) !== provider ||
-                    provider.refreshEpoch !== refreshEpoch,
+                    !isInstanceCurrent(runtime) || providers.get(parameters.viewId) !== provider,
+                scope,
             },
             'Tree provider failed',
         );
@@ -603,11 +616,9 @@ export async function getTreeChildren(parameters: {
         let children: readonly unknown[];
         try {
             children =
-                (await (parameters.context
-                    ? withViewEventContext(parameters.context, () =>
-                          provider.provider.getChildren(parent, cancellation.token),
-                      )
-                    : provider.provider.getChildren(parent, cancellation.token))) ?? [];
+                (await invokeProvider(() =>
+                    provider.provider.getChildren(parent, cancellation.token),
+                )) ?? [];
         } catch (error) {
             throw treeProviderFailure(error);
         }
@@ -622,11 +633,7 @@ export async function getTreeChildren(parameters: {
             children.map(async (element) => {
                 let item: TreeItem | null | undefined;
                 try {
-                    item = await (parameters.context
-                        ? withViewEventContext(parameters.context, () =>
-                              provider.provider.getTreeItem(element),
-                          )
-                        : provider.provider.getTreeItem(element));
+                    item = await invokeProvider(() => provider.provider.getTreeItem(element));
                 } catch (error) {
                     throw treeProviderFailure(error);
                 }

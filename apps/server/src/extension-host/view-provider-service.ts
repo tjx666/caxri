@@ -4,7 +4,12 @@ import { randomUUID } from 'node:crypto';
 import type { CaxriApi, DisposableLike, SourceControlChange, SourceControlProvider } from 'caxri';
 import { CancellationTokenSource, Disposable } from 'caxri';
 
-import { hostError, providerFailure } from './extension-error';
+import {
+    createProviderRequestScope,
+    hostError,
+    providerFailure,
+    withProviderRequestScope,
+} from './extension-error';
 import type {
     ExtensionHostMessage,
     ExtensionViewEventScope,
@@ -190,16 +195,19 @@ export async function executeViewOperation(parameters: {
             code: 'PROVIDER_CAPACITY',
         });
     const cancellation = new CancellationTokenSource();
+    const scope = createProviderRequestScope();
     cancellations.set(parameters.requestId, cancellation);
     try {
         const arguments_ = record(parameters.arguments);
         const invoke = (): Promise<unknown> =>
-            executeSourceControlOperation(
-                registration.provider,
-                parameters.operation,
-                arguments_,
-                cancellation,
-                parameters.context,
+            withProviderRequestScope(scope, () =>
+                executeSourceControlOperation(
+                    registration.provider,
+                    parameters.operation,
+                    arguments_,
+                    cancellation,
+                    parameters.context,
+                ),
             );
         const result = await (parameters.context
             ? withViewEventContext(parameters.context, invoke)
@@ -220,6 +228,7 @@ export async function executeViewOperation(parameters: {
             {
                 cancelled: cancellation.token.isCancellationRequested,
                 generationExpired: providers.get(parameters.viewId) !== registration,
+                scope,
             },
             'View provider failed',
         );

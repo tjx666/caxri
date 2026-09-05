@@ -2,6 +2,7 @@ import { runWithObservationContext } from '@caxri/system';
 import { CancellationTokenSource } from 'caxri';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { createProviderRequestScope, withProviderRequestScope } from '../extension-error';
 import type { ExtensionHostMessage } from '../protocol';
 import { rejectPendingApiRequests, requestServerApi, settleApiReply } from '../server-api-request';
 
@@ -192,5 +193,93 @@ describe('Extension Host API requests', () => {
         expect(JSON.stringify(apiRequest.observation)).not.toContain('do-not-log');
         settleApiReply({ id: apiRequest.id, ok: true, result: null }, () => true);
         await expect(request).resolves.toBeNull();
+    });
+});
+
+describe('provider request scope attribution', () => {
+    const apiContext = {
+        apiToken: 'token-1',
+        extensionId: 'publisher.fixture',
+        generation: 1,
+        assertCurrent: () => {},
+        isApiTokenCurrent: () => true,
+    };
+    const summary = {
+        method: 'workspace.request' as const,
+        params: { operation: 'git.summary' as const, arguments: { refresh: 0 }, context },
+    };
+
+    async function settled(request: Promise<unknown>): Promise<unknown> {
+        try {
+            await request;
+        } catch (error: unknown) {
+            return error;
+        }
+        throw new Error('expected the request to reject');
+    }
+
+    it("marks the issuing request when Server Core's reply expires the call", async () => {
+        const sent: ExtensionHostMessage[] = [];
+        const scope = createProviderRequestScope();
+        const request = withProviderRequestScope(scope, () =>
+            requestServerApi({ ...apiContext, send: (message) => sent.push(message) }, summary),
+        );
+        const issued = sent.find((message) => message.type === 'api-request');
+        expect(issued).toBeDefined();
+
+        settleApiReply(
+            {
+                id: issued!.id,
+                ok: false,
+                error: {
+                    code: 'GENERATION_EXPIRED',
+                    message: 'Active Project changed while the extension request was running',
+                },
+            },
+            () => true,
+        );
+
+        await expect(settled(request)).resolves.toMatchObject({ code: 'GENERATION_EXPIRED' });
+        expect(scope.hostExpiredApiCall).toBe(true);
+    });
+
+    it('marks the issuing request when the Extension Host generation is reconfigured', async () => {
+        const scope = createProviderRequestScope();
+        const request = withProviderRequestScope(scope, () =>
+            requestServerApi({ ...apiContext, send: () => {} }, summary),
+        );
+
+        rejectPendingApiRequests('Extension generation was reconfigured');
+
+        await expect(settled(request)).resolves.toMatchObject({ code: 'GENERATION_EXPIRED' });
+        expect(scope.hostExpiredApiCall).toBe(true);
+    });
+
+    it('does not let a token cancellation or a Server Core fault mark the request', async () => {
+        const sent: ExtensionHostMessage[] = [];
+        const scope = createProviderRequestScope();
+        const source = new CancellationTokenSource();
+        const cancelled = withProviderRequestScope(scope, () =>
+            requestServerApi(
+                { ...apiContext, send: (message) => sent.push(message) },
+                summary,
+                source.token,
+            ),
+        );
+        // The token may be the extension's own, so its cancellation is not the host's decision.
+        source.cancel();
+        await expect(settled(cancelled)).resolves.toMatchObject({ code: 'CANCELLED' });
+
+        const failed = withProviderRequestScope(scope, () =>
+            requestServerApi({ ...apiContext, send: (message) => sent.push(message) }, summary),
+        );
+        const issued = sent.findLast((message) => message.type === 'api-request');
+        settleApiReply(
+            { id: issued!.id, ok: false, error: { code: 'GIT_FAILED', message: 'git exited 128' } },
+            () => true,
+        );
+        await expect(settled(failed)).resolves.toMatchObject({ code: 'GIT_FAILED' });
+
+        expect(scope.hostExpiredApiCall).toBe(false);
     });
 });

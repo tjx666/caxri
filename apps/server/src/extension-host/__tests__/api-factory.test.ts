@@ -38,6 +38,15 @@ afterEach(async () => {
     await rm(fixture.extensionRoot, { force: true, recursive: true });
 });
 
+async function rejectionOf(request: Promise<unknown>): Promise<unknown> {
+    try {
+        await request;
+    } catch (error: unknown) {
+        return error;
+    }
+    throw new Error('expected the request to reject');
+}
+
 function registration(
     generation = 1,
     viewType: 'source-control' | 'tree' = 'tree',
@@ -463,6 +472,103 @@ describe('Extension Host API factory', () => {
         expect(forgedRejection).toMatchObject({ code: 'CANCELLED', message: 'boom' });
         // But origin, not the code string, decides classification: this was never minted through `hostError`.
         expect(isHostOriginatedError(forgedRejection)).toBe(false);
+    });
+
+    it("re-mints a tree provider's own CANCELLED once the host cancelled the request", async () => {
+        configureExtensions([registration()]);
+        const started = Promise.withResolvers<void>();
+        const gate = Promise.withResolvers<void>();
+        extensionApiBinding('fixture-token-1').api.views.registerTreeDataProvider(
+            'publisher.fixture.tree',
+            {
+                getChildren: async (_element: unknown, token: CancellationToken) => {
+                    started.resolve();
+                    await gate.promise;
+                    // The provider reports the host's cancellation back with its own plain code, like the Git
+                    // extension's `assertNotCancelled`.
+                    if (token.isCancellationRequested)
+                        throw Object.assign(new Error('Tree read was cancelled'), {
+                            code: 'CANCELLED',
+                        });
+                    return ['child'];
+                },
+                getTreeItem: (element: string) => new TreeItem(element),
+            },
+        );
+        const request = getTreeChildren({
+            extensionId: 'publisher.fixture',
+            generation: 1,
+            viewId: 'publisher.fixture.tree',
+            requestId: 'own-cancelled-request',
+        });
+        await started.promise;
+        expect(cancelTreeRequest('own-cancelled-request')).toEqual({ cancelled: true });
+        gate.resolve();
+
+        const rejection = await rejectionOf(request);
+        expect(rejection).toMatchObject({ code: 'CANCELLED', message: 'Tree read was cancelled' });
+        expect(isHostOriginatedError(rejection)).toBe(true);
+    });
+
+    it("re-mints a tree provider's own GENERATION_EXPIRED only after the host turned the instance over", async () => {
+        configureExtensions([registration()]);
+        const started = Promise.withResolvers<void>();
+        const gate = Promise.withResolvers<void>();
+        extensionApiBinding('fixture-token-1').api.views.registerTreeDataProvider(
+            'publisher.fixture.tree',
+            {
+                getChildren: async () => {
+                    started.resolve();
+                    await gate.promise;
+                    throw Object.assign(new Error('superseded'), { code: 'GENERATION_EXPIRED' });
+                },
+                getTreeItem: (element: string) => new TreeItem(element),
+            },
+        );
+        const request = getTreeChildren({
+            extensionId: 'publisher.fixture',
+            generation: 1,
+            viewId: 'publisher.fixture.tree',
+            requestId: 'instance-turnover-request',
+        });
+        await started.promise;
+        configureExtensions([registration(2)]);
+        gate.resolve();
+
+        const rejection = await rejectionOf(request);
+        expect(rejection).toMatchObject({ code: 'GENERATION_EXPIRED', message: 'superseded' });
+        expect(isHostOriginatedError(rejection)).toBe(true);
+    });
+
+    it("keeps a tree provider's own GENERATION_EXPIRED a fault when only its own refresh fired", async () => {
+        configureExtensions([registration()]);
+        // eslint-disable-next-line unicorn/prefer-event-target -- Verify the public VS Code-compatible provider event.
+        const changes = new EventEmitter<undefined>();
+        extensionApiBinding('fixture-token-1').api.views.registerTreeDataProvider(
+            'publisher.fixture.tree',
+            {
+                onDidChangeTreeData: changes.event,
+                getChildren: () => {
+                    // A provider can fire its own refresh before failing; that is extension-triggered state and
+                    // must not launder a forged non-fault code.
+                    changes.fire(undefined);
+                    throw Object.assign(new Error('load failed'), { code: 'GENERATION_EXPIRED' });
+                },
+                getTreeItem: (element: string) => new TreeItem(element),
+            },
+        );
+
+        const rejection = await rejectionOf(
+            getTreeChildren({
+                extensionId: 'publisher.fixture',
+                generation: 1,
+                viewId: 'publisher.fixture.tree',
+                requestId: 'self-refresh-request',
+            }),
+        );
+        expect(rejection).toMatchObject({ code: 'GENERATION_EXPIRED', message: 'load failed' });
+        expect(isHostOriginatedError(rejection)).toBe(false);
+        changes.dispose();
     });
 
     it('discards a request that started before a provider root refresh', async () => {
