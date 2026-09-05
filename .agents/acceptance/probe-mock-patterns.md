@@ -45,6 +45,51 @@ request and retains the final root after the queue is exhausted. This lets the
 real authorization and Project flow run without falling through to native UI.
 Use a fresh isolated case profile when the sequence mutates state.
 
+## Inject the exact failure class a diagnostic claims to distinguish
+
+**Situation:** A case must prove that Caxri classifies one specific failure correctly — a suspended
+process, a reconnect window, a dropped-events advisory, a structurally impossible Git root — rather
+than merely that the surrounding feature still works.
+
+**Does not work:** Approximating the failure with load. High-frequency rewrites of the same files do
+not overflow FSEvents, a busy event loop is not a suspended process, and renaming a fixture
+repository away does not exercise repository discovery at all.
+
+**Works:** Each of these injections was verified against an isolated instance and reproduces
+deterministically:
+
+- **Process suspension** (`process.event_loop_stall` with `stallKind: process-suspension`): `SIGSTOP`
+  the launch's own Server Core for several seconds, then `SIGCONT`. The whole process freezes, so the
+  next probe measures the full freeze as its interval while the CPU delta stays near zero — the same
+  shape as a laptop lid-close, on one process.
+- **A real reconnect window** (`ipc.request_failed` with `code: UNAVAILABLE`): `kill -9` Server Core.
+  `SIGSTOP` does not work here: the Desktop connection has no heartbeat, so a frozen peer never
+  closes its socket and the reconnect window never opens. Only an actual socket drop does.
+- **FSEvents overflow** (`watch_hub.rescan`): churn directories, not file contents. Several rounds of
+  creating ~120 subdirectories with ~60 files each and then deleting the round reliably overflows the
+  kernel event queue and makes the upstream watcher emit must-rescan advisories.
+- **Structural Git-discovery failure** (`git.summary` with `isRepository: false`): add a plain folder
+  with no `.git` as a Project. This is the only injection that separates a cacheable structural
+  failure from a transient one.
+
+Copy the cited records into the round assets before stopping the instance; the isolated user-data
+directory is temporary.
+
+## Drive high-frequency Renderer requests from inside the page
+
+**Situation:** A case must land many real requests inside a window that is open for about a second —
+a reconnect window, a throttle interval, a cancellation race.
+
+**Does not work:** Repeated `agent-browser` clicks or tab switches. Each CLI command is a full
+round-trip of roughly a second, so at most one lands in the window, and tab switches often serve
+cached data without issuing a request at all.
+
+**Works:** Run one `agent-browser eval` containing a tight in-page loop over the committed E2E
+bridge, `globalThis.caxri.request(method, params)`, and tally the resulting codes. This is the real
+structured IPC contract, not a bypass, so the evidence stays at the product boundary while the
+request rate is high enough to intersect a sub-second window. Start the loop first, then inject the
+failure concurrently from the shell.
+
 ## Exercise Agent lifecycle behavior through fixed fake processes
 
 **Situation:** A desktop case needs Claude Code or Codex discovery, hooks, terminal interaction,
