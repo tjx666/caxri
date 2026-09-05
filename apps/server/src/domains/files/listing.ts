@@ -165,6 +165,14 @@ export type GitIgnoreRulesListedListener = (
 /**
  * Lists directories under a Session's Project root, tolerating entries that vanish mid-listing.
  */
+export interface ListingServiceOptions {
+    /**
+     * Seam for tests: overriding the factory spends a listing's symlink budget in milliseconds instead of waiting out
+     * the real hung-mount timeout.
+     */
+    createSymlinkTargetProbe?: () => SymlinkTargetProbe;
+}
+
 export class ListingService {
     private readonly listRequests = new SingleFlight<string, ServerOperationResult<'files.list'>>();
     private readonly browseRequests = new SingleFlight<
@@ -177,6 +185,11 @@ export class ListingService {
      */
     private readonly activeBrowseTokens = new Map<string, symbol>();
 
+    /**
+     * Factory behind every listing's single symlink budget; see {@link ListingServiceOptions}.
+     */
+    private readonly createProbe: () => SymlinkTargetProbe;
+
     constructor(
         private readonly resolveSessionPath: ResolveSessionPath,
         private readonly logger: StructuredLogger,
@@ -185,7 +198,10 @@ export class ListingService {
         private readonly decorateGitIgnored?: GitIgnoreDecorator,
         private readonly onGitIgnoreRulesListed?: GitIgnoreRulesListedListener,
         private readonly openDirectory: OpenDirectory = opendir,
-    ) {}
+        options: ListingServiceOptions = {},
+    ) {
+        this.createProbe = options.createSymlinkTargetProbe ?? createSymlinkTargetProbe;
+    }
 
     private async loadBrowse(
         { sessionId, directory, query }: ServerOperationParameters<'files.browse'>,
@@ -201,6 +217,11 @@ export class ListingService {
             throw new CaxriError('IO', 'Path is not a directory');
         const normalizedQuery = query.toLocaleLowerCase();
         const matches: FileEntry[] = [];
+        /**
+         * Where each matched symlink landed in `matches`, so one bounded round of target probes can replace those rows
+         * in place after the enumeration closes its directory handle.
+         */
+        const linkPositions: Array<{ index: number; name: string; path: string }> = [];
         let isReachedEnd = false;
         let scannedEntries = 0;
         const directoryHandle = await this.openDirectory(path);
@@ -219,20 +240,25 @@ export class ListingService {
                     break;
                 }
                 scannedEntries += 1;
-                const relativePath = relative(root, resolve(path, entry.name)).split(sep).join('/');
+                const entryPath = resolve(path, entry.name);
+                const relativePath = relative(root, entryPath).split(sep).join('/');
                 if (
-                    !isFileTreeExcludeMatch(relativePath, excludes) &&
-                    entry.name.toLocaleLowerCase().includes(normalizedQuery)
+                    isFileTreeExcludeMatch(relativePath, excludes) ||
+                    !entry.name.toLocaleLowerCase().includes(normalizedQuery)
                 )
-                    matches.push({
+                    continue;
+                const kind = entry.isSymbolicLink()
+                    ? 'symlink'
+                    : entry.isDirectory()
+                      ? 'directory'
+                      : 'file';
+                if (kind === 'symlink')
+                    linkPositions.push({
+                        index: matches.length,
                         name: entry.name,
-                        path: resolve(path, entry.name),
-                        kind: entry.isSymbolicLink()
-                            ? 'symlink'
-                            : entry.isDirectory()
-                              ? 'directory'
-                              : 'file',
+                        path: entryPath,
                     });
+                matches.push({ name: entry.name, path: entryPath, kind });
             }
         } finally {
             try {
@@ -254,10 +280,36 @@ export class ListingService {
             (await realpath(path)) !== path
         )
             throw new CaxriError('IO', 'Directory changed during listing');
+        if (!isCurrent()) return { entries: [], truncated: true };
         const isTruncated = !isReachedEnd || matches.length > MAX_FILE_BROWSE_ENTRIES;
         /**
-         * Dirent metadata stays bound to the opened directory instead of restatting a mutable path.
+         * Regular entries are still described from `Dirent` metadata alone: browsing never restats a name it already
+         * read from the opened directory handle, so a path swapped mid-enumeration cannot retype its own row.
+         *
+         * A symlink row is the deliberate exception, and this is where the browse threat model was relaxed. A link's
+         * own name carries no type and `Dirent` cannot say whether the target is a folder or a file, so without a
+         * follow every link renders as an untyped placeholder in the path-browser dialog. Each matched link therefore
+         * gets exactly one type-only follow through this listing's shared `createSymlinkTargetProbe` budget. VS Code's
+         * own directory enumeration takes the same follow for the same reason
+         * (`competitors/vscode/src/vs/platform/files/node/diskFileSystemProvider.ts:115-138`, "always resolve target
+         * the link points to if any"), and the product invariant is untouched: the probe only asks the target's type.
+         * It never enumerates through the link, never resolves the target against the Project root, never authorizes
+         * that path, and never mutates it — browsing, expanding, and mutating through a symlink stay refused, and
+         * `pathBrowser` still rejects a symlink entry when the user tries to open it. One budget per browse keeps an
+         * unresponsive mount to a single timeout for the whole listing instead of one stalled follow per link.
+         *
+         * Ordering follows from the same metadata: `compareFileEntries` groups a `directory` link with the real
+         * directories, so browse results now sort links the way the Files tree does instead of dropping every link into
+         * the file group.
          */
+        const probeTarget = this.createProbe();
+        const describedLinks = await mapWithConcurrency(
+            linkPositions,
+            MAX_CONCURRENT_ENTRY_STATS,
+            ({ name, path: linkPath }) => describeSymlink(linkPath, name, probeTarget),
+        );
+        for (const [position, entry] of describedLinks.entries())
+            matches[linkPositions[position].index] = entry;
         const entries = matches.toSorted(compareFileEntries).slice(0, MAX_FILE_BROWSE_ENTRIES);
         this.logger.write('info', logEventCatalog.file.browse, {
             durationMs: performance.now() - startedAt,
@@ -333,7 +385,7 @@ export class ListingService {
             )
             .slice(0, MAX_FILE_LIST_ENTRIES);
         // One budget per listing, so a hung mount stops being probed after the first slow symlink in this directory.
-        const probeTarget = createSymlinkTargetProbe();
+        const probeTarget = this.createProbe();
         const [settled, gitIgnoreDecoration] = await Promise.all([
             mapWithConcurrency(boundedVisible, MAX_CONCURRENT_ENTRY_STATS, (entry) =>
                 this.describeEntry(path, entry.name, probeTarget),

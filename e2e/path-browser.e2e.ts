@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
@@ -23,6 +23,17 @@ test('Cmd+P lazily browses Project paths from Terminal, Editor, and Files focus'
             'export const target = true;\n',
             'utf8',
         ),
+        writeFile(join(root, 'real-file.ts'), 'export const real = true;\n', 'utf8'),
+    ]);
+    await Promise.all([
+        /**
+         * The link names carry no type, so only the Server-side target probe can supply one for the dialog icons. The
+         * directory link is named to sort after `src` inside the directory group it now joins, so the assertions below
+         * still address `src` as the first option and as an unambiguous accessible name.
+         */
+        symlink('src', join(root, 'zz-link-to-dir')),
+        symlink('real-file.ts', join(root, 'link-to-file')),
+        symlink('./missing', join(root, 'broken-link')),
     ]);
 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
@@ -37,8 +48,35 @@ test('Cmd+P lazily browses Project paths from Terminal, Editor, and Files focus'
         let input = dialog.getByRole('combobox', { name: 'File path' });
         await expect(input).toBeFocused();
         const rootListbox = dialog.getByRole('listbox', { name: 'Files in current directory' });
-        const rootDirectoryOption = dialog.getByRole('option', { name: 'src' });
+        const rootDirectoryOption = dialog.getByRole('option', { name: /^src( Directory)?$/ });
         await expect(rootDirectoryOption).toBeVisible();
+        // A symlink row shows the icon of whatever its target is, not an untyped placeholder under the badge.
+        await expect(
+            rootListbox.locator(
+                '[data-symlink-icon="directory"] [data-file-icon="default_folder"]',
+            ),
+        ).toBeVisible();
+        await expect(
+            rootListbox.locator(
+                '[data-symlink-icon="file"] [data-file-icon="file_type_typescript"]',
+            ),
+        ).toBeVisible();
+        await expect(
+            rootListbox.locator('[data-symlink-icon="broken"] [data-file-icon="default_file"]'),
+        ).toBeVisible();
+        // A folder-icon link stays inert, so the row explains why in its tooltip and accessible description.
+        const directoryLinkOption = dialog.getByRole('option', {
+            name: 'zz-link-to-dir',
+            exact: false,
+        });
+        await expect(directoryLinkOption).toHaveAttribute('aria-disabled', 'true');
+        await expect(directoryLinkOption).toHaveAttribute(
+            'title',
+            'Symlink to src. Browsing and changes are disabled for safety.',
+        );
+        await expect(directoryLinkOption).toHaveAccessibleDescription(
+            'Symlink to src. Browsing and changes are disabled for safety.',
+        );
         const rootListboxId = await rootListbox.getAttribute('id');
         const rootOptionId = await rootDirectoryOption.getAttribute('id');
         expect(rootListboxId).not.toBeNull();
@@ -103,7 +141,7 @@ test('Cmd+P lazily browses Project paths from Terminal, Editor, and Files focus'
         await input.press('Enter');
         await expect(dialog).toContainText('src/');
         await input.press('ArrowLeft');
-        await expect(dialog.getByRole('option', { name: 'src' })).toBeVisible();
+        await expect(dialog.getByRole('option', { name: /^src( Directory)?$/ })).toBeVisible();
         await input.fill('sr');
         await expect(input).toHaveAttribute('aria-busy', 'false');
         await input.press('Enter');

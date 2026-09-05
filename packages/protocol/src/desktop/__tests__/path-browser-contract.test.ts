@@ -59,6 +59,66 @@ describe('path browser contract', () => {
         ]);
     });
 
+    it('carries display-only symlink target metadata alongside the opaque entry id', () => {
+        const parsed = pathBrowserMethods['pathBrowser.start'].result.parse({
+            browserId: 'a142df47-520c-496d-bafb-645c95da6501',
+            canCreate: false,
+            canGoParent: false,
+            directoryLabel: '',
+            entries: [
+                {
+                    id: '0ceead35-aa64-43c0-9e32-4cc16ec5342b',
+                    kind: 'symlink',
+                    linkKind: 'directory',
+                    linkTarget: 'real-dir',
+                    name: 'link-to-dir',
+                },
+                {
+                    id: '0ceead35-aa64-43c0-9e32-4cc16ec5342c',
+                    kind: 'file',
+                    name: 'plain.ts',
+                },
+            ],
+            input: '',
+            mode: 'project',
+            truncated: false,
+        });
+
+        expect(parsed.entries[0]).toEqual({
+            id: '0ceead35-aa64-43c0-9e32-4cc16ec5342b',
+            kind: 'symlink',
+            linkKind: 'directory',
+            linkTarget: 'real-dir',
+            name: 'link-to-dir',
+        });
+        // The fields stay optional, so an unprobed link and every non-link entry omit them entirely.
+        expect(parsed.entries[1]).toEqual({
+            id: '0ceead35-aa64-43c0-9e32-4cc16ec5342c',
+            kind: 'file',
+            name: 'plain.ts',
+        });
+        const schema = pathBrowserMethods['pathBrowser.start'].result;
+        expect(
+            schema.safeParse({
+                browserId: 'a142df47-520c-496d-bafb-645c95da6501',
+                canCreate: false,
+                canGoParent: false,
+                directoryLabel: '',
+                entries: [
+                    {
+                        id: '0ceead35-aa64-43c0-9e32-4cc16ec5342b',
+                        kind: 'symlink',
+                        linkKind: 'elsewhere',
+                        name: 'link-to-dir',
+                    },
+                ],
+                input: '',
+                mode: 'project',
+                truncated: false,
+            }).success,
+        ).toBe(false);
+    });
+
     it('accepts a bounded full browse input and requires its explicit mode', () => {
         const schema = pathBrowserMethods['pathBrowser.browse'].params;
         const base = {

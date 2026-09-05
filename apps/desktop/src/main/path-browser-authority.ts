@@ -33,6 +33,12 @@ type Opened = MethodResult<'pathBrowser.open'>;
 interface Candidate {
     id: string;
     kind: Entry['kind'];
+    /**
+     * Display-only symlink metadata forwarded from Server Core. Main never resolves or authorizes the target; a symlink
+     * candidate stays unopenable regardless of what its target turned out to be.
+     */
+    linkKind?: Entry['linkKind'];
+    linkTarget?: Entry['linkTarget'];
     name: string;
     path: string;
     parent?: RootIdentity;
@@ -169,7 +175,13 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
 
     function replaceCandidates(context: BrowserContext, candidates: Candidate[]): Entry[] {
         context.candidates = new Map(candidates.map((candidate) => [candidate.id, candidate]));
-        return candidates.map(({ id, kind, name }) => ({ id, kind, name }));
+        return candidates.map(({ id, kind, linkKind, linkTarget, name }) => ({
+            id,
+            kind,
+            ...(linkKind !== undefined && { linkKind }),
+            ...(linkTarget !== undefined && { linkTarget }),
+            name,
+        }));
     }
 
     function snapshot(
@@ -234,6 +246,8 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
         const candidates = result.entries.map((entry) => ({
             id: randomUUID(),
             kind: entry.kind,
+            ...(entry.linkKind !== undefined && { linkKind: entry.linkKind }),
+            ...(entry.linkTarget !== undefined && { linkTarget: entry.linkTarget }),
             name: entry.name,
             path: entry.path,
         }));
@@ -358,6 +372,8 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
                         if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
                         return pathFailure(error, 'Unable to inspect browse entry');
                     }
+                    // Free mode browses outside every Project authority, so it stops at the entry's own `lstat`
+                    // and never follows a link target for display metadata.
                     candidates.push({
                         id: randomUUID(),
                         kind: stats.isSymbolicLink()

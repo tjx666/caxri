@@ -170,6 +170,60 @@ describe('path browser authority', () => {
         });
     });
 
+    it('forwards the Server symlink target metadata into Project snapshot entries', async () => {
+        const ownerRoot = await temporaryDirectory('caxri-path-owner-');
+        const workbenchRoot = await temporaryDirectory('caxri-path-worktree-');
+        const canonicalWorkbenchRoot = await realpath(workbenchRoot);
+        const { authority } = authorityOptions(ownerRoot, workbenchRoot, {
+            request(method: string) {
+                if (method === 'app.bootstrap')
+                    return Promise.resolve(bootstrap(ownerRoot, workbenchRoot));
+                if (method === 'files.browse')
+                    return Promise.resolve({
+                        entries: [
+                            {
+                                kind: 'symlink',
+                                linkKind: 'directory',
+                                linkTarget: 'real-dir',
+                                name: 'link-to-dir',
+                                path: join(canonicalWorkbenchRoot, 'link-to-dir'),
+                            },
+                            {
+                                kind: 'symlink',
+                                name: 'unprobed-link',
+                                path: join(canonicalWorkbenchRoot, 'unprobed-link'),
+                            },
+                            {
+                                kind: 'file',
+                                name: 'plain.ts',
+                                path: join(canonicalWorkbenchRoot, 'plain.ts'),
+                            },
+                        ],
+                        truncated: false,
+                    });
+                return Promise.reject(new Error(`Unexpected method: ${method}`));
+            },
+        });
+
+        const initial = await authority.start({ sessionId: 'session-1' });
+
+        const entries = initial.entries.map(({ id, ...entry }) => {
+            expect(id).toEqual(expect.any(String));
+            return entry;
+        });
+        expect(entries).toEqual([
+            {
+                kind: 'symlink',
+                linkKind: 'directory',
+                linkTarget: 'real-dir',
+                name: 'link-to-dir',
+            },
+            // A link the Server probe could not describe carries no invented metadata.
+            { kind: 'symlink', name: 'unprobed-link' },
+            { kind: 'file', name: 'plain.ts' },
+        ]);
+    });
+
     it('lists the shallowest Project directory Server Core located for a relative path suffix', async () => {
         const ownerRoot = await temporaryDirectory('caxri-path-owner-');
         const workbenchRoot = await temporaryDirectory('caxri-path-worktree-');
