@@ -578,6 +578,21 @@ describe('Acceptance Electron stopper', () => {
         );
     });
 
+    it('reports deferred profile cleanup when the launcher completed its receipt before the profile was removed', async () => {
+        const { deps, run } = launcherScenario({ launcherExitsAt: 0 });
+        vi.mocked(deps.forceCompleteCaseLifecycle).mockResolvedValue('cleanup_recorded');
+        await run();
+        expect(deps.forceCompleteCaseLifecycle).toHaveBeenCalledWith(
+            '/repo/.records/acceptance/round-1',
+            expect.objectContaining({ cleanupCompleted: true, cleanupRequested: true }),
+        );
+        expect(deps.log).toHaveBeenCalledWith(
+            expect.stringContaining(
+                'Recorded deferred profile cleanup for Acceptance case stop-case',
+            ),
+        );
+    });
+
     it('says so when runtime state records no receipt ownership instead of skipping silently', async () => {
         const { deps, run } = launcherScenario({ launcherExitsAt: 0, withReceipt: false });
         await run();
