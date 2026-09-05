@@ -512,6 +512,32 @@ describe('resolveTerminalFileLink', () => {
         });
     });
 
+    it('treats an auto-registered worktree Project as external until a live Session uses it as its Workbench Root', async () => {
+        const { database, files, sourceRoot, sourceSessionId, terminalId, userHome } =
+            await fixture();
+        const worktreeRoot = join(userHome, 'worktree');
+        const target = join(worktreeRoot, 'file.ts');
+        await mkdir(worktreeRoot);
+        await writeFile(target, 'export {};\n');
+        const owner = database.findProjectByRootPath(sourceRoot)!;
+        const worktree = database.createProject(worktreeRoot, owner.id);
+
+        // Nobody could see a Session created inside the hidden worktree row, so Main gets the read-only path.
+        await expect(
+            resolveTerminalFileLink(database, { terminalId, target }, searchOptions(files)),
+        ).resolves.toEqual({ status: 'external', path: target, sourceSessionId, trusted: false });
+
+        database.selectWorkbenchProject(sourceSessionId, worktree.id);
+        await expect(
+            resolveTerminalFileLink(database, { terminalId, target }, searchOptions(files)),
+        ).resolves.toMatchObject({ status: 'authorized', path: target, projectId: worktree.id });
+
+        database.archiveSession(sourceSessionId);
+        await expect(
+            resolveTerminalFileLink(database, { terminalId, target }, searchOptions(files)),
+        ).resolves.toMatchObject({ status: 'external', path: target });
+    });
+
     it('reports a Home link outside added Projects as external without probing target existence', async () => {
         const { database, sourceSessionId, terminalId, userHome } = await fixture();
 

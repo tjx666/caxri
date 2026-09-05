@@ -8,7 +8,7 @@ import type {
     ServerOperationResult,
     TerminalFileLinkCandidate,
 } from '@caxri/protocol';
-import { CaxriError, isPathInTrustedFolder } from '@caxri/protocol';
+import { CaxriError, isPathInTrustedFolder, isTopLevelProject } from '@caxri/protocol';
 
 import type { CaxriDatabase } from '../db';
 import { isSameOrInside } from '../path-security';
@@ -116,9 +116,25 @@ async function resolveRegularFile(rootPath: string, candidate: string) {
     };
 }
 
-function projectContainingPath(database: CaxriDatabase, path: string) {
+/**
+ * Projects a Terminal link may open through. An auto-registered worktree Project (`ownerProjectId` set) can never own a
+ * Session, so it is a target only while a live Session uses it as its Workbench Root; otherwise a link into it is
+ * treated as external and Main opens a read-only snapshot instead of creating a Session nobody could see.
+ */
+function fileLinkProjects(database: CaxriDatabase) {
     return database
         .listProjects()
+        .filter(
+            (project) =>
+                isTopLevelProject(project) ||
+                database
+                    .listSessionsUsingWorkbenchProject(project.id)
+                    .some((session) => session.archivedAt === undefined),
+        );
+}
+
+function projectContainingPath(database: CaxriDatabase, path: string) {
+    return fileLinkProjects(database)
         .filter(({ rootPath }) => isSameOrInside(rootPath, path))
         .toSorted((left, right) => right.rootPath.length - left.rootPath.length)
         .at(0);
@@ -255,7 +271,7 @@ async function searchAuthorizedProjects(
             ? sourceProject
                 ? [sourceProject]
                 : []
-            : database.listProjects().toSorted((left, right) => {
+            : fileLinkProjects(database).toSorted((left, right) => {
                   const leftSource = left.id === sourceProjectId ? 0 : 1;
                   const rightSource = right.id === sourceProjectId ? 0 : 1;
                   return (

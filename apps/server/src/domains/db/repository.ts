@@ -259,6 +259,9 @@ export class CaxriDatabase {
         return this.db.sessions.getWorkbenchBinding(id);
     }
 
+    /**
+     * Sessions bound to `projectId` as their Workbench Root, archived ones included.
+     */
     listSessionsUsingWorkbenchProject(projectId: string): SessionRecord[] {
         return this.db.sessions.listUsingWorkbenchProject(projectId);
     }
@@ -354,6 +357,10 @@ export class CaxriDatabase {
 
     /**
      * A `null` kind creates a Terminal-less Session — the same shape as one whose Terminals were all closed.
+     *
+     * An auto-registered worktree Project (`ownerProjectId` set) never owns a Session: the PrimarySidebar hides that
+     * row, so a Session created inside it would exist without a row, a highlight, or any rename/archive/delete
+     * affordance. Such a worktree is reached only as a Workbench Root of a Session in its owning Project.
      */
     createSession(
         projectId: string,
@@ -363,6 +370,11 @@ export class CaxriDatabase {
         return this.db.transaction(() => {
             const project = this.db.projects.get(projectId);
             if (!project) throw new CaxriError('NOT_FOUND', 'Project not found');
+            if (!isTopLevelProject(project))
+                throw new CaxriError(
+                    'CONFLICT',
+                    'Sessions cannot be created inside an auto-registered worktree Project',
+                );
             const session = this.db.sessions.insert({
                 projectId,
                 displayTitle: DEFAULT_SESSION_TITLE,
