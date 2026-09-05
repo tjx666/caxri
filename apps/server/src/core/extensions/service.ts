@@ -100,7 +100,15 @@ function workspaceParameters(
             code: 'PROVIDER_FAILED',
         });
     try {
-        return methods[operation].params.parse({ ...arguments_, sessionId });
+        /**
+         * `requester` is Server-stamped, never extension-supplied: it attributes `git.summary` log volume to the
+         * Extension Host entry point regardless of what the extension put in its arguments.
+         */
+        return methods[operation].params.parse({
+            ...arguments_,
+            sessionId,
+            ...(operation === 'git.summary' && { requester: 'extension' }),
+        });
     } catch {
         throw Object.assign(new Error(`Invalid Extension API arguments for ${operation}`), {
             code: 'PROVIDER_FAILED',

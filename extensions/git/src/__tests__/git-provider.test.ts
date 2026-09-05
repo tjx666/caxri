@@ -1,92 +1,11 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { Buffer } from 'node:buffer';
 
-import type {
-    CaxriApi,
-    GitCommitDetails,
-    GitCommitPage,
-    GitPullRequestChanges,
-    GitSummary,
-    WorkspaceGit,
-} from 'caxri';
+import type { GitCommitDetails, GitPullRequestChanges, GitSummary } from 'caxri';
 import { CancellationTokenSource } from 'caxri';
 import { describe, expect, it, vi } from 'vitest';
 
-import { GitProvider } from '../git-provider';
-
-const repo = {
-    id: 'repo-1',
-    kind: 'primary' as const,
-    name: 'project',
-    rootPath: '/authorized/project',
-    branch: 'main',
-    head: '0123456789abcdef0123456789abcdef01234567',
-    ahead: 1,
-    behind: 2,
-    additions: 3,
-    deletions: 4,
-    generation: 7,
-    changedFileCount: 1,
-    truncated: false,
-    files: [
-        {
-            path: 'src/extension.ts',
-            index: ' ',
-            workingTree: 'M',
-            kind: 'modified' as const,
-        },
-    ],
-};
-
-const summary: GitSummary = {
-    isRepository: true,
-    repositories: [repo],
-};
-
-const commitDetails: GitCommitDetails = {
-    commit: {
-        sha: repo.head,
-        shortSha: '0123456',
-        subject: 'Own Git product semantics',
-        body: 'Move Source Control projection into the extension.',
-        author: 'Octocat',
-        authorEmail: '12345+octocat@users.noreply.github.com',
-        authoredAt: 1_700_000_000_000,
-        decorations: ['HEAD -> main'],
-        parents: [],
-    },
-    additions: 3,
-    deletions: 4,
-    files: [{ path: 'src/extension.ts', status: 'modified' }],
-    filesTruncated: false,
-};
-
-const commitPage: GitCommitPage = {
-    commits: [commitDetails.commit],
-};
-const scopeId = 'session-a:project-a';
-
-function createHarness(options: { avatars?: boolean } = {}) {
-    const git = {
-        summary: vi.fn<WorkspaceGit['summary']>(() => Promise.resolve(summary)),
-        sync: vi.fn<WorkspaceGit['sync']>(() => Promise.resolve()),
-        discard: vi.fn<WorkspaceGit['discard']>(() => Promise.resolve(null)),
-        pullRequestChanges: vi.fn<WorkspaceGit['pullRequestChanges']>(() => Promise.resolve(null)),
-        commits: vi.fn<WorkspaceGit['commits']>(() => Promise.resolve(commitPage)),
-        commitDetails: vi.fn<WorkspaceGit['commitDetails']>(() => Promise.resolve(commitDetails)),
-        remoteHost: vi.fn<WorkspaceGit['remoteHost']>(() => Promise.resolve('github.com')),
-    } satisfies WorkspaceGit;
-    const getConfigRequest = vi.fn<(key: string) => Promise<boolean | undefined>>();
-    getConfigRequest.mockResolvedValue(options.avatars);
-    const getConfig: CaxriApi['workspace']['getConfiguration'] = async <Value = unknown>(
-        key: string,
-    ): Promise<Value | undefined> => (await getConfigRequest(key)) as Value | undefined;
-    const workspace: Pick<CaxriApi['workspace'], 'getConfiguration' | 'git'> = {
-        getConfiguration: getConfig,
-        git,
-    };
-    return { getConfiguration: getConfigRequest, git, provider: new GitProvider(workspace) };
-}
+import { commitDetails, createHarness, repo, scopeId, summary } from './git-provider.fixture';
 
 describe('GitProvider', () => {
     it('opens an authorized arbitrary commit in the scoped commit mode and survives a stale preferred mode', async () => {
@@ -250,7 +169,8 @@ describe('GitProvider', () => {
         expect(sessionA.selectedModeId).toBe('commit');
         expect(sessionB.selectedModeId).toBe('working');
         expect(sessionAAfterRemount.selectedModeId).toBe('commit');
-        expect(git.summary.mock.calls.map(([refresh]) => refresh)).toEqual([3, 0, 3]);
+        // The Renderer's query counter never reaches Host as a forcing nonce; only actions do (see the next test).
+        expect(git.summary.mock.calls.map(([refresh]) => refresh)).toEqual([0, 0, 0]);
 
         cancellation.dispose();
         provider.dispose();
@@ -400,7 +320,7 @@ describe('GitProvider', () => {
         const resource = view.providers[0]?.groups[0]?.resources[0];
         const discard = resource.actions?.[0];
 
-        expect(git.summary).toHaveBeenCalledWith(3, cancellation.token);
+        expect(git.summary).toHaveBeenCalledWith(0, cancellation.token);
         expect(view).toMatchObject({
             selectedModeId: 'working',
             providers: [

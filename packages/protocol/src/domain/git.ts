@@ -107,6 +107,14 @@ export const gitBlameSchema = z.object({
     uncommitted: z.boolean(),
 });
 
+/**
+ * Which client boundary asked for a Git summary. The Renderer never sends this field (the default applies), while the
+ * Server-owned Extension Host bridge stamps `extension` so `git.summary` logs can attribute refresh volume to its entry
+ * point instead of inferring it from context fields.
+ */
+export const gitSummaryWireRequesterSchema = z.enum(['renderer', 'extension']);
+export type GitSummaryWireRequester = z.infer<typeof gitSummaryWireRequesterSchema>;
+
 export const gitSummarySchema = z.object({
     isRepository: z.boolean(),
     repositories: z.array(gitRepoSummarySchema),
