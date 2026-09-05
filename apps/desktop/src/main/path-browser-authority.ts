@@ -17,11 +17,7 @@ import {
     pathFailure,
     validateDirectory,
 } from './path-browser-identity';
-import {
-    memoizedSubpathPrefix,
-    projectSubpathSuffix,
-    shallowestProjectPath,
-} from './path-browser-subpath';
+import { memoizedSubpathPrefix, projectSubpathSuffix } from './path-browser-subpath';
 import type { DesktopServerConnection } from './server-connection';
 
 type StartParameters = Extract<MainRequest, { method: 'pathBrowser.start' }>['params'];
@@ -254,8 +250,8 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
     /**
      * VS Code-style subpath fallback: when the typed directory does not exist under the current directory, look for a
      * Project-local directory whose path ends with those segments (for example `packages/x/` copied from Agent output
-     * while the Project holds `lobehub/packages/x/`). The shallowest match wins so the breadcrumb stays predictable;
-     * Server Core bounds and excludes the traversal, and Main revalidates the chosen directory before listing it.
+     * while the Project holds `lobehub/packages/x/`). Server Core bounds and excludes the traversal and picks the
+     * shallowest match so the breadcrumb stays predictable; Main revalidates that directory before listing it.
      */
     async function locateProjectDirectory(
         context: BrowserContext,
@@ -297,10 +293,12 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
             suffix: key,
         });
         const depth = key.split('/').length;
-        const best = shallowestProjectPath(
-            context.root.path,
-            located.paths.filter((path) => isSameOrInside(context.root.path, path)),
-        );
+        // Server Core already picked the shallowest match; Main still refuses a path outside this browser's root so a
+        // hostile or stale response can never be memoized into `context.locatedSuffixes`.
+        const best =
+            located.path !== null && isSameOrInside(context.root.path, located.path)
+                ? located.path
+                : undefined;
         if (!best) {
             if (located.truncated)
                 throw new CaxriError(

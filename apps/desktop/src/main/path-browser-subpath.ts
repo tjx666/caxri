@@ -1,5 +1,3 @@
-import { relative, sep } from 'node:path';
-
 /**
  * Pure helpers behind the path browser's VS Code-style subpath fallback (`packages/x/` typed while the Project holds
  * `lobehub/packages/x/`). Filesystem validation stays in the authority.
@@ -17,16 +15,6 @@ export function projectSubpathSuffix(input: string): string[] | undefined {
     if (segments.some((segment) => !segment || segment === '.' || segment === '..'))
         return undefined;
     return segments;
-}
-
-/**
- * Picks the shallowest match (ties broken by path order) so the breadcrumb stays predictable across keystrokes.
- */
-export function shallowestProjectPath(root: string, paths: readonly string[]): string | undefined {
-    return paths
-        .map((path) => ({ path, depth: relative(root, path).split(sep).length }))
-        .toSorted((a, b) => a.depth - b.depth || a.path.localeCompare(b.path))
-        .at(0)?.path;
 }
 
 /**
