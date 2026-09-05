@@ -107,9 +107,13 @@ export function CommandPalette() {
     const catalog = useCaxriQuery('viewContainers.catalog', {}, { enabled: isOpen }).data;
     /**
      * Shares the PrimarySidebar's polled snapshot, so the palette offers Open Pull Request exactly when the row shows a
-     * glyph. Nothing is fetched here: the sidebar keeps that query warm.
+     * glyph. `staleTime: Infinity` keeps this observer from refetching on open: the sidebar's poll owns freshness, and
+     * a palette open must not pull the Server's `gh` sweep forward.
      */
-    const pullRequests = useCaxriQuery('session.pullRequests', undefined, { enabled: isOpen }).data;
+    const pullRequests = useCaxriQuery('session.pullRequests', undefined, {
+        enabled: isOpen,
+        staleTime: Infinity,
+    }).data;
     const sessions = activeSessionsInSidebarOrder(projects, useSessions() ?? NO_RECORDS);
     const selectedSession = useSelectedSession();
     const terminals = useTerminals();

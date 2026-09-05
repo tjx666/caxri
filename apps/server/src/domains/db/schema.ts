@@ -25,9 +25,10 @@ export const projects = sqliteTable(
          * NULL is a root the user added themselves, including a worktree directory they chose to adopt as its own
          * Project.
          *
-         * Deliberately declared without `onDelete`: SQLite's `ALTER TABLE ... ADD COLUMN` cannot carry an ON DELETE
-         * action, so a generated ALTER migration would silently drop it (see `0009_mature_agent_zero.sql`) and split
-         * fresh from upgraded databases. `CaxriDatabase.deleteProject` cascades owned rows explicitly instead.
+         * Deliberately declared without `onDelete`: drizzle-kit's generated `ALTER TABLE ... ADD COLUMN` drops the ON
+         * DELETE action (see `0009_mature_agent_zero.sql`, generated from a column declared with `onDelete: 'set
+         * null'`), which would split fresh from upgraded databases. `CaxriDatabase.deleteProject` cascades owned rows
+         * explicitly instead.
          */
         ownerProjectId: text('owner_project_id').references((): AnySQLiteColumn => projects.id),
     },

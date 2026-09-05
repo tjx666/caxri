@@ -162,9 +162,6 @@ export type GitIgnoreRulesListedListener = (
     paths: readonly string[],
 ) => Promise<void>;
 
-/**
- * Lists directories under a Session's Project root, tolerating entries that vanish mid-listing.
- */
 export interface ListingServiceOptions {
     /**
      * Seam for tests: overriding the factory spends a listing's symlink budget in milliseconds instead of waiting out
@@ -173,6 +170,9 @@ export interface ListingServiceOptions {
     createSymlinkTargetProbe?: () => SymlinkTargetProbe;
 }
 
+/**
+ * Lists directories under a Session's Project root, tolerating entries that vanish mid-listing.
+ */
 export class ListingService {
     private readonly listRequests = new SingleFlight<string, ServerOperationResult<'files.list'>>();
     private readonly browseRequests = new SingleFlight<

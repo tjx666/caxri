@@ -275,7 +275,6 @@ describe('CaxriDatabase', () => {
         const worktree = database.createProject(worktreeRoot, owner.id);
         const other = database.createProject(otherRoot);
         const ownerSession = database.createSession(owner.id, 'shell');
-        const worktreeSession = database.createSession(worktree.id, 'shell');
         const otherSession = database.createSession(other.id, 'shell');
         database.selectWorkbenchProject(ownerSession.session.id, worktree.id);
 
@@ -283,7 +282,7 @@ describe('CaxriDatabase', () => {
 
         expect(database.listProjects().map(({ id }) => id)).toEqual([other.id]);
         expect(database.listSessions().map(({ id }) => id)).toEqual([otherSession.session.id]);
-        expect(database.getTerminal(worktreeSession.terminal!.id)).toBeUndefined();
+        expect(database.getTerminal(ownerSession.terminal!.id)).toBeUndefined();
         expect(database.getTerminal(otherSession.terminal!.id)).toBeDefined();
         // Deletion is metadata only; the worktree directory and its files are the user's.
         expect(await readFile(join(worktreeRoot, 'worktree-only.txt'), 'utf8')).toBe('user-owned');
@@ -324,25 +323,35 @@ describe('CaxriDatabase', () => {
         database.close();
     });
 
-    it('re-selects a surviving Project when the selection pointed at a cascaded worktree Project', async () => {
-        const directory = await temporaryDirectory('caxri-db-owned-project-selection-');
-        const ownerRoot = join(directory, 'owner');
-        const worktreeRoot = join(directory, 'worktree');
-        const keeperRoot = join(directory, 'keeper');
-        await Promise.all([mkdir(ownerRoot), mkdir(worktreeRoot), mkdir(keeperRoot)]);
+    it('refuses a Session inside an auto-registered worktree Project', async () => {
+        const directory = await temporaryDirectory('caxri-db-owned-project-session-');
         const database = new CaxriDatabase(join(directory, 'state.db'));
-        const owner = database.createProject(ownerRoot);
-        const worktree = database.createProject(worktreeRoot, owner.id);
-        const keeper = database.createProject(keeperRoot);
-        const keeperSession = database.createSession(keeper.id, 'shell');
-        // The selection names the worktree Project, not the Project the user is about to delete.
-        database.createSession(worktree.id, 'shell');
-        expect(database.getAppState('lastSelectedProjectId')).toBe(worktree.id);
+        const owner = database.createProject(join(directory, 'owner'));
+        const worktree = database.createProject(join(directory, 'worktree'), owner.id);
+
+        // The PrimarySidebar hides the worktree row, so a Session there would have no row to live under.
+        expect(() => database.createSession(worktree.id, 'shell')).toThrow(
+            /auto-registered worktree Project/,
+        );
+        expect(database.listSessions()).toEqual([]);
+        database.close();
+    });
+
+    it('attaches a worktree registered on behalf of an owned Project to the top-level owner', async () => {
+        const directory = await temporaryDirectory('caxri-db-owned-project-chain-');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const owner = database.createProject(join(directory, 'owner'));
+        const worktree = database.createProject(join(directory, 'worktree'), owner.id);
+
+        // A one-level chain is what the single-level delete cascade relies on.
+        const sibling = database.createProject(join(directory, 'sibling'), worktree.id);
+        expect(sibling.ownerProjectId).toBe(owner.id);
+        expect(() => database.createProject(join(directory, 'orphan'), 'missing')).toThrow(
+            /Owning Project not found/,
+        );
 
         database.deleteProject(owner.id);
-
-        expect(database.getAppState('lastSelectedProjectId')).toBe(keeper.id);
-        expect(database.getAppState('lastSelectedSessionId')).toBe(keeperSession.session.id);
+        expect(database.listProjects()).toEqual([]);
         database.close();
     });
 

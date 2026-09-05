@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { basename } from 'node:path';
 
 import type { ProjectIcon, ProjectRecord } from '@caxri/protocol';
-import { isTopLevelProject, projectIconSchema } from '@caxri/protocol';
+import { CaxriError, isTopLevelProject, projectIconSchema } from '@caxri/protocol';
 import { asc, eq, sql } from 'drizzle-orm';
 
 import type { CaxriDrizzleDatabase } from '../connection';
@@ -73,6 +73,14 @@ export class ProjectsModel {
      * the user's explicit choice wins and the Project surfaces at the PrimarySidebar's top level.
      */
     create(rootPath: string, ownerProjectId?: string): ProjectRecord {
+        // Ownership is one level deep by construction: registering a worktree on behalf of a Project that is itself
+        // an owned worktree attaches the new row to the top-level owner, so `deleteProject`'s single-level cascade can
+        // never orphan a row behind a foreign-key failure.
+        if (ownerProjectId !== undefined) {
+            const owner = this.get(ownerProjectId);
+            if (!owner) throw new CaxriError('NOT_FOUND', 'Owning Project not found');
+            ownerProjectId = owner.ownerProjectId ?? owner.id;
+        }
         const existing = this.findByRootPath(rootPath);
         if (existing) {
             if (ownerProjectId !== undefined || isTopLevelProject(existing)) return existing;
