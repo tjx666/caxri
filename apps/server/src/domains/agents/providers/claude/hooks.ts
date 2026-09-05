@@ -60,7 +60,7 @@ function disabledHookPolicy(source: string | undefined): string | undefined {
 
 export const claudeHookAdapter: AgentHookAdapter = {
     bindings,
-    schemaVersion: 9,
+    schemaVersion: 8,
     autoNamingConflict: (documents) => {
         const hasUnawareHook = jsonHookCommands(settingsSource(documents)).some(
             (command) =>
