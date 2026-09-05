@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import type { CaxriApi, DisposableLike, SourceControlChange, SourceControlProvider } from 'caxri';
 import { CancellationTokenSource, Disposable } from 'caxri';
 
-import { hostError } from './extension-error';
+import { hostError, providerFailure } from './extension-error';
 import type {
     ExtensionHostMessage,
     ExtensionViewEventScope,
@@ -52,16 +52,6 @@ export function withViewEventContext<Result>(
 
 export function currentViewEventContext(): ExtensionViewEventScope | undefined {
     return viewEventContext.getStore();
-}
-
-function providerFailure(error: unknown): Error {
-    if (error instanceof Error && 'code' in error) return error;
-    return Object.assign(
-        new Error(error instanceof Error ? error.message : 'View provider failed'),
-        {
-            code: 'PROVIDER_FAILED',
-        },
-    );
 }
 
 function registerProvider(
@@ -225,7 +215,14 @@ export async function executeViewOperation(parameters: {
             throw hostError('CANCELLED', 'View request was cancelled');
         return result;
     } catch (error) {
-        throw providerFailure(error);
+        throw providerFailure(
+            error,
+            {
+                cancelled: cancellation.token.isCancellationRequested,
+                generationExpired: providers.get(parameters.viewId) !== registration,
+            },
+            'View provider failed',
+        );
     } finally {
         cancellations.delete(parameters.requestId);
         cancellation.dispose();

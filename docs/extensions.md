@@ -152,9 +152,13 @@ and Server-owned Session/Workbench Project context. The Extension Host scopes `w
 that context, Server Core rechecks the grant, and the Git domain remains the final authorization boundary. Explicit
 cancellation is a typed `CANCELLED` non-fault; superseded provider or Extension Host generations fail with
 `GENERATION_EXPIRED`. Neither code is a reserved word of the Extension API: a provider may throw any
-`code`, including these two. Only Caxri-originated cancellation and generation turnover are classified
-as non-faults; an error thrown by extension code is always logged as a real fault regardless of which
-`code` it carries. Extensions cannot submit a Session ID, repository path, shell command, or
+`code`, including these two. In the Extension Host diagnostic log, a failed provider call is classified from host-owned request
+state, never from the error object: a `CANCELLED` is a non-fault only when the host itself cancelled that request, and a
+`GENERATION_EXPIRED` only when the host's provider registration, extension instance, or refresh epoch actually turned
+over. Any other error thrown by extension code is logged as a real fault regardless of which `code` it carries, and a
+host-minted rejection an extension re-throws gains nothing from its origin. Server Core's wire handling of these two
+codes (retrying a superseded tree read, converting a superseded read into `CANCELLED` for the Renderer) is unchanged
+and keeps keying on the code string. Extensions cannot submit a Session ID, repository path, shell command, or
 native API request. The Git domain owns Git execution, repository discovery, approved-repository identity,
 and the bounded Desktop bridge used by discard confirmation. A discard request carries only an
 opaque repository ID and either an all-changes intent or a relative file path; the Git domain derives the

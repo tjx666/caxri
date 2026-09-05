@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { extensionErrorShape, extensionRequestFailureRecord, hostError } from '../extension-error';
+import {
+    extensionErrorShape,
+    extensionRequestFailureRecord,
+    hostError,
+    isHostOriginatedError,
+    providerFailure,
+} from '../extension-error';
 
 describe('extensionErrorShape', () => {
     it('classifies CommonJS access to the ESM-only caxri API', () => {
@@ -62,6 +68,7 @@ describe('extensionRequestFailureRecord', () => {
         (code) => {
             // An extension provider can throw a matching code, but never through `hostError`.
             const forged = Object.assign(new Error('boom'), { code });
+            expect(isHostOriginatedError(forged)).toBe(false);
             expect(extensionRequestFailureRecord(code, forged)).toEqual({
                 failure: {
                     code,
@@ -88,6 +95,67 @@ describe('extensionRequestFailureRecord', () => {
                 retryable: false,
             },
             level: 'warn',
+        });
+    });
+});
+
+describe('providerFailure', () => {
+    const current = { cancelled: false, generationExpired: false };
+
+    it('re-mints a provider-thrown CANCELLED as host-originated once the host cancelled the request', () => {
+        // The bundled Git extension's `assertNotCancelled` throws its own plain CANCELLED after the host cancelled (#587).
+        const thrown = Object.assign(new Error('Source Control request was cancelled'), {
+            code: 'CANCELLED',
+        });
+        const failure = providerFailure(thrown, { ...current, cancelled: true }, 'fallback');
+        expect(failure).not.toBe(thrown);
+        expect(failure).toMatchObject({ code: 'CANCELLED', message: thrown.message });
+        expect(isHostOriginatedError(failure)).toBe(true);
+        expect(extensionRequestFailureRecord('CANCELLED', failure).level).toBe('debug');
+    });
+
+    it('re-mints a provider-thrown GENERATION_EXPIRED only when host state turned over', () => {
+        const thrown = Object.assign(new Error('superseded'), { code: 'GENERATION_EXPIRED' });
+        expect(
+            isHostOriginatedError(
+                providerFailure(thrown, { ...current, generationExpired: true }, 'fallback'),
+            ),
+        ).toBe(true);
+        expect(isHostOriginatedError(providerFailure(thrown, current, 'fallback'))).toBe(false);
+    });
+
+    it('keeps a provider-thrown non-fault code a fault when the host cannot corroborate it', () => {
+        const thrown = Object.assign(new Error('boom'), { code: 'CANCELLED' });
+        const failure = providerFailure(thrown, current, 'fallback');
+        expect(failure).toMatchObject({ code: 'CANCELLED', message: 'boom' });
+        expect(isHostOriginatedError(failure)).toBe(false);
+        expect(extensionRequestFailureRecord('CANCELLED', failure)).toMatchObject({
+            level: 'warn',
+            failure: { remediation: 'restart-extension-host' },
+        });
+    });
+
+    it('strips host origin from a host-minted error that an extension re-throws', () => {
+        // An extension can capture a rejection from a `caxri.*` call and throw it from its own provider later.
+        const captured = hostError('GENERATION_EXPIRED', 'Extension API binding has expired');
+        const failure = providerFailure(captured, current, 'fallback');
+        expect(failure).not.toBe(captured);
+        expect(failure).toMatchObject({ code: 'GENERATION_EXPIRED' });
+        expect(isHostOriginatedError(failure)).toBe(false);
+        expect(extensionRequestFailureRecord('GENERATION_EXPIRED', failure).level).toBe('warn');
+    });
+
+    it('normalizes uncoded and non-Error failures', () => {
+        expect(providerFailure(new Error('exploded'), current, 'fallback')).toMatchObject({
+            code: 'PROVIDER_FAILED',
+            message: 'exploded',
+        });
+        expect(providerFailure('nope', current, 'Tree provider failed')).toMatchObject({
+            code: 'PROVIDER_FAILED',
+            message: 'Tree provider failed',
+        });
+        expect(providerFailure({ code: 'CUSTOM' }, current, 'fallback')).toMatchObject({
+            code: 'CUSTOM',
         });
     });
 });

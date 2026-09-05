@@ -30,7 +30,7 @@ import {
     TreeItemCollapsibleState,
 } from 'caxri';
 
-import { hostError } from './extension-error';
+import { hostError, providerFailure } from './extension-error';
 import type {
     ExtensionHostMessage,
     ExtensionHostRegistration,
@@ -467,8 +467,12 @@ function assertBindingCurrent(registration: ExtensionHostRegistration): Extensio
     return runtime;
 }
 
+function isInstanceCurrent(runtime: ExtensionInstance): boolean {
+    return extensions.get(runtime.registration.extensionId) === runtime && !runtime.retired;
+}
+
 function assertInstanceCurrent(runtime: ExtensionInstance): void {
-    if (extensions.get(runtime.registration.extensionId) !== runtime || runtime.retired)
+    if (!isInstanceCurrent(runtime))
         throw hostError('GENERATION_EXPIRED', 'Extension generation expired during the request');
 }
 
@@ -494,20 +498,6 @@ function collapsibleState(value: number): TreeItemDto['collapsibleState'] {
     if (value === TreeItemCollapsibleState.Collapsed) return 'collapsed';
     if (value === TreeItemCollapsibleState.Expanded) return 'expanded';
     return 'none';
-}
-
-function providerErrorMessage(error: unknown): string {
-    return error instanceof Error ? error.message : String(error);
-}
-
-function providerFailure(error: unknown): Error {
-    if (error instanceof Error && 'code' in error) return error;
-    if (typeof error === 'object' && error !== null && 'code' in error)
-        return Object.assign(new Error(providerErrorMessage(error)), { code: error.code });
-    return Object.assign(
-        new Error(error instanceof Error ? error.message : 'Tree provider failed'),
-        { code: 'PROVIDER_FAILED' },
-    );
 }
 
 function stableTreeHandle(id: string): string {
@@ -597,6 +587,18 @@ export async function getTreeChildren(parameters: {
     const cancellation = new CancellationTokenSource();
     const refreshEpoch = provider.refreshEpoch;
     cancellations.set(parameters.requestId, cancellation);
+    const treeProviderFailure = (error: unknown): Error =>
+        providerFailure(
+            error,
+            {
+                cancelled: isRequestCancelled(cancellation),
+                generationExpired:
+                    !isInstanceCurrent(runtime) ||
+                    providers.get(parameters.viewId) !== provider ||
+                    provider.refreshEpoch !== refreshEpoch,
+            },
+            'Tree provider failed',
+        );
     try {
         let children: readonly unknown[];
         try {
@@ -607,7 +609,7 @@ export async function getTreeChildren(parameters: {
                       )
                     : provider.provider.getChildren(parent, cancellation.token))) ?? [];
         } catch (error) {
-            throw providerFailure(error);
+            throw treeProviderFailure(error);
         }
         assertInstanceCurrent(runtime);
         assertRefreshCurrent(provider, refreshEpoch);
@@ -626,7 +628,7 @@ export async function getTreeChildren(parameters: {
                           )
                         : provider.provider.getTreeItem(element));
                 } catch (error) {
-                    throw providerFailure(error);
+                    throw treeProviderFailure(error);
                 }
                 if (!item)
                     throw Object.assign(new Error('Tree provider returned an empty TreeItem'), {
@@ -707,7 +709,7 @@ export async function getTreeChildren(parameters: {
                     }),
                 });
             } catch (error) {
-                throw providerFailure(error);
+                throw treeProviderFailure(error);
             }
             return { dto, element, handle };
         });
