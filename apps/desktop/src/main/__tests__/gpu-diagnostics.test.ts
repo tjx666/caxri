@@ -147,6 +147,58 @@ describe('GPU diagnostics', () => {
         });
     });
 
+    it('aggregates every Renderer diagnostic inside the correlation window', () => {
+        vi.useFakeTimers();
+        const harness = createHarness();
+        harness.diagnostics.recordRendererDiagnostic(
+            rendererDiagnostic({ diagnosticId: 'stale', trigger: 'webgl-retry-attempt' }),
+        );
+        harness.setNow(20_000);
+        harness.diagnostics.recordRendererDiagnostic(
+            rendererDiagnostic({ diagnosticId: 'restore-1', terminalId: 'terminal-1' }),
+        );
+        harness.diagnostics.recordRendererDiagnostic(
+            rendererDiagnostic({ diagnosticId: 'restore-2', terminalId: 'terminal-2' }),
+        );
+        harness.diagnostics.recordRendererDiagnostic(
+            rendererDiagnostic({
+                diagnosticId: 'retry-2',
+                terminalId: 'terminal-2',
+                mode: 'dom',
+                reason: 'context-loss',
+                trigger: 'webgl-retry-attempt',
+            }),
+        );
+        harness.diagnostics.recordRendererDiagnostic(
+            rendererDiagnostic({
+                diagnosticId: 'activate-3',
+                terminalId: 'terminal-3',
+                trigger: 'preference-change',
+            }),
+        );
+        harness.setNow(20_010);
+
+        harness.diagnostics.recordGpuProcessGone({
+            type: 'GPU',
+            reason: 'abnormal-exit',
+            exitCode: 8704,
+            name: 'GPU Process',
+        });
+
+        const processGone = harness.write.mock.calls.find(
+            ([, event]) => event === logEventCatalog.gpu.processGone,
+        );
+        expect(processGone?.[2]).toMatchObject({
+            fields: {
+                relatedRendererDiagnosticId: 'activate-3',
+                relatedRendererDiagnosticCount: 4,
+                relatedRendererTerminalCount: 3,
+                relatedRendererWebglCreationCount: 2,
+                relatedRendererVisibilityRestoreCount: 2,
+            },
+        });
+    });
+
     it('does not label a POSIX signal as a Chromium result code', () => {
         vi.useFakeTimers();
         const harness = createHarness();

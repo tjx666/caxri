@@ -16,6 +16,7 @@ import {
     recordExternalEditorState,
     stripExternalEditorTabs,
 } from '../features/editor/external-editor-state';
+import { gpuIncidentBudget } from '../features/gpu/gpu-incident-budget';
 import { gpuRecoveryNotificationCoordinator } from '../features/gpu/gpu-recovery-notifications';
 import { beginRendererPerformanceRequest } from '../features/renderer-performance/controller';
 import {
@@ -686,6 +687,7 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                 useWorkbenchStore.setState({ isFullScreen: event.payload.isFullScreen });
                 return;
             case 'gpu.recoveryRequested':
+                gpuIncidentBudget.recordIncident(event.payload.correlationId);
                 gpuRecoveryNotificationCoordinator.notifyGpuProcessRecovery(
                     event.payload.correlationId,
                 );

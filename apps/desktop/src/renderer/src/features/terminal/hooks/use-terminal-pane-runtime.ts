@@ -20,6 +20,7 @@ import { useOnVisible } from '@/hooks/use-on-visible';
 import { caxri } from '../../../lib/caxri';
 import { useDialogStore } from '../../../stores/dialogs';
 import { pushToast } from '../../../stores/toasts';
+import { gpuIncidentBudget } from '../../gpu/gpu-incident-budget';
 import {
     markTerminalAttached,
     registerTerminalClearHandler,
@@ -426,6 +427,7 @@ export function useTerminalPaneRuntime({
                 xterm.refresh(0, xterm.rows - 1);
             },
             (status) => rendererObserver.publish(status),
+            { policy: gpuIncidentBudget },
         );
         rendererReference.current = renderer;
         renderer.setPreference(latest.gpuAcceleration);

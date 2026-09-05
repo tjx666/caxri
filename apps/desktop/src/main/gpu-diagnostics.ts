@@ -226,15 +226,42 @@ function rendererDiagnosticFields(diagnostic: TerminalRendererDiagnostic): LogFi
     };
 }
 
+/**
+ * Triggers that construct a WebGL context: a fresh activation on preference change and every bounded retry attempt.
+ * `preference-change` also fires for an already-active renderer, so the count is an upper bound on creations.
+ */
+function isWebglCreationAttempt(diagnostic: TerminalRendererDiagnostic): boolean {
+    if (diagnostic.trigger === 'webgl-retry-attempt' || diagnostic.trigger === 'webgl-load-failed')
+        return true;
+    return diagnostic.trigger === 'preference-change' && diagnostic.mode === 'webgl';
+}
+
+/**
+ * The latest diagnostic explains what one pane did right before the GPU process died; the window aggregates say how
+ * many panes took part and how many WebGL contexts were being rebuilt, which a single record cannot show.
+ */
 function relatedRendererFields(
-    recent: RecentRendererDiagnostic | undefined,
+    recentDiagnostics: RecentRendererDiagnostic[],
     now: number,
 ): LogFields {
+    const inWindow = recentDiagnostics.filter(({ receivedAt }) => {
+        const ageMs = now - receivedAt;
+        return ageMs >= 0 && ageMs <= CORRELATION_WINDOW_MS;
+    });
+    const recent = inWindow.at(-1);
     if (!recent) return {};
     const ageMs = now - recent.receivedAt;
-    if (ageMs < 0 || ageMs > CORRELATION_WINDOW_MS) return {};
     const diagnostic = recent.diagnostic;
+    const terminalIds = new Set(inWindow.map((entry) => entry.diagnostic.terminalId));
     return {
+        relatedRendererDiagnosticCount: inWindow.length,
+        relatedRendererTerminalCount: terminalIds.size,
+        relatedRendererWebglCreationCount: inWindow.filter((entry) =>
+            isWebglCreationAttempt(entry.diagnostic),
+        ).length,
+        relatedRendererVisibilityRestoreCount: inWindow.filter(
+            (entry) => entry.diagnostic.trigger === 'visibility-restore',
+        ).length,
         relatedRendererDiagnosticId: diagnostic.diagnosticId,
         relatedRendererAgeMs: ageMs,
         relatedTerminalId: diagnostic.terminalId,
@@ -418,7 +445,7 @@ export function createGpuDiagnostics(options: GpuDiagnosticsOptions) {
                 osRelease: operatingSystemRelease,
                 ...commandLineFields(options.app),
                 ...windowFields(options.window()),
-                ...relatedRendererFields(recentRendererDiagnostics.at(-1), occurredAt),
+                ...relatedRendererFields(recentRendererDiagnostics, occurredAt),
             },
         });
         const timer = setTimeout(() => {
