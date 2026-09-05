@@ -93,7 +93,14 @@ function terminalStatePatch(
     switch (state) {
         case 'stopped':
             return { status: 'stopped' };
+        /*
+        `suspended` and `detached` both kill the launched process on purpose, and only a later wake or
+        `session.resume` relaunches it, so a dispatch that was still running is interrupted rather than failed:
+        the dispatcher must not wait for a receipt the Terminal can no longer deliver (#551).
+        */
         case 'interrupted':
+        case 'suspended':
+        case 'detached':
             return { status: 'interrupted' };
         case 'dead':
         case 'failed':
@@ -322,6 +329,12 @@ export class AgentDispatchService {
     }
 
     private fail(dispatchId: string, error: unknown, reason: DispatchReason): AgentDispatchReceipt {
+        /**
+         * A suspension or detach racing the launch settles the receipt as `interrupted` before the launch promise
+         * rejects; the waiter has already seen that outcome, so it must not be rewritten as a failure.
+         */
+        const settled = this.options.database.getAgentDispatch(dispatchId)?.receipt;
+        if (settled && isSettled(settled)) return settled;
         const wire = toWireError(error);
         return this.update(dispatchId, {
             status: 'failed',
