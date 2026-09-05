@@ -9,8 +9,8 @@ import process from 'node:process';
 import {
     beginCaseLifecycle,
     completeCaseLifecycle,
-    loadAcceptanceCasePlan,
-} from '../.agents/skills/acceptance/scripts/report';
+} from '../.agents/skills/acceptance/scripts/case-lifecycle';
+import { loadAcceptanceCasePlan } from '../.agents/skills/acceptance/scripts/report';
 import {
     assertMobileAcceptanceSourceIdentity,
     clearMobileAcceptanceCaseArtifacts,

@@ -455,7 +455,7 @@ describe('concurrent CI validation', () => {
 
             await expect(
                 verifyRevisionProvenance(mergeRevision, baseRevision, headRevision, true, shallow),
-            ).resolves.toBeUndefined();
+            ).resolves.toEqual({ baseRevision });
 
             await writeFile(join(source, 'live-ref.txt'), 'advanced\n', 'utf8');
             await execFileAsync('git', ['add', 'live-ref.txt'], { cwd: source });

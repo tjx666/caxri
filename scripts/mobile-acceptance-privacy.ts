@@ -13,9 +13,9 @@ import { execFileAsync } from '@caxri/system';
 import {
     beginCaseLifecycle,
     completeCaseLifecycle,
-    loadAcceptanceCasePlan,
     markCaseLifecycleReady,
-} from '../.agents/skills/acceptance/scripts/report';
+} from '../.agents/skills/acceptance/scripts/case-lifecycle';
+import { loadAcceptanceCasePlan } from '../.agents/skills/acceptance/scripts/report';
 import {
     assertMobileAcceptanceSourceIdentity,
     clearMobileAcceptanceCaseArtifacts,

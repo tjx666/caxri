@@ -6,5 +6,7 @@ Commands:
        [--branch NAME] [--commit SHA] [--pull-request N]
   rebind-head --dir DIR --from-commit SHA --commit SHA --entry TEXT --reason TEXT
        [--created-at ISO_TIMESTAMP]
+  repair-lifecycle --dir DIR --case-id ID --reason TEXT
+       Completes a launch the launcher never finished; isolated profiles must already be gone
   finalize --dir DIR --requirement TEXT [--conclusion TEXT]`;
 }

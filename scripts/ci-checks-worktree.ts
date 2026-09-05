@@ -17,7 +17,27 @@ interface ChecksWorktreeSetupCommand {
 
 interface ChecksWorktreeOperations {
     execFile?: CaptureProcess;
+    log?: (message: string) => void;
     runChildProcess?: typeof runChildProcess;
+}
+
+interface SyntheticMergeBaseDrift {
+    /**
+     * Base parent recorded by GitHub's live merge ref, i.e. the base branch tip when the ref was computed.
+     */
+    mergeReferenceBase: string;
+    /**
+     * Base SHA frozen in the workflow event payload when the run was queued.
+     */
+    payloadBase: string;
+}
+
+interface RevisionProvenance {
+    baseDrift?: SyntheticMergeBaseDrift;
+    /**
+     * The base the checks worktree must diff against; the merge ref's own base once drift is verified.
+     */
+    baseRevision: string;
 }
 
 interface CaptureProcessOptions {
@@ -228,7 +248,7 @@ async function ensureDiffBaseAvailable(
     repoRoot: string,
     environment: NodeJS.ProcessEnv,
     execute: CaptureProcess,
-): Promise<void> {
+): Promise<string> {
     let mergeBase = await readMergeBase(revision, baseRevision, repoRoot, environment, execute);
     for (const deepenBy of [1, 32, 128]) {
         if (mergeBase) break;
@@ -258,12 +278,36 @@ async function ensureDiffBaseAvailable(
     if (!mergeBase || (isMergeRequired && mergeBase !== baseRevision)) {
         throw new Error('Checks revision does not have the required diff base');
     }
+    return mergeBase;
+}
+
+const REBASE_REMEDIATION =
+    'Rerunning this job reuses the same frozen event payload and cannot recover; rebase the PR onto the latest base branch and force-push to trigger a fresh run.';
+
+function staleSyntheticMergeError(input: {
+    headRevision: string;
+    mergeReferenceBase: string | undefined;
+    mergeReferenceHead: string | undefined;
+    payloadBase: string;
+}): Error {
+    return new Error(
+        'Synthetic merge parents do not match the PR base and head: ' +
+            `payload base ${input.payloadBase}, merge-ref base ${input.mergeReferenceBase ?? 'missing'}, ` +
+            `merge-ref head ${input.mergeReferenceHead ?? 'missing'}, PR head ${input.headRevision}. ` +
+            `The merge ref is stale for this head. ${REBASE_REMEDIATION}`,
+    );
 }
 
 /**
  * Reads parents from the commit object's immutable headers instead of revision traversal. A depth-one fetch marks
  * GitHub's synthetic merge commit as shallow, so `git show --format=%P` incorrectly reports no parents even though the
  * raw commit object still records both the reviewed base and exact PR head.
+ *
+ * The two parents carry different severities. The second parent is the PR head: a mismatch means GitHub recomputed the
+ * merge ref for a newer head and this run's payload can never match it again, so it is a hard failure. The first parent
+ * is the base branch tip at the moment the merge ref was computed. It legitimately moves ahead of the payload base
+ * whenever another PR lands while this run is queued, and the merge ref still contains the reviewed head, so a
+ * forward-only base drift continues with the merge ref's real base instead of aborting. Tracked in #609.
  */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- regression-tested with a depth-one synthetic merge clone
 export async function verifyRevisionProvenance(
@@ -274,10 +318,11 @@ export async function verifyRevisionProvenance(
     repoRoot = projectRoot,
     environment: NodeJS.ProcessEnv = process.env,
     execute: CaptureProcess = captureProcess,
-): Promise<void> {
+    log: (message: string) => void = console.log,
+): Promise<RevisionProvenance> {
     if (!isMergeRequired) {
         if (revision !== headRevision) throw new Error('Exact checks revision does not match head');
-        return;
+        return { baseRevision };
     }
     const { stdout } = await execute('git', ['cat-file', 'commit', revision], {
         cwd: repoRoot,
@@ -289,9 +334,71 @@ export async function verifyRevisionProvenance(
         .split('\n')
         .filter((line) => line.startsWith('parent '))
         .map((line) => line.slice('parent '.length));
-    if (parents.length !== 2 || parents[0] !== baseRevision || parents[1] !== headRevision) {
-        throw new Error('Synthetic merge parents do not match the PR base and head');
+    const [mergeReferenceBase, mergeReferenceHead] = parents;
+    if (parents.length !== 2) {
+        throw new Error(
+            `Synthetic merge parents do not match the PR base and head: expected two parents, found ${parents.length} ` +
+                `(payload base ${baseRevision}, PR head ${headRevision}). ${REBASE_REMEDIATION}`,
+        );
     }
+    const isStaleHead = mergeReferenceHead !== headRevision;
+    if (isStaleHead || !mergeReferenceBase || !/^[0-9a-f]{40}$/u.test(mergeReferenceBase)) {
+        throw staleSyntheticMergeError({
+            headRevision,
+            mergeReferenceBase,
+            mergeReferenceHead,
+            payloadBase: baseRevision,
+        });
+    }
+    if (mergeReferenceBase === baseRevision) return { baseRevision };
+
+    /**
+     * Only a base that moved forward is trusted: the payload base must be an ancestor of the merge ref's base. A
+     * rewritten base branch, or a retarget onto history that does not descend from the payload base, fails closed with
+     * the same rebase remediation, and so does a fetch or deepening failure while proving that ancestry, so every abort
+     * on this path names the SHAs a maintainer needs. A retarget onto a branch cut from the payload base is
+     * indistinguishable from ordinary drift and is accepted as such: the merge ref's base is then the PR's real base,
+     * so the diff is still taken against the right commit.
+     */
+    let mergeBase: string | undefined;
+    try {
+        await ensureRevisionAvailable(
+            mergeReferenceBase,
+            mergeReferenceBase,
+            repoRoot,
+            environment,
+            execute,
+        );
+        mergeBase = await ensureDiffBaseAvailable(
+            mergeReferenceBase,
+            baseRevision,
+            false,
+            repoRoot,
+            environment,
+            execute,
+        );
+    } catch (error: unknown) {
+        throw new Error(
+            'Synthetic merge parents do not match the PR base and head: ' +
+                `could not prove merge-ref base ${mergeReferenceBase} descends from payload base ${baseRevision} ` +
+                `(merge-ref head ${mergeReferenceHead}, PR head ${headRevision}). ${REBASE_REMEDIATION}`,
+            { cause: error },
+        );
+    }
+    if (mergeBase !== baseRevision) {
+        throw new Error(
+            'Synthetic merge parents do not match the PR base and head: ' +
+                `merge-ref base ${mergeReferenceBase} does not descend from payload base ${baseRevision} ` +
+                `(merge-ref head ${mergeReferenceHead}, PR head ${headRevision}). ${REBASE_REMEDIATION}`,
+        );
+    }
+    const baseDrift: SyntheticMergeBaseDrift = { mergeReferenceBase, payloadBase: baseRevision };
+    log(`CAXRI_CHECKS_BASE_DRIFT ${JSON.stringify({ headRevision, ...baseDrift })}`);
+    log(
+        `Synthetic merge base advanced from ${baseRevision} to ${mergeReferenceBase} while this run was queued; ` +
+            'continuing with the merge ref base because it still contains the exact PR head.',
+    );
+    return { baseDrift, baseRevision: mergeReferenceBase };
 }
 
 /**
@@ -312,9 +419,10 @@ export async function createFetchedCheckout(
         remoteUrl: string;
     },
     environment: NodeJS.ProcessEnv = process.env,
-    operations: Pick<ChecksWorktreeOperations, 'execFile'> = {},
-): Promise<{ baseRevision: string; revision: string }> {
+    operations: Pick<ChecksWorktreeOperations, 'execFile' | 'log'> = {},
+): Promise<{ baseDrift?: SyntheticMergeBaseDrift; baseRevision: string; revision: string }> {
     const execute = operations.execFile ?? captureProcess;
+    const log = operations.log ?? console.log;
     await execute('git', ['init', path], {
         cwd: resolve(path, '..'),
         env: sanitizedChildEnvironment(environment),
@@ -334,25 +442,26 @@ export async function createFetchedCheckout(
         cwd: path,
         env: sanitizedChildEnvironment(environment),
     });
-    const baseRevision = await ensureRevisionAvailable(
+    const payloadBaseRevision = await ensureRevisionAvailable(
         options.expectedBaseRevision,
         options.baseFetchReference,
         path,
         environment,
         execute,
     );
-    await ensureDiffBaseAvailable(
+    const { baseDrift, baseRevision } = await verifyRevisionProvenance(
         revision,
-        baseRevision,
+        payloadBaseRevision,
+        options.headRevision,
         options.isMergeRequired,
         path,
         environment,
         execute,
+        log,
     );
-    await verifyRevisionProvenance(
+    await ensureDiffBaseAvailable(
         revision,
         baseRevision,
-        options.headRevision,
         options.isMergeRequired,
         path,
         environment,
@@ -367,7 +476,7 @@ export async function createFetchedCheckout(
         env: sanitizedChildEnvironment(environment),
     });
     if (stdout.trim() !== revision) throw new Error('Checks checkout revision mismatch');
-    return { baseRevision, revision };
+    return { baseDrift, baseRevision, revision };
 }
 
 async function runInChecksWorktree(
@@ -426,7 +535,7 @@ export async function prepareChecksWorktree(
     });
     const remoteUrl = remoteOutput.trim();
     if (!remoteUrl || remoteUrl.includes('\n')) throw new Error('Invalid checks remote URL');
-    const { baseRevision } = await createFetchedCheckout(
+    const { baseDrift, baseRevision } = await createFetchedCheckout(
         worktree,
         {
             baseFetchReference: validateFetchReference(
@@ -442,7 +551,7 @@ export async function prepareChecksWorktree(
             remoteUrl,
         },
         environment,
-        { execFile: execute },
+        { execFile: execute, log: operations.log },
     );
 
     await prepareCaches(worktree, environment);
@@ -464,6 +573,17 @@ export async function prepareChecksWorktree(
         `CAXRI_CHECKS_WORKTREE=${worktree}\nCAXRI_REACT_DOCTOR_BASE=${baseRevision}\n`,
         'utf8',
     );
+    /**
+     * A base drift is a normal outcome, not a failure, so it would otherwise be visible only by grepping step logs.
+     * Surface it in the job summary so its frequency is measurable without opening each run.
+     */
+    if (baseDrift && environment.GITHUB_STEP_SUMMARY) {
+        await appendFile(
+            environment.GITHUB_STEP_SUMMARY,
+            `- Synthetic merge base drift: payload base \`${baseDrift.payloadBase}\` → merge-ref base \`${baseDrift.mergeReferenceBase}\`; platform checks diffed against the merge-ref base.\n`,
+            'utf8',
+        );
+    }
     return { baseRevision, worktree };
 }
 

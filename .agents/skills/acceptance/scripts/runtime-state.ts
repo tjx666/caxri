@@ -14,7 +14,16 @@ const PROCESS_QUERY_EXECUTABLE = '/bin/ps';
 const acceptanceCaseModeSchema = z.enum(['isolated', 'restart']);
 const acceptanceCaseSchema = z.object({
     id: z.string().min(1),
+    /**
+     * Launch entry inside the case's state-isolation receipt. Persisted so `stop-electron.ts` can complete the receipt
+     * itself when the launcher could not finish its own lifecycle.
+     */
+    lifecycleLaunchId: z.string().min(1).optional(),
     mode: acceptanceCaseModeSchema,
+    /**
+     * Frozen round directory that owns the lifecycle receipt; absent on runtime state written by older launchers.
+     */
+    reportDirectory: z.string().min(1).optional(),
     requiresTerminalFixturePreflight: z.boolean().optional(),
 });
 const ownedProcessRoleSchema = z.enum(['server-core', 'extension-host']);
@@ -137,7 +146,9 @@ export async function prepareAcceptanceUserData({
     requiresTerminalFixturePreflight = true,
     reuseUserDataDir,
 }: PrepareUserDataOptions): Promise<
-    Pick<RuntimeState, 'acceptanceCase' | 'ownedUserData' | 'userDataDir'>
+    Pick<RuntimeState, 'ownedUserData' | 'userDataDir'> & {
+        acceptanceCase: NonNullable<RuntimeState['acceptanceCase']>;
+    }
 > {
     const normalizedCaseId = normalizeCaseId(caseId);
     const normalizedCaseMode = acceptanceCaseModeSchema.parse(caseMode);
@@ -388,6 +399,45 @@ export async function isOwnedRuntime(
         runtime.electronIdentity &&
         (await getProcessIdentity(runtime.electronPid)) === runtime.electronIdentity,
     );
+}
+
+/**
+ * Reports whether the owned profile directory is gone so a fallback lifecycle receipt records verified cleanup rather
+ * than an assumption. A profile that was never owned is never reported as cleaned.
+ */
+export async function isOwnedUserDataRemoved(
+    runtime: Pick<RuntimeState, 'ownedUserData' | 'userDataDir'>,
+): Promise<boolean> {
+    if (!runtime.ownedUserData) return false;
+    try {
+        await stat(runtime.userDataDir);
+        return false;
+    } catch (error: unknown) {
+        if (errorCode(error) === 'ENOENT') return true;
+        throw error;
+    }
+}
+
+/**
+ * Isolated profiles live directly beneath the OS temp directory under their receipt identity, so a receipt repair can
+ * verify the cleanup it records without a runtime file.
+ */
+export async function isAcceptanceProfileIdentityRemoved(
+    profileIdentity: string,
+): Promise<boolean> {
+    if (
+        !profileIdentity ||
+        profileIdentity === '.' ||
+        profileIdentity === '..' ||
+        profileIdentity !== basename(profileIdentity)
+    ) {
+        throw new Error('Acceptance profile identity must be a directory name');
+    }
+    const temporaryRoot = await realpath(tmpdir());
+    return isOwnedUserDataRemoved({
+        ownedUserData: true,
+        userDataDir: join(temporaryRoot, profileIdentity),
+    });
 }
 
 export async function removeOwnedUserData(
