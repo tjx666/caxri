@@ -1,11 +1,13 @@
 import type { ITerminalAddon, Terminal } from '@xterm/xterm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { TerminalRendererStatus } from '../terminal-renderer';
+import { createGpuIncidentBudget } from '../../gpu/gpu-incident-budget';
+import type { TerminalRendererStatus, TerminalWebglSessionPolicy } from '../terminal-renderer';
 import {
     isWebgl2Available,
     resolveTerminalRendererTarget,
     TerminalRendererController,
+    terminalWebglRetryDelayMs,
 } from '../terminal-renderer';
 
 class FakeWebglAddon implements ITerminalAddon {
@@ -29,11 +31,23 @@ class FakeWebglAddon implements ITerminalAddon {
     }
 }
 
+function createPolicy(
+    overrides: Partial<TerminalWebglSessionPolicy> & { supported?: boolean } = {},
+): TerminalWebglSessionPolicy {
+    return {
+        applyPreference: overrides.applyPreference ?? (() => {}),
+        isPinnedToDom: overrides.isPinnedToDom ?? (() => false),
+        isWebgl2Available: overrides.isWebgl2Available ?? (() => overrides.supported ?? true),
+    };
+}
+
 function createHarness(
     options: {
         canRetry?: () => boolean;
         loadError?: Error;
         loadFailures?: number[];
+        policy?: TerminalWebglSessionPolicy;
+        random?: () => number;
         supported?: boolean;
     } = {},
 ) {
@@ -55,13 +69,17 @@ function createHarness(
         (status) => {
             statuses.push(status);
         },
-        () => options.supported ?? true,
-        () => {
-            const addon = new FakeWebglAddon();
-            addons.push(addon);
-            return addon;
+        {
+            canRetryWebgl: options.canRetry ?? (() => true),
+            createWebglAddon: () => {
+                const addon = new FakeWebglAddon();
+                addons.push(addon);
+                return addon;
+            },
+            policy: options.policy ?? createPolicy({ supported: options.supported }),
+            // The midpoint of the jitter range makes every delay equal to its exponential base.
+            random: options.random ?? (() => 0.5),
         },
-        options.canRetry ?? (() => true),
     );
     return {
         get addon() {
@@ -203,13 +221,45 @@ describe('TerminalRendererController', () => {
         });
     });
 
+    it('recovers on a later attempt when the GPU process returns during the backoff', async () => {
+        vi.useFakeTimers();
+        // The session budget owns the probe cache; the first retry lands while the GPU is still relaunching.
+        const probeWebgl2 = vi.fn(() => false);
+        const budget = createGpuIncidentBudget({ probeWebgl2 });
+        const harness = createHarness({ policy: budget });
+        probeWebgl2.mockReturnValueOnce(true);
+        harness.controller.setPreference('on');
+        budget.recordIncident('incident-1');
+
+        harness.addon.loseContext();
+        await vi.advanceTimersByTimeAsync(1_000);
+        expect(harness.statuses.at(-1)).toMatchObject({
+            mode: 'dom',
+            reason: 'load-failed',
+            retryAttemptCount: 1,
+            trigger: 'webgl-retry-scheduled',
+        });
+
+        probeWebgl2.mockReturnValue(true);
+        await vi.advanceTimersByTimeAsync(2_000);
+        expect(harness.host.loadAddon).toHaveBeenCalledTimes(2);
+        expect(harness.statuses.at(-1)).toMatchObject({
+            mode: 'webgl',
+            reason: 'active',
+            retryAttemptCount: 2,
+            retryState: 'succeeded',
+            trigger: 'webgl-retry-succeeded',
+        });
+    });
+
     it('stops after three failed retry attempts in one rolling window', async () => {
         vi.useFakeTimers();
         const harness = createHarness({ loadFailures: [2, 3, 4] });
         harness.controller.setPreference('on');
 
         harness.addon.loseContext();
-        await vi.advanceTimersByTimeAsync(3_000);
+        // Exponential base delays: 1 s, 2 s, 4 s.
+        await vi.advanceTimersByTimeAsync(7_000);
 
         expect(harness.host.loadAddon).toHaveBeenCalledTimes(4);
         expect(harness.statuses.at(-1)).toMatchObject({
@@ -223,6 +273,93 @@ describe('TerminalRendererController', () => {
         });
         await vi.advanceTimersByTimeAsync(60_000);
         expect(harness.host.loadAddon).toHaveBeenCalledTimes(4);
+    });
+
+    it('backs off exponentially with jitter between retry attempts', async () => {
+        vi.useFakeTimers();
+        const randoms = [0.25, 1, 0];
+        const harness = createHarness({
+            loadFailures: [2, 3, 4],
+            random: () => randoms.shift() ?? 0.5,
+        });
+        harness.controller.setPreference('on');
+
+        harness.addon.loseContext();
+        expect(harness.statuses.at(-1)).toMatchObject({
+            retryDelayMs: 750,
+            retryState: 'scheduled',
+        });
+        await vi.advanceTimersByTimeAsync(750);
+        expect(harness.statuses.at(-1)).toMatchObject({
+            retryAttemptCount: 1,
+            retryDelayMs: 3_000,
+            trigger: 'webgl-retry-scheduled',
+        });
+        await vi.advanceTimersByTimeAsync(3_000);
+        expect(harness.statuses.at(-1)).toMatchObject({
+            retryAttemptCount: 2,
+            retryDelayMs: 2_000,
+            trigger: 'webgl-retry-scheduled',
+        });
+    });
+
+    it('keeps jittered delays bounded and monotone in their base', () => {
+        expect(terminalWebglRetryDelayMs(0, () => 0)).toBe(500);
+        expect(terminalWebglRetryDelayMs(0, () => 1)).toBe(1_500);
+        expect(terminalWebglRetryDelayMs(2, () => 0.5)).toBe(4_000);
+        expect(terminalWebglRetryDelayMs(10, () => 1)).toBe(60_000);
+        expect(terminalWebglRetryDelayMs(-1, () => 0.5)).toBe(1_000);
+    });
+
+    it('resolves a newly mounted pane to DOM once the session GPU incident budget is pinned', () => {
+        const applyPreference = vi.fn();
+        const harness = createHarness({
+            policy: createPolicy({ applyPreference, isPinnedToDom: () => true }),
+        });
+        harness.controller.setPreference('on');
+
+        expect(applyPreference).toHaveBeenCalledWith('on');
+        expect(harness.host.loadAddon).not.toHaveBeenCalled();
+        expect(harness.statuses.at(-1)).toMatchObject({
+            mode: 'dom',
+            reason: 'context-loss-limit',
+            trigger: 'preference-change',
+        });
+        harness.redraw.mockClear();
+        harness.controller.restoreVisible();
+        expect(harness.redraw).not.toHaveBeenCalled();
+    });
+
+    it('ends the retry sequence with a closed reason when the budget pins during recovery', async () => {
+        vi.useFakeTimers();
+        let isPinned = false;
+        const harness = createHarness({ policy: createPolicy({ isPinnedToDom: () => isPinned }) });
+        harness.controller.setPreference('on');
+
+        harness.controller.recoverFromGpuProcessLoss();
+        expect(harness.statuses.at(-1)).toMatchObject({ retryState: 'scheduled' });
+        isPinned = true;
+        await vi.advanceTimersByTimeAsync(1_000);
+
+        expect(harness.host.loadAddon).toHaveBeenCalledOnce();
+        expect(harness.statuses.at(-1)).toMatchObject({
+            mode: 'dom',
+            reason: 'context-loss-limit',
+            retryDelayMs: null,
+            retryState: 'exhausted',
+            trigger: 'gpu-incident-limit',
+        });
+        await vi.advanceTimersByTimeAsync(60_000);
+        expect(harness.host.loadAddon).toHaveBeenCalledOnce();
+
+        // A pinned session never re-arms WebGL from a later GPU incident either.
+        harness.controller.recoverFromGpuProcessLoss();
+        expect(harness.statuses.at(-1)).toMatchObject({
+            reason: 'context-loss-limit',
+            trigger: 'gpu-process-recovery',
+        });
+        await vi.advanceTimersByTimeAsync(60_000);
+        expect(harness.host.loadAddon).toHaveBeenCalledOnce();
     });
 
     it('defers a retry until the Terminal is visible', async () => {

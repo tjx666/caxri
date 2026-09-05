@@ -340,6 +340,44 @@ describe('transport-neutral dispatcher', () => {
         }
     });
 
+    it('preserves submission order for a Terminal detach followed by a reattach', async () => {
+        const invoked: string[] = [];
+        const dispatch = createCommandDispatcher({
+            server: {
+                invoke: (command) => {
+                    invoked.push(command.method);
+                    return null;
+                },
+            },
+        });
+        const digestGate = Promise.withResolvers<void>();
+        const digest = vi.spyOn(crypto.subtle, 'digest').mockImplementation(async () => {
+            await digestGate.promise;
+            return new Uint8Array(32).buffer;
+        });
+
+        try {
+            // A pane remount detaches the outgoing pane and attaches the incoming one back to back; the client's
+            // detach fence assumes the Server sees them in that order, so the dispatcher must not let an
+            // asynchronous fingerprint delay the detach behind the attach.
+            const detach = dispatch(
+                request('detach-1', 'terminal.detach', { terminalId: 'terminal-1' }),
+                desktop,
+            );
+            const attach = dispatch(
+                request('attach-1', 'terminal.attach', { terminalId: 'terminal-1' }),
+                desktop,
+            );
+            await attach;
+            digestGate.resolve();
+            await detach;
+
+            expect(invoked).toEqual(['terminal.detach', 'terminal.attach']);
+        } finally {
+            digest.mockRestore();
+        }
+    });
+
     it('projects the same handler result for Desktop, human CLI, and scoped Agent principals', async () => {
         const dispatch = createCommandDispatcher({ server });
         const desktopReply = await dispatch(request('r1', 'project.list'), desktop);

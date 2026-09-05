@@ -616,3 +616,94 @@ test('repeated context losses preserve user choice and explicit GPU Safe Mode pe
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
+
+test('repeated GPU incidents pin the session to DOM until the preference changes', async () => {
+    allowE2EErrors([
+        { source: 'desktop', event: 'gpu.process_gone', code: 'GPU_PROCESS_GONE', count: 3 },
+    ]);
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-gpu-incident-budget-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await mkdir(root);
+
+    const running = await launchCaxri({
+        gpuMode: 'enabled',
+        userDataDir: userData,
+        testRootPath: root,
+    });
+    try {
+        await createShellSession(running.page);
+        const pane = running.page.locator('.terminal-pane');
+        const surface = pane.locator('.terminal-surface');
+        const terminalId = await pane.getAttribute('data-terminal-id');
+        if (!terminalId) throw new Error('Terminal identity was not rendered');
+        await applyGpuPreference(running.page, 'On');
+        await expect(surface).toHaveAttribute('data-terminal-renderer', 'webgl');
+
+        /**
+         * Two incidents stay inside the session budget: each one falls back and the bounded retry chain brings WebGL
+         * back. The third pins the whole session, so the retry chain ends with a closed reason instead of re-arming.
+         */
+        const injectRecoverableIncident = async (): Promise<void> => {
+            await pageRequest(running.page, 'gpu.testInjectContextLoss');
+            await expect(surface).toHaveAttribute('data-terminal-renderer', 'dom');
+            await expect(surface).toHaveAttribute('data-terminal-renderer', 'webgl', {
+                timeout: 10_000,
+            });
+            await expect(surface).toHaveAttribute('data-terminal-renderer-reason', 'active');
+        };
+        await injectRecoverableIncident();
+        await injectRecoverableIncident();
+        await pageRequest(running.page, 'gpu.testInjectContextLoss');
+        await expect(surface).toHaveAttribute('data-terminal-renderer', 'dom');
+        await expect(surface).toHaveAttribute(
+            'data-terminal-renderer-reason',
+            'context-loss-limit',
+            { timeout: 10_000 },
+        );
+        await expect(surface).toHaveAttribute('data-terminal-renderer-retry-state', 'idle');
+        const rendererChip = running.page.locator('.statusbar-terminal-renderer');
+        await expect(rendererChip).toHaveAttribute(
+            'aria-label',
+            'Terminal renderer: DOM. The GPU process crashed repeatedly; WebGL stays off until GPU acceleration is changed in Settings or Caxri restarts.',
+        );
+        await typeTerminal(running.page, String.raw`printf 'PINNED_DOM_STILL_LIVE\n'`);
+        await expect(pane.locator('.xterm-rows')).toContainText('PINNED_DOM_STILL_LIVE');
+
+        // A pane mounted after the budget tripped never creates a WebGL context either.
+        await pressNewTerminal(running.page);
+        const secondTerminalId = await waitForNewTerminalId(running.page, [terminalId]);
+        const secondSurface = running.page.locator(
+            `.terminal-pane[data-terminal-id="${secondTerminalId}"] .terminal-surface`,
+        );
+        await expect(secondSurface).toHaveAttribute('data-terminal-renderer', 'dom');
+        await expect(secondSurface).toHaveAttribute(
+            'data-terminal-renderer-reason',
+            'context-loss-limit',
+        );
+        await expect(secondSurface).toHaveAttribute('data-terminal-webgl-context-losses', '0');
+
+        // Changing the preference is the user's request to try again and clears the session budget.
+        await applyGpuPreference(running.page, 'Auto');
+        await expect(secondSurface).toHaveAttribute('data-terminal-renderer', 'webgl');
+        await expect(secondSurface).toHaveAttribute('data-terminal-renderer-reason', 'active');
+
+        const desktopRecords = await readStructuredLog(join(userData, 'logs', 'desktop.jsonl'));
+        const limitRecords = desktopRecords.filter(
+            (record) =>
+                record.event === 'renderer.terminal_renderer_status' &&
+                record.fields?.trigger === 'gpu-incident-limit',
+        );
+        expect(limitRecords.length).toBeGreaterThan(0);
+        expect(limitRecords.every((record) => record.fields?.reason === 'context-loss-limit')).toBe(
+            true,
+        );
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
