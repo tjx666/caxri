@@ -90,7 +90,11 @@ const serverRead = commandPolicy('server', 'read');
 const serverWrite = commandPolicy('server', 'write');
 const serverControl = commandPolicy('server', 'control');
 /**
- * PTY traffic preserves submission order because asynchronous fingerprints could otherwise reorder input or resize.
+ * PTY traffic preserves submission order because asynchronous fingerprints could otherwise reorder input or resize. The
+ * attachment lifecycle needs the same guarantee: a pane remount submits `terminal.detach` for the outgoing pane
+ * immediately followed by `terminal.attach` for the incoming one, and the client's detach fence cancels whatever attach
+ * it finds in flight. A detach that waits on a fingerprint digest lets the newer attach overtake it and be cancelled,
+ * which leaves the remounted Terminal blank (#571).
  */
 const terminalStreamControl = { ...serverControl, idempotency: 'none' as const };
 const desktopRead = commandPolicy('desktop', 'read');
@@ -472,7 +476,7 @@ export const methods = {
         result: terminalSnapshotSchema.nullable(),
     },
     'terminal.detach': {
-        ...serverControl,
+        ...terminalStreamControl,
         params: z.object({ terminalId: identifierSchema }),
         result: z.null(),
     },
