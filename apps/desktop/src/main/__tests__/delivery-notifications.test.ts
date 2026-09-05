@@ -62,7 +62,7 @@ describe('createDeliveryNotificationCoordinator', () => {
         const { coordinator, shown } = harness();
         coordinator.observe(alert());
         expect(shown).toHaveLength(1);
-        expect(shown[0]?.notification.groupId).toBe('caxri-delivery');
+        expect(shown[0]?.notification.id).toContain('caxri-delivery-');
     });
 
     it('ignores every other server event', () => {

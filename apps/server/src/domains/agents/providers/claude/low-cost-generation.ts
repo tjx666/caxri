@@ -3,10 +3,26 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { AgentProviderPasteSummaryGenerationContext } from '../../contract';
+import { canonicalPath } from '../../contract';
+import { lowCostSandboxProfile, MACOS_SANDBOX_EXECUTABLE } from '../../low-cost-sandbox';
 import { agentCommandEnvironment, assertAgentRenameVersion } from '../../rename';
 import { runAgentTextCommand } from '../../text-generation';
+import { resolveClaudeConfigDirectory } from './paths';
 
 const CLAUDE_LOW_COST_GENERATION_MINIMUM_VERSION = '2.1.232';
+
+/**
+ * `--setting-sources ''` drops every `settings.json` layer, but Claude Code resolves its user memory from the
+ * configuration directory rather than from the working directory, and exposes no switch that turns it off. An isolated
+ * cwd therefore cannot reach it. The macOS host sandbox denies those two files by exact path, and re-denies the Project
+ * root as defence in depth so a later flag regression cannot quietly widen a bounded text transformation.
+ */
+function sandboxProfile(projectDirectory: string, configDirectory: string): string {
+    return lowCostSandboxProfile({
+        literals: [join(configDirectory, 'CLAUDE.md'), join(configDirectory, 'CLAUDE.local.md')],
+        subpaths: [projectDirectory],
+    });
+}
 
 /**
  * Safe mode plus an isolated cwd prevents Project CLAUDE.md and provider customizations from changing a bounded text
@@ -21,8 +37,15 @@ export async function generateClaudeLowCostText(
     assertAgentRenameVersion('claude', context.version, CLAUDE_LOW_COST_GENERATION_MINIMUM_VERSION);
     const isolatedDirectory = await mkdtemp(join(tmpdir(), 'caxri-claude-text-'));
     try {
+        const [canonicalProjectDirectory, canonicalConfigDirectory] = await Promise.all([
+            canonicalPath(context.cwd),
+            canonicalPath(resolveClaudeConfigDirectory(context.environment)),
+        ]);
         return await runAgentTextCommand({
             arguments: [
+                '-p',
+                sandboxProfile(canonicalProjectDirectory, canonicalConfigDirectory),
+                context.executable,
                 '--print',
                 '--model',
                 'haiku',
@@ -46,7 +69,7 @@ export async function generateClaudeLowCostText(
             ],
             cwd: isolatedDirectory,
             environment: agentCommandEnvironment(context.environment),
-            executable: context.executable,
+            executable: MACOS_SANDBOX_EXECUTABLE,
             input: context.prompt,
             limits: timeoutMs === undefined ? undefined : { timeoutMs },
             operation,

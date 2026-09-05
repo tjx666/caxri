@@ -9,7 +9,10 @@ import { agentProviderCatalog } from '@caxri/protocol';
 
 export interface AgentSystemNotification {
     body: string;
-    groupId: string;
+    /**
+     * Caxri's own replacement identity for a Session's banner. It is not an Electron option: the native backend
+     * receives only `title` and `body`, and alerter maps this onto its `--group` flag.
+     */
     id: string;
     title: string;
 }
@@ -157,7 +160,6 @@ export function createAgentNotificationCoordinator(
         const handle = options.showNotification(
             {
                 id: `caxri-agent-session-${session.id}`,
-                groupId: 'caxri-agent-sessions',
                 title: session.displayTitle,
                 body,
             },
@@ -288,11 +290,33 @@ export function createAgentNotificationCoordinator(
                 return;
             }
             if (event.event === 'settings.changed') {
-                settings = undefined;
-                closeAllNotifications();
                 schedule(async () => {
-                    settings = await options.loadSettings();
-                    if (!settings['agents.notifications.enabled']) closeAllNotifications();
+                    let next: AppSettings;
+                    try {
+                        next = await options.loadSettings();
+                    } catch (error) {
+                        /**
+                         * Teardown is deferred until the reload answers, so a reload that never answers must fail
+                         * closed here instead: without settings the coordinator cannot tell whether notifications are
+                         * still permitted, and keeping banners up would outlive a disable the user just applied.
+                         */
+                        settings = undefined;
+                        closeAllNotifications();
+                        throw error;
+                    }
+                    settings = next;
+                    /**
+                     * A `settings.changed` event carries only its source, never the changed key, so this handler must
+                     * not tear banners down on arrival: a theme, a Terminal font size, or a keybinding reaches the same
+                     * event, and closing eagerly made a background Agent's banner disappear while the user was still
+                     * expected to act on it. Only the reloaded `enabled` value decides.
+                     *
+                     * Turning notifications off clears the banners. Turning them back on deliberately does not replay
+                     * them: `sessions` keeps each Session's `attentionEpoch` while notifications are disabled, so the
+                     * next banner needs a genuinely newer epoch. Re-issuing here would resurface attention the user has
+                     * already seen in the Sidebar's unread state.
+                     */
+                    if (!next['agents.notifications.enabled']) closeAllNotifications();
                 });
                 return;
             }

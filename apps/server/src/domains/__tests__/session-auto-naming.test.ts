@@ -127,6 +127,7 @@ function harness(
             context: Parameters<AgentService['generateSessionTitle']>[1],
         ) => Promise<string>;
         now?: () => number;
+        onHealthChanged?: (provider: AgentProvider, health: unknown) => void;
         ownership?: { lastAutoTitle?: string; state: 'active' | 'stopped' };
         provider?: AgentProvider;
     } = {},
@@ -190,8 +191,10 @@ function harness(
     );
     const loggerWrite = vi.fn();
     const logger = { write: loggerWrite } as unknown as StructuredLogger;
+    let isSessionDeleted = false;
     const database = {
-        getSession: (id: string) => (id === sessionId ? currentSession : undefined),
+        getSession: (id: string) =>
+            id === sessionId && !isSessionDeleted ? currentSession : undefined,
         getTerminal: (id: string) => (id === terminalId ? terminal(provider) : undefined),
         sessionNaming: {
             get: () => ownership,
@@ -221,9 +224,13 @@ function harness(
             hasForeignHookConflict: () => false,
             isCurrentLaunch: () => isCurrentLaunch,
             now: options.now,
+            onHealthChanged: options.onHealthChanged,
         },
     );
     return {
+        deleteSession(): void {
+            isSessionDeleted = true;
+        },
         events,
         generateSessionTitle,
         loggerWrite,
@@ -525,6 +532,50 @@ describe('Session automatic naming', () => {
             level: 'debug',
         });
         expect(test.readTitleSource).toHaveBeenCalledOnce();
+        await test.service.close();
+    });
+
+    /**
+     * `Resume automatic naming` is an explicit request for a name now. The minimum-interval and transcript-growth
+     * throttles outlive the stop, so without a reset the first turn after resuming is silently swallowed and the button
+     * reads as doing nothing.
+     */
+    it('clears the throttle window when automatic naming is resumed', async () => {
+        let now = 1_000;
+        const test = harness({ now: () => now });
+        test.service.observe(lifecycle('turnFinished'));
+        await vi.waitFor(() => expect(test.renameAutomatically).toHaveBeenCalledOnce());
+
+        await test.service.resumeSession(sessionId);
+        now += 1_000;
+        test.service.observe(lifecycle('turnFinished'));
+
+        await vi.waitFor(() => expect(test.renameAutomatically).toHaveBeenCalledTimes(2));
+        const reasons = namingRecords(test.loggerWrite).map((record) => record.fields.reason);
+        expect(reasons).not.toContain('minimumInterval');
+        expect(reasons).not.toContain('transcriptGrowthBelowThreshold');
+        await test.service.close();
+    });
+
+    it('does not degrade provider health when the Session disappears mid-generation', async () => {
+        const generation = Promise.withResolvers<string>();
+        const onHealthChanged = vi.fn();
+        const test = harness({
+            generate: () => generation.promise,
+            onHealthChanged,
+        });
+        test.service.observe(lifecycle('turnFinished'));
+        await vi.waitFor(() => expect(test.generateSessionTitle).toHaveBeenCalledOnce());
+
+        test.deleteSession();
+        generation.reject(new Error('Provider closed the connection'));
+
+        await vi.waitFor(() => expect(namingRecords(test.loggerWrite)).toHaveLength(1));
+        expect(namingRecords(test.loggerWrite)[0]).toMatchObject({
+            fields: { outcome: 'skipped', reason: 'targetIneligible' },
+            level: 'info',
+        });
+        expect(onHealthChanged).not.toHaveBeenCalled();
         await test.service.close();
     });
 

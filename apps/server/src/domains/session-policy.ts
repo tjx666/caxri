@@ -1,5 +1,6 @@
 import type {
     AgentActivityState,
+    AgentProvider,
     AgentSnapshot,
     ProcessState,
     ProjectRecord,
@@ -12,6 +13,7 @@ import type {
 } from '@caxri/protocol';
 import {
     agentProviderCatalog,
+    agentProviderIds,
     compareSessionActivityRecency,
     isTopLevelProject,
     normalizeTerminalTitle,
@@ -30,6 +32,30 @@ import type { AgentLifecyclePhase } from './agents';
  * Neutral automatic title used until a new Session gains useful Agent metadata or a manual name.
  */
 export const DEFAULT_SESSION_TITLE = 'Untitled';
+
+/**
+ * Content-free Session name used when an Agent provider reports no verified conversation name of its own.
+ *
+ * Codex only exposes a thread name once the model has written one; before that its stored name is still the first
+ * prompt, which Caxri deliberately refuses to read. Without a fallback such a Session reads `Untitled` for its whole
+ * lifetime, including in a native notification. The provider name is derived from the Terminal's provider alone, so it
+ * can never carry prompt, transcript, or path content.
+ */
+export function agentPlaceholderSessionTitle(provider: AgentProvider): string {
+    return `${agentProviderCatalog[provider].displayName} session`;
+}
+
+const agentPlaceholderSessionTitles = new Set(agentProviderIds.map(agentPlaceholderSessionTitle));
+
+/**
+ * Whether a Session title is one Caxri generated for lack of anything better.
+ *
+ * Automatic naming and manual rename both treat "has no real title yet" as a distinct state: a placeholder must not be
+ * offered to a title generator as the current name, and must not become the baseline a rename is compared against.
+ */
+export function isPlaceholderSessionTitle(title: string): boolean {
+    return title === DEFAULT_SESSION_TITLE || agentPlaceholderSessionTitles.has(title);
+}
 
 export function defaultTerminalTitle(kind: TerminalKind): string {
     return kind === 'shell' ? 'Shell' : agentProviderCatalog[kind].displayName;
@@ -328,7 +354,17 @@ export function decideAgentMetadataUpdate(
     const displayTitle =
         session.titleMode === 'manual'
             ? session.displayTitle
-            : agentDisplayTitle(snapshot.title, session.displayTitle);
+            : agentDisplayTitle(
+                  snapshot.title,
+                  /**
+                   * A placeholder is re-derived from the current primary Terminal's provider rather than carried
+                   * across, so a Session that changes primary provider without ever earning a verified title does not
+                   * keep naming the previous provider.
+                   */
+                  isPlaceholderSessionTitle(session.displayTitle)
+                      ? agentPlaceholderSessionTitle(terminal.provider)
+                      : session.displayTitle,
+              );
     /**
      * A targeted probe may temporarily miss a hook-bound thread when the provider store has not flushed it yet or its
      * recorded cwd differs from the Terminal cwd. Only launch reset explicitly clears an identity; an empty snapshot
