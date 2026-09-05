@@ -7,15 +7,13 @@ import type { AgentProviderDescriptor, AgentTitleSource } from '../../contract';
 import type { AgentTitleMessage } from '../../title-generation';
 import { AGENT_TITLE_SYSTEM_INSTRUCTIONS, readAgentTitleSource } from '../../title-generation';
 import { generateClaudeLowCostText } from './low-cost-generation';
+import { MAX_CLAUDE_METADATA_BYTES, MAX_CLAUDE_METADATA_FILES } from './metadata-cache';
 import {
     claudeTranscriptBaseRoot,
     claudeTranscriptPath,
     claudeTranscriptRoot,
     resolveClaudeConfigDirectory,
 } from './paths';
-
-const MAX_CLAUDE_METADATA_BYTES = 128 * 1024;
-const MAX_CLAUDE_METADATA_FILES = 512;
 
 interface ClaudeMetadata {
     name?: unknown;
