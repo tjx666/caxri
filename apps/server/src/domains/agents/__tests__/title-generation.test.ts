@@ -31,9 +31,10 @@ async function titleCommandFixture(source: string) {
 /**
  * The fixture executable is a fresh Node process that writes its PID as its first action. On a cold disk cache or a
  * loaded CI runner, spawning Node alone can exceed the 1s `expect.poll` default, so the budget covers a cold start
- * rather than a warm one (#613).
+ * rather than a warm one (#613). It stays below the repository's 15s `testTimeout` so a genuinely missing PID still
+ * fails on this poll, with its own message, instead of on the enclosing test timeout.
  */
-const FIXTURE_PID_TIMEOUT_MS = 15_000;
+const FIXTURE_PID_TIMEOUT_MS = 10_000;
 
 async function fixturePid(path: string): Promise<number> {
     await expect
