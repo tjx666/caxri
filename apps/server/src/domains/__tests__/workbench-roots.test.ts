@@ -533,6 +533,86 @@ describe('WorkbenchRootService worktree attribution', () => {
         context.database.close();
     });
 
+    it('attributes an authorized worktree to the owning Project and still lists it as a Root option', async () => {
+        const context = await fixture();
+        await prime(context);
+        await beginWorktreeCreation(context);
+        context.setWorktrees([
+            { branch: 'main', rootPath: context.ownerRoot },
+            { branch: 'feature/attributed', rootPath: context.worktreeRoot },
+        ]);
+        expect(
+            context.service.observeShellToolFinished(
+                shellFinished(context, { worktreeCreateIntent: true }),
+            ),
+        ).toBe('accepted');
+        await vi.waitFor(() =>
+            expect(
+                context.events.filter((event) => event.event === 'workbench.candidate'),
+            ).toHaveLength(1),
+        );
+        const candidate = context.events.find((event) => event.event === 'workbench.candidate');
+        if (candidate?.event !== 'workbench.candidate') throw new Error('Candidate not emitted');
+        context.service.claimCandidate(
+            context.sessions[0].session.id,
+            candidate.payload.candidateId,
+        );
+
+        await context.service.authorizeCandidate(
+            context.sessions[0].session.id,
+            candidate.payload.candidateId,
+            context.worktreeRoot,
+        );
+
+        expect(context.database.findProjectByRootPath(context.worktreeRoot)).toMatchObject({
+            ownerProjectId: context.owner.id,
+        });
+        // Hidden from the PrimarySidebar, but the Workbench Root picker must still offer it.
+        await expect(
+            context.service.listOptions(context.sessions[0].session.id),
+        ).resolves.toMatchObject([
+            { owner: true, projectId: context.owner.id },
+            { branch: 'feature/attributed', owner: false },
+        ]);
+        await context.service.close();
+        context.database.close();
+    });
+
+    it('attributes an explicitly selected worktree, but never re-owns a manually added root', async () => {
+        const context = await fixture();
+        context.setWorktrees([
+            { branch: 'main', rootPath: context.ownerRoot },
+            { branch: 'feature/selected', rootPath: context.worktreeRoot },
+        ]);
+
+        await context.service.authorizeSelection(
+            context.sessions[0].session.id,
+            context.worktreeRoot,
+        );
+
+        expect(context.database.findProjectByRootPath(context.worktreeRoot)).toMatchObject({
+            ownerProjectId: context.owner.id,
+        });
+        await context.service.close();
+        context.database.close();
+
+        const manual = await fixture();
+        manual.setWorktrees([
+            { branch: 'main', rootPath: manual.ownerRoot },
+            { branch: 'feature/manual', rootPath: manual.worktreeRoot },
+        ]);
+        // The user added this worktree as its own Project before any Session ever worked in it.
+        manual.database.createProject(manual.worktreeRoot);
+
+        await manual.service.authorizeSelection(manual.sessions[0].session.id, manual.worktreeRoot);
+
+        expect(manual.database.findProjectByRootPath(manual.worktreeRoot)).not.toHaveProperty(
+            'ownerProjectId',
+        );
+        await manual.service.close();
+        manual.database.close();
+    });
+
     it('automatically selects a hook-attributed worktree only when it is already authorized', async () => {
         const context = await fixture();
         const worktreeProject = context.database.createProject(context.worktreeRoot);

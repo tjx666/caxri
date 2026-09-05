@@ -2,20 +2,21 @@ import { randomUUID } from 'node:crypto';
 import { basename } from 'node:path';
 
 import type { ProjectIcon, ProjectRecord } from '@caxri/protocol';
-import { projectIconSchema } from '@caxri/protocol';
+import { isTopLevelProject, projectIconSchema } from '@caxri/protocol';
 import { asc, eq, sql } from 'drizzle-orm';
 
 import type { CaxriDrizzleDatabase } from '../connection';
 import { projects } from '../schema';
 
 function projectRecord(row: typeof projects.$inferSelect): ProjectRecord {
-    const { iconColor, iconName, ...project } = row;
+    const { iconColor, iconName, ownerProjectId, ...project } = row;
     const icon = iconName
         ? projectIconSchema.parse({ name: iconName, ...(iconColor && { color: iconColor }) })
         : undefined;
     return {
         ...project,
         ...(icon && { icon }),
+        ...(ownerProjectId && { ownerProjectId }),
     };
 }
 
@@ -50,11 +51,38 @@ export class ProjectsModel {
     }
 
     /**
-     * Idempotent by root: returns the existing Project row when one already owns `rootPath`.
+     * Projects auto-registered as worktrees of `ownerProjectId`. The PrimarySidebar hides these rows, so only their
+     * owner's deletion can reach them.
      */
-    create(rootPath: string): ProjectRecord {
+    listOwnedBy(ownerProjectId: string): ProjectRecord[] {
+        return this.database
+            .select()
+            .from(projects)
+            .where(eq(projects.ownerProjectId, ownerProjectId))
+            .orderBy(asc(projects.orderIndex), asc(projects.createdAt), asc(projects.id))
+            .all()
+            .map(projectRecord);
+    }
+
+    /**
+     * Idempotent by root: returns the existing Project row when one already owns `rootPath`. Passing `ownerProjectId`
+     * marks the row as a worktree registered automatically on that owner's behalf; omitting it is a manual add.
+     *
+     * Ownership is written once and only the user can clear it. An automatic registration therefore never re-owns or
+     * re-points an existing row, while a manual add of a root that is currently an owned worktree clears the mark so
+     * the user's explicit choice wins and the Project surfaces at the PrimarySidebar's top level.
+     */
+    create(rootPath: string, ownerProjectId?: string): ProjectRecord {
         const existing = this.findByRootPath(rootPath);
-        if (existing) return existing;
+        if (existing) {
+            if (ownerProjectId !== undefined || isTopLevelProject(existing)) return existing;
+            this.database
+                .update(projects)
+                .set({ ownerProjectId: null })
+                .where(eq(projects.id, existing.id))
+                .run();
+            return this.get(existing.id)!;
+        }
         const id = randomUUID();
         const now = Date.now();
         const orderIndex = sql<number>`COALESCE((SELECT MAX(${projects.orderIndex}) + 1 FROM ${projects}), 0)`;
@@ -67,6 +95,7 @@ export class ProjectsModel {
                 orderIndex,
                 createdAt: now,
                 lastOpenedAt: now,
+                ...(ownerProjectId !== undefined && { ownerProjectId }),
             })
             .run();
         return this.get(id)!;

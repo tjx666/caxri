@@ -16,6 +16,7 @@ import { useCommandShortcut } from '../../lib/keybindings';
 import { useCaxriQuery } from '../../queries/client';
 import { setPaletteOpen, useDialogStore } from '../../stores/dialogs';
 import { useProjects, useSelectedSession, useSessions, useTerminals } from '../../stores/selectors';
+import { topLevelProjects } from '../primary-sidebar/project-visibility';
 import {
     didSelectSession,
     hasDetachedAgentTerminal,
@@ -97,6 +98,12 @@ export function CommandPalette() {
     const isOpen = useDialogStore((state) => state.paletteOpen);
     const onOpenChange = setPaletteOpen;
     const projects = useProjects() ?? NO_RECORDS;
+    /**
+     * Only the Projects group filters. Selecting an auto-registered worktree Project does nothing — it can never own a
+     * Session — so offering it is a dead result. Session ordering and the Session subtitles below stay on the full
+     * list, or a Session working in a worktree would lose its Project name.
+     */
+    const projectResults = topLevelProjects(projects);
     const catalog = useCaxriQuery('viewContainers.catalog', {}, { enabled: isOpen }).data;
     const sessions = activeSessionsInSidebarOrder(projects, useSessions() ?? NO_RECORDS);
     const selectedSession = useSelectedSession();
@@ -120,7 +127,7 @@ export function CommandPalette() {
                     <CommandList>
                         <CommandEmpty>No Project, Session, or command found.</CommandEmpty>
                         <CommandGroup heading="Projects">
-                            {projects.map((project) => (
+                            {projectResults.map((project) => (
                                 <CommandItem
                                     key={project.id}
                                     value={`Project ${project.displayTitle} ${project.rootPath}`}
