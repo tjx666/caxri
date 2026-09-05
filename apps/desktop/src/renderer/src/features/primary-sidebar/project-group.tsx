@@ -7,7 +7,7 @@ import type {
     SessionRecord,
     TerminalRecord,
 } from '@caxri/protocol';
-import { Archive, ChevronDown, Paintbrush, RotateCcw, SquarePen } from 'lucide-react';
+import { Archive, ChevronDown, FolderGit2, Paintbrush, RotateCcw, SquarePen } from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';
 import { CommandTooltip } from '../../components/command-tooltip';
@@ -66,6 +66,11 @@ interface ActiveSessionRowProperties {
     session: SessionRecord;
     terminal?: TerminalRecord;
     terminals: TerminalRecord[];
+    /**
+     * Workbench Root Project when this Session works in a linked worktree instead of its own Project root. Absent for
+     * the ordinary case, which renders no marker.
+     */
+    worktreeProject?: ProjectRecord;
 }
 
 function ActiveSessionRow({
@@ -85,6 +90,7 @@ function ActiveSessionRow({
     session,
     terminal,
     terminals,
+    worktreeProject,
 }: ActiveSessionRowProperties) {
     const renameErrorId = `session-rename-error-${session.id}`;
     /**
@@ -159,8 +165,27 @@ function ActiveSessionRow({
                     )}
                 </>
             ) : (
-                <span className="session-copy min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
-                    <strong className="font-medium">{session.displayTitle}</strong>
+                <span className="session-copy flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+                    <strong className="overflow-hidden font-medium text-ellipsis whitespace-nowrap">
+                        {session.displayTitle}
+                    </strong>
+                    {worktreeProject && (
+                        /*
+                         * Deliberately outside the fixed-width `.session-indicators` track, which is sized for exactly
+                         * the pull request and lifecycle glyphs. This marker is what replaces the worktree's hidden
+                         * top-level sidebar entry, so it belongs with the title it qualifies.
+                         *
+                         * Decorative on purpose: the row already opens the Session hover card, which names the
+                         * worktree, and its accessible description carries the same sentence. A second hover popup on
+                         * one row would compete with that card.
+                         */
+                        <span
+                            className="session-worktree flex size-3.5 flex-none items-center justify-center text-muted"
+                            data-session-worktree={worktreeProject.displayTitle}
+                        >
+                            <FolderGit2 aria-hidden="true" size={12} />
+                        </span>
+                    )}
                 </span>
             )}
             {/*
@@ -201,6 +226,7 @@ function ActiveSessionRow({
                     suppressed={menuOpen}
                     terminal={terminal}
                     trigger={sessionCard}
+                    worktreeProject={worktreeProject}
                 />
             )}
             {canResumeAutomaticSessionNaming(session, terminal) && (
@@ -240,6 +266,7 @@ function ActiveSessionRow({
             onBeginRename={onBeginRename}
             onOpenChange={setMenuOpen}
             project={project}
+            pullRequest={pullRequest}
             session={session}
             terminals={terminals}
         >
@@ -294,6 +321,11 @@ interface ProjectGroupProperties {
      * Sessions the window renders, most recently active first.
      */
     visibleSessions: SessionRecord[];
+    /**
+     * Workbench Root Projects keyed by Session id, for Sessions working in a linked worktree; absent entries render no
+     * marker. Resolved against the full Project list, which still contains the hidden worktree rows.
+     */
+    worktreeProjects?: Record<string, ProjectRecord>;
 }
 
 export function ProjectGroup({
@@ -327,6 +359,7 @@ export function ProjectGroup({
     selectedSessionId,
     terminals,
     visibleSessions,
+    worktreeProjects,
 }: ProjectGroupProperties) {
     const projectDisclosureId = `project-sessions-${project.id}`;
     const revealRowId = primarySidebarRevealRowId(project.id);
@@ -477,6 +510,7 @@ export function ProjectGroup({
                                 session={session}
                                 terminal={sessionTerminal(session, terminals)}
                                 terminals={terminals}
+                                worktreeProject={worktreeProjects?.[session.id]}
                             />
                         ))}
                         {hiddenSessionCount > 0 && (

@@ -101,6 +101,7 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 deleteSelected: record('session.delete'),
                 detachSelected: record('session.detach'),
                 navigateHistory: record('session.navigateHistory'),
+                openPullRequestSelected: record('session.openPullRequest'),
                 resumeSelected: record('session.resume'),
                 selectAdjacent: record('session.selectAdjacent'),
                 switchMru: record('session.switchMru'),

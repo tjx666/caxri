@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-    memoizedSubpathPrefix,
-    projectSubpathSuffix,
-    shallowestProjectPath,
-} from '../path-browser-subpath';
+import { memoizedSubpathPrefix, projectSubpathSuffix } from '../path-browser-subpath';
 
 describe('projectSubpathSuffix', () => {
     it('keeps only the directory segments of a relative Project input', () => {
@@ -16,19 +12,6 @@ describe('projectSubpathSuffix', () => {
     it('refuses input the fallback must not resolve', () => {
         for (const input of ['index.ts', '/tmp/x/y', '~/x/y', '../x/y', './x/y', 'a//b/c'])
             expect(projectSubpathSuffix(input)).toBeUndefined();
-    });
-});
-
-describe('shallowestProjectPath', () => {
-    it('prefers the shallowest match and breaks ties by path order', () => {
-        expect(
-            shallowestProjectPath('/root', [
-                '/root/z/packages',
-                '/root/a/b/packages',
-                '/root/b/packages',
-            ]),
-        ).toBe('/root/b/packages');
-        expect(shallowestProjectPath('/root', [])).toBeUndefined();
     });
 });
 

@@ -551,8 +551,9 @@ export async function createDomainServices(
             );
         },
         'project.delete': ({ projectId }) => {
-            const ownedSessions = database.listSessions(projectId);
-            const affectedWorkbenchSessions = database.listSessionsUsingWorkbenchProject(projectId);
+            // Covers the worktree Projects deleted alongside this one, so nothing under them keeps a live cache.
+            const { owned: ownedSessions, workbench: affectedWorkbenchSessions } =
+                database.projectDeletionScope(projectId);
             const affectedSessionIds = [
                 ...new Set(
                     [...ownedSessions, ...affectedWorkbenchSessions].map((session) => session.id),

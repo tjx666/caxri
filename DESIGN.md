@@ -182,7 +182,8 @@ same position; keyboard focus keeps the track visible because Delete already own
 action. The Portal
 card opens to the PrimarySidebar's right after a short hover delay (or immediately on keyboard focus),
 collision-shifts within the viewport, and shows only the full title, Project, primary Agent,
-activity explanation, `Last opened`, and unread-attention metadata. All non-archived Project and
+activity explanation, the pull request when one exists, the `Worktree` the Session works in when
+that is not its own Project root, `Last opened`, and unread-attention metadata. All non-archived Project and
 Session names and navigation icons use `--foreground`, including inactive rows; the `--elevated`
 selected fill, not dimmed neighbors, communicates selection. Project ordering uses the whole
 Project heading as its drag source. While dragging, dim only the source group and show a 2px

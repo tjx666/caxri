@@ -1,14 +1,10 @@
 import { z } from 'zod';
 
 import { MAX_CONFIGURABLE_FILE_BYTES } from '../configuration/settings-spec.js';
-import { identifierSchema, pathSchema } from '../domain/domain.js';
+import { fileEntrySchema, identifierSchema, pathSchema } from '../domain/domain.js';
 import { commandPolicy } from '../transport/method-spec.js';
 
 export const MAX_PATH_BROWSER_ENTRIES = 200;
-/**
- * Mirrors the Project search result ceiling; the path browser only ever uses the shallowest match.
- */
-export const MAX_FILE_LOCATE_DIRECTORY_MATCHES = 500;
 
 const desktopRead = commandPolicy('desktop', 'read');
 const desktopWrite = commandPolicy('desktop', 'write');
@@ -25,6 +21,13 @@ const pathBrowserEntryName = z.string().min(1).max(255);
 const pathBrowserEntry = z.object({
     id: identifierSchema,
     kind: z.enum(['directory', 'file', 'symlink']),
+    /**
+     * Display-only symlink metadata, reused from the Server file entry so the dialog row carries the same folder/file
+     * icon, tooltip, and screen-reader rationale as the Files tree. Main forwards what Server Core probed; it never
+     * resolves or authorizes the target.
+     */
+    linkKind: fileEntrySchema.shape.linkKind,
+    linkTarget: fileEntrySchema.shape.linkTarget,
     name: pathBrowserEntryName,
     size: z.number().int().nonnegative().optional(),
 });
@@ -99,9 +102,9 @@ export const pathBrowserMethods = {
 } as const;
 
 /**
- * Server-owned support for the path browser's subpath fallback: a bounded Project-wide directory-suffix lookup. Matches
- * are absolute paths inside the Session's Project root, sorted by relative path; Main still revalidates the chosen
- * directory before listing it.
+ * Server-owned support for the path browser's subpath fallback: a bounded Project-wide directory-suffix lookup. Server
+ * Core returns the shallowest matching directory inside the Session's Project root (or `null` when nothing matched)
+ * plus whether the traversal was truncated; Main still revalidates that directory before listing it.
  */
 export const pathBrowserServerMethods = {
     'files.locateDirectory': {
@@ -110,10 +113,7 @@ export const pathBrowserServerMethods = {
             sessionId: identifierSchema,
             suffix: z.string().min(1).max(4096),
         }),
-        result: z.object({
-            paths: z.array(pathSchema).max(MAX_FILE_LOCATE_DIRECTORY_MATCHES),
-            truncated: z.boolean(),
-        }),
+        result: z.object({ path: pathSchema.nullable(), truncated: z.boolean() }),
     },
 };
 

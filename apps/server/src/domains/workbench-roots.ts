@@ -575,7 +575,9 @@ export class WorkbenchRootService {
             )
                 throw new CaxriError('CONFLICT', 'The worktree candidate is no longer available');
             await this.rootIdentity(canonical);
-            const project = this.options.database.createProject(canonical);
+            // Auto-registration: the worktree becomes a fully authorized Project owned by this Session's Project, so
+            // the PrimarySidebar keeps showing one top-level entry per checkout the user actually added.
+            const project = this.options.database.createProject(canonical, owner.id);
             return await this.select(sessionId, project.id, 'authorized');
         } finally {
             this.candidates.delete(candidateId);
@@ -598,7 +600,9 @@ export class WorkbenchRootService {
                 'Selected folder is not a linked worktree of the owning Project',
             );
         await this.rootIdentity(canonical);
-        const project = this.options.database.createProject(canonical);
+        // Auto-registration, as in `authorizeCandidate`: an explicit picker selection is still Caxri registering a
+        // worktree on the owning Project's behalf, not the user adding a standalone Project.
+        const project = this.options.database.createProject(canonical, owner.id);
         return this.select(sessionId, project.id, 'authorized');
     }
 

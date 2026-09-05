@@ -5,7 +5,9 @@ const mocks = vi.hoisted(() => ({
     caxriRequest: vi.fn((): Promise<unknown> => Promise.resolve([])),
     dropSessions: vi.fn(),
     getBootstrap: vi.fn(),
+    getQueryData: vi.fn(),
     getSelectedSession: vi.fn(),
+    openExternalUrl: vi.fn(() => Promise.resolve()),
     registerSessionSelectionConvergence: vi.fn(() => ({
         cancel: vi.fn(),
         promise: Promise.resolve(),
@@ -20,7 +22,11 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../../../lib/caxri', () => ({ caxri: { request: mocks.caxriRequest } }));
-vi.mock('../../../queries/client', () => ({ queryClient: {} }));
+vi.mock('../../../lib/external-link', () => ({ openExternalUrl: mocks.openExternalUrl }));
+vi.mock('../../../queries/client', () => ({
+    caxriQueryKey: (method: string, parameters: unknown) => [method, parameters],
+    queryClient: { getQueryData: mocks.getQueryData },
+}));
 vi.mock('../../../queries/invalidation', () => ({
     removeSessionQueries: mocks.removeSessionQueries,
 }));
@@ -39,7 +45,7 @@ vi.mock('../../../stores/selectors', () => ({
 vi.mock('../../../stores/session-view', () => ({
     useSessionViewStore: { getState: vi.fn(() => ({ dropSessions: mocks.dropSessions })) },
 }));
-vi.mock('../../../stores/toasts', () => ({ tryCommand: mocks.tryCommand }));
+vi.mock('../../../stores/toasts', () => ({ pushToast: vi.fn(), tryCommand: mocks.tryCommand }));
 vi.mock('../../../stores/workbench', () => ({
     registerSessionSelectionConvergence: mocks.registerSessionSelectionConvergence,
     refreshWorkbench: mocks.refreshWorkbench,
@@ -53,6 +59,7 @@ import {
     didReorderProject,
     didSelectSession,
     moveTerminalToNewSession,
+    openSelectedSessionPullRequest,
     resumeAutomaticSessionNaming,
     selectAdjacentSession,
     selectProject,
@@ -64,11 +71,40 @@ describe('Session actions', () => {
         mocks.caxriRequest.mockClear();
         mocks.dropSessions.mockClear();
         mocks.getBootstrap.mockReset();
+        mocks.getQueryData.mockReset();
         mocks.getSelectedSession.mockReset();
+        mocks.openExternalUrl.mockClear();
         mocks.registerSessionSelectionConvergence.mockClear();
         mocks.refreshWorkbench.mockClear();
         mocks.removeSessionQueries.mockClear();
         mocks.tryCommand.mockClear();
+    });
+
+    it('opens the selected Session pull request from the sidebar snapshot without refetching', () => {
+        mocks.getSelectedSession.mockReturnValue({ id: 'session-1' });
+        mocks.getQueryData.mockReturnValue({
+            pullRequests: {
+                'session-1': { number: 42, url: 'https://github.com/tjx666/project/pull/42' },
+            },
+        });
+
+        openSelectedSessionPullRequest();
+
+        expect(mocks.getQueryData).toHaveBeenCalledWith(['session.pullRequests', undefined]);
+        expect(mocks.openExternalUrl).toHaveBeenCalledWith(
+            'https://github.com/tjx666/project/pull/42',
+            expect.any(Function),
+        );
+        expect(mocks.caxriRequest).not.toHaveBeenCalled();
+    });
+
+    it('is a silent no-op when the selected Session has no pull request', () => {
+        mocks.getSelectedSession.mockReturnValue({ id: 'session-1' });
+        mocks.getQueryData.mockReturnValue({ pullRequests: {} });
+
+        openSelectedSessionPullRequest();
+
+        expect(mocks.openExternalUrl).not.toHaveBeenCalled();
     });
 
     it('offers Resume only when Caxri owns automatic naming for the provider', () => {
@@ -224,7 +260,7 @@ describe('Session actions', () => {
             sessionId: 'session-1',
         });
         expect(mocks.dropSessions).toHaveBeenCalledWith(['session-1']);
-        expect(mocks.removeSessionQueries).toHaveBeenCalledWith({}, ['session-1']);
+        expect(mocks.removeSessionQueries).toHaveBeenCalledWith(expect.anything(), ['session-1']);
         expect(mocks.refreshWorkbench).toHaveBeenCalled();
     });
 

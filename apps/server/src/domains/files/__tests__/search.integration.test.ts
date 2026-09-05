@@ -380,16 +380,13 @@ describe('SearchService', () => {
                 suffix: 'Packages/Bank',
             });
             expect(located).toEqual({
-                paths: [
-                    join(canonicalRoot, 'apps', 'web', 'packages', 'bank'),
-                    join(canonicalRoot, 'sub', 'packages', 'bank'),
-                ],
+                path: join(canonicalRoot, 'sub', 'packages', 'bank'),
                 truncated: false,
             });
 
             await expect(
                 service.locateDirectory({ sessionId: session.id, suffix: 'src/alpha.ts' }),
-            ).resolves.toEqual({ paths: [], truncated: false });
+            ).resolves.toEqual({ path: null, truncated: false });
             await expect(
                 service.locateDirectory({ sessionId: session.id, suffix: '../packages' }),
             ).rejects.toMatchObject({ code: 'VALIDATION' });

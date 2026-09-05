@@ -1,14 +1,22 @@
-import type { ProjectRecord, SessionRecord, TerminalKind, TerminalRecord } from '@caxri/protocol';
+import type {
+    MethodResult,
+    ProjectRecord,
+    SessionPullRequest,
+    SessionRecord,
+    TerminalKind,
+    TerminalRecord,
+} from '@caxri/protocol';
 import { agentProviderCatalog } from '@caxri/protocol';
 
 import type { SessionMruShortcutInvocation } from '../../commands/registry';
 import { caxri } from '../../lib/caxri';
-import { queryClient } from '../../queries/client';
+import { openExternalUrl } from '../../lib/external-link';
+import { caxriQueryKey, queryClient } from '../../queries/client';
 import { removeSessionQueries } from '../../queries/invalidation';
 import { clearPendingSession, useDialogStore } from '../../stores/dialogs';
 import { getBootstrap, getSelectedSession, selectSelectedProject } from '../../stores/selectors';
 import { useSessionViewStore } from '../../stores/session-view';
-import { tryCommand } from '../../stores/toasts';
+import { pushToast, tryCommand } from '../../stores/toasts';
 import { refreshWorkbench, registerSessionSelectionConvergence } from '../../stores/workbench';
 import { beginRendererPerformanceRequest } from '../renderer-performance/controller';
 import { activeSessionsInSidebarOrder } from './session-activity-order';
@@ -212,6 +220,40 @@ export function resumeSelectedSession(): void {
 }
 
 /**
+ * The Server sweep owns delivery-CLI pacing per Session; the PrimarySidebar poll only asks for the latest projection at
+ * this cadence, and the `sessionPullRequests.changed` event refetches early when a sweep changes something. The palette
+ * uses the same number as its `staleTime`, so a hidden sidebar still leaves the palette self-refreshing at that rate.
+ */
+export const SESSION_PULL_REQUESTS_REFETCH_INTERVAL_MS = 60_000;
+
+/**
+ * The Session's pull request as the PrimarySidebar last learned it. Read from the shared query cache rather than
+ * refetched: the sidebar polls `session.pullRequests` for every row, so the palette and row menu answer from the same
+ * snapshot the glyph is drawn from and never race a second lookup against it.
+ */
+function cachedSessionPullRequest(sessionId: string): SessionPullRequest | undefined {
+    return queryClient.getQueryData<MethodResult<'session.pullRequests'>>(
+        caxriQueryKey('session.pullRequests', undefined),
+    )?.pullRequests[sessionId];
+}
+
+/**
+ * Keyboard-reachable route to the pull request the hover card links. The card is a non-modal preview that never
+ * receives focus — Tab from the row leaves the sidebar — so the row menu and the palette own this entry.
+ */
+export function openSessionPullRequest(pullRequest: Pick<SessionPullRequest, 'url'>): void {
+    // Fire-and-forget: `openExternalUrl` reports its own failure through the toast.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+    void openExternalUrl(pullRequest.url, (message) => pushToast('error', message));
+}
+
+export function openSelectedSessionPullRequest(): void {
+    const session = getSelectedSession();
+    const pullRequest = session && cachedSessionPullRequest(session.id);
+    if (pullRequest) openSessionPullRequest(pullRequest);
+}
+
+/**
  * True when the Session has at least one Agent Terminal parked by `detachSession`, i.e. the menu should offer Resume
  * instead of Detach.
  */
@@ -308,9 +350,20 @@ export function deleteSelectedProject(): void {
     void tryCommand('Project deletion failed', async () => {
         const result = await caxri.request('project.delete', { projectId: project.id });
         if ('canceled' in result) return;
+        /**
+         * The Server deletes the worktree Projects auto-registered on this Project's behalf in the same transaction, so
+         * their Sessions disappear too. `refreshWorkbench` only replaces bootstrap state; per-Session view state and
+         * cached queries need this explicit cleanup or they would outlive the rows they describe.
+         */
+        const deletedProjectIds = new Set([
+            project.id,
+            ...bootstrap.projects.flatMap((candidate) =>
+                candidate.ownerProjectId === project.id ? [candidate.id] : [],
+            ),
+        ]);
         const removedSessionIds: string[] = [];
         for (const session of bootstrap.sessions)
-            if (session.projectId === project.id) removedSessionIds.push(session.id);
+            if (deletedProjectIds.has(session.projectId)) removedSessionIds.push(session.id);
         useSessionViewStore.getState().dropSessions(removedSessionIds);
         removeSessionQueries(queryClient, removedSessionIds);
         await refreshWorkbench();

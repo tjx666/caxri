@@ -64,16 +64,34 @@ describe('getPaletteExtensionCommands', () => {
 describe('isCommandVisibleInPalette', () => {
     const detach = commandDefinitions.find((command) => command.id === 'session.detach');
     const resume = commandDefinitions.find((command) => command.id === 'session.resume');
+    const openPullRequest = commandDefinitions.find(
+        (command) => command.id === 'session.openPullRequest',
+    );
     const alwaysVisible = commandDefinitions.find((command) => command.id === 'session.create');
-    if (!detach || !resume || !alwaysVisible) {
+    if (!detach || !resume || !openPullRequest || !alwaysVisible) {
         throw new Error('gated commands are missing from the catalog');
     }
 
     it('hides gated commands when the current session lacks the matching Agent Terminal', () => {
-        const context = { sessionHasLiveAgent: false, sessionHasDetachedAgent: false };
+        const context = {
+            sessionHasLiveAgent: false,
+            sessionHasDetachedAgent: false,
+            sessionHasPullRequest: false,
+        };
         expect(isCommandVisibleInPalette(detach, context)).toBe(false);
         expect(isCommandVisibleInPalette(resume, context)).toBe(false);
+        expect(isCommandVisibleInPalette(openPullRequest, context)).toBe(false);
         expect(isCommandVisibleInPalette(alwaysVisible, context)).toBe(true);
+    });
+
+    it('reveals Open Pull Request only when the current session carries a pull request', () => {
+        expect(
+            isCommandVisibleInPalette(openPullRequest, {
+                sessionHasLiveAgent: false,
+                sessionHasDetachedAgent: false,
+                sessionHasPullRequest: true,
+            }),
+        ).toBe(true);
     });
 
     it('reveals each gated command only when its own predicate matches', () => {
@@ -81,18 +99,21 @@ describe('isCommandVisibleInPalette', () => {
             isCommandVisibleInPalette(detach, {
                 sessionHasLiveAgent: true,
                 sessionHasDetachedAgent: false,
+                sessionHasPullRequest: false,
             }),
         ).toBe(true);
         expect(
             isCommandVisibleInPalette(resume, {
                 sessionHasLiveAgent: false,
                 sessionHasDetachedAgent: true,
+                sessionHasPullRequest: false,
             }),
         ).toBe(true);
         expect(
             isCommandVisibleInPalette(detach, {
                 sessionHasLiveAgent: false,
                 sessionHasDetachedAgent: true,
+                sessionHasPullRequest: false,
             }),
         ).toBe(false);
     });

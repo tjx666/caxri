@@ -1,0 +1,1 @@
+ALTER TABLE `projects` ADD `owner_project_id` text REFERENCES projects(id);

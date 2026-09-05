@@ -30,16 +30,21 @@ describe('project.create', () => {
         });
 
         try {
-            await expect(
-                runtime.handlers['project.create']({
-                    rootPath: selectedRoot,
-                    expectedRootIdentity: {
-                        path: selectedRoot,
-                        device: selectedIdentity.dev.toString(),
-                        inode: selectedIdentity.ino.toString(),
-                    },
-                }),
-            ).resolves.toMatchObject({ rootPath: selectedRoot });
+            const created = await runtime.handlers['project.create']({
+                rootPath: selectedRoot,
+                expectedRootIdentity: {
+                    path: selectedRoot,
+                    device: selectedIdentity.dev.toString(),
+                    inode: selectedIdentity.ino.toString(),
+                },
+            });
+
+            expect(created).toMatchObject({ rootPath: selectedRoot });
+            /**
+             * A manual add is always the user's own Project, even when the chosen directory happens to be a linked
+             * worktree, so it carries no owner and the PrimarySidebar renders it at the top level.
+             */
+            expect(created).not.toHaveProperty('ownerProjectId');
         } finally {
             await runtime.close();
         }

@@ -152,12 +152,25 @@ process.stdout.write('Workbench Agent ready\r\n');
         );
         expect(terminalBefore).toBeTruthy();
 
+        await expect(running.page.locator('.project-group')).toHaveCount(1);
+
         await running.page.locator('.xterm-helper-textarea').press('g');
         const prompt = running.page.getByRole('status', { name: 'New Git worktree' });
         await expect(prompt).toContainText('A new Git worktree was created for this Session.');
         await prompt.getByRole('button', { name: 'Continue Session in Worktree' }).click();
 
         await expectWorkbenchRoot(running.page, sessionId, worktree, 'feature/workbench');
+        /**
+         * Authorization registered the worktree as a full Project, but presentation is separate: the PrimarySidebar
+         * keeps exactly the checkouts the user added, and the Session row carries the worktree marker instead (GitHub
+         * issue #576).
+         */
+        await expect(running.page.locator('.project-group')).toHaveCount(1);
+        await expect(
+            running.page.locator(
+                `.session-card[data-session-id="${sessionId}"] [data-session-worktree="worktree"]`,
+            ),
+        ).toBeVisible();
         await expect(
             running.page.getByRole('treeitem', { name: 'worktree-only.txt' }),
         ).toBeVisible();
@@ -193,6 +206,12 @@ process.stdout.write('Workbench Agent ready\r\n');
         await selector.click();
         await running.page.getByRole('option', { name: 'owner · main', exact: true }).click();
         await expectWorkbenchRoot(running.page, sessionId, root, 'main');
+        // Back on its own root, the Session row carries no worktree marker.
+        await expect(
+            running.page.locator(
+                `.session-card[data-session-id="${sessionId}"] [data-session-worktree]`,
+            ),
+        ).toHaveCount(0);
         await running.page.getByRole('tab', { name: 'owner.ts', exact: true }).click();
         await expect(running.page.locator('.view-lines')).toContainText('owner dirty buffer');
         await expect(
@@ -310,6 +329,8 @@ test('external worktree creation stays silent while one Agent Session is running
         await pageRequest(running.page, 'session.workbenchRoots', { sessionId });
 
         await expect(running.page.getByRole('status', { name: 'New Git worktree' })).toHaveCount(0);
+        // Both roots were added by the user, so both stay top-level even though one is a linked worktree.
+        await expect(running.page.locator('.project-group')).toHaveCount(2);
         const bootstrap = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
         expect(bootstrap.sessions.find((session) => session.id === sessionId)).toMatchObject({
             rootPath: root,
@@ -350,9 +371,28 @@ test('Workbench Root selector authorizes a linked worktree when hooks are disabl
             .click();
 
         await expectWorkbenchRoot(running.page, sessionId, worktree, 'feature/manual');
+        const authorizedSelector = running.page.getByRole('combobox', {
+            name: 'Switch Workbench Root from manual-worktree, branch feature/manual',
+        });
+        await expect(authorizedSelector).toBeVisible();
+        /**
+         * Authorizing through the picker must not add a second top-level entry for the same repository; the Session row
+         * marker carries that fact instead, and the picker keeps listing both roots (GitHub issue #576).
+         */
+        await expect(running.page.locator('.project-group')).toHaveCount(1);
         await expect(
-            running.page.getByRole('combobox', {
-                name: 'Switch Workbench Root from manual-worktree, branch feature/manual',
+            running.page.locator(
+                `.session-card[data-session-id="${sessionId}"] [data-session-worktree="manual-worktree"]`,
+            ),
+        ).toBeVisible();
+        await authorizedSelector.click();
+        await expect(
+            running.page.getByRole('option', { name: 'owner · main', exact: true }),
+        ).toBeVisible();
+        await expect(
+            running.page.getByRole('option', {
+                name: 'manual-worktree · feature/manual',
+                exact: true,
             }),
         ).toBeVisible();
     } finally {

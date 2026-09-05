@@ -14,6 +14,7 @@ export const commandIds = [
     'session.archive',
     'session.detach',
     'session.resume',
+    'session.openPullRequest',
     'session.selectNext',
     'session.selectPrevious',
     'session.switchMru',

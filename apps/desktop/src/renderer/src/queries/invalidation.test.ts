@@ -111,6 +111,21 @@ describe('subscribeRuntimeQueryInvalidation', () => {
         unsubscribe();
     });
 
+    it('re-asks for Session pull requests as soon as a Session is created', () => {
+        const queryClient = new QueryClient();
+        const pullRequests = ['session.pullRequests', undefined] as const;
+        queryClient.setQueryData(pullRequests, { pullRequests: {} });
+        const unsubscribe = subscribeRuntimeQueryInvalidation(queryClient);
+
+        mocks.state.handler?.({
+            event: 'state.changed',
+            payload: { kind: 'full', reason: 'session.create' },
+        });
+
+        expect(queryClient.getQueryState(pullRequests)?.isInvalidated).toBe(true);
+        unsubscribe();
+    });
+
     it('invalidates every Session currently routed to the changed Workbench Project, but never Git queries', () => {
         vi.useFakeTimers();
         const queryClient = new QueryClient();

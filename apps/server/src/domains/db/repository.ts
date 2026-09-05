@@ -16,7 +16,7 @@ import type {
     TerminalRecord,
     TerminalSnapshot,
 } from '@caxri/protocol';
-import { CaxriError } from '@caxri/protocol';
+import { CaxriError, isTopLevelProject } from '@caxri/protocol';
 import type Database from 'better-sqlite3';
 
 import type { AgentLifecycleSignal } from '../agents';
@@ -27,6 +27,7 @@ import {
     DEFAULT_SESSION_TITLE,
     defaultTerminalTitle,
     firstActiveSession,
+    firstSelectableProject,
     processExitActivityState,
     selectFallbackAfterDeletion,
     sessionActivityReasonForAgentState,
@@ -82,6 +83,24 @@ export class CaxriDatabase {
     }
 
     /**
+     * Removes one Project row plus the bindings no foreign key can clear. Neither `projects.owner_project_id` nor
+     * `sessions.workbench_project_id` could keep an ON DELETE action through a generated SQLite ALTER migration, so
+     * both cascades are explicit application code that fresh and upgraded databases run identically.
+     */
+    private removeProjectRow(projectId: string): boolean {
+        this.db.sessions.resetWorkbenchProject(projectId);
+        return this.db.projects.remove(projectId);
+    }
+
+    /**
+     * Every Project id a deletion of `projectId` removes: the Project itself plus the worktree Projects registered on
+     * its behalf.
+     */
+    private deletedProjectIds(projectId: string): string[] {
+        return [projectId, ...this.db.projects.listOwnedBy(projectId).map((owned) => owned.id)];
+    }
+
+    /**
      * Raw better-sqlite3 handle; integration tests inspect pragmas and `table_info` directly.
      */
     get database(): Database.Database {
@@ -100,8 +119,33 @@ export class CaxriDatabase {
         return this.db.projects.findByRootPath(rootPath);
     }
 
-    createProject(rootPath: string): ProjectRecord {
-        return this.db.projects.create(rootPath);
+    /**
+     * Passing `ownerProjectId` records an automatic worktree registration performed on that owner's behalf; omitting it
+     * is a manual add. `ProjectsModel.create` owns the one-way ownership rule.
+     */
+    createProject(rootPath: string, ownerProjectId?: string): ProjectRecord {
+        return this.db.projects.create(rootPath, ownerProjectId);
+    }
+
+    /**
+     * The Sessions a {@link deleteProject} call will affect, resolved before the deletion so runtime, Git, and status
+     * caches can be evicted for exactly those Sessions.
+     *
+     * `owned` lists the Sessions belonging to the Project or to a worktree Project registered on its behalf; every one
+     * of them is deleted. `workbench` lists the Sessions bound to any of those roots as their Workbench Root. The two
+     * overlap: a Session in the deleted Project that had adopted one of its worktrees appears in both and is deleted.
+     * Only a `workbench` Session owned by a Project that survives keeps existing, with its Workbench Root reset to its
+     * own Project root.
+     */
+    projectDeletionScope(projectId: string): {
+        owned: SessionRecord[];
+        workbench: SessionRecord[];
+    } {
+        const projectIds = this.deletedProjectIds(projectId);
+        return {
+            owned: projectIds.flatMap((id) => this.db.sessions.list(id)),
+            workbench: projectIds.flatMap((id) => this.db.sessions.listUsingWorkbenchProject(id)),
+        };
     }
 
     setProjectIcon(projectId: string, icon: ProjectIcon | null): ProjectRecord {
@@ -112,39 +156,62 @@ export class CaxriDatabase {
 
     /**
      * Moves one current Project atomically so Renderer input stays scalar and cannot omit rows.
+     *
+     * `targetIndex` is a position among the Projects the PrimarySidebar actually renders, because that is the only
+     * order a user can express. Auto-registered worktree Projects have no user-visible position, so they are excluded
+     * from the move and re-appended after it; otherwise a hidden row sitting between two visible ones would silently
+     * shift every drop one slot.
      */
     reorderProject(projectId: string, targetIndex: number): ProjectRecord[] {
         return this.db.transaction(() => {
-            const currentIds = this.db.projects.list().map((project) => project.id);
+            const current = this.db.projects.list();
+            const visibleIds: string[] = [];
+            const ownedIds: string[] = [];
+            for (const project of current)
+                (isTopLevelProject(project) ? visibleIds : ownedIds).push(project.id);
             if (
-                !currentIds.includes(projectId) ||
+                !visibleIds.includes(projectId) ||
                 !Number.isSafeInteger(targetIndex) ||
                 targetIndex < 0 ||
-                targetIndex >= currentIds.length
+                targetIndex >= visibleIds.length
             ) {
                 throw new CaxriError(
                     'VALIDATION',
                     'Project reorder must reference a current Project and valid position',
                 );
             }
-            const reordered = currentIds.filter((currentId) => currentId !== projectId);
+            const reordered = visibleIds.filter((currentId) => currentId !== projectId);
             reordered.splice(targetIndex, 0, projectId);
-            this.db.projects.reorder(reordered);
+            this.db.projects.reorder([...reordered, ...ownedIds]);
             return this.db.projects.list();
         });
     }
 
+    /**
+     * Metadata only: no Project folder or user file is ever touched. Worktree Projects auto-registered on this
+     * Project's behalf are removed first, through the same per-Project routine, because the PrimarySidebar hides them
+     * and no other path could ever delete them; their Sessions and Terminals cascade by foreign key exactly as the
+     * owner's own do.
+     */
     deleteProject(projectId: string): void {
         this.db.transaction(() => {
+            const cascadedProjectIds = this.deletedProjectIds(projectId);
             /**
-             * The generated SQLite ALTER migration cannot attach ON DELETE SET NULL, so explicit fallback is part of
-             * the same transaction that removes the authorized Project.
+             * Owned rows go first: `owner_project_id` is a plain reference, so removing the owner while one still
+             * points at it would violate the foreign key.
              */
-            this.db.sessions.resetWorkbenchProject(projectId);
-            if (!this.db.projects.remove(projectId))
+            for (const cascadedProjectId of cascadedProjectIds)
+                if (cascadedProjectId !== projectId) this.removeProjectRow(cascadedProjectId);
+            if (!this.removeProjectRow(projectId))
                 throw new CaxriError('NOT_FOUND', 'Project not found');
-            if (this.db.appState.get('lastSelectedProjectId') !== projectId) return;
-            const fallbackProject = this.db.projects.list().at(0);
+            /**
+             * The selection normally names the deleted Project itself. It is checked against every cascaded row anyway:
+             * `createSession` refuses owned Projects now, but a database written by an earlier build can still select
+             * one, and the fallback must not leave the Renderer pointing at a removed row.
+             */
+            const selectedProjectId = this.db.appState.get('lastSelectedProjectId');
+            if (!selectedProjectId || !cascadedProjectIds.includes(selectedProjectId)) return;
+            const fallbackProject = firstSelectableProject(this.db.projects.list());
             const fallbackSession = fallbackProject
                 ? firstActiveSession(this.db.sessions.list(fallbackProject.id))
                 : undefined;
@@ -193,6 +260,9 @@ export class CaxriDatabase {
         return this.db.sessions.getWorkbenchBinding(id);
     }
 
+    /**
+     * Sessions bound to `projectId` as their Workbench Root, archived ones included.
+     */
     listSessionsUsingWorkbenchProject(projectId: string): SessionRecord[] {
         return this.db.sessions.listUsingWorkbenchProject(projectId);
     }
@@ -288,6 +358,10 @@ export class CaxriDatabase {
 
     /**
      * A `null` kind creates a Terminal-less Session — the same shape as one whose Terminals were all closed.
+     *
+     * An auto-registered worktree Project (`ownerProjectId` set) never owns a Session: the PrimarySidebar hides that
+     * row, so a Session created inside it would exist without a row, a highlight, or any rename/archive/delete
+     * affordance. Such a worktree is reached only as a Workbench Root of a Session in its owning Project.
      */
     createSession(
         projectId: string,
@@ -297,6 +371,11 @@ export class CaxriDatabase {
         return this.db.transaction(() => {
             const project = this.db.projects.get(projectId);
             if (!project) throw new CaxriError('NOT_FOUND', 'Project not found');
+            if (!isTopLevelProject(project))
+                throw new CaxriError(
+                    'CONFLICT',
+                    'Sessions cannot be created inside an auto-registered worktree Project',
+                );
             const session = this.db.sessions.insert({
                 projectId,
                 displayTitle: DEFAULT_SESSION_TITLE,

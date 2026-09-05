@@ -382,6 +382,14 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
                 // eslint-disable-next-line no-void -- React Query owns each refetch result and error state.
                 void queryClient.invalidateQueries();
             }
+            /**
+             * The Server sweeps pull requests only when a snapshot is requested, and the sidebar otherwise re-asks on a
+             * one-minute poll, so a new Session's PR glyph would sit blank for up to a minute after creation.
+             */
+            if (event.payload.kind === 'full' && event.payload.reason === 'session.create') {
+                // eslint-disable-next-line no-void -- React Query owns the invalidation lifecycle
+                void queryClient.invalidateQueries({ queryKey: ['session.pullRequests'] });
+            }
             return;
         }
         if (event.event === 'host.connectionChanged') {
