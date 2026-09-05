@@ -1,6 +1,7 @@
 import type { ITerminalAddon, Terminal } from '@xterm/xterm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { createGpuIncidentBudget } from '../../gpu/gpu-incident-budget';
 import type { TerminalRendererStatus, TerminalWebglSessionPolicy } from '../terminal-renderer';
 import {
     isWebgl2Available,
@@ -215,6 +216,37 @@ describe('TerminalRendererController', () => {
             mode: 'webgl',
             reason: 'active',
             retryAttemptCount: 1,
+            retryState: 'succeeded',
+            trigger: 'webgl-retry-succeeded',
+        });
+    });
+
+    it('recovers on a later attempt when the GPU process returns during the backoff', async () => {
+        vi.useFakeTimers();
+        // The session budget owns the probe cache; the first retry lands while the GPU is still relaunching.
+        const probeWebgl2 = vi.fn(() => false);
+        const budget = createGpuIncidentBudget({ probeWebgl2 });
+        const harness = createHarness({ policy: budget });
+        probeWebgl2.mockReturnValueOnce(true);
+        harness.controller.setPreference('on');
+        budget.recordIncident('incident-1');
+
+        harness.addon.loseContext();
+        await vi.advanceTimersByTimeAsync(1_000);
+        expect(harness.statuses.at(-1)).toMatchObject({
+            mode: 'dom',
+            reason: 'load-failed',
+            retryAttemptCount: 1,
+            trigger: 'webgl-retry-scheduled',
+        });
+
+        probeWebgl2.mockReturnValue(true);
+        await vi.advanceTimersByTimeAsync(2_000);
+        expect(harness.host.loadAddon).toHaveBeenCalledTimes(2);
+        expect(harness.statuses.at(-1)).toMatchObject({
+            mode: 'webgl',
+            reason: 'active',
+            retryAttemptCount: 2,
             retryState: 'succeeded',
             trigger: 'webgl-retry-succeeded',
         });
