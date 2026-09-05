@@ -354,8 +354,11 @@ export async function verifyRevisionProvenance(
 
     /**
      * Only a base that moved forward is trusted: the payload base must be an ancestor of the merge ref's base. A
-     * retargeted PR or a rewritten base branch fails closed with the same rebase remediation, and so does a fetch or
-     * deepening failure while proving that ancestry, so every abort on this path names the SHAs a maintainer needs.
+     * rewritten base branch, or a retarget onto history that does not descend from the payload base, fails closed with
+     * the same rebase remediation, and so does a fetch or deepening failure while proving that ancestry, so every abort
+     * on this path names the SHAs a maintainer needs. A retarget onto a branch cut from the payload base is
+     * indistinguishable from ordinary drift and is accepted as such: the merge ref's base is then the PR's real base,
+     * so the diff is still taken against the right commit.
      */
     let mergeBase: string | undefined;
     try {
