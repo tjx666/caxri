@@ -190,6 +190,7 @@ describe('AgentHookManager', () => {
         settings.codex.hooks.enabled = true;
         settings.claude.hooks.enabled = true;
         const discovered: string[] = [];
+        const send = vi.fn();
         const manager = new AgentHookManager({
             environment: { homeDirectory: directory, variables: { CODEX_HOME: codexHome } },
             logger: new StructuredLogger(join(directory, 'logs')),
@@ -202,7 +203,7 @@ describe('AgentHookManager', () => {
                 return Promise.resolve(provider === 'claude' ? process.execPath : undefined);
             },
             hookExecutable: process.execPath,
-            send: vi.fn(),
+            send,
             sharedPath: join(directory, 'shared'),
             userDataPath: join(directory, 'profile'),
         });
@@ -211,6 +212,10 @@ describe('AgentHookManager', () => {
             await manager.initialize(settings);
 
             expect(discovered).toEqual(expect.arrayContaining(['codex:codex', 'claude:claude']));
+            // A steady-state reconcile must not flap the missing provider's health or re-announce it.
+            const healthEventsAfterInitialize = send.mock.calls.length;
+            await manager.reconcile(structuredClone(settings));
+            expect(send.mock.calls.length).toBe(healthEventsAfterInitialize);
             expect(await readHooks(join(claudeHome, 'settings.json'))).toHaveProperty('Stop');
             await expect(lstat(join(codexHome, 'hooks.json'))).rejects.toMatchObject({
                 code: 'ENOENT',
