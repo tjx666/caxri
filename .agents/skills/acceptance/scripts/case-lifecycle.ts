@@ -21,7 +21,7 @@ export const stateIsolationSchema = z.discriminatedUnion('mode', [
     }),
 ]);
 export type StateIsolation = z.infer<typeof stateIsolationSchema>;
-const LIFECYCLE_FORCED_COMPLETION_SOURCES = ['stop-electron', 'report-repair'] as const;
+export const LIFECYCLE_FORCED_COMPLETION_SOURCES = ['stop-electron', 'report-repair'] as const;
 /**
  * Present only when the launcher did not complete its own receipt: the stop adapter finished it after the launcher was
  * gone or force-killed, or an operator repaired it with an explicit reason. Its absence means the launcher completed
