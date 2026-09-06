@@ -51,7 +51,7 @@ const OSC52_BLOCKED_TOASTS = {
         'A Terminal program is copying to the clipboard too quickly; extra requests are being ignored.',
 } as const;
 
-test('OSC 52 clipboard writes remain opt-in, bounded, write-only, and lifecycle-safe', async () => {
+test('OSC 52 clipboard writes honor opt-out and remain bounded, write-only, and lifecycle-safe', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-osc52-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -84,7 +84,25 @@ test('OSC 52 clipboard writes remain opt-in, bounded, write-only, and lifecycle-
             });
         });
 
-        await typeTerminal(running.page, osc52(encoded('DEFAULT_BLOCKED')));
+        await running.page.keyboard.press('Meta+,');
+        const initialDialog = running.page.getByRole('dialog');
+        await revealSettingsSection(initialDialog, 'Terminal');
+        const initialSetting = initialDialog.getByRole('switch', {
+            name: 'Allow OSC 52 clipboard writes',
+        });
+        await expect(initialSetting).toBeChecked();
+        await initialSetting.uncheck();
+        await expect
+            .poll(async () => {
+                const settings = await pageRequest<{
+                    value: { 'terminal.osc52ClipboardWrite': boolean };
+                }>(running.page, 'settings.get');
+                return settings.value['terminal.osc52ClipboardWrite'];
+            })
+            .toBe(false);
+        await initialDialog.getByRole('button', { name: 'Close', exact: true }).click();
+
+        await typeTerminal(running.page, osc52(encoded('DISABLED_BLOCKED')));
         await typeTerminal(running.page, osc52('?'));
         /**
          * A write blocked because the setting is off now reports through the same notification path as a real clipboard
