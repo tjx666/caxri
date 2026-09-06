@@ -171,7 +171,10 @@ function PaneBox({
         if (path) {
             if (!terminal || !isAcceptsFileDrop) return;
             event.preventDefault();
-            if (didPasteIntoTerminal(terminal.id, terminalInputPath(path))) focusPane(pane.id);
+            // Relative to the PTY's launch cwd: Caxri does not track the shell's later `cd`s, and the launch cwd is
+            // where every Agent CLI in that Terminal resolves paths from.
+            if (didPasteIntoTerminal(terminal.id, terminalInputPath(path, terminal.cwd)))
+                focusPane(pane.id);
             return;
         }
         const tabId = event.dataTransfer.getData(PANE_TAB_DRAG_TYPE);
