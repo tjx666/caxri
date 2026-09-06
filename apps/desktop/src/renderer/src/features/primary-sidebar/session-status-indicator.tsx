@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 import type { SessionRecord } from '@caxri/protocol';
 import { Unplug } from 'lucide-react';
 
@@ -16,11 +18,16 @@ import { sessionStatus } from './session-status';
  */
 export function SessionStatusIndicator({
     className,
+    fallback,
     reserveSlot = false,
     session,
     terminal,
 }: {
     className?: string;
+    /**
+     * Lower-priority content occupies the same slot only when no lifecycle signal is visible.
+     */
+    fallback?: ReactNode;
     /**
      * Renders the settled state as a 14px placeholder rather than collapsing it. Use it when a neighbouring
      * variable-width column — the MRU switcher's relative timestamp — would otherwise shift as the status appears.
@@ -32,15 +39,18 @@ export function SessionStatusIndicator({
     const status = sessionStatus(session, terminal);
     if (status.kind === 'default') {
         return (
-            <span
-                aria-hidden="true"
-                className={cn(
-                    'session-status flex-none',
-                    reserveSlot ? 'size-3.5' : 'hidden',
-                    className,
-                )}
-                data-session-status="default"
-            />
+            <>
+                <span
+                    aria-hidden="true"
+                    className={cn(
+                        'session-status flex-none',
+                        reserveSlot && !fallback ? 'size-3.5' : 'hidden',
+                        className,
+                    )}
+                    data-session-status="default"
+                />
+                {fallback}
+            </>
         );
     }
 

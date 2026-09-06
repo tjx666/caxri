@@ -165,11 +165,12 @@ accessible names and hover tooltips.
 (Folder/FolderOpen icon + name + count, no border, no card); sessions are flat rows indented 16px.
 Selection is an `--elevated` fill (radius 6), no border and no accent — the primarySidebar stays
 entirely neutral so the focused pane keeps the screen's one accent. Every Session row ends in one
-fixed-width glyph track that right-aligns its contents — pull request first, then status. The
-track's width never changes, so a title never reflows as glyphs come and go, while whichever glyphs
-do exist always reach the row's right edge rather than floating a slot short of it. Reserve a
-per-glyph slot only where a neighbouring variable-width column would otherwise shift, as the MRU
-switcher's relative timestamp does. Unacknowledged attention wins and uses a warning ring/dot with a
+fixed-width 14px status slot at the right edge. Show only one glyph: unread attention, running work,
+or a detached Agent takes precedence over the pull request. The PR appears only when no lifecycle
+signal is visible; its hover-card link, context-menu entry, and keyboard command remain available
+while the row glyph is hidden. Keep the slot reserved even when empty, so titles never reflow and
+all status glyphs share one vertical line. The MRU switcher likewise reserves its status slot to
+stabilize the neighbouring relative timestamp. Unacknowledged attention wins and uses a warning ring/dot with a
 ping; there is deliberately no second, static amber state, so reading a Session is the only thing
 that clears the status and nothing can bring it back unread; active work (including compaction) uses
 a muted spinner; settled, idle, unknown, failed, and exited Sessions render no status, which hands

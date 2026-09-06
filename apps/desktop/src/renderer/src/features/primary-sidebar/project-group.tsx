@@ -172,7 +172,7 @@ function ActiveSessionRow({
                     {worktreeProject && (
                         /*
                          * Deliberately outside the fixed-width `.session-indicators` track, which is sized for exactly
-                         * the pull request and lifecycle glyphs. This marker is what replaces the worktree's hidden
+                         * one status glyph. This marker is what replaces the worktree's hidden
                          * top-level sidebar entry, so it belongs with the title it qualifies.
                          *
                          * Decorative on purpose: the row already opens the Session hover card, which names the
@@ -189,20 +189,20 @@ function ActiveSessionRow({
                 </span>
             )}
             {/*
-             * Fixed-width, right-aligned glyph track. Its width is exactly both glyphs plus their gap, so the title's
-             * available width never changes as a pull request or a lifecycle signal appears, while whichever glyphs do
-             * exist still reach the row's right edge. Reserving a per-glyph slot instead would leave a Session that has
-             * only a pull request floating a slot short of the edge.
+             * One fixed-width slot keeps every Session's glyph aligned. Lifecycle signals take priority over the PR;
+             * the PR remains available from the hover card and menu while its row glyph is temporarily hidden.
              */}
-            <span className="session-indicators flex w-9 flex-none items-center justify-end gap-2">
-                {!renaming && (
-                    <SessionPullRequestIndicator
-                        className="transition-opacity group-hover/session-row:opacity-0"
-                        pullRequest={pullRequest}
-                    />
-                )}
+            <span className="session-indicators flex w-3.5 flex-none items-center justify-end">
                 <SessionStatusIndicator
                     className="transition-opacity group-hover/session-row:opacity-0"
+                    fallback={
+                        !renaming && (
+                            <SessionPullRequestIndicator
+                                className="transition-opacity group-hover/session-row:opacity-0"
+                                pullRequest={pullRequest}
+                            />
+                        )
+                    }
                     session={session}
                     terminal={terminal}
                 />
