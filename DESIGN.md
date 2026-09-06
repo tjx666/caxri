@@ -185,7 +185,10 @@ card opens to the PrimarySidebar's right after a short hover delay (or immediate
 collision-shifts within the viewport, and shows only the full title, Project, primary Agent,
 activity explanation, the pull request when one exists, the `Worktree` the Session works in when
 that is not its own Project root, `Last opened`, and unread-attention metadata. All non-archived Project and
-Session names and navigation icons use `--foreground`, including inactive rows; the `--elevated`
+Session names and navigation icons use `--foreground`, including inactive rows. Clipped Session
+names reveal their tail after a 600ms title hover or keyboard-focus pause, moving at a steady
+reading speed and holding at the end. Leaving restores truncation; short names remain still.
+Reduced motion keeps titles static, with the full name available in the detail card. The `--elevated`
 selected fill, not dimmed neighbors, communicates selection. Project ordering uses the whole
 Project heading as its drag source. While dragging, dim only the source group and show a 2px
 `--accent` insertion line with a circular leading cap between Project groups; Session rows are
@@ -302,7 +305,8 @@ thing that colors the slot — so a still amber dot never competes with it. The 
 the icon; swapping among the three list projections remains instant.
 
 The work-tab `Compacting` accessory is the other state-motion exception: only that word pulses,
-while the Agent icon, Session title, focus accent, and neighboring tabs remain still.
+while the Agent icon, Session title, focus accent, and neighboring tabs remain still. Hovered or
+keyboard-focused clipped sidebar titles may scroll solely to reveal their text, as described above.
 
 `prefers-reduced-motion: reduce` completes every layer instantly — overlay keyframes are gated
 behind `motion-safe:` variants (the library ships no media query of its own, and a

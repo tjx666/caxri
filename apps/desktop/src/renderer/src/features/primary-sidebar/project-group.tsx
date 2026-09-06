@@ -23,6 +23,7 @@ import {
     didSelectSession,
     resumeAutomaticSessionNaming,
 } from '../session/session-actions';
+import { useSessionTitleScroll } from './hooks/use-session-title-scroll';
 import { primarySidebarRevealRowId } from './primary-sidebar-tree';
 import { ProjectIcon } from './project-icon';
 import type { ProjectDropTarget } from './project-order';
@@ -98,6 +99,10 @@ function ActiveSessionRow({
      * is open keeps one popup on screen at a time.
      */
     const [menuOpen, setMenuOpen] = useState(false);
+    const { viewportReference, textReference, setHovered, setFocused } = useSessionTitleScroll(
+        session.displayTitle,
+        renaming || menuOpen,
+    );
     const sessionCard = (
         <div
             data-row-id={session.id}
@@ -110,6 +115,8 @@ function ActiveSessionRow({
             )}
             role={renaming ? undefined : 'button'}
             tabIndex={renaming ? undefined : roving ? 0 : -1}
+            onFocus={(event) => setFocused(event.currentTarget.matches(':focus-visible'))}
+            onBlur={() => setFocused(false)}
             onClick={() => {
                 // Fire-and-forget: `didSelectSession` funnels its own failures into a toast.
                 // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
@@ -166,8 +173,15 @@ function ActiveSessionRow({
                 </>
             ) : (
                 <span className="session-copy flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
-                    <strong className="overflow-hidden font-medium text-ellipsis whitespace-nowrap">
-                        {session.displayTitle}
+                    <strong
+                        ref={viewportReference}
+                        className="session-title min-w-0 overflow-hidden font-medium text-ellipsis whitespace-nowrap"
+                        onPointerEnter={() => setHovered(true)}
+                        onPointerLeave={() => setHovered(false)}
+                    >
+                        <span ref={textReference} className="block w-max max-w-full truncate">
+                            {session.displayTitle}
+                        </span>
                     </strong>
                     {worktreeProject && (
                         /*

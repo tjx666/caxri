@@ -107,6 +107,10 @@ export interface AgentProviderCatalogEntry {
      */
     executableName: string;
     /**
+     * Arguments that start a provider in its least-interactive, user-authorized mode.
+     */
+    defaultLaunchArgs: readonly string[];
+    /**
      * Safe image input Caxri can drive after an explicit user action, when supported.
      */
     imageInput?: {
@@ -118,12 +122,14 @@ export interface AgentProviderCatalogEntry {
 export const agentProviderCatalog = {
     claude: {
         automaticSessionNaming: 'caxri',
+        defaultLaunchArgs: ['--dangerously-skip-permissions'],
         displayName: 'Claude Code',
         executableName: 'claude',
         imageInput: undefined,
     },
     codex: {
         automaticSessionNaming: 'native',
+        defaultLaunchArgs: ['--dangerously-bypass-approvals-and-sandbox'],
         displayName: 'Codex',
         executableName: 'codex',
         imageInput: { kind: 'systemClipboardPaste', terminalInput: '\u{16}' },
@@ -145,7 +151,7 @@ export const defaultAgentProviderSettings = Object.fromEntries(
             recovery: { ...defaultAgentOutputRecoverySettings, patterns: [] },
             launch: {
                 executable: agentProviderCatalog[provider].executableName,
-                args: [],
+                args: [...agentProviderCatalog[provider].defaultLaunchArgs],
             },
         },
     ]),

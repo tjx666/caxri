@@ -6,7 +6,7 @@ import type {
     TerminalFailureReason,
     TerminalRecord,
 } from '@caxri/protocol';
-import { agentProviderCatalog, errorMessage } from '@caxri/protocol';
+import { defaultAgentProviderSettings, errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import {
     assertE2EAgentLaunch,
@@ -91,10 +91,9 @@ export class TerminalLaunchPlanner {
                 start?.launchAgent ?? record.lastAgentProcessState !== 'stopped';
             if (!shouldLaunchAgent) return { ok: true, value: { args: ['-l'], executable } };
 
-            const launch = this.options.agentLaunchSettings?.(record.kind) ?? {
-                executable: agentProviderCatalog[record.kind].executableName,
-                args: [],
-            };
+            const launch =
+                this.options.agentLaunchSettings?.(record.kind) ??
+                defaultAgentProviderSettings[record.kind].launch;
             try {
                 assertE2EAgentLaunch(
                     e2eAgentPolicy,
