@@ -118,6 +118,9 @@ export const commandDefinitions: CommandDefinition[] = [
         },
     ),
     fromCatalog('terminal.new', (context) => context.terminal.create(), { allowInEditable: true }),
+    fromCatalog('terminal.newInSplit', (context) => context.terminal.createInSplit(), {
+        allowInEditable: true,
+    }),
     fromCatalog('terminal.clear', (context) => context.terminal.clearActive(), {
         allowInEditable: true,
     }),

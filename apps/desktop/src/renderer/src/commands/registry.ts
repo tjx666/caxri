@@ -32,6 +32,7 @@ export interface CommandContext {
     };
     terminal: {
         create(): void;
+        createInSplit(): void;
         clearActive(): void;
         copySelection(): void;
         findActive(): void;

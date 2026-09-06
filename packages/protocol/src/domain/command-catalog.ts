@@ -187,6 +187,12 @@ export const commandDefinitions: CommandDefinition[] = [
         nativeMenu: { menu: 'terminal', group: 0, order: 0 },
     },
     {
+        id: 'terminal.newInSplit',
+        title: 'New Terminal in Split Pane',
+        category: 'Terminal',
+        description: 'Create a Terminal in a new pane to the right of the active pane',
+    },
+    {
         id: 'terminal.clear',
         title: 'Clear Terminal',
         category: 'Terminal',
@@ -551,10 +557,11 @@ export const defaultKeybindings: Keybinding[] = [
     { key: 'cmd+shift+arrowdown', command: 'terminal.nextCommand' },
     { key: 'cmd+shift+r', command: 'terminal.restart' },
     /**
-     * `Cmd+\` is the iTerm2/Terminal.app convention for splitting a pane; only the rightward direction gets a default
-     * chord, the same way `terminal.new`'s `Cmd+T` leaves the other three split directions palette-only.
+     * `Cmd+\` provides the requested iTerm2-style split-terminal behavior: preserve the active Terminal and open a
+     * fresh Shell in a new pane to its right. The generic Split Right command remains available in the command palette
+     * for moving an existing tab.
      */
-    { key: 'cmd+\\', command: 'workbench.splitRight' },
+    { key: 'cmd+\\', command: 'terminal.newInSplit' },
     /**
      * `Cmd+Option+Arrow` moves keyboard focus between panes, iTerm2 style. `Cmd+K` chords already belong to Terminal
      * Clear (`terminal.clear`) and `Cmd+<number>` is taken by the Secondary Side Bar/Panel view-container shortcuts, so
@@ -639,6 +646,11 @@ export const defaultKeybindingChanges = [
         type: 'replace',
         previous: { key: 'alt+p', command: 'pathBrowser.open' },
         current: { key: 'cmd+p', command: 'pathBrowser.open' },
+    },
+    {
+        type: 'replace',
+        previous: { key: 'cmd+\\', command: 'workbench.splitRight' },
+        current: { key: 'cmd+\\', command: 'terminal.newInSplit' },
     },
     {
         type: 'replace',

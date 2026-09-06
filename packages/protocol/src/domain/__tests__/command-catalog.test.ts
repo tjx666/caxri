@@ -43,6 +43,7 @@ describe('command registry', () => {
                 { key: 'cmd+`', command: 'session.switchMru' },
                 { key: 'cmd+3', command: 'secondarySidebar.showStatus' },
                 { key: 'cmd+t', command: 'terminal.new' },
+                { key: 'cmd+\\', command: 'terminal.newInSplit' },
                 {
                     key: 'cmd+shift+enter',
                     command: 'workbench.action.terminal.sendSequence',

@@ -1,5 +1,5 @@
-import type { BootstrapState, TerminalRecord } from '@caxri/protocol';
-import { createPaneLayout } from '@caxri/protocol';
+import type { BootstrapState, PaneLayout, TerminalRecord } from '@caxri/protocol';
+import { createPaneLayout, findResourceTabs, listPanes } from '@caxri/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -310,12 +310,12 @@ describe('focus handler registration contract', () => {
 });
 
 describe('createTerminal', () => {
-    function stubSessionState(): void {
+    function stubSessionState(paneLayout = createPaneLayout()): void {
         mocks.getSelectedSession.mockReturnValue({ id: 'session-1' });
         mocks.getSessionState.mockReturnValue({
             sessionId: 'session-1',
             workbenchProjectId: 'project-1',
-            paneLayout: createPaneLayout(),
+            paneLayout,
         });
         mocks.caxriRequest.mockResolvedValue(terminalFixture({ id: 'terminal-new' }));
     }
@@ -340,6 +340,51 @@ describe('createTerminal', () => {
         await createTerminal();
 
         expect(mocks.patchSessionState).not.toHaveBeenCalled();
+    });
+
+    it('keeps the active Terminal in place when opening a fresh Terminal in a split pane', async () => {
+        const layout = createPaneLayout(
+            { kind: 'terminal', terminalId: 'terminal-existing' },
+            (() => {
+                let next = 0;
+                return () => `layout-${++next}`;
+            })(),
+        );
+        stubSessionState(layout);
+        mocks.getBootstrap.mockReturnValue(bootstrapWith(terminalFixture({ id: 'terminal-new' })));
+
+        await createTerminal('shell', { split: 'right' });
+
+        const nextLayout = (
+            mocks.patchSessionState.mock.calls as Array<[{ paneLayout: PaneLayout }]>
+        )[0]?.[0]?.paneLayout;
+        expect(nextLayout.root).toMatchObject({ type: 'split', direction: 'horizontal' });
+        if (nextLayout.root.type !== 'split') throw new Error('Expected a horizontal pane split');
+        expect(nextLayout.root.first).toMatchObject({ type: 'pane', id: layout.root.id });
+        expect(nextLayout.root.second).toMatchObject({
+            type: 'pane',
+            tabs: [{ resource: { kind: 'terminal', terminalId: 'terminal-new' } }],
+        });
+        expect(listPanes(nextLayout)).toHaveLength(2);
+        expect(
+            findResourceTabs(nextLayout, {
+                kind: 'terminal',
+                terminalId: 'terminal-existing',
+            }),
+        ).toHaveLength(1);
+        expect(
+            findResourceTabs(nextLayout, { kind: 'terminal', terminalId: 'terminal-new' }),
+        ).toHaveLength(1);
+        expect(
+            findResourceTabs(nextLayout, {
+                kind: 'terminal',
+                terminalId: 'terminal-existing',
+            })[0]?.pane.id,
+        ).toBe(layout.root.id);
+        expect(
+            findResourceTabs(nextLayout, { kind: 'terminal', terminalId: 'terminal-new' })[0]?.pane
+                .id,
+        ).not.toBe(layout.root.id);
     });
 });
 

@@ -108,6 +108,7 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
             },
             terminal: {
                 create: record('terminal.create'),
+                createInSplit: record('terminal.createInSplit'),
                 clearActive: record('terminal.clear'),
                 copySelection: record('terminal.copySelection'),
                 findActive: record('terminal.find'),
@@ -331,6 +332,14 @@ describe('executeCommand', () => {
             'workbench.splitActive(up)',
             'workbench.splitActive(down)',
         ]);
+    });
+
+    it('maps the split-terminal command to creating a fresh Terminal in a new pane', () => {
+        const { calls, context } = recordingContext();
+
+        executeCommand('terminal.newInSplit', undefined, context);
+
+        expect(calls).toEqual(['terminal.createInSplit']);
     });
 
     /**
