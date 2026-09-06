@@ -20,7 +20,7 @@ async function expectMissing(path: string): Promise<void> {
     await expect(access(path)).rejects.toThrow();
 }
 
-test('Files entries dragged to Terminal insert shell-safe paths without opening an Editor', async () => {
+test('Files entries dragged to Terminal insert shell-safe cwd-relative paths without opening an Editor', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-file-terminal-drag-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const rootInput = join(testDirectory, 'project');
@@ -50,7 +50,8 @@ test('Files entries dragged to Terminal insert shell-safe paths without opening 
         await expect(terminalInput).toBeFocused();
         await running.page.keyboard.type(` > ${quoteShellPath(fileResult)}`);
         await running.page.keyboard.press('Enter');
-        await expect.poll(() => readFileForPoll(() => readFile(fileResult, 'utf8'))).toBe(filePath);
+        // The Terminal launched in the Project root, so the drop spells the entry relative to it.
+        await expect.poll(() => readFileForPoll(() => readFile(fileResult, 'utf8'))).toBe(fileName);
 
         const folderResult = join(root, '.folder-drop-result');
         await running.page.keyboard.type("printf '%s' ");
@@ -63,7 +64,7 @@ test('Files entries dragged to Terminal insert shell-safe paths without opening 
         await running.page.keyboard.press('Enter');
         await expect
             .poll(() => readFileForPoll(() => readFile(folderResult, 'utf8')))
-            .toBe(folderPath);
+            .toBe(folderName);
 
         await expect(running.page.locator('.work-tab:not([data-terminal-id])')).toHaveCount(0);
         await expect(running.page.locator('.workbench-pane')).toHaveCount(1);

@@ -2,7 +2,13 @@ import type { DragEvent } from 'react';
 
 import { describe, expect, it } from 'vitest';
 
-import { dragPath, FILE_TREE_DRAG_TYPE, hasDraggedPath, terminalInputPath } from './file-drag';
+import {
+    dragPath,
+    FILE_TREE_DRAG_TYPE,
+    hasDraggedPath,
+    shellRelativePath,
+    terminalInputPath,
+} from './file-drag';
 
 /**
  * The suite runs under Vitest's `node` environment (no jsdom, see `vitest.config.ts`), so a real
@@ -52,9 +58,43 @@ describe('hasDraggedPath', () => {
     });
 });
 
+describe('shellRelativePath', () => {
+    it('makes a path inside the base directory relative', () => {
+        expect(shellRelativePath('/repo/src/index.ts', '/repo')).toBe('src/index.ts');
+        expect(shellRelativePath('/repo/src/index.ts', '/repo/')).toBe('src/index.ts');
+    });
+
+    it('spells the base directory itself as the current directory', () => {
+        expect(shellRelativePath('/repo', '/repo')).toBe('.');
+        expect(shellRelativePath('/repo/', '/repo')).toBe('.');
+    });
+
+    it('keeps paths outside the base and sibling-prefixed paths absolute', () => {
+        expect(shellRelativePath('/other/file.ts', '/repo')).toBe('/other/file.ts');
+        expect(shellRelativePath('/repo-two/file.ts', '/repo')).toBe('/repo-two/file.ts');
+        expect(shellRelativePath('/repo/src/index.ts', '/repo/src/lib')).toBe('/repo/src/index.ts');
+    });
+
+    it('keeps the absolute path when no base directory is known', () => {
+        expect(shellRelativePath('/repo/src/index.ts', undefined)).toBe('/repo/src/index.ts');
+        expect(shellRelativePath('/repo/src/index.ts', '')).toBe('/repo/src/index.ts');
+    });
+
+    it('prefixes a relative path that would parse as a shell option', () => {
+        expect(shellRelativePath('/repo/-rf', '/repo')).toBe('./-rf');
+    });
+});
+
 describe('terminalInputPath', () => {
     it('keeps an ordinary absolute path readable', () => {
         expect(terminalInputPath('/repo/src/index.ts')).toBe('/repo/src/index.ts');
+    });
+
+    it('drops the Terminal working directory prefix and quotes the remainder when needed', () => {
+        expect(terminalInputPath('/repo/src/index.ts', '/repo')).toBe('src/index.ts');
+        expect(terminalInputPath("/repo/file with 'quote'.txt", '/repo')).toBe(
+            String.raw`'file with '\''quote'\''.txt'`,
+        );
     });
 
     it('quotes whitespace and shell metacharacters as one argument', () => {
