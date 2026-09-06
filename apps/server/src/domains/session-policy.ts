@@ -1,6 +1,5 @@
 import type {
     AgentActivityState,
-    AgentProvider,
     AgentSnapshot,
     ProcessState,
     ProjectRecord,
@@ -13,8 +12,8 @@ import type {
 } from '@caxri/protocol';
 import {
     agentProviderCatalog,
-    agentProviderIds,
     compareSessionActivityRecency,
+    DEFAULT_SESSION_TITLE,
     isTopLevelProject,
     normalizeTerminalTitle,
     removePaneTerminal,
@@ -28,33 +27,18 @@ import type { AgentLifecyclePhase } from './agents';
  * (pure SQL) inside its own transactions.
  */
 
-/**
- * Neutral automatic title used until a new Session gains useful Agent metadata or a manual name.
- */
-export const DEFAULT_SESSION_TITLE = 'Untitled';
+export { DEFAULT_SESSION_TITLE };
 
 /**
- * Content-free Session name used when an Agent provider reports no verified conversation name of its own.
+ * Whether a Session still carries the neutral default instead of a real title.
  *
- * Codex only exposes a thread name once the model has written one; before that its stored name is still the first
- * prompt, which Caxri deliberately refuses to read. Without a fallback such a Session reads `Untitled` for its whole
- * lifetime, including in a native notification. The provider name is derived from the Terminal's provider alone, so it
- * can never carry prompt, transcript, or path content.
- */
-export function agentPlaceholderSessionTitle(provider: AgentProvider): string {
-    return `${agentProviderCatalog[provider].displayName} session`;
-}
-
-const agentPlaceholderSessionTitles = new Set(agentProviderIds.map(agentPlaceholderSessionTitle));
-
-/**
- * Whether a Session title is one Caxri generated for lack of anything better.
- *
- * Automatic naming and manual rename both treat "has no real title yet" as a distinct state: a placeholder must not be
- * offered to a title generator as the current name, and must not become the baseline a rename is compared against.
+ * Automatic naming and manual rename both treat "has no real title yet" as a distinct state: the default must not be
+ * offered to a title generator as the current name, and must not become the baseline a rename is compared against. The
+ * sidebar deliberately keeps `Untitled` (the row already shows the provider icon); only a native notification, which
+ * has no icon, substitutes a provider-derived title.
  */
 export function isPlaceholderSessionTitle(title: string): boolean {
-    return title === DEFAULT_SESSION_TITLE || agentPlaceholderSessionTitles.has(title);
+    return title === DEFAULT_SESSION_TITLE;
 }
 
 export function defaultTerminalTitle(kind: TerminalKind): string {
@@ -354,17 +338,7 @@ export function decideAgentMetadataUpdate(
     const displayTitle =
         session.titleMode === 'manual'
             ? session.displayTitle
-            : agentDisplayTitle(
-                  snapshot.title,
-                  /**
-                   * A placeholder is re-derived from the current primary Terminal's provider rather than carried
-                   * across, so a Session that changes primary provider without ever earning a verified title does not
-                   * keep naming the previous provider.
-                   */
-                  isPlaceholderSessionTitle(session.displayTitle)
-                      ? agentPlaceholderSessionTitle(terminal.provider)
-                      : session.displayTitle,
-              );
+            : agentDisplayTitle(snapshot.title, session.displayTitle);
     /**
      * A targeted probe may temporarily miss a hook-bound thread when the provider store has not flushed it yet or its
      * recorded cwd differs from the Terminal cwd. Only launch reset explicitly clears an identity; an empty snapshot

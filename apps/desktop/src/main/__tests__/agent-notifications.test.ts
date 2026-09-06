@@ -172,6 +172,24 @@ describe('Agent notification coordinator', () => {
         ]);
     });
 
+    it('announces an unnamed Session by its provider instead of the neutral default', async () => {
+        const test = harness(session({ id: 'session-1', displayTitle: 'Untitled' }));
+        await test.coordinator.initialize();
+        test.setSession(
+            session({
+                ...session({ id: 'session-1', displayTitle: 'Untitled', attentionEpoch: 1 }),
+                hasUnread: true,
+                lastActivityState: 'waiting',
+                lastAttentionKind: 'waiting',
+                lastSessionActivityAt: 2_000,
+                lastSessionActivityReason: 'agent_waiting',
+            }),
+        );
+        test.coordinator.observe(recordsChanged);
+        await test.coordinator.flush();
+        expect(test.shown.map((shown) => shown.title)).toEqual(['Claude Code session']);
+    });
+
     it('only notifies for a completed turn after the configured duration', async () => {
         const running = session({
             id: 'session-1',

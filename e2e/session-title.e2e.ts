@@ -203,8 +203,7 @@ done
     try {
         await openAddProjectDialog(page);
         await page.getByRole('dialog').getByRole('button', { name: 'Codex' }).click();
-        // The first metadata probe replaces `Untitled` with the provider placeholder before the thread is named.
-        await expect(page.locator('.session-card strong')).toHaveText(/^(Untitled|Codex session)$/);
+        await expect(page.locator('.session-card strong')).toHaveText('Untitled');
         await expect(page.getByRole('tab', { name: 'Codex', exact: true })).toBeVisible();
 
         const input = page.locator('.xterm-helper-textarea');
