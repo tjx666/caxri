@@ -144,8 +144,11 @@ Then apply every directly relevant scope label, normally one to three:
 
 Do not apply `unit-testing` or `e2e-testing` merely because a product change requires regression
 coverage. Apply them only when the testing system itself is part of the issue scope. Likewise, omit
-a surface label when that surface is only incidental evidence. Labels do not encode priority;
-continue to use the Project `Priority` field for that.
+a surface label when that surface is only incidental evidence.
+
+Finally apply exactly one priority label — `P0`, `P1`, or `P2` — chosen by the rules under
+[Priority](#priority-assess-never-default). The label is what the owner sees on the issue list, so
+an issue without one is a filing defect; the Project `Priority` field mirrors the same value.
 
 Use only labels returned by the live query. Creating or changing repository labels requires a
 separate explicit request; do not silently invent one during issue filing. Pass multiple labels
@@ -159,7 +162,7 @@ exceptions for small, obvious, or follow-up issues — and its fields are set ex
 
 ```bash
 gh project item-add 2 --owner tjx666 --url "$issue_url"
-gh project item-edit 2 --owner tjx666 --url "$issue_url" --field Priority --value "<assessed>"
+gh project item-edit 2 --owner tjx666 --url "$issue_url" --field Priority --value "<P0 Critical | P1 High | P2 Normal, matching the label>"
 gh project item-edit 2 --owner tjx666 --url "$issue_url" --field Size --value "<assessed>"
 gh project item-edit 2 --owner tjx666 --url "$issue_url" --field Status --value "Next"
 ```
@@ -195,12 +198,33 @@ asking for that issue by name in the current conversation; a general "clear the 
 ### Priority (assess, never default)
 
 Assess every issue explicitly against user impact; filing with an unconsidered default is a
-process defect. State the chosen value and its one-line rationale in the filing report.
+process defect. State the chosen value and its one-line rationale in the filing report. The
+priority is recorded twice with the same value: the `P0` / `P1` / `P2` label on the issue (visible
+on the issue list) and the Project `Priority` field (`P0 Critical` / `P1 High` / `P2 Normal`).
+`P3 Low` is retired; do not set it.
 
-- `P0 Critical` — data loss, crash, security exposure, or a core workflow is unusable.
-- `P1 High` — a primary workflow is materially degraded, or the owner has asked for it soon.
-- `P2 Normal` — real value, no urgency; the default only after actually weighing the impact.
-- `P3 Low` — polish, cosmetic, or explicitly deferrable work.
+Walk the rules top-down and stop at the first match; any one condition in a row is enough.
+
+- `P0` — fix before any other work. Loses or corrupts user data or Project files; exposes source,
+  Terminal output, transcripts, credentials, or secrets across a privacy boundary; crashes or hangs
+  the app, Server Core, or a Terminal; a core workflow (open a Project, run a Terminal or Agent,
+  save a file) is unusable with no workaround; `main` cannot be built or released.
+- `P1` — next up; do not start a `P2` over it. A primary workflow is materially degraded or
+  produces wrong results on a daily path, with or without a workaround; the app visibly violates a
+  setting or an explicit user choice; a permission or authority boundary is applied incorrectly; a
+  CI or Acceptance gate fails intermittently; the owner asked for it soon.
+- `P2` — pick up in queue order. Everything else that is worth doing: enhancements, polish,
+  accessibility gaps with a workaround, observability and performance debt without a user-visible
+  symptom, investigations and `question` issues, refactors, and deferrable follow-ups.
+
+Tie-breakers:
+
+- Judge by the worst realistic consequence on a user's daily path, not by the size of the fix.
+- Frequency lowers nothing below the row it matches, but a condition that only appears with an
+  unusual setup (two builds on one machine, a slow network mount) drops one row unless it breaks
+  data, privacy, or a gate.
+- A `bug` is not automatically `P1`; a `question` or `enhancement` is not automatically `P2`.
+- When two rows seem to apply, take the higher one and say why in the filing report.
 
 ### Size (agent-native complexity)
 
