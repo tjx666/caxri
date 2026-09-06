@@ -1,12 +1,18 @@
 import type { RefObject } from 'react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { TreeItemDto } from '@caxri/protocol';
 
 import { caxri } from '../../lib/caxri';
 import type { RootLoadProgress } from './extension-tree-refresh-state';
 import type { ExtensionTreeState } from './extension-tree-state';
-import { focusTreeItem, reconcileTreeItems, replaceTreeChildren } from './extension-tree-state';
+import {
+    focusTreeItem,
+    isTreeSnapshotReady,
+    reconcileTreeItems,
+    replaceTreeChildren,
+    treeSnapshotLoading,
+} from './extension-tree-state';
 
 export const ROOT_HANDLE = '__caxri_tree_root__';
 
@@ -28,6 +34,7 @@ export function useExtensionTreeChildren(
         extensionGeneration: number;
     },
     updateTreeState: UpdateExtensionTreeState,
+    treeState: ExtensionTreeState,
 ): {
     children: ReadonlyMap<string, readonly TreeItemDto[]>;
     errors: ReadonlyMap<string, string>;
@@ -35,6 +42,9 @@ export function useExtensionTreeChildren(
     loadChildren: (parentHandle: string) => Promise<void>;
     requests: RefObject<Map<string, string>>;
     rootLoads: RootLoadProgress;
+    visibleChildren: ReadonlyMap<string, readonly TreeItemDto[]>;
+    visibleErrors: ReadonlyMap<string, string>;
+    visibleLoading: ReadonlySet<string>;
 } {
     const requests = useRef(new Map<string, string>());
     const rootLoadRevision = useRef(0);
@@ -45,6 +55,23 @@ export function useExtensionTreeChildren(
     const [rootLoads, setRootLoads] = useState<RootLoadProgress>({ completed: 0, started: 0 });
     const [errors, setErrors] = useState<ReadonlyMap<string, string>>(() => new Map());
     const [loading, setLoading] = useState<ReadonlySet<string>>(() => new Set([ROOT_HANDLE]));
+    const [snapshot, setSnapshot] = useState<{
+        children: ReadonlyMap<string, readonly TreeItemDto[]>;
+        errors: ReadonlyMap<string, string>;
+    }>();
+    const snapshotReady = isTreeSnapshotReady(ROOT_HANDLE, children, errors, loading, treeState);
+    /**
+     * Keep the last complete tree on screen while opaque handles and expanded descendants are rebuilt. The working tree
+     * remains separate so lazy loading never uses retired display handles.
+     */
+    useEffect(() => {
+        if (snapshotReady) setSnapshot({ children, errors });
+    }, [children, errors, snapshotReady]);
+    const visibleLoading = useMemo(
+        () =>
+            snapshot ? treeSnapshotLoading(loading, snapshot.children, snapshot.errors) : loading,
+        [loading, snapshot],
+    );
 
     const replaceLoadedChildren = useCallback(
         (parentHandle: string, items: readonly TreeItemDto[]): void => {
@@ -89,6 +116,13 @@ export function useExtensionTreeChildren(
 
     const loadChildren = useCallback(
         async (parentHandle: string): Promise<void> => {
+            if (
+                parentHandle !== ROOT_HANDLE &&
+                childrenReference.current
+                    .values()
+                    .every((items) => items.every((item) => item.handle !== parentHandle))
+            )
+                return;
             const currentRootLoad =
                 parentHandle === ROOT_HANDLE ? (rootLoadRevision.current += 1) : undefined;
             if (currentRootLoad !== undefined)
@@ -187,5 +221,15 @@ export function useExtensionTreeChildren(
         };
     }, [loadChildren, resetLoadedChildren, scope]);
 
-    return { children, errors, loading, loadChildren, requests, rootLoads };
+    return {
+        children,
+        errors,
+        loading,
+        loadChildren,
+        requests,
+        rootLoads,
+        visibleChildren: snapshotReady ? children : (snapshot?.children ?? children),
+        visibleErrors: snapshotReady ? errors : (snapshot?.errors ?? errors),
+        visibleLoading,
+    };
 }

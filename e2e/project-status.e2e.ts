@@ -526,6 +526,28 @@ esac
         await production.focus();
         await expect(production).toHaveAttribute('aria-selected', 'true');
         const beforeStatusBRefresh = await refreshRequestCount();
+        await tree.evaluate((element) => {
+            const target = globalThis as typeof window & {
+                statusRefreshProbe?: {
+                    observer: MutationObserver;
+                    minimum: number;
+                    initial: number;
+                };
+            };
+            const initial = element.querySelectorAll('[role="treeitem"]').length;
+            const probe = {
+                initial,
+                minimum: initial,
+                observer: new MutationObserver(() => {
+                    probe.minimum = Math.min(
+                        probe.minimum,
+                        element.querySelectorAll('[role="treeitem"]').length,
+                    );
+                }),
+            };
+            probe.observer.observe(element, { childList: true, subtree: true });
+            target.statusRefreshProbe = probe;
+        });
         await refreshButton.click();
         await expect(refreshButton).toBeFocused();
         await expect(refreshButton).toHaveAttribute('aria-disabled', 'true');
@@ -539,6 +561,20 @@ esac
         await expect(refreshButton).not.toHaveAttribute('aria-disabled', 'true');
         await expect(refreshButton).toBeFocused();
         expect(await refreshRequestCount()).toBe(beforeStatusBRefresh + 1);
+        const refreshRows = await running.page.evaluate(() => {
+            const target = globalThis as typeof window & {
+                statusRefreshProbe?: {
+                    observer: MutationObserver;
+                    minimum: number;
+                    initial: number;
+                };
+            };
+            const probe = target.statusRefreshProbe!;
+            probe.observer.disconnect();
+            delete target.statusRefreshProbe;
+            return { minimum: probe.minimum, initial: probe.initial };
+        });
+        expect(refreshRows.minimum).toBe(refreshRows.initial);
 
         await running.app.close();
         running = await launchCaxri({
