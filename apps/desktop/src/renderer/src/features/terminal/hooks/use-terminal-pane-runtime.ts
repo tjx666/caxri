@@ -15,7 +15,6 @@ import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { Terminal } from '@xterm/xterm';
 
 import { useLatestReference } from '@/hooks/use-latest-reference';
-import { useOnVisible } from '@/hooks/use-on-visible';
 
 import { caxri } from '../../../lib/caxri';
 import { useDialogStore } from '../../../stores/dialogs';
@@ -62,6 +61,7 @@ import {
     TerminalResizeSettler,
 } from '../terminal-size';
 import { useTerminalPaneSearch } from './use-terminal-pane-search';
+import { useTerminalVisibilityRestore } from './use-terminal-visibility-restore';
 
 /**
  * Captures only closed, content-free browser state. Diagnostics are best effort: their asynchronous permission probe or
@@ -666,17 +666,7 @@ export function useTerminalPaneRuntime({
     useEffect(() => {
         rendererReference.current?.setPreference(gpuAcceleration);
     }, [gpuAcceleration]);
-    /**
-     * `rendererReference` is undefined until the mount effect above finishes attaching, so a visibility event that
-     * fires before then (or after disposal) safely no-ops here instead of racing the renderer's own lifecycle.
-     */
-    const restoreRenderer = useCallback((): void => {
-        // `focus`/`pageshow` can fire while the document is still hidden during window restore; only a visible
-        // document should trigger a renderer restore, matching the guard the inline listeners applied uniformly.
-        if (document.visibilityState !== 'visible') return;
-        rendererReference.current?.restoreVisible();
-    }, []);
-    useOnVisible(restoreRenderer, { includePageShow: true });
+    useTerminalVisibilityRestore(terminalId, rendererReference);
     useEffect(() => {
         if (processState !== 'running') clearTerminalProgress(terminalId);
     }, [processState, terminalId]);

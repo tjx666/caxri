@@ -85,6 +85,28 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
             options.onRendererDiagnostic?.(diagnostic);
             return;
         }
+        if (diagnostic.kind === 'gpu-incident-budget') {
+            options
+                .logger()
+                ?.write(
+                    diagnostic.transition === 'pinned' ? 'warn' : 'info',
+                    logEventCatalog.gpu.sessionBudget,
+                    {
+                        correlationId: diagnostic.correlationId,
+                        fields: {
+                            code: 'GPU_SESSION_BUDGET',
+                            diagnosticId: diagnostic.diagnosticId,
+                            transition: diagnostic.transition,
+                            cause: diagnostic.cause,
+                            incidentCount: diagnostic.incidentCount,
+                            contextLossEpisodeCount: diagnostic.contextLossEpisodeCount,
+                            threshold: diagnostic.threshold,
+                            preference: diagnostic.preference,
+                        },
+                    },
+                );
+            return;
+        }
         if (diagnostic.kind === 'terminal-resize-burst') {
             options.logger()?.write('info', logEventCatalog.renderer.terminalResizeBurst, {
                 fields: {

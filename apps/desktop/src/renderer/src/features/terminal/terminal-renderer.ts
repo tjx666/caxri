@@ -31,6 +31,7 @@ export type TerminalRendererTrigger =
     | 'visibility-restore'
     | 'webgl-context-loss'
     | 'webgl-load-failed'
+    | 'webgl-reprobe-succeeded'
     | 'webgl-retry-attempt'
     | 'webgl-retry-cancelled'
     | 'webgl-retry-deferred'
@@ -83,6 +84,11 @@ export interface TerminalWebglSessionPolicy {
     applyPreference(preference: TerminalGpuAcceleration): void;
     isPinnedToDom(): boolean;
     isWebgl2Available(): boolean;
+    /**
+     * Reports one lost WebGL context so the `auto` preference can converge on DOM when losses repeat without a
+     * Main-visible GPU process exit.
+     */
+    recordContextLoss(): void;
 }
 
 export interface TerminalRendererControllerOptions {
@@ -90,18 +96,16 @@ export interface TerminalRendererControllerOptions {
     createRetrySequenceId?: () => string;
     createWebglAddon?: WebglAddonFactory;
     now?: () => number;
-    policy?: TerminalWebglSessionPolicy;
+    /**
+     * Required: every pane must answer to the session budget, so no call site can silently fall back to a policy that
+     * never pins.
+     */
+    policy: TerminalWebglSessionPolicy;
     /**
      * Unit interval source for retry jitter; injected so tests can pin the delay.
      */
     random?: () => number;
 }
-
-const UNPINNED_SESSION_POLICY: TerminalWebglSessionPolicy = {
-    applyPreference: () => {},
-    isPinnedToDom: () => false,
-    isWebgl2Available,
-};
 
 /**
  * Exponential backoff with full ±50% jitter so N panes that lost the same GPU context do not rebuild their WebGL
@@ -173,21 +177,26 @@ export class TerminalRendererController {
         private readonly host: TerminalRendererHost,
         private readonly redraw: (intent: TerminalRendererRedrawIntent) => void,
         private readonly onStatus: (status: TerminalRendererStatus) => void,
-        options: TerminalRendererControllerOptions = {},
+        options: TerminalRendererControllerOptions,
     ) {
         this.canRetryWebgl =
             options.canRetryWebgl ?? (() => document.visibilityState === 'visible');
         this.createRetrySequenceId = options.createRetrySequenceId ?? (() => crypto.randomUUID());
         this.createWebglAddon = options.createWebglAddon ?? (() => new WebglAddon());
         this.now = options.now ?? (() => Date.now());
-        this.policy = options.policy ?? UNPINNED_SESSION_POLICY;
+        this.policy = options.policy;
         this.random = options.random ?? Math.random;
     }
 
     private handleContextLoss(): void {
         if (!this.webgl) return;
-        this.contextLossCount += 1;
+        this.recordContextLoss();
         this.fallback('context-loss', 'webgl-context-loss');
+    }
+
+    private recordContextLoss(): void {
+        this.contextLossCount += 1;
+        this.policy.recordContextLoss();
     }
 
     private fallback(
@@ -197,13 +206,20 @@ export class TerminalRendererController {
         this.disposeWebgl();
         this.redrawTerminal('grid-sync');
         this.beginRetry(reason);
-        this.publish(reason, trigger);
+        // The budget may have pinned on this very loss (xterm's context-loss event can precede Main's incident); the
+        // pane then settles on the closed reason here instead of waiting for a recovery call that may never re-publish.
+        this.publish(
+            this.preference !== 'off' && this.policy.isPinnedToDom()
+                ? 'context-loss-limit'
+                : reason,
+            trigger,
+        );
     }
 
     private activateWebgl(
         successTrigger: Extract<
             TerminalRendererTrigger,
-            'preference-change' | 'webgl-retry-succeeded'
+            'preference-change' | 'webgl-reprobe-succeeded' | 'webgl-retry-succeeded'
         >,
         failureTrigger: Extract<
             TerminalRendererTrigger,
@@ -386,6 +402,36 @@ export class TerminalRendererController {
         this.onStatus(this.status);
     }
 
+    /**
+     * A pane mounted while the GPU process was restarting saw `getContext('webgl2')` fail and would otherwise stay on
+     * DOM until it was remounted. Window restore is the cheapest moment to ask again: a failed probe allocates nothing
+     * and the session budget caches a positive answer, so this cannot become per-event context churn.
+     */
+    private reprobeWebgl(): void {
+        if (this.policy.isPinnedToDom()) {
+            this.redrawTerminal('content-only');
+            this.publish('context-loss-limit', 'visibility-restore');
+            return;
+        }
+        if (!this.policy.isWebgl2Available()) {
+            this.redrawTerminal('content-only');
+            this.publish('unsupported', 'visibility-restore');
+            return;
+        }
+        this.activateWebgl('webgl-reprobe-succeeded', 'webgl-load-failed');
+    }
+
+    /**
+     * Reason an already-DOM pane reports after a GPU incident. Once the session budget pins, a pane whose own retry
+     * sequence was exhausted or still scheduled must converge on the closed reason too; otherwise the status bar keeps
+     * promising that reopening the tab will retry WebGL, which the pin no longer allows.
+     */
+    private settledDomReason(): TerminalRendererReason {
+        const current = this.status?.reason ?? 'disabled';
+        if (current === 'disabled' || this.preference === 'off') return current;
+        return this.policy.isPinnedToDom() ? 'context-loss-limit' : current;
+    }
+
     setPreference(preference: TerminalGpuAcceleration): void {
         if (this.preference === preference) return;
         if (this.preference !== undefined) this.cancelRetry();
@@ -418,13 +464,18 @@ export class TerminalRendererController {
      * Clears stale atlas pixels after window restore, Space changes, or document visibility restore.
      */
     restoreVisible(): void {
-        if (
-            this.preference === 'off' ||
-            !this.status ||
-            this.status.reason === 'unsupported' ||
-            this.status.reason === 'context-loss-limit'
-        )
+        if (this.disposed || this.preference === 'off' || !this.status) return;
+        if (this.status.reason === 'context-loss-limit') {
+            // The pin suppresses every WebGL rebuild, not the measurement: Main counts these restores to see how
+            // often the user keeps switching back after the session settled on DOM.
+            this.redrawTerminal('content-only');
+            this.publish('context-loss-limit', 'visibility-restore');
             return;
+        }
+        if (this.status.reason === 'unsupported') {
+            this.reprobeWebgl();
+            return;
+        }
         if (this.retryState === 'deferred') {
             if (!this.scheduleRetry(0)) return;
             this.publish(this.retryReason ?? 'load-failed', 'webgl-retry-scheduled');
@@ -449,7 +500,7 @@ export class TerminalRendererController {
         'not-requested'
     > {
         const isHadWebgl = Boolean(this.webgl);
-        if (isHadWebgl) this.contextLossCount += 1;
+        if (isHadWebgl) this.recordContextLoss();
         this.disposeWebgl();
         try {
             this.redrawTerminal(isHadWebgl ? 'grid-sync' : 'content-only');
@@ -463,12 +514,15 @@ export class TerminalRendererController {
         }
         const result = isHadWebgl ? 'dom-restored' : 'already-dom';
         if (isHadWebgl) this.beginRetry('context-loss');
-        // The session budget may have tripped on this very incident; the pane then settles on the closed reason.
-        const reason: TerminalRendererReason = isHadWebgl
+        // The session budget may have tripped on this very incident; the pane then settles on the closed reason, and a
+        // pane still carrying a retry sequence from an earlier loss ends it here instead of re-arming later.
+        const reason = isHadWebgl
             ? this.policy.isPinnedToDom()
                 ? 'context-loss-limit'
                 : 'context-loss'
-            : (this.status?.reason ?? 'disabled');
+            : this.settledDomReason();
+        if (!isHadWebgl && reason === 'context-loss-limit' && this.retrySequenceId)
+            this.publishIncidentLimit();
         this.publish(reason, 'gpu-process-recovery', result);
         return result;
     }

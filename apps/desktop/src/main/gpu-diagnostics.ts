@@ -209,6 +209,7 @@ function rendererDiagnosticFields(diagnostic: TerminalRendererDiagnostic): LogFi
         preference: diagnostic.preference,
         contextLossCount: diagnostic.contextLossCount,
         redrawCount: diagnostic.redrawCount,
+        visibilityRestoreCoalescedCount: diagnostic.visibilityRestoreCoalescedCount,
         recoveryResult: diagnostic.recoveryResult,
         retryAttemptCount: diagnostic.retryAttemptCount,
         retryDelayMs: diagnostic.retryDelayMs,
@@ -226,34 +227,48 @@ function rendererDiagnosticFields(diagnostic: TerminalRendererDiagnostic): LogFi
     };
 }
 
+const WEBGL_CREATION_TRIGGERS: ReadonlySet<TerminalRendererDiagnostic['trigger']> = new Set([
+    'webgl-load-failed',
+    'webgl-reprobe-succeeded',
+    'webgl-retry-attempt',
+]);
+
 /**
- * Triggers that construct a WebGL context: a fresh activation on preference change and every bounded retry attempt.
- * `preference-change` also fires for an already-active renderer, so the count is an upper bound on creations.
+ * Triggers that construct a WebGL context: a fresh activation on preference change, a successful re-probe after window
+ * restore, and every bounded retry attempt. `preference-change` also fires for an already-active renderer, so the count
+ * is an upper bound on creations.
  */
 function isWebglCreationAttempt(diagnostic: TerminalRendererDiagnostic): boolean {
-    if (diagnostic.trigger === 'webgl-retry-attempt' || diagnostic.trigger === 'webgl-load-failed')
-        return true;
+    if (WEBGL_CREATION_TRIGGERS.has(diagnostic.trigger)) return true;
     return diagnostic.trigger === 'preference-change' && diagnostic.mode === 'webgl';
 }
 
 /**
  * The latest diagnostic explains what one pane did right before the GPU process died; the window aggregates say how
- * many panes took part and how many WebGL contexts were being rebuilt, which a single record cannot show.
+ * many panes took part and how many WebGL contexts were being rebuilt, which a single record cannot show. The counts
+ * are always present so "no Renderer activity" reads as zero rather than as a missing field.
  */
 function relatedRendererFields(
     recentDiagnostics: RecentRendererDiagnostic[],
+    lastEvictedAt: number | undefined,
     now: number,
 ): LogFields {
     const inWindow = recentDiagnostics.filter(({ receivedAt }) => {
         const ageMs = now - receivedAt;
         return ageMs >= 0 && ageMs <= CORRELATION_WINDOW_MS;
     });
-    const recent = inWindow.at(-1);
-    if (!recent) return {};
-    const ageMs = now - recent.receivedAt;
-    const diagnostic = recent.diagnostic;
+    /**
+     * The ring buffer keeps Main memory bounded during a GPU storm, so it stays at 32 entries instead of growing with
+     * split count. When the most recently evicted diagnostic would still fall inside the window, in-window diagnostics
+     * were dropped and every count here is a lower bound; the marker makes that truncation visible. A buffer that
+     * merely filled up without evicting anything is still exact.
+     */
+    const saturation =
+        lastEvictedAt !== undefined && now - lastEvictedAt <= CORRELATION_WINDOW_MS
+            ? 'buffer-limit'
+            : 'none';
     const terminalIds = new Set(inWindow.map((entry) => entry.diagnostic.terminalId));
-    return {
+    const counts: LogFields = {
         relatedRendererDiagnosticCount: inWindow.length,
         relatedRendererTerminalCount: terminalIds.size,
         relatedRendererWebglCreationCount: inWindow.filter((entry) =>
@@ -262,6 +277,17 @@ function relatedRendererFields(
         relatedRendererVisibilityRestoreCount: inWindow.filter(
             (entry) => entry.diagnostic.trigger === 'visibility-restore',
         ).length,
+        relatedRendererSaturation: saturation,
+    };
+    const recent = inWindow.at(-1);
+    if (!recent) return counts;
+    const ageMs = now - recent.receivedAt;
+    const diagnostic = recent.diagnostic;
+    return {
+        ...counts,
+        // Renderer-lifetime aggregate, unlike the window-scoped counts above; the name keeps the two from being ratioed.
+        relatedRendererLifetimeVisibilityRestoreCoalescedCount:
+            diagnostic.visibilityRestoreCoalescedCount,
         relatedRendererDiagnosticId: diagnostic.diagnosticId,
         relatedRendererAgeMs: ageMs,
         relatedTerminalId: diagnostic.terminalId,
@@ -305,6 +331,7 @@ export function createGpuDiagnostics(options: GpuDiagnosticsOptions) {
     const platform = options.platform ?? process.platform;
     const recentGpuIncidents: RecentGpuIncident[] = [];
     const recentRendererDiagnostics: RecentRendererDiagnostic[] = [];
+    let lastEvictedRendererDiagnosticAt: number | undefined;
     let previousFeatureFields: LogFields | undefined;
     let isGpuInfoUpdateObserved = false;
     const pendingIncidentTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -364,7 +391,7 @@ export function createGpuDiagnostics(options: GpuDiagnosticsOptions) {
         const receivedAt = now();
         recentRendererDiagnostics.push({ diagnostic, receivedAt });
         if (recentRendererDiagnostics.length > MAX_RENDERER_DIAGNOSTICS)
-            recentRendererDiagnostics.shift();
+            lastEvictedRendererDiagnosticAt = recentRendererDiagnostics.shift()?.receivedAt;
         const explicitIncident = diagnostic.correlationId
             ? recentGpuIncidents.findLast((incident) => incident.id === diagnostic.correlationId)
             : undefined;
@@ -445,7 +472,11 @@ export function createGpuDiagnostics(options: GpuDiagnosticsOptions) {
                 osRelease: operatingSystemRelease,
                 ...commandLineFields(options.app),
                 ...windowFields(options.window()),
-                ...relatedRendererFields(recentRendererDiagnostics, occurredAt),
+                ...relatedRendererFields(
+                    recentRendererDiagnostics,
+                    lastEvictedRendererDiagnosticAt,
+                    occurredAt,
+                ),
             },
         });
         const timer = setTimeout(() => {

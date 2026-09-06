@@ -12,6 +12,7 @@ const validDiagnostic = {
     preference: 'auto',
     contextLossCount: 1,
     redrawCount: 1,
+    visibilityRestoreCoalescedCount: 2,
     recoveryResult: 'dom-restored',
     retryAttemptCount: 1,
     retryDelayMs: 1_000,
@@ -152,6 +153,51 @@ const validPerformanceScenarioDiagnostic = {
 describe('Renderer diagnostic contract', () => {
     it('accepts bounded content-free terminal renderer state', () => {
         expect(rendererDiagnosticSchema.parse(validDiagnostic)).toEqual(validDiagnostic);
+    });
+
+    it('accepts a session GPU incident budget transition and rejects open-ended fields', () => {
+        const validTransition = {
+            kind: 'gpu-incident-budget',
+            diagnosticId: '5c85eb53-a828-4656-b7ad-1e77bf2baf27',
+            transition: 'pinned',
+            cause: 'gpu-incident',
+            correlationId: '75f635fb-b53f-44cf-a99d-a731f97455d8',
+            incidentCount: 3,
+            contextLossEpisodeCount: 1,
+            threshold: 3,
+            preference: 'on',
+        };
+        expect(rendererDiagnosticSchema.parse(validTransition)).toEqual(validTransition);
+        const contextLossTransition = {
+            kind: 'gpu-incident-budget',
+            diagnosticId: validTransition.diagnosticId,
+            transition: 'pinned',
+            cause: 'context-loss',
+            incidentCount: 0,
+            contextLossEpisodeCount: 3,
+            threshold: 3,
+            preference: null,
+        };
+        expect(rendererDiagnosticSchema.parse(contextLossTransition)).toEqual(
+            contextLossTransition,
+        );
+
+        expect(
+            rendererDiagnosticSchema.safeParse({ ...validTransition, cause: 'user said so' })
+                .success,
+        ).toBe(false);
+        expect(
+            rendererDiagnosticSchema.safeParse({ ...validTransition, correlationId: 'incident' })
+                .success,
+        ).toBe(false);
+        expect(
+            rendererDiagnosticSchema.safeParse({ ...validTransition, message: 'GPU crashed' })
+                .success,
+        ).toBe(false);
+        expect(
+            rendererDiagnosticSchema.safeParse({ ...validTransition, incidentCount: 10_001 })
+                .success,
+        ).toBe(false);
     });
 
     it('accepts a bounded content-free Renderer resize burst', () => {

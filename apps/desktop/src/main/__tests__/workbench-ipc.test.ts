@@ -96,6 +96,7 @@ describe('workbench IPC sender boundary', () => {
             preference: 'auto',
             contextLossCount: 1,
             redrawCount: 1,
+            visibilityRestoreCoalescedCount: 0,
             recoveryResult: 'dom-restored',
             retryAttemptCount: 1,
             retryDelayMs: 1_000,
@@ -117,6 +118,64 @@ describe('workbench IPC sender boundary', () => {
         expect(onRendererDiagnostic).not.toHaveBeenCalled();
         report({ sender: renderer }, diagnostic);
         expect(onRendererDiagnostic).toHaveBeenCalledWith(diagnostic);
+    });
+
+    it('logs a session GPU incident budget transition with its Main incident correlation', () => {
+        const report = electronMock.listeners.get(RENDERER_DIAGNOSTIC_CHANNEL)!;
+        const diagnostic = {
+            kind: 'gpu-incident-budget',
+            diagnosticId: '5c85eb53-a828-4656-b7ad-1e77bf2baf27',
+            transition: 'pinned',
+            cause: 'gpu-incident',
+            correlationId: '75f635fb-b53f-44cf-a99d-a731f97455d8',
+            incidentCount: 3,
+            contextLossEpisodeCount: 2,
+            threshold: 3,
+            preference: 'on',
+        };
+
+        report({ sender: {} }, diagnostic);
+        report({ sender: renderer }, { ...diagnostic, message: 'private' });
+        expect(write).not.toHaveBeenCalled();
+
+        report({ sender: renderer }, diagnostic);
+        report(
+            { sender: renderer },
+            {
+                ...diagnostic,
+                transition: 'reset',
+                cause: 'preference-change',
+                correlationId: undefined,
+            },
+        );
+
+        expect(write).toHaveBeenNthCalledWith(1, 'warn', 'gpu.session_budget', {
+            correlationId: diagnostic.correlationId,
+            fields: {
+                code: 'GPU_SESSION_BUDGET',
+                diagnosticId: diagnostic.diagnosticId,
+                transition: 'pinned',
+                cause: 'gpu-incident',
+                incidentCount: 3,
+                contextLossEpisodeCount: 2,
+                threshold: 3,
+                preference: 'on',
+            },
+        });
+        expect(write).toHaveBeenNthCalledWith(2, 'info', 'gpu.session_budget', {
+            correlationId: undefined,
+            fields: {
+                code: 'GPU_SESSION_BUDGET',
+                diagnosticId: diagnostic.diagnosticId,
+                transition: 'reset',
+                cause: 'preference-change',
+                incidentCount: 3,
+                contextLossEpisodeCount: 2,
+                threshold: 3,
+                preference: 'on',
+            },
+        });
+        expect(onRendererDiagnostic).not.toHaveBeenCalled();
     });
 
     it('logs one trusted Renderer resize burst without routing it into GPU diagnostics', () => {

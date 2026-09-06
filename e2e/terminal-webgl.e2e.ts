@@ -665,10 +665,33 @@ test('repeated GPU incidents pin the session to DOM until the preference changes
         const rendererChip = running.page.locator('.statusbar-terminal-renderer');
         await expect(rendererChip).toHaveAttribute(
             'aria-label',
-            'Terminal renderer: DOM. The GPU process crashed repeatedly; WebGL stays off until GPU acceleration is changed in Settings or Caxri restarts.',
+            'Terminal renderer: DOM. WebGL was lost repeatedly (GPU process exits or context losses); it stays off until GPU acceleration is changed in Settings or Caxri restarts.',
         );
         await typeTerminal(running.page, String.raw`printf 'PINNED_DOM_STILL_LIVE\n'`);
         await expect(pane.locator('.xterm-rows')).toContainText('PINNED_DOM_STILL_LIVE');
+
+        /**
+         * The pin suppresses WebGL rebuilds, not the restore itself: one window restore (focus, visibilitychange, and
+         * pageshow in the same task) still produces exactly one content redraw, and its diagnostic is recorded below.
+         */
+        const redrawsBeforePinnedRestore = Number(
+            (await surface.getAttribute('data-terminal-renderer-redraws')) ?? 0,
+        );
+        await running.page.evaluate(() => {
+            dispatchEvent(new Event('focus'));
+            document.dispatchEvent(new Event('visibilitychange'));
+            dispatchEvent(new Event('pageshow'));
+        });
+        await expect
+            .poll(async () =>
+                Number((await surface.getAttribute('data-terminal-renderer-redraws')) ?? 0),
+            )
+            .toBe(redrawsBeforePinnedRestore + 1);
+        await expect(surface).toHaveAttribute('data-terminal-renderer', 'dom');
+        await expect(surface).toHaveAttribute(
+            'data-terminal-renderer-reason',
+            'context-loss-limit',
+        );
 
         // A pane mounted after the budget tripped never creates a WebGL context either.
         await pressNewTerminal(running.page);
@@ -698,6 +721,38 @@ test('repeated GPU incidents pin the session to DOM until the preference changes
         expect(limitRecords.every((record) => record.fields?.reason === 'context-loss-limit')).toBe(
             true,
         );
+
+        // The third incident pins the session once, with that incident's correlation; the preference change resets it.
+        const incidentIds = desktopRecords
+            .filter((record) => record.event === 'gpu.process_gone')
+            .map((record) => record.correlationId);
+        expect(incidentIds).toHaveLength(3);
+        const budgetRecords = desktopRecords.filter(
+            (record) => record.event === 'gpu.session_budget',
+        );
+        expect(
+            budgetRecords.map((record) => [
+                record.fields?.transition,
+                record.fields?.cause,
+                record.fields?.incidentCount,
+            ]),
+        ).toEqual([
+            ['pinned', 'gpu-incident', 3],
+            ['reset', 'preference-change', 3],
+        ]);
+        expect(budgetRecords[0]?.correlationId).toBe(incidentIds[2]);
+
+        // The restore after the pin is still measured, and its three events were merged into one restore.
+        const pinnedRestores = desktopRecords.filter(
+            (record) =>
+                record.event === 'renderer.terminal_renderer_status' &&
+                record.fields?.trigger === 'visibility-restore' &&
+                record.fields.reason === 'context-loss-limit',
+        );
+        expect(pinnedRestores.length).toBeGreaterThan(0);
+        expect(
+            Number(pinnedRestores.at(-1)?.fields?.visibilityRestoreCoalescedCount),
+        ).toBeGreaterThanOrEqual(2);
     } finally {
         try {
             await running.app.close();
