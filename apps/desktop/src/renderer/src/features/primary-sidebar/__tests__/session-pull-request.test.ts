@@ -33,15 +33,19 @@ describe('Session pull request presentation', () => {
         });
     });
 
-    it('lets CI tone override only while the PR is open', () => {
+    it('keeps open PRs green and reports checks separately from lifecycle state', () => {
         expect(sessionPullRequestPresentation(pullRequest({ checks: 'failure' }))).toMatchObject({
             ariaLabel: 'Pull request #42 open, checks failing.',
             icon: 'open',
-            tone: 'danger',
+            tone: 'success',
+            checksLabel: 'Checks failing',
+            checksTone: 'danger',
         });
         expect(sessionPullRequestPresentation(pullRequest({ checks: 'pending' }))).toMatchObject({
             icon: 'open',
-            tone: 'warning',
+            tone: 'success',
+            checksLabel: 'Checks running',
+            checksTone: 'warning',
         });
         expect(sessionPullRequestPresentation(pullRequest({ checks: 'success' }))).toMatchObject({
             icon: 'open',
@@ -49,12 +53,23 @@ describe('Session pull request presentation', () => {
         });
         expect(sessionPullRequestPresentation(pullRequest())).toMatchObject({
             icon: 'open',
-            tone: 'neutral',
+            tone: 'success',
         });
         expect(
             sessionPullRequestPresentation(pullRequest({ state: 'merged', checks: 'failure' })),
         ).toMatchObject({ icon: 'merged', tone: 'merged' });
     });
+
+    it.each(['merged', 'closed', 'draft'] as const)(
+        'omits stale check badges for %s PRs',
+        (state) => {
+            const presentation = sessionPullRequestPresentation(
+                pullRequest({ state, checks: 'failure' }),
+            );
+            expect(presentation.checksLabel).toBeUndefined();
+            expect(presentation.checksTone).toBeUndefined();
+        },
+    );
 
     /**
      * The bug this tone exists for: merged and "open, checks passed" both rendered `text-success`, so a landed PR was

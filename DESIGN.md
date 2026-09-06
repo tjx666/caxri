@@ -56,8 +56,8 @@ roles below.
 Derive `--accent-foreground`, `--overlay`, and `--shadow` in one place from theme colors. The
 status bar uses `--surface` plus a top hairline — never an accent fill.
 
-`--merged` is a role rather than a reuse of `--success` because `--success` already means "an open
-pull request whose checks passed"; sharing it left a landed PR and a green CI run distinguishable
+`--merged` is a role rather than a reuse of `--success` because `--success` also identifies an open
+pull request; sharing it left a landed PR and an open PR distinguishable
 only by glyph shape at 13px. It is violet in every built-in theme, following the convention GitHub
 established, and it is not `--accent`: two built-in palettes set `accent` to their own `success` or
 `warning` value, so borrowing the focus token would simply recreate the collision. Being a status
@@ -204,6 +204,20 @@ complete, so a busy Project never buries the Projects below it. The selected Ses
 renders even when it sits below that window, because Session order is activity recency rather than
 visit history. The revealed count is per-Renderer-lifetime: a relaunch starts from the short list
 the same way it starts scrolled to the top.
+
+Pull request lifecycle owns the glyph color: open is `--success`, closed is `--danger`, merged
+is `--merged`, and draft is `--muted`. Checks appear as text in the hover card, with failures in
+`--danger`; never overlay a badge on the small PR glyph or recolor it for CI. The existing animated
+yellow Session attention ring keeps its separate meaning and position.
+
+The Status tab carries a compact, static numeric badge anchored to the heartbeat icon's lower-right
+corner, following VS Code's activity-bar badge placement. Use a 14px minimum circular surface that
+grows into a capsule for `9+`, `badge` text, `--danger`/`--danger-foreground`, and a surface-colored
+ring separating it from the icon. It counts failed PR checks and current production/preview
+deployments across the selected Session's repositories, deduplicated by identity. PR rollups,
+historical deployments, pending work, and provider-fetch errors do not inflate the number. Zero or
+unavailable status hides the badge; tooltip and accessible description expose the full count and
+categories. Switching tabs does not clear failures; switching Sessions changes the badge scope.
 
 **Tab strip** — active tab: `--background` fill joining it visually to the pane below,
 `--foreground` text, and a 2px `--accent` top border, VS Code style. Inactive: `--surface` +

@@ -196,8 +196,22 @@ export function SessionActivityCard({
                         <span className="flex-none text-muted">
                             {pullRequestPresentation.label}
                         </span>
-                        <span className="min-w-0 flex-1 truncate text-muted">
-                            {pullRequest.title}
+                        <span className="min-w-0 flex-1 text-muted">
+                            <span className="block truncate">{pullRequest.title}</span>
+                            {pullRequestPresentation.checksLabel && (
+                                <span
+                                    className={cn(
+                                        'block',
+                                        pullRequestPresentation.checksTone === 'danger'
+                                            ? 'text-danger'
+                                            : pullRequestPresentation.checksTone === 'warning'
+                                              ? 'text-warning'
+                                              : 'text-muted',
+                                    )}
+                                >
+                                    {pullRequestPresentation.checksLabel}
+                                </span>
+                            )}
                         </span>
                     </a>
                 )}
