@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
+import { defaultAgentProviderSettings } from '@caxri/protocol';
+
 import type { Locator, Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
 import type { RunningCaxriWithClipboard } from './support/helpers.ts';
@@ -212,7 +214,10 @@ test('Settings keeps actions visible and provides highlighted editors and live T
             .toEqual({
                 actions: { items: {}, recent: { version: 1, invocations: [] } },
                 hooks: { enabled: true },
-                launch: { executable: 'claude', args: [] },
+                launch: {
+                    executable: 'claude',
+                    args: defaultAgentProviderSettings.claude.launch.args,
+                },
                 messaging: { enabled: true },
                 naming: { enabled: true },
                 pasteSummary: { enabled: true },

@@ -257,6 +257,8 @@ test('WebGL modes hot-switch and every Terminal recovers from one GPU process lo
         const surface = pane.locator('.terminal-surface');
         let terminalId = await pane.getAttribute('data-terminal-id');
         if (!terminalId) throw new Error('Terminal identity was not rendered');
+        await expect(surface).toHaveAttribute('data-terminal-renderer', 'webgl');
+        await applyGpuPreference(running.page, 'Off');
         await expect(surface).toHaveAttribute('data-terminal-renderer', 'dom');
         await expect(surface).toHaveAttribute('data-terminal-renderer-reason', 'disabled');
 

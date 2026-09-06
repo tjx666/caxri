@@ -144,7 +144,9 @@ test('shares settings across an app-managed Server and Desktop', async () => {
                 'settings',
                 'patch',
                 '--set',
-                'terminal.osc52ClipboardWrite=true',
+                // The shipped default is true. Exercise the real CLI transition from that default to false before the
+                // Desktop toggles it back on and proves the value survives the app lifecycle.
+                'terminal.osc52ClipboardWrite=false',
                 '--profile',
                 userData,
                 '--request-id',
@@ -158,7 +160,7 @@ test('shares settings across an app-managed Server and Desktop', async () => {
         expect(JSON.parse(patched.stdout)).toMatchObject({
             changedKeys: ['terminal.osc52ClipboardWrite'],
             dryRun: false,
-            value: { 'terminal.osc52ClipboardWrite': true },
+            value: { 'terminal.osc52ClipboardWrite': false },
         });
 
         const initialStatus = await runCli(
@@ -188,9 +190,9 @@ test('shares settings across an app-managed Server and Desktop', async () => {
         const clipboardSetting = settingsDialog.getByRole('switch', {
             name: 'Allow OSC 52 clipboard writes',
         });
-        await expect(clipboardSetting).toBeChecked();
-        await clipboardSetting.click();
         await expect(clipboardSetting).not.toBeChecked();
+        await clipboardSetting.check();
+        await expect(clipboardSetting).toBeChecked();
         await expect
             .poll(async () => {
                 const result = await runCli(
@@ -203,7 +205,7 @@ test('shares settings across an app-managed Server and Desktop', async () => {
                 };
                 return value.value?.['terminal.osc52ClipboardWrite'];
             })
-            .toBe(false);
+            .toBe(true);
 
         await running.app.close();
         running = undefined;
@@ -225,7 +227,7 @@ test('shares settings across an app-managed Server and Desktop', async () => {
             sessions: [{ id: expect.any(String) }],
         });
         expect(JSON.parse(commands[2].stdout)).toMatchObject({
-            value: { 'terminal.osc52ClipboardWrite': false },
+            value: { 'terminal.osc52ClipboardWrite': true },
         });
         expect(JSON.parse(commands[3].stdout)).toMatchObject({ records: expect.any(Array) });
         expect(JSON.parse(commands[4].stdout)).toMatchObject({ runtimeStatus: 'ready' });
