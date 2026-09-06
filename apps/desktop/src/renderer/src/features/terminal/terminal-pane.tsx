@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 
 import type { ProcessState, TerminalFailureReason } from '@caxri/protocol';
-import { agentProviderCatalog } from '@caxri/protocol';
+import { agentProviderCatalog, defaultAppSettings } from '@caxri/protocol';
 import {
     CircleCheck,
     CircleX,
@@ -41,7 +41,6 @@ import {
 } from './terminal-actions';
 import { isAgentProcessRunning } from './terminal-agent-runtime';
 import { getTerminalExitPresentation } from './terminal-exit-presentation';
-import { TERMINAL_DEFAULT_WORD_SEPARATORS } from './terminal-file-candidate';
 import { terminalFontFamily } from './terminal-fonts';
 import { openTerminalLinkPicker } from './terminal-link-actions';
 import { TerminalLinkPicker } from './terminal-link-picker';
@@ -169,17 +168,16 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
     const terminal = useTerminal(terminalId);
     const session = useSelectedSession();
     const theme = useTheme();
-    const settings = useSettings();
+    const settings = useSettings() ?? defaultAppSettings;
     const attachEpoch = useWorkbenchStore((state) => state.attachEpoch);
-    const fontFamily = terminalFontFamily(settings?.['terminal.fontFamily']);
-    const fontSize = settings?.['terminal.fontSize'] ?? 13;
-    const scrollback = settings?.['terminal.scrollback'] ?? 1_000;
-    const isCopyOnSelect = settings?.['terminal.copyOnSelect'] ?? true;
-    const gpuAcceleration = settings?.['terminal.gpuAcceleration'] ?? 'off';
-    const isOsc52ClipboardWrite = settings?.['terminal.osc52ClipboardWrite'] ?? false;
-    const wordSeparators =
-        settings?.['terminal.wordSeparators'] ?? TERMINAL_DEFAULT_WORD_SEPARATORS;
-    const referenceLinks = settings?.['terminal.referenceLinks'] ?? [];
+    const fontFamily = terminalFontFamily(settings['terminal.fontFamily']);
+    const fontSize = settings['terminal.fontSize'];
+    const scrollback = settings['terminal.scrollback'];
+    const isCopyOnSelect = settings['terminal.copyOnSelect'];
+    const gpuAcceleration = settings['terminal.gpuAcceleration'];
+    const isOsc52ClipboardWrite = settings['terminal.osc52ClipboardWrite'];
+    const wordSeparators = settings['terminal.wordSeparators'];
+    const referenceLinks = settings['terminal.referenceLinks'];
     const referenceContext = useCaxriQuery(
         'terminal.referenceContext',
         { terminalId },
@@ -192,9 +190,9 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         ? agentProviderCatalog[provider].imageInput?.terminalInput
         : undefined;
     const longPasteEnabled = provider
-        ? (settings?.['agents.providers'][provider].pasteSummary.enabled ?? true)
+        ? settings['agents.providers'][provider].pasteSummary.enabled
         : false;
-    const longPasteThreshold = settings?.['terminal.longPasteThreshold'] ?? 1_024;
+    const longPasteThreshold = settings['terminal.longPasteThreshold'];
     const canAcceptAgentInput = isAgentProcessRunning(terminal?.lastAgentProcessState);
     const terminalTheme = theme?.terminal;
 

@@ -1,3 +1,4 @@
+import { defaultAppSettings } from '@caxri/protocol';
 import { cssFontFamilyEntry } from '@caxri/utils';
 
 import { useSettings } from '../stores/selectors';
@@ -7,5 +8,8 @@ import { useSettings } from '../stores/selectors';
  * monospace default.
  */
 export function useEditorFontFamily(): string | undefined {
-    return cssFontFamilyEntry(useSettings()?.['editor.fontFamily']);
+    const settings = useSettings();
+    return cssFontFamilyEntry(
+        settings ? settings['editor.fontFamily'] : defaultAppSettings['editor.fontFamily'],
+    );
 }

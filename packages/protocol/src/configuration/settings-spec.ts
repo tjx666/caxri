@@ -138,7 +138,7 @@ export const settingsSpec = [
             { value: '30m', label: 'After 30 minutes' },
             { value: '2h', label: 'After 2 hours' },
         ],
-        default: 'off',
+        default: '30m',
     },
     {
         kind: 'string',
@@ -196,7 +196,7 @@ export const settingsSpec = [
         keywords: ['history', 'buffer'],
         min: 100,
         max: 10_000,
-        default: 2000,
+        default: 8000,
         display: { unit: 'lines' },
     },
     {
@@ -233,7 +233,7 @@ export const settingsSpec = [
             { value: 'on', label: 'On' },
             { value: 'off', label: 'Off' },
         ],
-        default: 'off',
+        default: 'on',
     },
     {
         kind: 'boolean',
@@ -267,7 +267,7 @@ export const settingsSpec = [
         description: 'Remote programs may request bounded writes; clipboard reads stay blocked',
         category: 'terminal',
         keywords: ['clipboard', 'escape sequence', 'security'],
-        default: false,
+        default: true,
     },
     {
         kind: 'string',
@@ -311,7 +311,7 @@ export const settingsSpec = [
         keywords: ['font', 'typeface', 'monospace', 'monaco', 'diff'],
         nullable: true,
         maxLength: 1024,
-        default: null,
+        default: "'Fira Code', 'JetBrains Mono', 'Caxri JetBrains Mono', monospace",
         placeholder: 'Monaco default',
     },
     {

@@ -2,11 +2,14 @@ import type { CSSProperties, FocusEvent, KeyboardEvent } from 'react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
 import type { ProjectRecord } from '@caxri/protocol';
-import { Plus } from 'lucide-react';
+import { defaultAppSettings } from '@caxri/protocol';
+import { Archive, Plus } from 'lucide-react';
 
 import caxriLogoUrl from '../../assets/caxri-logo.png';
 import { executeCommand } from '../../commands/execute';
+import { Button } from '../../components/ui/button';
 import { usePolledQuery } from '../../hooks/use-polled-query';
+import { setArchivedSessionsOpen } from '../../stores/dialogs';
 import {
     useIsFullScreen,
     useProjects,
@@ -76,7 +79,10 @@ export function PrimarySidebar() {
     const sessions = useSessions() ?? NO_RECORDS;
     const terminals = useTerminals();
     const isFullScreen = useIsFullScreen();
-    const autoCollapseSetting = useSettings()?.['primarySidebar.autoCollapseProjects'] ?? 'off';
+    const autoCollapseSetting =
+        useSettings()?.['primarySidebar.autoCollapseProjects'] ??
+        defaultAppSettings['primarySidebar.autoCollapseProjects'];
+    const archivedCount = sessions.filter((session) => session.archivedAt !== undefined).length;
     const selectedProjectId = useSelectedProject()?.id;
     const selectedSessionId = useSelectedSession()?.id;
     const projectOrder = useProjectOrder(projects);
@@ -356,6 +362,20 @@ export function PrimarySidebar() {
                 <div className="project-order-announcement sr-only" aria-live="polite">
                     {projectOrder.projectOrderAnnouncement}
                 </div>
+            </div>
+            <div className="shrink-0 border-t border-border p-2">
+                <Button
+                    className="archived-sessions-entry w-full justify-start text-muted hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
+                    variant="ghost"
+                    aria-label={`Archived Sessions (${archivedCount})`}
+                    onClick={() => setArchivedSessionsOpen(true)}
+                >
+                    <Archive aria-hidden="true" size={14} className="shrink-0" />
+                    <span className="min-w-0 truncate">Archived Sessions</span>
+                    <span aria-hidden="true" className="ml-auto text-[11px] tabular-nums">
+                        {archivedCount}
+                    </span>
+                </Button>
             </div>
         </aside>
     );

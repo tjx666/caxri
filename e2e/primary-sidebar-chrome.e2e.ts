@@ -265,9 +265,14 @@ test('Session rows support keyboard selection independently from rename', async 
             await secondCard.evaluate((element) => getComputedStyle(element).boxShadow),
         ).not.toBe('none');
 
-        // The primarySidebar no longer hosts an "Archived Sessions" footer entry (the manager moved to
-        // Settings), so the roving row is the tree's only Tab stop.
-        await expect(running.page.locator('aside .archived-sessions-entry')).toHaveCount(0);
+        const archivedEntry = running.page.locator('aside .archived-sessions-entry');
+        await expect(archivedEntry).toBeVisible();
+        await expect(archivedEntry).toHaveAccessibleName('Archived Sessions (0)');
+
+        // The tree keeps one roving Tab stop, followed by the always-visible global archive entry.
+        await firstCard.focus();
+        await running.page.keyboard.press('Tab');
+        await expect(archivedEntry).toBeFocused();
 
         await firstCard.focus();
         await firstCard.press('Space');
@@ -275,7 +280,7 @@ test('Session rows support keyboard selection independently from rename', async 
         expect(await selectedSessionId(running.page)).toBe(firstSessionId);
         await expect(running.page.locator('.xterm-helper-textarea')).toBeFocused();
 
-        // Delete is the keyboard equivalent of the (now Tab-unreachable) per-row Archive button.
+        // Delete is the keyboard equivalent of the per-row Archive button.
         // Archiving the focused row must not throw focus out of the tree: it lands on a neighbor
         // row. Target the *non-selected* second card so the selection stays put — archiving the
         // selected Session would re-select another one, whose Terminal would then claim focus by
@@ -616,16 +621,9 @@ test('Session archive hides active navigation, parks its Terminals, and restores
         // An archived Session has no viewer, so its live Terminal is parked (suspended) rather than kept resident.
         await expect.poll(runningCount).toBe(runningBeforeArchive - 1);
         await expect(running.page.locator('.project-group .archived-sessions')).toHaveCount(0);
-        // The per-Project archived-count badge was dropped from the primarySidebar, so archived Sessions
-        // leave no primarySidebar trace and the manager's only entry point is Settings.
-        await expect(running.page.locator('.project-archived-count')).toHaveCount(0);
-        await running.page.keyboard.press('Meta+,');
-        const settingsDialog = running.page
-            .getByRole('dialog')
-            .filter({ has: running.page.getByRole('heading', { name: 'Settings' }) });
-        await settingsDialog.locator('.archived-sessions-entry').click();
-        // Opening the manager closes Settings first, so only one dialog remains.
-        await expect(settingsDialog).toHaveCount(0);
+        const archivedEntry = running.page.locator('aside .archived-sessions-entry');
+        await expect(archivedEntry).toHaveAccessibleName('Archived Sessions (1)');
+        await archivedEntry.click();
         const dialog = running.page.getByRole('dialog');
         await expect(dialog.getByRole('heading', { name: 'Archived Sessions' })).toBeVisible();
         await dialog.getByLabel('Search').fill('investigation');
@@ -640,6 +638,7 @@ test('Session archive hides active navigation, parks its Terminals, and restores
         await expect(running.page.locator('.session-card')).toHaveCount(2);
         await dialog.getByRole('button', { name: 'Done' }).click();
         await expect(dialog).toHaveCount(0);
+        await expect(archivedEntry).toHaveAccessibleName('Archived Sessions (0)');
         // Restoring alone leaves the Terminal parked; selecting the Session relaunches it.
         await sessionCard(running.page, secondSessionId).click();
         await expect(sessionCard(running.page, secondSessionId)).toHaveClass(/active/);

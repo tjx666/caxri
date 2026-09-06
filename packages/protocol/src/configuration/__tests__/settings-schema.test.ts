@@ -33,6 +33,44 @@ describe('settings spec and schema agreement', () => {
         expect(appSettingsFileSchema.parse({})).toEqual(defaultAppSettings);
     });
 
+    it('ships the requested defaults while preserving explicit saved choices', () => {
+        expect(defaultAppSettings['primarySidebar.autoCollapseProjects']).toBe('30m');
+        expect(defaultAppSettings['terminal.scrollback']).toBe(8_000);
+        expect(defaultAppSettings['terminal.gpuAcceleration']).toBe('on');
+        expect(defaultAppSettings['terminal.osc52ClipboardWrite']).toBe(true);
+        expect(defaultAppSettings['editor.fontFamily']).toBe(
+            "'Fira Code', 'JetBrains Mono', 'Caxri JetBrains Mono', monospace",
+        );
+        expect(defaultAppSettings['agents.providers'].claude.launch.args).toEqual([
+            '--dangerously-skip-permissions',
+        ]);
+        expect(defaultAppSettings['agents.providers'].codex.launch.args).toEqual([
+            '--dangerously-bypass-approvals-and-sandbox',
+        ]);
+
+        const saved = appSettingsFileSchema.parse({
+            'primarySidebar.autoCollapseProjects': 'off',
+            'terminal.scrollback': 500,
+            'terminal.gpuAcceleration': 'off',
+            'terminal.osc52ClipboardWrite': false,
+            'editor.fontFamily': null,
+            'agents.providers': {
+                claude: {
+                    launch: { executable: 'claude', args: ['--profile', 'manual'] },
+                },
+            },
+        });
+        expect(saved['primarySidebar.autoCollapseProjects']).toBe('off');
+        expect(saved['terminal.scrollback']).toBe(500);
+        expect(saved['terminal.gpuAcceleration']).toBe('off');
+        expect(saved['terminal.osc52ClipboardWrite']).toBe(false);
+        expect(saved['editor.fontFamily']).toBeNull();
+        expect(saved['agents.providers'].claude.launch.args).toEqual(['--profile', 'manual']);
+        expect(saved['agents.providers'].codex.launch.args).toEqual(
+            defaultAgentProviderSettings.codex.launch.args,
+        );
+    });
+
     it('enforces integer bounds from the spec', () => {
         for (const spec of settingsSpec) {
             if (spec.kind !== 'integer') continue;
@@ -148,7 +186,10 @@ describe('wire schema versus file schema', () => {
         });
         expect(recentOnly['agents.providers'].codex).toMatchObject({
             actions: { items: {}, recent: { version: 1, invocations: ['/status'] } },
-            launch: { executable: 'codex', args: [] },
+            launch: {
+                executable: 'codex',
+                args: defaultAgentProviderSettings.codex.launch.args,
+            },
         });
 
         const customized = appSettingsFileSchema.parse({

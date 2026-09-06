@@ -27,7 +27,9 @@ describe('defaultAgentProviderSettings', () => {
             expect(defaultAgentProviderSettings[provider].launch.executable).toBe(
                 agentProviderCatalog[provider].executableName,
             );
-            expect(defaultAgentProviderSettings[provider].launch.args).toEqual([]);
+            expect(defaultAgentProviderSettings[provider].launch.args).toEqual(
+                agentProviderCatalog[provider].defaultLaunchArgs,
+            );
             expect(defaultAgentProviderSettings[provider].hooks.enabled).toBe(true);
             expect(defaultAgentProviderSettings[provider].messaging.enabled).toBe(true);
             expect(defaultAgentProviderSettings[provider].naming.enabled).toBe(true);
@@ -38,5 +40,14 @@ describe('defaultAgentProviderSettings', () => {
                 continueDelayMs: 1_000,
             });
         }
+    });
+
+    it('starts each provider with its documented YOLO launch arguments', () => {
+        expect(defaultAgentProviderSettings.claude.launch.args).toEqual([
+            '--dangerously-skip-permissions',
+        ]);
+        expect(defaultAgentProviderSettings.codex.launch.args).toEqual([
+            '--dangerously-bypass-approvals-and-sandbox',
+        ]);
     });
 });

@@ -115,8 +115,12 @@ describe('parseConfigSource', () => {
         expect(result.ok).toBe(true);
         if (!result.ok) throw new Error(result.error);
         expect(result.value['terminal.fontSize']).toBe(18);
-        expect(result.value['terminal.scrollback']).toBe(2000);
-        expect(result.value['terminal.gpuAcceleration']).toBe('off');
+        expect(result.value['terminal.scrollback']).toBe(8000);
+        expect(result.value['terminal.gpuAcceleration']).toBe('on');
+        expect(result.value['terminal.osc52ClipboardWrite']).toBe(true);
+        expect(result.value['editor.fontFamily']).toBe(
+            "'Fira Code', 'JetBrains Mono', 'Caxri JetBrains Mono', monospace",
+        );
         expect(result.value['agents.providers'].claude.launch.executable).toBe('claude');
         expect(result.value['agents.providers'].claude.hooks.enabled).toBe(true);
     });

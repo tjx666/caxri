@@ -31,7 +31,7 @@ afterEach(async () => {
 });
 
 describe('ConfigurationService', () => {
-    it('fills provider launch and Terminal cwd defaults without rewriting an older settings file', async () => {
+    it('fills provider executables and Terminal cwd defaults without rewriting an older settings file', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-config-agent-defaults-'));
         temporaryDirectories.push(directory);
         const configDirectory = join(directory, 'config');
@@ -46,18 +46,18 @@ describe('ConfigurationService', () => {
             'agents.providers': {
                 claude: {
                     hooks: { enabled: true },
-                    launch: { executable: 'claude', args: [] },
+                    launch: { executable: 'claude' },
                 },
                 codex: {
                     hooks: { enabled: true },
-                    launch: { executable: 'codex', args: [] },
+                    launch: { executable: 'codex' },
                 },
             },
             'security.trustedDomains': [],
             'workbench.newWorktreeBehavior': 'ask',
             'terminal.defaultWorkingDirectory': null,
             'terminal.fontSize': 15,
-            'terminal.gpuAcceleration': 'off',
+            'terminal.gpuAcceleration': 'on',
         });
         expect(await readFile(service.settingsPath, 'utf8')).toBe(original);
         await service.close();

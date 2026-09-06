@@ -1,6 +1,7 @@
 import process from 'node:process';
 
 import type { TerminalRecord } from '@caxri/protocol';
+import { defaultAgentProviderSettings } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -83,6 +84,7 @@ describe('TerminalLaunchPlanner managed Agent launch', () => {
 
         const resolved = await planner.resolve(record);
         if (!resolved.ok) throw resolved.error;
+        expect(resolved.value.agent?.args).toEqual(defaultAgentProviderSettings.codex.launch.args);
         const prepared = await planner.prepare(record, resolved.value);
         if (!prepared.ok) throw prepared.error;
 
