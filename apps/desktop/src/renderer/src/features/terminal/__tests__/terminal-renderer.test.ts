@@ -38,6 +38,7 @@ function createPolicy(
         applyPreference: overrides.applyPreference ?? (() => {}),
         isPinnedToDom: overrides.isPinnedToDom ?? (() => false),
         isWebgl2Available: overrides.isWebgl2Available ?? (() => overrides.supported ?? true),
+        recordContextLoss: overrides.recordContextLoss ?? (() => {}),
     };
 }
 
@@ -325,9 +326,153 @@ describe('TerminalRendererController', () => {
             reason: 'context-loss-limit',
             trigger: 'preference-change',
         });
+        // The pin suppresses the WebGL rebuild but still reports the restore so Main can count them after the pin.
         harness.redraw.mockClear();
         harness.controller.restoreVisible();
-        expect(harness.redraw).not.toHaveBeenCalled();
+        expect(harness.redraw).toHaveBeenCalledWith('content-only');
+        expect(harness.host.loadAddon).not.toHaveBeenCalled();
+        expect(harness.statuses.at(-1)).toMatchObject({
+            mode: 'dom',
+            reason: 'context-loss-limit',
+            trigger: 'visibility-restore',
+        });
+    });
+
+    it('re-probes WebGL2 for an unsupported pane when the window becomes visible again', () => {
+        let isSupported = false;
+        let isPinned = false;
+        const harness = createHarness({
+            policy: createPolicy({
+                isPinnedToDom: () => isPinned,
+                isWebgl2Available: () => isSupported,
+            }),
+        });
+        harness.controller.setPreference('on');
+        expect(harness.statuses.at(-1)).toMatchObject({ mode: 'dom', reason: 'unsupported' });
+
+        // Still restarting: the restore is measured but nothing is created.
+        harness.controller.restoreVisible();
+        expect(harness.host.loadAddon).not.toHaveBeenCalled();
+        expect(harness.statuses.at(-1)).toMatchObject({
+            mode: 'dom',
+            reason: 'unsupported',
+            trigger: 'visibility-restore',
+        });
+
+        // The GPU process is back: the same mount recovers WebGL without a remount or preference change.
+        isSupported = true;
+        harness.controller.restoreVisible();
+        expect(harness.host.loadAddon).toHaveBeenCalledOnce();
+        expect(harness.statuses.at(-1)).toMatchObject({
+            mode: 'webgl',
+            reason: 'active',
+            trigger: 'webgl-reprobe-succeeded',
+        });
+
+        // A session pinned meanwhile settles on the closed reason instead of probing.
+        const pinnedHarness = createHarness({
+            policy: createPolicy({
+                isPinnedToDom: () => isPinned,
+                isWebgl2Available: () => isSupported,
+            }),
+        });
+        isSupported = false;
+        pinnedHarness.controller.setPreference('on');
+        isPinned = true;
+        isSupported = true;
+        pinnedHarness.controller.restoreVisible();
+        expect(pinnedHarness.host.loadAddon).not.toHaveBeenCalled();
+        expect(pinnedHarness.statuses.at(-1)).toMatchObject({
+            reason: 'context-loss-limit',
+            trigger: 'visibility-restore',
+        });
+    });
+
+    it('converges an already-DOM pane with exhausted retries on the closed reason when the session pins', async () => {
+        vi.useFakeTimers();
+        let isPinned = false;
+        const harness = createHarness({
+            loadFailures: [2, 3, 4],
+            policy: createPolicy({ isPinnedToDom: () => isPinned }),
+        });
+        harness.controller.setPreference('on');
+        harness.controller.recoverFromGpuProcessLoss();
+        await vi.advanceTimersByTimeAsync(1_000 + 2_000 + 4_000);
+        expect(harness.statuses.at(-1)).toMatchObject({
+            reason: 'load-failed',
+            retryState: 'exhausted',
+            trigger: 'webgl-retry-exhausted',
+        });
+        expect(harness.host.loadAddon).toHaveBeenCalledTimes(4);
+
+        isPinned = true;
+        const recovery = harness.controller.recoverFromGpuProcessLoss();
+
+        expect(recovery).toBe('already-dom');
+        expect(harness.statuses.at(-2)).toMatchObject({
+            reason: 'context-loss-limit',
+            trigger: 'gpu-incident-limit',
+        });
+        expect(harness.statuses.at(-1)).toMatchObject({
+            mode: 'dom',
+            reason: 'context-loss-limit',
+            retryState: 'idle',
+            trigger: 'gpu-process-recovery',
+        });
+        expect(harness.statuses.at(-1)).not.toHaveProperty('retrySequenceId');
+        await vi.advanceTimersByTimeAsync(60_000);
+        expect(harness.host.loadAddon).toHaveBeenCalledTimes(4);
+    });
+
+    it('reports every lost WebGL context to the session policy exactly once', () => {
+        const recordContextLoss = vi.fn();
+        const harness = createHarness({ policy: createPolicy({ recordContextLoss }) });
+        harness.controller.setPreference('on');
+
+        harness.addon.loseContext();
+        expect(recordContextLoss).toHaveBeenCalledOnce();
+        // The Main-driven recovery of an already-DOM pane is not another lost context.
+        harness.controller.recoverFromGpuProcessLoss();
+        expect(recordContextLoss).toHaveBeenCalledOnce();
+
+        harness.controller.setPreference('off');
+        harness.controller.setPreference('on');
+        harness.controller.recoverFromGpuProcessLoss();
+        expect(recordContextLoss).toHaveBeenCalledTimes(2);
+    });
+
+    it('lets auto settle on DOM after repeated context-loss episodes while on keeps retrying', async () => {
+        vi.useFakeTimers();
+        for (const preference of ['auto', 'on'] as const) {
+            const budget = createGpuIncidentBudget({ probeWebgl2: () => true });
+            const harness = createHarness({ policy: budget });
+            harness.controller.setPreference(preference);
+            for (let episode = 0; episode < 3; episode += 1) {
+                harness.addons.at(-1)?.loseContext();
+                // The backoff retry (1 s, 2 s, 4 s) brings WebGL back before the next episode starts.
+                // eslint-disable-next-line no-await-in-loop -- episodes are sequential by definition
+                await vi.advanceTimersByTimeAsync(5_000);
+            }
+            expect(budget.contextLossEpisodeCount()).toBe(3);
+            if (preference === 'auto') {
+                expect(budget.isPinnedToDom()).toBe(true);
+                expect(harness.statuses.at(-2)).toMatchObject({
+                    reason: 'context-loss-limit',
+                    trigger: 'gpu-incident-limit',
+                });
+                expect(harness.statuses.at(-1)).toMatchObject({
+                    mode: 'dom',
+                    reason: 'context-loss-limit',
+                    retryState: 'idle',
+                    trigger: 'webgl-context-loss',
+                });
+                expect(harness.host.loadAddon).toHaveBeenCalledTimes(3);
+            } else {
+                expect(budget.isPinnedToDom()).toBe(false);
+                expect(harness.statuses.at(-1)).toMatchObject({ mode: 'webgl', reason: 'active' });
+                expect(harness.host.loadAddon).toHaveBeenCalledTimes(4);
+            }
+        }
     });
 
     it('ends the retry sequence with a closed reason when the budget pins during recovery', async () => {

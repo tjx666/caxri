@@ -31,6 +31,7 @@ export const terminalRendererDiagnosticSchema = z.strictObject({
         'visibility-restore',
         'webgl-context-loss',
         'webgl-load-failed',
+        'webgl-reprobe-succeeded',
         'webgl-retry-attempt',
         'webgl-retry-cancelled',
         'webgl-retry-deferred',
@@ -42,6 +43,11 @@ export const terminalRendererDiagnosticSchema = z.strictObject({
     preference: z.enum(['auto', 'off', 'on']),
     contextLossCount: z.number().int().nonnegative().max(10_000),
     redrawCount: z.number().int().nonnegative().max(1_000_000),
+    /**
+     * Renderer-lifetime count of window focus, visibility, and pageshow events that were merged into an already
+     * scheduled per-frame restore instead of running their own; the "cause" side of the visibility-restore trigger.
+     */
+    visibilityRestoreCoalescedCount: z.number().int().nonnegative().max(1_000_000),
     correlationId: z.uuid().optional(),
     recoveryResult: z.enum(['not-requested', 'already-dom', 'dom-restored', 'failed']),
     retryAttemptCount: z.number().int().nonnegative().max(3),
@@ -66,6 +72,29 @@ export const terminalRendererDiagnosticSchema = z.strictObject({
     documentVisible: z.boolean(),
     documentFocused: z.boolean(),
     terminalFocused: z.boolean(),
+});
+
+/**
+ * One transition of the Renderer-session GPU incident budget. Per-pane `terminal-renderer` records only show each pane
+ * settling under a pinned budget; this record is emitted once per session transition so a log can count how many times
+ * the session converged on DOM and which incident or context-loss episode tripped it.
+ */
+export const gpuIncidentBudgetDiagnosticSchema = z.strictObject({
+    kind: z.literal('gpu-incident-budget'),
+    diagnosticId: z.uuid(),
+    transition: z.enum(['pinned', 'reset']),
+    cause: z.enum(['context-loss', 'gpu-incident', 'preference-change']),
+    /**
+     * Main-owned incident id when a `gpu.recoveryRequested` event tripped the budget.
+     */
+    correlationId: z.uuid().optional(),
+    incidentCount: z.number().int().nonnegative().max(10_000),
+    contextLossEpisodeCount: z.number().int().nonnegative().max(10_000),
+    threshold: z.number().int().positive().max(100),
+    /**
+     * Preference the counts accrued under; for a `reset` this is the outgoing preference the session was pinned with.
+     */
+    preference: z.enum(['auto', 'off', 'on']).nullable(),
 });
 
 /**
@@ -256,6 +285,7 @@ function addPerformanceAggregateIssue(
 export const rendererDiagnosticSchema = z
     .discriminatedUnion('kind', [
         terminalRendererDiagnosticSchema,
+        gpuIncidentBudgetDiagnosticSchema,
         terminalOsc52ClipboardWriteFailureDiagnosticSchema,
         terminalResizeBurstDiagnosticSchema,
         rendererPerformanceScenarioDiagnosticSchema,
@@ -419,6 +449,7 @@ export const rendererDiagnosticSchema = z
     });
 
 export type TerminalRendererDiagnostic = z.infer<typeof terminalRendererDiagnosticSchema>;
+export type GpuIncidentBudgetDiagnostic = z.infer<typeof gpuIncidentBudgetDiagnosticSchema>;
 export type TerminalOsc52ClipboardWriteFailureDiagnostic = z.infer<
     typeof terminalOsc52ClipboardWriteFailureDiagnosticSchema
 >;
