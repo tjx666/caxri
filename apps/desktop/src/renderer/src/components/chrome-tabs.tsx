@@ -8,6 +8,7 @@ import { cn } from '../lib/utilities';
 interface ChromeTabItem<Value extends string> {
     content: ReactNode;
     label: string;
+    description?: string;
     value: Value;
 }
 
@@ -153,6 +154,7 @@ export function ChromeTabs<Value extends string>({
                         type="button"
                         aria-controls={`${idPrefix}-panel-${item.value}`}
                         aria-label={item.label}
+                        aria-description={item.description}
                         aria-selected={isSelected}
                         className={cn(
                             'relative flex cursor-pointer items-center justify-center border-0 bg-surface text-muted hover:text-foreground focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-2 focus-visible:outline-foreground',

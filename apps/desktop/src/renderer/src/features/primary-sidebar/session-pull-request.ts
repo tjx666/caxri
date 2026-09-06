@@ -6,13 +6,14 @@ export type SessionPullRequestIcon = 'closed' | 'draft' | 'merged' | 'open';
 
 /**
  * Extends the shared activity tones with `merged`, which the lifecycle glyphs have no use for. A merged PR cannot
- * borrow `success`: that tone already means "open, checks passed", and at 13px the two glyphs differ only in shape, so
- * landed work read as a green CI run.
+ * borrow `success`: that tone also identifies open PRs, and at 13px shape alone does not reliably distinguish them.
  */
 export type SessionPullRequestTone = SessionActivityPresentation['tone'] | 'merged';
 
 export interface SessionPullRequestPresentation {
     ariaLabel: string;
+    checksLabel?: string;
+    checksTone?: 'danger' | 'warning' | 'success';
     /**
      * Short status word shown beside the PR number in the hover card.
      */
@@ -32,11 +33,8 @@ const STATE_LABELS: Record<SessionPullRequest['state'], string> = {
 };
 
 /**
- * Projects a Session's pull request onto the sidebar glyph. The state lives in the glyph shape so a failing check on an
- * open PR (danger tone) never reads as "closed". Color is the second, faster channel: merged takes its own violet after
- * sharing `success` with a passing CI run made landed work unreadable at glyph size, matching the merged-is-purple
- * convention GitHub established. CI tone overrides only while the PR is still open, as in Codex, Orca, Synara, and
- * Paseo.
+ * Keeps lifecycle color independent of CI: a red open glyph was mistaken for a closed PR at sidebar size. Checks use a
+ * hover-card text; terminal lifecycle states suppress stale checks. Project-level failures belong to the Status tab.
  */
 export function sessionPullRequestPresentation(
     pullRequest: SessionPullRequest,
@@ -56,14 +54,18 @@ export function sessionPullRequestPresentation(
                     ariaLabel: `${base}, checks failing.`,
                     icon: 'open',
                     label,
-                    tone: 'danger',
+                    tone: 'success',
+                    checksLabel: 'Checks failing',
+                    checksTone: 'danger',
                 };
             if (pullRequest.checks === 'pending')
                 return {
                     ariaLabel: `${base}, checks running.`,
                     icon: 'open',
                     label,
-                    tone: 'warning',
+                    tone: 'success',
+                    checksLabel: 'Checks running',
+                    checksTone: 'warning',
                 };
             if (pullRequest.checks === 'success')
                 return {
@@ -71,8 +73,10 @@ export function sessionPullRequestPresentation(
                     icon: 'open',
                     label,
                     tone: 'success',
+                    checksLabel: 'Checks passing',
+                    checksTone: 'success',
                 };
-            return { ariaLabel: `${base}.`, icon: 'open', label, tone: 'neutral' };
+            return { ariaLabel: `${base}.`, icon: 'open', label, tone: 'success' };
         }
     }
 }

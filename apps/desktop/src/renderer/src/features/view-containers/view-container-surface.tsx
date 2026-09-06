@@ -89,12 +89,14 @@ function CatalogIcon({ icon }: { icon: ViewIcon }) {
 
 export function ViewContainerSurface({
     ariaLabel,
+    badges,
     desiredId,
     location,
     onSelect,
     trailing,
 }: {
     ariaLabel: string;
+    badges?: Readonly<Record<string, { text: string; description: string } | undefined>>;
     desiredId?: ViewContainerId;
     location: ViewContainerLocation;
     onSelect: (id: ViewContainerId) => void;
@@ -124,6 +126,7 @@ export function ViewContainerSurface({
     const tabs = containers.map((container) => ({
         value: container.id,
         label: container.title,
+        description: badges?.[container.id]?.description,
         // SecondarySidebar tabs are icon-only (the title lives in the tooltip); Panel tabs keep their inline label.
         content:
             location === 'panel' ? (
@@ -132,7 +135,18 @@ export function ViewContainerSurface({
                     <span data-slot="chrome-tab-label">{container.title}</span>
                 </>
             ) : (
-                <CatalogIcon icon={container.icon} />
+                <span className="relative flex size-4 items-center justify-center">
+                    <CatalogIcon icon={container.icon} />
+                    {badges?.[container.id] && (
+                        <span
+                            aria-hidden="true"
+                            className="absolute -right-2 -bottom-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-danger px-1 text-[10px] leading-none font-semibold text-danger-foreground ring-2 ring-surface"
+                            data-view-container-badge={container.id}
+                        >
+                            {badges[container.id]?.text}
+                        </span>
+                    )}
+                </span>
             ),
     }));
     return (
@@ -161,7 +175,11 @@ export function ViewContainerSurface({
                                   return (
                                       <ContainerTabTooltip
                                           commandId={container.commandId}
-                                          title={container.title}
+                                          title={
+                                              badges?.[container.id]
+                                                  ? `${container.title}: ${badges[container.id]?.description}`
+                                                  : container.title
+                                          }
                                           triggerId={`${idPrefix}-tab-${container.id}`}
                                       >
                                           {tab}
