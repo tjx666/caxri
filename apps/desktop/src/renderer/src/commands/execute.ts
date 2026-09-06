@@ -157,6 +157,8 @@ const commandContext: CommandContext = {
     terminal: {
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         create: () => void createTerminal('shell'),
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        createInSplit: () => void createTerminal('shell', { split: 'right' }),
         clearActive: () => {
             const terminalId = activeTerminalId();
             if (terminalId) clearActiveTerminal(terminalId);

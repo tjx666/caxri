@@ -183,6 +183,86 @@ test('Command+K/T/W affect only the active Terminal and pause behind modals', as
     }
 });
 
+test('Cmd+Backslash opens fresh Terminals in right panes and keeps the newest pane focused', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-split-shortcut-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', root]);
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    try {
+        await createShellSession(running.page);
+        const firstTerminalId = (await terminalIds(running.page))[0];
+
+        const beforeSecondSplit = await terminalIds(running.page);
+        await running.page.keyboard.press('Meta+\\');
+        const secondTerminalId = await waitForNewTerminalId(running.page, beforeSecondSplit);
+        await expect(running.page.locator('.workbench-pane')).toHaveCount(2);
+        await expect(
+            running.page.locator(
+                `.terminal-pane[data-terminal-id="${secondTerminalId}"] .terminal-surface[data-terminal-attached="true"]`,
+            ),
+        ).toBeVisible();
+        await expect(
+            running.page
+                .locator('.workbench-pane')
+                .nth(0)
+                .locator(`.terminal-pane[data-terminal-id="${firstTerminalId}"]`),
+        ).toBeVisible();
+        await expect(
+            running.page
+                .locator('.workbench-pane')
+                .nth(1)
+                .locator(`.terminal-pane[data-terminal-id="${secondTerminalId}"]`),
+        ).toBeVisible();
+        await expect(
+            running.page.locator(
+                `.terminal-pane[data-terminal-id="${secondTerminalId}"] .xterm-helper-textarea`,
+            ),
+        ).toBeFocused();
+
+        const beforeThirdSplit = await terminalIds(running.page);
+        await running.page.keyboard.press('Meta+\\');
+        const thirdTerminalId = await waitForNewTerminalId(running.page, beforeThirdSplit);
+        await expect(running.page.locator('.workbench-pane')).toHaveCount(3);
+        await expect(
+            running.page.locator(
+                `.terminal-pane[data-terminal-id="${thirdTerminalId}"] .terminal-surface[data-terminal-attached="true"]`,
+            ),
+        ).toBeVisible();
+        await expect(
+            running.page
+                .locator('.workbench-pane')
+                .nth(0)
+                .locator(`.terminal-pane[data-terminal-id="${firstTerminalId}"]`),
+        ).toBeVisible();
+        await expect(
+            running.page
+                .locator('.workbench-pane')
+                .nth(1)
+                .locator(`.terminal-pane[data-terminal-id="${secondTerminalId}"]`),
+        ).toBeVisible();
+        await expect(
+            running.page
+                .locator('.workbench-pane')
+                .nth(2)
+                .locator(`.terminal-pane[data-terminal-id="${thirdTerminalId}"]`),
+        ).toBeVisible();
+        await expect(
+            running.page.locator(
+                `.terminal-pane[data-terminal-id="${thirdTerminalId}"] .xterm-helper-textarea`,
+            ),
+        ).toBeFocused();
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
 /**
  * `Cmd+T` immediately followed by `Cmd+W` can send a layout write that still carries the Terminal the very next command
  * deletes. Whether the two round-trips actually interleave that way depends on machine load — it reproduced on CI's
