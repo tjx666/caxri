@@ -50,6 +50,7 @@ describe('Caxri uninstaller', () => {
         ).toEqual({
             apply: false,
             archiveRootPath: '/Users/example/code/caxri-uninstall-archives',
+            environmentVariables: {},
             homeDirectory: '/Users/example',
             includeDevProfiles: true,
             profilePath: '/Users/example/Library/Application Support/Caxri',
@@ -76,6 +77,7 @@ describe('Caxri uninstaller', () => {
         ).toEqual({
             apply: true,
             archiveRootPath: '/Users/example/code/caxri-uninstall-archives',
+            environmentVariables: {},
             homeDirectory: '/Users/example',
             includeDevProfiles: false,
             profilePath: '/tmp/caxri-profile',
@@ -392,6 +394,142 @@ describe('Caxri uninstaller', () => {
 
         expect(signalProcess).toHaveBeenCalledWith(4242, 'SIGTERM');
         expect(await readFile(join(profile, 'caxri.db'), 'utf8')).toBe('fixture');
+    });
+
+    it('copies only the provider config relocation variables into the options', () => {
+        expect(
+            parseUninstallArguments(
+                [],
+                { CLAUDE_CONFIG_DIR: 'claude-config', CODEX_HOME: '/opt/codex', HOME: '/x' },
+                '/Users/example',
+                '/Users/example/code/caxri',
+            ),
+        ).toMatchObject({
+            environmentVariables: { CLAUDE_CONFIG_DIR: 'claude-config', CODEX_HOME: '/opt/codex' },
+        });
+    });
+
+    it('strips Caxri-owned Agent hooks from provider configs and keeps foreign hooks', async () => {
+        const { home, options } = await fixture();
+        const bridge = `'${join(home, 'Library', 'Application Support', 'caxri', 'agent-hooks', 'bin', 'caxri-agent-hook-bridge')}'`;
+        // CLAUDE_CONFIG_DIR relocates the Claude config relative to the home directory.
+        const claudeSettings = join(home, 'claude-config', 'settings.json');
+        const codexHooks = join(home, '.codex', 'hooks.json');
+        await mkdir(join(home, 'claude-config'), { recursive: true });
+        await mkdir(join(home, '.codex'), { recursive: true });
+        await writeFile(
+            claudeSettings,
+            `${JSON.stringify(
+                {
+                    hooks: {
+                        PostToolUse: [
+                            {
+                                matcher: '^Bash$',
+                                hooks: [
+                                    { type: 'command', command: 'bun ~/.claude/hooks/checks.js' },
+                                    {
+                                        type: 'command',
+                                        command: `${bridge} --source caxri --provider claude --phase shellToolFinished --schema 99`,
+                                        timeout: 5,
+                                    },
+                                ],
+                            },
+                        ],
+                        Stop: [
+                            {
+                                hooks: [
+                                    {
+                                        type: 'command',
+                                        command: `${bridge} --source caxri --provider claude --phase turnFinished --schema 99`,
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                    model: 'opus',
+                },
+                null,
+                2,
+            )}\n`,
+            { mode: 0o644 },
+        );
+        await writeFile(
+            codexHooks,
+            `${JSON.stringify({
+                hooks: {
+                    Stop: [
+                        {
+                            hooks: [
+                                {
+                                    type: 'command',
+                                    command: `${bridge} --source caxri --provider codex --phase turnFinished --schema 8`,
+                                },
+                            ],
+                        },
+                    ],
+                },
+            })}\n`,
+            'utf8',
+        );
+        const withHooks = {
+            ...options,
+            environmentVariables: { CLAUDE_CONFIG_DIR: 'claude-config' },
+            removeGlobalCli: false,
+        };
+
+        const preview = await uninstallCaxri(withHooks, {
+            inspectPathOwner: () => Promise.resolve(undefined),
+        });
+        expect(preview).toMatchObject({
+            applied: false,
+            cleanedHookConfigs: [],
+            hookConfigs: [claudeSettings, codexHooks],
+        });
+        expect(JSON.parse(await readFile(claudeSettings, 'utf8'))).toHaveProperty('hooks.Stop');
+
+        const result = await uninstallCaxri(
+            { ...withHooks, apply: true },
+            { inspectPathOwner: () => Promise.resolve(undefined) },
+        );
+        expect(result).toMatchObject({
+            cleanedHookConfigs: [claudeSettings, codexHooks],
+            failedTargets: [],
+            hookConfigs: [claudeSettings, codexHooks],
+        });
+        // The newer-schema guard the running manager honours does not stop an explicit uninstall (schema 99 above).
+        expect(JSON.parse(await readFile(claudeSettings, 'utf8'))).toEqual({
+            hooks: {
+                PostToolUse: [
+                    {
+                        matcher: '^Bash$',
+                        hooks: [{ type: 'command', command: 'bun ~/.claude/hooks/checks.js' }],
+                    },
+                ],
+            },
+            model: 'opus',
+        });
+        expect((await lstat(claudeSettings)).mode & 0o777).toBe(0o644);
+        expect(JSON.parse(await readFile(codexHooks, 'utf8'))).toEqual({});
+    });
+
+    it('leaves provider configs without Caxri hooks untouched', async () => {
+        const { home, options } = await fixture();
+        const claudeSettings = join(home, '.claude', 'settings.json');
+        await mkdir(join(home, '.claude'), { recursive: true });
+        const original = `${JSON.stringify({
+            hooks: { Stop: [{ hooks: [{ type: 'command', command: 'say done' }] }] },
+        })}\n`;
+        await writeFile(claudeSettings, original, 'utf8');
+        const replaceTextFile = vi.fn();
+
+        const result = await uninstallCaxri(
+            { ...options, apply: true, removeGlobalCli: false },
+            { inspectPathOwner: () => Promise.resolve(undefined), replaceTextFile },
+        );
+
+        expect(result).toMatchObject({ cleanedHookConfigs: [], hookConfigs: [] });
+        expect(replaceTextFile).not.toHaveBeenCalled();
+        expect(await readFile(claudeSettings, 'utf8')).toBe(original);
     });
 
     it('reports individual move failures and continues recoverable cleanup', async () => {

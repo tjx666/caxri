@@ -70,4 +70,5 @@ Preview the pre-release local reset/uninstall plan with `bun run uninstall:caxri
 after explicit authorization with `bun run uninstall:caxri -- --yes`. The command archives known
 Caxri installation state, application paths, and managed development profiles beneath the primary
 checkout's sibling `../caxri-uninstall-archives`, records every original path in `manifest.json`,
-and never targets Project folders or user files.
+strips Caxri-owned Agent hook entries from the Claude Code and Codex hook configs (foreign hooks
+stay), and never targets Project folders or user files.
