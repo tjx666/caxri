@@ -252,7 +252,14 @@ test('extension fixture lazily activates a bounded virtualized keyboard tree', a
         ).toBeVisible();
         await providerError.click();
         await expect(providerError).toHaveAttribute('aria-expanded', 'false');
-        await alpha.focus();
+        /**
+         * The error row scrolls Alpha outside the virtual window. Use tree navigation to reveal it before checking
+         * selection; focusing an unmounted row cannot scroll it into existence.
+         */
+        await providerError.press('Home');
+        await expect(lazy).toBeFocused();
+        await lazy.press('ArrowDown');
+        await expect(alpha).toBeFocused();
         await expect(alpha).toHaveAttribute('aria-selected', 'true');
 
         const firstSession = await pageRequest<{ selectedSessionId: string }>(

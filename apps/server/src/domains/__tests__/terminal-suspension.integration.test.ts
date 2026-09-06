@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { TerminalKind } from '@caxri/protocol';
+import { defaultAgentProviderSettings } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import Database from 'better-sqlite3';
 import type { spawn as spawnPty } from 'node-pty';
@@ -110,7 +111,11 @@ describe('background Agent suspension', () => {
             await domains.handlers['session.select']({ sessionId: first.session.id });
             await vi.waitFor(() => expect(runtime.spawnSpy).toHaveBeenCalledTimes(3));
             const resumed = runtime.start.mock.calls.at(-1)?.[0].agent;
-            expect(resumed?.args).toEqual(['--resume', 'claude-session-1']);
+            expect(resumed?.args).toEqual([
+                ...defaultAgentProviderSettings.claude.launch.args,
+                '--resume',
+                'claude-session-1',
+            ]);
             await vi.waitFor(async () => {
                 const record = await terminalRecord();
                 expect(record?.lastProcessState).toBe('running');
@@ -167,7 +172,11 @@ describe('background Agent suspension', () => {
             await domains.handlers['session.resume']({ sessionId: first.session.id });
             await vi.waitFor(() => expect(runtime.spawnSpy).toHaveBeenCalledTimes(3));
             const resumed = runtime.start.mock.calls.at(-1)?.[0].agent;
-            expect(resumed?.args).toEqual(['--resume', 'claude-session-2']);
+            expect(resumed?.args).toEqual([
+                ...defaultAgentProviderSettings.claude.launch.args,
+                '--resume',
+                'claude-session-2',
+            ]);
             await vi.waitFor(async () => {
                 const record = await terminalRecord();
                 expect(record?.lastProcessState).toBe('running');

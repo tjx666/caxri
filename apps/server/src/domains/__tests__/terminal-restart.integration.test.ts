@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { AgentProvider } from '@caxri/protocol';
+import { defaultAgentProviderSettings } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import type { spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -100,7 +101,10 @@ describe('Agent Terminal restart', () => {
                     agent: {
                         provider,
                         executable: `/usr/local/bin/${provider}`,
-                        args: resumeArguments,
+                        args: [
+                            ...defaultAgentProviderSettings[provider].launch.args,
+                            ...resumeArguments,
+                        ],
                     },
                 });
                 const bootstrap = await runtime.handlers['app.bootstrap']({});
@@ -166,7 +170,7 @@ describe('Agent Terminal restart', () => {
                 agent: {
                     provider: 'codex',
                     executable: '/usr/local/bin/codex',
-                    args: [],
+                    args: defaultAgentProviderSettings.codex.launch.args,
                 },
             });
             const bootstrap = await runtime.handlers['app.bootstrap']({});

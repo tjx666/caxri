@@ -3,7 +3,7 @@ import { homedir, tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 
 import type { ServerEvent, TerminalKind } from '@caxri/protocol';
-import { listPaneTerminalIds } from '@caxri/protocol';
+import { defaultAgentProviderSettings, listPaneTerminalIds } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import type { spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -474,7 +474,10 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
                 expect(spawnSpy.mock.calls[0]?.[0]).toBe('/bin/zsh');
                 const agent = start.mock.calls[0]?.[0].agent;
                 expect(agent?.executable).toBe(`/usr/local/bin/${provider}`);
-                expect(agent?.args).toEqual(resumeArguments);
+                expect(agent?.args).toEqual([
+                    ...defaultAgentProviderSettings[provider].launch.args,
+                    ...resumeArguments,
+                ]);
                 const bootstrap = await vi.waitFor(async () => {
                     const state = await domainsB.handlers['app.bootstrap']({});
                     const terminal = state.terminals.find(
@@ -599,7 +602,9 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
             await vi.waitFor(() => expect(freshSpawnSpy).toHaveBeenCalled());
             expect(freshSpawnSpy.mock.calls[0]?.[0]).toBe('/bin/zsh');
             expect(start.mock.calls[0]?.[0].agent?.executable).toBe('/usr/local/bin/claude');
-            expect(start.mock.calls[0]?.[0].agent?.args).toEqual([]);
+            expect(start.mock.calls[0]?.[0].agent?.args).toEqual(
+                defaultAgentProviderSettings.claude.launch.args,
+            );
             await domainsB.handlers['terminal.terminateAll']({});
             const afterTerminate = await domainsB.handlers['app.bootstrap']({});
             expect(

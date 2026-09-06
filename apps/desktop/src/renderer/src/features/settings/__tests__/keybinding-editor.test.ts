@@ -50,7 +50,11 @@ describe('keybinding rows', () => {
     });
 
     it('searches title, command ID, category, raw shortcut, and formatted shortcut', () => {
-        expect(filterKeybindingRows(rows, 'new terminal')).toHaveLength(2);
+        expect(filterKeybindingRows(rows, 'new terminal').map((row) => row.command)).toEqual([
+            'terminal.new',
+            'terminal.new',
+            'terminal.newInSplit',
+        ]);
         expect(filterKeybindingRows(rows, 'custom.dothing')).toHaveLength(1);
         expect(filterKeybindingRows(rows, 'project')).not.toHaveLength(0);
         expect(filterKeybindingRows(rows, 'cmd+shift+t')).toHaveLength(1);

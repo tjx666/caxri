@@ -761,7 +761,9 @@ test('primarySidebar omits Settings and Search while shortcuts and app menu keep
         await expect(paletteSearch).toBeFocused();
         await expect(palette.getByRole('button', { name: 'Close' })).toHaveCount(0);
         await paletteSearch.fill('new terminal');
-        const terminalCommand = palette.getByRole('option').filter({ hasText: 'New Terminal' });
+        const terminalCommand = palette.getByRole('option').filter({
+            has: running.page.getByText('New Terminal', { exact: true }),
+        });
         await expect(terminalCommand).toBeVisible();
         await expect(terminalCommand.locator('kbd')).toHaveText(['⌘', 'T']);
         await running.page.keyboard.press('Escape');
