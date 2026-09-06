@@ -609,6 +609,7 @@ async function main(): Promise<void> {
                     // stop-electron completes this launch's receipt when this launcher cannot (#611).
                     acceptanceCase: {
                         ...acceptanceCase,
+                        agentFixtureLaunchId,
                         lifecycleLaunchId,
                         reportDirectory: plannedCase.directory,
                     },

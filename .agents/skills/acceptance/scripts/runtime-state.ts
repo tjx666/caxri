@@ -13,6 +13,11 @@ const PROCESS_PROBE_TIMEOUT_MS = 2_000;
 const PROCESS_QUERY_EXECUTABLE = '/bin/ps';
 const acceptanceCaseModeSchema = z.enum(['isolated', 'restart']);
 const acceptanceCaseSchema = z.object({
+    /**
+     * Launch entry inside the case's Agent fixture receipt, when the case runs a fake Agent fixture. Persisted so
+     * `stop-electron.ts` can record the fixture's deferred profile cleanup next to the lifecycle receipt's.
+     */
+    agentFixtureLaunchId: z.string().min(1).optional(),
     id: z.string().min(1),
     /**
      * Launch entry inside the case's state-isolation receipt. Persisted so `stop-electron.ts` can complete the receipt

@@ -35,6 +35,7 @@ function dependencies(overrides: Partial<StopElectronDependencies> = {}): StopEl
         now: () => 0,
         projectRoot: '/repo',
         readRuntime: vi.fn().mockResolvedValue(JSON.stringify(runtime)),
+        recordDeferredAgentFixtureCleanup: vi.fn().mockResolvedValue('already_completed'),
         removeOwnedUserData: vi.fn().mockResolvedValue(undefined),
         runtimePath: '/repo/.records/acceptance/runtime.json',
         sleep: vi.fn().mockResolvedValue(undefined),
@@ -402,6 +403,7 @@ describe('Acceptance Electron stopper', () => {
                             ? runtime.acceptanceCase
                             : {
                                   ...runtime.acceptanceCase,
+                                  agentFixtureLaunchId: 'fixture-launch-1',
                                   lifecycleLaunchId: 'launch-1',
                                   reportDirectory: '/repo/.records/acceptance/round-1',
                               },
@@ -591,6 +593,17 @@ describe('Acceptance Electron stopper', () => {
                 'Recorded deferred profile cleanup for Acceptance case stop-case',
             ),
         );
+        expect(deps.recordDeferredAgentFixtureCleanup).toHaveBeenCalledWith(
+            '/repo/.records/acceptance/round-1',
+            { caseId: 'stop-case', launchId: 'fixture-launch-1', source: 'stop-electron' },
+        );
+    });
+
+    it('leaves the Agent fixture receipt alone when the profile could not be verified removed', async () => {
+        const { deps, run } = launcherScenario({ launcherExitsAt: 0 });
+        vi.mocked(deps.isOwnedUserDataRemoved).mockResolvedValue(false);
+        await run();
+        expect(deps.recordDeferredAgentFixtureCleanup).not.toHaveBeenCalled();
     });
 
     it('says so when runtime state records no receipt ownership instead of skipping silently', async () => {

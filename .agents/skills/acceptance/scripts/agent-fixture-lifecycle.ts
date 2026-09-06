@@ -10,6 +10,11 @@ import { errorCode, validateExistingReportDirectory, writeJsonAtomically } from 
 const agentFixtureLaunchSchema = z.object({
     cleanupCompleted: z.boolean(),
     completedAt: z.string().nullable(),
+    /**
+     * Present when the launcher completed this launch with the fixture root still on disk and `stop-electron.ts`
+     * removed the owning profile afterwards; mirrors the lifecycle receipt's `deferredCleanup` marker.
+     */
+    deferredCleanup: z.object({ reason: z.string().min(1), source: z.string().min(1) }).optional(),
     id: z.string().min(1),
     startedAt: z.string(),
 });
@@ -103,6 +108,32 @@ export async function completeAgentFixtureLifecycle(
     }
     launch.completedAt = completedAt;
     await writeJsonAtomically(path, receipt);
+}
+
+/**
+ * Records that the profile owning this fixture root was removed after the launcher had already completed the launch
+ * honestly with `cleanupCompleted: false` (a detached Server generation still held the profile). The fixture root lives
+ * inside the isolated profile, so the caller's verified profile removal covers it. Returns `already_completed` when
+ * there is nothing to amend so a repeated stop stays idempotent.
+ */
+export async function recordDeferredAgentFixtureCleanup(
+    reportDirectory: string,
+    input: { caseId: string; launchId: string; source: string },
+): Promise<'cleanup_recorded' | 'already_completed' | 'pending'> {
+    const directory = await validateExistingReportDirectory(reportDirectory);
+    const path = join(directory, agentFixtureEvidencePath(input.caseId));
+    const receipt = await readAgentFixtureReceipt(path);
+    const launch = receipt.launches.find(({ id }) => id === input.launchId);
+    if (!launch) throw new Error('Acceptance Agent fixture launch is not recorded');
+    if (!launch.completedAt) return 'pending';
+    if (launch.cleanupCompleted) return 'already_completed';
+    launch.cleanupCompleted = true;
+    launch.deferredCleanup = {
+        reason: `${input.source} verified the owning profile was removed after the launcher completed its receipt`,
+        source: input.source,
+    };
+    await writeJsonAtomically(path, agentFixtureReceiptSchema.parse(receipt));
+    return 'cleanup_recorded';
 }
 
 export async function validateAgentFixtureEvidence(
