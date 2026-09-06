@@ -36,7 +36,7 @@ describe('isRowModified', () => {
         const naming = { type: 'provider-toggle', provider: 'codex', field: 'naming' } as const;
         expect(isRowModified(naming, { settings: current })).toBe(false);
         current['agents.providers'] = withProviderField(current, 'codex', {
-            naming: { enabled: true },
+            naming: { enabled: !current['agents.providers'].codex.naming.enabled },
         });
         expect(isRowModified(naming, { settings: current })).toBe(true);
 

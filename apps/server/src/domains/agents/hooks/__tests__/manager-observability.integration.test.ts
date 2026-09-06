@@ -30,6 +30,8 @@ describe('AgentHookManager observability', () => {
         const codexHome = join(directory, 'codex');
         const settings = structuredClone(defaultAgentProviderSettings);
         settings.codex.hooks.enabled = true;
+        // Only Codex is under observation; keep the Claude default from adding a second install write.
+        settings.claude.hooks.enabled = false;
         const signals = vi.fn<(signal: AgentLifecycleSignal) => AgentSignalDecision>(
             () => 'accepted',
         );
@@ -41,6 +43,7 @@ describe('AgentHookManager observability', () => {
             onLaunchEnded: vi.fn(),
             onLaunchStarted: vi.fn(),
             onSignal: signals,
+            discoverExecutable: () => Promise.resolve(process.execPath),
             hookExecutable: process.execPath,
             send: vi.fn(),
             sharedPath: join(directory, 'shared'),
@@ -172,6 +175,7 @@ describe('AgentHookManager observability', () => {
             onLaunchEnded: vi.fn(),
             onLaunchStarted: vi.fn(),
             onSignal: vi.fn(() => 'accepted' as const),
+            discoverExecutable: () => Promise.resolve(process.execPath),
             hookExecutable: process.execPath,
             send: vi.fn(),
             sharedPath: join(directory, 'shared'),

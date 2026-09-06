@@ -53,6 +53,7 @@ describe('AgentHookManager', () => {
             onLaunchEnded: vi.fn(),
             onLaunchStarted: vi.fn(),
             onSignal: vi.fn(() => 'accepted' as const),
+            discoverExecutable: () => Promise.resolve(process.execPath),
             hookExecutable: process.execPath,
             send: vi.fn(),
             sharedPath: join(directory, 'shared'),
@@ -94,6 +95,7 @@ describe('AgentHookManager', () => {
                 onLaunchEnded: vi.fn(),
                 onLaunchStarted: vi.fn(),
                 onSignal: vi.fn(() => 'accepted' as const),
+                discoverExecutable: () => Promise.resolve(process.execPath),
                 hookExecutable: process.execPath,
                 send: vi.fn(),
                 sharedPath,
@@ -151,6 +153,7 @@ describe('AgentHookManager', () => {
                 onLaunchEnded: vi.fn(),
                 onLaunchStarted: vi.fn(),
                 onSignal: vi.fn(() => 'accepted' as const),
+                discoverExecutable: () => Promise.resolve(process.execPath),
                 hookExecutable: process.execPath,
                 send: vi.fn(),
                 sharedPath,
@@ -178,6 +181,56 @@ describe('AgentHookManager', () => {
         }
     });
 
+    it('waits for a missing provider CLI instead of writing into its configuration', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-hooks-missing-cli-'));
+        temporaryDirectories.push(directory);
+        const codexHome = join(directory, 'codex');
+        const claudeHome = join(directory, '.claude');
+        const settings = structuredClone(defaultAgentProviderSettings);
+        settings.codex.hooks.enabled = true;
+        settings.claude.hooks.enabled = true;
+        const discovered: string[] = [];
+        const manager = new AgentHookManager({
+            environment: { homeDirectory: directory, variables: { CODEX_HOME: codexHome } },
+            logger: new StructuredLogger(join(directory, 'logs')),
+            onAuthorityLost: vi.fn(),
+            onLaunchEnded: vi.fn(),
+            onLaunchStarted: vi.fn(),
+            onSignal: vi.fn(() => 'accepted' as const),
+            discoverExecutable: (provider, executable) => {
+                discovered.push(`${provider}:${executable}`);
+                return Promise.resolve(provider === 'claude' ? process.execPath : undefined);
+            },
+            hookExecutable: process.execPath,
+            send: vi.fn(),
+            sharedPath: join(directory, 'shared'),
+            userDataPath: join(directory, 'profile'),
+        });
+
+        try {
+            await manager.initialize(settings);
+
+            expect(discovered).toEqual(expect.arrayContaining(['codex:codex', 'claude:claude']));
+            expect(await readHooks(join(claudeHome, 'settings.json'))).toHaveProperty('Stop');
+            await expect(lstat(join(codexHome, 'hooks.json'))).rejects.toMatchObject({
+                code: 'ENOENT',
+            });
+            expect(manager.getHealth().codex).toEqual({
+                kind: 'notInstalled',
+                message: 'Install the Codex CLI, then restart Caxri.',
+            });
+            expect(manager.getHealth().claude.kind).toBe('installedPending');
+            const registry = JSON.parse(
+                await readFile(join(directory, 'shared', 'profile-intents.json'), 'utf8'),
+            ) as { profiles: Record<string, { providers: string[] }> };
+            expect(Object.values(registry.profiles).flatMap((entry) => entry.providers)).toEqual([
+                'claude',
+            ]);
+        } finally {
+            await manager.close();
+        }
+    });
+
     it('does not reconcile unchanged provider files every second', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-hooks-steady-state-'));
         temporaryDirectories.push(directory);
@@ -196,6 +249,7 @@ describe('AgentHookManager', () => {
             onLaunchEnded: vi.fn(),
             onLaunchStarted: vi.fn(),
             onSignal: vi.fn(() => 'accepted' as const),
+            discoverExecutable: () => Promise.resolve(process.execPath),
             hookExecutable: process.execPath,
             send: vi.fn(),
             sharedPath: join(directory, 'shared'),
@@ -237,6 +291,7 @@ describe('AgentHookManager', () => {
                 onLaunchEnded: vi.fn(),
                 onLaunchStarted: vi.fn(),
                 onSignal: vi.fn(() => 'accepted' as const),
+                discoverExecutable: () => Promise.resolve(process.execPath),
                 hookExecutable: process.execPath,
                 send: vi.fn(),
                 sharedPath,
@@ -284,6 +339,7 @@ describe('AgentHookManager', () => {
             onLaunchEnded: vi.fn(),
             onLaunchStarted: launches,
             onSignal: signals,
+            discoverExecutable: () => Promise.resolve(process.execPath),
             hookExecutable: process.execPath,
             send: (event) => {
                 events.push(event);
@@ -503,6 +559,7 @@ describe('AgentHookManager', () => {
             onLaunchEnded: vi.fn(),
             onLaunchStarted: vi.fn(),
             onSignal: vi.fn(() => 'accepted' as const),
+            discoverExecutable: () => Promise.resolve(process.execPath),
             hookExecutable: process.execPath,
             send: vi.fn(),
             sharedPath: join(directory, 'shared'),
@@ -540,6 +597,7 @@ describe('AgentHookManager', () => {
             onLaunchEnded: vi.fn(),
             onLaunchStarted: vi.fn(),
             onSignal: vi.fn(() => 'accepted' as const),
+            discoverExecutable: () => Promise.resolve(process.execPath),
             hookExecutable: process.execPath,
             send: vi.fn(),
             sharedPath: join(directory, 'shared'),
@@ -596,6 +654,7 @@ describe('AgentHookManager', () => {
             onLaunchEnded: vi.fn(),
             onLaunchStarted: vi.fn(),
             onSignal: vi.fn(() => 'accepted' as const),
+            discoverExecutable: () => Promise.resolve(process.execPath),
             hookExecutable: process.execPath,
             send: vi.fn(),
             sharedPath: join(directory, 'shared'),
@@ -635,6 +694,7 @@ describe('AgentHookManager', () => {
             onLaunchEnded: vi.fn(),
             onLaunchStarted: vi.fn(),
             onSignal: vi.fn(() => 'accepted' as const),
+            discoverExecutable: () => Promise.resolve(process.execPath),
             hookExecutable: process.execPath,
             send: vi.fn(),
             sharedPath: join(directory, 'shared'),
@@ -692,6 +752,7 @@ describe('AgentHookManager', () => {
             onLaunchEnded: vi.fn(),
             onLaunchStarted: vi.fn(),
             onSignal: vi.fn(() => 'accepted' as const),
+            discoverExecutable: () => Promise.resolve(process.execPath),
             hookExecutable: process.execPath,
             send: vi.fn(),
             sharedPath: join(directory, 'shared'),
