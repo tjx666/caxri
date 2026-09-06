@@ -45,11 +45,11 @@ describe('ConfigurationService', () => {
         expect(service.getSettings().value).toMatchObject({
             'agents.providers': {
                 claude: {
-                    hooks: { enabled: false },
+                    hooks: { enabled: true },
                     launch: { executable: 'claude', args: [] },
                 },
                 codex: {
-                    hooks: { enabled: false },
+                    hooks: { enabled: true },
                     launch: { executable: 'codex', args: [] },
                 },
             },

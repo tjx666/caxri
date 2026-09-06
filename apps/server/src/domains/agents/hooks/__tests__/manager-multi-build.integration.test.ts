@@ -57,6 +57,7 @@ describe('AgentHookManager across concurrently running Caxri builds', () => {
                 onLaunchEnded: vi.fn(),
                 onLaunchStarted: vi.fn(),
                 onSignal: signals,
+                discoverExecutable: () => Promise.resolve(process.execPath),
                 hookExecutable: process.execPath,
                 schemaVersions: { codex: schemaVersion },
                 send: vi.fn(),

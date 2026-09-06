@@ -19,6 +19,7 @@ export const logEventCatalog = {
     agentHooks: {
         bridgeStarted: 'agent_hooks.bridge_started',
         configWritten: 'agent_hooks.config_written',
+        executableMissing: 'agent_hooks.executable_missing',
         healthChanged: 'agent_hooks.health_changed',
         initializeFailed: 'agent_hooks.initialize_failed',
         launchPrepared: 'agent_hooks.launch_prepared',

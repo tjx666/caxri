@@ -12,7 +12,7 @@ import type {
     AgentProviderSettings,
     ServerEvent,
 } from '@caxri/protocol';
-import { agentProviderIds, errorMessage } from '@caxri/protocol';
+import { agentProviderCatalog, agentProviderIds, errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog, mapWithConcurrency } from '@caxri/system';
 
@@ -32,6 +32,8 @@ import type {
     AgentSignalDecision,
     DesiredHookInstall,
 } from './contract';
+import type { HookExecutableDiscovery } from './executable-gate';
+import { gateHookSettingsOnExecutables } from './executable-gate';
 import { AgentHookServer, pruneStaleAgentHookSockets } from './server';
 import { AgentHookTelemetry } from './telemetry';
 
@@ -65,6 +67,12 @@ interface ProfileHookIntentRegistry {
 }
 
 interface AgentHookManagerOptions {
+    /**
+     * Resolves the provider CLI on this machine. Lifecycle hooks default to enabled, but a provider whose CLI is not
+     * installed must not have Caxri write into its configuration directory or claim it in the shared profile registry:
+     * the setting stays on, the installation simply waits for the CLI to appear.
+     */
+    discoverExecutable: HookExecutableDiscovery;
     environment: AgentEnvironment;
     logger: StructuredLogger;
     onAuthorityLost: (provider: AgentProvider) => void;
@@ -253,9 +261,13 @@ export class AgentHookManager {
     }
 
     private async reconcileNow(
-        settings: Record<AgentProvider, AgentProviderSettings>,
+        requested: Record<AgentProvider, AgentProviderSettings>,
     ): Promise<void> {
         if (this.closed || !this.options.sharedPath || !this.bridgePath) return;
+        const { effective: settings, missing } = await gateHookSettingsOnExecutables(
+            requested,
+            this.options.discoverExecutable,
+        );
         try {
             await this.withInstallLock(async () => {
                 const globallyEnabled = await this.updateProfileIntent(settings);
@@ -274,6 +286,18 @@ export class AgentHookManager {
                 );
             });
             await this.refreshConfigWatchers(settings);
+            for (const provider of missing) {
+                const message = `Install the ${agentProviderCatalog[provider].displayName} CLI, then restart Caxri.`;
+                if (this.health[provider].message !== message)
+                    this.options.logger.write(
+                        'info',
+                        logEventCatalog.agentHooks.executableMissing,
+                        {
+                            fields: { provider },
+                        },
+                    );
+                this.setHealth(provider, { kind: 'notInstalled', message });
+            }
         } catch (error) {
             const message = errorMessage(error, 'Lifecycle hook reconciliation failed');
             for (const provider of agentProviderIds)

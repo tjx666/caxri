@@ -138,9 +138,9 @@ export const defaultAgentProviderSettings = Object.fromEntries(
         provider,
         {
             actions: structuredClone(defaultAgentActionsSettings),
-            hooks: { enabled: false },
+            hooks: { enabled: true },
             messaging: { enabled: true },
-            naming: { enabled: false },
+            naming: { enabled: true },
             pasteSummary: { enabled: true },
             recovery: { ...defaultAgentOutputRecoverySettings, patterns: [] },
             launch: {

@@ -12,6 +12,7 @@ import {
     AgentService,
     createLocalAgentAdapters,
     defaultAgentEnvironment,
+    discoverExecutable,
 } from './agents';
 import type { ConfigService } from './config';
 import type { CaxriDatabase } from './db';
@@ -94,6 +95,7 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
         },
     );
     const agentHooks = new AgentHookManager({
+        discoverExecutable,
         environment: agentEnvironment,
         logger,
         onAuthorityLost: (provider) => coordinator.resetHookAuthority(provider),
