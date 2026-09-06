@@ -65,7 +65,9 @@ describe('Go Acceptance planning contract', () => {
         expect(fileIssueSkill).toContain(
             'Do not apply `unit-testing` or `e2e-testing` merely because a product change requires regression',
         );
-        expect(fileIssueSkill).toContain('Labels do not encode priority');
+        expect(fileIssueSkill).toContain(
+            'Finally apply exactly one priority label — `P0`, `P1`, or `P2`',
+        );
         expect(fileIssueSkill).toContain('verify the complete label set after creation');
     });
 
