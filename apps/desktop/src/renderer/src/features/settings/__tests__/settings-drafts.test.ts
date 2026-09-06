@@ -118,7 +118,7 @@ describe('parseConfigSource', () => {
         expect(result.value['terminal.scrollback']).toBe(2000);
         expect(result.value['terminal.gpuAcceleration']).toBe('off');
         expect(result.value['agents.providers'].claude.launch.executable).toBe('claude');
-        expect(result.value['agents.providers'].claude.hooks.enabled).toBe(false);
+        expect(result.value['agents.providers'].claude.hooks.enabled).toBe(true);
     });
 
     it('rejects unsupported Terminal GPU acceleration values', () => {

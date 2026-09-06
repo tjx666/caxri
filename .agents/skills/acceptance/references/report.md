@@ -170,8 +170,11 @@ profile. The lifecycle receipt preserves every attempt; finalization accepts the
 at least one launch became ready and every attempt completed cleanup.
 
 A launch the launcher could not complete itself is closed by `stop-electron.ts` with a
-`forcedCompletion` record naming the source and reason. If a launch is still pending after the
-instance is gone, close it with an explicit reason instead of editing the file:
+`forcedCompletion` record naming the source and reason. A launch the launcher completed while a
+detached Server generation still held the profile records `cleanupCompleted: false` honestly; once
+`stop-electron.ts` removes that profile it records `cleanupCompleted: true` with a `deferredCleanup`
+marker (and the same marker on the case's Agent fixture receipt), so finalization accepts the case. If a launch is still pending after the instance is gone,
+close it with an explicit reason instead of editing the file:
 
 ```bash
 bun run .agents/skills/acceptance/scripts/report.ts repair-lifecycle \

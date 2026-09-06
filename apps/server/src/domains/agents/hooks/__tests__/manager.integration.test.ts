@@ -11,7 +11,6 @@ import { defaultAgentProviderSettings } from '@caxri/protocol';
 import { execFileAsync, StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { claudeHookAdapter } from '../../providers/claude/hooks';
 import { codexHookAdapter } from '../../providers/codex/hooks';
 import type { AgentLifecycleSignal, AgentSignalDecision } from '../contract';
 import { AgentHookManager, MAX_AGENT_HOOK_CONFIG_BYTES } from '../manager';
@@ -54,6 +53,7 @@ describe('AgentHookManager', () => {
             onLaunchEnded: vi.fn(),
             onLaunchStarted: vi.fn(),
             onSignal: vi.fn(() => 'accepted' as const),
+            discoverExecutable: () => Promise.resolve(process.execPath),
             hookExecutable: process.execPath,
             send: vi.fn(),
             sharedPath: join(directory, 'shared'),
@@ -95,6 +95,7 @@ describe('AgentHookManager', () => {
                 onLaunchEnded: vi.fn(),
                 onLaunchStarted: vi.fn(),
                 onSignal: vi.fn(() => 'accepted' as const),
+                discoverExecutable: () => Promise.resolve(process.execPath),
                 hookExecutable: process.execPath,
                 send: vi.fn(),
                 sharedPath,
@@ -152,6 +153,7 @@ describe('AgentHookManager', () => {
                 onLaunchEnded: vi.fn(),
                 onLaunchStarted: vi.fn(),
                 onSignal: vi.fn(() => 'accepted' as const),
+                discoverExecutable: () => Promise.resolve(process.execPath),
                 hookExecutable: process.execPath,
                 send: vi.fn(),
                 sharedPath,
@@ -179,6 +181,61 @@ describe('AgentHookManager', () => {
         }
     });
 
+    it('waits for a missing provider CLI instead of writing into its configuration', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-hooks-missing-cli-'));
+        temporaryDirectories.push(directory);
+        const codexHome = join(directory, 'codex');
+        const claudeHome = join(directory, '.claude');
+        const settings = structuredClone(defaultAgentProviderSettings);
+        settings.codex.hooks.enabled = true;
+        settings.claude.hooks.enabled = true;
+        const discovered: string[] = [];
+        const send = vi.fn();
+        const manager = new AgentHookManager({
+            environment: { homeDirectory: directory, variables: { CODEX_HOME: codexHome } },
+            logger: new StructuredLogger(join(directory, 'logs')),
+            onAuthorityLost: vi.fn(),
+            onLaunchEnded: vi.fn(),
+            onLaunchStarted: vi.fn(),
+            onSignal: vi.fn(() => 'accepted' as const),
+            discoverExecutable: (provider, executable) => {
+                discovered.push(`${provider}:${executable}`);
+                return Promise.resolve(provider === 'claude' ? process.execPath : undefined);
+            },
+            hookExecutable: process.execPath,
+            send,
+            sharedPath: join(directory, 'shared'),
+            userDataPath: join(directory, 'profile'),
+        });
+
+        try {
+            await manager.initialize(settings);
+
+            expect(discovered).toEqual(expect.arrayContaining(['codex:codex', 'claude:claude']));
+            // A steady-state reconcile must not flap the missing provider's health or re-announce it.
+            const healthEventsAfterInitialize = send.mock.calls.length;
+            await manager.reconcile(structuredClone(settings));
+            expect(send.mock.calls.length).toBe(healthEventsAfterInitialize);
+            expect(await readHooks(join(claudeHome, 'settings.json'))).toHaveProperty('Stop');
+            await expect(lstat(join(codexHome, 'hooks.json'))).rejects.toMatchObject({
+                code: 'ENOENT',
+            });
+            expect(manager.getHealth().codex).toEqual({
+                kind: 'notInstalled',
+                message: 'Install the Codex CLI, then restart Caxri.',
+            });
+            expect(manager.getHealth().claude.kind).toBe('installedPending');
+            const registry = JSON.parse(
+                await readFile(join(directory, 'shared', 'profile-intents.json'), 'utf8'),
+            ) as { profiles: Record<string, { providers: string[] }> };
+            expect(Object.values(registry.profiles).flatMap((entry) => entry.providers)).toEqual([
+                'claude',
+            ]);
+        } finally {
+            await manager.close();
+        }
+    });
+
     it('does not reconcile unchanged provider files every second', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-hooks-steady-state-'));
         temporaryDirectories.push(directory);
@@ -197,6 +254,7 @@ describe('AgentHookManager', () => {
             onLaunchEnded: vi.fn(),
             onLaunchStarted: vi.fn(),
             onSignal: vi.fn(() => 'accepted' as const),
+            discoverExecutable: () => Promise.resolve(process.execPath),
             hookExecutable: process.execPath,
             send: vi.fn(),
             sharedPath: join(directory, 'shared'),
@@ -238,6 +296,7 @@ describe('AgentHookManager', () => {
                 onLaunchEnded: vi.fn(),
                 onLaunchStarted: vi.fn(),
                 onSignal: vi.fn(() => 'accepted' as const),
+                discoverExecutable: () => Promise.resolve(process.execPath),
                 hookExecutable: process.execPath,
                 send: vi.fn(),
                 sharedPath,
@@ -285,6 +344,7 @@ describe('AgentHookManager', () => {
             onLaunchEnded: vi.fn(),
             onLaunchStarted: launches,
             onSignal: signals,
+            discoverExecutable: () => Promise.resolve(process.execPath),
             hookExecutable: process.execPath,
             send: (event) => {
                 events.push(event);
@@ -311,16 +371,7 @@ describe('AgentHookManager', () => {
             const bridge = join(directory, 'shared', 'bin', 'caxri-agent-hook-bridge');
             const rejected = await execFileAsync(
                 bridge,
-                [
-                    '--source',
-                    'caxri',
-                    '--provider',
-                    'codex',
-                    '--phase',
-                    'turnFinished',
-                    '--schema',
-                    String(codexHookAdapter.schemaVersion),
-                ],
+                ['--source', 'caxri', '--provider', 'codex', '--phase', 'turnFinished'],
                 {
                     env: {
                         ...process.env,
@@ -340,8 +391,6 @@ describe('AgentHookManager', () => {
                     'codex',
                     '--phase',
                     'turnFinished',
-                    '--schema',
-                    String(codexHookAdapter.schemaVersion),
                     '--reply',
                     'empty-json',
                 ],
@@ -356,16 +405,7 @@ describe('AgentHookManager', () => {
              */
             const payloadInvocation = execFileAsync(
                 bridge,
-                [
-                    '--source',
-                    'caxri',
-                    '--provider',
-                    'codex',
-                    '--phase',
-                    'turnStarted',
-                    '--schema',
-                    String(codexHookAdapter.schemaVersion),
-                ],
+                ['--source', 'caxri', '--provider', 'codex', '--phase', 'turnStarted'],
                 { env: { ...process.env, ...environment } },
             );
             payloadInvocation.child.stdin?.end(
@@ -387,16 +427,7 @@ describe('AgentHookManager', () => {
 
             await execFileAsync(
                 bridge,
-                [
-                    '--source',
-                    'caxri',
-                    '--provider',
-                    'codex',
-                    '--phase',
-                    'turnStarted',
-                    '--schema',
-                    String(codexHookAdapter.schemaVersion),
-                ],
+                ['--source', 'caxri', '--provider', 'codex', '--phase', 'turnStarted'],
                 { env: { ...process.env, ...environment } },
             );
             await vi.waitFor(() => expect(signals).toHaveBeenCalledTimes(3));
@@ -404,16 +435,7 @@ describe('AgentHookManager', () => {
             signals.mockReturnValueOnce('staleLaunch');
             const ignored = await execFileAsync(
                 bridge,
-                [
-                    '--source',
-                    'caxri',
-                    '--provider',
-                    'codex',
-                    '--phase',
-                    'sessionIdentified',
-                    '--schema',
-                    String(codexHookAdapter.schemaVersion),
-                ],
+                ['--source', 'caxri', '--provider', 'codex', '--phase', 'sessionIdentified'],
                 { env: { ...process.env, ...environment } },
             );
             expect(ignored.stderr).toBe('');
@@ -427,16 +449,7 @@ describe('AgentHookManager', () => {
              */
             const providerMismatch = await execFileAsync(
                 bridge,
-                [
-                    '--source',
-                    'caxri',
-                    '--provider',
-                    'claude',
-                    '--phase',
-                    'turnFinished',
-                    '--schema',
-                    String(claudeHookAdapter.schemaVersion),
-                ],
+                ['--source', 'caxri', '--provider', 'claude', '--phase', 'turnFinished'],
                 { env: { ...process.env, ...environment } },
             );
             expect(providerMismatch.stderr).toBe('');
@@ -524,16 +537,7 @@ describe('AgentHookManager', () => {
             expect(await readHooks(join(codexHome, 'hooks.json'))).toEqual({});
             await execFileAsync(
                 bridge,
-                [
-                    '--source',
-                    'caxri',
-                    '--provider',
-                    'codex',
-                    '--phase',
-                    'turnFinished',
-                    '--schema',
-                    String(codexHookAdapter.schemaVersion),
-                ],
+                ['--source', 'caxri', '--provider', 'codex', '--phase', 'turnFinished'],
                 { env: { ...process.env, ...environment } },
             );
             expect(signals).toHaveBeenCalledTimes(4);
@@ -560,6 +564,7 @@ describe('AgentHookManager', () => {
             onLaunchEnded: vi.fn(),
             onLaunchStarted: vi.fn(),
             onSignal: vi.fn(() => 'accepted' as const),
+            discoverExecutable: () => Promise.resolve(process.execPath),
             hookExecutable: process.execPath,
             send: vi.fn(),
             sharedPath: join(directory, 'shared'),
@@ -597,6 +602,7 @@ describe('AgentHookManager', () => {
             onLaunchEnded: vi.fn(),
             onLaunchStarted: vi.fn(),
             onSignal: vi.fn(() => 'accepted' as const),
+            discoverExecutable: () => Promise.resolve(process.execPath),
             hookExecutable: process.execPath,
             send: vi.fn(),
             sharedPath: join(directory, 'shared'),
@@ -653,6 +659,7 @@ describe('AgentHookManager', () => {
             onLaunchEnded: vi.fn(),
             onLaunchStarted: vi.fn(),
             onSignal: vi.fn(() => 'accepted' as const),
+            discoverExecutable: () => Promise.resolve(process.execPath),
             hookExecutable: process.execPath,
             send: vi.fn(),
             sharedPath: join(directory, 'shared'),
@@ -692,6 +699,7 @@ describe('AgentHookManager', () => {
             onLaunchEnded: vi.fn(),
             onLaunchStarted: vi.fn(),
             onSignal: vi.fn(() => 'accepted' as const),
+            discoverExecutable: () => Promise.resolve(process.execPath),
             hookExecutable: process.execPath,
             send: vi.fn(),
             sharedPath: join(directory, 'shared'),
@@ -713,7 +721,7 @@ describe('AgentHookManager', () => {
         }
     });
 
-    it('never downgrades or uninstalls entries owned by a newer Caxri schema', async () => {
+    it('never downgrades or uninstalls entries owned by a newer Caxri schema, even behind a conflict', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-hooks-newer-'));
         temporaryDirectories.push(directory);
         const codexHome = join(directory, 'codex');
@@ -727,7 +735,7 @@ describe('AgentHookManager', () => {
                                 {
                                     type: 'command',
                                     command:
-                                        "'/newer/bridge' --source caxri --provider codex --phase turnFinished --schema 9",
+                                        "'/newer/bridge' --source caxri --provider codex --phase turnFinished --schema 99",
                                     timeout: 1,
                                 },
                             ],
@@ -749,6 +757,7 @@ describe('AgentHookManager', () => {
             onLaunchEnded: vi.fn(),
             onLaunchStarted: vi.fn(),
             onSignal: vi.fn(() => 'accepted' as const),
+            discoverExecutable: () => Promise.resolve(process.execPath),
             hookExecutable: process.execPath,
             send: vi.fn(),
             sharedPath: join(directory, 'shared'),
@@ -757,7 +766,7 @@ describe('AgentHookManager', () => {
 
         try {
             await manager.initialize(settings);
-            expect(manager.getHealth().codex.kind).toBe('newer');
+            expect(manager.getHealth().codex.kind).toBe('installedPending');
             expect(await readFile(hooksPath, 'utf8')).toBe(newerSource);
 
             await writeFile(

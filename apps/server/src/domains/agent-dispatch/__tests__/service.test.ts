@@ -380,9 +380,36 @@ describe('AgentDispatchService', () => {
         expect(service.cancelWait('wait-1')).toBe(false);
     });
 
+    it.each(['suspended', 'detached'] as const)(
+        'releases a pending wait as interrupted when the terminal becomes %s',
+        async (state) => {
+            const { project, service, session } = await seededDispatch();
+            const receipt = await service.start('dispatch-1', PRINCIPAL, {
+                projectId: project.id,
+                sessionId: session.id,
+                provider: 'codex',
+            });
+            const waiting = service.wait(
+                receipt.dispatchId,
+                null,
+                receipt.revision,
+                60_000,
+                `wait-${state}`,
+            );
+
+            service.observeTerminalState(receipt.terminalId!, state);
+            await expect(waiting).resolves.toMatchObject({
+                outcome: 'changed',
+                receipt: { dispatchId: receipt.dispatchId, status: 'interrupted' },
+            });
+        },
+    );
+
     it.each([
         ['stopped', { status: 'stopped' }],
         ['interrupted', { status: 'interrupted' }],
+        ['suspended', { status: 'interrupted' }],
+        ['detached', { status: 'interrupted' }],
         ['dead', { status: 'failed', failure: { code: 'UNAVAILABLE', reason: 'process_failed' } }],
         [
             'failed',

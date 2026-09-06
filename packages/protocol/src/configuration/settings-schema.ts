@@ -59,14 +59,14 @@ const agentLaunchSettingsSchema = z.object({
 });
 
 const agentHooksSettingsSchema = z
-    .object({ enabled: z.boolean().default(false) })
-    .default({ enabled: false });
+    .object({ enabled: z.boolean().default(true) })
+    .default({ enabled: true });
 const agentMessagingSettingsSchema = z
     .object({ enabled: z.boolean().default(true) })
     .default({ enabled: true });
 const agentNamingSettingsSchema = z
-    .object({ enabled: z.boolean().default(false) })
-    .default({ enabled: false });
+    .object({ enabled: z.boolean().default(true) })
+    .default({ enabled: true });
 const agentPasteSummarySettingsSchema = z
     .object({ enabled: z.boolean().default(true) })
     .default({ enabled: true });

@@ -4,13 +4,13 @@ import { join } from 'node:path';
 
 import type { AgentProviderPasteSummaryGenerationContext } from '../../contract';
 import { canonicalPath } from '../../contract';
+import { lowCostSandboxProfile, MACOS_SANDBOX_EXECUTABLE } from '../../low-cost-sandbox';
 import { agentCommandEnvironment, assertAgentRenameVersion } from '../../rename';
 import { runAgentTextCommand } from '../../text-generation';
 import { resolveCodexHome } from './paths';
 
 const CODEX_LOW_COST_GENERATION_MINIMUM_VERSION = '0.122.0';
 const CODEX_LOW_COST_MODEL = 'gpt-5.6-luna';
-const MACOS_SANDBOX_EXECUTABLE = '/usr/bin/sandbox-exec';
 
 function parseCodexText(stdout: string): string {
     let text = '';
@@ -39,13 +39,10 @@ function parseCodexText(stdout: string): string {
  * files and the Project itself while leaving provider authentication and model network access intact.
  */
 function sandboxProfile(projectDirectory: string, codexHome: string): string {
-    return [
-        '(version 1)',
-        '(allow default)',
-        `(deny file-read* (subpath ${JSON.stringify(projectDirectory)}))`,
-        `(deny file-read* (literal ${JSON.stringify(join(codexHome, 'AGENTS.md'))}))`,
-        `(deny file-read* (literal ${JSON.stringify(join(codexHome, 'AGENTS.override.md'))}))`,
-    ].join(' ');
+    return lowCostSandboxProfile({
+        literals: [join(codexHome, 'AGENTS.md'), join(codexHome, 'AGENTS.override.md')],
+        subpaths: [projectDirectory],
+    });
 }
 
 export async function generateCodexLowCostText(

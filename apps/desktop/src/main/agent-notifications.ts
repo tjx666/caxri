@@ -5,8 +5,14 @@ import type {
     SessionRecord,
     TerminalRecord,
 } from '@caxri/protocol';
-import { agentProviderCatalog } from '@caxri/protocol';
+import { agentProviderCatalog, DEFAULT_SESSION_TITLE } from '@caxri/protocol';
 
+/**
+ * The two identity fields are real Electron `NotificationConstructorOptions` on macOS and Windows, not Caxri-private
+ * bookkeeping: `id` maps to the `UNNotificationRequest` identifier, so a later banner with the same `id` replaces the
+ * one still on screen, and `groupId` maps to the `threadIdentifier` that stacks Caxri's banners together in
+ * Notification Center. The alerter backend reproduces the same replacement rule through its `--group` flag.
+ */
 export interface AgentSystemNotification {
     body: string;
     groupId: string;
@@ -158,7 +164,15 @@ export function createAgentNotificationCoordinator(
             {
                 id: `caxri-agent-session-${session.id}`,
                 groupId: 'caxri-agent-sessions',
-                title: session.displayTitle,
+                /**
+                 * The sidebar keeps `Untitled` because its row already shows the provider icon, but a native banner has
+                 * no such icon, so an unnamed Session is announced by its provider instead. The substitute is derived
+                 * from the Terminal's provider alone and can never carry prompt or transcript content.
+                 */
+                title:
+                    session.displayTitle === DEFAULT_SESSION_TITLE
+                        ? `${agentProviderCatalog[provider].displayName} session`
+                        : session.displayTitle,
                 body,
             },
             () => {
@@ -288,11 +302,33 @@ export function createAgentNotificationCoordinator(
                 return;
             }
             if (event.event === 'settings.changed') {
-                settings = undefined;
-                closeAllNotifications();
                 schedule(async () => {
-                    settings = await options.loadSettings();
-                    if (!settings['agents.notifications.enabled']) closeAllNotifications();
+                    let next: AppSettings;
+                    try {
+                        next = await options.loadSettings();
+                    } catch (error) {
+                        /**
+                         * Teardown is deferred until the reload answers, so a reload that never answers must fail
+                         * closed here instead: without settings the coordinator cannot tell whether notifications are
+                         * still permitted, and keeping banners up would outlive a disable the user just applied.
+                         */
+                        settings = undefined;
+                        closeAllNotifications();
+                        throw error;
+                    }
+                    settings = next;
+                    /**
+                     * A `settings.changed` event carries only its source, never the changed key, so this handler must
+                     * not tear banners down on arrival: a theme, a Terminal font size, or a keybinding reaches the same
+                     * event, and closing eagerly made a background Agent's banner disappear while the user was still
+                     * expected to act on it. Only the reloaded `enabled` value decides.
+                     *
+                     * Turning notifications off clears the banners. Turning them back on deliberately does not replay
+                     * them: `sessions` keeps each Session's `attentionEpoch` while notifications are disabled, so the
+                     * next banner needs a genuinely newer epoch. Re-issuing here would resurface attention the user has
+                     * already seen in the Sidebar's unread state.
+                     */
+                    if (!next['agents.notifications.enabled']) closeAllNotifications();
                 });
                 return;
             }

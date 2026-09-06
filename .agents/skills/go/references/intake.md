@@ -71,6 +71,39 @@ product model, process boundaries, and security grants, and surface a material
 trade-off before encoding a stricter or more complex design than the reference.
 If no relevant implementation is available, record that briefly and continue.
 
+## Verify every existing issue before admitting it
+
+An issue number in the request is a pointer, not a verdict. The owner files
+issues in very different states: follow-ups auto-filed by an agent after a
+review, ideas captured in one line, and requirements that were never thought
+through. Naming an issue in `$go` authorizes work on it; it does not certify
+that the issue is worth doing as written.
+
+Before classification, dispatch one read-only verifier subagent per admitted
+issue (batch small issues into one agent when they share a surface). Give it
+the issue body, its comments, the linked PR or review that produced it, and the
+current source. It returns, with `path:line` evidence:
+
+- **Still real**: does the described problem exist at the current head, or was
+  it fixed, superseded, or never reproducible?
+- **Origin and depth**: owner request, agent follow-up, or a one-line idea; does
+  the body say what the user observes and why it matters, or only name a
+  mechanism?
+- **Value against cost**: the concrete user-visible gain, the existing surface
+  that already covers it (an icon, a setting, a log), and what the change would
+  touch. A rename that adds no information, a fallback for a state users almost
+  never reach, or a fix whose only evidence is a reviewer's guess is a weak
+  case.
+- **Proposed classification** from the table below, with the one-sentence reason
+  the owner will read.
+
+The primary agent adjudicates every verdict against the current source. A
+verifier's "weak case" does not silently drop an issue the owner named: it
+becomes `Discuss first`, presented before the Goal with the evidence and a
+recommended alternative (narrow it, close it, or defer it). Executing a doubtful
+issue as written because the owner listed it is the failure this step exists to
+prevent; so is quietly skipping it.
+
 ## Classify every requirement
 
 | Class             | Meaning                                                                   | Action                                                       |
@@ -80,6 +113,10 @@ If no relevant implementation is available, record that briefly and continue.
 | Defer             | Valuable but not required for this Goal                                   | Reuse or create a backlog issue; exclude from the queue      |
 | Reject            | Contradictory, unsafe, obsolete, or outside the project boundary          | Record the concise reason; do not create an issue by default |
 | Discuss first     | A decision materially changes product behavior, scope, authority, or risk | Resolve before starting the Goal                             |
+
+A named issue whose verifier verdict is weak, superseded, or under-specified is
+`Discuss first` (or `Already satisfied` with evidence), never `Execute now` by
+default.
 
 Do not infer that every sentence is a separate issue. Merge requirements that
 share one root cause or atomic delivery, while preserving issue-specific

@@ -80,6 +80,13 @@ function shellQuote(value: string): string {
 
 /**
  * Creates a stable hook definition; ordinary bridge/app upgrades do not change Codex's trust hash.
+ *
+ * `--schema N` is a file-convergence marker only. Every Caxri build on the machine (a packaged release and a dev
+ * instance, for example) writes the same global provider file, so the managers need one token that says which build's
+ * entries win: a build repairs entries older than its own and leaves newer ones alone (issue #557). The bridge never
+ * reads this flag. The schema version a running instance actually expects, and the socket it listens on, travel in that
+ * instance's `CAXRI_HOOK_*` Terminal launch environment, so a build whose entries were superseded still receives and
+ * accepts its own signals.
  */
 function buildBridgeCommand(
     desired: DesiredHookInstall,

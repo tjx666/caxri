@@ -39,7 +39,7 @@ describe('stageAgentHookBridge', () => {
         ]);
         expect(wrapperSource).toContain('#!/bin/sh');
         expect(bridgeScript).toContain("require('node:net')");
-        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 13 });
+        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 14 });
         expect(wrapperStats.mode & 0o777).toBe(0o700);
     });
 
@@ -111,7 +111,7 @@ describe('stageAgentHookBridge', () => {
             readFile(bridgePath, 'utf8'),
             readFile(join(binDirectory, 'bridge.cjs'), 'utf8'),
         ]);
-        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 13 });
+        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 14 });
         expect(wrapperSource).toContain('#!/bin/sh');
         expect(scriptSource).toContain("require('node:net')");
     });
@@ -144,7 +144,7 @@ describe('stageAgentHookBridge', () => {
 
         const result = await execFileAsync(
             bridgePath,
-            ['--provider', 'codex', '--phase', 'sessionIdentified', '--schema', '5'],
+            ['--provider', 'codex', '--phase', 'sessionIdentified'],
             {
                 env: {
                     CAXRI_HOOK_LAUNCH_ID: 'retired-launch',
@@ -218,7 +218,7 @@ describe('stageAgentHookBridge', () => {
         try {
             const invocation = execFileAsync(
                 bridgePath,
-                ['--provider', 'codex', '--phase', 'sessionIdentified', '--schema', '5'],
+                ['--provider', 'codex', '--phase', 'sessionIdentified'],
                 {
                     env: {
                         CAXRI_HOOK_LAUNCH_ID: 'older-launch',
@@ -249,6 +249,70 @@ describe('stageAgentHookBridge', () => {
         }
     });
 
+    it('takes the schema version from the launch environment of the invoked provider', async () => {
+        const sharedPath = await sharedDirectory();
+        const bridgePath = await stageAgentHookBridge(sharedPath);
+        const socketPath = join(sharedPath, 'schema.sock');
+        const packets: Array<Record<string, unknown>> = [];
+        const server = createServer((socket) => {
+            socket.setEncoding('utf8');
+            let source = '';
+            socket.on('data', (chunk: string) => {
+                source += chunk;
+            });
+            socket.on('end', () => {
+                packets.push(JSON.parse(source) as Record<string, unknown>);
+                socket.end('{"ok":true}\n');
+            });
+        });
+        server.listen(socketPath);
+        await once(server, 'listening');
+        const launch = {
+            CAXRI_HOOK_LAUNCH_ID: 'schema-launch',
+            CAXRI_HOOK_RUNTIME: process.execPath,
+            CAXRI_HOOK_SCHEMA_CLAUDE: '4',
+            CAXRI_HOOK_SCHEMA_CODEX: '9',
+            CAXRI_HOOK_SOCKET: socketPath,
+            CAXRI_HOOK_TERMINAL_ID: 'schema-terminal',
+            CAXRI_HOOK_TOKEN: 'schema-token',
+            PATH: process.env.PATH,
+        };
+
+        try {
+            const codex = execFileAsync(
+                bridgePath,
+                ['--provider', 'codex', '--phase', 'turnFinished'],
+                {
+                    env: launch,
+                },
+            );
+            codex.child.stdin?.end('{}');
+            await codex;
+            const claude = execFileAsync(
+                bridgePath,
+                ['--provider', 'claude', '--phase', 'turnFinished'],
+                {
+                    env: launch,
+                },
+            );
+            claude.child.stdin?.end('{}');
+            await claude;
+            const bare = execFileAsync(
+                bridgePath,
+                ['--provider', 'codex', '--phase', 'turnFinished'],
+                {
+                    env: { ...launch, CAXRI_HOOK_SCHEMA_CODEX: undefined },
+                },
+            );
+            bare.child.stdin?.end('{}');
+            await bare;
+
+            expect(packets.map((packet) => packet.schemaVersion)).toEqual([9, 4, 0]);
+        } finally {
+            await new Promise<void>((resolve) => server.close(() => resolve()));
+        }
+    });
+
     it('delivers a tool-batch phase even when provider results exceed the payload read bound', async () => {
         const sharedPath = await sharedDirectory();
         const bridgePath = await stageAgentHookBridge(sharedPath);
@@ -271,7 +335,7 @@ describe('stageAgentHookBridge', () => {
         try {
             const invocation = execFileAsync(
                 bridgePath,
-                ['--provider', 'claude', '--phase', 'toolBatchFinished', '--schema', '5'],
+                ['--provider', 'claude', '--phase', 'toolBatchFinished'],
                 {
                     env: {
                         CAXRI_HOOK_LAUNCH_ID: 'large-batch-launch',
@@ -297,7 +361,7 @@ describe('stageAgentHookBridge', () => {
 
             const mainInvocation = execFileAsync(
                 bridgePath,
-                ['--provider', 'claude', '--phase', 'toolBatchFinished', '--schema', '5'],
+                ['--provider', 'claude', '--phase', 'toolBatchFinished'],
                 {
                     env: {
                         CAXRI_HOOK_LAUNCH_ID: 'large-main-batch-launch',
@@ -355,7 +419,7 @@ describe('stageAgentHookBridge', () => {
         try {
             const invocation = execFileAsync(
                 bridgePath,
-                ['--provider', 'codex', '--phase', 'shellToolStarted', '--schema', '8'],
+                ['--provider', 'codex', '--phase', 'shellToolStarted'],
                 {
                     env: {
                         CAXRI_HOOK_LAUNCH_ID: 'worktree-launch',
@@ -427,7 +491,7 @@ describe('stageAgentHookBridge', () => {
         try {
             const invocation = execFileAsync(
                 bridgePath,
-                ['--provider', 'claude', '--phase', 'turnStarted', '--schema', '8'],
+                ['--provider', 'claude', '--phase', 'turnStarted'],
                 {
                     env: {
                         CAXRI_HOOK_LAUNCH_ID: 'cwd-launch',
@@ -484,7 +548,7 @@ describe('stageAgentHookBridge', () => {
         try {
             const invocation = execFileAsync(
                 bridgePath,
-                ['--provider', 'codex', '--phase', 'shellToolFinished', '--schema', '8'],
+                ['--provider', 'codex', '--phase', 'shellToolFinished'],
                 {
                     env: {
                         CAXRI_HOOK_LAUNCH_ID: 'classification-launch',

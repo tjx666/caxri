@@ -8,8 +8,9 @@ import type { CaxriDatabase } from '../db';
 import { SingleFlight } from '../single-flight';
 import { AgentAttentionTracker } from './attention-tracker';
 import { agentProviderStateRoot } from './contract';
+import { HookLaunchTracker } from './hook-launch-tracker';
 import type { AgentLifecycleSignal, AgentSignalDecision } from './hooks/contract';
-import { AgentLifecycleWatchdogs } from './lifecycle-watchdogs';
+import { AgentLifecycleWatchdogs, isStandaloneEscape } from './lifecycle-watchdogs';
 import type { MetadataActivityBaseline } from './metadata-activity-baseline';
 import {
     isMetadataActivityBaselineMatch,
@@ -69,7 +70,7 @@ export class AgentCoordinator {
     private readonly startedAtByTerminal = new Map<string, number>();
     private readonly probeGenerations = new Map<string, number>();
     private readonly launchIdsByTerminal = new Map<string, string>();
-    private readonly hookAuthoritativeLaunchIds = new Map<string, string>();
+    private readonly hookLaunches = new HookLaunchTracker();
     private readonly attention = new AgentAttentionTracker();
     private readonly work = new AgentWorkTracker((signal) => this.applyLifecycle(signal));
     /**
@@ -160,7 +161,7 @@ export class AgentCoordinator {
         if (event.phase === 'turnFinished') {
             this.attention.forget(event.terminalId);
             this.lifecycleWatchdogs.stopRunningTurn(event.terminalId);
-            this.hookAuthoritativeLaunchIds.set(event.terminalId, event.launchId);
+            this.hookLaunches.markAuthoritative(event.terminalId, event.launchId);
         }
         if (this.database.updateAgentLifecycle(event))
             this.emitAgentMetadataChange(event.terminalId);
@@ -184,7 +185,7 @@ export class AgentCoordinator {
         } else if (terminal.provider) {
             if (!this.database.confirmForegroundAgentProvider(terminalId, provider)) return false;
             this.probeGenerations.set(terminalId, (this.probeGenerations.get(terminalId) ?? 0) + 1);
-            this.hookAuthoritativeLaunchIds.delete(terminalId);
+            this.hookLaunches.forget(terminalId);
             this.forgetLifecycleState(terminalId);
             if (candidate.agentSessionId)
                 this.database.rebindAgentSession(terminalId, provider, candidate.agentSessionId);
@@ -247,10 +248,16 @@ export class AgentCoordinator {
             }
             const currentSession = this.database.getSession(terminal.sessionId);
             if (!currentSession) return;
-            const hookLaunchId = this.hookAuthoritativeLaunchIds.get(terminal.id);
-            const isHookAuthoritative =
-                hookLaunchId !== undefined &&
-                hookLaunchId === this.launchIdsByTerminal.get(terminal.id);
+            const launchId = this.launchIdsByTerminal.get(terminal.id);
+            /**
+             * The hook owns the activity state after it reported a turn boundary, and also between `turnStarted` and
+             * the applied `turnFinished` when the probe found no provider evidence: the 2-second trailing refresh
+             * otherwise raced the hook and left the Session without its running cue for the whole turn (issue #568).
+             */
+            const isHookOwned =
+                this.hookLaunches.isAuthoritative(terminal.id, launchId) ||
+                (snapshot.status === 'unknown' &&
+                    this.hookLaunches.isTurnInFlight(terminal.id, launchId));
             const hasMetadataBaseline = this.metadataActivityBaselines.has(terminal.id);
             const activityBaseline = this.metadataActivityBaselines.get(terminal.id);
             const isBaselineReconciliation =
@@ -262,22 +269,14 @@ export class AgentCoordinator {
                 this.metadataActivityBaselines.set(terminal.id, metadataActivityBaseline(snapshot));
             else if (!isBaselineReconciliation)
                 this.metadataActivityBaselines.set(terminal.id, null);
-            const metadataSnapshot = isHookAuthoritative
-                ? {
-                      ...snapshot,
-                      attentionKind: undefined,
-                      status: currentSession.lastActivityState,
-                  }
+            const activityState = currentSession.lastActivityState;
+            const metadataSnapshot = isHookOwned
+                ? { ...snapshot, attentionKind: undefined, status: activityState }
                 : isBaselineReconciliation
-                  ? reconcileMetadataActivityBaseline(snapshot, currentSession.lastActivityState)
+                  ? reconcileMetadataActivityBaseline(snapshot, activityState)
                   : snapshot;
-            if (
-                this.database.updateAgentMetadata(
-                    terminal.id,
-                    metadataSnapshot,
-                    !isBaselineReconciliation && !isHookAuthoritative,
-                )
-            )
+            const isRecordActivity = !isBaselineReconciliation && !isHookOwned;
+            if (this.database.updateAgentMetadata(terminal.id, metadataSnapshot, isRecordActivity))
                 this.emitAgentMetadataChange(terminal.id);
         } catch (error) {
             /**
@@ -344,7 +343,7 @@ export class AgentCoordinator {
          * cannot republish the old identity over the switched one.
          */
         this.probeGenerations.set(terminal.id, (this.probeGenerations.get(terminal.id) ?? 0) + 1);
-        this.hookAuthoritativeLaunchIds.delete(terminal.id);
+        this.hookLaunches.forget(terminal.id);
         this.forgetLifecycleState(terminal.id);
         this.database.rebindAgentSession(terminal.id, provider, snapshot.sessionId);
         this.shellInputs.delete(terminal.id);
@@ -478,6 +477,7 @@ export class AgentCoordinator {
             state = { command: '', isBracketedPaste: false, valid: true };
         }
         this.lifecycleWatchdogs.observeInput(terminalId, data);
+        if (isStandaloneEscape(data)) this.hookLaunches.markTurnInterrupted(terminalId);
         let didSubmit = false;
         for (let index = 0; index < data.length; index += 1) {
             if (data.startsWith(BRACKETED_PASTE_START, index)) {
@@ -552,7 +552,7 @@ export class AgentCoordinator {
     beginTerminalLaunch(terminalId: string, launchId: string): void {
         this.lifecycleWatchdogs.forget(terminalId, true);
         this.launchIdsByTerminal.set(terminalId, launchId);
-        this.hookAuthoritativeLaunchIds.delete(terminalId);
+        this.hookLaunches.forget(terminalId);
         this.forgetLifecycleState(terminalId);
     }
 
@@ -566,7 +566,7 @@ export class AgentCoordinator {
     endTerminalLaunch(terminalId: string): void {
         this.lifecycleWatchdogs.forget(terminalId, true);
         this.launchIdsByTerminal.delete(terminalId);
-        this.hookAuthoritativeLaunchIds.delete(terminalId);
+        this.hookLaunches.forget(terminalId);
         this.forgetLifecycleState(terminalId);
     }
 
@@ -613,7 +613,7 @@ export class AgentCoordinator {
         const work = this.work.observe(signal);
         if (work.outcome !== undefined) return work.outcome;
         if (signal.phase === 'turnFinished')
-            this.hookAuthoritativeLaunchIds.set(signal.terminalId, signal.launchId);
+            this.hookLaunches.markAuthoritative(signal.terminalId, signal.launchId);
         const isToolBatchFinished = signal.phase === 'toolBatchFinished';
         const didResolveAttention =
             isToolBatchFinished && this.attention.resolvesFinalRequest(signal);
@@ -627,7 +627,7 @@ export class AgentCoordinator {
             this.lifecycleWatchdogs.clearCompaction(signal.terminalId);
         switch (signal.phase) {
             case 'turnStarted': {
-                this.hookAuthoritativeLaunchIds.delete(signal.terminalId);
+                this.hookLaunches.markTurnStarted(signal.terminalId, signal.launchId);
                 this.attention.forget(signal.terminalId);
                 this.metadataActivityBaselines.set(signal.terminalId, null);
                 if (signal.provider === 'codex' && signal.agentTurnId)
@@ -642,7 +642,7 @@ export class AgentCoordinator {
             case 'attentionRequested': {
                 this.attention.request(signal);
                 this.lifecycleWatchdogs.stopRunningTurn(signal.terminalId);
-                this.hookAuthoritativeLaunchIds.set(signal.terminalId, signal.launchId);
+                this.hookLaunches.markAuthoritative(signal.terminalId, signal.launchId);
                 break;
             }
             // No default
@@ -685,7 +685,7 @@ export class AgentCoordinator {
     resetHookAuthority(provider: AgentProvider): void {
         for (const terminal of this.database.listTerminals())
             if (terminal.provider === provider) {
-                this.hookAuthoritativeLaunchIds.delete(terminal.id);
+                this.hookLaunches.forget(terminal.id);
                 this.forgetLifecycleState(terminal.id);
                 this.lifecycleWatchdogs.forget(terminal.id, true);
             }
@@ -763,7 +763,7 @@ export class AgentCoordinator {
         this.metadataActivityBaselines.delete(terminalId);
         this.probeGenerations.delete(terminalId);
         this.launchIdsByTerminal.delete(terminalId);
-        this.hookAuthoritativeLaunchIds.delete(terminalId);
+        this.hookLaunches.forget(terminalId);
         this.forgetLifecycleState(terminalId);
     }
 
@@ -779,7 +779,7 @@ export class AgentCoordinator {
             this.metadataActivityBaselines.delete(terminal.id);
             this.probeGenerations.delete(terminal.id);
             this.launchIdsByTerminal.delete(terminal.id);
-            this.hookAuthoritativeLaunchIds.delete(terminal.id);
+            this.hookLaunches.forget(terminal.id);
             this.forgetLifecycleState(terminal.id);
         }
     }
@@ -791,7 +791,7 @@ export class AgentCoordinator {
         this.shellPromotionCandidates.clear();
         this.probeGenerations.clear();
         this.launchIdsByTerminal.clear();
-        this.hookAuthoritativeLaunchIds.clear();
+        this.hookLaunches.clear();
         this.attention.clear();
         this.work.clear();
         this.metadataActivityBaselines.clear();

@@ -13,6 +13,7 @@ import type {
 import {
     agentProviderCatalog,
     compareSessionActivityRecency,
+    DEFAULT_SESSION_TITLE,
     isTopLevelProject,
     normalizeTerminalTitle,
     removePaneTerminal,
@@ -26,10 +27,19 @@ import type { AgentLifecyclePhase } from './agents';
  * (pure SQL) inside its own transactions.
  */
 
+export { DEFAULT_SESSION_TITLE };
+
 /**
- * Neutral automatic title used until a new Session gains useful Agent metadata or a manual name.
+ * Whether a Session still carries the neutral default instead of a real title.
+ *
+ * Automatic naming and manual rename both treat "has no real title yet" as a distinct state: the default must not be
+ * offered to a title generator as the current name, and must not become the baseline a rename is compared against. The
+ * sidebar deliberately keeps `Untitled` (the row already shows the provider icon); only a native notification, which
+ * has no icon, substitutes a provider-derived title.
  */
-export const DEFAULT_SESSION_TITLE = 'Untitled';
+export function isPlaceholderSessionTitle(title: string): boolean {
+    return title === DEFAULT_SESSION_TITLE;
+}
 
 export function defaultTerminalTitle(kind: TerminalKind): string {
     return kind === 'shell' ? 'Shell' : agentProviderCatalog[kind].displayName;

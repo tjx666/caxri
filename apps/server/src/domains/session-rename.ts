@@ -3,6 +3,7 @@ import { CaxriError, sessionRenameTitleSchema } from '@caxri/protocol';
 
 import type { AgentCoordinator, AgentService } from './agents';
 import type { CaxriDatabase } from './db';
+import { isPlaceholderSessionTitle } from './session-policy';
 
 const MAXIMUM_AGENT_TARGET_CHANGES = 3;
 
@@ -215,7 +216,9 @@ export class SessionRenameService {
             if (!(await appGuard())) return;
             const session = this.database.getSession(sessionId);
             if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
-            const baseline = session.displayTitle === 'Untitled' ? undefined : session.displayTitle;
+            const baseline = isPlaceholderSessionTitle(session.displayTitle)
+                ? undefined
+                : session.displayTitle;
             if (!this.database.sessionNaming.resume(sessionId, baseline))
                 throw new CaxriError('NOT_FOUND', 'Session not found');
             const resumed = this.database.getSession(sessionId)!;

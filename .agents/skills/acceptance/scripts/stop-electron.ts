@@ -3,6 +3,7 @@ import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
+import { recordDeferredAgentFixtureCleanup } from './agent-fixture-lifecycle';
 import { forceCompleteCaseLifecycle } from './case-lifecycle';
 import type { OwnedProcess, RuntimeState } from './runtime-state';
 import {
@@ -50,6 +51,7 @@ export interface StopElectronDependencies {
     now: () => number;
     projectRoot: string;
     readRuntime: () => Promise<string>;
+    recordDeferredAgentFixtureCleanup: typeof recordDeferredAgentFixtureCleanup;
     removeOwnedUserData: typeof removeOwnedUserData;
     runtimePath: string;
     sleep: (milliseconds: number) => Promise<void>;
@@ -86,6 +88,7 @@ const defaultDependencies: StopElectronDependencies = {
     now: Date.now,
     projectRoot: PROJECT_ROOT,
     readRuntime: () => readFile(RUNTIME_PATH, 'utf8'),
+    recordDeferredAgentFixtureCleanup,
     removeOwnedUserData,
     runtimePath: RUNTIME_PATH,
     sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
@@ -191,6 +194,34 @@ async function completeLifecycleReceiptIfPending(
                 LAUNCHER_OUTCOME_LABEL[launcherOutcome]
             } launcher`,
         );
+    } else if (result === 'cleanup_recorded') {
+        dependencies.log(
+            `Recorded deferred profile cleanup for Acceptance case ${acceptanceCase.id}: the launcher completed its ` +
+                'receipt while a detached Server generation still held the profile',
+        );
+    }
+    // The fake Agent fixture root lives inside the same profile, so its receipt is amended under the same verification.
+    if (cleanupCompleted && acceptanceCase.agentFixtureLaunchId) {
+        const fixtureResult = await dependencies.recordDeferredAgentFixtureCleanup(
+            acceptanceCase.reportDirectory,
+            {
+                caseId: acceptanceCase.id,
+                launchId: acceptanceCase.agentFixtureLaunchId,
+                sharedProfile: acceptanceCase.mode === 'restart',
+                source: 'stop-electron',
+            },
+        );
+        if (fixtureResult === 'cleanup_recorded') {
+            dependencies.log(
+                `Recorded deferred Agent fixture cleanup for Acceptance case ${acceptanceCase.id}`,
+            );
+        } else if (fixtureResult === 'pending') {
+            // Only the launcher closes a pending fixture launch; say so here rather than at `report.ts finalize`.
+            dependencies.log(
+                `Agent fixture receipt for Acceptance case ${acceptanceCase.id} is still pending; the launcher never ` +
+                    'completed it, so the case cannot finalize until it is relaunched on a fresh profile',
+            );
+        }
     }
 }
 

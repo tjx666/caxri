@@ -21,6 +21,11 @@ description: Measure and protect Caxri startup, Server Core responsiveness, and 
    build without observer overhead, measures one `session.switch`, and writes
    `test-results/receipts/renderer-performance.json`. Read the fixed `session.select` and
    `app.bootstrap` request summaries before attributing time to React.
+   For Claude Agent-state probe latency, run `bun run benchmark:agent-probe` and record
+   `CAXRI_AGENT_PROBE_BENCHMARK`. It runs below Electron against a synthetic 512-file
+   `sessions/` directory, rewrites one file every ten probes, and fails when warm p95 exceeds
+   50ms (`CAXRI_BENCHMARK_AGENT_PROBE_P95_MS`); the production `agent.probe` log only keeps
+   samples slower than 250ms, so this is the only source of the full distribution.
 3. Read the correlated Desktop Main, Server Core, Terminal Host, and Extension Host JSONL logs
    from the active runtime profile's `<userData>/logs/` directory. Use `app.ready`,
    `server_connection.attached`, `window.ready_to_show`, `server_core.ready`, `pty.spawned`,

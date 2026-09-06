@@ -172,6 +172,24 @@ describe('Agent notification coordinator', () => {
         ]);
     });
 
+    it('announces an unnamed Session by its provider instead of the neutral default', async () => {
+        const test = harness(session({ id: 'session-1', displayTitle: 'Untitled' }));
+        await test.coordinator.initialize();
+        test.setSession(
+            session({
+                ...session({ id: 'session-1', displayTitle: 'Untitled', attentionEpoch: 1 }),
+                hasUnread: true,
+                lastActivityState: 'waiting',
+                lastAttentionKind: 'waiting',
+                lastSessionActivityAt: 2_000,
+                lastSessionActivityReason: 'agent_waiting',
+            }),
+        );
+        test.coordinator.observe(recordsChanged);
+        await test.coordinator.flush();
+        expect(test.shown.map((shown) => shown.title)).toEqual(['Claude Code session']);
+    });
+
     it('only notifies for a completed turn after the configured duration', async () => {
         const running = session({
             id: 'session-1',
@@ -322,7 +340,94 @@ describe('Agent notification coordinator', () => {
         expect(test.shown).toHaveLength(1);
     });
 
-    it('fails closed immediately when refreshed notification settings cannot be loaded', async () => {
+    /**
+     * `settings.changed` carries only its source, so every setting reaches this coordinator. Closing on all of them
+     * made a background Agent's banner vanish when the user changed an unrelated preference such as the editor font.
+     */
+    it('keeps a live banner when an unrelated setting changes', async () => {
+        const test = harness(session({ id: 'session-1' }));
+        await test.coordinator.initialize();
+        test.setSession(
+            session({
+                id: 'session-1',
+                attentionEpoch: 1,
+                hasUnread: true,
+                lastAttentionKind: 'waiting',
+            }),
+        );
+        test.coordinator.observe(recordsChanged);
+        await test.coordinator.flush();
+        expect(test.closed).toEqual([false]);
+
+        test.setSettings({ ...defaultAppSettings, 'terminal.fontSize': 18 });
+        test.coordinator.observe({ event: 'settings.changed', payload: { source: '{}' } });
+        await test.coordinator.flush();
+
+        expect(test.closed).toEqual([false]);
+        expect(test.shown).toHaveLength(1);
+    });
+
+    it('keeps a live banner when only the completion threshold changes', async () => {
+        const test = harness(session({ id: 'session-1' }));
+        await test.coordinator.initialize();
+        test.setSession(
+            session({
+                id: 'session-1',
+                attentionEpoch: 1,
+                hasUnread: true,
+                lastAttentionKind: 'waiting',
+            }),
+        );
+        test.coordinator.observe(recordsChanged);
+        await test.coordinator.flush();
+
+        test.setSettings({
+            ...defaultAppSettings,
+            'agents.notifications.completionThresholdSeconds': 120,
+        });
+        test.coordinator.observe({ event: 'settings.changed', payload: { source: '{}' } });
+        await test.coordinator.flush();
+
+        // The threshold only gates future completions; a banner already earned under the old value stays.
+        expect(test.closed).toEqual([false]);
+    });
+
+    /**
+     * Re-enabling notifications must not replay attention the user has already seen in the Sidebar. The dedup rule is
+     * the epoch baseline: a banner needs an `attentionEpoch` newer than the one the coordinator already recorded.
+     */
+    it('does not reissue a banner when notifications are re-enabled on an unchanged epoch', async () => {
+        const test = harness(session({ id: 'session-1' }));
+        await test.coordinator.initialize();
+        const unread = session({
+            id: 'session-1',
+            attentionEpoch: 1,
+            hasUnread: true,
+            lastAttentionKind: 'waiting',
+        });
+        test.setSession(unread);
+        test.coordinator.observe(recordsChanged);
+        await test.coordinator.flush();
+        expect(test.shown).toHaveLength(1);
+
+        test.setSettings({ ...defaultAppSettings, 'agents.notifications.enabled': false });
+        test.coordinator.observe({ event: 'settings.changed', payload: { source: '{}' } });
+        await test.coordinator.flush();
+        expect(test.closed).toEqual([true]);
+
+        test.setSettings(defaultAppSettings);
+        test.coordinator.observe({ event: 'settings.changed', payload: { source: '{}' } });
+        test.coordinator.observe(recordsChanged);
+        await test.coordinator.flush();
+        expect(test.shown).toHaveLength(1);
+
+        test.setSession(session({ ...unread, attentionEpoch: 2 }));
+        test.coordinator.observe(recordsChanged);
+        await test.coordinator.flush();
+        expect(test.shown).toHaveLength(2);
+    });
+
+    it('fails closed once a refreshed notification settings load is rejected', async () => {
         const initial = session({ id: 'session-1' });
         let current = initial;
         const closed: boolean[] = [];
@@ -348,7 +453,11 @@ describe('Agent notification coordinator', () => {
         await coordinator.flush();
 
         coordinator.observe({ event: 'settings.changed', payload: { source: '{}' } });
-        expect(closed).toEqual([true]);
+        /**
+         * Teardown now waits for the reload, because only the reloaded values reveal whether a notification setting
+         * changed at all. A reload that rejects still fails closed, one scheduled task later.
+         */
+        expect(closed).toEqual([false]);
         await coordinator.flush();
         expect(closed).toEqual([true]);
     });

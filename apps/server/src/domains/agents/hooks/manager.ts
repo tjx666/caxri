@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { lstat, mkdir, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, dirname, isAbsolute, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import process from 'node:process';
 
 import type {
@@ -12,7 +12,7 @@ import type {
     AgentProviderSettings,
     ServerEvent,
 } from '@caxri/protocol';
-import { agentProviderIds, errorMessage } from '@caxri/protocol';
+import { agentProviderCatalog, agentProviderIds, errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog, mapWithConcurrency } from '@caxri/system';
 
@@ -30,7 +30,11 @@ import type {
     AgentHookEntryStatus,
     AgentLifecycleSignal,
     AgentSignalDecision,
+    DesiredHookInstall,
 } from './contract';
+import type { HookExecutableDiscovery } from './executable-gate';
+import { gateHookSettingsOnExecutables } from './executable-gate';
+import { parseProfileIntents, serializeProfileIntents } from './profile-intents';
 import { AgentHookServer, pruneStaleAgentHookSockets } from './server';
 import { AgentHookTelemetry } from './telemetry';
 
@@ -45,8 +49,6 @@ const MAX_CONCURRENT_PROFILE_STATS = 8;
  */
 export const MAX_AGENT_HOOK_CONFIG_BYTES = 1 * 1024 * 1024;
 const STALE_LOCK_MS = 30_000;
-const PROFILE_INTENTS_VERSION = 2;
-const agentProviderIdSet = new Set<string>(agentProviderIds);
 
 interface TerminalHookLaunch {
     launchId: string;
@@ -58,12 +60,13 @@ interface HookConfigWatcher {
     targets: Set<string>;
 }
 
-interface ProfileHookIntentRegistry {
-    profiles: Record<string, { profilePath: string; providers: AgentProvider[] }>;
-    version: typeof PROFILE_INTENTS_VERSION;
-}
-
 interface AgentHookManagerOptions {
+    /**
+     * Resolves the provider CLI on this machine. Lifecycle hooks default to enabled, but a provider whose CLI is not
+     * installed must not have Caxri write into its configuration directory or claim it in the shared profile registry:
+     * the setting stays on, the installation simply waits for the CLI to appear.
+     */
+    discoverExecutable: HookExecutableDiscovery;
     environment: AgentEnvironment;
     logger: StructuredLogger;
     onAuthorityLost: (provider: AgentProvider) => void;
@@ -71,6 +74,12 @@ interface AgentHookManagerOptions {
     onLaunchStarted: (terminalId: string, launchId: string) => void;
     onSignal: (signal: AgentLifecycleSignal) => AgentSignalDecision | Promise<AgentSignalDecision>;
     hookExecutable: string;
+    /**
+     * Per-provider schema version this instance writes as the provider-file ordering token, announces to the bridge,
+     * and accepts on the socket. Production derives it from the registered provider adapters; the multi-build
+     * integration test substitutes a sibling build's value so two instances with different versions share one file.
+     */
+    schemaVersions?: Partial<Record<AgentProvider, number>>;
     send: (event: ServerEvent) => void;
     sharedPath?: string;
     userDataPath: string;
@@ -99,68 +108,6 @@ function isFileSystemError(error: unknown, code: string): boolean {
     );
 }
 
-function parseProfileIntents(source: string | undefined): ProfileHookIntentRegistry {
-    if (source === undefined) return { profiles: {}, version: PROFILE_INTENTS_VERSION };
-    let value: unknown;
-    try {
-        value = JSON.parse(source) as unknown;
-    } catch (error) {
-        throw new Error('Caxri hook profile intents are not valid JSON', { cause: error });
-    }
-    if (typeof value !== 'object' || value === null || Array.isArray(value))
-        throw new Error('Caxri hook profile intents are not an object');
-    const record = value as Record<string, unknown>;
-    if (record.version !== PROFILE_INTENTS_VERSION)
-        throw new Error('Caxri hook profile intents use an unsupported version');
-    if (typeof record.profiles !== 'object' || record.profiles === null)
-        throw new Error('Caxri hook profile intents do not contain a profiles object');
-    const profiles: ProfileHookIntentRegistry['profiles'] = {};
-    for (const [profileId, candidate] of Object.entries(
-        record.profiles as Record<string, unknown>,
-    )) {
-        if (typeof candidate !== 'object' || candidate === null || Array.isArray(candidate))
-            throw new Error('Caxri hook profile intent is not an object');
-        const providers = (candidate as Record<string, unknown>).providers;
-        const profilePath = (candidate as Record<string, unknown>).profilePath;
-        if (
-            typeof profilePath !== 'string' ||
-            !isAbsolute(profilePath) ||
-            !Array.isArray(providers) ||
-            !providers.every(
-                (provider): provider is AgentProvider =>
-                    typeof provider === 'string' && agentProviderIdSet.has(provider),
-            )
-        ) {
-            throw new Error('Caxri hook profile intent contains an invalid path or provider');
-        }
-        profiles[profileId] = { profilePath, providers: [...new Set(providers)] };
-    }
-    return { profiles, version: PROFILE_INTENTS_VERSION };
-}
-
-function serializeProfileIntents(registry: ProfileHookIntentRegistry): string {
-    return `${JSON.stringify(
-        {
-            version: PROFILE_INTENTS_VERSION,
-            profiles: Object.fromEntries(
-                Object.entries(registry.profiles)
-                    .toSorted(([left], [right]) => left.localeCompare(right))
-                    .map(([profileId, intent]) => [
-                        profileId,
-                        {
-                            profilePath: intent.profilePath,
-                            providers: agentProviderIds.filter((provider) =>
-                                intent.providers.includes(provider),
-                            ),
-                        },
-                    ]),
-            ),
-        },
-        null,
-        2,
-    )}\n`;
-}
-
 async function readTargets(targets: readonly AgentHookConfigTarget[]): Promise<AgentHookDocuments> {
     const entries = await Promise.all(
         targets.map(async (target) => {
@@ -181,7 +128,12 @@ async function readTargets(targets: readonly AgentHookConfigTarget[]): Promise<A
 }
 
 function healthFor(status: AgentHookEntryStatus, isActive: boolean): AgentHookHealth {
-    if (status.kind === 'current')
+    /**
+     * Entries written by a newer Caxri build are healthy for this one. Hook schema changes are additive, the bridge
+     * takes this instance's schema and socket from the launch environment rather than from the file, and repairing them
+     * would only make the two builds rewrite each other's entries (issue #557).
+     */
+    if (status.kind === 'current' || status.kind === 'newer')
         return isActive
             ? { kind: 'active' }
             : {
@@ -193,11 +145,6 @@ function healthFor(status: AgentHookEntryStatus, isActive: boolean): AgentHookHe
         return {
             kind: 'stale',
             message: `Installed hook schema ${status.installedSchema} needs an update.`,
-        };
-    if (status.kind === 'newer')
-        return {
-            kind: 'newer',
-            message: `Hook schema ${status.installedSchema} is newer than this Caxri version.`,
         };
     if (status.kind === 'conflict') return { kind: 'conflict', message: status.message };
     if (status.kind === 'unparseable') return { kind: 'error', message: status.message };
@@ -225,9 +172,18 @@ export class AgentHookManager {
     private readonly telemetry: AgentHookTelemetry;
     private readonly terminalLaunches = new Map<string, TerminalHookLaunch>();
     private readonly profileId: string;
+    private readonly schemaVersions: Record<AgentProvider, number>;
 
     constructor(private readonly options: AgentHookManagerOptions) {
         this.telemetry = new AgentHookTelemetry(options.logger);
+        this.schemaVersions = Object.fromEntries(
+            agentProviderIds.map((provider) => [
+                provider,
+                options.schemaVersions?.[provider] ??
+                    agentProviders[provider].hooks?.schemaVersion ??
+                    0,
+            ]),
+        ) as Record<AgentProvider, number>;
         this.ownsWatchHub = !options.watchHub;
         this.watchHub = options.watchHub ?? new WatchHub({ logger: options.logger });
         this.profileId = createHash('sha256')
@@ -237,9 +193,29 @@ export class AgentHookManager {
     }
 
     private async reconcileNow(
-        settings: Record<AgentProvider, AgentProviderSettings>,
+        requested: Record<AgentProvider, AgentProviderSettings>,
     ): Promise<void> {
         if (this.closed || !this.options.sharedPath || !this.bridgePath) return;
+        const { effective: settings, missing } = await gateHookSettingsOnExecutables(
+            requested,
+            this.options.discoverExecutable,
+        );
+        /**
+         * Every later consumer (signal handler, `markActive`, `anyEnabled`, watcher polling) must see the gated view: a
+         * hook signal for a provider whose CLI Caxri could not resolve came from another installation and must not flip
+         * this profile's health to `active`.
+         */
+        if (this.settings === requested) this.settings = settings;
+        const installHints = new Map<AgentProvider, string>();
+        for (const provider of missing) {
+            const message = `Install the ${agentProviderCatalog[provider].displayName} CLI, then restart Caxri.`;
+            installHints.set(provider, message);
+            // Logged on the transition into the missing state only; a steady-state reconcile repeats nothing.
+            if (this.health[provider].message !== message)
+                this.options.logger.write('info', logEventCatalog.agentHooks.executableMissing, {
+                    fields: { provider },
+                });
+        }
         try {
             await this.withInstallLock(async () => {
                 const globallyEnabled = await this.updateProfileIntent(settings);
@@ -253,6 +229,7 @@ export class AgentHookManager {
                             provider,
                             globallyEnabled[provider],
                             settings[provider].hooks.enabled,
+                            installHints.get(provider),
                         ),
                     ),
                 );
@@ -269,10 +246,15 @@ export class AgentHookManager {
         }
     }
 
+    /**
+     * `installHint` is set when the provider is enabled but its CLI could not be resolved; the provider is then
+     * reconciled as locally disabled and its `notInstalled` health carries the hint.
+     */
     private async reconcileProvider(
         provider: AgentProvider,
         isGloballyEnabled: boolean,
         isLocallyEnabled: boolean,
+        installHint?: string,
     ): Promise<void> {
         const adapter = agentProviders[provider].hooks;
         if (!adapter) {
@@ -293,39 +275,48 @@ export class AgentHookManager {
             const autoNamingConflict = adapter.autoNamingConflict?.(documents);
             if (autoNamingConflict) this.autoNamingConflicts.set(provider, autoNamingConflict);
             else this.autoNamingConflicts.delete(provider);
-            let status = adapter.inspect(documents, this.desired(provider, adapter)).status;
+            let status = adapter.inspect(documents, this.desired(provider)).status;
             if (!isGloballyEnabled) {
                 this.loseAuthority(provider);
                 if (!['absent', 'newer', 'unparseable'].includes(status.kind)) {
                     await this.writeEdits(
-                        adapter.remove(documents, this.desired(provider, adapter)),
+                        adapter.remove(documents, this.desired(provider)),
                         targetById,
                         provider,
                         'remove',
                         status.kind,
                     );
                     documents = await readTargets(targets);
-                    status = adapter.inspect(documents, this.desired(provider, adapter)).status;
+                    status = adapter.inspect(documents, this.desired(provider)).status;
                 }
-                this.setHealth(provider, healthFor(status, false));
+                const health = healthFor(status, false);
+                this.setHealth(
+                    provider,
+                    installHint && health.kind === 'notInstalled'
+                        ? { kind: 'notInstalled', message: installHint }
+                        : health,
+                );
                 return;
             }
             if (['absent', 'stale', 'drifted'].includes(status.kind)) {
                 this.loseAuthority(provider);
                 await this.writeEdits(
-                    adapter.render(documents, this.desired(provider, adapter)),
+                    adapter.render(documents, this.desired(provider)),
                     targetById,
                     provider,
                     status.kind === 'absent' ? 'install' : 'repair',
                     status.kind,
                 );
                 documents = await readTargets(targets);
-                status = adapter.inspect(documents, this.desired(provider, adapter)).status;
+                status = adapter.inspect(documents, this.desired(provider)).status;
             }
-            if (status.kind !== 'current') this.loseAuthority(provider);
+            if (status.kind !== 'current' && status.kind !== 'newer') this.loseAuthority(provider);
             if (!isLocallyEnabled) {
                 this.loseAuthority(provider);
-                this.setHealth(provider, { kind: 'notInstalled' });
+                this.setHealth(provider, {
+                    kind: 'notInstalled',
+                    ...(installHint && { message: installHint }),
+                });
                 return;
             }
             this.setHealth(provider, healthFor(status, this.activeProviders.has(provider)));
@@ -339,12 +330,27 @@ export class AgentHookManager {
         }
     }
 
-    private desired(provider: AgentProvider, adapter: AgentHookAdapter) {
+    private desired(provider: AgentProvider): DesiredHookInstall {
         return {
             bridgePath: this.bridgePath!,
             provider,
-            schemaVersion: adapter.schemaVersion,
+            schemaVersion: this.schemaVersions[provider],
         };
+    }
+
+    /**
+     * The schema an instance validates against travels with the launch, never with the shared provider file. The
+     * `--schema` literal in `~/.claude/settings.json` or Codex's `hooks.json` belongs to whichever build last won the
+     * file, so reading it back would make a superseded build reject its own signals; this environment is the only place
+     * this instance's expectation can be introduced (issue #557).
+     */
+    private schemaEnvironment(): NodeJS.ProcessEnv {
+        return Object.fromEntries(
+            agentProviderIds.map((provider) => [
+                `CAXRI_HOOK_SCHEMA_${provider.toUpperCase()}`,
+                String(this.schemaVersions[provider]),
+            ]),
+        );
     }
 
     /**
@@ -622,15 +628,9 @@ export class AgentHookManager {
             );
             const socketPath = join(tmpdir(), `caxri-hooks-${this.profileId}-${process.pid}.sock`);
             await pruneStaleAgentHookSockets(tmpdir(), this.profileId);
-            const schemaVersions = Object.fromEntries(
-                agentProviderIds.map((provider) => [
-                    provider,
-                    agentProviders[provider].hooks?.schemaVersion ?? 0,
-                ]),
-            ) as Record<AgentProvider, number>;
             this.server = new AgentHookServer(
                 socketPath,
-                schemaVersions,
+                this.schemaVersions,
                 async (signal) => {
                     if (!this.settings?.[signal.provider].hooks.enabled)
                         return { disposition: 'ignored', reason: 'hooksDisabled' };
@@ -717,6 +717,7 @@ export class AgentHookManager {
             CAXRI_HOOK_SOCKET: this.server.socketPath,
             CAXRI_HOOK_TERMINAL_ID: terminalId,
             CAXRI_HOOK_TOKEN: token,
+            ...this.schemaEnvironment(),
         };
     }
 
