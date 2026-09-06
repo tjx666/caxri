@@ -5,7 +5,7 @@ import type {
     SessionRecord,
     TerminalRecord,
 } from '@caxri/protocol';
-import { agentProviderCatalog } from '@caxri/protocol';
+import { agentProviderCatalog, DEFAULT_SESSION_TITLE } from '@caxri/protocol';
 
 /**
  * The two identity fields are real Electron `NotificationConstructorOptions` on macOS and Windows, not Caxri-private
@@ -164,7 +164,15 @@ export function createAgentNotificationCoordinator(
             {
                 id: `caxri-agent-session-${session.id}`,
                 groupId: 'caxri-agent-sessions',
-                title: session.displayTitle,
+                /**
+                 * The sidebar keeps `Untitled` because its row already shows the provider icon, but a native banner has
+                 * no such icon, so an unnamed Session is announced by its provider instead. The substitute is derived
+                 * from the Terminal's provider alone and can never carry prompt or transcript content.
+                 */
+                title:
+                    session.displayTitle === DEFAULT_SESSION_TITLE
+                        ? `${agentProviderCatalog[provider].displayName} session`
+                        : session.displayTitle,
                 body,
             },
             () => {

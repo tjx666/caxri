@@ -1,5 +1,11 @@
 import { z } from 'zod';
 
+/**
+ * Neutral automatic Session title used until the Session gains useful Agent metadata or a manual name. Shared so
+ * Desktop Main can recognize it without importing Server Core domain code.
+ */
+export const DEFAULT_SESSION_TITLE = 'Untitled';
+
 function hasLineBreakOrControl(value: string): boolean {
     return [...value].some((character) => {
         const code = character.codePointAt(0)!;
