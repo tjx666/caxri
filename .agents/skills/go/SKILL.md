@@ -55,8 +55,13 @@ Read [references/intake.md](references/intake.md) in full.
 1. Refresh the working tree, current branch, open issues, related PRs, and authentication state
    without modifying them. Use the intake snapshot so its canonical `lobehub whoami --json` probe
    fails closed before Acceptance work.
-2. Normalize the user's requirements. Deduplicate them and classify each as execute now, already
-   satisfied, defer, reject, or discuss before execution.
+2. Normalize the user's requirements. For every existing issue the request names, dispatch a
+   read-only verifier subagent that checks the problem is still real at the current head, weighs
+   the user-visible value against what the change touches, and reports how well the issue was
+   thought through; adjudicate its verdict against the source. Then deduplicate the requirements
+   and classify each as execute now, already satisfied, defer, reject, or discuss before
+   execution. A named issue with a weak or superseded verdict is discussed before the Goal, not
+   executed as written and not silently skipped.
    An existing issue whose Caxri project Status is `Backlog` classifies as defer:
    that Status is the owner saying "not yet". Admit it only when the owner names that issue
    explicitly in the current request. Report every issue skipped this way instead of dropping it
