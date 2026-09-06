@@ -6,6 +6,7 @@ import {
     createExtensionTreeState,
     focusTreeItem,
     isTreeItemExpanded,
+    isTreeSnapshotReady,
     keyboardTreeRowAction,
     pointerTreeRowAction,
     reconcileTreeItems,
@@ -13,6 +14,7 @@ import {
     serializeExtensionTreeState,
     toggleTreeItem,
     toggleTreeItemSubtree,
+    treeSnapshotLoading,
 } from '../extension-tree-state';
 
 function item(options: {
@@ -34,6 +36,54 @@ function item(options: {
 }
 
 describe('extension tree state', () => {
+    it('keeps first-expansion and retry feedback while hiding healthy refresh loading', () => {
+        expect(
+            treeSnapshotLoading(
+                new Set(['healthy', 'new-branch', 'retry']),
+                new Map([
+                    ['healthy', []],
+                    ['retry', []],
+                ]),
+                new Map([['retry', 'Unavailable']]),
+            ),
+        ).toEqual(new Set(['new-branch', 'retry']));
+    });
+
+    it('keeps a refresh unpublished until expanded descendants settle', () => {
+        const branch = item({ handle: 'repo', id: 'repo', collapsibleState: 'expanded' });
+        const leaf = item({ handle: 'check' });
+        const state = reconcileTreeItems(createExtensionTreeState(), [branch]);
+        const children = new Map([['root', [branch]]]);
+        expect(isTreeSnapshotReady('root', new Map(), new Map(), new Set(['root']), state)).toBe(
+            false,
+        );
+        expect(isTreeSnapshotReady('root', children, new Map(), new Set(), state)).toBe(false);
+        children.set('repo', [leaf]);
+        expect(isTreeSnapshotReady('root', children, new Map(), new Set(['repo']), state)).toBe(
+            false,
+        );
+        expect(isTreeSnapshotReady('root', children, new Map(), new Set(), state)).toBe(true);
+        children.delete('repo');
+        expect(
+            isTreeSnapshotReady(
+                'root',
+                children,
+                new Map([['repo', 'Unavailable']]),
+                new Set(),
+                state,
+            ),
+        ).toBe(true);
+        expect(
+            isTreeSnapshotReady(
+                'root',
+                children,
+                new Map(),
+                new Set(),
+                toggleTreeItem(state, branch),
+            ),
+        ).toBe(true);
+    });
+
     it('applies provider-expanded once and preserves a later user collapse across refresh', () => {
         const branch = item({
             collapsibleState: 'expanded',

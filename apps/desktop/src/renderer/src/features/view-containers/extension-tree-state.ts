@@ -18,6 +18,47 @@ export interface TreeChildrenReplacement {
 
 export type TreeRowAction = 'none' | 'toggle' | 'toggle-recursive' | 'activate';
 
+/**
+ * Existing healthy branches refresh silently; first expansion and error retries retain loading feedback.
+ */
+export function treeSnapshotLoading(
+    loading: ReadonlySet<string>,
+    children: ReadonlyMap<string, readonly TreeItemDto[]>,
+    errors: ReadonlyMap<string, string>,
+): ReadonlySet<string> {
+    return new Set(
+        loading.values().filter((handle) => !children.has(handle) || errors.has(handle)),
+    );
+}
+
+/**
+ * A refresh is publishable only after every visible branch has settled, including lazy descendants.
+ */
+export function isTreeSnapshotReady(
+    rootHandle: string,
+    children: ReadonlyMap<string, readonly TreeItemDto[]>,
+    errors: ReadonlyMap<string, string>,
+    loading: ReadonlySet<string>,
+    state: ExtensionTreeState,
+): boolean {
+    const visited = new Set<string>();
+    const isReady = (handle: string): boolean => {
+        if (visited.has(handle)) return true;
+        visited.add(handle);
+        if (loading.has(handle)) return false;
+        if (errors.has(handle)) return true;
+        const items = children.get(handle);
+        if (!items) return false;
+        return items.every(
+            (item) =>
+                item.collapsibleState === 'none' ||
+                !isTreeItemExpanded(state, item) ||
+                isReady(item.handle),
+        );
+    };
+    return isReady(rootHandle);
+}
+
 function treeItemStateKey(item: TreeItemDto): string {
     return item.id ? `${STABLE_KEY_PREFIX}${item.id}` : `${TRANSIENT_KEY_PREFIX}${item.handle}`;
 }

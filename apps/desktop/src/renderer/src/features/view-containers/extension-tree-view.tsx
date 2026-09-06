@@ -276,8 +276,17 @@ function ExtensionTreeViewContent({
 }) {
     const scrollElement = useRef<HTMLDivElement>(null);
     const [treeState, updateTreeState] = useExtensionTreeState(scope, persisted);
-    const { children, errors, loading, loadChildren, requests, rootLoads } =
-        useExtensionTreeChildren(scope, updateTreeState);
+    const {
+        children,
+        errors,
+        loading,
+        loadChildren,
+        requests,
+        rootLoads,
+        visibleChildren,
+        visibleErrors,
+        visibleLoading,
+    } = useExtensionTreeChildren(scope, updateTreeState, treeState);
     const refreshLock = useRef<string | undefined>(undefined);
     const [pendingRefresh, setPendingRefresh] = useState<PendingTreeRefresh>();
     const activePendingRefresh = pendingRefresh
@@ -304,8 +313,14 @@ function ExtensionTreeViewContent({
     };
 
     const rows = useMemo(
-        () => flattenRows(children, errors, (item) => isTreeItemExpanded(treeState, item), loading),
-        [children, errors, loading, treeState],
+        () =>
+            flattenRows(
+                visibleChildren,
+                visibleErrors,
+                (item) => isTreeItemExpanded(treeState, item),
+                visibleLoading,
+            ),
+        [visibleChildren, visibleErrors, visibleLoading, treeState],
     );
     useEffect(() => {
         const handles = unloadedExpandedHandles(
