@@ -14,6 +14,7 @@ import type { AgentLifecycleSignal, AgentService } from '../agents';
 import type { AgentTitleSource } from '../agents/contract';
 import type { CaxriDatabase } from '../db';
 import { SessionAutoNamingService } from '../session-auto-naming';
+import { autoNamingStages } from '../session-auto-naming-metrics';
 import type { SessionRenameService } from '../session-rename';
 
 const sessionId = 'session-1';
@@ -86,6 +87,37 @@ function enabledSettings(provider: AgentProvider = 'claude'): AppSettings {
     return settings;
 }
 
+interface NamingRecord {
+    durationMs?: number;
+    fields: Record<string, string | number>;
+    level: string;
+}
+
+/**
+ * The complete `logger.write` calls for `agent.auto_naming_*`, in write order. Nothing is projected away, so a privacy
+ * assertion over these also covers `context`, `failure`, and any option a later change starts passing.
+ */
+function namingCalls(loggerWrite: { mock: { calls: unknown[][] } }): unknown[][] {
+    return loggerWrite.mock.calls.filter((call) => String(call[1]).startsWith('agent.auto_naming'));
+}
+
+/**
+ * Reads the `agent.auto_naming_*` records a test produced, in write order.
+ */
+function namingRecords(loggerWrite: { mock: { calls: unknown[][] } }): NamingRecord[] {
+    return namingCalls(loggerWrite).map((call) => {
+        const options = call[2] as {
+            durationMs?: number;
+            fields: Record<string, string | number>;
+        };
+        return {
+            durationMs: options.durationMs,
+            fields: options.fields,
+            level: String(call[0]),
+        };
+    });
+}
+
 function harness(
     options: {
         currentSession?: SessionRecord;
@@ -95,6 +127,7 @@ function harness(
             context: Parameters<AgentService['generateSessionTitle']>[1],
         ) => Promise<string>;
         now?: () => number;
+        onHealthChanged?: (provider: AgentProvider, health: unknown) => void;
         ownership?: { lastAutoTitle?: string; state: 'active' | 'stopped' };
         provider?: AgentProvider;
     } = {},
@@ -158,8 +191,10 @@ function harness(
     );
     const loggerWrite = vi.fn();
     const logger = { write: loggerWrite } as unknown as StructuredLogger;
+    let isSessionDeleted = false;
     const database = {
-        getSession: (id: string) => (id === sessionId ? currentSession : undefined),
+        getSession: (id: string) =>
+            id === sessionId && !isSessionDeleted ? currentSession : undefined,
         getTerminal: (id: string) => (id === terminalId ? terminal(provider) : undefined),
         sessionNaming: {
             get: () => ownership,
@@ -189,9 +224,13 @@ function harness(
             hasForeignHookConflict: () => false,
             isCurrentLaunch: () => isCurrentLaunch,
             now: options.now,
+            onHealthChanged: options.onHealthChanged,
         },
     );
     return {
+        deleteSession(): void {
+            isSessionDeleted = true;
+        },
         events,
         generateSessionTitle,
         loggerWrite,
@@ -326,6 +365,15 @@ describe('Session automatic naming', () => {
         expect(serialized).toContain('claude');
         expect(serialized).toContain('Error');
         expect(serialized).not.toContain('private model detail');
+        expect(namingRecords(test.loggerWrite)[0]).toMatchObject({
+            fields: {
+                attempt: 1,
+                errorKind: 'Error',
+                provider: 'claude',
+                stage: 'providerGeneration',
+            },
+            level: 'warn',
+        });
         await test.service.close();
     });
 
@@ -435,6 +483,259 @@ describe('Session automatic naming', () => {
         generation.resolve('Disabled result');
         await test.service.close();
         expect(test.renameAutomatically).not.toHaveBeenCalled();
+    });
+
+    it('records every stage it entered, with a duration and a bounded outcome', async () => {
+        let now = 1_000;
+        const test = harness({ now: () => (now += 10) });
+
+        test.service.observe(lifecycle('turnFinished'));
+
+        await vi.waitFor(() => expect(namingRecords(test.loggerWrite)).toHaveLength(1));
+        const [record] = namingRecords(test.loggerWrite);
+        expect(record.level).toBe('info');
+        expect(record.durationMs).toBeGreaterThan(0);
+        expect(record.fields).toMatchObject({
+            attempt: 1,
+            outcome: 'renamed',
+            provider: 'claude',
+            reason: 'completed',
+            stage: 'complete',
+        });
+        const measured = autoNamingStages.filter(
+            (stage) => `${stage}Ms` in record.fields && stage !== 'complete',
+        );
+        expect(measured).toEqual([
+            'queued',
+            'sourceRead',
+            'ownershipCheck',
+            'branchRead',
+            'providerGeneration',
+            'rename',
+        ]);
+        for (const stage of measured) expect(record.fields[`${stage}Ms`]).toBeGreaterThan(0);
+        await test.service.close();
+    });
+
+    it('names the gate that stopped an attempt before any provider read', async () => {
+        let now = 1_000;
+        const test = harness({ now: () => now });
+        test.service.observe(lifecycle('turnFinished'));
+        await vi.waitFor(() => expect(test.renameAutomatically).toHaveBeenCalledOnce());
+
+        now += 1_000;
+        test.service.observe(lifecycle('turnFinished'));
+
+        await vi.waitFor(() => expect(namingRecords(test.loggerWrite)).toHaveLength(2));
+        expect(namingRecords(test.loggerWrite)[1]).toMatchObject({
+            fields: { attempt: 2, outcome: 'skipped', reason: 'minimumInterval', stage: 'queued' },
+            level: 'debug',
+        });
+        expect(test.readTitleSource).toHaveBeenCalledOnce();
+        await test.service.close();
+    });
+
+    /**
+     * `Resume automatic naming` is an explicit request for a name now. The minimum-interval and transcript-growth
+     * throttles outlive the stop, so without a reset the first turn after resuming is silently swallowed and the button
+     * reads as doing nothing.
+     */
+    it('clears the throttle window when automatic naming is resumed', async () => {
+        let now = 1_000;
+        const test = harness({ now: () => now });
+        test.service.observe(lifecycle('turnFinished'));
+        await vi.waitFor(() => expect(test.renameAutomatically).toHaveBeenCalledOnce());
+
+        await test.service.resumeSession(sessionId);
+        now += 1_000;
+        test.service.observe(lifecycle('turnFinished'));
+
+        await vi.waitFor(() => expect(test.renameAutomatically).toHaveBeenCalledTimes(2));
+        const reasons = namingRecords(test.loggerWrite).map((record) => record.fields.reason);
+        expect(reasons).not.toContain('minimumInterval');
+        expect(reasons).not.toContain('transcriptGrowthBelowThreshold');
+        await test.service.close();
+    });
+
+    it('does not degrade provider health when the Session disappears mid-generation', async () => {
+        const generation = Promise.withResolvers<string>();
+        const onHealthChanged = vi.fn();
+        const test = harness({
+            generate: () => generation.promise,
+            onHealthChanged,
+        });
+        test.service.observe(lifecycle('turnFinished'));
+        await vi.waitFor(() => expect(test.generateSessionTitle).toHaveBeenCalledOnce());
+
+        test.deleteSession();
+        generation.reject(new Error('Provider closed the connection'));
+
+        await vi.waitFor(() => expect(namingRecords(test.loggerWrite)).toHaveLength(1));
+        expect(namingRecords(test.loggerWrite)[0]).toMatchObject({
+            fields: { outcome: 'skipped', reason: 'targetIneligible' },
+            level: 'info',
+        });
+        expect(onHealthChanged).not.toHaveBeenCalled();
+        await test.service.close();
+    });
+
+    it('classifies a superseded generation apart from a cancelled one', async () => {
+        const generation = Promise.withResolvers<string>();
+        const test = harness({ generate: () => generation.promise });
+        test.service.observe(lifecycle('turnFinished'));
+        await vi.waitFor(() => expect(test.generateSessionTitle).toHaveBeenCalledOnce());
+
+        test.service.observe(lifecycle('turnStarted'));
+        generation.resolve('Stale title');
+
+        await vi.waitFor(() => expect(namingRecords(test.loggerWrite)).toHaveLength(1));
+        expect(namingRecords(test.loggerWrite)[0].fields).toMatchObject({
+            outcome: 'superseded',
+            reason: 'supersededByNewerTrigger',
+            stage: 'providerGeneration',
+        });
+        await test.service.close();
+    });
+
+    /**
+     * `slot.lastAttemptAt` is only stamped once an attempt reaches generation, so a Session blocked before that point
+     * retries in full on every completed turn. Without the explicit per-Session throttle those records would be
+     * unbounded at `info` (issue #504).
+     */
+    it('keeps at most one info record per Session per minute', async () => {
+        let now = 1_000;
+        const test = harness({
+            currentSource: titleSource({
+                currentProviderTitle: 'Manual provider title',
+                providerTitleState: 'explicit',
+            }),
+            now: () => now,
+            ownership: { state: 'active', lastAutoTitle: 'Previous automatic title' },
+        });
+
+        test.service.observe(lifecycle('turnFinished'));
+        await vi.waitFor(() => expect(namingRecords(test.loggerWrite)).toHaveLength(1));
+        now += 1_000;
+        test.service.observe(lifecycle('turnFinished'));
+        await vi.waitFor(() => expect(namingRecords(test.loggerWrite)).toHaveLength(2));
+
+        const records = namingRecords(test.loggerWrite);
+        expect(records[0]).toMatchObject({
+            fields: {
+                outcome: 'blocked',
+                reason: 'providerTitleExplicit',
+                stage: 'ownershipCheck',
+            },
+            level: 'info',
+        });
+        expect(records[1].level).toBe('debug');
+        expect(records[1].fields.reason).toBe('providerTitleExplicit');
+        expect(records[0].fields).not.toHaveProperty('branchReadMs');
+        expect(records[0].fields).not.toHaveProperty('providerGenerationMs');
+        expect(records[0].fields).not.toHaveProperty('renameMs');
+        expect(test.generateSessionTitle).not.toHaveBeenCalled();
+        await test.service.close();
+    });
+
+    /**
+     * Server Core's sink runs at `info`, so a downgraded record is dropped rather than deprioritized. The counts have
+     * to survive on the next record that does reach `info` or a Session that keeps failing the same gate leaves the
+     * production log empty (issue #504).
+     */
+    it('carries the per-Session reason counts on the record that reaches info', async () => {
+        let now = 1_000;
+        const test = harness({ now: () => now });
+        test.service.observe(lifecycle('turnFinished'));
+        await vi.waitFor(() => expect(namingRecords(test.loggerWrite)).toHaveLength(1));
+        now += 1_000;
+        test.service.observe(lifecycle('turnFinished'));
+        await vi.waitFor(() => expect(namingRecords(test.loggerWrite)).toHaveLength(2));
+
+        // Past `MINIMUM_GENERATION_INTERVAL_MS`, so the interval gate and the info throttle both reopen.
+        now += 61_000;
+        test.service.observe(lifecycle('turnFinished'));
+
+        await vi.waitFor(() => expect(namingRecords(test.loggerWrite)).toHaveLength(3));
+        const records = namingRecords(test.loggerWrite);
+        expect(records[1].level).toBe('debug');
+        expect(records[1].fields).not.toHaveProperty('reasonMinimumInterval');
+        expect(records[2]).toMatchObject({
+            fields: {
+                reason: 'transcriptGrowthBelowThreshold',
+                reasonCompleted: 1,
+                reasonMinimumInterval: 1,
+                reasonTranscriptGrowthBelowThreshold: 1,
+                slowestAttemptMs: 0,
+            },
+            level: 'info',
+        });
+        await test.service.close();
+    });
+
+    it('keeps a high-frequency reason at debug even when the info budget is free', async () => {
+        let now = 1_000;
+        const test = harness({
+            generate: () => Promise.reject(new Error('private model detail')),
+            now: () => now,
+        });
+        test.service.observe(lifecycle('turnFinished'));
+        await vi.waitFor(() => expect(namingCalls(test.loggerWrite)).toHaveLength(1));
+
+        now += 1_000;
+        test.service.observe(lifecycle('turnFinished'));
+
+        await vi.waitFor(() => expect(namingCalls(test.loggerWrite)).toHaveLength(2));
+        const records = namingRecords(test.loggerWrite);
+        expect(records[0].level).toBe('warn');
+        expect(records[1]).toMatchObject({
+            fields: { outcome: 'skipped', reason: 'failureCooldown' },
+            level: 'debug',
+        });
+        await test.service.close();
+    });
+
+    it('records a cancelled attempt that already spent generation time', async () => {
+        const generation = Promise.withResolvers<string>();
+        const test = harness({
+            generate: async (context) => {
+                context.signal?.addEventListener(
+                    'abort',
+                    () => generation.reject(new Error('aborted by caller')),
+                    { once: true },
+                );
+                return generation.promise;
+            },
+        });
+        test.service.observe(lifecycle('turnFinished'));
+        await vi.waitFor(() => expect(test.generateSessionTitle).toHaveBeenCalledOnce());
+
+        test.service.pauseSession(sessionId);
+
+        await vi.waitFor(() => expect(namingRecords(test.loggerWrite)).toHaveLength(1));
+        expect(namingRecords(test.loggerWrite)[0].fields).toMatchObject({
+            outcome: 'cancelled',
+            reason: 'aborted',
+            stage: 'providerGeneration',
+        });
+        await test.service.close();
+        expect(test.renameAutomatically).not.toHaveBeenCalled();
+    });
+
+    it('keeps prompts, titles, transcripts and paths out of every naming record', async () => {
+        const test = harness({
+            currentSource: titleSource({ gitBranch: 'feat/private-branch' }),
+            generate: () => Promise.resolve('Private generated title'),
+        });
+
+        test.service.observe(lifecycle('turnFinished'));
+
+        await vi.waitFor(() => expect(namingRecords(test.loggerWrite)).toHaveLength(1));
+        const serialized = JSON.stringify(namingCalls(test.loggerWrite));
+        expect(serialized).not.toContain('A private');
+        expect(serialized).not.toContain('Private generated title');
+        expect(serialized).not.toContain('feat/private-branch');
+        expect(serialized).not.toContain('/project');
+        await test.service.close();
     });
 
     it('waits for aborted generation work to settle before shutdown completes', async () => {

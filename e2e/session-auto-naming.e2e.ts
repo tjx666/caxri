@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
@@ -296,6 +296,172 @@ process.stdout.write('Fake Codex automatic naming ready\r\n');
         await expect(
             readFile(join(userData, 'e2e-agents', 'codex', 'unexpected-naming-call'), 'utf8'),
         ).rejects.toMatchObject({ code: 'ENOENT' });
+    } finally {
+        await running.app.close();
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+/**
+ * `Resume automatic naming` has to survive the throttles the previous naming round left behind. The minimum generation
+ * interval is a minute, so a resumed Session that still carries the old attempt timestamp stays silently unnamed for
+ * the whole window — which reads as the button doing nothing. Only the cross-process path proves the reset, because the
+ * throttle lives in Server Core while the button lives in the Renderer.
+ */
+// eslint-disable-next-line no-empty-pattern -- Playwright requires the first test argument to use object destructuring
+test('Resume automatic naming renames on the next turn inside the throttle window', async ({}) => {
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-claude-resume-name-e2e-'));
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root, { recursive: true });
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: {
+            claude: {
+                executableSource: String.raw`#!${process.execPath}
+const childProcess = require('node:child_process');
+const fs = require('node:fs');
+const path = require('node:path');
+const sessionId = 'claude-resume-name-session';
+if (process.argv.includes('--version')) {
+  process.stdout.write('2.1.251 (Claude Code)\n');
+  process.exit(0);
+}
+const configDirectory = process.env.CLAUDE_CONFIG_DIR;
+const metadataPath = path.join(configDirectory, 'sessions', 'session.json');
+const resumeIndex = process.argv.indexOf('--resume');
+const renameCommand = process.argv.at(-1) ?? '';
+if (resumeIndex >= 0 && renameCommand.startsWith('/rename ')) {
+  const displayTitle = renameCommand.slice('/rename '.length);
+  const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
+  fs.writeFileSync(metadataPath, JSON.stringify({ ...metadata, name: displayTitle, nameSource: 'custom' }));
+  process.stdout.write(JSON.stringify({
+    is_error: false,
+    result: 'Session renamed to: ' + displayTitle,
+    session_id: process.argv[resumeIndex + 1],
+    subtype: 'success',
+    type: 'result',
+  }));
+  process.exit(0);
+}
+if (process.argv.includes('--print') && process.argv.includes('--model')) {
+  let input = '';
+  process.stdin.setEncoding('utf8');
+  process.stdin.on('data', (chunk) => { input += chunk; });
+  process.stdin.on('end', () => {
+    const calls = fs.existsSync(path.join(configDirectory, 'naming-calls.jsonl'))
+      ? fs.readFileSync(path.join(configDirectory, 'naming-calls.jsonl'), 'utf8').trim().split('\n').length
+      : 0;
+    fs.appendFileSync(path.join(configDirectory, 'naming-calls.jsonl'), JSON.stringify({ call: calls + 1 }) + '\n');
+    process.stdout.write(calls === 0 ? 'Claude First Naming' : 'Claude Resumed Naming');
+  });
+} else {
+fs.mkdirSync(path.dirname(metadataPath), { recursive: true });
+fs.writeFileSync(metadataPath, JSON.stringify({
+  cwd: process.cwd(),
+  name: path.basename(process.cwd()),
+  nameSource: 'derived',
+  sessionId,
+  startedAt: new Date().toISOString(),
+  status: 'completed',
+  updatedAt: new Date().toISOString(),
+}));
+const projectDirectory = path.join(
+  configDirectory,
+  'projects',
+  process.cwd().replaceAll(/[^a-z0-9]/gi, '-'),
+);
+const transcriptPath = path.join(projectDirectory, sessionId + '.jsonl');
+fs.mkdirSync(projectDirectory, { recursive: true });
+function appendTurn(index) {
+  fs.appendFileSync(transcriptPath, [
+    JSON.stringify({ type: 'user', message: { content: 'Turn ' + index + ' ' + 'x'.repeat(2048) } }),
+    JSON.stringify({ type: 'assistant', message: { content: 'Reply ' + index } }),
+  ].join('\n') + '\n');
+}
+function invokeHook(event) {
+  const settings = JSON.parse(fs.readFileSync(path.join(configDirectory, 'settings.json'), 'utf8'));
+  const group = settings.hooks[event][0];
+  childProcess.execFileSync('/bin/sh', ['-c', group.hooks[0].command], {
+    env: process.env,
+    input: JSON.stringify({ session_id: sessionId }),
+  });
+}
+function runTurn(index) {
+  appendTurn(index);
+  invokeHook('UserPromptSubmit');
+  setTimeout(() => invokeHook('Stop'), 100);
+}
+setTimeout(() => runTurn(1), 250);
+// The Renderer drops a marker after resuming, which stands in for the user submitting the next prompt.
+const secondTurnPath = path.join(configDirectory, 'run-second-turn');
+const watcher = setInterval(() => {
+  if (!fs.existsSync(secondTurnPath)) return;
+  clearInterval(watcher);
+  runTurn(2);
+}, 100);
+process.stdin.resume();
+process.stdout.write('Fake Claude resume naming ready\r\n');
+}
+`,
+            },
+        },
+    });
+    const running = await launchCaxri({
+        agentMode,
+        env: { CAXRI_E2E_AGENT_HOOKS: '1' },
+        testRootPath: root,
+        userDataDir: userData,
+    });
+    const configDirectory = join(userData, 'e2e-agents', 'claude');
+
+    try {
+        await enableAutomaticNaming(running.page, 'claude');
+        await expect
+            .poll(async () => readFile(join(configDirectory, 'settings.json'), 'utf8'))
+            .toContain('UserPromptSubmit');
+        const sessionId = await createProjectSession(running.page, 'claude');
+        await expect(running.page.locator('.session-card strong')).toHaveText(
+            'Claude First Naming',
+        );
+
+        await pageRequest(running.page, 'session.rename', {
+            sessionId,
+            displayTitle: 'Manual title wins',
+        });
+        await expect(running.page.locator('.session-card strong')).toHaveText('Manual title wins');
+
+        // The resume control only appears on hover, so the row's `R` keyboard equivalent is the reachable path.
+        const row = running.page.locator(`.session-card[data-session-id="${sessionId}"]`);
+        await expect(
+            running.page.getByRole('button', {
+                name: 'Resume automatic naming for Manual title wins',
+            }),
+        ).toHaveCount(1);
+        await row.focus();
+        await row.press('r');
+        await expect
+            .poll(async () => {
+                const bootstrap = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
+                return bootstrap.sessions.find((session) => session.id === sessionId)
+                    ?.autoNamingState;
+            })
+            .toBe('active');
+
+        await writeFile(join(configDirectory, 'run-second-turn'), '', 'utf8');
+        /**
+         * The second turn lands seconds after the first, well inside the one-minute minimum generation interval. A
+         * Session that kept the pre-stop attempt timestamp would stay on the manual title here.
+         */
+        await expect(running.page.locator('.session-card strong')).toHaveText(
+            'Claude Resumed Naming',
+        );
+        const bootstrap = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
+        expect(bootstrap.sessions.find((session) => session.id === sessionId)).toMatchObject({
+            autoNamingState: 'active',
+            displayTitle: 'Claude Resumed Naming',
+            titleMode: 'automatic',
+        });
     } finally {
         await running.app.close();
         await rm(directory, { recursive: true, force: true });

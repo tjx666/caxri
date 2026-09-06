@@ -7,7 +7,6 @@ import { defaultAgentProviderSettings } from '@caxri/protocol';
 import { execFileAsync, StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { codexHookAdapter } from '../../providers/codex/hooks';
 import type { AgentLifecycleSignal, AgentSignalDecision } from '../contract';
 import { AgentHookManager } from '../manager';
 
@@ -31,6 +30,8 @@ describe('AgentHookManager observability', () => {
         const codexHome = join(directory, 'codex');
         const settings = structuredClone(defaultAgentProviderSettings);
         settings.codex.hooks.enabled = true;
+        // Only Codex is under observation; keep the Claude default from adding a second install write.
+        settings.claude.hooks.enabled = false;
         const signals = vi.fn<(signal: AgentLifecycleSignal) => AgentSignalDecision>(
             () => 'accepted',
         );
@@ -42,6 +43,7 @@ describe('AgentHookManager observability', () => {
             onLaunchEnded: vi.fn(),
             onLaunchStarted: vi.fn(),
             onSignal: signals,
+            discoverExecutable: () => Promise.resolve(process.execPath),
             hookExecutable: process.execPath,
             send: vi.fn(),
             sharedPath: join(directory, 'shared'),
@@ -55,16 +57,7 @@ describe('AgentHookManager observability', () => {
         ): Promise<void> => {
             const invocation = execFileAsync(
                 bridge,
-                [
-                    '--source',
-                    'caxri',
-                    '--provider',
-                    'codex',
-                    '--phase',
-                    phase,
-                    '--schema',
-                    String(codexHookAdapter.schemaVersion),
-                ],
+                ['--source', 'caxri', '--provider', 'codex', '--phase', phase],
                 { env: { ...process.env, ...environment } },
             );
             if (payload) invocation.child.stdin?.end(JSON.stringify(payload));
@@ -182,6 +175,7 @@ describe('AgentHookManager observability', () => {
             onLaunchEnded: vi.fn(),
             onLaunchStarted: vi.fn(),
             onSignal: vi.fn(() => 'accepted' as const),
+            discoverExecutable: () => Promise.resolve(process.execPath),
             hookExecutable: process.execPath,
             send: vi.fn(),
             sharedPath: join(directory, 'shared'),

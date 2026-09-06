@@ -44,6 +44,20 @@ describe('Runtime Agent hook integration', () => {
         });
 
         try {
+            // Hooks default to enabled; this case is specifically about the disabled path.
+            const currentSettings = await runtime.handlers['settings.get']({});
+            await runtime.handlers['settings.update']({
+                source: JSON.stringify({
+                    ...currentSettings.value,
+                    'agents.providers': {
+                        ...currentSettings.value['agents.providers'],
+                        codex: {
+                            ...currentSettings.value['agents.providers'].codex,
+                            hooks: { enabled: false },
+                        },
+                    },
+                }),
+            });
             const project = await runtime.handlers['project.create']({ rootPath: projectRoot });
             topology.mockClear();
 
@@ -145,16 +159,7 @@ describe('Runtime Agent hook integration', () => {
             const bridge = join(directory, 'shared-hooks', 'bin', 'caxri-agent-hook-bridge');
             await execFileAsync(
                 bridge,
-                [
-                    '--source',
-                    'caxri',
-                    '--provider',
-                    'codex',
-                    '--phase',
-                    'compactionStarted',
-                    '--schema',
-                    '8',
-                ],
+                ['--source', 'caxri', '--provider', 'codex', '--phase', 'compactionStarted'],
                 { env: { ...process.env, ...environment } },
             );
             await expect
@@ -177,16 +182,7 @@ describe('Runtime Agent hook integration', () => {
 
             await execFileAsync(
                 bridge,
-                [
-                    '--source',
-                    'caxri',
-                    '--provider',
-                    'codex',
-                    '--phase',
-                    'compactionFinished',
-                    '--schema',
-                    '8',
-                ],
+                ['--source', 'caxri', '--provider', 'codex', '--phase', 'compactionFinished'],
                 { env: { ...process.env, ...environment } },
             );
             await expect
@@ -208,8 +204,6 @@ describe('Runtime Agent hook integration', () => {
                     'codex',
                     '--phase',
                     'turnFinished',
-                    '--schema',
-                    '8',
                     '--reply',
                     'empty-json',
                 ],
@@ -296,16 +290,7 @@ describe('Runtime Agent hook integration', () => {
 
             await execFileAsync(
                 bridge,
-                [
-                    '--source',
-                    'caxri',
-                    '--provider',
-                    'claude',
-                    '--phase',
-                    'turnStarted',
-                    '--schema',
-                    '8',
-                ],
+                ['--source', 'caxri', '--provider', 'claude', '--phase', 'turnStarted'],
                 { env: { ...process.env, ...environment } },
             );
             await expect
@@ -324,16 +309,7 @@ describe('Runtime Agent hook integration', () => {
 
             const subagentStarted = execFileAsync(
                 bridge,
-                [
-                    '--source',
-                    'caxri',
-                    '--provider',
-                    'claude',
-                    '--phase',
-                    'subagentStarted',
-                    '--schema',
-                    '8',
-                ],
+                ['--source', 'caxri', '--provider', 'claude', '--phase', 'subagentStarted'],
                 { env: { ...process.env, ...environment } },
             );
             subagentStarted.child.stdin?.end(JSON.stringify({ agent_id: 'subagent-1' }));
@@ -349,8 +325,6 @@ describe('Runtime Agent hook integration', () => {
                     'claude',
                     '--phase',
                     'turnFinished',
-                    '--schema',
-                    '8',
                     '--reply',
                     'empty-json',
                 ],
@@ -384,8 +358,6 @@ describe('Runtime Agent hook integration', () => {
                     'claude',
                     '--phase',
                     'turnFinished',
-                    '--schema',
-                    '8',
                     '--reply',
                     'empty-json',
                 ],

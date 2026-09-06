@@ -23,11 +23,19 @@ const args = new Map();
 for (let index = 2; index < process.argv.length - 1; index += 2) {
   if (process.argv[index].startsWith('--')) args.set(process.argv[index].slice(2), process.argv[index + 1]);
 }
+// The schema version is not part of the installed hook command: the command is shared by every Caxri build on the
+// machine, so it must stay identical across builds or they would rewrite each other's entries. Each Caxri instance
+// tells the bridge which schema it expects through the launch environment, next to the socket that instance owns.
+const provider = args.get('provider');
+const schemaFromEnvironment = Number(process.env['CAXRI_HOOK_SCHEMA_' + String(provider).toUpperCase()]);
+// A shell profile sourced after launch can overwrite the variable with anything; a non-numeric value must not turn
+// every signal in the Terminal into an unexplained rejection.
+const schemaVersion = Number.isFinite(schemaFromEnvironment) ? schemaFromEnvironment : 0;
 const signal = {
   protocolVersion: 1,
-  provider: args.get('provider'),
+  provider,
   phase: args.get('phase'),
-  schemaVersion: Number(args.get('schema')),
+  schemaVersion,
   terminalId: process.env.CAXRI_HOOK_TERMINAL_ID,
   launchId: process.env.CAXRI_HOOK_LAUNCH_ID,
   token: process.env.CAXRI_HOOK_TOKEN,
@@ -277,7 +285,7 @@ readIdentifiers(({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateInt
 }
 `;
 
-const BRIDGE_VERSION = 13;
+const BRIDGE_VERSION = 14;
 
 const BRIDGE_WRAPPER = String.raw`#!/bin/sh
 bridge_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)

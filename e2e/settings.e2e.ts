@@ -100,21 +100,24 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         // through the table of contents before asserting on its rows.
         await revealSettingsSection(dialog, 'Claude Code');
         await expect(dialog.getByLabel('Claude Code executable')).toHaveValue('claude');
+        // Lifecycle hooks and automatic naming default to enabled. E2E launches with Agent
+        // discovery `blocked`, so the CLI is deliberately absent: the hook waits instead of
+        // installing, and the caption carries the install hint.
         await expect(
             dialog.getByRole('switch', { name: 'Claude Code lifecycle hooks' }),
-        ).not.toBeChecked();
+        ).toBeChecked();
         await expect(
             dialog.getByRole('switch', { name: 'Claude Code peer messaging' }),
         ).toBeChecked();
         await expect(
             dialog.getByRole('switch', { name: 'Claude Code automatic Session naming' }),
-        ).not.toBeChecked();
+        ).toBeChecked();
         await expect(
             dialog.locator('[data-setting-row="agents.claude.hooks"]').getByRole('status'),
-        ).toHaveText('Disabled');
+        ).toContainText('Waiting for the agent CLI to be installed');
         await expect(
             dialog.locator('[data-setting-row="agents.claude.naming"]').getByRole('status'),
-        ).toHaveText('Disabled');
+        ).toContainText('Waiting for the agent CLI to be installed');
         await expect(dialog.getByLabel('Claude Code initial arguments')).toBeVisible();
         await expect(
             dialog.locator('[data-agent-provider="claude"] [data-agent-icon="claude"]'),
@@ -122,9 +125,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
 
         await revealSettingsSection(dialog, 'Codex');
         await expect(dialog.getByLabel('Codex executable')).toHaveValue('codex');
-        await expect(
-            dialog.getByRole('switch', { name: 'Codex lifecycle hooks' }),
-        ).not.toBeChecked();
+        await expect(dialog.getByRole('switch', { name: 'Codex lifecycle hooks' })).toBeChecked();
         await expect(dialog.getByRole('switch', { name: 'Codex peer messaging' })).toBeChecked();
         await expect(
             dialog.locator('[data-agent-provider="codex"] [data-agent-icon="codex"]'),
@@ -146,6 +147,12 @@ test('Settings keeps actions visible and provides highlighted editors and live T
 
         await dialog.getByRole('spinbutton', { name: 'Font size' }).fill('14');
         await revealSettingsSection(dialog, 'Claude Code');
+        // Both toggles start enabled, so round-trip them off and back on to exercise the write
+        // path in each direction.
+        await dialog.getByRole('switch', { name: 'Claude Code lifecycle hooks' }).uncheck();
+        await expect(
+            dialog.locator('[data-setting-row="agents.claude.hooks"]').getByRole('status'),
+        ).toHaveText('Disabled');
         await dialog.getByRole('switch', { name: 'Claude Code lifecycle hooks' }).check();
         await expect(dialog.locator('[data-setting-row="agents.claude.hooks"]')).toContainText(
             'Restart Agent Terminals opened before lifecycle hooks were enabled.',
@@ -160,6 +167,12 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         await expect(
             dialog.locator('[data-setting-row="agents.claude.hooks"]').getByRole('status'),
         ).toContainText('Waiting for the agent CLI to be installed');
+        await dialog
+            .getByRole('switch', { name: 'Claude Code automatic Session naming' })
+            .uncheck();
+        await expect(
+            dialog.locator('[data-setting-row="agents.claude.naming"]').getByRole('status'),
+        ).toHaveText('Disabled');
         await dialog.getByRole('switch', { name: 'Claude Code automatic Session naming' }).check();
         await expect(
             dialog.locator('[data-setting-row="agents.claude.naming"]').getByRole('status'),

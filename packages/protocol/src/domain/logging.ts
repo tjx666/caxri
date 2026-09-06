@@ -7,6 +7,7 @@ import { z } from 'zod';
 export const logEventCatalog = {
     agent: {
         autoNamingFailed: 'agent.auto_naming_failed',
+        autoNamingFinished: 'agent.auto_naming_finished',
         integrationReconcileFailed: 'agent.integration_reconcile_failed',
         probe: 'agent.probe',
         probeFailed: 'agent.probe_failed',
@@ -18,6 +19,7 @@ export const logEventCatalog = {
     agentHooks: {
         bridgeStarted: 'agent_hooks.bridge_started',
         configWritten: 'agent_hooks.config_written',
+        executableMissing: 'agent_hooks.executable_missing',
         healthChanged: 'agent_hooks.health_changed',
         initializeFailed: 'agent_hooks.initialize_failed',
         launchPrepared: 'agent_hooks.launch_prepared',

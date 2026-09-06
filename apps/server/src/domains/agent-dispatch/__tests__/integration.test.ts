@@ -165,6 +165,70 @@ describe('Agent dispatch Runtime integration', () => {
         }
     });
 
+    it('settles a pending dispatch as interrupted when its Terminal is detached', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-dispatch-detach-'));
+        temporaryDirectories.push(directory);
+        const projectRoot = join(directory, 'project');
+        await mkdir(projectRoot);
+        const spawned: Array<ReturnType<typeof fakePty>> = [];
+        const runtime = await createTestDomainServices({
+            agentAdapters: createPendingAgentAdapters(),
+            agentEndpoints: endpointLifecycle(),
+            logger: new StructuredLogger(join(directory, 'logs')),
+            send: () => {},
+            terminal: {
+                resolveExecutable: (kind) =>
+                    Promise.resolve(kind === 'shell' ? '/bin/zsh' : '/fixture/agent'),
+                spawn: () => {
+                    const fake = fakePty(6_000 + spawned.length);
+                    spawned.push(fake);
+                    return fake.process;
+                },
+            },
+            userDataPath: join(directory, 'profile'),
+        });
+
+        try {
+            const project = await runtime.handlers['project.create']({ rootPath: projectRoot });
+            const created = await runtime.handlers['session.create']({
+                projectId: project.id,
+                defaultAgent: 'shell',
+            });
+            const receipt = await runtime.handlers['agent.dispatch.startInternal']({
+                dispatchId: 'dispatch-detach',
+                principal: { kind: 'human-cli', id: 'human-cli:test' },
+                input: {
+                    projectId: project.id,
+                    sessionId: created.session.id,
+                    provider: 'claude',
+                },
+            });
+            expect(receipt.status).toBe('running');
+            const waiting = runtime.handlers['agent.dispatch.waitInternal']({
+                afterRevision: receipt.revision,
+                dispatchId: receipt.dispatchId,
+                projectScope: null,
+                timeoutMs: 10_000,
+                waitId: 'wait-detach',
+            });
+
+            await runtime.handlers['session.detach']({ sessionId: created.session.id });
+
+            await expect(waiting).resolves.toMatchObject({
+                outcome: 'changed',
+                receipt: { dispatchId: receipt.dispatchId, status: 'interrupted' },
+            });
+            expect(
+                await runtime.handlers['agent.dispatch.statusInternal']({
+                    dispatchId: receipt.dispatchId,
+                    projectScope: null,
+                }),
+            ).toMatchObject({ status: 'interrupted' });
+        } finally {
+            await runtime.close();
+        }
+    });
+
     it('waits on typed lifecycle state and never resumes a changed Provider binding', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-dispatch-wait-'));
         temporaryDirectories.push(directory);

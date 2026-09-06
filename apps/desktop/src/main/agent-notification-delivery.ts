@@ -109,6 +109,10 @@ export function createAgentNotificationDelivery({
                     return;
                 }
                 try {
+                    /**
+                     * Every field of the Caxri notification is a declared Electron option; see the
+                     * `AgentSystemNotification` JSDoc for what `id` and `groupId` do on macOS.
+                     */
                     nativeNotification = new NativeNotification(notification);
                     nativeNotification.on('click', handleNativeClick);
                     nativeNotification.on('failed', handleNativeFailure);

@@ -15,6 +15,7 @@ import {
     DEFAULT_SESSION_TITLE,
     defaultTerminalTitle,
     firstSelectableProject,
+    isPlaceholderSessionTitle,
     processExitActivityState,
     selectFallbackAfterDeletion,
     sessionActivityReasonForAgentState,
@@ -263,6 +264,14 @@ describe('choosePrimaryAgentSuccessor', () => {
     });
 });
 
+describe('isPlaceholderSessionTitle', () => {
+    it('recognizes only the neutral default', () => {
+        expect(isPlaceholderSessionTitle(DEFAULT_SESSION_TITLE)).toBe(true);
+        expect(isPlaceholderSessionTitle('Codex session')).toBe(false);
+        expect(isPlaceholderSessionTitle('Investigate hooks')).toBe(false);
+    });
+});
+
 describe('decideAgentMetadataUpdate', () => {
     it('ignores a snapshot from a different provider than the Terminal', () => {
         const decision = decideAgentMetadataUpdate(terminal({ provider: 'codex' }), session(), {
@@ -302,6 +311,31 @@ describe('decideAgentMetadataUpdate', () => {
         });
     });
 
+    /**
+     * Codex reports no thread name until the model writes one, and Caxri refuses to read the provisional first-prompt
+     * value. The sidebar keeps the neutral default rather than a provider-derived stand-in: the row already carries the
+     * provider icon, so a substitute title would add nothing there.
+     */
+    it('keeps the neutral default when the probe carries no verified title', () => {
+        const primary = terminal({ id: 'codex-1', provider: 'codex' });
+        const decision = decideAgentMetadataUpdate(
+            primary,
+            session({ primaryAgentTerminalId: 'codex-1', displayTitle: DEFAULT_SESSION_TITLE }),
+            { provider: 'codex', available: true, observedAt: 0, status: 'running' },
+        );
+        expect(decision?.sessionPatch?.displayTitle).toBe(DEFAULT_SESSION_TITLE);
+    });
+
+    it('never replaces a real title when the probe carries no verified title', () => {
+        const primary = terminal({ id: 'codex-1', provider: 'codex' });
+        const decision = decideAgentMetadataUpdate(
+            primary,
+            session({ primaryAgentTerminalId: 'codex-1', displayTitle: 'Investigate hooks' }),
+            { provider: 'codex', available: true, observedAt: 0, status: 'running' },
+        );
+        expect(decision?.sessionPatch?.displayTitle).toBe('Investigate hooks');
+    });
+
     it('leaves an Agent Terminal title alone when the probe reports no usable title', () => {
         const primary = terminal({ id: 'claude-1', provider: 'claude', title: '~/code/caxri' });
         const decision = decideAgentMetadataUpdate(
@@ -324,7 +358,12 @@ describe('decideAgentMetadataUpdate', () => {
         for (const lastActivityState of ['idle', 'unknown', 'completed'] as const) {
             const decision = decideAgentMetadataUpdate(
                 primary,
-                session({ primaryAgentTerminalId: primary.id, lastActivityState }),
+                // A real title keeps the provider placeholder out of this attention-only assertion.
+                session({
+                    displayTitle: 'Investigate hooks',
+                    primaryAgentTerminalId: primary.id,
+                    lastActivityState,
+                }),
                 {
                     provider: 'claude',
                     attentionKind: 'waiting',
@@ -408,6 +447,7 @@ describe('decideAgentMetadataUpdate', () => {
             decideAgentMetadataUpdate(
                 primary,
                 session({
+                    displayTitle: 'Investigate hooks',
                     primaryAgentTerminalId: primary.id,
                     lastActivityState: 'waiting',
                     lastAttentionKind: 'waiting',
