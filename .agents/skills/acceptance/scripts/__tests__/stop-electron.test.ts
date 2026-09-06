@@ -595,7 +595,23 @@ describe('Acceptance Electron stopper', () => {
         );
         expect(deps.recordDeferredAgentFixtureCleanup).toHaveBeenCalledWith(
             '/repo/.records/acceptance/round-1',
-            { caseId: 'stop-case', launchId: 'fixture-launch-1', source: 'stop-electron' },
+            {
+                caseId: 'stop-case',
+                launchId: 'fixture-launch-1',
+                sharedProfile: false,
+                source: 'stop-electron',
+            },
+        );
+    });
+
+    it('says so when the Agent fixture receipt is still pending after the profile was removed', async () => {
+        const { deps, run } = launcherScenario({ launcherExitsAt: 0 });
+        vi.mocked(deps.recordDeferredAgentFixtureCleanup).mockResolvedValue('pending');
+        await run();
+        expect(deps.log).toHaveBeenCalledWith(
+            expect.stringContaining(
+                'Agent fixture receipt for Acceptance case stop-case is still pending',
+            ),
         );
     });
 

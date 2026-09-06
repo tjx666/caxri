@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { z } from 'zod';
 
 import { acceptanceAgentFixtureIds } from './agent-fixtures';
+import { LIFECYCLE_FORCED_COMPLETION_SOURCES } from './case-lifecycle';
 import { errorCode, validateExistingReportDirectory, writeJsonAtomically } from './report-paths';
 
 const agentFixtureLaunchSchema = z.object({
@@ -14,7 +15,9 @@ const agentFixtureLaunchSchema = z.object({
      * Present when the launcher completed this launch with the fixture root still on disk and `stop-electron.ts`
      * removed the owning profile afterwards; mirrors the lifecycle receipt's `deferredCleanup` marker.
      */
-    deferredCleanup: z.object({ reason: z.string().min(1), source: z.string().min(1) }).optional(),
+    deferredCleanup: z
+        .object({ reason: z.string().min(1), source: z.enum(LIFECYCLE_FORCED_COMPLETION_SOURCES) })
+        .optional(),
     id: z.string().min(1),
     startedAt: z.string(),
 });
@@ -113,12 +116,19 @@ export async function completeAgentFixtureLifecycle(
 /**
  * Records that the profile owning this fixture root was removed after the launcher had already completed the launch
  * honestly with `cleanupCompleted: false` (a detached Server generation still held the profile). The fixture root lives
- * inside the isolated profile, so the caller's verified profile removal covers it. Returns `already_completed` when
- * there is nothing to amend so a repeated stop stays idempotent.
+ * inside the isolated profile, so the caller's verified profile removal covers it. A restart case shares one fixture
+ * root across launches, so, exactly like {@link completeAgentFixtureLifecycle}, its verified cleanup covers every
+ * earlier completed launch too. Returns `already_completed` when there is nothing to amend so a repeated stop stays
+ * idempotent, and `pending` when the launch still belongs to a launcher that has not completed it.
  */
 export async function recordDeferredAgentFixtureCleanup(
     reportDirectory: string,
-    input: { caseId: string; launchId: string; source: string },
+    input: {
+        caseId: string;
+        launchId: string;
+        sharedProfile: boolean;
+        source: (typeof LIFECYCLE_FORCED_COMPLETION_SOURCES)[number];
+    },
 ): Promise<'cleanup_recorded' | 'already_completed' | 'pending'> {
     const directory = await validateExistingReportDirectory(reportDirectory);
     const path = join(directory, agentFixtureEvidencePath(input.caseId));
@@ -126,12 +136,16 @@ export async function recordDeferredAgentFixtureCleanup(
     const launch = receipt.launches.find(({ id }) => id === input.launchId);
     if (!launch) throw new Error('Acceptance Agent fixture launch is not recorded');
     if (!launch.completedAt) return 'pending';
-    if (launch.cleanupCompleted) return 'already_completed';
-    launch.cleanupCompleted = true;
-    launch.deferredCleanup = {
-        reason: `${input.source} verified the owning profile was removed after the launcher completed its receipt`,
-        source: input.source,
-    };
+    const covered = input.sharedProfile ? receipt.launches : [launch];
+    const amended = covered.filter((item) => item.completedAt && !item.cleanupCompleted);
+    if (amended.length === 0) return 'already_completed';
+    for (const item of amended) {
+        item.cleanupCompleted = true;
+        item.deferredCleanup = {
+            reason: `${input.source} verified the owning profile was removed after the launcher completed its receipt`,
+            source: input.source,
+        };
+    }
     await writeJsonAtomically(path, agentFixtureReceiptSchema.parse(receipt));
     return 'cleanup_recorded';
 }

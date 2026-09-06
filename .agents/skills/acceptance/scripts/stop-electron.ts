@@ -207,12 +207,19 @@ async function completeLifecycleReceiptIfPending(
             {
                 caseId: acceptanceCase.id,
                 launchId: acceptanceCase.agentFixtureLaunchId,
+                sharedProfile: acceptanceCase.mode === 'restart',
                 source: 'stop-electron',
             },
         );
         if (fixtureResult === 'cleanup_recorded') {
             dependencies.log(
                 `Recorded deferred Agent fixture cleanup for Acceptance case ${acceptanceCase.id}`,
+            );
+        } else if (fixtureResult === 'pending') {
+            // Only the launcher closes a pending fixture launch; say so here rather than at `report.ts finalize`.
+            dependencies.log(
+                `Agent fixture receipt for Acceptance case ${acceptanceCase.id} is still pending; the launcher never ` +
+                    'completed it, so the case cannot finalize until it is relaunched on a fresh profile',
             );
         }
     }
