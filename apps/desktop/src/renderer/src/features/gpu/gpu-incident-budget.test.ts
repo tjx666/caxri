@@ -37,6 +37,146 @@ describe('GPU incident budget', () => {
         expect(budget.recordIncident('incident-1')).toBe(true);
     });
 
+    it('emits one pinned transition with the tripping incident and a reset when the preference changes', () => {
+        const onTransition = vi.fn();
+        const budget = createGpuIncidentBudget({ onTransition, probeWebgl2: () => true });
+        budget.applyPreference('on');
+
+        budget.recordIncident('incident-1');
+        budget.recordIncident('incident-2');
+        expect(onTransition).not.toHaveBeenCalled();
+        expect(budget.recordIncident('incident-3')).toBe(true);
+        expect(onTransition).toHaveBeenCalledWith({
+            transition: 'pinned',
+            cause: 'gpu-incident',
+            correlationId: 'incident-3',
+            incidentCount: 3,
+            contextLossEpisodeCount: 0,
+            threshold: GPU_INCIDENT_PIN_THRESHOLD,
+            preference: 'on',
+        });
+        // A later incident on an already pinned session is not a second transition.
+        expect(budget.recordIncident('incident-4')).toBe(false);
+        expect(onTransition).toHaveBeenCalledOnce();
+
+        budget.applyPreference('auto');
+        // The reset record names the preference the session was pinned under, not the incoming one.
+        expect(onTransition).toHaveBeenLastCalledWith({
+            transition: 'reset',
+            cause: 'preference-change',
+            incidentCount: 4,
+            contextLossEpisodeCount: 0,
+            threshold: GPU_INCIDENT_PIN_THRESHOLD,
+            preference: 'on',
+        });
+        expect(budget.isPinnedToDom()).toBe(false);
+        // Changing the preference of a session that never pinned is not a transition either.
+        budget.applyPreference('on');
+        expect(onTransition).toHaveBeenCalledTimes(2);
+    });
+
+    it('reports the reset of a context-loss pin when auto leaves for on or off', () => {
+        const onTransition = vi.fn();
+        let now = 0;
+        const budget = createGpuIncidentBudget({
+            now: () => now,
+            onTransition,
+            probeWebgl2: () => true,
+        });
+        budget.applyPreference('auto');
+        for (let episode = 0; episode < GPU_INCIDENT_PIN_THRESHOLD; episode += 1) {
+            now += 5_000;
+            budget.recordContextLoss();
+        }
+        expect(budget.isPinnedToDom()).toBe(true);
+
+        budget.applyPreference('on');
+        expect(onTransition).toHaveBeenLastCalledWith({
+            transition: 'reset',
+            cause: 'preference-change',
+            incidentCount: 0,
+            contextLossEpisodeCount: GPU_INCIDENT_PIN_THRESHOLD,
+            threshold: GPU_INCIDENT_PIN_THRESHOLD,
+            preference: 'auto',
+        });
+        expect(onTransition).toHaveBeenCalledTimes(2);
+        expect(budget.isPinnedToDom()).toBe(false);
+    });
+
+    it('does not fabricate a reset when a never-pinned on session with old context losses moves to auto', () => {
+        const onTransition = vi.fn();
+        let now = 0;
+        const budget = createGpuIncidentBudget({
+            now: () => now,
+            onTransition,
+            probeWebgl2: () => true,
+        });
+        budget.applyPreference('on');
+        for (let episode = 0; episode < 5; episode += 1) {
+            now += 5_000;
+            budget.recordContextLoss();
+        }
+        expect(budget.isPinnedToDom()).toBe(false);
+
+        budget.applyPreference('auto');
+        expect(onTransition).not.toHaveBeenCalled();
+        expect(budget.isPinnedToDom()).toBe(false);
+        expect(budget.contextLossEpisodeCount()).toBe(0);
+    });
+
+    it('pins auto after repeated context-loss episodes and counts one episode per GPU event', () => {
+        let now = 0;
+        const onTransition = vi.fn();
+        const budget = createGpuIncidentBudget({
+            now: () => now,
+            onTransition,
+            probeWebgl2: () => true,
+        });
+        budget.applyPreference('auto');
+
+        // Three split panes losing their contexts together are one episode.
+        budget.recordContextLoss();
+        budget.recordContextLoss();
+        now = 1_500;
+        budget.recordContextLoss();
+        expect(budget.contextLossEpisodeCount()).toBe(1);
+
+        now = 2_001;
+        budget.recordContextLoss();
+        now = 10_000;
+        budget.recordContextLoss();
+        expect(budget.contextLossEpisodeCount()).toBe(3);
+        expect(budget.isPinnedToDom()).toBe(true);
+        expect(onTransition).toHaveBeenCalledWith({
+            transition: 'pinned',
+            cause: 'context-loss',
+            incidentCount: 0,
+            contextLossEpisodeCount: 3,
+            threshold: GPU_INCIDENT_PIN_THRESHOLD,
+            preference: 'auto',
+        });
+        expect(budget.recordIncident('incident-1')).toBe(false);
+        expect(onTransition).toHaveBeenCalledOnce();
+    });
+
+    it('keeps on pinned only by Main-observed GPU incidents', () => {
+        let now = 0;
+        const budget = createGpuIncidentBudget({ now: () => now, probeWebgl2: () => true });
+        budget.applyPreference('on');
+
+        for (let episode = 0; episode < 5; episode += 1) {
+            now += 5_000;
+            budget.recordContextLoss();
+        }
+        expect(budget.contextLossEpisodeCount()).toBe(5);
+        expect(budget.isPinnedToDom()).toBe(false);
+
+        // Switching to auto afterwards starts from a clean budget rather than inheriting the old episodes.
+        budget.applyPreference('auto');
+        expect(budget.contextLossEpisodeCount()).toBe(0);
+        expect(budget.isPinnedToDom()).toBe(false);
+    });
+
     it('caches only a positive WebGL2 probe per GPU incident generation', () => {
         const probeWebgl2 = vi.fn(() => true);
         const budget = createGpuIncidentBudget({ probeWebgl2 });

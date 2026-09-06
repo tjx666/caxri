@@ -16,6 +16,7 @@ interface TerminalRendererDiagnosticInput {
     terminalFocused: boolean;
     terminalId: string;
     terminalProcessRunning: boolean;
+    visibilityRestoreCoalescedCount: number;
 }
 
 /**
@@ -37,6 +38,7 @@ export function createTerminalRendererDiagnostic(
         preference: input.preference,
         contextLossCount: input.status.contextLossCount,
         redrawCount: input.status.redrawCount,
+        visibilityRestoreCoalescedCount: input.visibilityRestoreCoalescedCount,
         recoveryResult: input.status.recoveryResult,
         retryAttemptCount: input.status.retryAttemptCount,
         retryDelayMs: input.status.retryDelayMs,

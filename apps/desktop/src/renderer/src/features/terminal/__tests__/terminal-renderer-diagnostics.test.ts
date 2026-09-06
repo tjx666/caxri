@@ -33,6 +33,7 @@ describe('terminal Renderer diagnostics', () => {
                 correlationId: '75f635fb-b53f-44cf-a99d-a731f97455d8',
                 droppedBytes: 7,
                 receivedBytes: 42,
+                visibilityRestoreCoalescedCount: 5,
             }),
         ).toEqual({
             kind: 'terminal-renderer',
@@ -44,6 +45,7 @@ describe('terminal Renderer diagnostics', () => {
             preference: 'auto',
             contextLossCount: 1,
             redrawCount: 2,
+            visibilityRestoreCoalescedCount: 5,
             paneActive: true,
             terminalProcessRunning: true,
             agentTerminal: true,
@@ -86,6 +88,7 @@ describe('terminal Renderer diagnostics', () => {
                 terminalFocused: false,
                 droppedBytes: 0,
                 receivedBytes: 0,
+                visibilityRestoreCoalescedCount: 0,
             }),
         ).toBeUndefined();
         expect(
@@ -102,6 +105,7 @@ describe('terminal Renderer diagnostics', () => {
                 terminalFocused: false,
                 droppedBytes: 0,
                 receivedBytes: 0,
+                visibilityRestoreCoalescedCount: 0,
             }),
         ).toBeDefined();
     });
@@ -128,6 +132,7 @@ describe('terminal Renderer diagnostics', () => {
                 terminalFocused: false,
                 droppedBytes: 0,
                 receivedBytes: 0,
+                visibilityRestoreCoalescedCount: 0,
             }),
         ).toBeDefined();
     });

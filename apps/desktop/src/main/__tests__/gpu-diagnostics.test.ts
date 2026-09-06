@@ -19,6 +19,7 @@ function rendererDiagnostic(
         preference: 'auto' as const,
         contextLossCount: 0,
         redrawCount: 1,
+        visibilityRestoreCoalescedCount: 0,
         paneActive: true,
         terminalProcessRunning: true,
         agentTerminal: true,
@@ -196,6 +197,108 @@ describe('GPU diagnostics', () => {
                 relatedRendererWebglCreationCount: 2,
                 relatedRendererVisibilityRestoreCount: 2,
             },
+        });
+    });
+
+    it('reports zero related counts and no saturation when no Renderer diagnostic is in the window', () => {
+        vi.useFakeTimers();
+        const harness = createHarness();
+
+        harness.diagnostics.recordGpuProcessGone({
+            type: 'GPU',
+            reason: 'killed',
+            exitCode: 15,
+        });
+
+        const processGone = harness.write.mock.calls.find(
+            ([, event]) => event === logEventCatalog.gpu.processGone,
+        );
+        expect(processGone?.[2]).toMatchObject({
+            fields: {
+                relatedRendererDiagnosticCount: 0,
+                relatedRendererTerminalCount: 0,
+                relatedRendererWebglCreationCount: 0,
+                relatedRendererVisibilityRestoreCount: 0,
+                relatedRendererSaturation: 'none',
+            },
+        });
+        expect(processGone?.[2]?.fields).not.toHaveProperty('relatedRendererDiagnosticId');
+    });
+
+    it('marks the related counts as saturated once the diagnostic buffer overflows inside the window', () => {
+        vi.useFakeTimers();
+        const harness = createHarness();
+        // Three split panes restoring twice per Space switch overflow the 32-entry buffer within one window.
+        for (let index = 0; index < 40; index += 1) {
+            harness.setNow(1_000 + index * 100);
+            harness.diagnostics.recordRendererDiagnostic(
+                rendererDiagnostic({
+                    diagnosticId: `restore-${index}`,
+                    terminalId: `terminal-${index % 3}`,
+                    trigger: index % 2 === 0 ? 'visibility-restore' : 'webgl-reprobe-succeeded',
+                    visibilityRestoreCoalescedCount: index,
+                }),
+            );
+        }
+        harness.setNow(5_000);
+
+        harness.diagnostics.recordGpuProcessGone({
+            type: 'GPU',
+            reason: 'abnormal-exit',
+            exitCode: 8704,
+        });
+
+        const processGone = harness.write.mock.calls.find(
+            ([, event]) => event === logEventCatalog.gpu.processGone,
+        );
+        expect(processGone?.[2]).toMatchObject({
+            fields: {
+                relatedRendererDiagnosticCount: 32,
+                relatedRendererTerminalCount: 3,
+                relatedRendererWebglCreationCount: 16,
+                relatedRendererVisibilityRestoreCount: 16,
+                relatedRendererLifetimeVisibilityRestoreCoalescedCount: 39,
+                relatedRendererSaturation: 'buffer-limit',
+                relatedRendererDiagnosticId: 'restore-39',
+            },
+        });
+
+        // Once the oldest retained entry ages out of the window the counts are exact again.
+        harness.setNow(1_000 + 8 * 100 + 15_000 + 1);
+        harness.diagnostics.recordGpuProcessGone({
+            type: 'GPU',
+            reason: 'abnormal-exit',
+            exitCode: 8704,
+        });
+        const later = harness.write.mock.calls.filter(
+            ([, event]) => event === logEventCatalog.gpu.processGone,
+        )[1];
+        expect(later[2]).toMatchObject({
+            fields: { relatedRendererDiagnosticCount: 31, relatedRendererSaturation: 'none' },
+        });
+    });
+
+    it('keeps a buffer that filled up without evicting anything unsaturated', () => {
+        vi.useFakeTimers();
+        const harness = createHarness();
+        for (let index = 0; index < 32; index += 1) {
+            harness.setNow(1_000 + index * 100);
+            harness.diagnostics.recordRendererDiagnostic(
+                rendererDiagnostic({ diagnosticId: `restore-${index}` }),
+            );
+        }
+        harness.setNow(5_000);
+        harness.diagnostics.recordGpuProcessGone({
+            type: 'GPU',
+            reason: 'crashed',
+            exitCode: 1,
+        });
+
+        const processGone = harness.write.mock.calls.find(
+            ([, event]) => event === logEventCatalog.gpu.processGone,
+        );
+        expect(processGone?.[2]).toMatchObject({
+            fields: { relatedRendererDiagnosticCount: 32, relatedRendererSaturation: 'none' },
         });
     });
 

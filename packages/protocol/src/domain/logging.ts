@@ -121,6 +121,7 @@ export const logEventCatalog = {
         processGone: 'gpu.process_gone',
         recovery: 'gpu.recovery',
         safeMode: 'gpu.safe_mode',
+        sessionBudget: 'gpu.session_budget',
         snapshot: 'gpu.snapshot',
         snapshotFailed: 'gpu.snapshot_failed',
     },

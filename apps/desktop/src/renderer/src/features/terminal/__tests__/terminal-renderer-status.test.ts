@@ -77,8 +77,20 @@ describe('terminalRendererIndicator', () => {
         expect(
             terminalRendererIndicator(status({ mode: 'dom', reason: 'context-loss-limit' }))?.title,
         ).toBe(
-            'Terminal is using the DOM renderer. The GPU process crashed repeatedly; WebGL stays off until GPU acceleration is changed in Settings or Caxri restarts.',
+            'Terminal is using the DOM renderer. WebGL was lost repeatedly (GPU process exits or context losses); it stays off until GPU acceleration is changed in Settings or Caxri restarts.',
         );
+        // A pane whose own retries ran out before the session pinned must not keep promising that a reopened tab
+        // retries WebGL; the pin's closed reason wins over the exhausted retry state.
+        const pinnedAfterExhaustion = terminalRendererIndicator(
+            status({
+                mode: 'dom',
+                reason: 'context-loss-limit',
+                retryAttemptCount: 3,
+                retryState: 'exhausted',
+            }),
+        );
+        expect(pinnedAfterExhaustion?.title).not.toContain('reopen the Terminal tab');
+        expect(pinnedAfterExhaustion?.title).toContain('changed in Settings');
     });
 
     it('offers the switch only for the preference-driven fallback the chip can reverse', () => {

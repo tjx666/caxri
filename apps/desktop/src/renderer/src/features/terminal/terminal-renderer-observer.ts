@@ -7,6 +7,7 @@ import {
     clearTerminalRendererStatus,
     publishTerminalRendererStatus,
 } from './terminal-renderer-status';
+import { terminalVisibilityRestoreScheduler } from './terminal-visibility-restore';
 
 interface TerminalRendererObserverState {
     active: boolean;
@@ -64,6 +65,8 @@ export function createTerminalRendererObserver(options: TerminalRendererObserver
                 terminalFocused: options.container.contains(document.activeElement),
                 terminalId: options.terminalId,
                 terminalProcessRunning: current.processState === 'running',
+                visibilityRestoreCoalescedCount:
+                    terminalVisibilityRestoreScheduler.coalescedCount(),
                 ...(correlationId && { correlationId }),
             });
             if (diagnostic) globalThis.caxri.reportDiagnostic(diagnostic);
