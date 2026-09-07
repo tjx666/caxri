@@ -363,11 +363,16 @@ export async function createDomainServices(
     /**
      * The one place that tells background services which Session is now current. Project Status polls only this
      * Session, so every path that changes durable selection must go through here: a missed update either leaves the
-     * Status panel cold or keeps spending the shared delivery-CLI budget on a Session nobody is looking at.
+     * Status panel cold or keeps spending the shared delivery-CLI budget on a Session nobody is looking at. Archive and
+     * deletion must also restore their database-selected fallback because they bypass `session.select`.
      */
-    const observeSelectedSession = (sessionId: string | undefined): void => {
+    const observeSelectedSession = (
+        sessionId: string | undefined,
+        shouldRestoreFallback = false,
+    ): void => {
         watchSessionInBackground(sessionId);
         projectStatus.setPolledSession(sessionId);
+        if (shouldRestoreFallback && sessionId) restoreInterruptedTerminalsInBackground(sessionId);
     };
     const dispatchService = new AgentDispatchService({
         database,
@@ -564,7 +569,7 @@ export async function createDomainServices(
             projectStatus.evictSessions(affectedSessionIds);
             database.deleteProject(projectId);
             workbenchRoots.projectDeleted(affectedWorkbenchSessions.map((session) => session.id));
-            observeSelectedSession(selectedSessionId());
+            observeSelectedSession(selectedSessionId(), true);
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'project.delete' } });
             return bootstrapState();
         },
@@ -640,7 +645,7 @@ export async function createDomainServices(
             sessionAutoNaming.forgetSession(sessionId);
             const session = database.archiveSession(sessionId);
             await terminalSuspension.suspendSession(sessionId);
-            observeSelectedSession(selectedSessionId());
+            observeSelectedSession(selectedSessionId(), true);
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.archive' } });
             return session;
         },
@@ -680,7 +685,7 @@ export async function createDomainServices(
             git.evictSessions([sessionId]);
             projectStatus.evictSessions([sessionId]);
             database.deleteSession(sessionId);
-            observeSelectedSession(selectedSessionId());
+            observeSelectedSession(selectedSessionId(), true);
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.delete' } });
             return bootstrapState();
         },
