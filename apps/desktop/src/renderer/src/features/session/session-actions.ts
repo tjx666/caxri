@@ -294,6 +294,20 @@ export function unarchiveSession(sessionId: string): void {
     );
 }
 
+/**
+ * Bulk restore from the Archived Sessions manager: one request, one bootstrap refresh, regardless of batch size.
+ */
+export function unarchiveSessions(sessionIds: readonly string[]): void {
+    if (sessionIds.length === 0) return;
+    // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+    void tryCommand(
+        'Session restore failed',
+        () => caxri.request('session.unarchiveMany', { sessionIds: [...sessionIds] }),
+        { refresh: refreshWorkbench },
+    );
+}
+
 export async function didRenameSession(sessionId: string, displayTitle: string): Promise<boolean> {
     const renamed = await tryCommand(
         'Session rename failed',
@@ -416,6 +430,23 @@ export function deleteSession(sessionId: string): void {
         if ('canceled' in result) return;
         useSessionViewStore.getState().dropSessions([sessionId]);
         removeSessionQueries(queryClient, [sessionId]);
+        await refreshWorkbench();
+    });
+}
+
+/**
+ * Bulk deletion from the Archived Sessions manager. Desktop Main shows one native confirmation for the whole batch, so
+ * a canceled result means nothing was deleted.
+ */
+export function deleteSessions(sessionIds: readonly string[]): void {
+    if (sessionIds.length === 0) return;
+    // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+    void tryCommand('Session deletion failed', async () => {
+        const result = await caxri.request('session.deleteMany', { sessionIds: [...sessionIds] });
+        if ('canceled' in result) return;
+        useSessionViewStore.getState().dropSessions([...sessionIds]);
+        removeSessionQueries(queryClient, [...sessionIds]);
         await refreshWorkbench();
     });
 }

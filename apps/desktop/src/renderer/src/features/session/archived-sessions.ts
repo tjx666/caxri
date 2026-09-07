@@ -1,5 +1,5 @@
 import type { ProjectRecord, SessionRecord, TerminalKind, TerminalRecord } from '@caxri/protocol';
-import { agentProviderIds } from '@caxri/protocol';
+import { agentProviderIds, DEFAULT_SESSION_TITLE } from '@caxri/protocol';
 import { groupBy, sortBy, sumBy } from 'es-toolkit';
 
 export interface ArchivedSessionFilters {
@@ -23,7 +23,7 @@ interface ArchivedSessionGroup {
     sessions: ArchivedSessionItem[];
 }
 
-interface ArchivedSessionView {
+export interface ArchivedSessionView {
     agentOptions: TerminalKind[];
     groups: ArchivedSessionGroup[];
     matchingCount: number;
@@ -117,4 +117,34 @@ export function deriveArchivedSessionView(
         projectOptions,
         totalCount: sumBy(Object.values(sessionsByProject), (list) => list.length),
     };
+}
+
+/**
+ * A Session that never gained an Agent-derived or manual title still carries the neutral default. These accumulate from
+ * abandoned launches, so the manager offers them as a one-click bulk selection.
+ */
+function isUntitledArchivedSession(item: ArchivedSessionItem): boolean {
+    return item.session.displayTitle === DEFAULT_SESSION_TITLE;
+}
+
+export function visibleArchivedSessionIds(view: ArchivedSessionView): string[] {
+    return view.groups.flatMap((group) => group.sessions.map((item) => item.session.id));
+}
+
+export function untitledArchivedSessionIds(view: ArchivedSessionView): string[] {
+    return view.groups.flatMap((group) =>
+        group.sessions.filter(isUntitledArchivedSession).map((item) => item.session.id),
+    );
+}
+
+/**
+ * Selection is scoped to what the current filters show. Narrowing a filter, or a restore/delete finishing elsewhere,
+ * must never leave hidden Sessions inside the selection where a bulk action could act on them unseen.
+ */
+export function pruneArchivedSelection(
+    selection: ReadonlySet<string>,
+    view: ArchivedSessionView,
+): ReadonlySet<string> {
+    const pruned = selection.intersection(new Set(visibleArchivedSessionIds(view)));
+    return pruned.size === selection.size ? selection : pruned;
 }

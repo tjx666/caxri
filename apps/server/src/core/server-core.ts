@@ -131,28 +131,27 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             return domainService.forward(request.method, request.params, undefined, signal);
         return mutationAdmission.run(async () => {
             switch (request.method) {
-                case 'terminal.close': {
+                case 'terminal.close':
                     agentEndpoints.forgetTerminal(request.params.terminalId);
                     break;
-                }
                 // Restart keeps the Terminal identity alive, so only the endpoint retires and the
                 // generation record stays for the next monotonic `begin()`.
-                case 'terminal.restart': {
+                case 'terminal.restart':
                     agentEndpoints.retireTerminal(request.params.terminalId);
                     break;
-                }
-                case 'session.delete': {
+                case 'session.delete':
                     agentEndpoints.forgetSession(request.params.sessionId);
                     break;
-                }
-                case 'project.delete': {
+                case 'session.deleteMany':
+                    for (const sessionId of request.params.sessionIds)
+                        agentEndpoints.forgetSession(sessionId);
+                    break;
+                case 'project.delete':
                     agentEndpoints.forgetProject(request.params.projectId);
                     break;
-                }
-                case 'terminal.terminateAll': {
+                case 'terminal.terminateAll':
                     agentEndpoints.clear();
                     break;
-                }
                 default:
                     // Most mutations need no Agent Endpoint bookkeeping before forwarding.
                     break;

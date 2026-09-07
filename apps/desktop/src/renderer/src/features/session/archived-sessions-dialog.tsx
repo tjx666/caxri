@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { Archive, ArchiveRestore, Search, Trash2 } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
+import { Checkbox } from '../../components/ui/checkbox';
 import {
     Dialog,
     DialogContent,
@@ -23,10 +24,21 @@ import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { setArchivedSessionsOpen, useDialogStore } from '../../stores/dialogs';
 import { useProjects, useSessions, useTerminals } from '../../stores/selectors';
 import type { ArchivedSessionFilters } from './archived-sessions';
-import { deriveArchivedSessionView } from './archived-sessions';
-import { deleteSession, unarchiveSession } from './session-actions';
+import {
+    deriveArchivedSessionView,
+    pruneArchivedSelection,
+    untitledArchivedSessionIds,
+    visibleArchivedSessionIds,
+} from './archived-sessions';
+import {
+    deleteSession,
+    deleteSessions,
+    unarchiveSession,
+    unarchiveSessions,
+} from './session-actions';
 
 const NO_RECORDS: never[] = [];
+const EMPTY_SELECTION: ReadonlySet<string> = new Set();
 const archivedTimestampFormatter = new Intl.DateTimeFormat(undefined, {
     dateStyle: 'medium',
     timeStyle: 'short',
@@ -48,6 +60,17 @@ export function ArchivedSessionsDialog() {
         () => deriveArchivedSessionView(projects, sessions, terminals, { agent, projectId, query }),
         [agent, projectId, projects, query, sessions, terminals],
     );
+    const [rawSelection, setSelection] = useState<ReadonlySet<string>>(EMPTY_SELECTION);
+    /**
+     * Pruned on every render instead of in an effect so a filter change and a bulk action in the same tick can never
+     * observe a selection that still names hidden Sessions.
+     */
+    const selection = useMemo(
+        () => pruneArchivedSelection(rawSelection, view),
+        [rawSelection, view],
+    );
+    const visibleIds = useMemo(() => visibleArchivedSessionIds(view), [view]);
+    const untitledIds = useMemo(() => untitledArchivedSessionIds(view), [view]);
     const selectedProject = view.projectOptions.find((project) => project.id === view.projectId);
     const agentLabel = agent === 'all' ? 'All Agents' : resolveAgentIcon(agent).label;
     const clearFilters = (): void => {
@@ -56,8 +79,32 @@ export function ArchivedSessionsDialog() {
         setAgent('all');
     };
     const setOpen = (isNextOpen: boolean): void => {
-        if (!isNextOpen) clearFilters();
+        if (!isNextOpen) {
+            clearFilters();
+            setSelection(EMPTY_SELECTION);
+        }
         setArchivedSessionsOpen(isNextOpen);
+    };
+    const toggleSessions = (sessionIds: readonly string[], isChecked: boolean): void => {
+        setSelection((previous) => {
+            const next = new Set(previous);
+            for (const sessionId of sessionIds)
+                if (isChecked) next.add(sessionId);
+                else next.delete(sessionId);
+            return next;
+        });
+    };
+    const isAllVisibleSelected = visibleIds.length > 0 && selection.size === visibleIds.length;
+    const allUntitledSelected =
+        untitledIds.length > 0 && untitledIds.every((sessionId) => selection.has(sessionId));
+    const selectedIds = [...selection];
+    const restoreSelected = (): void => {
+        unarchiveSessions(selectedIds);
+        setSelection(EMPTY_SELECTION);
+    };
+    const deleteSelected = (): void => {
+        // Selection survives a canceled native confirmation; a completed deletion prunes it via the refreshed view.
+        deleteSessions(selectedIds);
     };
 
     return (
@@ -128,6 +175,60 @@ export function ArchivedSessionsDialog() {
                     </label>
                 </div>
                 <div className="archived-sessions-manager min-h-0 overflow-auto p-4">
+                    {view.matchingCount > 0 && (
+                        <div className="archived-selection-toolbar mb-3 flex flex-wrap items-center gap-2">
+                            <label className="flex h-7 cursor-pointer items-center gap-2 text-[11px] text-muted">
+                                <Checkbox
+                                    aria-label="Select all visible archived Sessions"
+                                    checked={isAllVisibleSelected}
+                                    indeterminate={!isAllVisibleSelected && selection.size > 0}
+                                    onCheckedChange={(next) =>
+                                        toggleSessions(visibleIds, next === true)
+                                    }
+                                />
+                                Select all
+                            </label>
+                            <Button
+                                aria-pressed={allUntitledSelected}
+                                disabled={untitledIds.length === 0}
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => toggleSessions(untitledIds, !allUntitledSelected)}
+                            >
+                                {allUntitledSelected ? 'Deselect Untitled' : 'Select Untitled'}
+                                <span className="text-muted tabular-nums">
+                                    {untitledIds.length}
+                                </span>
+                            </Button>
+                            {selection.size > 0 && (
+                                <>
+                                    <span className="ml-auto text-[11px] text-muted tabular-nums">
+                                        {selection.size} selected
+                                    </span>
+                                    <Button size="sm" variant="secondary" onClick={restoreSelected}>
+                                        <ArchiveRestore aria-hidden="true" size={13} />
+                                        Restore Selected
+                                    </Button>
+                                    <Button
+                                        className="text-danger hover:text-danger"
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={deleteSelected}
+                                    >
+                                        <Trash2 aria-hidden="true" size={13} />
+                                        Delete Selected
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => setSelection(EMPTY_SELECTION)}
+                                    >
+                                        Clear
+                                    </Button>
+                                </>
+                            )}
+                        </div>
+                    )}
                     {view.totalCount === 0 ? (
                         <div className="grid min-h-48 place-items-center rounded border border-dashed border-border p-8 text-center">
                             <div>
@@ -161,6 +262,11 @@ export function ArchivedSessionsDialog() {
                         <div className="grid gap-4">
                             {view.groups.map((group) => {
                                 const headingId = `archived-project-${group.project.id}`;
+                                const groupIds = group.sessions.map((item) => item.session.id);
+                                const groupSelectedCount = groupIds.filter((sessionId) =>
+                                    selection.has(sessionId),
+                                ).length;
+                                const isGroupSelected = groupSelectedCount === groupIds.length;
                                 return (
                                     <section
                                         key={group.project.id}
@@ -169,6 +275,16 @@ export function ArchivedSessionsDialog() {
                                         data-project-id={group.project.id}
                                     >
                                         <header className="flex h-9 items-center gap-2 border-b border-border bg-surface px-3">
+                                            <Checkbox
+                                                aria-label={`Select all archived Sessions in ${group.project.displayTitle}`}
+                                                checked={isGroupSelected}
+                                                indeterminate={
+                                                    !isGroupSelected && groupSelectedCount > 0
+                                                }
+                                                onCheckedChange={(next) =>
+                                                    toggleSessions(groupIds, next === true)
+                                                }
+                                            />
                                             <h2
                                                 id={headingId}
                                                 className="m-0 min-w-0 flex-1 truncate text-[12px] font-semibold"
@@ -183,9 +299,20 @@ export function ArchivedSessionsDialog() {
                                             {group.sessions.map((item) => (
                                                 <div
                                                     key={item.session.id}
-                                                    className="archived-manager-row grid min-h-12 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2"
+                                                    aria-selected={selection.has(item.session.id)}
+                                                    className="archived-manager-row grid min-h-12 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-3 py-2 aria-selected:bg-[var(--selection)]"
                                                     data-session-id={item.session.id}
                                                 >
+                                                    <Checkbox
+                                                        aria-label={`Select ${item.session.displayTitle}`}
+                                                        checked={selection.has(item.session.id)}
+                                                        onCheckedChange={(next) =>
+                                                            toggleSessions(
+                                                                [item.session.id],
+                                                                next === true,
+                                                            )
+                                                        }
+                                                    />
                                                     <div className="flex min-w-0 items-center gap-2">
                                                         <AgentIdentityIcon
                                                             identity={item.agent}

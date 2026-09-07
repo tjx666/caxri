@@ -391,9 +391,22 @@ describe('domain-service composition root', () => {
                 expect.arrayContaining([firstSession.session.id, secondSession.session.id]),
             );
 
-            await runtime.handlers['session.delete']({ sessionId: secondSession.session.id });
-            expect(evict).toHaveBeenLastCalledWith([secondSession.session.id]);
-            expect(evictStatus).toHaveBeenLastCalledWith([secondSession.session.id]);
+            const thirdSession = await runtime.handlers['session.create']({
+                projectId: secondProject.id,
+                defaultAgent: 'shell',
+            });
+            await runtime.handlers['session.deleteMany']({
+                sessionIds: [secondSession.session.id, thirdSession.session.id],
+            });
+            expect(evict).toHaveBeenLastCalledWith([
+                secondSession.session.id,
+                thirdSession.session.id,
+            ]);
+            expect(evictStatus).toHaveBeenLastCalledWith([
+                secondSession.session.id,
+                thirdSession.session.id,
+            ]);
+            expect((await runtime.handlers['app.bootstrap']({})).sessions).toHaveLength(0);
             await runtime.close();
             expect(clear).toHaveBeenCalledOnce();
         } finally {

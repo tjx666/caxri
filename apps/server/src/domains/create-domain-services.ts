@@ -374,6 +374,20 @@ export async function createDomainServices(
         projectStatus.setPolledSession(sessionId);
         if (shouldRestoreFallback && sessionId) restoreInterruptedTerminalsInBackground(sessionId);
     };
+    const unarchiveSessions = (sessionIds: readonly string[]) => {
+        const restored = sessionIds.map((sessionId) => database.unarchiveSession(sessionId));
+        send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.unarchive' } });
+        return restored;
+    };
+    const deleteSessions = (sessionIds: readonly string[]): BootstrapState => {
+        for (const sessionId of sessionIds) forgetSessionRuntime(sessionId);
+        git.evictSessions(sessionIds);
+        projectStatus.evictSessions(sessionIds);
+        for (const sessionId of sessionIds) database.deleteSession(sessionId);
+        observeSelectedSession(selectedSessionId(), true);
+        send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.delete' } });
+        return bootstrapState();
+    };
     const dispatchService = new AgentDispatchService({
         database,
         coordinator,
@@ -672,23 +686,10 @@ export async function createDomainServices(
                 });
                 return database.getSession(sessionId)!;
             }),
-        'session.unarchive': ({ sessionId }) => {
-            const session = database.unarchiveSession(sessionId);
-            send({
-                event: 'state.changed',
-                payload: { kind: 'full', reason: 'session.unarchive' },
-            });
-            return session;
-        },
-        'session.delete': ({ sessionId }) => {
-            forgetSessionRuntime(sessionId);
-            git.evictSessions([sessionId]);
-            projectStatus.evictSessions([sessionId]);
-            database.deleteSession(sessionId);
-            observeSelectedSession(selectedSessionId(), true);
-            send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.delete' } });
-            return bootstrapState();
-        },
+        'session.unarchive': ({ sessionId }) => unarchiveSessions([sessionId])[0],
+        'session.unarchiveMany': ({ sessionIds }) => unarchiveSessions([...new Set(sessionIds)]),
+        'session.delete': ({ sessionId }) => deleteSessions([sessionId]),
+        'session.deleteMany': ({ sessionIds }) => deleteSessions([...new Set(sessionIds)]),
         'session.updateState': (state) => {
             database.updateSessionState(state);
             return database.getSessionState(state.sessionId);

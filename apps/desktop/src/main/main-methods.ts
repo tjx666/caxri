@@ -7,6 +7,7 @@ import { readArgvConfig, updateArgvConfig } from './argv-config';
 import {
     deleteProjectPrompt,
     deleteSessionPrompt,
+    deleteSessionsPrompt,
     discardGitChangesPrompt,
     externalLinkChoice,
     externalLinkPrompt,
@@ -187,6 +188,28 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 );
                 if (result.response !== 0) return { canceled: true };
                 return supervisor.request('session.delete', { sessionId });
+            }
+            case 'session.deleteMany': {
+                const { sessionIds } = request.params;
+                const counts = await Promise.all(
+                    sessionIds.map((sessionId) =>
+                        supervisor.request('terminal.runningCount', { sessionId }),
+                    ),
+                );
+                const count = counts.reduce((sum, value) => sum + value, 0);
+                const result = await dialog.showMessageBox(
+                    mainWindow!,
+                    sessionIds.length === 1
+                        ? deleteSessionPrompt(
+                              (await supervisor.request('app.bootstrap')).sessions.find(
+                                  (session) => session.id === sessionIds[0],
+                              )?.displayTitle ?? 'this Session',
+                              count,
+                          )
+                        : deleteSessionsPrompt(sessionIds.length, count),
+                );
+                if (result.response !== 0) return { canceled: true };
+                return supervisor.request('session.deleteMany', { sessionIds });
             }
             case 'mobile.device.revoke': {
                 const device = (await supervisor.request('mobile.device.list')).devices.find(
