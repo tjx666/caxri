@@ -3,6 +3,10 @@ import type { AgentLifecycleSignal, AgentSignalDecision } from './hooks/contract
 interface TerminalAgentWork {
     activeSubagents: Map<string, number>;
     deferredParentFinish?: AgentLifecycleSignal;
+    /**
+     * Bounds the wait for the parent turn to resume after its last background subagent stopped.
+     */
+    resumeTimeout?: NodeJS.Timeout;
     staleTimeout?: NodeJS.Timeout;
 }
 
@@ -22,12 +26,8 @@ export interface AgentWorkObservation {
     outcome?: AgentWorkOutcome;
 }
 
-interface SubagentFinish {
-    deferredParentFinish?: AgentLifecycleSignal;
-    outcome: AgentWorkOutcome;
-}
-
 interface AgentWorkTrackerOptions {
+    resumeGraceMs?: number;
     staleTimeoutMs?: number;
 }
 
@@ -38,19 +38,32 @@ interface AgentWorkTrackerOptions {
 const DEFAULT_SUBAGENT_STALE_TIMEOUT_MS = 30 * 60_000;
 
 /**
+ * Claude Code emits the main `Stop` while a background subagent is still running, then resumes the main turn on its own
+ * once that subagent stops: `SubagentStop` is followed within roughly 100 ms by a fresh `UserPromptSubmit` and the turn
+ * keeps working until a later `Stop` with no pending background tasks. Releasing the deferred parent completion at the
+ * final `SubagentStop` therefore produced a spurious `completed` transition, unread badge, and system notification a
+ * moment before the turn resumed. The grace window waits for that resume signal instead; a turn that never resumes (an
+ * older CLI or an abandoned wait) still settles once the window elapses.
+ */
+const DEFAULT_RESUME_GRACE_MS = 10_000;
+
+/**
  * Aggregates Claude's main turn and background subagents inside one Terminal launch. Claude can emit the main `Stop`
- * while background subagents are still running, so that signal must remain pending until the last known child stops. A
- * watchdog runs only while completion is deferred and recovers after all remaining children have been silent for the
- * bounded fallback window; it never measures a child's total runtime.
+ * while background subagents are still running, so that signal must remain pending until the last known child stops and
+ * the resume grace window passes without a new parent turn. A watchdog runs only while completion is deferred and
+ * recovers after all remaining children have been silent for the bounded fallback window; it never measures a child's
+ * total runtime.
  */
 export class AgentWorkTracker {
     private readonly workByTerminal = new Map<string, TerminalAgentWork>();
+    private readonly resumeGraceMs: number;
     private readonly staleTimeoutMs: number;
 
     constructor(
         private readonly onDeferredParentFinished: (signal: AgentLifecycleSignal) => void,
         options: AgentWorkTrackerOptions = {},
     ) {
+        this.resumeGraceMs = Math.max(0, options.resumeGraceMs ?? DEFAULT_RESUME_GRACE_MS);
         this.staleTimeoutMs = Math.max(
             1,
             options.staleTimeoutMs ?? DEFAULT_SUBAGENT_STALE_TIMEOUT_MS,
@@ -60,6 +73,33 @@ export class AgentWorkTracker {
     private clearStaleTimeout(work: TerminalAgentWork): void {
         if (work.staleTimeout) clearTimeout(work.staleTimeout);
         work.staleTimeout = undefined;
+    }
+
+    private clearResumeTimeout(work: TerminalAgentWork): void {
+        if (work.resumeTimeout) clearTimeout(work.resumeTimeout);
+        work.resumeTimeout = undefined;
+    }
+
+    private clearTimeouts(work: TerminalAgentWork): void {
+        this.clearStaleTimeout(work);
+        this.clearResumeTimeout(work);
+    }
+
+    /**
+     * Holds the deferred parent completion until the provider either resumes the turn (`parentStarted` cancels it) or
+     * stays silent for the grace window, which then releases the completion as the last known state.
+     */
+    private armResumeTimeout(terminalId: string, work: TerminalAgentWork): void {
+        this.clearResumeTimeout(work);
+        const timeout = setTimeout(() => {
+            work.resumeTimeout = undefined;
+            if (this.workByTerminal.get(terminalId) !== work || !work.deferredParentFinish) return;
+            const deferredParentFinish = work.deferredParentFinish;
+            this.workByTerminal.delete(terminalId);
+            this.onDeferredParentFinished(deferredParentFinish);
+        }, this.resumeGraceMs);
+        timeout.unref();
+        work.resumeTimeout = timeout;
     }
 
     private pruneStaleSubagents(work: TerminalAgentWork): void {
@@ -99,6 +139,7 @@ export class AgentWorkTracker {
         }
         const isNew = !work.activeSubagents.has(signal.agentId);
         work.activeSubagents.set(signal.agentId, Date.now());
+        this.clearResumeTimeout(work);
         if (work.deferredParentFinish) this.armStaleTimeout(signal.terminalId, work);
         // A repeated start for a scope already tracked refreshes its evidence but opens nothing new.
         return isNew ? 'accepted' : 'subagentPending';
@@ -115,7 +156,7 @@ export class AgentWorkTracker {
     private parentStarted(terminalId: string): void {
         const work = this.workByTerminal.get(terminalId);
         if (!work) return;
-        this.clearStaleTimeout(work);
+        this.clearTimeouts(work);
         work.deferredParentFinish = undefined;
         if (work.activeSubagents.size === 0) this.workByTerminal.delete(terminalId);
     }
@@ -133,33 +174,28 @@ export class AgentWorkTracker {
         return true;
     }
 
-    private subagentFinished(signal: AgentLifecycleSignal): SubagentFinish {
-        if (!signal.agentId) return { outcome: 'subagentUnmatched' };
+    private subagentFinished(signal: AgentLifecycleSignal): AgentWorkOutcome {
+        if (!signal.agentId) return 'subagentUnmatched';
         const work = this.workByTerminal.get(signal.terminalId);
         // No tracked scope owns this completion: its `subagentStarted` hook never arrived.
-        if (!work?.activeSubagents.delete(signal.agentId)) return { outcome: 'subagentUnmatched' };
+        if (!work?.activeSubagents.delete(signal.agentId)) return 'subagentUnmatched';
         if (work.activeSubagents.size > 0) {
             if (work.deferredParentFinish) this.armStaleTimeout(signal.terminalId, work);
             // Matched, but siblings are still running, so the parent completion stays deferred.
-            return { outcome: 'subagentPending' };
+            return 'subagentPending';
         }
         this.clearStaleTimeout(work);
-        this.workByTerminal.delete(signal.terminalId);
-        // The last child left. Only a parent finish that was actually waiting becomes durable state here.
-        return work.deferredParentFinish
-            ? { deferredParentFinish: work.deferredParentFinish, outcome: 'accepted' }
-            : { outcome: 'subagentPending' };
+        // The last child left. A waiting parent finish now gets the resume window; nothing settles synchronously.
+        if (work.deferredParentFinish) this.armResumeTimeout(signal.terminalId, work);
+        else this.workByTerminal.delete(signal.terminalId);
+        return 'subagentPending';
     }
 
     observe(signal: AgentLifecycleSignal): AgentWorkObservation {
         if (signal.phase === 'subagentStarted')
             return { deferCompletion: false, outcome: this.subagentStarted(signal) };
-        if (signal.agentId && signal.phase === 'turnFinished') {
-            const finish = this.subagentFinished(signal);
-            if (finish.deferredParentFinish)
-                this.onDeferredParentFinished(finish.deferredParentFinish);
-            return { deferCompletion: false, outcome: finish.outcome };
-        }
+        if (signal.agentId && signal.phase === 'turnFinished')
+            return { deferCompletion: false, outcome: this.subagentFinished(signal) };
         if (signal.agentId) {
             this.touchSubagent(signal);
             if (signal.phase === 'turnStarted')
@@ -172,12 +208,12 @@ export class AgentWorkTracker {
 
     forget(terminalId: string): void {
         const work = this.workByTerminal.get(terminalId);
-        if (work) this.clearStaleTimeout(work);
+        if (work) this.clearTimeouts(work);
         this.workByTerminal.delete(terminalId);
     }
 
     clear(): void {
-        for (const work of this.workByTerminal.values()) this.clearStaleTimeout(work);
+        for (const work of this.workByTerminal.values()) this.clearTimeouts(work);
         this.workByTerminal.clear();
     }
 }

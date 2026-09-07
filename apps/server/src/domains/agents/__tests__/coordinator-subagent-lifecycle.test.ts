@@ -123,8 +123,30 @@ describe('AgentCoordinator subagent lifecycle', () => {
                 lastActivityState: 'running',
             });
 
+            /**
+             * The last child stopping is not the end of the work: Claude resumes the parent turn on its own right after
+             * `SubagentStop`, so the Session must stay running until that resumed turn stops.
+             */
             coordinator.observeLifecycleSignal({
                 agentId: 'subagent-1',
+                launchId: 'launch-1',
+                phase: 'turnFinished',
+                provider: 'claude',
+                terminalId,
+            });
+            expect(database.getSession(created.session.id)).toMatchObject({
+                attentionEpoch: 0,
+                hasUnread: false,
+                lastActivityState: 'running',
+            });
+
+            coordinator.observeLifecycleSignal({
+                launchId: 'launch-1',
+                phase: 'turnStarted',
+                provider: 'claude',
+                terminalId,
+            });
+            coordinator.observeLifecycleSignal({
                 launchId: 'launch-1',
                 phase: 'turnFinished',
                 provider: 'claude',
@@ -146,6 +168,57 @@ describe('AgentCoordinator subagent lifecycle', () => {
             });
             expect(database.getSession(created.session.id)?.attentionEpoch).toBe(1);
         } finally {
+            coordinator.close();
+            database.close();
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
+
+    it('settles a deferred Claude completion when no parent turn resumes after the last subagent', async () => {
+        vi.useFakeTimers();
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-claude-subagent-no-resume-'));
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'claude');
+        const coordinator = new AgentCoordinator(
+            database,
+            createAgents(),
+            () => {},
+            new StructuredLogger(join(directory, 'logs')),
+        );
+        const terminalId = created.terminal!.id;
+        const signal = (
+            phase: 'turnStarted' | 'turnFinished' | 'subagentStarted',
+            agentId?: string,
+        ) =>
+            coordinator.observeLifecycleSignal({
+                ...(agentId && { agentId }),
+                launchId: 'launch-1',
+                phase,
+                provider: 'claude',
+                terminalId,
+            });
+
+        try {
+            coordinator.beginTerminalLaunch(terminalId, 'launch-1');
+            signal('turnStarted');
+            signal('subagentStarted', 'subagent-1');
+            signal('turnFinished');
+            signal('turnFinished', 'subagent-1');
+
+            vi.advanceTimersByTime(9_999);
+            expect(database.getSession(created.session.id)).toMatchObject({
+                attentionEpoch: 0,
+                lastActivityState: 'running',
+            });
+            vi.advanceTimersByTime(1);
+            expect(database.getSession(created.session.id)).toMatchObject({
+                attentionEpoch: 1,
+                hasUnread: true,
+                lastActivityState: 'completed',
+                lastAttentionKind: 'completed',
+            });
+        } finally {
+            vi.useRealTimers();
             coordinator.close();
             database.close();
             await rm(directory, { recursive: true, force: true });
@@ -209,6 +282,15 @@ describe('AgentCoordinator subagent lifecycle', () => {
             });
 
             signal('turnFinished', 'subagent-1');
+            await coordinator.probeTerminalNow(terminalId);
+            expect(database.getSession(created.session.id)).toMatchObject({
+                attentionEpoch: 0,
+                hasUnread: false,
+                lastActivityState: 'running',
+            });
+
+            signal('turnStarted');
+            signal('turnFinished');
             expect(database.getSession(created.session.id)).toMatchObject({
                 attentionEpoch: 1,
                 hasUnread: true,
