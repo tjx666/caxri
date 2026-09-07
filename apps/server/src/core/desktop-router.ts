@@ -238,6 +238,22 @@ export class ServerDesktopRouter {
         return { entry, projectId: session.projectId, sessionId };
     }
 
+    /**
+     * Reads `workbench.externalEditor` here, in Server Core, so the `openInEditor` command Main receives is
+     * self-contained. Main must not resolve it itself: the only call a Desktop command handler may make back to Server
+     * Core is the dedicated `desktop-target.consume` lane, which `control-server.ts` deliberately routes around the
+     * per-connection ordered queue. Any ordinary request Main issues while servicing a Desktop command instead queues
+     * behind the very `project.openInEditor` dispatch that is waiting for Main's reply, so both sides stall until the
+     * 15s Desktop command timeout fires.
+     */
+    private async resolveEditorCommand(signal?: AbortSignal): Promise<string | undefined> {
+        const settings = signal
+            ? await this.options.domainService.requestWithSignal('settings.get', {}, signal)
+            : await this.options.domainService.request('settings.get', {});
+        const command = settings.value['workbench.externalEditor']?.trim();
+        return command === '' ? undefined : command;
+    }
+
     async status(): Promise<DesktopStatus> {
         const lease = this.options.bridge.lease();
         if (!lease) return { state: 'offline' };
@@ -413,16 +429,24 @@ export class ServerDesktopRouter {
                     ? 'The requested Desktop target is not a file'
                     : 'The requested Desktop target is not a directory',
             );
+        const editorCommand =
+            operation === 'openInEditor' ? await this.resolveEditorCommand(signal) : undefined;
+        assertNotCancelled(signal);
         /**
          * Reject a raw target in Server Core before a CLI open is allowed to launch Desktop.
          */
         const lease = await this.requireLease(parameters.launchIfNeeded);
         const target = this.issueTarget(operation, lease.generation, resolved, parameters.location);
+        const invoked: DesktopOperation =
+            operation === 'openInEditor'
+                ? {
+                      kind: 'openInEditor',
+                      targetId: target.id,
+                      ...(editorCommand && { editorCommand }),
+                  }
+                : { kind: operation, targetId: target.id };
         try {
-            await this.options.bridge.invoke(
-                { kind: operation, targetId: target.id },
-                lease.generation,
-            );
+            await this.options.bridge.invoke(invoked, lease.generation);
         } catch (error) {
             this.targets.delete(target.id);
             throw error;

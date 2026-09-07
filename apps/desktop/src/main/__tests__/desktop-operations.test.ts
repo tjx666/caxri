@@ -77,7 +77,26 @@ describe('createDesktopOperationHandler', () => {
         );
     });
 
-    it('launches the external editor for a consumed openInEditor target without focusing', async () => {
+    it('launches the external editor carried by the openInEditor command without focusing', async () => {
+        const injected = handlers();
+        const consumeTarget = vi.fn(() => Promise.resolve(target));
+        const handle = createDesktopOperationHandler(injected);
+
+        await expect(
+            handle(
+                { kind: 'openInEditor', targetId: target.targetId, editorCommand: 'code' },
+                consumeTarget,
+            ),
+        ).resolves.toBeNull();
+        expect(consumeTarget).toHaveBeenCalledOnce();
+        // The command travels with the operation; Main must never request it back from Server Core
+        // while it is still holding that connection's ordered queue open.
+        expect(injected.openInEditor).toHaveBeenCalledWith(target.path, 'code');
+        expect(injected.focus).not.toHaveBeenCalled();
+        expect(injected.open).not.toHaveBeenCalled();
+    });
+
+    it('passes an undefined editor command through when none is configured', async () => {
         const injected = handlers();
         const consumeTarget = vi.fn(() => Promise.resolve(target));
         const handle = createDesktopOperationHandler(injected);
@@ -85,10 +104,7 @@ describe('createDesktopOperationHandler', () => {
         await expect(
             handle({ kind: 'openInEditor', targetId: target.targetId }, consumeTarget),
         ).resolves.toBeNull();
-        expect(consumeTarget).toHaveBeenCalledOnce();
-        expect(injected.openInEditor).toHaveBeenCalledWith(target.path);
-        expect(injected.focus).not.toHaveBeenCalled();
-        expect(injected.open).not.toHaveBeenCalled();
+        expect(injected.openInEditor).toHaveBeenCalledWith(target.path, undefined);
     });
 
     it('returns the bounded Files confirmation without consuming a target', async () => {
