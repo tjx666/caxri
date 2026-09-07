@@ -129,12 +129,13 @@ describe('Status extension tree', () => {
             'linear: error',
         ]);
         expect(children.slice(1, 6).map(iconId)).toEqual([
-            'circle-check',
-            'circle-outline',
-            'circle-outline',
-            'loading',
-            'circle-dot',
+            'linear-completed',
+            'linear-canceled',
+            'linear-canceled',
+            'linear-started',
+            'linear-backlog',
         ]);
+        expect(children[6].children?.[1]?.item.iconPath?.id).toBe('loading');
         expect(children[6].item).toMatchObject({
             id: 'status:repo:repo-1:deployments',
             description: '2 on feature/status',
@@ -184,6 +185,46 @@ describe('Status extension tree', () => {
             description: 'See Runtime logs for details.',
         });
         expect(children[10].item.command).toMatchObject({ command: 'caxri.showLogs' });
+    });
+
+    it('uses static Linear workflow glyphs without changing Vercel loading feedback', () => {
+        const repo: ProjectStatusRepository = {
+            id: 'repo-1',
+            kind: 'primary',
+            name: 'caxri',
+            branch: 'main',
+            linearIssues: [
+                { identifier: 'CAX-1', stateType: 'triage' },
+                { identifier: 'CAX-2', stateType: 'unstarted' },
+                { identifier: 'CAX-3', stateType: 'started' },
+                { identifier: 'CAX-4', stateType: 'completed' },
+                { identifier: 'CAX-5', stateType: 'canceled' },
+                { identifier: 'CAX-6', stateType: 'duplicate' },
+            ],
+            deployments: {
+                url: 'https://vercel.com/tjx666/caxri/deployments',
+                branchDeployments: [
+                    {
+                        environment: 'preview',
+                        hostname: 'preview.caxri.app',
+                        state: 'pending',
+                        url: 'https://preview.caxri.app',
+                    },
+                ],
+            },
+            errors: [],
+        };
+
+        const children = buildRepoNode(repo).children ?? [];
+        expect(children.slice(1, 7).map(iconId)).toEqual([
+            'linear-triage',
+            'linear-unstarted',
+            'linear-started',
+            'linear-completed',
+            'linear-canceled',
+            'linear-canceled',
+        ]);
+        expect(children[7].children?.[0]?.item.iconPath?.id).toBe('loading');
     });
 
     it('gives every row the shared rich hover card instead of a plain string', () => {
