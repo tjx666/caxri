@@ -25,6 +25,11 @@ export interface AgentSnapshotContext {
      * Prevents an unbound Terminal from claiming an Agent session already owned or restarted.
      */
     excludedAgentSessionIds?: readonly string[];
+    /**
+     * PTY shell identity for a bounded provider-owned process probe. Coordinator supplies this only for an unbound,
+     * running Agent generation; it is never a filesystem or process-control authority.
+     */
+    shellPid?: number;
     processState?: ProcessState;
     rootPath: string;
     /**

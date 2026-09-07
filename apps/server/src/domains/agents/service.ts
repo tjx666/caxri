@@ -62,6 +62,7 @@ function snapshotRequestKey(provider: AgentProvider, context: AgentSnapshotConte
         context.agentTurnId ?? null,
         context.correlationId ?? null,
         [...new Set(context.excludedAgentSessionIds)].toSorted((a, b) => a.localeCompare(b)),
+        context.shellPid ?? null,
         context.processState ?? null,
         context.startedAt ?? null,
     ]);

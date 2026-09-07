@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 
 import { execFileAsync } from '@caxri/system';
 
@@ -19,6 +20,70 @@ const CONVERSATION_TITLE = 'Ship the release notes';
 interface BootstrapTerminals {
     terminals: Array<{ id: string; ptyTitle?: string; title: string }>;
 }
+
+test('a resumed Codex thread receives its native title before its first lifecycle hook', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-resumed-title-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    const state = join(userData, 'e2e-agents', 'codex');
+    const threadId = '019a0000-0000-7000-8000-000000000042';
+    const title = 'Resume the existing work';
+    await Promise.all([mkdir(root, { recursive: true }), mkdir(state, { recursive: true })]);
+    await execFileAsync('sqlite3', [
+        join(state, 'state_9.sqlite'),
+        `CREATE TABLE threads (id TEXT PRIMARY KEY, cwd TEXT, title TEXT, name TEXT,
+            created_at_ms INTEGER, updated_at_ms INTEGER, tokens_used INTEGER, archived INTEGER);
+         INSERT INTO threads VALUES ('${threadId}', '/previous-worktree', 'Private first prompt',
+            '${title}', 1, 1, 0, 0);`,
+    ]);
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: {
+            codex: {
+                /**
+                 * A resumed recorder holds its old rollout open before SessionStart arrives. No hook or new thread
+                 * metadata is emitted: only this Terminal's foreground process can establish the old identity.
+                 */
+                executableSource: String.raw`#!${process.execPath}
+const fs = require('node:fs');
+const path = require('node:path');
+if (process.argv.includes('--version')) {
+  process.stdout.write('codex-cli 0.153.4\n');
+  process.exit(0);
+}
+const directory = path.join(process.env.CODEX_HOME, 'sessions', '2026', '01', '01');
+fs.mkdirSync(directory, { recursive: true });
+const fd = fs.openSync(path.join(directory, 'rollout-2026-01-01T00-00-00-${threadId}.jsonl'), 'a');
+process.stdin.setRawMode?.(true);
+process.stdin.resume();
+process.on('exit', () => fs.closeSync(fd));
+process.stdout.write('Fake resumed Codex ready\r\n');
+`,
+            },
+        },
+    });
+    const { app, page } = await launchCaxri({
+        agentMode,
+        userDataDir: userData,
+        testRootPath: root,
+    });
+    try {
+        await openAddProjectDialog(page);
+        await page.getByRole('dialog').getByRole('button', { name: 'Codex' }).click();
+        await expect(page.getByRole('tab', { name: title, exact: true })).toBeVisible({
+            timeout: 20_000,
+        });
+        const bootstrap = await pageRequest<{
+            terminals: Array<{ agentSessionId?: string; title: string }>;
+        }>(page, 'app.bootstrap');
+        expect(bootstrap.terminals).toEqual([
+            expect.objectContaining({ agentSessionId: threadId, title }),
+        ]);
+    } finally {
+        await app.close();
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
 
 /**
  * Two title sources reach the same Terminal from opposite directions, and only a real Electron run exercises both: the

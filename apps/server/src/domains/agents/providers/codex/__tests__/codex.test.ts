@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AgentProviderSessionRenameContext } from '../../../contract';
 import { clearExecutableCache } from '../../../discovery';
 import { AgentService, createLocalAgentAdapters } from '../../../service';
-import { codexProvider, renameCodexSession } from '..';
+import { codexProvider, codexSessionIdFromOpenFiles, renameCodexSession } from '..';
 import { findCodexStateDatabases, MAX_CODEX_STATE_DATABASES } from '../state-databases';
 
 const temporaryDirectories: string[] = [];
@@ -95,6 +95,51 @@ afterEach(async () => {
 });
 
 describe('Codex provider', () => {
+    it('accepts one writable rollout below the canonical sessions root', () => {
+        const sessionsRoot = '/Users/dev/.codex/sessions';
+        const sessionId = '01931f2e-7b0a-7abc-8def-0123456789ab';
+        const rollout = `rollout-2026-09-07T12-34-56-${sessionId}.jsonl`;
+        const rolloutPath = join(sessionsRoot, '2026', '09', '07', rollout);
+
+        expect(
+            codexSessionIdFromOpenFiles(
+                [{ access: 'u', path: rolloutPath, pid: 42 }],
+                sessionsRoot,
+            ),
+        ).toBe(sessionId);
+        expect(
+            codexSessionIdFromOpenFiles(
+                [{ access: 'r', path: rolloutPath, pid: 42 }],
+                sessionsRoot,
+            ),
+        ).toBeUndefined();
+        expect(
+            codexSessionIdFromOpenFiles(
+                [{ access: 'u', path: `/private/tmp/${rollout}`, pid: 42 }],
+                sessionsRoot,
+            ),
+        ).toBeUndefined();
+        expect(
+            codexSessionIdFromOpenFiles(
+                [
+                    { access: 'u', path: rolloutPath, pid: 42 },
+                    {
+                        access: 'u',
+                        path: join(
+                            sessionsRoot,
+                            '2026',
+                            '09',
+                            '07',
+                            'rollout-2026-09-07T12-34-57-01931f2e-7b0a-7abc-8def-0123456789ac.jsonl',
+                        ),
+                        pid: 42,
+                    },
+                ],
+                sessionsRoot,
+            ),
+        ).toBeUndefined();
+    });
+
     it('uses the current low-cost Codex model and keeps long-paste content out of argv', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-codex-paste-summary-command-'));
         temporaryDirectories.push(directory);
@@ -585,5 +630,51 @@ process.stdin.on('end', () => {
             'completed',
             'failed',
         ]);
+    });
+
+    it('reads the exact resumed thread after Codex moves its cwd into a worktree', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-codex-resume-worktree-'));
+        temporaryDirectories.push(directory);
+        const launchRoot = join(directory, 'project');
+        const worktreeRoot = join(directory, 'project-worktree');
+        const state = join(directory, 'codex-state');
+        await Promise.all([mkdir(launchRoot), mkdir(worktreeRoot), mkdir(state)]);
+
+        const database = new Database(join(state, 'state_1.sqlite'));
+        database.exec(
+            'CREATE TABLE threads (id TEXT PRIMARY KEY, cwd TEXT, title TEXT, name TEXT, created_at_ms INTEGER, updated_at_ms INTEGER, tokens_used INTEGER, archived INTEGER)',
+        );
+        database
+            .prepare('INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+            .run(
+                'codex-resumed-worktree',
+                worktreeRoot,
+                'Private resumed prompt',
+                'Resume this worktree session',
+                Date.now() - 1_000,
+                Date.now(),
+                0,
+                0,
+            );
+        database.close();
+
+        const service = new AgentService(
+            undefined,
+            createLocalAgentAdapters({
+                homeDirectory: directory,
+                variables: { CODEX_SQLITE_HOME: state },
+            }),
+        );
+
+        await expect(
+            service.snapshot('codex', {
+                agentSessionId: 'codex-resumed-worktree',
+                rootPath: launchRoot,
+                processState: 'running',
+            }),
+        ).resolves.toMatchObject({
+            sessionId: 'codex-resumed-worktree',
+            title: 'Resume this worktree session',
+        });
     });
 });

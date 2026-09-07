@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { foregroundAgentProviderFromProcessList } from '../process-detection';
+import {
+    foregroundAgentProcessIdsFromProcessList,
+    foregroundAgentProviderFromProcessList,
+    openFilesFromLsofOutput,
+} from '../process-detection';
 
 describe('Shell foreground Agent detection', () => {
     it.each([
@@ -51,5 +55,46 @@ describe('Shell foreground Agent detection', () => {
                 100,
             ),
         ).toBeUndefined();
+    });
+
+    it('returns foreground provider PIDs for the bounded open-file probe', () => {
+        expect(
+            foregroundAgentProcessIdsFromProcessList(
+                '100 1 100 200 /bin/zsh -l\n200 100 200 200 node /opt/codex.js --flag\n201 200 200 200 /opt/helper\n',
+                100,
+                'codex',
+            ),
+        ).toEqual([200]);
+        expect(
+            foregroundAgentProcessIdsFromProcessList(
+                '100 1 100 200 /bin/zsh -l\n200 100 200 200 /opt/tools/codex\n201 100 201 200 /opt/tools/codex\n',
+                100,
+                'codex',
+            ),
+        ).toEqual([200]);
+    });
+
+    it('parses lsof access fields and resets them for each descriptor', () => {
+        expect(
+            openFilesFromLsofOutput(
+                'p200\nf4\nau\n/something\nn/Users/dev/.codex/sessions/2026/09/07/rollout.jsonl\nf5\nar\nn/Users/dev/.codex/state.sqlite\np201\nf3\naw\nn/Users/dev/.codex/other.jsonl\n',
+            ),
+        ).toEqual([
+            {
+                access: 'u',
+                path: '/Users/dev/.codex/sessions/2026/09/07/rollout.jsonl',
+                pid: 200,
+            },
+            {
+                access: 'r',
+                path: '/Users/dev/.codex/state.sqlite',
+                pid: 200,
+            },
+            {
+                access: 'w',
+                path: '/Users/dev/.codex/other.jsonl',
+                pid: 201,
+            },
+        ]);
     });
 });

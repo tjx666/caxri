@@ -1,7 +1,8 @@
 import type { Buffer } from 'node:buffer';
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import { spawn } from 'node:child_process';
-import { join } from 'node:path';
+import { realpath } from 'node:fs/promises';
+import { basename, isAbsolute, join, relative, sep } from 'node:path';
 
 import { CaxriError } from '@caxri/protocol';
 import Database from 'better-sqlite3';
@@ -13,8 +14,10 @@ import type {
     AgentSnapshotContext,
     LocalAgentState,
 } from '../../contract';
-import { canonicalPath, projectDirectories } from '../../contract';
+import { canonicalPath, isOpaqueAgentSessionId, projectDirectories } from '../../contract';
 import { AGENT_PASTE_SUMMARY_SYSTEM_INSTRUCTIONS } from '../../paste-summary-generation';
+import type { ProcessOpenFile } from '../../process-detection';
+import { detectForegroundAgentOpenFiles } from '../../process-detection';
 import {
     agentCommandEnvironment,
     assertAgentRenameVersion,
@@ -223,6 +226,9 @@ interface CodexThreadRow {
 }
 
 const CODEX_PROVISIONAL_TITLE_CHARACTERS = 36;
+const CODEX_THREAD_ID_PATTERN = /^[\da-f]{8}-[\da-f]{4}-7[\da-f]{3}-[\da-f]{4}-[\da-f]{12}$/i;
+const CODEX_ROLLOUT_NAME_PATTERN =
+    /^rollout-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-([\da-f]{8}-[\da-f]{4}-7[\da-f]{3}-[\da-f]{4}-[\da-f]{12})\.jsonl$/i;
 const CODEX_SQLITE_WHITESPACE =
     'char(9,10,11,12,13,32,133,160,5760,8192,8193,8194,8195,8196,8197,8198,8199,8200,8201,8202,8232,8233,8239,8287,12288)';
 
@@ -266,6 +272,81 @@ async function readCodexTurnStatus(
         }
     }
     return undefined;
+}
+
+function isWritableOpenFile(access: string): boolean {
+    const normalized = access.trim().toLowerCase();
+    return normalized === 'u' || normalized.includes('w');
+}
+
+/**
+ * Extracts one Codex thread only from a writable rollout held below the canonical Codex sessions root. A missing,
+ * malformed, foreign-root, or ambiguous file set returns no identity so metadata probing keeps its existing heuristic.
+ */
+export function codexSessionIdFromOpenFiles(
+    files: readonly ProcessOpenFile[],
+    sessionsRoot: string,
+): string | undefined {
+    if (!isAbsolute(sessionsRoot)) return undefined;
+    const sessionIds = new Set<string>();
+    for (const file of files) {
+        if (!isWritableOpenFile(file.access)) continue;
+        const suffix = relative(sessionsRoot, file.path);
+        if (
+            suffix === '' ||
+            isAbsolute(suffix) ||
+            suffix.startsWith(`..${sep}`) ||
+            suffix.split(sep).length !== 4
+        )
+            continue;
+        const match = CODEX_ROLLOUT_NAME_PATTERN.exec(basename(file.path));
+        const sessionId = match?.[1];
+        if (!sessionId || !CODEX_THREAD_ID_PATTERN.test(sessionId)) continue;
+        if (!isOpaqueAgentSessionId(sessionId)) continue;
+        sessionIds.add(sessionId);
+    }
+    return sessionIds.size === 1 ? [...sessionIds][0] : undefined;
+}
+
+async function readCodexStateFromProcess(
+    context: AgentSnapshotContext,
+    environment: Parameters<typeof resolveCodexHome>[0],
+    stateDirectories: string[],
+): Promise<LocalAgentState | undefined> {
+    if (
+        context.agentSessionId ||
+        context.shellPid === undefined ||
+        context.processState !== 'running'
+    )
+        return undefined;
+    let sessionsRoot: string;
+    try {
+        sessionsRoot = await realpath(join(resolveCodexHome(environment), 'sessions'));
+    } catch {
+        return undefined;
+    }
+    const openFiles = await detectForegroundAgentOpenFiles(context.shellPid, 'codex');
+    if (openFiles.length === 0) return undefined;
+    const candidateOpenFiles = openFiles.filter(
+        (file) =>
+            isWritableOpenFile(file.access) && CODEX_ROLLOUT_NAME_PATTERN.test(basename(file.path)),
+    );
+    if (candidateOpenFiles.length === 0) return undefined;
+    const canonicalFiles = (
+        await Promise.all(
+            candidateOpenFiles.map(async (file) => {
+                try {
+                    return { ...file, path: await realpath(file.path) };
+                } catch {
+                    return;
+                }
+            }),
+        )
+    ).filter((file): file is ProcessOpenFile => file !== undefined);
+    const sessionId = codexSessionIdFromOpenFiles(canonicalFiles, sessionsRoot);
+    if (!sessionId) return undefined;
+    if (context.excludedAgentSessionIds?.includes(sessionId)) return undefined;
+    return readCodexState({ ...context, agentSessionId: sessionId }, stateDirectories);
 }
 
 /**
@@ -320,29 +401,39 @@ async function readCodexState(
                     : 'NULL';
             const firstPromptExpression = columns.has('title') ? 'title' : 'NULL';
             const tokens = columns.has('tokens_used') ? ', tokens_used' : '';
-            const archived = columns.has('archived') ? 'archived = 0 AND ' : '';
-            const session = context.agentSessionId ? 'id = ? AND ' : '';
+            const archived = columns.has('archived') ? 'archived = 0' : '';
+            const session = context.agentSessionId ? 'id = ?' : '';
             const excludedSessionIds = context.agentSessionId
                 ? []
                 : [...new Set(context.excludedAgentSessionIds)].filter(Boolean);
             if (!timestampExpression && !context.agentSessionId && context.startedAt) continue;
             const excluded =
                 excludedSessionIds.length > 0
-                    ? `id NOT IN (${excludedSessionIds.map(() => '?').join(', ')}) AND `
+                    ? `id NOT IN (${excludedSessionIds.map(() => '?').join(', ')})`
                     : '';
             const started =
                 timestampExpression && !context.agentSessionId && context.startedAt
-                    ? `${timestampExpression} >= ? AND `
+                    ? `${timestampExpression} >= ?`
                     : '';
             const order = started ? `${timestampExpression} ASC` : `${updatedColumn} DESC`;
-            const placeholders = requestedRoots.map(() => '?').join(', ');
+            /**
+             * An exact hook or persisted resume binding remains valid when the Agent moves into a linked worktree. The
+             * opaque thread id is the authoritative selector in that case; cwd filtering is only for heuristic
+             * discovery of an unbound Terminal.
+             */
+            const roots = context.agentSessionId
+                ? ''
+                : `cwd IN (${requestedRoots.map(() => '?').join(', ')})`;
+            const where = [archived, session, excluded, started, roots]
+                .filter((clause) => clause.length > 0)
+                .join(' AND ');
             const row = database
                 .prepare(
                     `WITH RECURSIVE
                         selected AS (
                             SELECT id, ${titleExpression} AS candidate_title, ${firstPromptExpression} AS first_prompt${tokens}
                             FROM threads
-                            WHERE ${archived}${session}${excluded}${started}cwd IN (${placeholders})
+                            WHERE ${where}
                             ORDER BY ${order}
                             LIMIT 1
                         ),
@@ -390,7 +481,7 @@ async function readCodexState(
                     ...(context.agentSessionId ? [context.agentSessionId] : []),
                     ...excludedSessionIds,
                     ...(started ? [context.startedAt] : []),
-                    ...requestedRoots,
+                    ...(context.agentSessionId ? [] : requestedRoots),
                 ) as CodexThreadRow | undefined;
             if (!row) continue;
             selectedRow = row;
@@ -456,8 +547,15 @@ export const codexProvider: AgentProviderDescriptor = {
                 10_000,
             ),
     },
-    readState: (context, environment) =>
-        readCodexState(context, resolveCodexStateDirectories(environment)),
+    readState: async (context, environment) => {
+        const stateDirectories = resolveCodexStateDirectories(environment);
+        const processState = await readCodexStateFromProcess(
+            context,
+            environment,
+            stateDirectories,
+        );
+        return processState ?? readCodexState(context, stateDirectories);
+    },
     renameSession: renameCodexSession,
     locateTranscript: (context, environment) => locateCodexTranscript(context, environment),
     resumeArguments: (agentSessionId) => ['resume', agentSessionId],
