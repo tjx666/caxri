@@ -103,8 +103,9 @@ may use unitless `1.45` or `1.5` line height; compact uppercase headings may use
   whichever axis the seam runs — `w-[3px]` between columns, `h-[3px]` between rows — so the two
   orientations are the same seam, not two thicknesses. The macOS traffic-light clearance is the
   only platform spacing exception: 84px expanded-header and 78px collapsed-header/tab-strip left
-  padding. Both are horizontal clearance for the window controls; the 44px figure under Window
-  chrome is rail height, a different axis.
+  padding while windowed. Both are horizontal clearance for the window controls; fullscreen hides
+  those controls and omits the clearance. The 44px figure under Window chrome is rail height, a
+  different axis.
 - Control heights: 24px compact inline rename/history, 28px dense workbench search, 36px standard
   Settings fields/buttons, and 44px palette/path input.
 - Radius: 4px controls, 6px cards/list selection, 8px dialogs and palette. `rounded-full` is

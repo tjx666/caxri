@@ -7,6 +7,7 @@ import type { Page } from 'playwright';
 
 import type { E2EApp } from './support/electron-app.ts';
 import { expect, test } from './support/fixtures.ts';
+import { publishFullScreenState } from './support/full-screen-state.ts';
 import {
     createProjectSession,
     launchCaxri,
@@ -585,6 +586,37 @@ test('the bar hides "+" with no tabs at all and reserves its drag corner only wi
         await expect(running.page.getByText('No Terminal in this Session.')).toBeVisible();
         await expect(running.page.locator('.work-tabs .work-tab')).toHaveCount(0);
         await expect(actions).toHaveCount(0);
+    } finally {
+        await closeAppQuietly(running.app);
+        await removeQuitTestDirectory(testDirectory);
+    }
+});
+
+test('the collapsed root tab bar only reserves traffic-light space outside fullscreen', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-work-tabs-fullscreen-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const rootInput = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', rootInput]);
+    const root = await realpath(rootInput);
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    try {
+        await createProjectSession(running.page);
+        const rootBar = running.page.locator('.work-tabs').first();
+        const collapsedTitlebar = running.page.locator('.collapsed-primary-sidebar-titlebar');
+        await running.page.keyboard.press('Meta+BracketLeft');
+        await expect(running.page.locator('.primary-sidebar-title')).toHaveCount(0);
+        await expect(collapsedTitlebar).toHaveCount(1);
+
+        await expect(rootBar).toHaveCSS('padding-left', '78px');
+
+        await publishFullScreenState(running.app, true);
+        await expect(collapsedTitlebar).toHaveCount(0);
+        await expect(rootBar).toHaveCSS('padding-left', '0px');
+
+        await publishFullScreenState(running.app, false);
+        await expect(collapsedTitlebar).toHaveCount(1);
+        await expect(rootBar).toHaveCSS('padding-left', '78px');
     } finally {
         await closeAppQuietly(running.app);
         await removeQuitTestDirectory(testDirectory);
