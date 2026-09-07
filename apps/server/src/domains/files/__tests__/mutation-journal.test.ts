@@ -225,6 +225,7 @@ describe('FileMutationJournal', () => {
         const logger = new StructuredLogger(join(directory, 'logs'));
         const first = new FileMutationJournal(path, () => {}, logger);
         await first.initialize();
+        const identityRecorded = Promise.withResolvers<void>();
         const pending = first.run(
             createOperation('operation-create-restart', directory),
             async (stage) => {
@@ -237,15 +238,17 @@ describe('FileMutationJournal', () => {
                     device: stats.dev.toString(),
                     inode: stats.ino.toString(),
                 });
+                identityRecorded.resolve();
                 await new Promise<never>(() => {});
                 return result;
             },
         );
         // eslint-disable-next-line unicorn/prefer-await -- `pending` awaits a never-resolving promise inside the journal executor; awaiting the rejection handler here would hang the test forever, so the rejection is deliberately observed fire-and-forget.
         pending.catch(() => {});
-        await expect
-            .poll(async () => (await first.get('operation-create-restart'))?.phase)
-            .toBe('staged');
+        /**
+         * The first stage precedes creation; restart only after the second stage persists the created identity.
+         */
+        await identityRecorded.promise;
         const staged = await first.get('operation-create-restart');
         if (staged?.kind !== 'create') throw new Error('Expected a staged create operation');
         expect(typeof staged.expectedResult?.device).toBe('string');
