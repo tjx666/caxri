@@ -34,6 +34,7 @@ export const logEventCatalog = {
     agentNotifications: {
         deliveryFallback: 'agent_notifications.delivery_fallback',
         operationFailed: 'agent_notifications.operation_failed',
+        settingsRefreshSuppressed: 'agent_notifications.settings_refresh_suppressed',
     },
     app: {
         childProcessGone: 'app.child_process_gone',
