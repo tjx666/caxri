@@ -28,6 +28,18 @@ const stateIcons: Record<ProjectStatusState, string> = {
     unknown: 'circle-dot',
 };
 
+const linearStateIcons: Partial<
+    Record<NonNullable<ProjectStatusRepository['linearIssues'][number]['stateType']>, string>
+> = {
+    backlog: 'linear-backlog',
+    canceled: 'linear-canceled',
+    completed: 'linear-completed',
+    duplicate: 'linear-canceled',
+    started: 'linear-started',
+    triage: 'linear-triage',
+    unstarted: 'linear-unstarted',
+};
+
 const stateTones: Record<ProjectStatusState, 'danger' | 'neutral' | 'success' | 'warning'> = {
     success: 'success',
     failure: 'danger',
@@ -185,6 +197,13 @@ function linearState(
     return 'unknown';
 }
 
+function linearIcon(
+    stateType: ProjectStatusRepository['linearIssues'][number]['stateType'],
+): string {
+    const customIcon = stateType ? linearStateIcons[stateType] : undefined;
+    return customIcon ?? stateIcons[linearState(stateType)];
+}
+
 /**
  * Preserves the screenshot-defined pre-extension ordering while assigning stable provider IDs to every row.
  */
@@ -213,7 +232,7 @@ function buildRepoChildren(repo: ProjectStatusRepository): StatusNode[] {
                 issue.title ? `${issue.identifier} ${issue.title}` : issue.identifier,
                 {
                     description: issue.state,
-                    icon: stateIcons[state],
+                    icon: linearIcon(issue.stateType),
                     url: issue.url,
                     tooltip: {
                         ...(issue.state && {

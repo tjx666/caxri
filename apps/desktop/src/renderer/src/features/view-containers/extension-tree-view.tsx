@@ -26,6 +26,8 @@ import {
 import { executeCommand } from '../../commands/execute';
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
+import type { LinearStatusKind } from '../../icons/linear/linear-status-icon';
+import { LinearStatusIcon } from '../../icons/linear/linear-status-icon';
 import { caxri } from '../../lib/caxri';
 import { openExternalUrl } from '../../lib/external-link';
 import { cn } from '../../lib/utilities';
@@ -89,13 +91,35 @@ const themeIcons = {
     'symbol-string': File,
     'warning': AlertTriangle,
 } as const;
-const themeIconClassNames: Partial<Record<keyof typeof themeIcons, string>> = {
+
+const linearStatusIconKinds = {
+    'linear-backlog': 'backlog',
+    'linear-canceled': 'canceled',
+    'linear-completed': 'completed',
+    'linear-started': 'started',
+    'linear-triage': 'triage',
+    'linear-unstarted': 'unstarted',
+} as const satisfies Record<string, LinearStatusKind>;
+type LinearStatusIconId = keyof typeof linearStatusIconKinds;
+type ThemeIconId = keyof typeof themeIcons | LinearStatusIconId;
+
+function isLinearStatusIconId(iconId: string | undefined): iconId is LinearStatusIconId {
+    return iconId !== undefined && iconId in linearStatusIconKinds;
+}
+
+const themeIconClassNames: Partial<Record<ThemeIconId, string>> = {
     'check': 'text-success',
     'circle-check': 'text-success',
     'circle-dot': 'text-muted',
     'circle-outline': 'text-muted',
     'circle-x': 'text-danger',
     'error': 'text-danger',
+    'linear-backlog': 'text-muted',
+    'linear-canceled': 'text-muted',
+    'linear-completed': 'text-success',
+    'linear-started': 'text-warning',
+    'linear-triage': 'text-warning',
+    'linear-unstarted': 'text-muted',
     'loading': 'animate-spin text-warning',
     'pass': 'text-success',
     'question': 'text-muted',
@@ -569,10 +593,15 @@ function TreeItemRow({
     );
     const positionInSet = siblings.findIndex(({ item }) => item.handle === row.item.handle) + 1;
     const themeIconId = row.item.icon?.kind === 'theme' ? row.item.icon.id : undefined;
+    const linearStatusKind = isLinearStatusIconId(themeIconId)
+        ? linearStatusIconKinds[themeIconId]
+        : undefined;
     const Icon =
-        themeIconId !== undefined && themeIconId in themeIcons
+        linearStatusKind === undefined && themeIconId !== undefined && themeIconId in themeIcons
             ? themeIcons[themeIconId as keyof typeof themeIcons]
             : File;
+    const iconClassName =
+        themeIconId !== undefined ? themeIconClassNames[themeIconId as ThemeIconId] : undefined;
     const rowElement = useRef<HTMLDivElement>(null);
     const tooltip =
         row.item.tooltip ??
@@ -666,15 +695,20 @@ function TreeItemRow({
                     description={row.item.description}
                     disabled={isRefreshing}
                     icon={
-                        <Icon
-                            className={cn(
-                                themeIconId && themeIconId in themeIcons
-                                    ? themeIconClassNames[themeIconId as keyof typeof themeIcons]
-                                    : undefined,
-                            )}
-                            data-theme-icon={themeIconId}
-                            size={24}
-                        />
+                        linearStatusKind ? (
+                            <LinearStatusIcon
+                                kind={linearStatusKind}
+                                className={cn(iconClassName)}
+                                data-theme-icon={themeIconId}
+                                size={24}
+                            />
+                        ) : (
+                            <Icon
+                                className={cn(iconClassName)}
+                                data-theme-icon={themeIconId}
+                                size={24}
+                            />
+                        )
                     }
                     title={row.item.label}
                     onAction={() => dispatchRowAction('activate')}
@@ -708,16 +742,20 @@ function TreeItemRow({
             )}
             {!isMessage && (
                 <>
-                    <Icon
-                        className={cn(
-                            'shrink-0',
-                            themeIconId && themeIconId in themeIcons
-                                ? themeIconClassNames[themeIconId as keyof typeof themeIcons]
-                                : undefined,
-                        )}
-                        data-theme-icon={themeIconId}
-                        size={14}
-                    />
+                    {linearStatusKind ? (
+                        <LinearStatusIcon
+                            kind={linearStatusKind}
+                            className={cn('shrink-0', iconClassName)}
+                            data-theme-icon={themeIconId}
+                            size={14}
+                        />
+                    ) : (
+                        <Icon
+                            className={cn('shrink-0', iconClassName)}
+                            data-theme-icon={themeIconId}
+                            size={14}
+                        />
+                    )}
                     <span className="min-w-0 flex-1 truncate">{row.item.label}</span>
                     {row.item.description && (
                         <span className="max-w-[45%] min-w-0 shrink truncate text-[11px] font-normal text-muted">
