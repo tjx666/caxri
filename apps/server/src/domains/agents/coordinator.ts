@@ -20,12 +20,14 @@ import {
 import { detectForegroundAgentProvider } from './process-detection';
 import { ProcessIdentityProbe } from './process-identity-probe';
 import type { AgentService } from './service';
+import type { SessionActivitySource } from './session-activity-log';
+import { hasSessionActivityChanged } from './session-activity-log';
 import { ShellProcessProbe } from './shell-process-probe';
 import type { ShellInputState, ShellPromotionCandidate } from './shell-promotion';
 import {
-    canInspectShellLaunch,
-    directAgentProvider,
+    decideInputPromotionCandidate,
     MAX_SHELL_COMMAND_LENGTH,
+    SHELL_PROMOTION_WINDOW_MS,
 } from './shell-promotion';
 import { AgentWorkTracker } from './work-tracker';
 
@@ -33,7 +35,6 @@ const AGENT_METADATA_REFRESH_DELAY_MS = 2_000;
 const AGENT_COMPACTION_TIMEOUT_MS = 5 * 60_000;
 const AGENT_RUNNING_WATCHDOG_INTERVAL_MS = 5 * 60_000;
 const MAX_SHELL_PROMOTION_PROBES = 3;
-const SHELL_PROMOTION_WINDOW_MS = 30_000;
 const BRACKETED_PASTE_START = '\u{1B}[200~';
 const BRACKETED_PASTE_END = '\u{1B}[201~';
 
@@ -74,7 +75,9 @@ export class AgentCoordinator {
     private readonly launchIdsByTerminal = new Map<string, string>();
     private readonly hookLaunches = new HookLaunchTracker();
     private readonly attention = new AgentAttentionTracker();
-    private readonly work = new AgentWorkTracker((signal) => this.applyLifecycle(signal));
+    private readonly work = new AgentWorkTracker((signal) =>
+        this.applyLifecycle(signal, 'deferredHook'),
+    );
     /**
      * Tracks whether provider metadata is still only the launch baseline; `null` marks a real transition.
      */
@@ -159,13 +162,23 @@ export class AgentCoordinator {
         this.work.forget(terminalId);
     }
 
-    private applyLifecycle(event: AgentLifecycleSignal): void {
+    private applyLifecycle(
+        event: AgentLifecycleSignal,
+        source: SessionActivitySource = 'hook',
+    ): void {
         if (event.phase === 'turnFinished') {
             this.attention.forget(event.terminalId);
             this.lifecycleWatchdogs.stopRunningTurn(event.terminalId);
             this.hookLaunches.markAuthoritative(event.terminalId, event.launchId);
         }
-        if (this.database.updateAgentLifecycle(event))
+        if (
+            hasSessionActivityChanged(this.database, this.logger, {
+                applyWrite: () => this.database.updateAgentLifecycle(event),
+                phase: event.phase,
+                source,
+                terminalId: event.terminalId,
+            })
+        )
             this.emitAgentMetadataChange(event.terminalId);
     }
 
@@ -279,7 +292,18 @@ export class AgentCoordinator {
                   ? reconcileMetadataActivityBaseline(snapshot, activityState)
                   : snapshot;
             const isRecordActivity = !isBaselineReconciliation && !isHookOwned;
-            if (this.database.updateAgentMetadata(terminal.id, metadataSnapshot, isRecordActivity))
+            if (
+                hasSessionActivityChanged(this.database, this.logger, {
+                    applyWrite: () =>
+                        this.database.updateAgentMetadata(
+                            terminal.id,
+                            metadataSnapshot,
+                            isRecordActivity,
+                        ),
+                    source: 'probe',
+                    terminalId: terminal.id,
+                })
+            )
                 this.emitAgentMetadataChange(terminal.id);
         } catch (error) {
             /**
@@ -410,53 +434,14 @@ export class AgentCoordinator {
     private openPromotionCandidate(terminalId: string, command: string): void {
         const terminal = this.database.getTerminal(terminalId);
         if (!terminal) return;
-        const startedAt = Date.now();
-        if (terminal.provider) {
-            /**
-             * After the bound agent exits, the user can relaunch a different agent through an alias or a history
-             * recall, so any inspectable command opens a candidate. The foreground-process probe (or, for a direct
-             * different-provider command, its metadata fallback) must still confirm before identity or availability
-             * changes. A direct same-provider command is ignored while the bound Agent is already live.
-             */
-            if (!canInspectShellLaunch(command)) {
-                this.shellPromotionCandidates.delete(terminalId);
-                return;
-            }
-            const provider = directAgentProvider(command);
-            if (
-                provider === terminal.provider &&
-                (terminal.lastAgentProcessState === 'starting' ||
-                    terminal.lastAgentProcessState === 'running')
-            ) {
-                return;
-            }
-            this.shellPromotionCandidates.set(terminalId, {
-                attempts: 0,
-                expiresAt: startedAt + SHELL_PROMOTION_WINDOW_MS,
-                nextProcessProbeAt: 0,
-                origin: 'input',
-                processProbes: 0,
-                provider,
-                startedAt,
-            });
-            if (provider) this.refreshes.schedule(terminalId);
+        const decision = decideInputPromotionCandidate(terminal, command, Date.now());
+        if (decision === 'ignore') return;
+        if (decision === 'clear') {
+            this.shellPromotionCandidates.delete(terminalId);
             return;
         }
-        if (canInspectShellLaunch(command)) {
-            const provider = directAgentProvider(command);
-            this.shellPromotionCandidates.set(terminalId, {
-                attempts: 0,
-                expiresAt: startedAt + SHELL_PROMOTION_WINDOW_MS,
-                nextProcessProbeAt: 0,
-                origin: 'input',
-                processProbes: 0,
-                provider,
-                startedAt,
-            });
-            if (provider) this.refreshes.schedule(terminalId);
-        } else {
-            this.shellPromotionCandidates.delete(terminalId);
-        }
+        this.shellPromotionCandidates.set(terminalId, decision);
+        if (decision.provider) this.refreshes.schedule(terminalId);
     }
 
     /**

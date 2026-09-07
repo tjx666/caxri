@@ -12,6 +12,7 @@ export const logEventCatalog = {
         probe: 'agent.probe',
         probeFailed: 'agent.probe_failed',
         processProbeFailed: 'agent.process_probe_failed',
+        sessionActivityChanged: 'agent.session_activity_changed',
     },
     agentEndpoint: {
         retireFailed: 'agent_endpoint.retire_failed',
@@ -32,6 +33,7 @@ export const logEventCatalog = {
         signalRejected: 'agent_hooks.signal_rejected',
     },
     agentNotifications: {
+        decided: 'agent_notifications.decided',
         deliveryFallback: 'agent_notifications.delivery_fallback',
         operationFailed: 'agent_notifications.operation_failed',
         settingsRefreshSuppressed: 'agent_notifications.settings_refresh_suppressed',
