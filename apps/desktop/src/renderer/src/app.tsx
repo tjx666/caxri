@@ -50,7 +50,7 @@ import {
     useChromeLayoutStore,
     useChromeViewportClamp,
 } from './stores/chrome-layout';
-import { useSettings, useTheme } from './stores/selectors';
+import { useIsFullScreen, useSettings, useTheme } from './stores/selectors';
 import {
     initializeWorkbench,
     subscribeWorkbenchEvents,
@@ -97,6 +97,7 @@ export function App() {
     const primarySidebarWidth = useChromeLayoutStore((state) => state.primarySidebarWidth);
     const secondarySidebarWidth = useChromeLayoutStore((state) => state.secondarySidebarWidth);
     const isPrimarySidebarVisible = useChromeLayoutStore((state) => state.primarySidebarVisible);
+    const isFullScreen = useIsFullScreen();
     const isSecondarySidebarVisible = useChromeLayoutStore(
         (state) => state.secondarySidebarVisible,
     );
@@ -168,7 +169,7 @@ export function App() {
                             : 'primary-sidebar-collapsed secondary-sidebar-collapsed grid-cols-[minmax(320px,1fr)]',
                 )}
             >
-                {!isPrimarySidebarVisible && (
+                {!isPrimarySidebarVisible && !isFullScreen && (
                     <div
                         aria-hidden="true"
                         className="collapsed-primary-sidebar-titlebar fixed top-0 left-0 z-20 h-11 w-[78px] [-webkit-app-region:drag]"

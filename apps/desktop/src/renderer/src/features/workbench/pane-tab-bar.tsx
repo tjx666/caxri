@@ -22,7 +22,12 @@ import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
 import { useChromeLayoutStore } from '../../stores/chrome-layout';
-import { useSelectedSession, useSessionState, useTerminal } from '../../stores/selectors';
+import {
+    useIsFullScreen,
+    useSelectedSession,
+    useSessionState,
+    useTerminal,
+} from '../../stores/selectors';
 import { sessionViewScope, useSessionViewStore } from '../../stores/session-view';
 import { closeDocumentTabs, pinDocumentTab } from '../editor/document-actions';
 import { EditorTabActions } from '../editor/editor-tab-actions';
@@ -296,6 +301,7 @@ export function PaneTabBar({
     paneLabel: string;
 }) {
     const isPrimarySidebarVisible = useChromeLayoutStore((state) => state.primarySidebarVisible);
+    const isFullScreen = useIsFullScreen();
     const barReference = useRef<HTMLDivElement>(null);
     /**
      * `overflow-x-auto` gives no visual cue that there are more tabs off to a side; a gradient fade — shown only on the
@@ -365,10 +371,10 @@ export function PaneTabBar({
         <div
             className={cn(
                 'work-tabs flex h-11 flex-none bg-surface',
-                // Only the Workbench-level bar carries the frameless window's drag region and the traffic-light inset;
-                // a pane bar inside a split is an ordinary surface.
+                // Only the Workbench-level bar carries the frameless window's drag region and the windowed traffic-light
+                // inset; a pane bar inside a split is an ordinary surface.
                 isRootBar && '[-webkit-app-region:drag]',
-                isRootBar && !isPrimarySidebarVisible && 'pl-[78px]',
+                isRootBar && !isPrimarySidebarVisible && !isFullScreen && 'pl-[78px]',
                 isDropTarget && 'bg-elevated',
             )}
             data-pane-tab-bar={pane.id}
