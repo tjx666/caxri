@@ -44,7 +44,24 @@ const CLAUDE_RENAME_TIMEOUT_MS = 10_000;
 const CLAUDE_RENAME_RESULT_PREFIX = 'Session renamed to:';
 
 interface TranscriptTitleCache extends TranscriptScanCursor {
-    title?: string;
+    /**
+     * Latest `ai-title` record: Claude Code's own generated title, re-appended after later turns.
+     */
+    aiTitle?: string;
+    /**
+     * Latest `custom-title` record: the `/rename` result, including Caxri's non-interactive automatic naming.
+     */
+    customTitle?: string;
+}
+
+/**
+ * Mirrors Claude Code's own resolution (`customTitle || aiTitle`). Claude Code keeps regenerating `ai-title` after
+ * later turns, so a "last record wins" read let its generated title silently replace the `/rename` result: the
+ * displayed title flapped between the two and automatic naming re-sent the same `/rename` on every turn because the
+ * title it read back never matched the one it wrote.
+ */
+function transcriptTitle(cache: TranscriptTitleCache): string | undefined {
+    return cache.customTitle ?? cache.aiTitle;
 }
 
 interface ClaudeRenameResponse {
@@ -118,7 +135,8 @@ const transcriptTitleCaches = new Map<string, TranscriptTitleCache>();
  * Claude Code appends an `ai-title` record for its own generated title and a `custom-title` record for `/rename`,
  * including the non-interactive `/rename` Caxri issues for automatic naming. The live `sessions/<pid>.json` metadata is
  * owned by the interactive process and keeps its directory-derived `name` after an external rename, so the transcript
- * is the only place the renamed title can be read back from. Whichever record was appended last wins.
+ * is the only place the renamed title can be read back from. The two record kinds are tracked separately because a
+ * `custom-title` outranks any `ai-title` regardless of append order; see {@link transcriptTitle}.
  */
 function scanTranscriptLine(line: string, cache: TranscriptTitleCache): void {
     if (!line.includes('"aiTitle"') && !line.includes('"customTitle"')) return;
@@ -128,15 +146,15 @@ function scanTranscriptLine(line: string, cache: TranscriptTitleCache): void {
             customTitle?: unknown;
             type?: unknown;
         };
-        const raw =
-            record.type === 'ai-title'
-                ? record.aiTitle
-                : record.type === 'custom-title'
-                  ? record.customTitle
-                  : undefined;
-        if (typeof raw !== 'string') return;
-        const title = raw.trim();
-        if (title) cache.title = title;
+        if (record.type === 'ai-title') {
+            if (typeof record.aiTitle !== 'string') return;
+            const title = record.aiTitle.trim();
+            if (title) cache.aiTitle = title;
+        } else if (record.type === 'custom-title') {
+            if (typeof record.customTitle !== 'string') return;
+            const title = record.customTitle.trim();
+            if (title) cache.customTitle = title;
+        }
     } catch {
         /*
         Partial or malformed lines are skipped; a later append re-delivers them complete.
@@ -173,7 +191,12 @@ async function readTranscriptTitles(
         },
         titleCache,
         (line) => scanTranscriptLine(line, titleCache),
-        { onReset: () => (titleCache.title = undefined) },
+        {
+            onReset: () => {
+                titleCache.aiTitle = undefined;
+                titleCache.customTitle = undefined;
+            },
+        },
     );
     return cache;
 }
@@ -223,7 +246,8 @@ async function resolveClaudeTitle(
             metadata.cwd,
             metadata.sessionId,
         );
-        if (transcript.title) return transcript.title;
+        const title = transcriptTitle(transcript);
+        if (title) return title;
     }
     return undefined;
 }

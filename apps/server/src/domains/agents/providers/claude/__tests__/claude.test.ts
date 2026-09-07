@@ -522,7 +522,7 @@ process.stdin.on('end', () => {
         ).resolves.toMatchObject({ title: 'Migrate market search to ES with flags' });
 
         // A `/rename` (interactive or Caxri's own non-interactive automatic naming) appends `custom-title`, which
-        // the live metadata never reflects; the newest transcript record must win over the earlier ai-title.
+        // the live metadata never reflects; it must win over the earlier ai-title.
         await appendFile(
             transcript,
             `${JSON.stringify({
@@ -533,6 +533,21 @@ process.stdin.on('end', () => {
                 agentName: 'Qwen3.8-Max-0902 Description',
                 sessionId: 'claude-session-derived',
                 type: 'agent-name',
+            })}\n`,
+            'utf8',
+        );
+        await expect(
+            service.snapshot('claude', { rootPath: root, processState: 'running' }),
+        ).resolves.toMatchObject({ title: 'Qwen3.8-Max-0902 Description' });
+
+        // Claude Code re-appends its own `ai-title` after later turns. Like Claude Code itself
+        // (`customTitle || aiTitle`), the explicit rename keeps precedence regardless of append order.
+        await appendFile(
+            transcript,
+            `${JSON.stringify({
+                aiTitle: 'Regenerated after rename',
+                sessionId: 'claude-session-derived',
+                type: 'ai-title',
             })}\n`,
             'utf8',
         );

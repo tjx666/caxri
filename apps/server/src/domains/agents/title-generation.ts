@@ -188,7 +188,7 @@ export const AGENT_TITLE_SYSTEM_INSTRUCTIONS = [
     'Keep the complete title at or below 32 characters.',
     'Prefer the specific object and task, such as "Codex 自动命名" or "Refine Session Naming".',
     'Preserve the core topic from <current_title> unless the conversation clearly changed.',
-    'Treat a non-generic <git_branch> as a strong topic hint.',
+    'Name what the conversation itself is about. A non-generic <git_branch> is only a secondary hint for disambiguation; never let it override a topic the messages state clearly.',
     'Do not use tools.',
     'Output only the title with no quotes, Markdown, or explanation.',
 ].join('\n');
