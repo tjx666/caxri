@@ -80,11 +80,11 @@ no-op. This lands before the panes merge, not after.
 Terminal tabs are the high-frequency case — most Sessions open several, and a Terminal tab's title
 is the only thing that tells two Agents apart — so they divide the bar's remaining width evenly
 (`flex-1`, no maximum), shrinking to an 80px floor before the bar scrolls horizontally; fixed
-actions sit outside the scrolling viewport. Document tabs are opened far less often and rarely need
-the title for disambiguation, so they size to their own content instead, bounded 50–160px — the same
-floor and ceiling VS Code's `tabSizingFixed` uses. A pane can mix both kinds in one bar, and an
-editor width cap that only applied once a Terminal tab joined the bar would be its own source of
-surprise, so the bound is unconditional. This is the one place a tab's kind reaches into layout;
+actions sit outside the scrolling viewport. Document tabs size to their full label with a 50px
+floor and no fixed ceiling, matching VS Code's default `tabSizing: fit` behavior. They do not shrink:
+long filenames remain readable while Terminal tabs divide the remaining space, and a crowded rail
+scrolls once Terminal tabs reach their floor. This replaces the former 160px cap, which abbreviated
+filenames even beside a mostly empty Terminal tab. This is the one place a tab's kind reaches into layout;
 everywhere else — splitting, drag and drop, closing, navigation — still never branches on it.
 
 Each pane bar is its own `tablist` with its own roving tab index and its own `tabpanel`; several
