@@ -74,6 +74,17 @@ export function createDesktopAgentNotifications({
         loadBootstrap: () => supervisor.request('app.bootstrap'),
         loadRecords: (parameters) => supervisor.request('app.records', parameters),
         loadSettings: async () => (await supervisor.request('settings.get')).value,
+        onDecision: (decision) => {
+            logger()?.write('info', logEventCatalog.agentNotifications.decided, {
+                fields: {
+                    attentionEpoch: decision.attentionEpoch,
+                    attentionKind: decision.attentionKind ?? null,
+                    durationMs: decision.durationMs ?? null,
+                    outcome: decision.outcome,
+                    sessionId: decision.sessionId,
+                },
+            });
+        },
         onNotificationsSuppressed: (count) => {
             logger()?.write('info', logEventCatalog.agentNotifications.settingsRefreshSuppressed, {
                 fields: { suppressedCount: count },
