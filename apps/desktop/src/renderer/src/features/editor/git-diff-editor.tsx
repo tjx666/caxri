@@ -21,6 +21,7 @@ import { useSelectedSession, useTheme } from '../../stores/selectors';
 import { describeFailure } from '../../stores/toasts';
 import { openFile } from './document-actions';
 import { resolveRegisteredEditorLanguage } from './editor-language';
+import { registerDiffEditorActions } from './git-diff-actions';
 import { describeTruncatedGitChanges, shouldShowGitTruncationBanner } from './git-diff-truncation';
 
 const emptyWorkClassName =
@@ -63,6 +64,8 @@ function useNearMultiDiffViewport(): {
 function DiffSurface({
     contentHeight,
     document,
+    editorInstanceId,
+    navigationKey,
     onContentHeightChange,
     repositoryId,
     sessionId,
@@ -75,6 +78,8 @@ function DiffSurface({
      */
     contentHeight?: number;
     document: GitDiffDocument;
+    editorInstanceId?: string;
+    navigationKey?: string;
     onContentHeightChange?: (height: number) => void;
     repositoryId: string;
     sessionId: string;
@@ -88,6 +93,7 @@ function DiffSurface({
 }) {
     const theme = useTheme();
     const editorReference = useRef<MonacoDiffEditor | null>(null);
+    const diffEditorRegistrationReference = useRef<(() => void) | undefined>(undefined);
     const fontFamily = useEditorFontFamily();
     const contentSizeListeners = useRef<Array<{ dispose(): void }>>([]);
     useEffect(() => {
@@ -101,6 +107,8 @@ function DiffSurface({
              */
             for (const listener of contentSizeListeners.current) listener.dispose();
             contentSizeListeners.current = [];
+            diffEditorRegistrationReference.current?.();
+            diffEditorRegistrationReference.current = undefined;
             /**
              * Detach both models before the wrapper disposes them. Monaco otherwise observes a disposed model from a
              * still-mounted diff widget when many editors unmount together.
@@ -110,6 +118,20 @@ function DiffSurface({
         },
         [],
     );
+    useEffect(() => {
+        const editor = editorReference.current;
+        if (!editor || !navigationKey || !editorInstanceId) return;
+        diffEditorRegistrationReference.current?.();
+        diffEditorRegistrationReference.current = registerDiffEditorActions(
+            navigationKey,
+            editorInstanceId,
+            editor,
+        );
+        return () => {
+            diffEditorRegistrationReference.current?.();
+            diffEditorRegistrationReference.current = undefined;
+        };
+    }, [editorInstanceId, navigationKey]);
     if (!theme) return null;
     const modelRepoId = `${source}:${repositoryId}`;
     const registrations = monaco.languages.getLanguages();
@@ -186,6 +208,11 @@ function DiffSurface({
             beforeMount={() => applyEditorTheme(theme)}
             onMount={(editor: Parameters<DiffOnMount>[0]) => {
                 editorReference.current = editor;
+                diffEditorRegistrationReference.current?.();
+                diffEditorRegistrationReference.current =
+                    navigationKey && editorInstanceId
+                        ? registerDiffEditorActions(navigationKey, editorInstanceId, editor)
+                        : undefined;
                 if (!stacked) return;
                 const original = editor.getOriginalEditor();
                 const modified = editor.getModifiedEditor();
@@ -224,14 +251,18 @@ function DiffSurface({
 
 function FileDiffResult({
     document,
+    editorInstanceId,
     error,
     isError,
+    navigationKey,
     sessionId,
     tab,
 }: {
     document?: GitDiffDocument;
+    editorInstanceId: string;
     error: Error | null;
     isError: boolean;
+    navigationKey: string;
     sessionId?: string;
     tab: Extract<GitDiffTab, { kind: 'commit-file' | 'file' }>;
 }) {
@@ -248,6 +279,8 @@ function FileDiffResult({
         <div className="git-file-diff absolute inset-0 overflow-hidden">
             <DiffSurface
                 document={document}
+                editorInstanceId={editorInstanceId}
+                navigationKey={navigationKey}
                 repositoryId={tab.repositoryId}
                 sessionId={sessionId}
                 source={tab.source}
@@ -256,7 +289,15 @@ function FileDiffResult({
     );
 }
 
-function WorkingFileDiffEditor({ tab }: { tab: Extract<GitDiffTab, { kind: 'file' }> }) {
+function WorkingFileDiffEditor({
+    editorInstanceId,
+    navigationKey,
+    tab,
+}: {
+    editorInstanceId: string;
+    navigationKey: string;
+    tab: Extract<GitDiffTab, { kind: 'file' }>;
+}) {
     const sessionId = useSelectedSession()?.id;
     const {
         data: document,
@@ -270,15 +311,25 @@ function WorkingFileDiffEditor({ tab }: { tab: Extract<GitDiffTab, { kind: 'file
     return (
         <FileDiffResult
             document={document}
+            editorInstanceId={editorInstanceId}
             error={error}
             isError={isError}
+            navigationKey={navigationKey}
             sessionId={sessionId}
             tab={tab}
         />
     );
 }
 
-function PullRequestFileDiffEditor({ tab }: { tab: Extract<GitDiffTab, { kind: 'file' }> }) {
+function PullRequestFileDiffEditor({
+    editorInstanceId,
+    navigationKey,
+    tab,
+}: {
+    editorInstanceId: string;
+    navigationKey: string;
+    tab: Extract<GitDiffTab, { kind: 'file' }>;
+}) {
     const sessionId = useSelectedSession()?.id;
     const {
         data: document,
@@ -292,15 +343,25 @@ function PullRequestFileDiffEditor({ tab }: { tab: Extract<GitDiffTab, { kind: '
     return (
         <FileDiffResult
             document={document}
+            editorInstanceId={editorInstanceId}
             error={error}
             isError={isError}
+            navigationKey={navigationKey}
             sessionId={sessionId}
             tab={tab}
         />
     );
 }
 
-function CommitFileDiffEditor({ tab }: { tab: Extract<GitDiffTab, { kind: 'commit-file' }> }) {
+function CommitFileDiffEditor({
+    editorInstanceId,
+    navigationKey,
+    tab,
+}: {
+    editorInstanceId: string;
+    navigationKey: string;
+    tab: Extract<GitDiffTab, { kind: 'commit-file' }>;
+}) {
     const sessionId = useSelectedSession()?.id;
     const {
         data: document,
@@ -320,8 +381,10 @@ function CommitFileDiffEditor({ tab }: { tab: Extract<GitDiffTab, { kind: 'commi
     return (
         <FileDiffResult
             document={document}
+            editorInstanceId={editorInstanceId}
             error={error}
             isError={isError}
+            navigationKey={navigationKey}
             sessionId={sessionId}
             tab={tab}
         />
@@ -657,13 +720,26 @@ function PullRequestChangesDiffEditor({ tab }: { tab: Extract<GitDiffTab, { kind
     );
 }
 
-export function GitDiffEditor({ tab }: { tab: GitDiffTab }) {
-    if (tab.kind === 'commit-file') return <CommitFileDiffEditor tab={tab} />;
+export function GitDiffEditor({
+    paneId,
+    tab,
+    tabPath,
+}: {
+    paneId: string;
+    tab: GitDiffTab;
+    tabPath: string;
+}) {
+    if (tab.kind === 'commit-file')
+        return <CommitFileDiffEditor editorInstanceId={paneId} navigationKey={tabPath} tab={tab} />;
     if (tab.kind === 'file')
         return tab.source === 'pull-request' ? (
-            <PullRequestFileDiffEditor tab={tab} />
+            <PullRequestFileDiffEditor
+                editorInstanceId={paneId}
+                navigationKey={tabPath}
+                tab={tab}
+            />
         ) : (
-            <WorkingFileDiffEditor tab={tab} />
+            <WorkingFileDiffEditor editorInstanceId={paneId} navigationKey={tabPath} tab={tab} />
         );
     return tab.source === 'pull-request' ? (
         <PullRequestChangesDiffEditor tab={tab} />

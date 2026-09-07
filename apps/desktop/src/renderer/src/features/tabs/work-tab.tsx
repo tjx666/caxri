@@ -57,9 +57,7 @@ interface WorkTabProperties {
     dirty?: boolean;
     fileIconName?: string;
     /**
-     * Whether this tab grows to fill its pane's bar alongside its siblings (a Terminal) or is sized to its own content
-     * up to a fixed cap (a document). The one place a tab's kind is allowed to reach past its own content into layout —
-     * see `TERMINAL_TAB_MAX_WIDTH` / `DOCUMENT_TAB_MAX_WIDTH`.
+     * Whether this tab grows to fill the remaining pane bar (a Terminal) or sizes to its label (a document).
      */
     fill: boolean;
     icon: 'file' | AgentIconIdentity;
@@ -97,12 +95,11 @@ interface WorkTabProperties {
 }
 
 /**
- * A Terminal tab divides its pane's bar equally with its Terminal siblings, with no maximum width: Caxri is
- * terminal-first — most Sessions never open an editor — and a Terminal tab's title is the only thing that tells two
- * Agents apart, so the room goes to the title. This bound only has to exceed any realistic pane width, since it exists
- * to give the enter/exit width animation something to travel to.
+ * Animated `maxWidth` ceiling shared by every tab kind. It only has to exceed any realistic pane width: it exists to
+ * give the enter/exit width animation a numeric value to travel between, and must stay numeric — Motion cannot
+ * interpolate `'none'`, so a settled tab holding that string would make the exit animation collapse in one frame.
  */
-const TERMINAL_TAB_MAX_WIDTH = 2000;
+const TAB_MAX_WIDTH = 2000;
 
 /**
  * Floor for an evenly divided Terminal tab. Once enough Terminal tabs are open to push past it, flex stops shrinking
@@ -111,11 +108,9 @@ const TERMINAL_TAB_MAX_WIDTH = 2000;
 const TERMINAL_TAB_MIN_WIDTH = 80;
 
 /**
- * An Editor tab never competes with Terminal tabs for the bar's width: it is sized to its filename, capped so one long
- * path cannot crowd out every Terminal tab next to it. Mirrors VS Code's `workbench.editor.tabSizingFixedMaxWidth` /
- * `tabSizingFixedMinWidth` defaults (`competitors/vscode/.../workbench.contribution.ts`).
+ * Document tabs keep their intrinsic filename width, matching VS Code's default `tabSizing: fit`. Overflow scrolls the
+ * rail instead of abbreviating filenames while adjacent Terminal tabs still have unused room.
  */
-const DOCUMENT_TAB_MAX_WIDTH = 160;
 const DOCUMENT_TAB_MIN_WIDTH = 50;
 
 export function WorkTab({
@@ -207,8 +202,7 @@ export function WorkTab({
                     ? // `basis-0` is what makes the division even: without it flex distributes only the
                       // leftover space, so a long label would still win a wider slot than a short one.
                       'flex-1 basis-0'
-                    : // A document tab never grows or shrinks with its siblings; `min-w-0` above still lets its own
-                      // label ellipsis-truncate once the animated `maxWidth` below clamps it.
+                    : // Keep the full label; the surrounding rail owns overflow once Terminal tabs reach their floor.
                       'flex-none',
                 !isPresent && 'pointer-events-none',
                 isVisuallyActive &&
@@ -245,7 +239,7 @@ export function WorkTab({
             // above and the comment on `hasSettled`.
             initial={{ maxWidth: 0, opacity: 0 }}
             animate={{
-                maxWidth: fill ? TERMINAL_TAB_MAX_WIDTH : DOCUMENT_TAB_MAX_WIDTH,
+                maxWidth: TAB_MAX_WIDTH,
                 opacity: 1,
                 transition: { duration: enterDuration, ease: 'easeOut' },
             }}

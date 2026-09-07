@@ -105,15 +105,20 @@ test('Terminal tabs fill the bar, Document tabs size to content, and the bar scr
         await expect(documentTabs).toHaveCount(2);
         await waitForTabMotionToSettle(running.page);
 
-        // Document tabs stay bounded to their own content (ADR 0002 "Tab sizing": 50-160px, VS Code's
-        // tabSizingFixed range) regardless of how much room a single Terminal tab leaves on the bar.
+        // A document uses its full filename while the neighboring Terminal has room to spare.
         const documentWidths = await documentTabs.evaluateAll((elements) =>
             elements.map((element) => element.getBoundingClientRect().width),
         );
         for (const width of documentWidths) {
             expect(width).toBeGreaterThanOrEqual(50);
-            expect(width).toBeLessThanOrEqual(160);
         }
+        expect(documentWidths[1]).toBeGreaterThan(160);
+        expect(
+            await documentTabs
+                .nth(1)
+                .locator('.tab-label')
+                .evaluate((element) => element.scrollWidth <= element.clientWidth),
+        ).toBe(true);
         const terminalWidth = await terminalTabs
             .first()
             .evaluate((element) => element.getBoundingClientRect().width);

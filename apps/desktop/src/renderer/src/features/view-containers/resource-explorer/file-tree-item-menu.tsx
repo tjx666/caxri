@@ -5,8 +5,9 @@ import {
     ContextMenuItem,
     ContextMenuSeparator,
 } from '../../../components/ui/context-menu';
+import { copyFilePath } from '../../../lib/copy-file-path';
 import { useResourceExplorerClient } from '../controlled-view-context';
-import { copyFilePath, openFileInTerminal, rememberFile, revealFile } from './file-actions';
+import { openFileInTerminal, rememberFile, revealFile } from './file-actions';
 import { BUSY_DISABLED_REASON } from './file-tree-item-types';
 
 export interface FileTreeItemMenuProperties {

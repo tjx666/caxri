@@ -227,7 +227,9 @@ categories. Switching tabs does not clear failures; switching Sessions changes t
 **Tab strip** — active tab: `--background` fill joining it visually to the pane below,
 `--foreground` text, and a 2px `--accent` top border, VS Code style. Inactive: `--surface` +
 `--muted`. Dirty dot replaces the close button until hover/focus (already the pattern — keep).
-Tabs fill the full 44px rail height. While the whole workbench holds exactly one tab across every
+Tabs fill the full 44px rail height. Document tabs fit their full labels; Terminal tabs divide the
+remaining width with an 80px minimum. Crowded bars scroll rather than imposing a fixed filename cap.
+While the whole workbench holds exactly one tab across every
 pane, that tab drops both the accent top border and the New Terminal button: an "active" marker
 distinguishes nothing when there is nothing to distinguish it from, and the pane ring still
 carries focus. The command stays reachable through `cmd+t` and the application menu, iTerm2 style.
@@ -240,6 +242,11 @@ its pane's tab rail: `Open Last Commit Changes` shows the latest commit that tou
 commit and pull-request glyphs, remain keyboard reachable and outside the scroll rail, and hide for
 Terminal, external, transcript, and Git diff tabs. These file actions remain when the Editor is the
 only Workbench tab; the single-tab rule above still hides only New Terminal and the active accent.
+Single-file Git diff tabs use the same action slot for `Previous Change`, `Next Change`, and
+`Open Current File`. Navigation targets that pane's mounted diff and stays disabled until changes
+are ready. Ordinary file and single-file diff tab menus offer `Copy Path` and `Copy Relative Path`;
+relative paths use the containing repository, falling back to the Workbench Project for non-Git files.
+Internal virtual tab identifiers are never copied as filesystem paths.
 Session bootstrap and switching still mount without structural motion; actual close keeps the exit
 animation. Transient Agent operations may temporarily use the existing text accessory after the
 Terminal title and replace generic progress text while active. `Compacting` is the single

@@ -153,6 +153,74 @@ describe('Host Desktop router', () => {
         });
     });
 
+    it('carries the configured external editor with the openInEditor command', async () => {
+        let operation: DesktopOperation | undefined;
+        const request = vi.fn((method: string) => {
+            if (method === 'app.bootstrap') return Promise.resolve(bootstrap);
+            if (method === 'files.authorizeOpen')
+                return Promise.resolve({ ...authorized, kind: 'directory', path: '/project' });
+            if (method === 'settings.get')
+                return Promise.resolve({ value: { 'workbench.externalEditor': '  code  ' } });
+            return Promise.reject(new Error(`Unexpected method: ${method}`));
+        });
+        const router = new ServerDesktopRouter({
+            bridge: {
+                lease: () => ({
+                    desktopId: 'desktop-1',
+                    generation: 5,
+                    expiresAt: Date.now() + 1_000,
+                }),
+                invoke: (value) => {
+                    operation = value;
+                    return Promise.resolve(null);
+                },
+            },
+            domainService: domainService(request),
+        });
+
+        await router.open('openInEditor', 'directory', {
+            launchIfNeeded: false,
+            path: '/project',
+        });
+        // Server Core must resolve the editor here. If Main asked for `settings.get` while servicing
+        // this command it would queue behind the very request awaiting its reply and deadlock.
+        expect(operation).toMatchObject({ kind: 'openInEditor', editorCommand: 'code' });
+        expect(request).toHaveBeenCalledWith('settings.get', {});
+    });
+
+    it('omits the editor command from the openInEditor operation when none is configured', async () => {
+        let operation: DesktopOperation | undefined;
+        const request = vi.fn((method: string) => {
+            if (method === 'app.bootstrap') return Promise.resolve(bootstrap);
+            if (method === 'files.authorizeOpen')
+                return Promise.resolve({ ...authorized, kind: 'directory', path: '/project' });
+            if (method === 'settings.get')
+                return Promise.resolve({ value: { 'workbench.externalEditor': null } });
+            return Promise.reject(new Error(`Unexpected method: ${method}`));
+        });
+        const router = new ServerDesktopRouter({
+            bridge: {
+                lease: () => ({
+                    desktopId: 'desktop-1',
+                    generation: 6,
+                    expiresAt: Date.now() + 1_000,
+                }),
+                invoke: (value) => {
+                    operation = value;
+                    return Promise.resolve(null);
+                },
+            },
+            domainService: domainService(request),
+        });
+
+        await router.open('openInEditor', 'directory', {
+            launchIfNeeded: false,
+            path: '/project',
+        });
+        expect(operation?.kind).toBe('openInEditor');
+        expect(operation && 'editorCommand' in operation).toBe(false);
+    });
+
     it('binds Extension native-operation preflights to the attested Workbench Root', async () => {
         const context = {
             sessionId: session.id,

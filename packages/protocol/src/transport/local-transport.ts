@@ -202,7 +202,17 @@ export const desktopOperationSchema = z.discriminatedUnion('kind', [
     z.object({ kind: z.literal('focus') }),
     z.object({ kind: z.literal('open'), targetId: identifierSchema }),
     z.object({ kind: z.literal('reveal'), targetId: identifierSchema }),
-    z.object({ kind: z.literal('openInEditor'), targetId: identifierSchema }),
+    /**
+     * Carries the resolved `workbench.externalEditor` command with the operation instead of letting Main read it back
+     * from Server Core. A Desktop command handler may only call back over the dedicated `desktop-target.consume` lane;
+     * any ordinary request it issues lands in the per-connection ordered queue that the very command it is servicing is
+     * still blocking, which deadlocks both sides until the 15s Desktop command timeout fires.
+     */
+    z.object({
+        kind: z.literal('openInEditor'),
+        targetId: identifierSchema,
+        editorCommand: z.string().min(1).max(1_024).optional(),
+    }),
     z.object({
         kind: z.literal('confirmFilesTrash'),
         item: desktopFileTrashItemSchema,

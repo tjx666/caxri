@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
@@ -26,7 +26,10 @@ test('Editor title actions open the file last-commit and pull-request diffs', as
         ['remote', 'add', 'origin', 'https://github.com/tjx666/project.git'],
         { cwd: root },
     );
-    await writeFile(join(root, 'tracked.txt'), 'before\n', 'utf8');
+    const before = Array.from({ length: 120 }, (_, index) => `unchanged line ${index + 1}`);
+    before[9] = 'before first change';
+    before[99] = 'before second change';
+    await writeFile(join(root, 'tracked.txt'), `${before.join('\n')}\n`, 'utf8');
     await execFileAsync('git', ['add', 'tracked.txt'], { cwd: root });
     await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: root });
     const baseOid = (
@@ -34,7 +37,10 @@ test('Editor title actions open the file last-commit and pull-request diffs', as
     ).stdout.trim();
 
     await execFileAsync('git', ['switch', '-c', 'feature/editor-actions'], { cwd: root });
-    await writeFile(join(root, 'tracked.txt'), 'after\n', 'utf8');
+    const after = [...before];
+    after[9] = 'after first change';
+    after[99] = 'after second change';
+    await writeFile(join(root, 'tracked.txt'), `${after.join('\n')}\n`, 'utf8');
     await execFileAsync('git', ['add', 'tracked.txt'], { cwd: root });
     await execFileAsync('git', ['commit', '-m', 'change tracked file'], { cwd: root });
     const fileHeadOid = (
@@ -67,6 +73,7 @@ test('Editor title actions open the file last-commit and pull-request diffs', as
     await chmod(gh, 0o755);
 
     const running = await launchCaxri({
+        clipboard: true,
         userDataDir: userData,
         testRootPath: root,
         env: { PATH: `${bin}:${process.env.PATH ?? ''}` },
@@ -93,6 +100,22 @@ test('Editor title actions open the file last-commit and pull-request diffs', as
         await expect(lastCommit).toBeVisible();
         await expect(pullRequest).toBeVisible();
 
+        const copyTabPaths = async (tabName: string): Promise<void> => {
+            const tab = running.page.getByRole('tab', { name: tabName, exact: true }).first();
+            await tab.click({ button: 'right' });
+            await running.page.getByRole('menuitem', { name: 'Copy Path', exact: true }).click();
+            const absolutePath = await realpath(join(root, 'tracked.txt'));
+            await expect.poll(() => running.clipboard.textEquals(absolutePath)).toBe(true);
+            await running.clipboard.claimText(absolutePath);
+            await tab.click({ button: 'right' });
+            await running.page
+                .getByRole('menuitem', { name: 'Copy Relative Path', exact: true })
+                .click();
+            await expect.poll(() => running.clipboard.textEquals('tracked.txt')).toBe(true);
+            await running.clipboard.claimText('tracked.txt');
+        };
+        await copyTabPaths('tracked.txt');
+
         const fileTab = running.page.locator('.work-tabs .work-tab').first();
         await fileTab.hover();
         await fileTab.getByRole('button', { name: 'Close Editor' }).click();
@@ -115,6 +138,26 @@ test('Editor title actions open the file last-commit and pull-request diffs', as
         await expect(running.page.locator('.git-file-diff .monaco-diff-editor')).toBeVisible();
         await expect(running.page.locator('.git-file-diff')).toContainText('before');
         await expect(running.page.locator('.git-file-diff')).toContainText('after');
+        await copyTabPaths(`tracked.txt (${fileHeadOid.slice(0, 7)})`);
+        const nextChange = running.page.getByRole('button', { name: 'Next Change', exact: true });
+        const previousChange = running.page.getByRole('button', {
+            name: 'Previous Change',
+            exact: true,
+        });
+        await expect(nextChange).toBeEnabled();
+        await expect(previousChange).toBeEnabled();
+        const modifiedLines = running.page.locator('.git-file-diff .modified .view-line');
+        await modifiedLines.filter({ hasText: /^unchanged\s+line\s+1$/ }).click();
+        await nextChange.click();
+        await nextChange.click();
+        await expect(modifiedLines.filter({ hasText: 'after second change' })).toBeInViewport();
+        await previousChange.click();
+        await expect(modifiedLines.filter({ hasText: 'after first change' })).toBeInViewport();
+        await running.page.getByRole('button', { name: 'Open Current File', exact: true }).click();
+        await expect(
+            running.page.getByRole('tab', { name: 'tracked.txt', exact: true }).first(),
+        ).toHaveAttribute('aria-selected', 'true');
+        await expect(nextChange).toHaveCount(0);
 
         await running.page.getByRole('tab', { name: 'tracked.txt', exact: true }).first().click();
         await pullRequest.click();

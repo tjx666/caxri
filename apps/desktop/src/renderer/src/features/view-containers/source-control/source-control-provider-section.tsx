@@ -232,6 +232,7 @@ export function SourceControlProviderSection({
                                                             group.resources,
                                                         )}
                                                         providerKey={`${controller.model.selectedModeId}:${provider.id}`}
+                                                        repositoryRootPath={provider.tooltip}
                                                         runAction={controller.runAction}
                                                         setDirectoriesExpanded={
                                                             controller.setDirectoriesExpanded
