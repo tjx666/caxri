@@ -1,5 +1,5 @@
 import type { ReactElement, RefObject } from 'react';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 
 import type { GitDiffDocument, GitDiffTab, GitFileStatus } from '@caxri/protocol';
 import { gitDiffModelPath } from '@caxri/protocol';
@@ -110,11 +110,16 @@ function DiffSurface({
             diffEditorRegistrationReference.current?.();
             diffEditorRegistrationReference.current = undefined;
             /**
-             * Detach both models before the wrapper disposes them. Monaco otherwise observes a disposed model from a
-             * still-mounted diff widget when many editors unmount together.
+             * Detach both models before disposing them. Monaco otherwise observes a disposed model from a still-mounted
+             * diff widget when many editors unmount together. The detach also hides the models from the wrapper's own
+             * unmount disposal, so they must be disposed here: `getOrCreateModel` would otherwise hand a remount the
+             * leaked model with its stale text, and `setModels` never re-applies the new document values.
              */
+            const models = editorReference.current?.getModel();
             editorReference.current?.setModel(null);
             editorReference.current = null;
+            models?.original.dispose();
+            models?.modified.dispose();
         },
         [],
     );
@@ -132,8 +137,14 @@ function DiffSurface({
             diffEditorRegistrationReference.current = undefined;
         };
     }, [editorInstanceId, navigationKey]);
+    /**
+     * Per-instance model paths: the same file can be open as a single-file diff tab and inside a multi-diff list (or in
+     * two panes) at once, and Monaco resolves `getOrCreateModel` by path, so a shared path would make one surface's
+     * unmount dispose the models the other is still showing.
+     */
+    const surfaceId = useId();
     if (!theme) return null;
-    const modelRepoId = `${source}:${repositoryId}`;
+    const modelRepoId = `${source}:${repositoryId}:${surfaceId}`;
     const registrations = monaco.languages.getLanguages();
     const originalLanguage = resolveRegisteredEditorLanguage(
         document.originalPath ?? document.path,

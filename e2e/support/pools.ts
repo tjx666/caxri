@@ -55,6 +55,7 @@ export const parallelSafeSpecs = [
     'e2e/file-terminal-drag.e2e.ts',
     'e2e/file-tree-git-ignore.e2e.ts',
     'e2e/git-commits.e2e.ts',
+    'e2e/git-diff-tabs.e2e.ts',
     'e2e/git-pr.e2e.ts',
     'e2e/motion.e2e.ts',
     'e2e/pane-mixed-kind.e2e.ts',
