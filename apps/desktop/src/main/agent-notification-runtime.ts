@@ -74,6 +74,11 @@ export function createDesktopAgentNotifications({
         loadBootstrap: () => supervisor.request('app.bootstrap'),
         loadRecords: (parameters) => supervisor.request('app.records', parameters),
         loadSettings: async () => (await supervisor.request('settings.get')).value,
+        onNotificationsSuppressed: (count) => {
+            logger()?.write('info', logEventCatalog.agentNotifications.settingsRefreshSuppressed, {
+                fields: { suppressedCount: count },
+            });
+        },
         onError: (error) => {
             const errorKind = isCaxriError(error)
                 ? error.code

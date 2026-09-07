@@ -33,6 +33,7 @@ interface AgentNotificationCoordinatorOptions {
         terminalIds: string[];
     }): Promise<{ sessions: SessionRecord[]; terminals: TerminalRecord[] }>;
     loadSettings(): Promise<AppSettings>;
+    onNotificationsSuppressed?(count: number): void;
     onError?(error: unknown): void;
     showNotification(
         notification: AgentSystemNotification,
@@ -62,6 +63,13 @@ export function createAgentNotificationCoordinator(
     let initialization: Promise<void> | undefined;
     let requiresPostInitializeReconciliation = false;
     let fullReconciliationGeneration = 0;
+    /**
+     * `settings.changed` carries no key, and a reconcile already waiting on records can resume before the settings
+     * reload task. Keep new banners fenced until the newest reload settles; an older reload must not reopen that gate.
+     */
+    let settingsRefreshGeneration = 0;
+    let isSettingsStale = false;
+    let suppressedNotificationCount = 0;
     let selectedSessionId: string | undefined;
     let settings: AppSettings | undefined;
     let tail = Promise.resolve();
@@ -82,6 +90,12 @@ export function createAgentNotificationCoordinator(
 
     const reportError = (error: unknown): void => {
         options.onError?.(error);
+    };
+
+    const reportSuppressedNotifications = (): void => {
+        if (suppressedNotificationCount === 0) return;
+        options.onNotificationsSuppressed?.(suppressedNotificationCount);
+        suppressedNotificationCount = 0;
     };
 
     const runScheduled = async (previous: Promise<void>, task: () => Promise<void>) => {
@@ -143,9 +157,11 @@ export function createAgentNotificationCoordinator(
         }
         if (!shouldNotify || session.attentionEpoch <= (previous?.attentionEpoch ?? 0)) return;
 
-        closeNotification(session.id);
         const provider = providerForSession(session);
-        if (!provider) return;
+        if (!provider) {
+            closeNotification(session.id);
+            return;
+        }
 
         let body: string;
         if (session.lastAttentionKind === 'waiting') {
@@ -154,11 +170,22 @@ export function createAgentNotificationCoordinator(
             const durationMs =
                 startedAt === undefined ? undefined : session.lastSessionActivityAt - startedAt;
             const thresholdMs = settings['agents.notifications.completionThresholdSeconds'] * 1_000;
-            if (durationMs === undefined || durationMs < thresholdMs) return;
+            if (durationMs === undefined || durationMs < thresholdMs) {
+                closeNotification(session.id);
+                return;
+            }
             body = `${agentProviderCatalog[provider].displayName} completed a turn.`;
         } else {
+            closeNotification(session.id);
             return;
         }
+
+        if (isSettingsStale) {
+            suppressedNotificationCount += 1;
+            return;
+        }
+
+        closeNotification(session.id);
 
         const handle = options.showNotification(
             {
@@ -302,6 +329,8 @@ export function createAgentNotificationCoordinator(
                 return;
             }
             if (event.event === 'settings.changed') {
+                const generation = ++settingsRefreshGeneration;
+                isSettingsStale = true;
                 schedule(async () => {
                     let next: AppSettings;
                     try {
@@ -313,10 +342,18 @@ export function createAgentNotificationCoordinator(
                          * still permitted, and keeping banners up would outlive a disable the user just applied.
                          */
                         settings = undefined;
+                        if (generation === settingsRefreshGeneration) {
+                            isSettingsStale = false;
+                            reportSuppressedNotifications();
+                        }
                         closeAllNotifications();
                         throw error;
                     }
                     settings = next;
+                    if (generation === settingsRefreshGeneration) {
+                        isSettingsStale = false;
+                        reportSuppressedNotifications();
+                    }
                     /**
                      * A `settings.changed` event carries only its source, never the changed key, so this handler must
                      * not tear banners down on arrival: a theme, a Terminal font size, or a keybinding reaches the same
