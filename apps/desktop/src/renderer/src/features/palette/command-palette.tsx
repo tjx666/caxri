@@ -162,7 +162,11 @@ export function CommandPalette() {
                                 return (
                                     <CommandItem
                                         key={session.id}
-                                        value={`Session ${session.displayTitle} ${project?.displayTitle ?? ''} ${project?.rootPath ?? ''}`}
+                                        // `cmdk` tracks the selected row by `value`, not by React key, so two
+                                        // sessions sharing a title and project (e.g. two "Untitled" sessions
+                                        // in one worktree) would both render as selected. The id keeps every
+                                        // value unique without changing what the search matches on.
+                                        value={`Session ${session.displayTitle} ${project?.displayTitle ?? ''} ${project?.rootPath ?? ''} ${session.id}`}
                                         onSelect={() => {
                                             onOpenChange(false);
                                             // eslint-disable-next-line no-void -- intentional floating-promise discard, didSelectSession() reports its own errors
