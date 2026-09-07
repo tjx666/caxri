@@ -36,8 +36,9 @@ describe('AgentWorkTracker', () => {
     });
 
     it('does not treat a child-scoped turn start as a new parent turn', () => {
+        vi.useFakeTimers();
         const onDeferredParentFinished = vi.fn();
-        const tracker = new AgentWorkTracker(onDeferredParentFinished);
+        const tracker = new AgentWorkTracker(onDeferredParentFinished, { resumeGraceMs: 1_000 });
 
         tracker.observe(signal('subagentStarted', 'subagent-1'));
         tracker.observe(signal('turnFinished'));
@@ -46,7 +47,69 @@ describe('AgentWorkTracker', () => {
             outcome: 'accepted',
         });
         tracker.observe(signal('turnFinished', 'subagent-1'));
+        vi.advanceTimersByTime(1_000);
 
+        expect(onDeferredParentFinished).toHaveBeenCalledOnce();
+    });
+
+    /**
+     * Claude Code resumes the main turn itself once its last background subagent stops (`SubagentStop`, then a fresh
+     * `UserPromptSubmit` about 100 ms later). The deferred completion must survive that gap unreleased, or the Session
+     * flashes `completed` and raises a notification right before the turn continues.
+     */
+    it('holds the deferred completion for the resumed parent turn after the last subagent stops', () => {
+        vi.useFakeTimers();
+        const onDeferredParentFinished = vi.fn();
+        const tracker = new AgentWorkTracker(onDeferredParentFinished, { resumeGraceMs: 1_000 });
+
+        tracker.observe(signal('subagentStarted', 'subagent-1'));
+        expect(tracker.observe(signal('turnFinished')).deferCompletion).toBe(true);
+        expect(tracker.observe(signal('turnFinished', 'subagent-1'))).toEqual({
+            deferCompletion: false,
+            outcome: 'subagentPending',
+        });
+        expect(onDeferredParentFinished).not.toHaveBeenCalled();
+
+        vi.advanceTimersByTime(100);
+        tracker.observe(signal('turnStarted'));
+        vi.advanceTimersByTime(1_000);
+        expect(onDeferredParentFinished).not.toHaveBeenCalled();
+
+        // The resumed turn settles through its own `Stop`, with no children left to wait for.
+        expect(tracker.observe(signal('turnFinished')).deferCompletion).toBe(false);
+    });
+
+    it('releases the deferred completion when no parent turn resumes within the grace window', () => {
+        vi.useFakeTimers();
+        const onDeferredParentFinished = vi.fn();
+        const tracker = new AgentWorkTracker(onDeferredParentFinished, { resumeGraceMs: 1_000 });
+
+        tracker.observe(signal('subagentStarted', 'subagent-1'));
+        tracker.observe(signal('turnFinished'));
+        tracker.observe(signal('turnFinished', 'subagent-1'));
+
+        vi.advanceTimersByTime(999);
+        expect(onDeferredParentFinished).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(1);
+        expect(onDeferredParentFinished).toHaveBeenCalledOnce();
+        expect(onDeferredParentFinished).toHaveBeenCalledWith(signal('turnFinished'));
+    });
+
+    it('cancels the resume grace when a new subagent starts before the parent resumes', () => {
+        vi.useFakeTimers();
+        const onDeferredParentFinished = vi.fn();
+        const tracker = new AgentWorkTracker(onDeferredParentFinished, { resumeGraceMs: 1_000 });
+
+        tracker.observe(signal('subagentStarted', 'subagent-1'));
+        tracker.observe(signal('turnFinished'));
+        tracker.observe(signal('turnFinished', 'subagent-1'));
+        vi.advanceTimersByTime(500);
+        tracker.observe(signal('subagentStarted', 'subagent-2'));
+        vi.advanceTimersByTime(1_000);
+        expect(onDeferredParentFinished).not.toHaveBeenCalled();
+
+        tracker.observe(signal('turnFinished', 'subagent-2'));
+        vi.advanceTimersByTime(1_000);
         expect(onDeferredParentFinished).toHaveBeenCalledOnce();
     });
 
@@ -84,7 +147,7 @@ describe('AgentWorkTracker', () => {
 
         expect(tracker.observe(signal('turnFinished', 'subagent-1'))).toEqual({
             deferCompletion: false,
-            outcome: 'accepted',
+            outcome: 'subagentPending',
         });
     });
 
