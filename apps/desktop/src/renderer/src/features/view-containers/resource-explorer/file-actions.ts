@@ -2,7 +2,7 @@ import type { FileEntry, MethodResult, MutableFileEntry } from '@caxri/protocol'
 import { errorMessage, isCaxriError } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
 
-import { parentDirectoryPath, projectRelativePath } from '../../../lib/file-path';
+import { parentDirectoryPath } from '../../../lib/file-path';
 import { queryClient } from '../../../queries/client';
 import { getSelectedSession, getSessionProjectId } from '../../../stores/selectors';
 import { pushToast, tryCommand } from '../../../stores/toasts';
@@ -404,15 +404,6 @@ export function revealFile(
 
 export function openFileInTerminal(directory: string): Promise<void> {
     return createTerminal('shell', { cwd: directory });
-}
-
-export function copyFilePath(path: string, projectRoot?: string): Promise<void | undefined> {
-    return tryCommand('Unable to copy path', async () => {
-        const value = projectRoot ? projectRelativePath(path, projectRoot) : path;
-        if (value === undefined) throw new Error('Path is outside the selected Project');
-        await navigator.clipboard.writeText(value);
-        pushToast('success', projectRoot ? 'Relative path copied' : 'Path copied');
-    });
 }
 
 export async function didTrashFile(

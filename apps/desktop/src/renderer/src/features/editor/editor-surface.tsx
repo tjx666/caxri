@@ -116,7 +116,7 @@ export function EditorSurface({ paneId, path }: { paneId: string; path: string }
     if (gitDiffTab)
         return (
             <Suspense fallback={<div className={emptyWorkClassName}>Loading diff editor…</div>}>
-                <GitDiffEditor tab={gitDiffTab} />
+                <GitDiffEditor paneId={paneId} tab={gitDiffTab} tabPath={path} />
             </Suspense>
         );
     const transcriptTab = parseAgentTranscriptTab(path);
