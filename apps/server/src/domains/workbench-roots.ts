@@ -213,7 +213,7 @@ export class WorkbenchRootService {
         });
         this.options.emit({
             event: 'workbench.candidate',
-            payload: { candidateId, sessionId: input.sessionId },
+            payload: { candidateId, sessionId: input.sessionId, rootPath: input.rootPath },
         });
     }
 

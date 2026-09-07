@@ -35,6 +35,16 @@ describe('workbenchMethods', () => {
             parameters.safeParse({ sessionId: 'session-1', candidateId: 'candidate-1' }).success,
         ).toBe(true);
     });
+
+    it('does not use the display path as candidate authorization input', () => {
+        expect(
+            workbenchMethods['session.continueInWorktree'].params.parse({
+                sessionId: 'session-1',
+                candidateId: 'candidate-1',
+                rootPath: '/unrelated',
+            }),
+        ).toEqual({ sessionId: 'session-1', candidateId: 'candidate-1' });
+    });
 });
 
 describe('workbenchInternalMethods', () => {

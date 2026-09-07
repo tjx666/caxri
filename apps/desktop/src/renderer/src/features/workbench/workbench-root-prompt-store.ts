@@ -4,6 +4,7 @@ import { create } from 'zustand';
 interface WorkbenchRootCandidate {
     candidateId: string;
     sessionId: string;
+    rootPath: string;
 }
 
 interface WorkbenchRootPromptState {
@@ -13,7 +14,7 @@ interface WorkbenchRootPromptState {
 }
 
 /**
- * Keeps one content-free candidate per Session until the user handles it.
+ * Keeps one candidate and its display-only destination per Session until the user handles it.
  */
 export const useWorkbenchRootPromptStore = create<WorkbenchRootPromptState>((set) => ({
     candidates: {},

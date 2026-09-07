@@ -261,6 +261,7 @@ export class GitRepoService {
         trace: SummaryTrace,
         parent: RepoRoot,
         approvedRoots: string[],
+        topologyWorktreeRoots: ReadonlySet<string>,
     ): Promise<RepoRoot[]> {
         const [gitLinkOutput, untrackedDirectoryOutput] = await Promise.all([
             this.tracedGit(trace, parent.rootPath, ['ls-files', '--stage', '-z']),
@@ -300,7 +301,12 @@ export class GitRepoService {
             MAX_CONCURRENT_GIT_COMMANDS,
             async (candidate): Promise<RepoRoot | undefined> => {
                 const rootPath = await this.canonicalRepositoryRoot(trace, candidate.path);
-                if (!rootPath || !isApproved(rootPath, approvedRoots)) return undefined;
+                if (
+                    !rootPath ||
+                    topologyWorktreeRoots.has(rootPath) ||
+                    !isApproved(rootPath, approvedRoots)
+                )
+                    return undefined;
                 return { kind: candidate.kind, rootPath };
             },
         );
@@ -388,6 +394,7 @@ export class GitRepoService {
         parents: readonly RepoRoot[],
         approvedRoots: string[],
         topologyGeneration: number,
+        topologyWorktreeRoots: ReadonlySet<string>,
     ): Promise<RepoRoot[]> {
         const approvedKey = [...approvedRoots].toSorted((a, b) => a.localeCompare(b)).join('\0');
         const discovered = await Promise.all(
@@ -400,7 +407,12 @@ export class GitRepoService {
                     cached.topologyGeneration === topologyGeneration
                 )
                     return cached.children;
-                const children = await this.discoverChildRepositories(trace, parent, approvedRoots);
+                const children = await this.discoverChildRepositories(
+                    trace,
+                    parent,
+                    approvedRoots,
+                    topologyWorktreeRoots,
+                );
                 this.childCache.delete(parent.rootPath);
                 this.childCache.set(parent.rootPath, {
                     approvedKey,
@@ -459,16 +471,7 @@ export class GitRepoService {
                 throw Object.assign(new Error('not a git repository'), {
                     stderr: 'not a git repository within an approved Project root',
                 });
-            const baseRepositories: RepoRoot[] = [
-                { kind: 'primary', rootPath: projectRoot },
-                ...topology.worktrees.flatMap((worktree) =>
-                    worktree.rootPath !== projectRoot &&
-                    isApproved(worktree.rootPath, approvedRoots)
-                        ? [{ kind: 'worktree' as const, rootPath: worktree.rootPath }]
-                        : [],
-                ),
-            ];
-            trace.worktreeApproved = baseRepositories.length - 1;
+            const baseRepositories: RepoRoot[] = [{ kind: 'primary', rootPath: projectRoot }];
             if (options.force)
                 for (const repo of baseRepositories) this.statuses.bump(repo.rootPath);
             const baseSnapshots = await Promise.all(
@@ -479,6 +482,7 @@ export class GitRepoService {
                 baseRepositories,
                 approvedRoots,
                 topology.generation,
+                new Set(topology.worktrees.map((worktree) => worktree.rootPath)),
             );
             const roots = [...baseRepositories, ...children].filter(
                 (repo, index, repositories) =>
@@ -497,6 +501,9 @@ export class GitRepoService {
                         candidate.rootPath !== repo.rootPath &&
                         isPathContained(repo.rootPath, candidate.rootPath),
                 );
+                for (const { rootPath } of topology.worktrees)
+                    if (rootPath !== repo.rootPath && isPathContained(repo.rootPath, rootPath))
+                        children.push({ kind: 'worktree', rootPath });
                 const snapshot = snapshots[index];
                 const status = snapshot.status;
                 const files = status.files.filter((file) =>

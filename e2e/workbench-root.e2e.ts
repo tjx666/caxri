@@ -118,7 +118,7 @@ process.stdout.write('Workbench Agent ready\r\n');
         testRootPath: root,
         env: {
             CAXRI_E2E_AGENT_HOOKS: '1',
-            CAXRI_TEST_ROOT_PATHS: JSON.stringify([root, worktree]),
+            CAXRI_TEST_ROOT_PATHS: JSON.stringify([root]),
         },
     });
     try {
@@ -157,6 +157,10 @@ process.stdout.write('Workbench Agent ready\r\n');
         await running.page.locator('.xterm-helper-textarea').press('g');
         const prompt = running.page.getByRole('status', { name: 'New Git worktree' });
         await expect(prompt).toContainText('A new Git worktree was created for this Session.');
+        await expect(prompt).toContainText(worktree);
+        /**
+         * Continue must work without a second picker grant for the already detected directory.
+         */
         await prompt.getByRole('button', { name: 'Continue Session in Worktree' }).click();
 
         await expectWorkbenchRoot(running.page, sessionId, worktree, 'feature/workbench');

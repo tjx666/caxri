@@ -639,12 +639,8 @@ describe('continueInWorktree', () => {
         expect(electronMock.dialog.showOpenDialog).not.toHaveBeenCalled();
     });
 
-    it('authorizes a fresh worktree once the selected path canonicalizes to the detected root', async () => {
+    it('authorizes the claimed worktree directly without asking the user to select it again', async () => {
         const worktreeRoot = await temporaryDirectory();
-        const linkDirectory = await temporaryDirectory('caxri-workbench-root-link-');
-        const link = join(linkDirectory, 'alias');
-        await symlink(worktreeRoot, link);
-
         const grants = new ProjectRootGrants();
         const request = vi.fn((method: string) => {
             if (method === 'session.workbenchCandidate.claim')
@@ -657,12 +653,12 @@ describe('continueInWorktree', () => {
         const { instance } = authority({
             getServer: server(request),
             grants,
-            nextTestRoot: () => link,
         });
 
         await expect(
             instance.continueInWorktree({ candidateId: 'candidate-1', sessionId: 'session-1' }),
         ).resolves.toEqual({ id: 'session-1' });
+        expect(electronMock.dialog.showOpenDialog).not.toHaveBeenCalled();
         expect(request).toHaveBeenCalledWith('session.workbenchCandidate.authorize', {
             candidateId: 'candidate-1',
             rootPath: worktreeRoot,
@@ -674,12 +670,14 @@ describe('continueInWorktree', () => {
         });
     });
 
-    it('denies a selection whose canonical path does not match the detected worktree', async () => {
+    it('ignores unrelated picker input and only authorizes the claimed worktree', async () => {
         const worktreeRoot = await temporaryDirectory();
         const otherRoot = await temporaryDirectory();
         const request = vi.fn((method: string) => {
             if (method === 'session.workbenchCandidate.claim')
                 return Promise.resolve({ candidateId: 'candidate-1', rootPath: worktreeRoot });
+            if (method === 'session.workbenchCandidate.authorize')
+                return Promise.resolve({ id: 'session-1' });
             if (method === 'session.workbenchCandidate.cancel') return Promise.resolve(null);
             return Promise.reject(new Error(`Unexpected method: ${method}`));
         });
@@ -690,19 +688,21 @@ describe('continueInWorktree', () => {
 
         await expect(
             instance.continueInWorktree({ candidateId: 'candidate-1', sessionId: 'session-1' }),
-        ).rejects.toMatchObject({ code: 'PATH_DENIED' });
+        ).resolves.toEqual({ id: 'session-1' });
+        expect(electronMock.dialog.showOpenDialog).not.toHaveBeenCalled();
+        expect(request).toHaveBeenCalledWith('session.workbenchCandidate.authorize', {
+            candidateId: 'candidate-1',
+            rootPath: worktreeRoot,
+            sessionId: 'session-1',
+        });
         expect(request).toHaveBeenCalledWith('session.workbenchCandidate.cancel', {
             candidateId: 'candidate-1',
             sessionId: 'session-1',
         });
     });
 
-    it('returns canceled without authorizing when the worktree dialog is dismissed', async () => {
-        const worktreeRoot = await temporaryDirectory();
-        electronMock.dialog.showOpenDialog.mockResolvedValueOnce({
-            canceled: true,
-            filePaths: [],
-        });
+    it('does not authorize a disappeared worktree and still cancels its candidate', async () => {
+        const worktreeRoot = join(await temporaryDirectory(), 'missing');
         const request = vi.fn((method: string) => {
             if (method === 'session.workbenchCandidate.claim')
                 return Promise.resolve({ candidateId: 'candidate-1', rootPath: worktreeRoot });
@@ -713,7 +713,11 @@ describe('continueInWorktree', () => {
 
         await expect(
             instance.continueInWorktree({ candidateId: 'candidate-1', sessionId: 'session-1' }),
-        ).resolves.toEqual({ canceled: true });
+        ).rejects.toMatchObject({
+            code: 'NOT_FOUND',
+            message: 'The worktree candidate is no longer available',
+        });
+        expect(electronMock.dialog.showOpenDialog).not.toHaveBeenCalled();
         expect(request).toHaveBeenCalledWith('session.workbenchCandidate.cancel', {
             candidateId: 'candidate-1',
             sessionId: 'session-1',

@@ -188,11 +188,12 @@ export const serverEventPayloads = {
      */
     'sessionPullRequests.changed': z.object({ sessionIds: z.array(identifierSchema).max(1_024) }),
     /**
-     * One-shot, content-free prompt trigger; Git topology remains Runtime-owned.
+     * One-shot prompt with a display-only path; authorization still accepts only the opaque candidate ID.
      */
     'workbench.candidate': z.object({
         candidateId: identifierSchema,
         sessionId: identifierSchema,
+        rootPath: pathSchema,
     }),
     /**
      * One-shot UI coordination layered over the durable `state.changed` convergence event.
