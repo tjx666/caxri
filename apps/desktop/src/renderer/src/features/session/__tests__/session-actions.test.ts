@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
     })),
     refreshWorkbench: vi.fn(() => Promise.resolve()),
     removeSessionQueries: vi.fn(),
+    selectSelectedProject: vi.fn(),
     tryCommand: vi.fn(
         async (
             ...[, run]: [string, () => Promise<unknown>, { refresh?: () => Promise<void> }?]
@@ -39,7 +40,7 @@ vi.mock('../../../stores/dialogs', () => ({
 vi.mock('../../../stores/selectors', () => ({
     getBootstrap: mocks.getBootstrap,
     getSelectedSession: mocks.getSelectedSession,
-    selectSelectedProject: vi.fn(),
+    selectSelectedProject: mocks.selectSelectedProject,
     selectSelectedSession: vi.fn(),
 }));
 vi.mock('../../../stores/session-view', () => ({
@@ -59,6 +60,8 @@ import {
     didReorderProject,
     didSelectSession,
     moveTerminalToNewSession,
+    openProjectInExternalEditor,
+    openSelectedProjectInExternalEditor,
     openSelectedSessionPullRequest,
     resumeAutomaticSessionNaming,
     selectAdjacentSession,
@@ -77,6 +80,7 @@ describe('Session actions', () => {
         mocks.registerSessionSelectionConvergence.mockClear();
         mocks.refreshWorkbench.mockClear();
         mocks.removeSessionQueries.mockClear();
+        mocks.selectSelectedProject.mockReset();
         mocks.tryCommand.mockClear();
     });
 
@@ -105,6 +109,59 @@ describe('Session actions', () => {
         openSelectedSessionPullRequest();
 
         expect(mocks.openExternalUrl).not.toHaveBeenCalled();
+    });
+
+    it('opens a Session in its current Workbench Project after it continues in a worktree', async () => {
+        mocks.getBootstrap.mockReturnValue({
+            projects: [
+                { id: 'project-owner', rootPath: '/workspace/repository' },
+                { id: 'project-worktree', rootPath: '/workspace/repository-worktree' },
+            ],
+            sessions: [
+                {
+                    id: 'session-1',
+                    projectId: 'project-owner',
+                    workbenchProjectId: 'project-worktree',
+                },
+            ],
+            settings: {},
+        });
+
+        openProjectInExternalEditor({ rootPath: '/workspace/repository' }, 'session-1');
+        await mocks.tryCommand.mock.results[0]?.value;
+
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('project.openInEditor', {
+            path: '/workspace/repository-worktree',
+            sessionId: 'session-1',
+        });
+    });
+
+    it('uses the selected Session Workbench Project for the global editor command', async () => {
+        const owner = { id: 'project-owner', rootPath: '/workspace/repository' };
+        mocks.getBootstrap.mockReturnValue({
+            projects: [
+                owner,
+                { id: 'project-worktree', rootPath: '/workspace/repository-worktree' },
+            ],
+            sessions: [
+                {
+                    id: 'session-1',
+                    projectId: 'project-owner',
+                    workbenchProjectId: 'project-worktree',
+                },
+            ],
+            settings: {},
+        });
+        mocks.selectSelectedProject.mockReturnValue(owner);
+        mocks.getSelectedSession.mockReturnValue({ id: 'session-1', projectId: owner.id });
+
+        openSelectedProjectInExternalEditor();
+        await mocks.tryCommand.mock.results[0]?.value;
+
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('project.openInEditor', {
+            path: '/workspace/repository-worktree',
+            sessionId: 'session-1',
+        });
     });
 
     it('offers Resume only when Caxri owns automatic naming for the provider', () => {

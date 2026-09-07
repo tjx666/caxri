@@ -1,9 +1,13 @@
+import type { DragEvent } from 'react';
+
 import type { SourceControlAction, SourceControlResource } from '@caxri/protocol';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 
 import { Button } from '../../../components/ui/button';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { FileTypeIcon } from '../../../icons/files/file-type-icon';
+import { FILE_TREE_DRAG_TYPE } from '../../../lib/file-drag';
+import { resolveRepositoryFilePath as resolveRepoFilePath } from '../../../lib/repository-file-path';
 import { cn } from '../../../lib/utilities';
 import { SourceControlIcon } from './source-control-icon';
 import type { SourceControlTreeNode } from './source-control-tree';
@@ -37,12 +41,22 @@ function Decoration({
     );
 }
 
+function handleResourceDragStart(
+    event: DragEvent<HTMLButtonElement>,
+    resourcePath: string | undefined,
+): void {
+    if (!resourcePath) return;
+    event.dataTransfer.effectAllowed = 'copy';
+    event.dataTransfer.setData(FILE_TREE_DRAG_TYPE, resourcePath);
+}
+
 export function SourceControlTreeItems({
     activeEditorResource,
     depth = 0,
     expandedDirectories,
     nodes,
     providerKey,
+    repositoryRootPath,
     runAction,
     setDirectoriesExpanded,
 }: {
@@ -51,6 +65,7 @@ export function SourceControlTreeItems({
     expandedDirectories: Readonly<Record<string, boolean | undefined>>;
     nodes: SourceControlTreeNode[];
     providerKey: string;
+    repositoryRootPath?: string;
     runAction: (action: SourceControlAction) => void;
     setDirectoriesExpanded: (keys: readonly string[], isExpanded: boolean) => void;
 }) {
@@ -88,6 +103,7 @@ export function SourceControlTreeItems({
                             expandedDirectories={expandedDirectories}
                             nodes={node.children}
                             providerKey={providerKey}
+                            repositoryRootPath={repositoryRootPath}
                             runAction={runAction}
                             setDirectoriesExpanded={setDirectoriesExpanded}
                         />
@@ -97,6 +113,7 @@ export function SourceControlTreeItems({
         }
         const resource = node.resource;
         const trailingActions = resource.actions ?? [];
+        const resourcePath = resolveRepoFilePath(repositoryRootPath, resource.path);
         if (resource.navigationTargetId && trailingActions.length === 0)
             return (
                 <button
@@ -105,6 +122,8 @@ export function SourceControlTreeItems({
                     style={{ paddingLeft: 10 + depth * 14 }}
                     title={resource.tooltip}
                     aria-label={resource.accessibilityLabel}
+                    draggable={Boolean(resourcePath)}
+                    onDragStart={(event) => handleResourceDragStart(event, resourcePath)}
                     onClick={() => resource.action && runAction(resource.action)}
                 >
                     <SourceControlIcon className="shrink-0" icon={resource.icon} size={14} />
@@ -125,6 +144,8 @@ export function SourceControlTreeItems({
                         style={{ paddingLeft: 10 + depth * 14 }}
                         title={resource.tooltip}
                         aria-label={resource.accessibilityLabel}
+                        draggable={Boolean(resourcePath)}
+                        onDragStart={(event) => handleResourceDragStart(event, resourcePath)}
                         onClick={() => resource.action && runAction(resource.action)}
                     >
                         <SourceControlIcon className="shrink-0" icon={resource.icon} size={14} />
@@ -168,6 +189,8 @@ export function SourceControlTreeItems({
                     style={{ paddingLeft: 10 + depth * 14 }}
                     title={resource.tooltip}
                     aria-label={resource.accessibilityLabel}
+                    draggable={Boolean(resourcePath)}
+                    onDragStart={(event) => handleResourceDragStart(event, resourcePath)}
                     onClick={() => resource.action && runAction(resource.action)}
                 >
                     <SourceControlIcon icon={resource.icon} />

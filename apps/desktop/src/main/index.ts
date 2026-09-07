@@ -505,10 +505,7 @@ if (ownsProfileInstance) {
                     ...(target.location && { location: target.location }),
                 },
             }),
-        openInEditor: async (path) => {
-            const settings = await supervisor.request('settings.get');
-            await launchExternalEditor(settings.value['workbench.externalEditor'], path);
-        },
+        openInEditor: (path, editorCommand) => launchExternalEditor(editorCommand, path),
         reveal: (path) => shell.showItemInFolder(path),
         status: () => (mainWindow && !mainWindow.isDestroyed() ? 'window' : 'background'),
         trash: (path) => shell.trashItem(path),

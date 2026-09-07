@@ -30,6 +30,7 @@ import {
 } from '../../stores/selectors';
 import { sessionViewScope, useSessionViewStore } from '../../stores/session-view';
 import { closeDocumentTabs, pinDocumentTab } from '../editor/document-actions';
+import { DocumentTabPathMenu } from '../editor/document-tab-path-menu';
 import { EditorTabActions } from '../editor/editor-tab-actions';
 import { moveTerminalToNewSession } from '../session/session-actions';
 import { WorkTab } from '../tabs/work-tab';
@@ -212,9 +213,7 @@ function DocumentPaneTab({
                       ? agentTranscriptTabLabel(transcriptTerminal?.title)
                       : (externalTab?.name ?? pathBasename(path))
             }
-            // Document tabs cap at 160px (see ADR 0002 "Tab sizing") and truncate with an ellipsis, so a mouse
-            // user needs the hover path to recover a name that got cut off; a diff/transcript tab reuses its own
-            // label since it has no full path of its own.
+            // Ordinary files expose their full path on hover; virtual resources reuse their descriptive label.
             labelTooltip={
                 gitDiffTab
                     ? gitDiffTabLabel(gitDiffTab)
@@ -245,7 +244,19 @@ function DocumentPaneTab({
                 onNavigate(event.key as WorkTabNavigationKey);
             }}
             onSelect={() => selectPaneTab(tab.id)}
-            contextMenu={<PaneTabMenu paneId={paneId} paneLayout={paneLayout} tabId={tab.id} />}
+            contextMenu={
+                <PaneTabMenu
+                    paneId={paneId}
+                    paneLayout={paneLayout}
+                    tabId={tab.id}
+                    resourceItems={
+                        (!isVirtualEditorTabPath(path) ||
+                            (gitDiffTab && gitDiffTab.kind !== 'changes')) && (
+                            <DocumentTabPathMenu path={path} />
+                        )
+                    }
+                />
+            }
             preview={tab.preview}
         />
     );
@@ -334,7 +345,9 @@ export function PaneTabBar({
     const activeTab = pane.tabs.find((tab) => tab.id === pane.activeTabId) ?? pane.tabs.at(0);
     const activeTabId = activeTab?.id;
     const activeEditorPath =
-        activeTab?.resource.kind === 'file' && !isVirtualEditorTabPath(activeTab.resource.path)
+        activeTab?.resource.kind === 'file' &&
+        (!isVirtualEditorTabPath(activeTab.resource.path) ||
+            parseGitDiffTab(activeTab.resource.path))
             ? activeTab.resource.path
             : undefined;
     const showTabActions = activeEditorPath !== undefined ? true : hasTabsToSwitch;
@@ -463,7 +476,9 @@ export function PaneTabBar({
             </div>
             {showTabActions && (
                 <div className="tab-actions flex h-11 flex-none items-center bg-surface px-1 [-webkit-app-region:no-drag]">
-                    {activeEditorPath && <EditorTabActions path={activeEditorPath} />}
+                    {activeEditorPath && (
+                        <EditorTabActions paneId={pane.id} path={activeEditorPath} />
+                    )}
                     {hasTabsToSwitch && (
                         <CommandTooltip commandId="terminal.new">
                             <Button

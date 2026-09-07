@@ -385,11 +385,24 @@ export function openProjectInExternalEditor(
     project: Pick<ProjectRecord, 'rootPath'>,
     sessionId?: string,
 ): void {
+    /**
+     * A Session row is grouped under its owning Project, while its Files/Editor/Git root may be a linked Workbench
+     * Project. Resolve the target from that Session binding so Server Core authorizes the same root it uses for the
+     * request; sending the owner root with a worktree Session is rejected as outside the selected Project root.
+     */
+    const bootstrap = getBootstrap();
+    const session = sessionId
+        ? bootstrap?.sessions.find((candidate) => candidate.id === sessionId)
+        : undefined;
+    const workbenchProject = session
+        ? bootstrap?.projects.find((candidate) => candidate.id === session.workbenchProjectId)
+        : undefined;
+    const targetProject = workbenchProject ?? project;
     // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void tryCommand('Opening the Project in the external editor failed', () =>
         caxri.request('project.openInEditor', {
-            path: project.rootPath,
+            path: targetProject.rootPath,
             ...(sessionId !== undefined && { sessionId }),
         }),
     );

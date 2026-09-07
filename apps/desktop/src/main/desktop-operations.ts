@@ -14,7 +14,7 @@ export interface DesktopOperationHandlers {
     }): Promise<boolean>;
     focus(): Promise<void>;
     open(target: DesktopTargetPayload): void;
-    openInEditor(path: string): Promise<void>;
+    openInEditor(path: string, editorCommand: string | undefined): Promise<void>;
     reveal(path: string): void;
     status(): 'background' | 'window';
     trash(path: string): Promise<void>;
@@ -47,7 +47,7 @@ async function handleDesktopOperation(
         }
         case 'openInEditor': {
             const target = await consumeTarget();
-            await handlers.openInEditor(target.path);
+            await handlers.openInEditor(target.path, operation.editorCommand);
             return null;
         }
         case 'confirmFilesTrash':
