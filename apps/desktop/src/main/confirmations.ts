@@ -96,6 +96,29 @@ export function deleteSessionPrompt(title: string, runningTerminals: number): Me
     return deletePrompt('Session', title, runningTerminals, 'The selected folder');
 }
 
+/**
+ * Bulk deletion from the Archived Sessions manager. A single prompt names the count instead of every title so the
+ * dialog stays readable for large selections; one Session still routes through {@link deleteSessionPrompt}.
+ */
+export function deleteSessionsPrompt(
+    sessionCount: number,
+    runningTerminals: number,
+): MessageBoxOptions {
+    const terminalPlural = runningTerminals === 1 ? '' : 's';
+    return {
+        type: 'warning',
+        title: 'Delete Sessions',
+        message:
+            runningTerminals > 0
+                ? `Delete ${sessionCount} Sessions and terminate ${runningTerminals} running Terminal${terminalPlural}?`
+                : `Delete ${sessionCount} Sessions?`,
+        detail: 'Only Caxri metadata and snapshots are deleted. The selected folders and their files are never touched.',
+        buttons: ['Delete Sessions', 'Cancel'],
+        defaultId: 1,
+        cancelId: 1,
+    };
+}
+
 export function revokeMobileDevicePrompt(device: {
     displayName: string;
     platform: 'android' | 'ios';

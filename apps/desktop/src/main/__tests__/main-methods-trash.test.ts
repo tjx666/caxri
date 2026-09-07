@@ -256,3 +256,75 @@ describe('session.delete', () => {
         );
     });
 });
+
+describe('session.deleteMany', () => {
+    it('asks once for the whole batch, summing running Terminals across Sessions', async () => {
+        electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 });
+        const request = vi.fn((method: string, parameters?: unknown) => {
+            if (method === 'terminal.runningCount')
+                return Promise.resolve(
+                    (parameters as { sessionId: string }).sessionId === 'session-1' ? 2 : 1,
+                );
+            if (method === 'session.deleteMany') return Promise.resolve({ ok: true });
+            return Promise.reject(new Error(`Unexpected method: ${method}`));
+        });
+        const handle = handler(request);
+
+        await expect(
+            handle({
+                method: 'session.deleteMany',
+                params: { sessionIds: ['session-1', 'session-2'] },
+            }),
+        ).resolves.toEqual({ ok: true });
+        expect(electronMock.dialog.showMessageBox).toHaveBeenCalledOnce();
+        expect(electronMock.dialog.showMessageBox).toHaveBeenCalledWith(
+            {},
+            expect.objectContaining({
+                message: 'Delete 2 Sessions and terminate 3 running Terminals?',
+            }),
+        );
+        expect(request).toHaveBeenCalledWith('session.deleteMany', {
+            sessionIds: ['session-1', 'session-2'],
+        });
+    });
+
+    it('names the Session when the batch holds exactly one', async () => {
+        electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 });
+        const request = vi.fn((method: string) => {
+            if (method === 'terminal.runningCount') return Promise.resolve(0);
+            if (method === 'app.bootstrap')
+                return Promise.resolve(
+                    bootstrapWith(
+                        [],
+                        [{ id: 'session-1', projectId: 'project-1', displayTitle: 'Feature work' }],
+                    ),
+                );
+            if (method === 'session.deleteMany') return Promise.resolve({ ok: true });
+            return Promise.reject(new Error(`Unexpected method: ${method}`));
+        });
+        const handle = handler(request);
+
+        await handle({ method: 'session.deleteMany', params: { sessionIds: ['session-1'] } });
+        expect(electronMock.dialog.showMessageBox).toHaveBeenCalledWith(
+            {},
+            expect.objectContaining({ message: "Delete 'Feature work'?" }),
+        );
+    });
+
+    it('cancels the whole batch when the user dismisses the confirmation', async () => {
+        electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 1 });
+        const request = vi.fn((method: string) => {
+            if (method === 'terminal.runningCount') return Promise.resolve(0);
+            return Promise.reject(new Error(`Unexpected method: ${method}`));
+        });
+        const handle = handler(request);
+
+        await expect(
+            handle({
+                method: 'session.deleteMany',
+                params: { sessionIds: ['session-1', 'session-2'] },
+            }),
+        ).resolves.toEqual({ canceled: true });
+        expect(request).not.toHaveBeenCalledWith('session.deleteMany', expect.anything());
+    });
+});

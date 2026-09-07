@@ -28,6 +28,7 @@ export const desktopServerOperationIds = [
     'project.create',
     'project.delete',
     'session.delete',
+    'session.deleteMany',
     'session.selectWorkbenchRoot',
     'session.workbenchCandidate.claim',
     'session.workbenchCandidate.authorize',

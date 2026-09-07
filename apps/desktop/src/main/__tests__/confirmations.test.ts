@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     deleteProjectPrompt,
     deleteSessionPrompt,
+    deleteSessionsPrompt,
     discardGitChangesPrompt,
     externalLinkChoice,
     externalLinkPrompt,
@@ -115,6 +116,21 @@ describe('delete prompts', () => {
     ])('warns about %i running Terminals with matching plural', (count, message) => {
         expect(deleteProjectPrompt('caxri', count).message).toBe(message);
         expect(deleteSessionPrompt('caxri', count).message).toBe(message);
+    });
+});
+
+describe('bulk delete Sessions prompt', () => {
+    it.each([
+        [0, 'Delete 3 Sessions?'],
+        [1, 'Delete 3 Sessions and terminate 1 running Terminal?'],
+        [4, 'Delete 3 Sessions and terminate 4 running Terminals?'],
+    ])('counts Sessions and running Terminals (%i) with matching plural', (count, message) => {
+        const options = deleteSessionsPrompt(3, count);
+        expect(options.title).toBe('Delete Sessions');
+        expect(options.message).toBe(message);
+        expect(options.detail).toContain('Only Caxri metadata and snapshots are deleted.');
+        expect(options.buttons![options.defaultId!]).toBe('Cancel');
+        expect(options.buttons![options.cancelId!]).toBe('Cancel');
     });
 });
 

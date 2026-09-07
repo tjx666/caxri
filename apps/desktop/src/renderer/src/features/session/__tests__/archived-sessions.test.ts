@@ -2,7 +2,12 @@ import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protoc
 import { agentProviderIds } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { deriveArchivedSessionView } from '../archived-sessions';
+import {
+    deriveArchivedSessionView,
+    pruneArchivedSelection,
+    untitledArchivedSessionIds,
+    visibleArchivedSessionIds,
+} from '../archived-sessions';
 
 function project(id: string, orderIndex: number): ProjectRecord {
     return {
@@ -152,5 +157,56 @@ describe('archived Session selector', () => {
         );
 
         expect(withoutCodex.agentOptions).toEqual(['shell', 'claude']);
+    });
+});
+
+describe('archived Session selection', () => {
+    const untitled = (id: string, projectId: string, archivedAt: number): SessionRecord => ({
+        ...session(id, projectId, archivedAt),
+        displayTitle: 'Untitled',
+        titleMode: 'automatic',
+    });
+    const withUntitled = [
+        ...sessions,
+        untitled('alpha-blank', 'alpha', 40),
+        untitled('beta-blank', 'beta', 5),
+    ];
+    const filters = { agent: 'all' as const, projectId: 'all', query: '' };
+
+    it('lists visible ids in display order and picks only default-titled Sessions as Untitled', () => {
+        const view = deriveArchivedSessionView(projects, withUntitled, terminals, filters);
+
+        expect(visibleArchivedSessionIds(view)).toEqual([
+            'alpha-blank',
+            'alpha-review',
+            'alpha-old',
+            'beta-review',
+            'beta-blank',
+        ]);
+        expect(untitledArchivedSessionIds(view)).toEqual(['alpha-blank', 'beta-blank']);
+    });
+
+    it('scopes the Untitled shortcut to the active filters', () => {
+        const view = deriveArchivedSessionView(projects, withUntitled, terminals, {
+            ...filters,
+            projectId: 'beta',
+        });
+
+        expect(untitledArchivedSessionIds(view)).toEqual(['beta-blank']);
+    });
+
+    it('drops selected ids that the current filters hide and keeps the same Set when nothing changed', () => {
+        const full = deriveArchivedSessionView(projects, withUntitled, terminals, filters);
+        const narrowed = deriveArchivedSessionView(projects, withUntitled, terminals, {
+            ...filters,
+            query: 'untitled',
+        });
+        const selection = new Set(['alpha-blank', 'alpha-review', 'beta-blank']);
+
+        expect(pruneArchivedSelection(selection, full)).toBe(selection);
+        expect([...pruneArchivedSelection(selection, narrowed)]).toEqual([
+            'alpha-blank',
+            'beta-blank',
+        ]);
     });
 });

@@ -117,6 +117,10 @@ export const MAX_FILE_BROWSE_ENTRIES = MAX_PATH_BROWSER_ENTRIES;
 export const MAX_FILE_LIST_ENTRIES = 1_024;
 
 const settingsResult = z.object({ value: appSettingsSchema, source: configSourceSchema });
+/**
+ * Bulk Session operations are bounded so one request cannot hold the mutation queue for an unbounded archive.
+ */
+const sessionIdBatchSchema = z.array(identifierSchema).min(1).max(200);
 const sessionIdWrite = {
     ...serverWrite,
     params: z.object({ sessionId: identifierSchema }),
@@ -396,6 +400,14 @@ export const methods = {
         params: z.object({ sessionId: identifierSchema }),
         result: z.union([canceledResultSchema, bootstrapStateSchema]),
     },
+    /**
+     * Bulk variant used by the Archived Sessions manager: one native confirmation covers every listed Session.
+     */
+    'session.deleteMany': {
+        ...desktopWrite,
+        params: z.object({ sessionIds: sessionIdBatchSchema }),
+        result: z.union([canceledResultSchema, bootstrapStateSchema]),
+    },
     'session.select': {
         ...serverWrite,
         params: z.object({ sessionId: identifierSchema }),
@@ -420,6 +432,11 @@ export const methods = {
     'session.resumeAutomaticNaming': sessionIdWrite,
     'session.archive': sessionIdWrite,
     'session.unarchive': sessionIdWrite,
+    'session.unarchiveMany': {
+        ...serverWrite,
+        params: z.object({ sessionIds: sessionIdBatchSchema }),
+        result: z.array(sessionRecordSchema),
+    },
     'session.detach': sessionIdWrite,
     'session.resume': sessionIdWrite,
     'session.updateState': {
