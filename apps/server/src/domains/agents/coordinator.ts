@@ -18,6 +18,7 @@ import {
     reconcileMetadataActivityBaseline,
 } from './metadata-activity-baseline';
 import { detectForegroundAgentProvider } from './process-detection';
+import { ProcessIdentityProbe } from './process-identity-probe';
 import type { AgentService } from './service';
 import { ShellProcessProbe } from './shell-process-probe';
 import type { ShellInputState, ShellPromotionCandidate } from './shell-promotion';
@@ -65,6 +66,7 @@ export class AgentCoordinator {
     private readonly probes = new SingleFlight<string, void>();
     private readonly trailingProbeRequests = new Set<string>();
     private readonly shellInputs = new Map<string, ShellInputState>();
+    private readonly processIdentityProbe = new ProcessIdentityProbe();
     private readonly shellProcessProbe: ShellProcessProbe;
     private readonly shellPromotionCandidates = new Map<string, ShellPromotionCandidate>();
     private readonly startedAtByTerminal = new Map<string, number>();
@@ -234,6 +236,7 @@ export class AgentCoordinator {
                 correlationId: terminal.id,
                 excludedAgentSessionIds,
                 rootPath: agentProviderStateRoot(terminal),
+                shellPid: this.processIdentityProbe.take(terminal),
                 processState: terminal.lastProcessState,
                 startedAt: this.startedAtByTerminal.get(terminal.id) ?? terminal.createdAt,
             });
@@ -534,6 +537,7 @@ export class AgentCoordinator {
     observeOutput(terminalId: string, shellPid?: number): void {
         const terminal = this.database.getTerminal(terminalId);
         if (!terminal) return;
+        this.processIdentityProbe.observe(terminalId, shellPid);
         const candidate = this.shellPromotionCandidates.get(terminalId);
         const isCandidateLive = candidate !== undefined && candidate.expiresAt >= Date.now();
         if (candidate && !isCandidateLive) {
@@ -561,9 +565,11 @@ export class AgentCoordinator {
     }
 
     /**
-     * Ends lifecycle authority for a retired PTY before a replacement generation can start.
+     * Retires lifecycle and in-flight probe authority so a late lookup cannot bind a thread after its PTY exits.
      */
     endTerminalLaunch(terminalId: string): void {
+        this.probeGenerations.set(terminalId, (this.probeGenerations.get(terminalId) ?? 0) + 1);
+        this.processIdentityProbe.forget(terminalId);
         this.lifecycleWatchdogs.forget(terminalId, true);
         this.launchIdsByTerminal.delete(terminalId);
         this.hookLaunches.forget(terminalId);
@@ -704,6 +710,7 @@ export class AgentCoordinator {
         this.shellInputs.delete(terminalId);
         this.shellPromotionCandidates.delete(terminalId);
         this.shellProcessProbe.cancel(terminalId);
+        this.processIdentityProbe.forget(terminalId);
         const startedAt = Date.now();
         const excluded = new Set(this.excludedAgentSessionIdsByTerminal.get(terminalId));
         if (terminal.agentSessionId) excluded.add(terminal.agentSessionId);
@@ -723,6 +730,7 @@ export class AgentCoordinator {
         this.probeGenerations.set(terminalId, (this.probeGenerations.get(terminalId) ?? 0) + 1);
         this.refreshes.cancel(terminalId);
         this.shellProcessProbe.cancel(terminalId);
+        this.processIdentityProbe.forget(terminalId);
         this.shellInputs.delete(terminalId);
         this.startedAtByTerminal.set(terminalId, Date.now());
         this.metadataActivityBaselines.delete(terminalId);
@@ -759,6 +767,7 @@ export class AgentCoordinator {
         this.excludedAgentSessionIdsByTerminal.delete(terminalId);
         this.shellInputs.delete(terminalId);
         this.shellPromotionCandidates.delete(terminalId);
+        this.processIdentityProbe.forget(terminalId);
         this.startedAtByTerminal.delete(terminalId);
         this.metadataActivityBaselines.delete(terminalId);
         this.probeGenerations.delete(terminalId);
@@ -768,20 +777,8 @@ export class AgentCoordinator {
     }
 
     forgetSession(sessionId: string): void {
-        for (const terminal of this.database.listTerminals(sessionId)) {
-            this.lifecycleWatchdogs.forget(terminal.id);
-            this.refreshes.cancel(terminal.id);
-            this.shellProcessProbe.cancel(terminal.id);
-            this.excludedAgentSessionIdsByTerminal.delete(terminal.id);
-            this.shellInputs.delete(terminal.id);
-            this.shellPromotionCandidates.delete(terminal.id);
-            this.startedAtByTerminal.delete(terminal.id);
-            this.metadataActivityBaselines.delete(terminal.id);
-            this.probeGenerations.delete(terminal.id);
-            this.launchIdsByTerminal.delete(terminal.id);
-            this.hookLaunches.forget(terminal.id);
-            this.forgetLifecycleState(terminal.id);
-        }
+        for (const terminal of this.database.listTerminals(sessionId))
+            this.forgetTerminal(terminal.id);
     }
 
     close(): void {
@@ -789,6 +786,7 @@ export class AgentCoordinator {
         this.shellProcessProbe.close();
         this.shellInputs.clear();
         this.shellPromotionCandidates.clear();
+        this.processIdentityProbe.clear();
         this.probeGenerations.clear();
         this.launchIdsByTerminal.clear();
         this.hookLaunches.clear();

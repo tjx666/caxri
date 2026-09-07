@@ -26,10 +26,128 @@ afterEach(async () => {
 });
 
 /**
- * A manual in-terminal resume never passes through Caxri's launch reset, so the hook-carried session identifier is the
- * only rebind path (issue #199).
+ * A manual in-terminal resume never passes through Caxri's launch reset. Exact lifecycle identity and the narrow
+ * unbound process fallback must both respect current Terminal ownership.
  */
 describe('AgentCoordinator session rebinding', () => {
+    it.each(['hook', 'exit'] as const)(
+        'discards an open-file identity result after %s retires its authority',
+        async (boundary) => {
+            const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-process-identity-race-'));
+            temporaryDirectories.push(directory);
+            const database = new CaxriDatabase(join(directory, 'state.db'));
+            const created = database.createSession(database.createProject(directory).id, 'codex');
+            const terminalId = created.terminal!.id;
+            database.updateTerminalState(terminalId, 'running');
+            const gate = Promise.withResolvers<void>();
+            const entered = Promise.withResolvers<void>();
+            const snapshot = vi.fn<AgentAdapter['snapshot']>(async (context) => {
+                if (context.shellPid !== undefined) {
+                    entered.resolve();
+                    await gate.promise;
+                    return {
+                        provider: 'codex',
+                        status: 'unknown',
+                        observedAt: Date.now(),
+                        available: true,
+                        sessionId: 'stale-process-thread',
+                        title: 'Stale title',
+                    };
+                }
+                return {
+                    provider: 'codex',
+                    status: 'unknown',
+                    observedAt: Date.now(),
+                    available: true,
+                };
+            });
+            const logger = new StructuredLogger(join(directory, 'logs'));
+            const coordinator = new AgentCoordinator(
+                database,
+                createAgents(snapshot),
+                () => {},
+                logger,
+                { refreshDelayMs: 60_000 },
+            );
+            try {
+                coordinator.beginTerminalLaunch(terminalId, 'launch-1');
+                coordinator.observeOutput(terminalId, 123);
+                const pending = coordinator.probeTerminalNow(terminalId);
+                await entered.promise;
+                if (boundary === 'hook') {
+                    coordinator.observeLifecycleSignal({
+                        agentSessionId: 'hook-thread',
+                        launchId: 'launch-1',
+                        phase: 'sessionIdentified',
+                        provider: 'codex',
+                        terminalId,
+                    });
+                } else {
+                    coordinator.endTerminalLaunch(terminalId);
+                }
+                gate.resolve();
+                await pending;
+                expect(database.getTerminal(terminalId)?.agentSessionId).toBe(
+                    boundary === 'hook' ? 'hook-thread' : undefined,
+                );
+            } finally {
+                gate.resolve();
+                coordinator.close();
+                database.close();
+                await logger.flush();
+            }
+        },
+    );
+
+    it('limits unbound process probes to one per thirty seconds and resets the budget on resume', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-process-identity-budget-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'codex');
+        const terminalId = created.terminal!.id;
+        database.updateTerminalState(terminalId, 'running');
+        const snapshot = vi.fn<AgentAdapter['snapshot']>(() =>
+            Promise.resolve({
+                provider: 'codex',
+                status: 'unknown',
+                observedAt: Date.now(),
+                available: true,
+            }),
+        );
+        const logger = new StructuredLogger(join(directory, 'logs'));
+        const coordinator = new AgentCoordinator(
+            database,
+            createAgents(snapshot),
+            () => {},
+            logger,
+            { refreshDelayMs: 60_000 },
+        );
+        let now = Date.now();
+        const clock = vi.spyOn(Date, 'now').mockImplementation(() => now);
+        try {
+            coordinator.observeOutput(terminalId, 123);
+            await coordinator.probeTerminalNow(terminalId);
+            now += 5_000;
+            await coordinator.probeTerminalNow(terminalId);
+            now += 25_000;
+            await coordinator.probeTerminalNow(terminalId);
+            expect(snapshot.mock.calls.map(([context]) => context.shellPid)).toEqual([
+                123,
+                undefined,
+                123,
+            ]);
+            coordinator.prepareTerminalResume(terminalId);
+            coordinator.observeOutput(terminalId, 456);
+            await coordinator.probeTerminalNow(terminalId);
+            expect(snapshot.mock.lastCall?.[0].shellPid).toBe(456);
+        } finally {
+            clock.mockRestore();
+            coordinator.close();
+            database.close();
+            await logger.flush();
+        }
+    });
+
     it('refreshes the title when SessionStart identifies an already-bound resumed thread', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-hook-session-start-'));
         temporaryDirectories.push(directory);
