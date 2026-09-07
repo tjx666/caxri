@@ -43,7 +43,7 @@ export const workbenchMethods = {
 } as const satisfies Record<string, MethodSpec>;
 
 /**
- * Main-only authority handoff; paths never enter the public Renderer contract.
+ * Main-only authority handoff; Renderer commands cannot submit a path to authorize a candidate.
  */
 export const workbenchInternalMethods = {
     'session.workbenchCandidate.claim': {

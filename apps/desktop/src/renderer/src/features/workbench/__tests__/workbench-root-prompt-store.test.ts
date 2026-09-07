@@ -12,27 +12,49 @@ describe('workbench root prompt store', () => {
     });
 
     it('shows a candidate for a Session', () => {
-        showWorkbenchRootCandidate({ candidateId: 'candidate-1', sessionId: 'session-1' });
+        showWorkbenchRootCandidate({
+            candidateId: 'candidate-1',
+            sessionId: 'session-1',
+            rootPath: '/worktree-1',
+        });
 
         expect(useWorkbenchRootPromptStore.getState().candidates['session-1']).toEqual({
             candidateId: 'candidate-1',
             sessionId: 'session-1',
+            rootPath: '/worktree-1',
         });
     });
 
     it('replaces a Session prior candidate when shown again', () => {
-        showWorkbenchRootCandidate({ candidateId: 'candidate-1', sessionId: 'session-1' });
-        showWorkbenchRootCandidate({ candidateId: 'candidate-2', sessionId: 'session-1' });
+        showWorkbenchRootCandidate({
+            candidateId: 'candidate-1',
+            sessionId: 'session-1',
+            rootPath: '/worktree-1',
+        });
+        showWorkbenchRootCandidate({
+            candidateId: 'candidate-2',
+            sessionId: 'session-1',
+            rootPath: '/worktree-2',
+        });
 
         expect(useWorkbenchRootPromptStore.getState().candidates['session-1']).toEqual({
             candidateId: 'candidate-2',
             sessionId: 'session-1',
+            rootPath: '/worktree-2',
         });
     });
 
     it('keeps candidates for different Sessions independent', () => {
-        showWorkbenchRootCandidate({ candidateId: 'candidate-1', sessionId: 'session-1' });
-        showWorkbenchRootCandidate({ candidateId: 'candidate-2', sessionId: 'session-2' });
+        showWorkbenchRootCandidate({
+            candidateId: 'candidate-1',
+            sessionId: 'session-1',
+            rootPath: '/worktree-1',
+        });
+        showWorkbenchRootCandidate({
+            candidateId: 'candidate-2',
+            sessionId: 'session-2',
+            rootPath: '/worktree-2',
+        });
 
         dismissWorkbenchRootCandidate('session-1');
 
@@ -40,11 +62,16 @@ describe('workbench root prompt store', () => {
         expect(useWorkbenchRootPromptStore.getState().candidates['session-2']).toEqual({
             candidateId: 'candidate-2',
             sessionId: 'session-2',
+            rootPath: '/worktree-2',
         });
     });
 
     it('dismisses a candidate for a Session', () => {
-        showWorkbenchRootCandidate({ candidateId: 'candidate-1', sessionId: 'session-1' });
+        showWorkbenchRootCandidate({
+            candidateId: 'candidate-1',
+            sessionId: 'session-1',
+            rootPath: '/worktree-1',
+        });
 
         dismissWorkbenchRootCandidate('session-1');
 

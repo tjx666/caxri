@@ -237,25 +237,19 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
                         sessionId,
                         projectId: candidate.projectId,
                     });
-                const testRoot = options.nextTestRoot();
-                const result = testRoot
-                    ? { canceled: false, filePaths: [testRoot] }
-                    : await chooseDirectory(options.getWindow(), {
-                          title: 'Authorize Git Worktree',
-                          defaultPath: candidate.rootPath,
-                          properties: ['openDirectory'],
-                      });
-                const selectedPath = result.filePaths[0];
-                if (!selectedPath || result.canceled) return { canceled: true as const };
-                const [expectedRoot, selectedRoot] = await Promise.all([
-                    realpath(candidate.rootPath),
-                    realpath(selectedPath),
-                ]);
-                if (selectedRoot !== expectedRoot)
+                /**
+                 * Continue authorizes the exact Server-owned candidate, never a Renderer-supplied path. Server
+                 * revalidates the candidate and Git topology before consuming this single-use root grant.
+                 */
+                let selectedRoot: string;
+                try {
+                    selectedRoot = await realpath(candidate.rootPath);
+                } catch {
                     throw new CaxriError(
-                        'PATH_DENIED',
-                        'Selected folder does not match the detected worktree',
+                        'NOT_FOUND',
+                        'The worktree candidate is no longer available',
                     );
+                }
                 options.grants.grant(selectedRoot);
                 try {
                     return await options.grants.use(selectedRoot, () =>

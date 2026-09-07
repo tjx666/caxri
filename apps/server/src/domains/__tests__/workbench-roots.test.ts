@@ -553,6 +553,7 @@ describe('WorkbenchRootService worktree attribution', () => {
         );
         const candidate = context.events.find((event) => event.event === 'workbench.candidate');
         if (candidate?.event !== 'workbench.candidate') throw new Error('Candidate not emitted');
+        expect(candidate.payload.rootPath).toBe(context.worktreeRoot);
         context.service.claimCandidate(
             context.sessions[0].session.id,
             candidate.payload.candidateId,

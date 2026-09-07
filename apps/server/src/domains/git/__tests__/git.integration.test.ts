@@ -12,6 +12,7 @@ import { CaxriDatabase } from '../../db/repository';
 import { ProjectRootResolver } from '../../project-roots';
 import { describeGitFailure, GitService } from '..';
 import type { GitMetadataWatcher } from '../metadata-watcher';
+import { computeRepoId } from '../repo';
 
 const temporaryDirectories: string[] = [];
 const gitServices: GitService[] = [];
@@ -594,11 +595,11 @@ describe('GitService', () => {
         database.close();
     });
 
-    it('discovers approved worktrees, nested repositories, and submodules independently', async () => {
+    it('discovers initialized children without projecting linked worktrees', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-git-hierarchy-'));
         temporaryDirectories.push(directory);
-        const root = join(directory, 'primary');
-        const linked = join(directory, 'linked');
+        const root = join(directory, 'owner');
+        const linked = join(root, 'feature');
         const submoduleSource = join(directory, 'submodule-source');
         await execFileAsync('mkdir', ['-p', root, submoduleSource]);
 
@@ -664,7 +665,15 @@ describe('GitService', () => {
         expect(performance.now() - startedAt).toBeLessThan(3_000);
         expect(
             repositories.map((repo) => repo.kind).toSorted((a, b) => a.localeCompare(b)),
-        ).toEqual(['nested', 'primary', 'submodule', 'worktree']);
+        ).toEqual(['nested', 'primary', 'submodule']);
+        const linkedRoot = await realpath(linked);
+        expect(repositories.every((repo) => repo.rootPath !== linkedRoot)).toBe(true);
+        expect(repositories.find((repo) => repo.kind === 'nested')?.rootPath).toBe(
+            await realpath(nested),
+        );
+        await expect(
+            git.diffDocument(session.id, computeRepoId(linkedRoot), 'root.txt'),
+        ).rejects.toMatchObject({ code: 'PATH_DENIED' });
         const primary = repositories.find((repo) => repo.kind === 'primary')!;
         expect(
             primary.files.map((file) => file.path).toSorted((a, b) => a.localeCompare(b)),
