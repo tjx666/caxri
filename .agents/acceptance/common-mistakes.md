@@ -204,3 +204,27 @@ virtualization, development shells, and UI-tree polling dominate several measure
 **Works:** Use virtual-device measurements as diagnostics only. A release-performance acceptance
 case names one physical device, current release build, sampling method, repetition count, and budget
 from `docs/mobile/PERFORMANCE.md`.
+
+## Creating an isolated Project through the E2E bridge
+
+**Situation:** `CAXRI_E2E=1` exposes `globalThis.caxri.request` in the Renderer, and the case needs
+a Project before any Session can be prepared.
+
+**Does not work:** Calling `project.create` over the bridge with the fixture path. The launcher only
+queues the test root for the real Add Project flow, so the direct call fails with `PATH_DENIED`.
+
+**Works:** Press `Cmd+O` and choose `Start without a Terminal`; the queued `CAXRI_TEST_ROOT_PATH`
+fixture is added without a native file picker. Use the bridge afterwards for `session.create`,
+`session.rename`, and `session.archive` to shape the fixture state.
+
+## Reopening a flow while a dialog is still mounted
+
+**Situation:** A Radix/Base UI dialog such as Archived Sessions is open when the next step presses a
+global shortcut like `Cmd+O`.
+
+**Does not work:** Pressing the shortcut while the dialog is mounted. The dialog swallows the key,
+the Add Project flow never opens, and the following capture records the wrong state, so the
+artifact must be deleted and recaptured.
+
+**Works:** Close the dialog through its own control (`Done`), wait until the overlay is unmounted in
+the DOM snapshot, then send the shortcut.
