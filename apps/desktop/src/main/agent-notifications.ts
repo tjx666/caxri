@@ -24,6 +24,32 @@ export interface AgentSystemNotificationHandle {
     close(): void;
 }
 
+/**
+ * Why a newly raised Session attention did or did not become a banner. `shown` is the only success; every other value
+ * names the single gate that stopped it, so a missing or unexpected notification can be explained from the log alone.
+ */
+type AgentNotificationOutcome =
+    | 'shown'
+    | 'archived'
+    | 'read'
+    | 'visible'
+    | 'disabled'
+    | 'noProvider'
+    | 'belowThreshold'
+    | 'unsupportedAttention'
+    | 'settingsStale';
+
+export interface AgentNotificationDecision {
+    attentionEpoch: number;
+    attentionKind: SessionRecord['lastAttentionKind'];
+    /**
+     * Turn duration used for the completion threshold; absent when no turn start was observed.
+     */
+    durationMs?: number;
+    outcome: AgentNotificationOutcome;
+    sessionId: string;
+}
+
 interface AgentNotificationCoordinatorOptions {
     activateSession(sessionId: string): Promise<void>;
     isSessionVisible(sessionId: string, selectedSessionId: string | undefined): boolean;
@@ -34,6 +60,10 @@ interface AgentNotificationCoordinatorOptions {
     }): Promise<{ sessions: SessionRecord[]; terminals: TerminalRecord[] }>;
     loadSettings(): Promise<AppSettings>;
     onNotificationsSuppressed?(count: number): void;
+    /**
+     * Reports once per newly raised attention epoch, never for the routine record refreshes in between.
+     */
+    onDecision?(decision: AgentNotificationDecision): void;
     onError?(error: unknown): void;
     showNotification(
         notification: AgentSystemNotification,
@@ -142,24 +172,47 @@ export function createAgentNotificationCoordinator(
         sessions.set(session.id, session);
         if (session.lastActivityState === 'completed' || session.lastActivityState === 'failed')
             turnStartedAt.delete(session.id);
+        const isNewAttention =
+            shouldNotify && session.attentionEpoch > (previous?.attentionEpoch ?? 0);
+        const durationMs =
+            startedAt === undefined ? undefined : session.lastSessionActivityAt - startedAt;
+        const decide = (outcome: AgentNotificationOutcome): void => {
+            if (!isNewAttention) return;
+            options.onDecision?.({
+                attentionEpoch: session.attentionEpoch,
+                attentionKind: session.lastAttentionKind,
+                ...(durationMs !== undefined && { durationMs }),
+                outcome,
+                sessionId: session.id,
+            });
+        };
 
-        if (
-            session.archivedAt !== undefined ||
-            !session.hasUnread ||
-            options.isSessionVisible(session.id, selectedSessionId)
-        ) {
+        if (session.archivedAt !== undefined) {
             closeNotification(session.id);
+            decide('archived');
+            return;
+        }
+        if (!session.hasUnread) {
+            closeNotification(session.id);
+            decide('read');
+            return;
+        }
+        if (options.isSessionVisible(session.id, selectedSessionId)) {
+            closeNotification(session.id);
+            decide('visible');
             return;
         }
         if (!settings?.['agents.notifications.enabled']) {
             closeNotification(session.id);
+            decide('disabled');
             return;
         }
-        if (!shouldNotify || session.attentionEpoch <= (previous?.attentionEpoch ?? 0)) return;
+        if (!isNewAttention) return;
 
         const provider = providerForSession(session);
         if (!provider) {
             closeNotification(session.id);
+            decide('noProvider');
             return;
         }
 
@@ -167,25 +220,27 @@ export function createAgentNotificationCoordinator(
         if (session.lastAttentionKind === 'waiting') {
             body = `${agentProviderCatalog[provider].displayName} is waiting for your input.`;
         } else if (session.lastAttentionKind === 'completed') {
-            const durationMs =
-                startedAt === undefined ? undefined : session.lastSessionActivityAt - startedAt;
             const thresholdMs = settings['agents.notifications.completionThresholdSeconds'] * 1_000;
             if (durationMs === undefined || durationMs < thresholdMs) {
                 closeNotification(session.id);
+                decide('belowThreshold');
                 return;
             }
             body = `${agentProviderCatalog[provider].displayName} completed a turn.`;
         } else {
             closeNotification(session.id);
+            decide('unsupportedAttention');
             return;
         }
 
         if (isSettingsStale) {
             suppressedNotificationCount += 1;
+            decide('settingsStale');
             return;
         }
 
         closeNotification(session.id);
+        decide('shown');
 
         const handle = options.showNotification(
             {

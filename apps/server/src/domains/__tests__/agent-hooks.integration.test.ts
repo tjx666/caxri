@@ -367,6 +367,39 @@ describe('Runtime Agent hook integration', () => {
                 JSON.stringify({ agent_id: 'subagent-1', session_id: 'claude-session' }),
             );
             expect((await subagentFinished).stdout).toBe('{}\n');
+            /**
+             * Claude resumes the parent turn on its own once the last background subagent stops, so the deferred
+             * completion must not settle here; the resumed turn's own `Stop` ends the work.
+             */
+            expect(
+                await runtime.handlers['app.records']({
+                    sessionIds: [created.session.id],
+                    terminalIds: [],
+                }),
+            ).toMatchObject({
+                sessions: [{ attentionEpoch: 0, hasUnread: false, lastActivityState: 'running' }],
+            });
+
+            await execFileAsync(
+                bridge,
+                ['--source', 'caxri', '--provider', 'claude', '--phase', 'turnStarted'],
+                { env: { ...process.env, ...environment } },
+            );
+            const resumedFinished = await execFileAsync(
+                bridge,
+                [
+                    '--source',
+                    'caxri',
+                    '--provider',
+                    'claude',
+                    '--phase',
+                    'turnFinished',
+                    '--reply',
+                    'empty-json',
+                ],
+                { env: { ...process.env, ...environment } },
+            );
+            expect(resumedFinished.stdout).toBe('{}\n');
             await expect
                 .poll(async () => {
                     const records = await runtime.handlers['app.records']({

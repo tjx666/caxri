@@ -326,6 +326,8 @@ const actions = [
   ['subagent-started', 'SubagentStart', { agent_id: 'subagent-1' }],
   ['parent-finished', 'Stop', {}],
   ['subagent-finished', 'SubagentStop', { agent_id: 'subagent-1' }],
+  ['parent-resumed', 'UserPromptSubmit', {}],
+  ['resumed-finished', 'Stop', {}],
 ];
 setInterval(() => {
   for (const [name, event, payload] of actions) {
@@ -429,8 +431,33 @@ process.stdout.write('Fake Claude subagent lifecycle ready\r\n');
             path: testInfo.outputPath('parent-finished-subagent-still-running.png'),
         });
 
+        /**
+         * Real Claude Code resumes the parent turn on its own right after `SubagentStop`, so the last child stopping
+         * must not settle the Session or notify; only the resumed turn's `Stop` does.
+         */
         await writeFile(join(config, 'subagent-finished'), '', 'utf8');
         await waitForReceipt(join(config, 'subagent-finished.receipt'));
+        await writeFile(join(config, 'parent-resumed'), '', 'utf8');
+        await waitForReceipt(join(config, 'parent-resumed.receipt'));
+        const afterSubagent = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
+        expect(
+            afterSubagent.sessions.find((session) => session.id === sourceSessionId),
+        ).toMatchObject({
+            attentionEpoch: 0,
+            hasUnread: false,
+            lastActivityState: 'running',
+        });
+        expect(
+            await running.app.evaluate(() => {
+                const state = globalThis as typeof globalThis & {
+                    __caxriAgentNotifications?: unknown[];
+                };
+                return state.__caxriAgentNotifications?.length ?? 0;
+            }),
+        ).toBe(0);
+
+        await writeFile(join(config, 'resumed-finished'), '', 'utf8');
+        await waitForReceipt(join(config, 'resumed-finished.receipt'));
         await expect
             .poll(async () => {
                 const bootstrap = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
