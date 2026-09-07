@@ -116,7 +116,14 @@ export function EditorSurface({ paneId, path }: { paneId: string; path: string }
     if (gitDiffTab)
         return (
             <Suspense fallback={<div className={emptyWorkClassName}>Loading diff editor…</div>}>
-                <GitDiffEditor paneId={paneId} tab={gitDiffTab} tabPath={path} />
+                {/*
+                 * Keyed per diff resource so switching between two diff tabs in one pane remounts the editor instead
+                 * of re-pointing a live one. `@monaco-editor/react`'s DiffEditor swaps a changed model path only on
+                 * the inner editors, but Monaco's `DiffEditorWidget.getModel()` still answers with the pair it was
+                 * mounted with, so the wrapper's `original` update effect writes the new tab's original text into
+                 * the previous tab's model and the diff keeps being computed against that stale pair.
+                 */}
+                <GitDiffEditor key={path} paneId={paneId} tab={gitDiffTab} tabPath={path} />
             </Suspense>
         );
     const transcriptTab = parseAgentTranscriptTab(path);
