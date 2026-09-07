@@ -22,7 +22,7 @@ describe('decideInputPromotionCandidate', () => {
     it('opens an input candidate for a bound Terminal whose Agent exited and for a Shell', () => {
         expect(
             decideInputPromotionCandidate(
-                { lastAgentProcessState: 'exited', provider: 'claude' },
+                { lastAgentProcessState: 'stopped', provider: 'claude' },
                 'codex',
                 5,
             ),
