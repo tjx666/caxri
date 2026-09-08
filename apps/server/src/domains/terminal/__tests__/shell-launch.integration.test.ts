@@ -38,16 +38,12 @@ describe('TerminalManager shell integration launch', () => {
             args: ['--controlled'],
             environment: { ...environment, CAXRI_INTEGRATED: executable },
         }));
-        const manager = createTestTerminalManager(
-            database,
-            () => {},
-            new StructuredLogger(join(directory, 'logs')),
-            {
-                resolveExecutable: () => Promise.resolve('/bin/zsh'),
-                shellIntegration,
-                spawn,
-            },
-        );
+        const logger = new StructuredLogger(join(directory, 'logs'));
+        const manager = createTestTerminalManager(database, () => {}, logger, {
+            resolveExecutable: () => Promise.resolve('/bin/zsh'),
+            shellIntegration,
+            spawn,
+        });
 
         try {
             await manager.start(created.terminal!);
@@ -61,6 +57,7 @@ describe('TerminalManager shell integration launch', () => {
         } finally {
             manager.close(created.terminal!.id);
             database.close();
+            await logger.flush();
         }
     });
 
@@ -70,18 +67,14 @@ describe('TerminalManager shell integration launch', () => {
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'shell');
         const spawn = vi.fn<typeof spawnPty>(() => createFakePty());
-        const manager = createTestTerminalManager(
-            database,
-            () => {},
-            new StructuredLogger(join(directory, 'logs')),
-            {
-                resolveExecutable: () => Promise.resolve('/bin/fish'),
-                shellIntegration: () => {
-                    throw new Error('integration unavailable');
-                },
-                spawn,
+        const logger = new StructuredLogger(join(directory, 'logs'));
+        const manager = createTestTerminalManager(database, () => {}, logger, {
+            resolveExecutable: () => Promise.resolve('/bin/fish'),
+            shellIntegration: () => {
+                throw new Error('integration unavailable');
             },
-        );
+            spawn,
+        });
 
         try {
             await expect(manager.start(created.terminal!)).resolves.toBeDefined();
@@ -90,6 +83,7 @@ describe('TerminalManager shell integration launch', () => {
         } finally {
             manager.close(created.terminal!.id);
             database.close();
+            await logger.flush();
         }
     });
 });
