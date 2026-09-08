@@ -30,6 +30,72 @@ afterEach(async () => {
  * unbound process fallback must both respect current Terminal ownership.
  */
 describe('AgentCoordinator session rebinding', () => {
+    it.each([false, true])(
+        'holds an early Shell turn behind foreground confirmation (retired: %s)',
+        async (retired) => {
+            const directory = await mkdtemp(join(tmpdir(), 'caxri-shell-hook-confirmation-'));
+            temporaryDirectories.push(directory);
+            const database = new CaxriDatabase(join(directory, 'state.db'));
+            const created = database.createSession(database.createProject(directory).id, 'shell');
+            const terminalId = created.terminal!.id;
+            database.updateTerminalState(terminalId, 'running');
+            const confirmation = Promise.withResolvers<'codex'>();
+            const logger = new StructuredLogger(join(directory, 'logs'));
+            const coordinator = new AgentCoordinator(
+                database,
+                createAgents(() =>
+                    Promise.resolve({
+                        provider: 'codex',
+                        status: 'unknown',
+                        sessionId: 'unrelated-metadata-thread',
+                        available: true,
+                        observedAt: Date.now(),
+                    }),
+                ),
+                () => {},
+                logger,
+                {
+                    detectForegroundAgent: () => confirmation.promise,
+                    refreshDelayMs: 60_000,
+                },
+            );
+            try {
+                coordinator.beginTerminalLaunch(terminalId, 'shell-launch');
+                coordinator.observeInput(terminalId, 'codex resume resumed-thread\r');
+                coordinator.observeOutput(terminalId, 123);
+                expect(
+                    coordinator.observeLifecycleSignal({
+                        terminalId,
+                        launchId: 'shell-launch',
+                        provider: 'codex',
+                        phase: 'turnStarted',
+                        agentSessionId: 'resumed-thread',
+                    }),
+                ).toBe('providerMismatch');
+                await coordinator.probeTerminalNow(terminalId);
+                expect(database.getTerminal(terminalId)?.provider).toBeUndefined();
+                expect(database.getSession(created.session.id)?.lastActivityState).toBe('idle');
+                if (retired) coordinator.endTerminalLaunch(terminalId);
+                confirmation.resolve('codex');
+                if (retired) {
+                    await confirmation.promise;
+                    await coordinator.probeTerminalNow(terminalId);
+                    expect(database.getTerminal(terminalId)?.provider).toBeUndefined();
+                } else {
+                    await expect
+                        .poll(() => database.getSession(created.session.id)?.lastActivityState)
+                        .toBe('running');
+                    expect(database.getTerminal(terminalId)?.agentSessionId).toBe('resumed-thread');
+                }
+            } finally {
+                confirmation.resolve('codex');
+                coordinator.close();
+                database.close();
+                await logger.flush();
+            }
+        },
+    );
+
     it.each(['hook', 'exit'] as const)(
         'discards an open-file identity result after %s retires its authority',
         async (boundary) => {

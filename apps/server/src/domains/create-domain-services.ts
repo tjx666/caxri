@@ -100,7 +100,7 @@ export async function createDomainServices(
         });
     }
     /**
-     * Explicit Terminal-to-Agent wiring keeps provider checks in the composition root instead of a shared event sink.
+     * Terminal-to-Agent wiring keeps provider checks in the composition root.
      */
     const agentDispatchState: { service?: AgentDispatchService } = {};
     const terminals = new TerminalManager(database, send, logger, {
@@ -109,6 +109,8 @@ export async function createDomainServices(
         agentLaunchSettings: dependencies.terminal?.agentLaunchSettings ?? agentLaunchSettings,
         agentOutputRecoverySettings:
             dependencies.terminal?.agentOutputRecoverySettings ?? agentOutputRecoverySettings,
+        shellEnvironment: (terminal) => agentHooks.shellEnvironment(terminal.id),
+        onShellRetired: (terminalId) => agentHooks.endShellLaunch(terminalId),
         lifecycleEnvironment: async (terminal, launch, launchId) => {
             if (!launchId)
                 throw new CaxriError('CONFLICT', 'Managed Agent launch identity is unavailable');
@@ -152,9 +154,7 @@ export async function createDomainServices(
         },
         onLifecycleStarted: (terminal) => {
             suspensionState.service?.observeLaunch(terminal.id);
-            return terminal.kind === 'shell'
-                ? undefined
-                : dependencies.agentEndpoints?.activate(terminal.id);
+            return dependencies.agentEndpoints?.activate(terminal.id);
         },
         onLifecycleRetired: async (terminalId, launchId) => {
             suspensionState.service?.forgetTerminal(terminalId);

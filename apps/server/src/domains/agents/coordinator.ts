@@ -202,15 +202,16 @@ export class AgentCoordinator {
             this.probeGenerations.set(terminalId, (this.probeGenerations.get(terminalId) ?? 0) + 1);
             this.hookLaunches.forget(terminalId);
             this.forgetLifecycleState(terminalId);
-            if (candidate.agentSessionId)
-                this.database.rebindAgentSession(terminalId, provider, candidate.agentSessionId);
         } else if (!this.database.promoteShellToAgent(terminalId, provider)) {
             return false;
         }
+        if (candidate.agentSessionId)
+            this.database.rebindAgentSession(terminalId, provider, candidate.agentSessionId);
         this.shellInputs.delete(terminalId);
         this.shellPromotionCandidates.delete(terminalId);
         this.startedAtByTerminal.set(terminalId, candidate.startedAt);
         this.emitAgentMetadataChange(terminalId);
+        if (candidate.lifecycleSignal) this.observeLifecycleSignal(candidate.lifecycleSignal);
         this.refreshes.schedule(terminalId);
         return true;
     }
@@ -350,8 +351,10 @@ export class AgentCoordinator {
             processState: terminal.lastProcessState,
             startedAt: candidate.startedAt,
         });
+        const currentCandidate = this.shellPromotionCandidates.get(terminal.id);
         if (
-            this.shellPromotionCandidates.get(terminal.id) !== candidate ||
+            currentCandidate !== candidate ||
+            currentCandidate.origin !== 'input' ||
             candidate.expiresAt < Date.now()
         ) {
             return false;
@@ -386,7 +389,8 @@ export class AgentCoordinator {
         shouldRetryClaim: boolean,
     ): Promise<void> {
         const candidate = this.shellPromotionCandidates.get(terminal.id);
-        if (!candidate?.provider || terminal.kind !== 'shell') return;
+        if (!candidate?.provider || terminal.kind !== 'shell' || candidate.origin !== 'input')
+            return;
         const provider = candidate.provider;
         if (candidate.expiresAt < Date.now()) {
             this.shellPromotionCandidates.delete(terminal.id);
@@ -405,8 +409,10 @@ export class AgentCoordinator {
             processState: terminal.lastProcessState,
             startedAt: candidate.startedAt,
         });
+        const currentCandidate = this.shellPromotionCandidates.get(terminal.id);
         if (
-            this.shellPromotionCandidates.get(terminal.id) !== candidate ||
+            currentCandidate !== candidate ||
+            currentCandidate.origin !== 'input' ||
             candidate.expiresAt < Date.now()
         ) {
             return;
@@ -553,6 +559,9 @@ export class AgentCoordinator {
      * Retires lifecycle and in-flight probe authority so a late lookup cannot bind a thread after its PTY exits.
      */
     endTerminalLaunch(terminalId: string): void {
+        this.shellInputs.delete(terminalId);
+        this.shellPromotionCandidates.delete(terminalId);
+        this.shellProcessProbe.cancel(terminalId);
         this.probeGenerations.set(terminalId, (this.probeGenerations.get(terminalId) ?? 0) + 1);
         this.processIdentityProbe.forget(terminalId);
         this.lifecycleWatchdogs.forget(terminalId, true);
@@ -592,12 +601,18 @@ export class AgentCoordinator {
                     provider: signal.provider,
                     startedAt,
                 });
-            } else if (
-                terminal.provider &&
-                existing?.provider === signal.provider &&
-                signal.agentSessionId
+            }
+            const candidate = this.shellPromotionCandidates.get(signal.terminalId);
+            if (
+                candidate &&
+                candidate.expiresAt >= Date.now() &&
+                (!candidate.provider || candidate.provider === signal.provider)
             ) {
-                existing.agentSessionId = signal.agentSessionId;
+                candidate.provider = signal.provider;
+                candidate.origin = 'hook';
+                if (signal.agentSessionId) candidate.agentSessionId = signal.agentSessionId;
+                if (['turnStarted', 'turnFinished', 'attentionRequested'].includes(signal.phase))
+                    candidate.lifecycleSignal = signal;
             }
             return 'providerMismatch';
         }
