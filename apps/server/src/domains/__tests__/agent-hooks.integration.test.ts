@@ -81,7 +81,12 @@ describe('Runtime Agent hook integration', () => {
         await mkdir(projectRoot);
         const spawn = vi.fn<typeof spawnPty>(() => createFakePty());
         const start = vi.spyOn(LocalTerminalExecution.prototype, 'start');
+        const execution = new LocalTerminalExecution({
+            logger: new StructuredLogger(join(directory, 'logs')),
+            spawn,
+        });
         const runtime = await createTestDomainServices({
+            terminalExecution: execution,
             agentAdapters: createPendingAgentAdapters(),
             agentEnvironment: {
                 homeDirectory: directory,
@@ -133,7 +138,11 @@ describe('Runtime Agent hook integration', () => {
             });
             expect(spawn.mock.calls[0]?.[0]).toBe('/bin/zsh');
             const rootEnvironment = spawn.mock.calls[0]?.[2].env;
-            expect(rootEnvironment).not.toHaveProperty('CAXRI_HOOK_TERMINAL_ID');
+            expect(rootEnvironment).toHaveProperty(
+                'CAXRI_HOOK_TERMINAL_ID',
+                background.terminal!.id,
+            );
+            expect(rootEnvironment).not.toHaveProperty('CAXRI_AGENT_ENDPOINT_TOKEN');
             const launchPlan = start.mock.calls[0]?.[0];
             expect(launchPlan).toMatchObject({
                 executable: '/bin/zsh',
@@ -143,6 +152,10 @@ describe('Runtime Agent hook integration', () => {
                 },
             });
             const environment = launchPlan.agent?.environment;
+            expect(rootEnvironment?.CAXRI_HOOK_TOKEN).not.toBe(environment?.CAXRI_HOOK_TOKEN);
+            expect(rootEnvironment?.CAXRI_HOOK_LAUNCH_ID).not.toBe(
+                environment?.CAXRI_HOOK_LAUNCH_ID,
+            );
             expect(environment).toMatchObject({
                 CAXRI_HOOK_TERMINAL_ID: background.terminal!.id,
             });
@@ -157,6 +170,19 @@ describe('Runtime Agent hook integration', () => {
                 ].every((key) => typeof environment?.[key] === 'string' && environment[key] !== ''),
             ).toBe(true);
             const bridge = join(directory, 'shared-hooks', 'bin', 'caxri-agent-hook-bridge');
+            await execFileAsync(
+                bridge,
+                ['--source', 'caxri', '--provider', 'codex', '--phase', 'turnStarted'],
+                { env: { ...process.env, ...rootEnvironment } },
+            );
+            expect(
+                (
+                    await runtime.handlers['app.records']({
+                        sessionIds: [background.session.id],
+                        terminalIds: [],
+                    })
+                ).sessions[0]?.lastActivityState,
+            ).toBe('idle');
             await execFileAsync(
                 bridge,
                 ['--source', 'caxri', '--provider', 'codex', '--phase', 'compactionStarted'],
@@ -232,6 +258,48 @@ describe('Runtime Agent hook integration', () => {
                     })
                 ).sessions[0]?.lastSessionActivityAt,
             ).toBeGreaterThan(backgroundCreatedAt);
+
+            /**
+             * The managed token dies with its child; only the independent Shell observer resumes.
+             */
+            expect(execution.emitAgentExit(background.terminal!.id, 0)).toBe(true);
+            await expect
+                .poll(
+                    async () =>
+                        (
+                            await runtime.handlers['app.records']({
+                                sessionIds: [],
+                                terminalIds: [background.terminal!.id],
+                            })
+                        ).terminals[0]?.lastAgentProcessState,
+                )
+                .toBe('stopped');
+            const retired = await execFileAsync(
+                bridge,
+                ['--source', 'caxri', '--provider', 'codex', '--phase', 'turnStarted'],
+                { env: { ...process.env, ...environment } },
+            );
+            expect(retired.stderr).toBe('caxri-hook: signal_rejected\n');
+            await execFileAsync(
+                bridge,
+                ['--source', 'caxri', '--provider', 'codex', '--phase', 'turnStarted'],
+                { env: { ...process.env, ...rootEnvironment } },
+            );
+            expect(
+                (
+                    await runtime.handlers['app.records']({
+                        sessionIds: [background.session.id],
+                        terminalIds: [],
+                    })
+                ).sessions[0]?.lastActivityState,
+            ).toBe('running');
+            await runtime.handlers['terminal.close']({ terminalId: background.terminal!.id });
+            const closed = await execFileAsync(
+                bridge,
+                ['--source', 'caxri', '--provider', 'codex', '--phase', 'turnStarted'],
+                { env: { ...process.env, ...rootEnvironment } },
+            );
+            expect(closed.stderr).toBe('caxri-hook: signal_rejected\n');
         } finally {
             await runtime.close();
         }

@@ -291,9 +291,11 @@ in a Shell cannot fall through to a machine-installed CLI. Focused Electron cove
 bounded E2E-only Terminal output flush delay through the Desktop-to-Server-to-Terminal Host allowlist;
 production keeps the fixed 16 ms coalescing window.
 
-When at least one provider lifecycle integration is enabled, the launch plan adds only an opaque PTY
-generation, local hook-signal path, and random authentication token immediately before spawn; that
-generation is revoked before restart, exit, or close. A new Terminal resolves the global default cwd
+When at least one provider lifecycle integration is enabled, every Shell PTY receives its own observation-only
+hook generation, socket path, and token before spawn. A managed Agent child overrides that context with an
+independently revocable hook generation. Its exit restores Shell observation for manual CLI relaunches while
+retiring its Agent Endpoint authority. Shell restart, exit, suspension, and close revoke the Shell context before
+retiring the child, so an old fallback cannot be reactivated. A new Terminal resolves the global default cwd
 (`~` supported) or falls back to its Project root before its durable record is inserted; restarts always
 reuse that record, and Files/Git authorization remains anchored to the Project root. Switching Sessions
 detaches views but does not stop PTYs. Renderer output delivery is coalesced; per-Terminal queues have a
@@ -525,7 +527,9 @@ Core has resolved its Project, Session, Terminal, provider, and launch configura
 mode-`0600` private Unix socket and gives the Shell only a one-time launcher capability. A fixed launcher
 claims that capability before user startup files run, receives structured executable, argv, cwd, and filtered
 environment fields, removes the capability from the Shell environment, and waits for the Agent child. Endpoint
-and hook credentials exist only in that child plan; they never enter the long-lived Shell environment. Agent
+credentials and the managed hook token exist only in that child plan. The long-lived Shell carries a separate
+observation-only hook token; it has no Agent Endpoint or managed-process control authority, and its signals remain
+inactive while the managed child owns the current hook generation. Agent
 start and exit events carry the exact launch ID so stale generations cannot activate credentials, settle a
 newer dispatch, or receive control signals. Server Core never persists a token or publishes it through events,
 diagnostics, snapshots, or command output. Provider launch evidence classifies only the built-in executable
