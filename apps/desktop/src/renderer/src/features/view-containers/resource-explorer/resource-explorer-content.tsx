@@ -20,28 +20,23 @@ export function ResourceExplorerContent({
             onDrop={controller.dropIntoProjectRoot}
         >
             <DirectoryEntries
-                clearFocusPath={controller.clearFocusPath}
-                key={`${controller.scopeId}:${controller.collapseRevision}`}
+                // Keyed by Project, not Session: switching between Sessions of one Project keeps the mounted tree
+                // (each Session's expansion/selection lives in the scope store), while another Project gets a fresh one.
+                key={`${controller.projectId}:${controller.collapseRevision}`}
                 directory={controller.session.rootPath}
                 editing={controller.editing}
-                expandedPaths={controller.expandedPaths}
-                operations={controller.projectOperations}
-                focusPath={controller.focusPath}
                 projectId={controller.projectId}
                 projectRoot={controller.session.rootPath}
-                selectedPath={controller.selectedPath}
+                scopeId={controller.scopeId}
                 sessionId={controller.session.id}
                 requestFocus={controller.requestFocus}
                 setEditing={controller.setEditing}
-                setPathExpanded={controller.setPathExpanded}
-                setSelectedPath={controller.setSelectedPath}
             />
         </div>
     );
 
     return (
         <div
-            key={controller.scopeId}
             aria-busy={Boolean(controller.pendingOperation)}
             className="secondary-sidebar-content flex min-h-0 flex-1 flex-col overflow-hidden"
         >

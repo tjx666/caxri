@@ -97,9 +97,9 @@ describe('Resource Explorer state', () => {
         expect(initial[scopeId]).toHaveLength(5);
     });
 
-    it('derives recursive expansion only from current Files query data in the active scope', () => {
+    it('derives recursive expansion only from current Files query data in the active Project', () => {
         const viewId = 'files-view';
-        const scopeId = 'session-a:project-a';
+        const scopeId = 'project-a';
         const query = (
             directory: string,
             child: string,
@@ -120,7 +120,7 @@ describe('Resource Explorer state', () => {
                 query('/project', '/project/src'),
                 query('/project/src', '/project/src/stale', { isInvalidated: true }),
                 query('/other-project', '/other-project/docs', {
-                    scopeId: 'session-b:project-b',
+                    scopeId: 'project-b',
                 }),
                 query('/other-view', '/other-view/docs', { viewId: 'other-view' }),
                 {

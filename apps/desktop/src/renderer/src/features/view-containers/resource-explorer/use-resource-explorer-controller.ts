@@ -1,5 +1,5 @@
 import type { DragEvent, RefCallback } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { ProjectRecord, SessionRecord } from '@caxri/protocol';
 
@@ -26,14 +26,11 @@ import {
 } from './file-operation-state';
 import { closeFileSearch, requestFileSearchFocus, useFileSearchStore } from './file-search-state';
 import {
-    fileOperationsForProject,
-    fileTreeRootCaption,
-    knownDirectoryChildrenFromQueries,
-    scopedValue,
-    setScopedPathExpanded,
-    setScopedSubtreeExpanded,
-    setScopedValue,
-} from './resource-explorer-state';
+    collapseScope,
+    setScopeFocusPath,
+    setScopeSelectedPath,
+} from './resource-explorer-scope-store';
+import { fileOperationsForProject, fileTreeRootCaption } from './resource-explorer-state';
 
 /**
  * Every caller fires an already-tracked file action whose own `tryCommand` path reports failures via a toast.
@@ -117,16 +114,13 @@ function useIsCancelRevealed(operation: PendingFileOperation | undefined): boole
 
 export interface ResourceExplorerController {
     cancelPendingOperation: () => void;
-    clearFocusPath: () => void;
     collapseFolders: () => void;
     collapseRevision: number;
     createRootFile: () => void;
     createRootFolder: () => void;
     dropIntoProjectRoot: (event: DragEvent) => void;
     editing: EditRequest | undefined;
-    expandedPaths: Set<string>;
     fileCaptionRef: RefCallback<HTMLDivElement>;
-    focusPath: string | undefined;
     isCancelRevealed: boolean;
     isRootPasteDisabled: boolean;
     isRootPasteEmpty: boolean;
@@ -142,15 +136,8 @@ export interface ResourceExplorerController {
     rootPathCaption: string;
     scopeId: string;
     searchFocusRevision: number;
-    selectedPath: string | undefined;
     session: SessionRecord;
     setEditing: (request?: EditRequest) => void;
-    setPathExpanded: (
-        path: string,
-        isNextExpanded: boolean | ((isCurrentExpanded: boolean) => boolean),
-        isRecursive?: boolean,
-    ) => void;
-    setSelectedPath: (path?: string) => void;
     toggleSearch: () => void;
 }
 
@@ -172,20 +159,20 @@ export function useResourceExplorerController(): ResourceExplorerController | un
     const clipboard = useFileClipboardStore((state) => state.entry);
     const selectedProjectId = project?.id ?? session?.workbenchProjectId;
     const operations = useFileOperationStore((state) => state.operations);
-    const projectOperations = fileOperationsForProject(operations, selectedProjectId);
+    // Memoized explicitly: React Compiler leaves this call uncached, and a fresh array here would otherwise churn the
+    // controller object (and everything keyed on it) on every render.
+    const projectOperations = useMemo(
+        () => fileOperationsForProject(operations, selectedProjectId),
+        [operations, selectedProjectId],
+    );
     const pendingOperation = projectOperations.at(0);
     const isCancelRevealed = useIsCancelRevealed(pendingOperation);
     const fileCaptionReference = useRef<HTMLDivElement>(null);
     const [collapseRevision, setCollapseRevision] = useState(0);
-    const [expandedByScope, setExpandedByScope] = useState<Record<string, string[]>>({});
     const [editingState, setEditingState] = useState<{
         request: EditRequest;
         scopeId: string;
     }>();
-    const [focusByScope, setFocusByScope] = useState<Record<string, string | undefined>>({});
-    const [selectionByScope, setSelectionByScope] = useState<Record<string, string | undefined>>(
-        {},
-    );
     const isSearchVisible = useFileSearchStore(
         (state) => Boolean(sessionId) && state.activeSessionId === sessionId,
     );
@@ -200,7 +187,7 @@ export function useResourceExplorerController(): ResourceExplorerController | un
                               requestFileSearchFocus(session.id);
                               break;
                           case 'resource.collapse':
-                              setExpandedByScope((current) => setScopedValue(current, scopeId, []));
+                              collapseScope(scopeId);
                               setCollapseRevision((value) => value + 1);
                               break;
                           case 'resource.createFile':
@@ -246,59 +233,19 @@ export function useResourceExplorerController(): ResourceExplorerController | un
 
     const projectId = selectedProjectId ?? session.workbenchProjectId;
     const editing = editingState?.scopeId === scopeId ? editingState.request : undefined;
-    const focusPath = scopedValue(focusByScope, scopeId);
-    const selectedPath = scopedValue(selectionByScope, scopeId);
     const setEditing = (request?: EditRequest): void =>
         setEditingState(request ? { request, scopeId } : undefined);
-    const setSelectedPath = (path?: string): void =>
-        setSelectionByScope((current) => setScopedValue(current, scopeId, path));
-    const clearFocusPath = (): void =>
-        setFocusByScope((current) => setScopedValue(current, scopeId, undefined));
+    const setSelectedPath = (path?: string): void => setScopeSelectedPath(scopeId, path);
     const requestFocus = (target: FocusTarget): void => {
         if (target.kind === 'path') {
-            setFocusByScope((current) => setScopedValue(current, scopeId, target.path));
+            setScopeFocusPath(scopeId, target.path);
             return;
         }
-        clearFocusPath();
+        setScopeFocusPath(scopeId, undefined);
         const label = target.itemKind === 'file' ? 'New File' : 'New Folder';
         fileCaptionReference.current
             ?.querySelector<HTMLButtonElement>(`button[aria-label="${CSS.escape(label)}"]`)
             ?.focus();
-    };
-    const setPathExpanded = (
-        path: string,
-        isNextExpanded: boolean | ((isCurrentExpanded: boolean) => boolean),
-        isRecursive = false,
-    ): void => {
-        const knownChildren = isRecursive
-            ? knownDirectoryChildrenFromQueries(
-                  queryClient
-                      .getQueryCache()
-                      .findAll({ queryKey: ['viewContainers.viewOperation'] })
-                      .map((query) => ({
-                          data: query.state.data,
-                          isInvalidated: query.state.isInvalidated,
-                          queryKey: query.queryKey,
-                      })),
-                  viewId,
-                  scopeId,
-              )
-            : undefined;
-        setExpandedByScope((current) => {
-            if (!isRecursive) return setScopedPathExpanded(current, scopeId, path, isNextExpanded);
-            const currentPaths = new Set(current[scopeId]);
-            const isExpanded =
-                typeof isNextExpanded === 'function'
-                    ? isNextExpanded(currentPaths.has(path))
-                    : isNextExpanded;
-            return setScopedSubtreeExpanded(
-                current,
-                scopeId,
-                path,
-                knownChildren ?? new Map(),
-                isExpanded,
-            );
-        });
     };
     const isRootPasteEmpty = !clipboard || clipboard.projectId !== projectId;
     const isRootPasteBlocked = isPathBlockedByFileOperations(
@@ -325,7 +272,6 @@ export function useResourceExplorerController(): ResourceExplorerController | un
         cancelPendingOperation: () => {
             if (pendingOperation) discard(cancelFileOperation(client, pendingOperation.id));
         },
-        clearFocusPath,
         collapseFolders: () => {
             if (collapseCommand) executeCommand(collapseCommand);
         },
@@ -339,11 +285,9 @@ export function useResourceExplorerController(): ResourceExplorerController | un
         dropIntoProjectRoot: (event) =>
             discard(dropIntoProjectRoot(event, rootActionContext, rootActionDependencies)),
         editing,
-        expandedPaths: new Set(expandedByScope[scopeId]),
         fileCaptionRef: (node) => {
             fileCaptionReference.current = node;
         },
-        focusPath,
         isCancelRevealed,
         isRootPasteDisabled: isRootPasteEmpty || isRootPasteBlocked,
         isRootPasteEmpty,
@@ -364,11 +308,8 @@ export function useResourceExplorerController(): ResourceExplorerController | un
         rootPathCaption: fileTreeRootCaption(session.rootPath),
         scopeId,
         searchFocusRevision,
-        selectedPath,
         session,
         setEditing,
-        setPathExpanded,
-        setSelectedPath,
         toggleSearch: () => {
             if (isSearchVisible) closeFileSearch(session.id);
             else if (searchCommand) executeCommand(searchCommand);
