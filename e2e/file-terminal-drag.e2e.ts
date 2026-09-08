@@ -153,11 +153,15 @@ test('Git changed files dragged to Terminal insert shell-safe paths without exec
                 .toBe(expectedCwdPath);
         };
 
-        await dragGitFile(mainFileName, mainFileName, join(root, '.git-main-drop-result'));
+        /**
+         * Keep command receipts outside the watched repository: adding a Git row would refresh and temporarily inert
+         * the drag source while the next native drag is in flight.
+         */
+        await dragGitFile(mainFileName, mainFileName, join(testDirectory, '.git-main-drop-result'));
         await dragGitFile(
             nestedFileName,
             join('nested repo', nestedFileName),
-            join(root, '.git-nested-drop-result'),
+            join(testDirectory, '.git-nested-drop-result'),
         );
         await expect(running.page.locator('.workbench-pane')).toHaveCount(1);
         await expect(running.page.locator('.terminal-drop-preview')).toHaveCount(0);
