@@ -105,6 +105,9 @@ export function ViewContainerSurface({
     const [retryingExtensionIds, setRetryingExtensionIds] = useState<ReadonlySet<string>>(
         () => new Set(),
     );
+    const [shownContainerIds, setShownContainerIds] = useState<ReadonlySet<string>>(
+        () => new Set(),
+    );
     const catalogQuery = useCaxriQuery('viewContainers.catalog', {});
     if (catalogQuery.isPending)
         return (
@@ -121,6 +124,12 @@ export function ViewContainerSurface({
     const catalog = catalogQuery.data;
     const containers = catalog.containers.filter((container) => container.location === location);
     const resolvedId = resolveViewContainerId(desiredId, location, catalog);
+    // A container stays mounted (hidden) once it has been shown, so switching back does not rebuild its content:
+    // re-mounting a large Files tree costs hundreds of mounts, and every view keeps its scroll, focus, and expansion.
+    // Adjusting state during render (rather than in an effect) records the first show before the content commits,
+    // so a container never mounts twice.
+    if (resolvedId !== undefined && !shownContainerIds.has(resolvedId))
+        setShownContainerIds(new Set(shownContainerIds).add(resolvedId));
     const idPrefix = location === 'panel' ? 'panel' : 'secondary-sidebar';
     const containersById = new Map(containers.map((container) => [container.id, container]));
     const tabs = containers.map((container) => ({
@@ -193,6 +202,7 @@ export function ViewContainerSurface({
             </div>
             {containers.map((container) => {
                 const isActive = container.id === resolvedId;
+                const isMounted = isActive || shownContainerIds.has(container.id);
                 const views = catalog.views.filter(
                     ({ containerId }) => containerId === container.id,
                 );
@@ -272,7 +282,7 @@ export function ViewContainerSurface({
                                     })()}
                             </div>
                         ) : (
-                            isActive &&
+                            isMounted &&
                             views.map((view) => {
                                 const isOnlyView = views.length === 1;
                                 let content: ReactNode;
