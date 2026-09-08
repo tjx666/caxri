@@ -144,7 +144,6 @@ describe('wire schema versus file schema', () => {
         expect(parsed['agents.providers'].codex.recovery).toEqual(
             defaultAgentProviderSettings.codex.recovery,
         );
-        expect(parsed['agents.providers'].codex.naming).toEqual({ enabled: true });
         expect(parsed['agents.providers'].codex.pasteSummary).toEqual({ enabled: true });
 
         expect(
@@ -162,6 +161,21 @@ describe('wire schema versus file schema', () => {
                 },
             }).success,
         ).toBe(false);
+    });
+
+    it('loads a settings file that still carries the removed automatic-naming key', () => {
+        const parsed = appSettingsFileSchema.parse({
+            'agents.providers': {
+                codex: {
+                    hooks: { enabled: false },
+                    launch: { executable: 'codex', args: [] },
+                    messaging: { enabled: true },
+                    naming: { enabled: false },
+                },
+            },
+        });
+        expect(parsed['agents.providers'].codex).not.toHaveProperty('naming');
+        expect(parsed['agents.providers'].codex.launch.executable).toBe('codex');
     });
 
     it('fills Agent Actions for an existing provider object and validates manual invocations', () => {

@@ -23,7 +23,6 @@ import { claudeHookAdapter } from './hooks';
 import { generateClaudeLowCostText } from './low-cost-generation';
 import type { ClaudeSessionMetadata } from './metadata-cache';
 import { readClaudeSessionMetadata } from './metadata-cache';
-import { claudeNaming } from './naming';
 import {
     claudeTranscriptBaseRoot,
     claudeTranscriptPath,
@@ -49,16 +48,15 @@ interface TranscriptTitleCache extends TranscriptScanCursor {
      */
     aiTitle?: string;
     /**
-     * Latest `custom-title` record: the `/rename` result, including Caxri's non-interactive automatic naming.
+     * Latest `custom-title` record: the `/rename` result, including Caxri's non-interactive manual rename.
      */
     customTitle?: string;
 }
 
 /**
  * Mirrors Claude Code's own resolution (`customTitle || aiTitle`). Claude Code keeps regenerating `ai-title` after
- * later turns, so a "last record wins" read let its generated title silently replace the `/rename` result: the
- * displayed title flapped between the two and automatic naming re-sent the same `/rename` on every turn because the
- * title it read back never matched the one it wrote.
+ * later turns, so a "last record wins" read let its generated title silently replace the `/rename` result and the
+ * displayed title flapped between the two.
  */
 function transcriptTitle(cache: TranscriptTitleCache): string | undefined {
     return cache.customTitle ?? cache.aiTitle;
@@ -133,10 +131,10 @@ const transcriptTitleCaches = new Map<string, TranscriptTitleCache>();
 
 /**
  * Claude Code appends an `ai-title` record for its own generated title and a `custom-title` record for `/rename`,
- * including the non-interactive `/rename` Caxri issues for automatic naming. The live `sessions/<pid>.json` metadata is
- * owned by the interactive process and keeps its directory-derived `name` after an external rename, so the transcript
- * is the only place the renamed title can be read back from. The two record kinds are tracked separately because a
- * `custom-title` outranks any `ai-title` regardless of append order; see {@link transcriptTitle}.
+ * including the non-interactive `/rename` Caxri issues for a manual Session rename. The live `sessions/<pid>.json`
+ * metadata is owned by the interactive process and keeps its directory-derived `name` after an external rename, so the
+ * transcript is the only place the renamed title can be read back from. The two record kinds are tracked separately
+ * because a `custom-title` outranks any `ai-title` regardless of append order; see {@link transcriptTitle}.
  */
 function scanTranscriptLine(line: string, cache: TranscriptTitleCache): void {
     if (!line.includes('"aiTitle"') && !line.includes('"customTitle"')) return;
@@ -230,9 +228,9 @@ function claudeStatus(value: unknown): AgentActivityState | undefined {
  * Resolves the display title without ever promoting a raw prompt into Caxri persistence or an OS notification.
  *
  * A `derived` metadata name (`<directory>-xx`) is a placeholder Claude Code assigns before any real title exists. It is
- * never returned as a title: `decideAgentMetadataUpdate` would otherwise persist it over the title automatic naming
- * just wrote, because the interactive process never refreshes its metadata `name` after an external `/rename`.
- * Returning `undefined` keeps the Session's current title instead.
+ * never returned as a title: `decideAgentMetadataUpdate` would otherwise persist it over the title the last rename just
+ * wrote, because the interactive process never refreshes its metadata `name` after an external `/rename`. Returning
+ * `undefined` keeps the Session's current title instead.
  */
 async function resolveClaudeTitle(
     metadata: ClaudeSessionMetadata,
@@ -358,7 +356,6 @@ export const claudeProvider: AgentProviderDescriptor = {
     },
     hooks: claudeHookAdapter,
     id: 'claude',
-    naming: claudeNaming,
     pasteSummary: {
         summarize: (context) =>
             generateClaudeLowCostText(

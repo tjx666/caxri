@@ -148,7 +148,7 @@ describe('Acceptance Agent fixtures', () => {
             database,
             'SELECT name FROM threads LIMIT 1;',
         ]);
-        expect(String(nativeTitle.stdout).trim()).toBe('Codex Resumed Naming');
+        expect(String(nativeTitle.stdout).trim()).toBe('Codex Renewed Title');
     });
 
     it('exits cleanly on the fixed lifecycle command', async () => {
@@ -325,7 +325,7 @@ describe('Acceptance Agent fixtures', () => {
         );
     });
 
-    it('drives Claude naming and Codex paste summaries while rejecting a Codex naming call', async () => {
+    it('drives paste summaries for both providers and rejects any other text generation', async () => {
         const userDataDirectory = await mkdtemp(join(tmpdir(), 'caxri-acceptance-agent-fixture-'));
         directories.push(userDataDirectory);
         const fixture = await prepareAcceptanceAgentFixture({
@@ -333,6 +333,8 @@ describe('Acceptance Agent fixtures', () => {
             sourceEnvironment: { PATH: '/usr/bin:/bin' },
             userDataDir: userDataDirectory,
         });
+        const pasteSummaryInput =
+            'If the text is a log, build trace, test output, or diagnostic dump:\n\nCAXRI_ACCEPTANCE_PRIVATE_';
         await expect(
             runFixture(
                 fixture.executables.claude,
@@ -340,7 +342,15 @@ describe('Acceptance Agent fixtures', () => {
                 fixture.environment,
                 'CAXRI_ACCEPTANCE_PRIVATE_CLAUDE',
             ),
-        ).resolves.toBe('Claude Automatic Naming');
+        ).rejects.toThrow('Fixture exited with 7');
+        await expect(
+            runFixture(
+                fixture.executables.claude,
+                ['--print', '--model', 'haiku'],
+                fixture.environment,
+                `${pasteSummaryInput}CLAUDE`,
+            ),
+        ).resolves.toContain('Actual error: build failed with code E42');
         await expect(
             runFixture(
                 fixture.executables.codex,
@@ -354,10 +364,13 @@ describe('Acceptance Agent fixtures', () => {
                 fixture.executables.codex,
                 ['exec', '--skip-git-repo-check', '-'],
                 fixture.environment,
-                'If the text is a log, build trace, test output, or diagnostic dump:\n\nCAXRI_ACCEPTANCE_PRIVATE_CODEX',
+                `${pasteSummaryInput}CODEX`,
             ),
         ).resolves.toContain('Actual error: build failed with code E42');
 
+        await expect(readReceipts(fixture.environment.CLAUDE_CONFIG_DIR!)).resolves.toContainEqual(
+            expect.objectContaining({ kind: 'unexpectedTextGeneration', provider: 'claude' }),
+        );
         await expect(readReceipts(fixture.environment.CLAUDE_CONFIG_DIR!)).resolves.toContainEqual(
             expect.objectContaining({
                 argumentContainsPrivateInput: false,
@@ -366,7 +379,7 @@ describe('Acceptance Agent fixtures', () => {
             }),
         );
         await expect(readReceipts(fixture.environment.CODEX_HOME!)).resolves.toContainEqual(
-            expect.objectContaining({ kind: 'unexpectedCodexTextGeneration' }),
+            expect.objectContaining({ kind: 'unexpectedTextGeneration', provider: 'codex' }),
         );
         await expect(readReceipts(fixture.environment.CODEX_HOME!)).resolves.toContainEqual(
             expect.objectContaining({

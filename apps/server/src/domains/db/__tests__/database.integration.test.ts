@@ -386,13 +386,13 @@ describe('CaxriDatabaseConnection', () => {
             )
             .run();
         /**
-         * Migration 0019's automatic-naming backfill has likewise already run in the previous released schema, so seed
-         * its outcome here. The assertion below then proves the upgrade preserves real prior-version rows rather than
-         * re-deriving them from a backfill this run no longer performs.
+         * The previous released schema still carried Caxri's private automatic-naming columns and the outcome of their
+         * one-time backfill. Seeding that real prior-version state is what makes the assertions below prove migration
+         * 0022 drops the mirror without disturbing the user-visible title or its manual ownership.
          */
         previous
             .prepare(
-                "UPDATE sessions SET auto_naming_state = 'stopped' WHERE title_mode = 'manual'",
+                "UPDATE sessions SET auto_naming_state = 'stopped', last_auto_title = 'Generated' WHERE title_mode = 'manual'",
             )
             .run();
         previous.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 1}`);
@@ -416,10 +416,22 @@ describe('CaxriDatabaseConnection', () => {
                 'workbench_root_inode',
                 'last_session_activity_at',
                 'last_session_activity_reason',
-                'auto_naming_state',
-                'last_auto_title',
             ]),
         );
+        /**
+         * Caxri no longer generates Session titles, so its private naming mirror must be gone after the upgrade while
+         * `title_mode` — the ownership flag manual rename still writes — stays.
+         */
+        expect(
+            (upgraded.database.pragma('table_info(sessions)') as Array<{ name: string }>).map(
+                ({ name }) => name,
+            ),
+        ).toEqual(expect.not.arrayContaining(['auto_naming_state', 'last_auto_title']));
+        expect(
+            (upgraded.database.pragma('table_info(sessions)') as Array<{ name: string }>).map(
+                ({ name }) => name,
+            ),
+        ).toContain('title_mode');
         expect(upgraded.projects.list()).toEqual([
             expect.objectContaining({ id: project.id, orderIndex: 0 }),
             expect.objectContaining({ id: oldestProject.id, orderIndex: 1 }),
@@ -458,10 +470,8 @@ describe('CaxriDatabaseConnection', () => {
             hasUnread: false,
             readAttentionEpoch: 0,
             titleMode: 'automatic',
-            autoNamingState: 'active',
         });
         expect(upgraded.sessions.get('session-manual')).toMatchObject({
-            autoNamingState: 'stopped',
             displayTitle: 'Keep this title',
             titleMode: 'manual',
         });

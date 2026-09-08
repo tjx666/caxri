@@ -83,7 +83,6 @@ describe('AgentEndpointLifecycle', () => {
                 hooks: { enabled: false },
                 launch: { executable: 'codex', args: [] },
                 messaging: { enabled: true },
-                naming: { enabled: false },
                 pasteSummary: { enabled: true },
                 recovery: defaultAgentOutputRecoverySettings,
             }),
@@ -126,7 +125,6 @@ describe('AgentEndpointLifecycle', () => {
                 hooks: { enabled: false },
                 launch: { executable: '/bin/zsh', args: [] },
                 messaging: { enabled: true },
-                naming: { enabled: false },
                 pasteSummary: { enabled: true },
                 recovery: defaultAgentOutputRecoverySettings,
             }),
@@ -215,7 +213,6 @@ describe('AgentEndpointLifecycle', () => {
             hooks: { enabled: false },
             launch: { executable: 'codex', args: [] },
             messaging: { enabled: true },
-            naming: { enabled: false },
             pasteSummary: { enabled: true },
             recovery: defaultAgentOutputRecoverySettings,
         };
@@ -255,7 +252,6 @@ describe('AgentEndpointLifecycle', () => {
             hooks: { enabled: false },
             launch: { executable: 'codex', args: [] },
             messaging: { enabled: true },
-            naming: { enabled: false },
             pasteSummary: { enabled: true },
             recovery: defaultAgentOutputRecoverySettings,
         };

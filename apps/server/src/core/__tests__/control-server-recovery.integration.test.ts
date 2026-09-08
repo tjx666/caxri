@@ -18,7 +18,6 @@ function session(displayTitle: string) {
         rootPath: '/private/project-one',
         displayTitle,
         titleMode: 'manual' as const,
-        autoNamingState: 'stopped' as const,
         createdAt: 1,
         lastOpenedAt: 1,
         lastSessionActivityAt: 1,

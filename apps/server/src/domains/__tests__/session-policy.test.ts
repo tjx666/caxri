@@ -15,7 +15,6 @@ import {
     DEFAULT_SESSION_TITLE,
     defaultTerminalTitle,
     firstSelectableProject,
-    isPlaceholderSessionTitle,
     processExitActivityState,
     selectFallbackAfterDeletion,
     sessionActivityReasonForAgentState,
@@ -60,7 +59,6 @@ function session(overrides: Partial<SessionRecord> = {}): SessionRecord {
         layoutVersion: 2,
         displayTitle: DEFAULT_SESSION_TITLE,
         titleMode: 'automatic',
-        autoNamingState: 'active',
         ...overrides,
     };
 }
@@ -261,14 +259,6 @@ describe('choosePrimaryAgentSuccessor', () => {
                 session({ displayTitle: 'Keep me', titleMode: 'manual' }),
             ),
         ).toMatchObject({ displayTitle: 'Keep me', primaryAgentTerminalId: 'claude-1' });
-    });
-});
-
-describe('isPlaceholderSessionTitle', () => {
-    it('recognizes only the neutral default', () => {
-        expect(isPlaceholderSessionTitle(DEFAULT_SESSION_TITLE)).toBe(true);
-        expect(isPlaceholderSessionTitle('Codex session')).toBe(false);
-        expect(isPlaceholderSessionTitle('Investigate hooks')).toBe(false);
     });
 });
 

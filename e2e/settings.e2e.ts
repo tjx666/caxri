@@ -102,9 +102,9 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         // through the table of contents before asserting on its rows.
         await revealSettingsSection(dialog, 'Claude Code');
         await expect(dialog.getByLabel('Claude Code executable')).toHaveValue('claude');
-        // Lifecycle hooks and automatic naming default to enabled. E2E launches with Agent
-        // discovery `blocked`, so the CLI is deliberately absent: the hook waits instead of
-        // installing, and the caption carries the install hint.
+        // Lifecycle hooks default to enabled. E2E launches with Agent discovery `blocked`, so the
+        // CLI is deliberately absent: the hook waits instead of installing, and the caption carries
+        // the install hint.
         await expect(
             dialog.getByRole('switch', { name: 'Claude Code lifecycle hooks' }),
         ).toBeChecked();
@@ -112,13 +112,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
             dialog.getByRole('switch', { name: 'Claude Code peer messaging' }),
         ).toBeChecked();
         await expect(
-            dialog.getByRole('switch', { name: 'Claude Code automatic Session naming' }),
-        ).toBeChecked();
-        await expect(
             dialog.locator('[data-setting-row="agents.claude.hooks"]').getByRole('status'),
-        ).toContainText('Waiting for the agent CLI to be installed');
-        await expect(
-            dialog.locator('[data-setting-row="agents.claude.naming"]').getByRole('status'),
         ).toContainText('Waiting for the agent CLI to be installed');
         await expect(dialog.getByLabel('Claude Code initial arguments')).toBeVisible();
         await expect(
@@ -149,8 +143,8 @@ test('Settings keeps actions visible and provides highlighted editors and live T
 
         await dialog.getByRole('spinbutton', { name: 'Font size' }).fill('14');
         await revealSettingsSection(dialog, 'Claude Code');
-        // Both toggles start enabled, so round-trip them off and back on to exercise the write
-        // path in each direction.
+        // The toggle starts enabled, so round-trip it off and back on to exercise the write path
+        // in each direction.
         await dialog.getByRole('switch', { name: 'Claude Code lifecycle hooks' }).uncheck();
         await expect(
             dialog.locator('[data-setting-row="agents.claude.hooks"]').getByRole('status'),
@@ -168,16 +162,6 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         // `hookHealthLabel` appends the adapter's own advisory message.
         await expect(
             dialog.locator('[data-setting-row="agents.claude.hooks"]').getByRole('status'),
-        ).toContainText('Waiting for the agent CLI to be installed');
-        await dialog
-            .getByRole('switch', { name: 'Claude Code automatic Session naming' })
-            .uncheck();
-        await expect(
-            dialog.locator('[data-setting-row="agents.claude.naming"]').getByRole('status'),
-        ).toHaveText('Disabled');
-        await dialog.getByRole('switch', { name: 'Claude Code automatic Session naming' }).check();
-        await expect(
-            dialog.locator('[data-setting-row="agents.claude.naming"]').getByRole('status'),
         ).toContainText('Waiting for the agent CLI to be installed');
         await expect
             .poll(async () => {
@@ -197,7 +181,6 @@ test('Settings keeps actions visible and provides highlighted editors and live T
                                 hooks: { enabled: boolean };
                                 launch: { executable: string; args: string[] };
                                 messaging: { enabled: boolean };
-                                naming: { enabled: boolean };
                                 pasteSummary: { enabled: boolean };
                                 recovery: {
                                     enabled: boolean;
@@ -219,7 +202,6 @@ test('Settings keeps actions visible and provides highlighted editors and live T
                     args: defaultAgentProviderSettings.claude.launch.args,
                 },
                 messaging: { enabled: true },
-                naming: { enabled: true },
                 pasteSummary: { enabled: true },
                 recovery: {
                     enabled: false,

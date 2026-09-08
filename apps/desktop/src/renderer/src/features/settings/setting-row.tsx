@@ -29,7 +29,7 @@ import { FilesExcludeEditor } from './files-exclude-editor';
 import { IgnoredChecksForm } from './ignored-checks-form';
 import { IntegerControl } from './integer-control';
 import { MobileAccessForm } from './mobile-access-form';
-import { automaticNamingHealthLabel, hookHealthLabel } from './provider-health';
+import { hookHealthLabel } from './provider-health';
 import { ProviderRecoveryEditor } from './provider-recovery-editor';
 import { ProviderSkillHealth } from './provider-skill-health';
 import type { SettingRowDescriptor } from './settings-registry';
@@ -243,23 +243,13 @@ function rowControl(properties: SettingRowProperties): {
                     <FieldDescription role="status">
                         {hookHealthLabel(isEnabled, agentHookHealth?.[binding.provider])}
                     </FieldDescription>
-                ) : binding.field === 'naming' ? (
-                    <FieldDescription role="status">
-                        {automaticNamingHealthLabel(
-                            isEnabled,
-                            providerSettings.hooks.enabled,
-                            agentHookHealth?.[binding.provider],
-                        )}
-                    </FieldDescription>
                 ) : undefined;
             const label = `${providerName} ${
                 binding.field === 'hooks'
                     ? 'lifecycle hooks'
-                    : binding.field === 'naming'
-                      ? 'automatic Session naming'
-                      : binding.field === 'pasteSummary'
-                        ? 'long paste summaries'
-                        : 'peer messaging'
+                    : binding.field === 'pasteSummary'
+                      ? 'long paste summaries'
+                      : 'peer messaging'
             }`;
             return {
                 labelFor: controlId,

@@ -57,7 +57,6 @@ const sessionActivityReasonSchema = z.enum([
 ]);
 const agentOperationSchema = z.enum(['compacting']);
 const sessionTitleModeSchema = z.enum(['automatic', 'manual']);
-const sessionAutoNamingStateSchema = z.enum(['active', 'stopped']);
 export const newWorktreeBehaviorSchema = z.enum(['ask', 'continueWhenAuthorized', 'ignore']);
 export const terminalKindSchema = z.enum([...agentProviderIds, 'shell']);
 const processStateSchema = z.enum([
@@ -85,7 +84,6 @@ export type AgentOperation = z.infer<typeof agentOperationSchema>;
 export type SessionAttentionKind = z.infer<typeof sessionAttentionKindSchema>;
 export type SessionActivityReason = z.infer<typeof sessionActivityReasonSchema>;
 export type SessionTitleMode = z.infer<typeof sessionTitleModeSchema>;
-export type SessionAutoNamingState = z.infer<typeof sessionAutoNamingStateSchema>;
 export type TerminalKind = z.infer<typeof terminalKindSchema>;
 export type ProcessState = z.infer<typeof processStateSchema>;
 export type TerminalFailureReason = z.infer<typeof terminalFailureReasonSchema>;
@@ -167,10 +165,6 @@ export const sessionRecordSchema = z.object({
      * Automatic titles follow the primary Agent; manual titles are owned by the user.
      */
     titleMode: sessionTitleModeSchema,
-    /**
-     * Provider or Caxri manual naming stops background generation until the user explicitly resumes it.
-     */
-    autoNamingState: sessionAutoNamingStateSchema,
 });
 
 export const terminalRecordSchema = z.object({
@@ -317,18 +311,6 @@ const agentHookHealthKindSchema = z.enum([
 const agentHookHealthSchema = z.object({
     kind: agentHookHealthKindSchema,
     message: z.string().max(1_024).optional(),
-    automaticNaming: z
-        .object({
-            kind: z.enum([
-                'ready',
-                'blocked',
-                'unavailable',
-                'lastAttemptBlocked',
-                'lastAttemptFailed',
-            ]),
-            message: z.string().max(1_024).optional(),
-        })
-        .optional(),
 });
 
 export const agentHookHealthMapSchema = z.record(agentProviderSchema, agentHookHealthSchema);
@@ -711,7 +693,6 @@ export type SessionState = z.infer<typeof sessionStateSchema>;
 export type NewWorktreeBehavior = z.infer<typeof newWorktreeBehaviorSchema>;
 export type WorkbenchRootOption = z.infer<typeof workbenchRootOptionSchema>;
 export type AgentHookHealth = z.infer<typeof agentHookHealthSchema>;
-export type AgentAutomaticNamingHealth = NonNullable<AgentHookHealth['automaticNaming']>;
 export type AgentHookHealthMap = z.infer<typeof agentHookHealthMapSchema>;
 export type PersistedWindowState = z.infer<typeof persistedWindowStateSchema>;
 export type Keybinding = z.infer<typeof keybindingSchema>;

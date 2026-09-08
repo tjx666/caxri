@@ -625,8 +625,8 @@ describe('AgentHookManager', () => {
         }
     });
 
-    it('preserves an unaware Claude naming hook and exposes the conflict in health', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-hooks-auto-name-'));
+    it("preserves a user's own Claude session-naming hook while installing Caxri entries", async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-hooks-personal-hook-'));
         temporaryDirectories.push(directory);
         const claudeHome = join(directory, '.claude');
         const hooksPath = join(claudeHome, 'settings.json');
@@ -651,7 +651,6 @@ describe('AgentHookManager', () => {
         );
         const settings = structuredClone(defaultAgentProviderSettings);
         settings.claude.hooks.enabled = true;
-        settings.claude.naming.enabled = true;
         const manager = new AgentHookManager({
             environment: { homeDirectory: directory, variables: {} },
             logger: new StructuredLogger(join(directory, 'logs')),
@@ -669,11 +668,10 @@ describe('AgentHookManager', () => {
         try {
             await manager.initialize(settings);
 
-            expect(manager.hasAutoNamingConflict('claude')).toBe(true);
-            const namingHealth = manager.getHealth().claude.automaticNaming;
-            expect(namingHealth?.kind).toBe('blocked');
-            expect(namingHealth?.message).toContain('--caxri-managed-aware');
-            expect(await readFile(hooksPath, 'utf8')).toContain('session-title-rename.js');
+            expect(manager.getHealth().claude.kind).toBe('installedPending');
+            const installed = await readFile(hooksPath, 'utf8');
+            expect(installed).toContain('session-title-rename.js');
+            expect(installed).toContain('--source caxri');
         } finally {
             await manager.close();
         }

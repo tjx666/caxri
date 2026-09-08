@@ -14,13 +14,13 @@ interface LowCostSandboxDenials {
 /**
  * Builds the macOS sandbox profile that wraps a low-cost text generation.
  *
- * Automatic naming and paste summaries are bounded text transformations, so an Agent CLI must not silently widen them
- * by loading Project or global instruction files. Every provider offers switches for some of those inputs and none for
- * all of them, so the host sandbox is the only place the guarantee can be made uniformly. The profile stays permissive
- * by default so provider authentication, model network access, and the provider's own state directory keep working;
- * only the named reads are removed. The denial is by path, not by purpose: a Project rooted at an ancestor of the
- * provider's state directory or of the CLI's runtime (a home directory added as a Project) makes every generation fail,
- * and the provider health indicator reports it as a generation failure.
+ * Paste summaries are bounded text transformations, so an Agent CLI must not silently widen them by loading Project or
+ * global instruction files. Every provider offers switches for some of those inputs and none for all of them, so the
+ * host sandbox is the only place the guarantee can be made uniformly. The profile stays permissive by default so
+ * provider authentication, model network access, and the provider's own state directory keep working; only the named
+ * reads are removed. The denial is by path, not by purpose: a Project rooted at an ancestor of the provider's state
+ * directory or of the CLI's runtime (a home directory added as a Project) makes every generation fail; the paste flow
+ * then falls back to the unsummarized paste.
  *
  * Paths must already be canonical. `sandbox-exec` matches the resolved path, so a literal or subpath that still
  * contains a symlink component would silently fail to match the file the CLI actually opens.

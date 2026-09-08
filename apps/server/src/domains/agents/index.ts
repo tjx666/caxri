@@ -12,11 +12,6 @@ export { LongPasteService } from './long-paste';
 export { agentProviders } from './providers';
 export { type AgentAdapter, AgentService, createLocalAgentAdapters } from './service';
 export {
-    buildAgentTitlePrompt,
-    normalizeGeneratedAgentTitle,
-    readAgentTitleGitBranch,
-} from './title-generation';
-export {
     locateAgentTranscript,
     readAgentTranscript,
     resolveAgentTranscriptLocation,

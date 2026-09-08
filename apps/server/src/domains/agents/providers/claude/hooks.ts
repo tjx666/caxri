@@ -4,15 +4,9 @@ import type { ParseError } from 'jsonc-parser';
 import { parse } from 'jsonc-parser';
 
 import type { AgentHookAdapter, AgentHookDocuments } from '../../hooks/contract';
-import {
-    inspectJsonHooks,
-    jsonHookCommands,
-    removeJsonHooks,
-    renderJsonHooks,
-} from '../../hooks/json-config';
+import { inspectJsonHooks, removeJsonHooks, renderJsonHooks } from '../../hooks/json-config';
 
 const SETTINGS_TARGET = 'settings';
-const CAXRI_MANAGED_AWARE_FLAG = '--caxri-managed-aware';
 const bindings = [
     { event: 'UserPromptSubmit', phase: 'turnStarted' },
     { event: 'SubagentStart', phase: 'subagentStarted' },
@@ -61,16 +55,6 @@ function disabledHookPolicy(source: string | undefined): string | undefined {
 export const claudeHookAdapter: AgentHookAdapter = {
     bindings,
     schemaVersion: 8,
-    autoNamingConflict: (documents) => {
-        const hasUnawareHook = jsonHookCommands(settingsSource(documents)).some(
-            (command) =>
-                /(?:auto-session-name|session-title-rename)\.js(?=["'\s]|$)/u.test(command) &&
-                !command.split(/\s+/u).includes(CAXRI_MANAGED_AWARE_FLAG),
-        );
-        return hasUnawareHook
-            ? `Existing automatic naming hook detected. Add ${CAXRI_MANAGED_AWARE_FLAG} after making it skip when CAXRI_MANAGED_AGENT=1.`
-            : undefined;
-    },
     configTargets: (environment) => [
         {
             id: SETTINGS_TARGET,

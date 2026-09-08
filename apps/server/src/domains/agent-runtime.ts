@@ -1,6 +1,6 @@
 import process from 'node:process';
 
-import type { AgentAutomaticNamingHealth, AgentProvider, ServerEvent } from '@caxri/protocol';
+import type { AgentProvider, ServerEvent } from '@caxri/protocol';
 import { errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
@@ -17,7 +17,6 @@ import {
 import type { ConfigService } from './config';
 import type { CaxriDatabase } from './db';
 import type { DomainDependencies } from './domain-services';
-import { SessionAutoNamingService } from './session-auto-naming';
 import { SessionRenameService } from './session-rename';
 import type { WatchHub } from './watch-hub';
 import * as provenance from './workbench-provenance';
@@ -47,8 +46,8 @@ interface CreateAgentRuntimeOptions {
 }
 
 /**
- * Composes the Agent provider, lifecycle-hook, native rename, and automatic naming services. Keeping their shared
- * launch identity and settings reconciliation here makes the domain root consume one cohesive Agent runtime.
+ * Composes the Agent provider, lifecycle-hook, and native rename services. Keeping their shared launch identity and
+ * settings reconciliation here makes the domain root consume one cohesive Agent runtime.
  */
 export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
     const {
@@ -75,48 +74,21 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
         refreshDelayMs: dependencies.agentRefreshDelayMs,
     });
     const sessionRenames = new SessionRenameService(database, agents, coordinator, send);
-    let hasAutoNamingConflict: (provider: AgentProvider) => boolean = () => false;
-    const autoNamingHealthReporter: {
-        report?: (provider: AgentProvider, health: AgentAutomaticNamingHealth) => void;
-    } = {};
-    const sessionAutoNaming = new SessionAutoNamingService(
-        database,
-        agents,
-        sessionRenames,
-        () => configuration.getSettings().value,
-        send,
-        logger,
-        {
-            hasForeignHookConflict: (provider) => hasAutoNamingConflict(provider),
-            isCurrentLaunch: (terminalId, launchId) =>
-                coordinator.isCurrentTerminalLaunch(terminalId, launchId),
-            onHealthChanged: (provider, health) =>
-                autoNamingHealthReporter.report?.(provider, health),
-        },
-    );
     const agentHooks = new AgentHookManager({
         discoverExecutable,
         environment: agentEnvironment,
         logger,
         onAuthorityLost: (provider) => coordinator.resetHookAuthority(provider),
-        onLaunchEnded: (terminalId) => {
-            sessionAutoNaming.forgetTerminal(terminalId);
-            coordinator.endTerminalLaunch(terminalId);
-        },
-        onLaunchStarted: (terminalId, launchId) => {
-            sessionAutoNaming.forgetTerminal(terminalId);
-            coordinator.beginTerminalLaunch(terminalId, launchId);
-        },
+        onLaunchEnded: (terminalId) => coordinator.endTerminalLaunch(terminalId),
+        onLaunchStarted: (terminalId, launchId) =>
+            coordinator.beginTerminalLaunch(terminalId, launchId),
         onSignal: async (signal) => {
             const decision = await provenance.handleAgentLifecycleSignal(
                 coordinator,
                 workbenchRoots,
                 signal,
             );
-            if (decision === 'accepted') {
-                sessionAutoNaming.observe(signal);
-                options.onLifecycleSignal?.(signal);
-            }
+            if (decision === 'accepted') options.onLifecycleSignal?.(signal);
             return decision;
         },
         hookExecutable: dependencies.hookExecutable ?? process.execPath,
@@ -125,13 +97,9 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
         userDataPath,
         watchHub,
     });
-    hasAutoNamingConflict = (provider) => agentHooks.hasAutoNamingConflict(provider);
-    autoNamingHealthReporter.report = (provider, health) =>
-        agentHooks.setAutomaticNamingHealth(provider, health);
     await agentHooks.initialize(configuration.getSettings().value['agents.providers']);
     let settingsReconcile = Promise.resolve();
     const unsubscribeSettings = configuration.subscribeSettings((settings) => {
-        sessionAutoNaming.reconcile(settings['agents.providers']);
         /**
          * Preserve setting-update order so a slow probe cannot restore authority after disable.
          */
@@ -163,7 +131,6 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
             await agentHooks.close();
         },
         coordinator,
-        sessionAutoNaming,
         sessionRenames,
     };
 }

@@ -166,7 +166,6 @@ export interface AgentHookAdapter {
      * back and forth forever (issue #557).
      */
     readonly schemaVersion: number;
-    autoNamingConflict?(documents: AgentHookDocuments): string | undefined;
     configTargets(environment: AgentEnvironment): readonly AgentHookConfigTarget[];
     inspect(documents: AgentHookDocuments, desired: DesiredHookInstall): AgentHookInspection;
     remove(
