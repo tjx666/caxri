@@ -1,4 +1,4 @@
-import { commandDefinitions } from '@caxri/protocol';
+import { commandDefinitions, defaultKeybindings } from '@caxri/protocol';
 import type { MenuItem, MenuItemConstructorOptions } from 'electron';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -170,5 +170,24 @@ describe('application menu', () => {
         item?.click?.({} as MenuItem, undefined, {});
         expect(openProcessExplorer).toHaveBeenCalledOnce();
         expect(dispatchCommand).not.toHaveBeenCalled();
+    });
+
+    it('offers Report Bug to Agent above Export Diagnostics with its default accelerator', () => {
+        const template = buildAppMenuTemplate({
+            keybindings: defaultKeybindings,
+            dispatchCommand: vi.fn(),
+            openProcessExplorer: vi.fn(),
+        });
+        const help = submenu(template, 'Help');
+
+        expect(help.map((item) => item.id ?? item.type)).toEqual([
+            'command.processExplorer.open',
+            'separator',
+            'command.developer.reportBug',
+            'command.diagnostics.export',
+        ]);
+        expect(help.find((item) => item.id === 'command.developer.reportBug')?.accelerator).toBe(
+            'Command+Shift+B',
+        );
     });
 });

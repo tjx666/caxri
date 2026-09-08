@@ -2,10 +2,25 @@ import type { AgentProvider, PaneResource, TerminalRecord } from '@caxri/protoco
 import { agentProviderCatalog } from '@caxri/protocol';
 import { redactSecretText } from '@caxri/utils';
 
+import type { ScreenshotAnnotation } from './screenshot-annotations';
+import { formatAnnotationLines } from './screenshot-annotations';
+
 export interface BugReportDraft {
     actual: string;
     expected: string;
     steps: string;
+}
+
+/**
+ * The screenshot as the Agent will see it: a temporary file it can open, plus the marks the user drew on it. The
+ * annotations are repeated as text because an Agent reading only the prompt still has to know which numbered mark the
+ * note belongs to before it decides whether opening the image is worth it.
+ */
+export interface BugReportScreenshotReference {
+    annotations: readonly ScreenshotAnnotation[];
+    height: number;
+    path: string;
+    width: number;
 }
 
 export interface BugReportContext {
@@ -32,12 +47,36 @@ function safeText(value: string): string {
     return redactSecretText(withoutControls.replaceAll('\r\n', '\n').replaceAll('\r', '\n')).trim();
 }
 
+function screenshotSection(screenshot: BugReportScreenshotReference): string[] {
+    const isAnnotated = screenshot.annotations.length > 0;
+    return [
+        '',
+        '## Screenshot',
+        `- File: \`${safeText(screenshot.path)}\` (${Math.round(screenshot.width)}×${Math.round(screenshot.height)} px${isAnnotated ? ', annotated' : ''})`,
+        isAnnotated
+            ? '- Open the image file above to see the marked areas.'
+            : '- Open the image file above to see the captured window.',
+        ...(isAnnotated
+            ? ['- Annotations:', ...formatAnnotationLines(screenshot.annotations, safeText)]
+            : []),
+    ];
+}
+
 /**
  * Produces the complete payload from an allowlisted context model. There is deliberately no input for editor buffers,
  * Terminal output, Agent state, environment variables, or diagnostics fields.
+ *
+ * Reproduction steps are optional: the owner's dominant flow is a screenshot with a note per marked area, where a
+ * numbered step list is either the same information twice or blank filler the Agent then has to ignore. The section is
+ * omitted entirely rather than emitted empty.
  */
-export function buildBugReport(draft: BugReportDraft, context: BugReportContext): string {
+export function buildBugReport(
+    draft: BugReportDraft,
+    context: BugReportContext,
+    screenshot?: BugReportScreenshotReference,
+): string {
     const errorIds = context.recentErrorIds.map((id) => `  - \`${safeText(id)}\``);
+    const steps = safeText(draft.steps);
     const visibleWork =
         context.visibleWork.kind === 'editor'
             ? `Editor: ${safeText(context.visibleWork.fileName)}`
@@ -52,9 +91,8 @@ export function buildBugReport(draft: BugReportDraft, context: BugReportContext)
         '',
         '## Expected behavior',
         safeText(draft.expected),
-        '',
-        '## Reproduction steps',
-        safeText(draft.steps),
+        ...(steps ? ['', '## Reproduction steps', steps] : []),
+        ...(screenshot ? screenshotSection(screenshot) : []),
         '',
         '## Caxri context',
         `- Caxri: ${safeText(context.appVersion)} (${safeText(context.commit)})`,
@@ -96,8 +134,15 @@ export function chooseBugReportTarget(
     return targets.find((terminal) => terminal.id === activeTerminalId)?.id ?? targets[0]?.id;
 }
 
-export function bugReportImageFallback(provider?: AgentProvider): string {
+/**
+ * Explains how the screenshot actually reaches the Agent. Every provider now gets the file path in the report text, so
+ * the notice always promises that much; only a provider with a Caxri-safe image input adds the clipboard-paste
+ * sentence, because that path has a side effect (it overwrites the user's clipboard) they should know about first.
+ */
+export function bugReportImageDeliveryNotice(provider?: AgentProvider): string {
+    const base =
+        'The screenshot is saved to a temporary file and its path is included in the report so the Agent can open it.';
     if (provider && agentProviderCatalog[provider].imageInput)
-        return 'The screenshot will be delivered through this Agent image paste. Sending replaces the system clipboard with the captured image.';
-    return 'Screenshot capture is preview-only. This Agent has no Caxri-safe automated image attachment; the text report will still be sent.';
+        return `${base} It is also pasted into this Agent directly; sending replaces the system clipboard with the image.`;
+    return base;
 }

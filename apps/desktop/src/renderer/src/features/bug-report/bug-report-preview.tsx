@@ -9,17 +9,20 @@ import {
     SelectTrigger,
     SelectValue,
 } from '../../components/ui/select';
-import type { Screenshot } from './use-bug-report-dialog';
+import { BUG_REPORT_SCREENSHOT_ALT } from './bug-report-screenshot-field';
 
 interface BugReportPreviewProperties {
     busy: boolean;
-    imageFallbackNotice: string;
+    imageDeliveryNotice: string;
     onBack: () => void;
     onCopyReport: () => void;
     onSelectedTargetChange: (value: string | undefined) => void;
     onSend: () => void;
     report: string;
-    screenshot: Screenshot | undefined;
+    /**
+     * The annotated rasterization, or the untouched capture when nothing was drawn.
+     */
+    screenshotDataUrl: string | undefined;
     screenshotError: string | undefined;
     selectedTargetId: string | undefined;
     sendError: string | undefined;
@@ -33,13 +36,13 @@ interface BugReportPreviewProperties {
  */
 export function BugReportPreview({
     busy,
-    imageFallbackNotice,
+    imageDeliveryNotice,
     onBack,
     onCopyReport,
     onSelectedTargetChange,
     onSend,
     report,
-    screenshot,
+    screenshotDataUrl,
     screenshotError,
     selectedTargetId,
     sendError,
@@ -52,20 +55,18 @@ export function BugReportPreview({
             <pre className="m-0 max-h-72 overflow-auto rounded border border-border bg-background p-3 text-[11px] leading-relaxed whitespace-pre-wrap text-foreground">
                 {report}
             </pre>
-            {screenshot && (
+            {screenshotDataUrl && (
                 <div className="grid gap-2">
                     <p className="m-0 text-[11px] text-warning">
                         This screenshot is unredacted: it captures everything currently visible in
                         the Caxri window, including open files and Terminal output.
                     </p>
                     <img
-                        alt="Unredacted screenshot of the current Caxri window, including any open files and terminal output"
-                        className="max-h-48 w-full rounded border border-border bg-background object-contain"
-                        height={screenshot.height}
-                        src={screenshot.dataUrl}
-                        width={screenshot.width}
+                        alt={BUG_REPORT_SCREENSHOT_ALT}
+                        className="max-h-96 w-full rounded border border-border bg-background object-contain"
+                        src={screenshotDataUrl}
                     />
-                    <p className="m-0 text-[11px] text-warning">{imageFallbackNotice}</p>
+                    <p className="m-0 text-[11px] text-muted">{imageDeliveryNotice}</p>
                 </div>
             )}
             {screenshotError && <p className="m-0 text-[11px] text-warning">{screenshotError}</p>}

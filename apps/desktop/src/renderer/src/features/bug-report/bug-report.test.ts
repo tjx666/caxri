@@ -1,12 +1,16 @@
 import type { TerminalRecord } from '@caxri/protocol';
+import { bugReportText } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import type { BugReportContext, BugReportDraft } from './bug-report';
 import {
-    bugReportImageFallback,
+    bugReportImageDeliveryNotice,
     buildBugReport,
     chooseBugReportTarget,
     runningAgentTargets,
 } from './bug-report';
+import type { ScreenshotAnnotation } from './screenshot-annotations';
+import { ANNOTATION_NOTE_MAX_LENGTH, MAX_ANNOTATIONS } from './screenshot-annotations';
 
 function terminal(id: string, overrides: Partial<TerminalRecord> = {}): TerminalRecord {
     return {
@@ -27,6 +31,36 @@ function terminal(id: string, overrides: Partial<TerminalRecord> = {}): Terminal
     };
 }
 
+const draft: BugReportDraft = {
+    actual: 'The action failed.',
+    expected: 'The action should finish once.',
+    steps: '',
+};
+
+const context: BugReportContext = {
+    appVersion: '0.0.6',
+    architecture: 'arm64',
+    commit: 'abcdef1',
+    platform: 'darwin',
+    project: { id: 'project-1' },
+    recentErrorIds: [],
+    session: { id: 'session-1' },
+    visibleWork: { kind: 'none' },
+};
+
+function annotation(overrides: Partial<ScreenshotAnnotation> = {}): ScreenshotAnnotation {
+    return {
+        id: 'annotation-1',
+        kind: 'box',
+        note: '',
+        x1: 650,
+        y1: 250,
+        x2: 815,
+        y2: 400,
+        ...overrides,
+    };
+}
+
 describe('bug report content', () => {
     it('builds bounded context without leaking secret-shaped user text', () => {
         const report = buildBugReport(
@@ -36,13 +70,8 @@ describe('bug report content', () => {
                 steps: '1. Open Caxri\n2. Reproduce',
             },
             {
-                appVersion: '0.0.6',
-                architecture: 'arm64',
-                commit: 'abcdef1',
-                platform: 'darwin',
-                project: { id: 'project-1' },
+                ...context,
                 recentErrorIds: ['server-core:ipc.request_failed:2026-08-11T00:00:00.000Z'],
-                session: { id: 'session-1' },
                 visibleWork: {
                     kind: 'terminal',
                     provider: 'claude',
@@ -65,6 +94,94 @@ describe('bug report content', () => {
         expect(report).not.toContain('sigvalue987654321');
         expect(report).toContain('https://example.invalid/object?[REDACTED]');
         expect(report).not.toContain('/private/project');
+    });
+
+    it('omits the reproduction steps section when the optional field is blank', () => {
+        const report = buildBugReport({ ...draft, steps: '   \n  ' }, context);
+
+        expect(report).not.toContain('## Reproduction steps');
+        expect(report).toContain(
+            '## Expected behavior\nThe action should finish once.\n\n## Caxri',
+        );
+    });
+
+    it('names the annotated screenshot file and repeats each mark as text', () => {
+        const report = buildBugReport(draft, context, {
+            annotations: [
+                annotation({ note: 'This button is misaligned' }),
+                annotation({
+                    id: 'annotation-2',
+                    kind: 'arrow',
+                    note: 'Points at the stale token=private-value badge',
+                    x1: 300,
+                    y1: 540,
+                    x2: 575,
+                    y2: 660,
+                }),
+                annotation({ id: 'annotation-3' }),
+            ],
+            height: 1250,
+            path: '/tmp/caxri-bug-report/screenshot.jpg',
+            width: 2000,
+        });
+
+        expect(report).toContain(
+            '## Screenshot\n- File: `/tmp/caxri-bug-report/screenshot.jpg` (2000×1250 px, annotated)',
+        );
+        expect(report).toContain('- Open the image file above to see the marked areas.');
+        expect(report).toContain(
+            '- Annotations:\n  1. [box x=650 y=250 w=165 h=150] This button is misaligned',
+        );
+        expect(report).toContain('  2. [arrow from (300,540) to (575,660)] Points at the stale');
+        expect(report).toContain('  3. [box x=650 y=250 w=165 h=150] (no note)');
+        // Annotation notes are user text and must follow the same redaction rules as the report body.
+        expect(report).not.toContain('private-value');
+        expect(report).toContain('token=[REDACTED]');
+    });
+
+    it('records an unannotated screenshot without claiming it has marked areas', () => {
+        const report = buildBugReport(draft, context, {
+            annotations: [],
+            height: 1250,
+            path: '/tmp/caxri-bug-report/screenshot.jpg',
+            width: 2000,
+        });
+
+        expect(report).toContain('- File: `/tmp/caxri-bug-report/screenshot.jpg` (2000×1250 px)');
+        expect(report).not.toContain('annotated');
+        expect(report).not.toContain('- Annotations:');
+    });
+
+    it('omits the screenshot section when no image was captured', () => {
+        expect(buildBugReport(draft, context)).not.toContain('## Screenshot');
+    });
+
+    /**
+     * The UI caps are only trustworthy together: three 12 000-character draft fields plus `MAX_ANNOTATIONS` notes of
+     * `ANNOTATION_NOTE_MAX_LENGTH` each, with the numbered location prefix `formatAnnotationLines` adds, still have to
+     * fit the `bugReportText` limit. Raising any one of them without checking the others would only fail at send time,
+     * after the user typed everything.
+     */
+    it('keeps a report built from every field at its maximum inside the transport limit', () => {
+        const maximumDraft: BugReportDraft = {
+            actual: 'a'.repeat(12_000),
+            expected: 'e'.repeat(12_000),
+            steps: 's'.repeat(12_000),
+        };
+
+        const report = buildBugReport(maximumDraft, context, {
+            annotations: Array.from({ length: MAX_ANNOTATIONS }, (_unused, index) =>
+                annotation({
+                    id: `annotation-${index}`,
+                    note: 'n'.repeat(ANNOTATION_NOTE_MAX_LENGTH),
+                }),
+            ),
+            height: 1250,
+            path: '/tmp/caxri-bug-reports/caxri-bug-report-2026-01-01T00-00-00.000Z-abcdef12.jpg',
+            width: 2000,
+        });
+
+        expect(bugReportText.safeParse(report).success).toBe(true);
     });
 });
 
@@ -98,11 +215,19 @@ describe('bug report target selection', () => {
         ).toEqual([]);
     });
 
-    it('discloses Codex clipboard-backed screenshot delivery before capture', () => {
-        const notice = bugReportImageFallback('codex');
+    it('promises the saved file path for every Agent', () => {
+        const notice = bugReportImageDeliveryNotice('claude');
 
-        expect(notice).toContain('will be delivered');
-        expect(notice).toContain('system clipboard');
-        expect(notice).toContain('replaces');
+        expect(notice).toContain('saved to a temporary file');
+        expect(notice).toContain('the Agent can open it');
+        expect(notice).not.toContain('clipboard');
+    });
+
+    it('discloses Codex clipboard-backed screenshot delivery before capture', () => {
+        const notice = bugReportImageDeliveryNotice('codex');
+
+        expect(notice).toContain('saved to a temporary file');
+        expect(notice).toContain('pasted into this Agent directly');
+        expect(notice).toContain('replaces the system clipboard');
     });
 });
