@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import type { ExtensionTreeViewState, TreeItemDto, ViewActionDescriptor } from '@caxri/protocol';
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -40,6 +40,8 @@ import {
     isMessageRefreshAction,
     reconcilePendingTreeRefresh,
 } from './extension-tree-refresh-state';
+import type { VisibleItemRow, VisibleRow } from './extension-tree-rows';
+import { flattenVisibleRows, visibleRowKey } from './extension-tree-rows';
 import type { TreeRowAction } from './extension-tree-state';
 import {
     focusTreeItem,
@@ -60,12 +62,6 @@ import { dispatchExtensionViewAction } from './view-container-commands';
  * Message guidance may wrap beyond the initial Empty layout, so its virtual row is measured after render.
  */
 const MESSAGE_ROW_HEIGHT = 160;
-
-function virtualRowKey(row: VisibleRow): string {
-    return row.kind === 'item'
-        ? `${row.item.handle}:${row.item.variant ?? 'item'}`
-        : `${row.kind}:${row.parentHandle}`;
-}
 
 const themeIcons = {
     'check': Check,
@@ -126,34 +122,6 @@ const themeIconClassNames: Partial<Record<ThemeIconId, string>> = {
     'warning': 'text-warning',
 };
 
-interface VisibleItemRow {
-    kind: 'item';
-    depth: number;
-    item: TreeItemDto;
-    parentHandle: string;
-}
-
-interface VisibleLoadingRow {
-    kind: 'loading';
-    depth: number;
-    parentHandle: string;
-}
-
-interface VisibleErrorRow {
-    kind: 'error';
-    depth: number;
-    message: string;
-    parentHandle: string;
-}
-
-interface VisibleEmptyRow {
-    kind: 'empty';
-    depth: number;
-    parentHandle: string;
-}
-
-type VisibleRow = VisibleItemRow | VisibleLoadingRow | VisibleErrorRow | VisibleEmptyRow;
-
 function runTreeCommand(item: TreeItemDto): void {
     const command = item.command;
     if (!command) return;
@@ -175,37 +143,6 @@ function runTreeCommand(item: TreeItemDto): void {
             arguments: command.arguments ? [...command.arguments] : [],
         });
     });
-}
-
-function flattenRows(
-    children: ReadonlyMap<string, readonly TreeItemDto[]>,
-    errors: ReadonlyMap<string, string>,
-    isExpanded: (item: TreeItemDto) => boolean,
-    loading: ReadonlySet<string>,
-): VisibleRow[] {
-    const rows: VisibleRow[] = [];
-    const append = (parentHandle: string, depth: number): void => {
-        if (loading.has(parentHandle)) {
-            rows.push({ kind: 'loading', depth, parentHandle });
-            return;
-        }
-        const error = errors.get(parentHandle);
-        if (error) {
-            rows.push({ kind: 'error', depth, parentHandle, message: error });
-            return;
-        }
-        const items = children.get(parentHandle) ?? [];
-        if (children.has(parentHandle) && items.length === 0) {
-            rows.push({ kind: 'empty', depth, parentHandle });
-            return;
-        }
-        for (const item of items) {
-            rows.push({ kind: 'item', depth, item, parentHandle });
-            if (isExpanded(item)) append(item.handle, depth + 1);
-        }
-    };
-    append(ROOT_HANDLE, 0);
-    return rows;
 }
 
 function unloadedExpandedHandles(
@@ -336,16 +273,21 @@ function ExtensionTreeViewContent({
         );
     };
 
-    const rows = useMemo(
-        () =>
-            flattenRows(
-                visibleChildren,
-                visibleErrors,
-                (item) => isTreeItemExpanded(treeState, item),
-                visibleLoading,
-            ),
-        [visibleChildren, visibleErrors, visibleLoading, treeState],
-    );
+    // React Compiler skips this component (see the virtualizer note below), so row identity is preserved by hand:
+    // the previous flat list is threaded back in so unchanged rows keep their object and their rendered subtree.
+    const previousRows = useRef<readonly VisibleRow[]>([]);
+    const rows = useMemo(() => {
+        const next = flattenVisibleRows({
+            children: visibleChildren,
+            errors: visibleErrors,
+            isExpanded: (item) => isTreeItemExpanded(treeState, item),
+            loading: visibleLoading,
+            previous: previousRows.current,
+            rootHandle: ROOT_HANDLE,
+        });
+        previousRows.current = next;
+        return next;
+    }, [visibleChildren, visibleErrors, visibleLoading, treeState]);
     useEffect(() => {
         const handles = unloadedExpandedHandles(
             children,
@@ -371,7 +313,7 @@ function ExtensionTreeViewContent({
             if (row.item.variant === 'message') return MESSAGE_ROW_HEIGHT;
             return row.item.variant === 'header' ? 32 : 28;
         },
-        getItemKey: (index) => virtualRowKey(rows[index]),
+        getItemKey: (index) => visibleRowKey(rows[index]),
         getScrollElement: () => scrollElement.current,
         overscan: 10,
     });
@@ -422,10 +364,59 @@ function ExtensionTreeViewContent({
         }
     };
 
+    const isRootRefreshing = Boolean(activePendingRefresh) || loading.has(ROOT_HANDLE);
+    /**
+     * Row callbacks are handed out with a stable identity and read the latest handlers through a ref, so a focus
+     * change, refresh spinner, or toggle re-renders only the rows whose own props changed instead of every visible row.
+     * The ref is synced in a layout effect, which runs before any user event can reach a row.
+     */
+    const rowHandlers = useRef<{
+        focusIndex: (index: number) => void;
+        onRowAction: (row: VisibleItemRow, action: TreeRowAction) => void;
+        onRowFocus: (row: VisibleItemRow) => void;
+    }>(undefined);
+    useLayoutEffect(() => {
+        rowHandlers.current = {
+            focusIndex,
+            onRowAction: (row, action) => {
+                switch (action) {
+                    case 'toggle': {
+                        toggle(row);
+                        break;
+                    }
+                    case 'toggle-recursive': {
+                        toggle(row, true);
+                        break;
+                    }
+                    case 'activate': {
+                        if (isMessageRefreshAction(row.item, refreshAction)) refresh();
+                        else runTreeCommand(row.item);
+                        break;
+                    }
+                    // No default
+                }
+            },
+            onRowFocus: (row) => updateTreeState((current) => focusTreeItem(current, row.item)),
+        };
+    });
+    const onRowAction = useCallback(
+        (row: VisibleItemRow, action: TreeRowAction) =>
+            rowHandlers.current?.onRowAction(row, action),
+        [],
+    );
+    const onRowFocus = useCallback(
+        (row: VisibleItemRow) => rowHandlers.current?.onRowFocus(row),
+        [],
+    );
+    const focusRowIndex = useCallback(
+        (index: number) => rowHandlers.current?.focusIndex(index),
+        [],
+    );
+
     return (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <ExtensionTreeHeader
-                isRefreshing={Boolean(activePendingRefresh) || loading.has(ROOT_HANDLE)}
+                isRefreshing={isRootRefreshing}
                 title={title}
                 onRefresh={refreshAction ? refresh : undefined}
             />
@@ -440,7 +431,7 @@ function ExtensionTreeViewContent({
                         const row = rows[virtualRow.index];
                         return (
                             <li
-                                key={virtualRowKey(row)}
+                                key={visibleRowKey(row)}
                                 className="absolute top-0 left-0 w-full"
                                 data-index={
                                     row.kind === 'item' && row.item.variant === 'message'
@@ -511,42 +502,13 @@ function ExtensionTreeViewContent({
                                         }
                                         index={virtualRow.index}
                                         isRefreshing={
-                                            Boolean(activePendingRefresh) ||
-                                            loading.has(ROOT_HANDLE)
+                                            row.item.variant === 'message' && isRootRefreshing
                                         }
                                         row={row}
-                                        rows={rows}
-                                        onAction={(action) => {
-                                            switch (action) {
-                                                case 'toggle': {
-                                                    toggle(row);
-                                                    break;
-                                                }
-                                                case 'toggle-recursive': {
-                                                    toggle(row, true);
-                                                    break;
-                                                }
-                                                case 'activate': {
-                                                    if (
-                                                        isMessageRefreshAction(
-                                                            row.item,
-                                                            refreshAction,
-                                                        )
-                                                    )
-                                                        refresh();
-                                                    else runTreeCommand(row.item);
-
-                                                    break;
-                                                }
-                                                // No default
-                                            }
-                                        }}
-                                        onFocus={() =>
-                                            updateTreeState((current) =>
-                                                focusTreeItem(current, row.item),
-                                            )
-                                        }
-                                        onFocusIndex={focusIndex}
+                                        rowCount={rows.length}
+                                        onAction={onRowAction}
+                                        onFocus={onRowFocus}
+                                        onFocusIndex={focusRowIndex}
                                     />
                                 )}
                             </li>
@@ -571,27 +533,24 @@ function TreeItemRow({
     onFocusIndex,
     onFocus,
     row,
-    rows,
+    rowCount,
 }: {
     active: boolean;
     index: number;
+    /**
+     * Only message rows react to a root refresh; item rows receive `false` so a refresh does not re-render them.
+     */
     isRefreshing: boolean;
-    onAction: (action: TreeRowAction) => void;
+    onAction: (row: VisibleItemRow, action: TreeRowAction) => void;
     onFocusIndex: (index: number) => void;
-    onFocus: () => void;
+    onFocus: (row: VisibleItemRow) => void;
     row: VisibleItemRow;
-    rows: readonly VisibleRow[];
+    rowCount: number;
 }) {
     const isCollapsible = row.item.collapsibleState !== 'none';
     const isHeader = row.item.variant === 'header';
     const isMessage = row.item.variant === 'message';
-    const nextRow = rows.at(index + 1);
-    const isExpanded = nextRow !== undefined && nextRow.depth > row.depth;
-    const siblings = rows.filter(
-        (candidate): candidate is VisibleItemRow =>
-            candidate.kind === 'item' && candidate.parentHandle === row.parentHandle,
-    );
-    const positionInSet = siblings.findIndex(({ item }) => item.handle === row.item.handle) + 1;
+    const { isExpanded, positionInSet, setSize } = row;
     const themeIconId = row.item.icon?.kind === 'theme' ? row.item.icon.id : undefined;
     const linearStatusKind = isLinearStatusIconId(themeIconId)
         ? linearStatusIconKinds[themeIconId]
@@ -608,7 +567,7 @@ function TreeItemRow({
         (row.item.description ? `${row.item.label} — ${row.item.description}` : row.item.label);
     const dispatchRowAction = (action: TreeRowAction): void => {
         if (isMessage && isRefreshing && action === 'activate') return;
-        onAction(action);
+        onAction(row, action);
     };
     const treeItem = (
         <div
@@ -619,7 +578,7 @@ function TreeItemRow({
             aria-level={row.depth + 1}
             aria-posinset={positionInSet}
             aria-selected={active}
-            aria-setsize={siblings.length}
+            aria-setsize={setSize}
             className={cn(
                 'flex w-full min-w-0 items-center gap-2 border-0 bg-transparent text-left text-foreground focus-visible:bg-elevated focus-visible:outline-none',
                 isHeader
@@ -647,7 +606,7 @@ function TreeItemRow({
                         pointerTreeRowAction(row.item, 'body', 'click', event.detail, event.altKey),
                     );
             }}
-            onFocus={onFocus}
+            onFocus={() => onFocus(row)}
             onKeyDown={(event) => {
                 if (event.nativeEvent.isComposing) return;
                 switch (event.key) {
@@ -663,15 +622,7 @@ function TreeItemRow({
                         break;
                     case 'ArrowLeft':
                         if (isCollapsible && isExpanded) dispatchRowAction('toggle');
-                        else {
-                            const parentIndex = rows.findLastIndex(
-                                (candidate, candidateIndex) =>
-                                    candidateIndex < index &&
-                                    candidate.kind === 'item' &&
-                                    candidate.depth === row.depth - 1,
-                            );
-                            if (parentIndex !== -1) onFocusIndex(parentIndex);
-                        }
+                        else if (row.parentIndex !== -1) onFocusIndex(row.parentIndex);
                         break;
                     case 'Enter':
                     case ' ':
@@ -681,7 +632,7 @@ function TreeItemRow({
                         onFocusIndex(0);
                         break;
                     case 'End':
-                        onFocusIndex(rows.length - 1);
+                        onFocusIndex(rowCount - 1);
                         break;
                     default:
                         return;
