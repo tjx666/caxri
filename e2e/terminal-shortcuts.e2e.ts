@@ -503,7 +503,7 @@ test('Codex Terminal preserves an oversized bracketed paste across private input
         expect(createHash('sha256').update(captured).digest('hex')).toBe(
             createHash('sha256').update(expected).digest('hex'),
         );
-        await expect(running.page.locator('[data-slot="toast"][data-kind="error"]')).toHaveCount(0);
+        await expect(running.page.locator('[data-sonner-toast][data-type="error"]')).toHaveCount(0);
     } finally {
         try {
             await running.app.close();
