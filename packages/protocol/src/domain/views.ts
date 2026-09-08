@@ -326,6 +326,7 @@ export const sourceControlActionSchema = z.object({
     accessibilityLabel: z.string().min(1).max(1_024).optional(),
     tooltip: z.string().min(1).max(1_024).optional(),
     disabled: z.boolean().optional(),
+    pressed: z.boolean().optional(),
     progressLabel: z.string().min(1).max(1_024).optional(),
     emphasis: z.literal('danger').optional(),
     errorMessage: z.string().min(1).max(1_024).optional(),
@@ -360,6 +361,7 @@ const sourceControlGroupSchema = z.object({
     id: treeItemIdSchema,
     label: z.string().min(1).max(1_024),
     count: z.number().int().nonnegative().max(100_000),
+    hiddenCount: z.number().int().nonnegative().max(100_000).optional(),
     expandedByDefault: z.boolean(),
     emptyMessage: z.string().min(1).max(2_048),
     truncationMessage: z.string().min(1).max(2_048).optional(),
@@ -430,6 +432,7 @@ export const sourceControlViewModelSchema = z.object({
     modes: z.array(sourceControlModeSchema).max(32),
     selectedModeId: treeItemIdSchema,
     refreshAction: sourceControlActionSchema,
+    headerActions: z.array(sourceControlActionSchema).max(32).optional(),
     fileHistory: sourceControlFileHistorySchema.optional(),
     providers: z.array(sourceControlProviderModelSchema).max(1_000),
     emptyMessage: z.string().min(1).max(2_048).optional(),
@@ -463,6 +466,7 @@ export const sourceControlHistoryDetailsSchema = z.object({
     additions: z.number().int().nonnegative(),
     deletions: z.number().int().nonnegative(),
     resources: z.array(sourceControlResourceSchema).max(2_000),
+    hiddenCount: z.number().int().nonnegative().max(2_000).optional(),
     truncated: z.boolean(),
 });
 

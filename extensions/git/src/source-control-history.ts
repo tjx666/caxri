@@ -4,6 +4,7 @@ import type {
     SourceControlHistoryDetails,
     SourceControlHistoryPage,
 } from 'caxri';
+import { isGlobMatch } from 'caxri';
 
 import { gitHubAvatarUrl, shouldFetchGitHubAvatar } from './github-avatar';
 import type { RegisterSourceControlAction } from './source-control-model';
@@ -78,18 +79,34 @@ const detailStatus = {
 
 export function buildSourceControlHistoryDetails(options: {
     details: GitCommitDetails;
+    excludePatterns?: Readonly<Record<string, boolean>>;
     registerAction: RegisterSourceControlAction;
     repositoryId: string;
     revision: string;
+    isShowingExcluded?: boolean;
 }): SourceControlHistoryDetails {
-    const { details, registerAction, repositoryId, revision } = options;
+    const {
+        details,
+        excludePatterns = {},
+        registerAction,
+        repositoryId,
+        revision,
+        isShowingExcluded = false,
+    } = options;
+    const excludedCount = details.files.filter((file) =>
+        isGlobMatch(file.path, excludePatterns),
+    ).length;
+    const files = isShowingExcluded
+        ? details.files
+        : details.files.filter((file) => !isGlobMatch(file.path, excludePatterns));
     return {
         revision,
         itemId: details.commit.sha,
-        summary: `${details.files.length} file${details.files.length === 1 ? '' : 's'} changed${details.filesTruncated ? '+' : ''}`,
+        summary: `${details.files.length} file${details.files.length === 1 ? '' : 's'} changed${details.filesTruncated ? '+' : ''}${!isShowingExcluded && excludedCount > 0 ? ` · ${excludedCount} hidden` : ''}`,
         additions: details.additions,
         deletions: details.deletions,
-        resources: details.files.map((file) => {
+        ...(!isShowingExcluded && excludedCount > 0 && { hiddenCount: excludedCount }),
+        resources: files.map((file) => {
             const rawResource = `caxri-git-diff://commit-file/${encodeURIComponent(repositoryId)}/${details.commit.sha}/${encodeURIComponent(file.path)}`;
             const resource = boundedEditorResource(rawResource);
             const projection = sourceControlResourceProjection(file.path);

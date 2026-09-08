@@ -44,6 +44,24 @@ export function SourceControlHeader({
                             </Tooltip>
                         ))}
                     </div>
+                    {model.headerActions?.map((action) => (
+                        <Tooltip content={action.tooltip ?? action.label} key={action.id}>
+                            <Button
+                                size="icon"
+                                variant="ghost"
+                                aria-label={action.accessibilityLabel ?? action.label}
+                                aria-pressed={action.pressed}
+                                className={cn(action.pressed && 'bg-elevated text-foreground')}
+                                disabled={controller.isRefreshing || action.disabled}
+                                onClick={() => {
+                                    // eslint-disable-next-line no-void -- the controller owns provider action errors
+                                    void runAction(action);
+                                }}
+                            >
+                                <SourceControlIcon icon={action.icon} />
+                            </Button>
+                        </Tooltip>
+                    ))}
                     <Tooltip content={refreshLabel}>
                         <Button
                             size="icon"

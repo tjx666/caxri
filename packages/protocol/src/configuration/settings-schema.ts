@@ -50,7 +50,7 @@ const MAX_FILES_EXCLUDE_PATTERNS = 100;
 const filesExcludeRecordSchema = z
     .record(z.string().min(1).max(256), z.boolean())
     .refine((value) => Object.keys(value).length <= MAX_FILES_EXCLUDE_PATTERNS, {
-        message: `files.exclude supports at most ${MAX_FILES_EXCLUDE_PATTERNS} patterns`,
+        message: `File exclusions support at most ${MAX_FILES_EXCLUDE_PATTERNS} patterns`,
     });
 
 const agentLaunchSettingsSchema = z.object({
@@ -204,6 +204,11 @@ export const appSettingsSchema = z.object({
         .default(spec['terminal.suspendIdleAgents'].default),
     'terminal.osc52ClipboardWrite': booleanField(spec['terminal.osc52ClipboardWrite']),
     'files.exclude': filesExcludeRecordSchema.default(DEFAULT_FILES_EXCLUDE),
+    'git.diffExclude': filesExcludeRecordSchema.default({
+        '**/*.test.*': true,
+        '**/*.spec.*': true,
+        '**/__tests__/**': true,
+    }),
     'files.maxFileBytes': integerField(spec['files.maxFileBytes']),
 } satisfies Record<SettingKey, z.ZodType>);
 

@@ -11,7 +11,7 @@ import type {
     SourceControlResource,
     SourceControlViewModel,
 } from 'caxri';
-import { ProjectStatusSummaryErrorMessage } from 'caxri';
+import { isGlobMatch, ProjectStatusSummaryErrorMessage } from 'caxri';
 
 import {
     boundedActionLabel,
@@ -29,6 +29,7 @@ export interface ActionRegistration {
     icon: SourceControlAction['icon'];
     label: string;
     progressLabel?: string;
+    pressed?: boolean;
     emphasis?: 'danger';
     errorMessage?: string;
     tooltip?: string;
@@ -47,6 +48,8 @@ interface BuildSourceControlViewModelOptions {
     selectedCommitSha?: string;
     summary: GitSummary;
     fileHistoryRepositories?: readonly GitRepositorySummary[];
+    excludePatterns?: Readonly<Record<string, boolean>>;
+    isShowingExcluded?: boolean;
 }
 
 function themeIcon(id: string) {
@@ -199,9 +202,22 @@ function aggregateEditorResource(
     mode: GitSourceControlMode,
     repoId: string,
     repoName: string,
+    isShowingExcluded: boolean,
 ): string | undefined {
     if (mode === 'commit') return undefined;
-    return `caxri-git-diff://${mode === 'pull-request' ? 'pr-changes' : 'changes'}/${encodeURIComponent(repoId)}/${encodeURIComponent(repoName)}`;
+    const resource = `caxri-git-diff://${mode === 'pull-request' ? 'pr-changes' : 'changes'}/${encodeURIComponent(repoId)}/${encodeURIComponent(repoName)}`;
+    return isShowingExcluded ? `${resource}?showExcluded=true` : resource;
+}
+
+function excludedFileCount(
+    files: readonly GitFileStatus[],
+    excludePatterns: Readonly<Record<string, boolean>>,
+): number {
+    return files.filter((file) => isGlobMatch(file.path, excludePatterns)).length;
+}
+
+function hiddenFilesMessage(hiddenCount: number): string {
+    return `${hiddenCount} excluded file${hiddenCount === 1 ? '' : 's'} hidden.`;
 }
 
 function commitFilesToStatuses(details: GitCommitDetails | undefined): GitFileStatus[] {
@@ -359,6 +375,8 @@ export function buildSourceControlViewModel({
     selectedCommitSha,
     summary,
     fileHistoryRepositories = summary.repositories,
+    excludePatterns = {},
+    isShowingExcluded = false,
 }: BuildSourceControlViewModelOptions): SourceControlViewModel {
     const emptyMessage = !summary.isRepository
         ? summaryErrorMessage(summary.error)
@@ -368,6 +386,20 @@ export function buildSourceControlViewModel({
     const fileHistory = summary.isRepository
         ? fileHistoryModel(activeResource, fileHistoryRepositories, revision)
         : undefined;
+    const excludedCount = summary.repositories.reduce((total, repo) => {
+        const details = detailsByRepo.get(repo.id);
+        const pullRequest = pullRequestsByRepo.get(repo.id);
+        const files =
+            mode === 'working'
+                ? repo.files
+                : mode === 'commit'
+                  ? commitFilesToStatuses(details)
+                  : (pullRequest?.files ?? []);
+        return total + excludedFileCount(files, excludePatterns);
+    }, 0);
+    const hasEnabledExclusions = Object.entries(excludePatterns).some(
+        ([pattern, enabled]) => enabled && pattern.trim() !== '',
+    );
     return {
         revision,
         title: 'Source Control',
@@ -380,6 +412,17 @@ export function buildSourceControlViewModel({
             icon: themeIcon('refresh'),
             label: mode === 'pull-request' ? 'Refresh Pull Request' : 'Refresh Git',
         }),
+        ...(hasEnabledExclusions && {
+            headerActions: [
+                registerAction({
+                    command: { id: 'caxri.git.toggleExcludedFiles' },
+                    icon: themeIcon(isShowingExcluded ? 'eye-off' : 'eye'),
+                    label: `${isShowingExcluded ? 'Hide' : 'Show'} excluded files (${excludedCount})`,
+                    pressed: isShowingExcluded,
+                    tooltip: `${isShowingExcluded ? 'Hide' : 'Show'} excluded files (${excludedCount})`,
+                }),
+            ],
+        }),
         ...(fileHistory && { fileHistory }),
         providers: summary.repositories.map((repo) => {
             const details = detailsByRepo.get(repo.id);
@@ -390,6 +433,17 @@ export function buildSourceControlViewModel({
                     : mode === 'commit'
                       ? commitFilesToStatuses(details)
                       : (pullRequest?.files ?? []);
+            const repoExcludedCount = excludedFileCount(files, excludePatterns);
+            const visibleFiles = isShowingExcluded
+                ? files
+                : files.filter((file) => !isGlobMatch(file.path, excludePatterns));
+            const hiddenCount = isShowingExcluded ? 0 : repoExcludedCount;
+            /**
+             * The unloaded tail may contain excluded files even when every loaded path is visible.
+             */
+            const hasUnloadedExclusions =
+                !isShowingExcluded && hasEnabledExclusions && repo.truncated === true;
+            const isDiscardBlockedByExclusions = hiddenCount > 0 || hasUnloadedExclusions;
             const count = mode === 'working' ? repo.changedFileCount : files.length;
             const description = pullRequest
                 ? `#${pullRequest.number} ${pullRequest.title}`
@@ -410,19 +464,29 @@ export function buildSourceControlViewModel({
                       : 'Last Commit'
                   : 'Changes';
             const actions: SourceControlAction[] = [];
-            const aggregateResource = aggregateEditorResource(mode, repo.id, repo.name);
+            const aggregateResource = aggregateEditorResource(
+                mode,
+                repo.id,
+                repo.name,
+                isShowingExcluded,
+            );
             if (mode === 'working')
                 actions.push(
                     registerAction({
                         command: {
                             id: 'caxri.git.discardAll',
-                            arguments: [repo.id],
+                            arguments: [repo.id, isDiscardBlockedByExclusions],
                         },
-                        disabled: repo.changedFileCount === 0,
+                        disabled: repo.changedFileCount === 0 || isDiscardBlockedByExclusions,
                         icon: themeIcon('discard'),
                         emphasis: 'danger',
                         errorMessage: 'Discard failed',
                         label: 'Discard All Changes',
+                        ...(isDiscardBlockedByExclusions && {
+                            tooltip: hasUnloadedExclusions
+                                ? 'Some changes are not loaded. Show excluded files before discarding all changes.'
+                                : 'Show excluded files to discard all changes.',
+                        }),
                     }),
                 );
             if (mode !== 'commit')
@@ -432,7 +496,7 @@ export function buildSourceControlViewModel({
                             id: 'caxri.git.openChanges',
                             arguments: [aggregateResource],
                         },
-                        disabled: files.length === 0,
+                        disabled: visibleFiles.length === 0,
                         icon: themeIcon('diff-multiple'),
                         label:
                             mode === 'pull-request'
@@ -474,15 +538,19 @@ export function buildSourceControlViewModel({
                         id: `${repo.id}:changes`,
                         label: groupLabel,
                         count,
+                        ...(hiddenCount > 0 && { hiddenCount }),
                         expandedByDefault: true,
-                        emptyMessage: emptyMessageForMode(
-                            mode,
-                            repo,
-                            details,
-                            detailErrorsByRepo.has(repo.id),
-                            pullRequest,
-                            selectedCommitSha,
-                        ),
+                        emptyMessage:
+                            visibleFiles.length === 0 && hiddenCount > 0
+                                ? hiddenFilesMessage(hiddenCount)
+                                : emptyMessageForMode(
+                                      mode,
+                                      repo,
+                                      details,
+                                      detailErrorsByRepo.has(repo.id),
+                                      pullRequest,
+                                      selectedCommitSha,
+                                  ),
                         ...(mode === 'working' &&
                             repo.truncated && {
                                 truncationMessage: `Showing the first ${repo.files.length} of ${repo.changedFileCount} changes`,
@@ -496,7 +564,7 @@ export function buildSourceControlViewModel({
                             mode,
                             repo,
                             summary.repositories,
-                            files,
+                            visibleFiles,
                             details?.commit.sha,
                             registerAction,
                         ),

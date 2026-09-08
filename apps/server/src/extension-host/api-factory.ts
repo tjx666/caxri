@@ -11,6 +11,7 @@ import {
     MAX_VIEW_TREE_PAYLOAD_BYTES,
     treeItemSchema,
 } from '@caxri/protocol';
+import { isGlobMatch } from '@caxri/utils';
 import type {
     CancellationToken,
     CaxriApi,
@@ -71,6 +72,7 @@ interface ApiBinding {
         CancellationTokenSource: typeof CancellationTokenSource;
         Disposable: typeof Disposable;
         EventEmitter: typeof EventEmitter;
+        isGlobMatch: typeof isGlobMatch;
         ProjectStatusSummaryErrorMessage: typeof ProjectStatusSummaryErrorMessage;
         ThemeIcon: typeof ThemeIcon;
         TreeItem: typeof TreeItem;
@@ -374,6 +376,7 @@ function createBinding(registration: ExtensionHostRegistration): ApiBinding {
             CancellationTokenSource,
             Disposable,
             EventEmitter,
+            isGlobMatch,
             ProjectStatusSummaryErrorMessage,
             ThemeIcon,
             TreeItem,

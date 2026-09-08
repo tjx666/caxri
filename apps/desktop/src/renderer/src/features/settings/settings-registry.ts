@@ -26,7 +26,7 @@ export type SettingRowBinding =
     | { type: 'trusted-folders' }
     | { type: 'terminal-reference-links' }
     | { type: 'ignored-checks' }
-    | { type: 'files-exclude' }
+    | { type: 'files-exclude'; key: 'files.exclude' | 'git.diffExclude' }
     | { type: 'archived-sessions' }
     | { type: 'mobile-access' }
     | { type: 'remote-debugging' }
@@ -286,7 +286,11 @@ const rows: SettingRowDescriptor[] = [
     },
     {
         ...specRow('files.exclude'),
-        binding: { type: 'files-exclude' },
+        binding: { type: 'files-exclude', key: 'files.exclude' },
+    },
+    {
+        ...specRow('git.diffExclude'),
+        binding: { type: 'files-exclude', key: 'git.diffExclude' },
     },
     specRow('files.maxFileBytes'),
     {

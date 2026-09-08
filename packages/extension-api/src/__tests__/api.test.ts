@@ -4,6 +4,7 @@ import caxri, {
     CancellationTokenSource,
     Disposable,
     EventEmitter,
+    isGlobMatch,
     ProjectStatusSummaryErrorMessage,
     ThemeIcon,
     TreeItem,
@@ -63,6 +64,9 @@ describe('caxri public API runtime', () => {
     });
 
     it('fails clearly when the runtime stub is used outside the Extension Host', () => {
+        expect(() => isGlobMatch('example.test.ts', { '**/*.test.*': true })).toThrow(
+            expect.objectContaining({ code: 'CAXRI_API_OUTSIDE_EXTENSION_HOST' }),
+        );
         expect(() => caxri.views.registerTreeDataProvider('example.view', {} as never)).toThrow(
             expect.objectContaining({ code: 'CAXRI_API_OUTSIDE_EXTENSION_HOST' }),
         );

@@ -33,6 +33,15 @@ export type {
     GitSummary,
     WorkspaceGit,
 } from './workspace.js';
+export type GlobPatternSettings = Readonly<Record<string, boolean>>;
+
+/**
+ * Matches a root-relative path using the Extension Host's shared glob semantics.
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- The published stub preserves the signature replaced by the Extension Host.
+export function isGlobMatch(_relativePath: string, _patterns: GlobPatternSettings): boolean {
+    return unavailable('isGlobMatch');
+}
 
 export interface DisposableLike {
     dispose(): void;
