@@ -19,6 +19,14 @@ export interface TerminalManagerOptions {
     agentOutputRecoverySettings?: (provider: AgentProvider) => AgentOutputRecoverySettings;
     agentEnvironment?: () => Promise<NodeJS.ProcessEnv>;
     /**
+     * Supplies observation-only hook context for the Shell PTY, never managed Agent Endpoint credentials.
+     */
+    shellEnvironment?: (record: TerminalRecord) => NodeJS.ProcessEnv;
+    /**
+     * Revokes Shell observation before the PTY is retired or replaced.
+     */
+    onShellRetired?: (terminalId: string) => void;
+    /**
      * Adds generation-scoped, non-secret integration variables immediately before PTY spawn.
      */
     lifecycleEnvironment?: (

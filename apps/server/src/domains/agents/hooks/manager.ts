@@ -34,6 +34,7 @@ import type {
 } from './contract';
 import type { HookExecutableDiscovery } from './executable-gate';
 import { gateHookSettingsOnExecutables } from './executable-gate';
+import { HookLaunchRegistry } from './launch-registry';
 import { parseProfileIntents, serializeProfileIntents } from './profile-intents';
 import { AgentHookServer, pruneStaleAgentHookSockets } from './server';
 import { AgentHookTelemetry } from './telemetry';
@@ -49,11 +50,6 @@ const MAX_CONCURRENT_PROFILE_STATS = 8;
  */
 export const MAX_AGENT_HOOK_CONFIG_BYTES = 1 * 1024 * 1024;
 const STALE_LOCK_MS = 30_000;
-
-interface TerminalHookLaunch {
-    launchId: string;
-    token: string;
-}
 
 interface HookConfigWatcher {
     handle: WatchHandle;
@@ -170,12 +166,32 @@ export class AgentHookManager {
     private server?: AgentHookServer;
     private settings?: Record<AgentProvider, AgentProviderSettings>;
     private readonly telemetry: AgentHookTelemetry;
-    private readonly terminalLaunches = new Map<string, TerminalHookLaunch>();
+    private readonly launches: HookLaunchRegistry;
     private readonly profileId: string;
     private readonly schemaVersions: Record<AgentProvider, number>;
 
     constructor(private readonly options: AgentHookManagerOptions) {
         this.telemetry = new AgentHookTelemetry(options.logger);
+        this.launches = new HookLaunchRegistry({
+            activate: (terminalId, launch) => {
+                this.telemetry.beginLaunch(terminalId, launch.provider);
+                options.onLaunchStarted(terminalId, launch.launchId);
+                options.logger.write('info', logEventCatalog.agentHooks.launchPrepared, {
+                    fields: {
+                        stage: 'serverCore',
+                        terminalId,
+                        ...(launch.provider && { provider: launch.provider }),
+                    },
+                });
+            },
+            deactivate: (terminalId) => {
+                this.telemetry.endLaunch(terminalId);
+                options.onLaunchEnded(terminalId);
+            },
+            register: (terminalId, launchId, provider) =>
+                this.server!.register(terminalId, launchId, provider),
+            unregister: (token) => this.server?.unregister(token),
+        });
         this.schemaVersions = Object.fromEntries(
             agentProviderIds.map((provider) => [
                 provider,
@@ -615,6 +631,24 @@ export class AgentHookManager {
         }
     }
 
+    private launchEnvironment(
+        terminalId: string,
+        { launchId, token }: { launchId: string; token: string },
+    ): NodeJS.ProcessEnv {
+        return {
+            CAXRI_HOOK_LAUNCH_ID: launchId,
+            /**
+             * New staged bridges remain compatible with older Server builds unless this launch explicitly opts in.
+             */
+            CAXRI_HOOK_RECEIPTS: '1',
+            CAXRI_HOOK_RUNTIME: this.options.hookExecutable,
+            CAXRI_HOOK_SOCKET: this.server!.socketPath,
+            CAXRI_HOOK_TERMINAL_ID: terminalId,
+            CAXRI_HOOK_TOKEN: token,
+            ...this.schemaEnvironment(),
+        };
+    }
+
     async initialize(settings: Record<AgentProvider, AgentProviderSettings>): Promise<void> {
         this.settings = settings;
         if (!this.options.sharedPath) {
@@ -699,35 +733,23 @@ export class AgentHookManager {
         launchId: string = randomUUID(),
     ): NodeJS.ProcessEnv {
         if (!this.server || !this.bridgePath || !this.anyEnabled()) return {};
-        this.endTerminalLaunch(terminalId);
-        const token = this.server.register(terminalId, launchId, provider);
-        this.terminalLaunches.set(terminalId, { launchId, token });
-        this.telemetry.beginLaunch(terminalId, provider);
-        this.options.onLaunchStarted(terminalId, launchId);
-        this.options.logger.write('info', logEventCatalog.agentHooks.launchPrepared, {
-            fields: { stage: 'serverCore', terminalId, ...(provider && { provider }) },
-        });
-        return {
-            CAXRI_HOOK_LAUNCH_ID: launchId,
-            /**
-             * New staged bridges remain compatible with older Server builds unless this launch explicitly opts in.
-             */
-            CAXRI_HOOK_RECEIPTS: '1',
-            CAXRI_HOOK_RUNTIME: this.options.hookExecutable,
-            CAXRI_HOOK_SOCKET: this.server.socketPath,
-            CAXRI_HOOK_TERMINAL_ID: terminalId,
-            CAXRI_HOOK_TOKEN: token,
-            ...this.schemaEnvironment(),
-        };
+        return this.launchEnvironment(
+            terminalId,
+            this.launches.agent(terminalId, launchId, provider),
+        );
+    }
+
+    shellEnvironment(terminalId: string): NodeJS.ProcessEnv {
+        if (!this.server || !this.bridgePath || !this.anyEnabled()) return {};
+        return this.launchEnvironment(terminalId, this.launches.shell(terminalId));
     }
 
     endTerminalLaunch(terminalId: string, expectedLaunchId?: string): void {
-        const launch = this.terminalLaunches.get(terminalId);
-        if (!launch || (expectedLaunchId && launch.launchId !== expectedLaunchId)) return;
-        this.telemetry.endLaunch(terminalId);
-        this.terminalLaunches.delete(terminalId);
-        this.server?.unregister(launch.token);
-        this.options.onLaunchEnded(terminalId);
+        this.launches.endAgent(terminalId, expectedLaunchId);
+    }
+
+    endShellLaunch(terminalId: string): void {
+        this.launches.endShell(terminalId);
     }
 
     async close(): Promise<void> {
@@ -738,7 +760,7 @@ export class AgentHookManager {
         await Promise.all(this.configWatchers.values().map((watcher) => watcher.handle.dispose()));
         this.configWatchers.clear();
         if (this.ownsWatchHub) await this.watchHub.close();
-        for (const terminalId of this.terminalLaunches.keys()) this.endTerminalLaunch(terminalId);
+        this.launches.close();
         await this.server?.close();
         this.server = undefined;
     }
