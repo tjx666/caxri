@@ -434,6 +434,32 @@ const TreeItemRow = memo(
     },
 );
 
+interface TreeRowHandlers {
+    focusIndex: (index: number) => void;
+    onRowAction: (row: VisibleItemRow, action: TreeRowAction) => void;
+    onRowFocus: (row: VisibleItemRow) => void;
+}
+
+/**
+ * Hands rows callbacks with a stable identity that read the latest handlers through a ref. Together with the memoized
+ * `TreeItemRow` and the reused row objects, a focus change, refresh spinner, or toggle re-renders only the rows whose
+ * own props changed instead of every visible row. The ref is synced in a layout effect, which runs before any user
+ * event can reach a row. Kept as manual memoization because the tree content component is skipped by React Compiler.
+ */
+function useStableTreeRowHandlers(handlers: TreeRowHandlers): TreeRowHandlers {
+    const latest = useRef<TreeRowHandlers>(undefined);
+    useLayoutEffect(() => {
+        latest.current = handlers;
+    });
+    const focusIndex = useCallback((index: number) => latest.current?.focusIndex(index), []);
+    const onRowAction = useCallback(
+        (row: VisibleItemRow, action: TreeRowAction) => latest.current?.onRowAction(row, action),
+        [],
+    );
+    const onRowFocus = useCallback((row: VisibleItemRow) => latest.current?.onRowFocus(row), []);
+    return { focusIndex, onRowAction, onRowFocus };
+}
+
 function ExtensionTreeViewContent({
     persisted,
     refreshAction,
@@ -584,54 +610,28 @@ function ExtensionTreeViewContent({
     };
 
     const isRootRefreshing = Boolean(activePendingRefresh) || loading.has(ROOT_HANDLE);
-    /**
-     * Row callbacks are handed out with a stable identity and read the latest handlers through a ref. Together with the
-     * memoized `TreeItemRow` and the reused row objects above, a focus change, refresh spinner, or toggle re-renders
-     * only the rows whose own props changed instead of every visible row. The ref is synced in a layout effect, which
-     * runs before any user event can reach a row.
-     */
-    const rowHandlers = useRef<{
-        focusIndex: (index: number) => void;
-        onRowAction: (row: VisibleItemRow, action: TreeRowAction) => void;
-        onRowFocus: (row: VisibleItemRow) => void;
-    }>(undefined);
-    useLayoutEffect(() => {
-        rowHandlers.current = {
-            focusIndex,
-            onRowAction: (row, action) => {
-                switch (action) {
-                    case 'toggle': {
-                        toggle(row);
-                        break;
-                    }
-                    case 'toggle-recursive': {
-                        toggle(row, true);
-                        break;
-                    }
-                    case 'activate': {
-                        if (isMessageRefreshAction(row.item, refreshAction)) refresh();
-                        else runTreeCommand(row.item);
-                        break;
-                    }
-                    // No default
+    const rowHandlers = useStableTreeRowHandlers({
+        focusIndex,
+        onRowAction: (row, action) => {
+            switch (action) {
+                case 'toggle': {
+                    toggle(row);
+                    break;
                 }
-            },
-            onRowFocus: (row) => updateTreeState((current) => focusTreeItem(current, row.item)),
-        };
+                case 'toggle-recursive': {
+                    toggle(row, true);
+                    break;
+                }
+                case 'activate': {
+                    if (isMessageRefreshAction(row.item, refreshAction)) refresh();
+                    else runTreeCommand(row.item);
+                    break;
+                }
+                // No default
+            }
+        },
+        onRowFocus: (row) => updateTreeState((current) => focusTreeItem(current, row.item)),
     });
-    const onRowAction = useCallback(
-        (row: VisibleItemRow, action: TreeRowAction) =>
-            rowHandlers.current?.onRowAction(row, action),
-        [],
-    );
-    const onRowFocus = useCallback(
-        (row: VisibleItemRow) => rowHandlers.current?.onRowFocus(row),
-        [],
-    );
-    const focusRowIndex = useCallback(
-        (index: number) => rowHandlers.current?.focusIndex(index),
-        [],
-    );
 
     return (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -726,9 +726,9 @@ function ExtensionTreeViewContent({
                                         }
                                         row={row}
                                         rowCount={rows.length}
-                                        onAction={onRowAction}
-                                        onFocus={onRowFocus}
-                                        onFocusIndex={focusRowIndex}
+                                        onAction={rowHandlers.onRowAction}
+                                        onFocus={rowHandlers.onRowFocus}
+                                        onFocusIndex={rowHandlers.focusIndex}
                                     />
                                 )}
                             </li>
