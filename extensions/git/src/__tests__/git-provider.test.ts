@@ -600,6 +600,87 @@ describe('GitProvider', () => {
         provider.dispose();
     });
 
+    it.each([
+        { refreshKind: 'panel', outcome: 'empty' },
+        { refreshKind: 'watcher', outcome: 'updated' },
+        { refreshKind: 'panel', outcome: 'error' },
+        { refreshKind: 'watcher', outcome: 'branch' },
+        { refreshKind: 'mode-command', outcome: 'updated' },
+        { refreshKind: 'mode-query', outcome: 'updated' },
+    ])(
+        'retains PR content during $refreshKind refresh until $outcome',
+        async ({ refreshKind, outcome }) => {
+            const { git, provider } = createHarness();
+            const cancellation = new CancellationTokenSource();
+            const pullRequest: GitPullRequestChanges = {
+                repositoryId: repo.id,
+                number: 42,
+                title: 'Refresh without clearing files',
+                url: 'https://github.com/example/caxri/pull/42',
+                baseRefName: 'main',
+                headRefName: repo.branch,
+                baseOid: 'a'.repeat(40),
+                headOid: repo.head,
+                additions: 5,
+                deletions: 2,
+                files: repo.files,
+            };
+            const request = { scopeId, preferredModeId: 'pull-request', refresh: 0 };
+            vi.mocked(git.pullRequestChanges).mockResolvedValueOnce(pullRequest);
+            await provider.provideView(request, cancellation.token);
+            await new Promise((resolve) => setImmediate(resolve));
+            const ready = await provider.provideView(request, cancellation.token);
+            const pending = Promise.withResolvers<GitPullRequestChanges | null>();
+            vi.mocked(git.pullRequestChanges).mockReturnValueOnce(pending.promise);
+            if (refreshKind.startsWith('mode-')) {
+                if (refreshKind === 'mode-command') provider.setMode('working', scopeId);
+                await provider.provideView(
+                    { ...request, preferredModeId: 'working' },
+                    cancellation.token,
+                );
+                if (refreshKind === 'mode-command') provider.setMode('pull-request', scopeId);
+            } else if (refreshKind === 'watcher') provider.refresh(scopeId);
+            else request.refresh += 1;
+            const refreshing = await provider.provideView(request, cancellation.token);
+            expect(refreshing.providers[0]?.groups[0]).toMatchObject({
+                label: 'PR #42 Changes',
+                resources: ready.providers[0].groups[0].resources.map(({ label, description }) => ({
+                    label,
+                    description,
+                })),
+            });
+            if (outcome === 'branch') {
+                vi.mocked(git.summary).mockResolvedValue({
+                    ...summary,
+                    repositories: [{ ...repo, branch: 'other-branch' }],
+                });
+                const next = Promise.withResolvers<GitPullRequestChanges | null>();
+                vi.mocked(git.pullRequestChanges).mockReturnValueOnce(next.promise);
+                const switched = await provider.provideView(request, cancellation.token);
+                expect(switched.providers[0]?.groups[0]).toMatchObject({
+                    resources: [],
+                    emptyMessage: 'Loading pull request changes…',
+                });
+                pending.resolve(pullRequest);
+                next.resolve(null);
+            } else if (outcome === 'error') pending.reject(new Error('Refresh failed'));
+            else pending.resolve(outcome === 'updated' ? { ...pullRequest, number: 43 } : null);
+            await new Promise((resolve) => setImmediate(resolve));
+            const updated = await provider.provideView(request, cancellation.token);
+            if (outcome === 'updated') {
+                expect(updated.providers[0]?.groups[0]?.label).toBe('PR #43 Changes');
+            } else expect(updated.providers[0]?.groups[0]?.resources).toEqual([]);
+            if (outcome === 'error') {
+                expect(updated.providers[0]?.groups[0]?.emptyMessage).toBe(
+                    'Unable to load pull request changes.',
+                );
+            }
+            expect(updated.providers[0]?.groups[0]?.label).not.toBe('PR #42 Changes');
+            cancellation.dispose();
+            provider.dispose();
+        },
+    );
+
     it('cancels superseded background details without publishing stale content', async () => {
         const pending = Promise.withResolvers<GitCommitDetails>();
         const { git, provider } = createHarness();

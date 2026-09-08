@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
@@ -57,17 +57,21 @@ test('Git Pull Request mode shows committed PR changes instead of the working tr
     await execFileAsync('git', ['commit', '-m', 'nested initial'], { cwd: nested });
 
     const gh = join(bin, 'gh');
+    const refreshGate = join(testDirectory, 'refresh-gate');
+    const refreshStarted = join(testDirectory, 'refresh-started');
     await writeFile(
         gh,
-        `#!/bin/sh\nprintf '%s' '${JSON.stringify({
-            baseRefName: 'main',
-            baseRefOid: baseOid,
-            headRefName: 'feature/pull-request',
-            headRefOid: headOid,
-            number: 42,
-            title: 'Committed pull request range',
-            url: 'https://github.com/tjx666/project/pull/42',
-        })}'\n`,
+        `#!/bin/sh\nif [ -e '${refreshGate}' ]; then\n  touch '${refreshStarted}'\n  while [ -e '${refreshGate}' ]; do sleep 0.05; done\nfi\nprintf '%s' '${JSON.stringify(
+            {
+                baseRefName: 'main',
+                baseRefOid: baseOid,
+                headRefName: 'feature/pull-request',
+                headRefOid: headOid,
+                number: 42,
+                title: 'Committed pull request range',
+                url: 'https://github.com/tjx666/project/pull/42',
+            },
+        )}'\n`,
         'utf8',
     );
     await chmod(gh, 0o755);
@@ -85,7 +89,7 @@ test('Git Pull Request mode shows committed PR changes instead of the working tr
          * error.
          */
         allowE2EErrors([
-            { source: 'server-core', event: 'ipc.request_failed', code: 'GIT', count: 1 },
+            { source: 'server-core', event: 'ipc.request_failed', code: 'GIT', count: 3 },
         ]);
         await createProjectSession(running.page);
         await running.page.getByRole('tab', { name: 'Git', exact: true }).click();
@@ -95,6 +99,50 @@ test('Git Pull Request mode shows committed PR changes instead of the working tr
         await running.page.getByRole('button', { name: 'Pull Request Changes' }).click();
         await expect(running.page.getByText('PR #42 Changes', { exact: true })).toBeVisible();
         await expect(files.locator('.git-row[title="pr-only.txt"]')).toBeVisible();
+        await expect(
+            running.page.getByText('Unable to load pull request changes.', { exact: true }),
+        ).toBeVisible();
+        await running.page.evaluate(() => {
+            const heading = document.querySelector('.git-heading');
+            let hasFlickered = false;
+            const observer = new MutationObserver(() => {
+                const repo = document.querySelector('[data-git-repository-id]');
+                hasFlickered ||=
+                    !heading?.isConnected ||
+                    Boolean(repo?.textContent.includes('Loading pull request changes…'));
+            });
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true,
+                characterData: true,
+            });
+            Object.assign(globalThis, {
+                stopModeFlickerObserver: () => {
+                    observer.disconnect();
+                    return hasFlickered;
+                },
+            });
+        });
+        await running.page
+            .getByRole('button', { name: 'Working Tree Changes', exact: true })
+            .click();
+        await expect(files.locator('.git-row[title="working-only.txt"]')).toBeVisible();
+        await running.page
+            .getByRole('button', { name: 'Pull Request Changes', exact: true })
+            .click();
+        await expect(running.page.getByText('PR #42 Changes', { exact: true })).toBeVisible();
+        await expect(files.locator('.git-row[title="pr-only.txt"]')).toBeVisible();
+        await expect(
+            running.page.getByRole('button', { name: 'Pull Request Changes', exact: true }),
+        ).toBeEnabled();
+        expect(
+            await running.page.evaluate(() =>
+                (
+                    globalThis as unknown as { stopModeFlickerObserver: () => boolean }
+                ).stopModeFlickerObserver(),
+            ),
+        ).toBe(false);
+        await running.page.screenshot({ path: test.info().outputPath('pr-mode-switch.png') });
         await expect(files.locator('.git-row[title="tracked.txt"]')).toBeVisible();
         await expect(files.locator('.git-row[title="working-only.txt"]')).toHaveCount(0);
         await expect(
@@ -106,7 +154,32 @@ test('Git Pull Request mode shows committed PR changes instead of the working tr
         await expect(running.page.locator('.git-file-diff .monaco-diff-editor')).toBeVisible();
         await expect(running.page.locator('.git-file-diff')).toContainText('before');
         await expect(running.page.locator('.git-file-diff')).toContainText('after');
+
+        await writeFile(refreshGate, 'pending', 'utf8');
+        await running.page
+            .getByRole('button', { name: 'Refresh Pull Request', exact: true })
+            .click();
+        await expect
+            .poll(async () => {
+                try {
+                    await stat(refreshStarted);
+                    return true;
+                } catch (error) {
+                    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+                    throw error;
+                }
+            })
+            .toBe(true);
+        await expect(running.page.getByText('PR #42 Changes', { exact: true })).toBeVisible();
+        await expect(files.locator('.git-row[title="tracked.txt"]')).toBeVisible();
+        await running.page.screenshot({ path: test.info().outputPath('pr-refresh.png') });
+        await rm(refreshGate);
+        await expect(
+            running.page.getByText('Unable to load pull request changes.', { exact: true }),
+        ).toBeVisible();
+        await expect(files.locator('.git-row[title="pr-only.txt"]')).toBeVisible();
     } finally {
+        await rm(refreshGate, { force: true });
         try {
             await running.app.close();
         } catch {
