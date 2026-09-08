@@ -1,6 +1,8 @@
 import type { AgentProvider, TerminalRecord } from '@caxri/protocol';
 import { agentProviderCatalog, agentProviderIds } from '@caxri/protocol';
 
+import type { AgentLifecycleSignal } from './hooks/contract';
+
 export const MAX_SHELL_COMMAND_LENGTH = 4_096;
 export const SHELL_PROMOTION_WINDOW_MS = 30_000;
 
@@ -17,6 +19,11 @@ export interface ShellPromotionCandidate {
      * only identity a confirmed switch can adopt immediately.
      */
     agentSessionId?: string;
+    /**
+     * Retains the latest turn boundary while independent foreground confirmation is pending. A startup hook alone
+     * cannot promote a Shell, but losing that boundary would leave a promptly submitted first turn permanently idle.
+     */
+    lifecycleSignal?: AgentLifecycleSignal;
     attempts: number;
     expiresAt: number;
     nextProcessProbeAt: number;

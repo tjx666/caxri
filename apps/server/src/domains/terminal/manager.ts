@@ -59,6 +59,7 @@ export class TerminalManager {
     private readonly titleListeners = new Map<string, TerminalTitleListener>();
     private readonly onLifecycleStarted?: TerminalManagerOptions['onLifecycleStarted'];
     private readonly onLifecycleRetired?: TerminalManagerOptions['onLifecycleRetired'];
+    private readonly onShellRetired?: TerminalManagerOptions['onShellRetired'];
     private readonly onAgentStateChanged?: TerminalManagerOptions['onAgentStateChanged'];
     private readonly onOutputActivity?: TerminalManagerOptions['onOutputActivity'];
     private readonly onStateChanged?: TerminalManagerOptions['onStateChanged'];
@@ -75,12 +76,14 @@ export class TerminalManager {
             agentEnvironment: options.agentEnvironment,
             agentLaunchSettings: options.agentLaunchSettings,
             lifecycleEnvironment: options.lifecycleEnvironment,
+            shellEnvironment: options.shellEnvironment,
             logger,
             resolveExecutable: options.resolveExecutable,
             shellIntegration: options.shellIntegration,
         });
         this.onLifecycleStarted = options.onLifecycleStarted;
         this.onLifecycleRetired = options.onLifecycleRetired;
+        this.onShellRetired = options.onShellRetired;
         this.onAgentStateChanged = options.onAgentStateChanged;
         this.onOutputActivity = options.onOutputActivity;
         this.onStateChanged = options.onStateChanged;
@@ -303,6 +306,7 @@ export class TerminalManager {
     }
 
     private retireAgentLifecycleSoon(terminalId: string, state?: ProcessState): void {
+        this.onShellRetired?.(terminalId);
         this.cancelTitleListener(terminalId);
         const launchId = this.agentLaunches.get(terminalId);
         if (launchId) {
@@ -384,6 +388,7 @@ export class TerminalManager {
             return this.database.getTerminal(record.id)!;
         } catch (error) {
             this.cancelTitleListener(record.id);
+            this.onShellRetired?.(record.id);
             this.execution.discard(record.id);
             try {
                 const launchId = this.agentLaunches.get(record.id);
@@ -574,8 +579,7 @@ export class TerminalManager {
          * Fence the managed Agent generation before Host cancellation can report its intentional SIGHUP as an
          * unexpected process failure. The late exit event is then ignored by its retired launch ID.
          */
-        if (this.agentLaunches.has(terminalId))
-            this.retireAgentLifecycleSoon(terminalId, 'interrupted');
+        this.retireAgentLifecycleSoon(terminalId, 'interrupted');
         const capture = await this.execution.restartBarrier(terminalId);
         if (capture) await this.snapshots.finalize(terminalId, Promise.resolve(capture));
         const launchAgent =
@@ -604,7 +608,7 @@ export class TerminalManager {
         const record = this.database.getTerminal(terminalId);
         if (!record || this.execution.processId(terminalId) === undefined) return undefined;
         const resumesAgent = this.agentLaunches.has(terminalId);
-        if (resumesAgent) this.retireAgentLifecycleSoon(terminalId, state);
+        this.retireAgentLifecycleSoon(terminalId, state);
         const capture = await this.execution.restartBarrier(terminalId);
         if (capture) await this.snapshots.finalize(terminalId, Promise.resolve(capture));
         this.database.updateTerminalState(terminalId, state);

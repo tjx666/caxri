@@ -29,11 +29,16 @@ describe('TerminalLaunchPlanner managed Agent launch', () => {
             environment: { ...environment, CAXRI_SHELL_INTEGRATED: '1' },
         }));
         const planner = new TerminalLaunchPlanner({
+            shellEnvironment: () => ({
+                CAXRI_HOOK_TOKEN: 'shell-observer',
+                CAXRI_HOOK_LAUNCH_ID: 'shell-generation',
+            }),
             agentEnvironment: () => Promise.resolve({ HOME: '/tmp', PATH: '/agent/bin' }),
             agentLaunchSettings: () => ({ executable: 'codex', args: ['--profile', 'focused'] }),
             lifecycleEnvironment: () => ({
                 CAXRI_AGENT_ENDPOINT_TOKEN: 'agent-secret',
                 CAXRI_MANAGED_AGENT: '1',
+                CAXRI_HOOK_TOKEN: 'managed-observer',
             }),
             logger: new StructuredLogger('/tmp/caxri-launch-plan-test-logs'),
             resolveExecutable: (kind) =>
@@ -50,7 +55,11 @@ describe('TerminalLaunchPlanner managed Agent launch', () => {
         expect(prepared.value).toMatchObject({
             executable: '/bin/zsh',
             args: ['--caxri-shell'],
-            environment: { CAXRI_SHELL_INTEGRATED: '1' },
+            environment: {
+                CAXRI_SHELL_INTEGRATED: '1',
+                CAXRI_HOOK_TOKEN: 'shell-observer',
+                CAXRI_HOOK_LAUNCH_ID: 'shell-generation',
+            },
             agent: {
                 provider: 'codex',
                 executable: '/usr/local/bin/codex',
@@ -58,6 +67,7 @@ describe('TerminalLaunchPlanner managed Agent launch', () => {
                 environment: {
                     CAXRI_MANAGED_AGENT: '1',
                     CAXRI_AGENT_ENDPOINT_TOKEN: 'agent-secret',
+                    CAXRI_HOOK_TOKEN: 'managed-observer',
                     COLORTERM: 'truecolor',
                     HOME: '/tmp',
                     PATH: '/agent/bin',
@@ -68,6 +78,24 @@ describe('TerminalLaunchPlanner managed Agent launch', () => {
         expect(prepared.value.environment).not.toHaveProperty('CAXRI_AGENT_ENDPOINT_TOKEN');
         expect(prepared.value.environment).not.toHaveProperty('CAXRI_MANAGED_AGENT');
         expect(shellIntegration).toHaveBeenCalledWith('/bin/zsh', expect.any(Object));
+    });
+
+    it('prepares observation for an ordinary Shell without preparing managed Agent authority', async () => {
+        const lifecycleEnvironment = vi.fn();
+        const planner = new TerminalLaunchPlanner({
+            shellEnvironment: () => ({ CAXRI_HOOK_TOKEN: 'shell-observer' }),
+            lifecycleEnvironment,
+            logger: new StructuredLogger('/tmp/caxri-launch-plan-test-logs'),
+            resolveExecutable: () => Promise.resolve('/bin/zsh'),
+        });
+        const shell = { ...record, kind: 'shell' as const, provider: undefined };
+        const resolved = await planner.resolve(shell);
+        if (!resolved.ok) throw resolved.error;
+        const prepared = await planner.prepare(shell, resolved.value);
+        if (!prepared.ok) throw prepared.error;
+        expect(prepared.value.environment).toHaveProperty('CAXRI_HOOK_TOKEN', 'shell-observer');
+        expect(prepared.value.agent).toBeUndefined();
+        expect(lifecycleEnvironment).not.toHaveBeenCalled();
     });
 
     it('falls back to the system zsh when the configured Shell cannot host a managed Agent', async () => {

@@ -52,6 +52,7 @@ export interface TerminalLaunchPlannerOptions {
     agentEnvironment?: () => Promise<NodeJS.ProcessEnv>;
     agentLaunchSettings?: (provider: AgentProvider) => AgentLaunchSettings;
     lifecycleEnvironment?: TerminalManagerOptions['lifecycleEnvironment'];
+    shellEnvironment?: TerminalManagerOptions['shellEnvironment'];
     logger: StructuredLogger;
     resolveExecutable?: TerminalManagerOptions['resolveExecutable'];
     shellIntegration?: TerminalManagerOptions['shellIntegration'];
@@ -174,6 +175,7 @@ export class TerminalLaunchPlanner {
                     fields: { error: errorMessage(error, 'unknown') },
                 });
             }
+            environment = { ...environment, ...this.options.shellEnvironment?.(record) };
             const agent = resolved.agent
                 ? {
                       ...resolved.agent,
