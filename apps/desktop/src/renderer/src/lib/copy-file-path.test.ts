@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { dismissToast, useToastStore } from '../stores/toasts';
+import { dismissToast, getToasts } from '../stores/toasts';
 import { copyFilePath } from './copy-file-path';
 
 describe('copyFilePath', () => {
@@ -15,11 +15,11 @@ describe('copyFilePath', () => {
 
         await copyFilePath('/project/src/index.ts');
         expect(writeText).toHaveBeenLastCalledWith('/project/src/index.ts');
-        expect(useToastStore.getState().toasts.at(-1)?.message).toBe('Path copied');
+        expect(getToasts().at(-1)?.title).toBe('Path copied');
 
         await copyFilePath('/project/src/index.ts', '/project');
         expect(writeText).toHaveBeenLastCalledWith('src/index.ts');
-        expect(useToastStore.getState().toasts.at(-1)?.message).toBe('Relative path copied');
+        expect(getToasts().at(-1)?.title).toBe('Relative path copied');
     });
 
     it('reports a path outside the selected Project without writing it', async () => {
@@ -29,7 +29,7 @@ describe('copyFilePath', () => {
         await copyFilePath('/other/index.ts', '/project');
 
         expect(writeText).not.toHaveBeenCalled();
-        expect(useToastStore.getState().toasts.at(-1)?.kind).toBe('error');
-        expect(useToastStore.getState().toasts.at(-1)?.message).toContain('Path is outside');
+        expect(getToasts().at(-1)?.type).toBe('error');
+        expect(getToasts().at(-1)?.title).toContain('Path is outside');
     });
 });

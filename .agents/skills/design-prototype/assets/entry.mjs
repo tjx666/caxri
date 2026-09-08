@@ -38,7 +38,8 @@ import * as Separator from '@/components/ui/separator';
 import * as Spinner from '@/components/ui/spinner';
 import * as Switch from '@/components/ui/switch';
 import * as Textarea from '@/components/ui/textarea';
-import * as Toast from '@/components/ui/toast';
+import * as ToastOutlet from '@/features/toasts/toast-outlet';
+import * as Toasts from '@/stores/toasts';
 import * as Toggle from '@/components/ui/toggle';
 import * as ToggleGroup from '@/components/ui/toggle-group';
 import * as Tooltip from '@/components/ui/tooltip';
@@ -89,7 +90,8 @@ export default {
     '@/components/ui/spinner': Spinner,
     '@/components/ui/switch': Switch,
     '@/components/ui/textarea': Textarea,
-    '@/components/ui/toast': Toast,
+    '@/features/toasts/toast-outlet': ToastOutlet,
+    '@/stores/toasts': Toasts,
     '@/components/ui/toggle': Toggle,
     '@/components/ui/toggle-group': ToggleGroup,
     '@/components/ui/tooltip': Tooltip,

@@ -449,9 +449,13 @@ sections headed by the shared Agent identity icon, and every multiline value use
 field/focus redline as single-line input.
 
 **Toasts** — three variants (`info`/`success`/`error`) with a 3px left bar in the status color and
-matching icon; `info` uses `--muted` for its bar (an accent bar would be a second accent). Error
-toasts persist until dismissed, others auto-dismiss 4s. Stack bottom-right above the status bar,
-capped at three.
+matching icon; `info` uses `--muted` for its bar (an accent bar would be a second accent). Sonner
+owns the queue, timers, keyboard access, and swipe dismissal. All three variants auto-dismiss after
+4s of visible, non-interacting time; only explicit `persist` notices stay until dismissed. Stack
+bottom-right above the status bar, with three visible cards. Hover or keyboard focus pauses expiry.
+Use the close or action button to dismiss; clicking the message body does not dismiss it. Sonner's
+internal transition/removal timing is a third-party exception to the motion token layers above;
+its built-in reduced-motion media rule disables animation. Theme overrides live in `styles/styles.css`.
 
 **Confirmations** — destructive commands (Delete Session, Delete Project) require a native confirm
 dialog naming the target ("Delete session 'api-fix'? Files on disk are not touched."). Every other

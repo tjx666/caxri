@@ -5,40 +5,38 @@ const mocks = vi.hoisted(() => ({
     refreshWorkbench: vi.fn(() => Promise.resolve()),
 }));
 
-import { describeFailure, dismissToast, pushToast, tryCommand, useToastStore } from './toasts';
+import { describeFailure, dismissToast, getToasts, pushToast, tryCommand } from './toasts';
 
-describe('toast store', () => {
+describe('Sonner notification adapter', () => {
     beforeEach(() => {
-        vi.useFakeTimers();
+        vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+            setTimeout(callback, 0),
+        );
+        vi.stubGlobal('cancelAnimationFrame', clearTimeout);
         mocks.refreshWorkbench.mockClear();
-        useToastStore.setState({ toasts: [] });
+        dismissToast();
     });
 
     afterEach(() => {
-        // Drain any still-pending auto-dismiss timers before restoring real timers, otherwise a
-        // leaked timer from one test can fire during a later test.
-        vi.clearAllTimers();
-        vi.useRealTimers();
+        dismissToast();
+        vi.unstubAllGlobals();
     });
 
     it('pushes a notification and reports it in arrival order', () => {
         pushToast('info', 'first');
         pushToast('info', 'second');
 
-        expect(useToastStore.getState().toasts.map((toast) => toast.message)).toEqual([
-            'first',
-            'second',
-        ]);
+        expect(getToasts().map((toast) => toast.title)).toEqual(['first', 'second']);
     });
 
     it('dismisses a single toast by id and leaves the others', () => {
         pushToast('info', 'first');
         pushToast('info', 'second');
-        const [firstId] = useToastStore.getState().toasts.map((toast) => toast.id);
+        const [firstId] = getToasts().map((toast) => toast.id);
 
         dismissToast(firstId);
 
-        expect(useToastStore.getState().toasts.map((toast) => toast.message)).toEqual(['second']);
+        expect(getToasts().map((toast) => toast.title)).toEqual(['second']);
     });
 
     it('dismisses every toast when no id is given', () => {
@@ -47,33 +45,28 @@ describe('toast store', () => {
 
         dismissToast();
 
-        expect(useToastStore.getState().toasts).toEqual([]);
+        expect(getToasts()).toEqual([]);
     });
 
-    it('auto-dismisses a non-persistent toast after the timeout', () => {
-        pushToast('info', 'auto-dismiss me');
+    it.each(['info', 'success', 'error'] as const)(
+        'gives Sonner a four-second lifetime for %s notifications',
+        (kind) => {
+            pushToast(kind, 'auto-dismiss me');
 
-        vi.advanceTimersByTime(3_999);
-        expect(useToastStore.getState().toasts).toHaveLength(1);
+            expect(getToasts()).toEqual([expect.objectContaining({ type: kind, duration: 4_000 })]);
+        },
+    );
 
-        vi.advanceTimersByTime(1);
-        expect(useToastStore.getState().toasts).toHaveLength(0);
-    });
+    it('never auto-dismisses an error toast opted into persist', () => {
+        pushToast('error', 'stays until dismissed', { persist: true });
 
-    it('never auto-dismisses an error toast', () => {
-        pushToast('error', 'stays until dismissed');
-
-        vi.advanceTimersByTime(60_000);
-
-        expect(useToastStore.getState().toasts).toHaveLength(1);
+        expect(getToasts()[0].duration).toBe(Infinity);
     });
 
     it('never auto-dismisses an info toast opted into persist', () => {
         pushToast('info', 'stays until dismissed', { persist: true });
 
-        vi.advanceTimersByTime(60_000);
-
-        expect(useToastStore.getState().toasts).toHaveLength(1);
+        expect(getToasts()[0].duration).toBe(Infinity);
     });
 
     it('keeps an optional follow-up action on the notification', () => {
@@ -82,51 +75,48 @@ describe('toast store', () => {
             action: { label: 'Open Settings', onSelect },
         });
 
-        expect(useToastStore.getState().toasts[0].action).toEqual({
+        expect(getToasts()[0].action).toEqual({
             label: 'Open Settings',
-            onSelect,
+            onClick: onSelect,
         });
     });
 
-    it('re-arms the same toast instead of stacking an identical repeat', () => {
-        pushToast('info', 'duplicate message');
-        const [firstId] = useToastStore.getState().toasts.map((toast) => toast.id);
+    it.each(['info', 'success', 'error'] as const)(
+        'updates a repeated %s toast without stacking it',
+        (kind) => {
+            pushToast(kind, 'duplicate message');
+            const [firstId] = getToasts().map((toast) => toast.id);
+            pushToast(kind, 'duplicate message');
 
-        vi.advanceTimersByTime(3_000);
-        pushToast('info', 'duplicate message');
-
-        expect(useToastStore.getState().toasts).toHaveLength(1);
-        expect(useToastStore.getState().toasts[0].id).toBe(firstId);
-
-        // The repeat reset the timer, so the toast must still be alive 3s+1s after the repeat even
-        // though that is more than 4s after the original push.
-        vi.advanceTimersByTime(3_000);
-        expect(useToastStore.getState().toasts).toHaveLength(1);
-
-        vi.advanceTimersByTime(1_000);
-        expect(useToastStore.getState().toasts).toHaveLength(0);
-    });
+            expect(getToasts()).toHaveLength(1);
+            expect(getToasts()[0].id).toBe(firstId);
+        },
+    );
 
     it('does not re-arm when the newest toast differs in kind or message', () => {
         pushToast('info', 'same text');
         pushToast('error', 'same text');
 
-        expect(useToastStore.getState().toasts).toHaveLength(2);
+        expect(getToasts()).toHaveLength(2);
     });
 
-    it('evicts the oldest toast beyond the visible cap and clears its timer', () => {
-        pushToast('info', 'one');
-        pushToast('info', 'two');
-        pushToast('info', 'three');
-        pushToast('info', 'four');
+    it('updates persistence and clears an obsolete action on a repeated notification', () => {
+        pushToast('info', 'notice', {
+            persist: true,
+            action: { label: 'Review', onSelect: vi.fn() },
+        });
+        pushToast('info', 'notice');
+        expect(getToasts()).toHaveLength(1);
+        expect(getToasts()[0]).toMatchObject({ duration: 4_000, action: undefined });
+    });
 
-        const messages = useToastStore.getState().toasts.map((toast) => toast.message);
-        expect(messages).toEqual(['two', 'three', 'four']);
-
-        // The evicted toast's timer must have been cleared, so advancing past its original deadline
-        // must not throw or affect the remaining toasts.
-        vi.advanceTimersByTime(4_000);
-        expect(useToastStore.getState().toasts).toEqual([]);
+    it('creates a fresh notification after the previous one was dismissed', () => {
+        pushToast('info', 'notice');
+        const previousId = getToasts()[0].id;
+        dismissToast();
+        pushToast('info', 'notice');
+        expect(getToasts()).toHaveLength(1);
+        expect(getToasts()[0].id).not.toBe(previousId);
     });
 
     it('describes a CaxriError UNAVAILABLE code with actionable copy', () => {
@@ -162,7 +152,7 @@ describe('toast store', () => {
 
         expect(result).toBe('ok');
         expect(mocks.refreshWorkbench).not.toHaveBeenCalled();
-        expect(useToastStore.getState().toasts).toEqual([]);
+        expect(getToasts()).toEqual([]);
     });
 
     it('tryCommand refreshes the workbench after a successful run when requested', async () => {
@@ -180,9 +170,9 @@ describe('toast store', () => {
 
         expect(result).toBeUndefined();
         expect(mocks.refreshWorkbench).not.toHaveBeenCalled();
-        const toasts = useToastStore.getState().toasts;
+        const toasts = getToasts();
         expect(toasts).toHaveLength(1);
-        expect(toasts[0]).toMatchObject({ kind: 'error', message: 'disk is full', persist: true });
+        expect(toasts[0]).toMatchObject({ type: 'error', title: 'disk is full', duration: 4_000 });
     });
 
     it('tryCommand does not refresh the workbench when the run rejects', async () => {

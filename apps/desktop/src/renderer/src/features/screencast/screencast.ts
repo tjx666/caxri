@@ -95,7 +95,7 @@ export const useScreencastStore = create<ScreencastState>((set) => ({
 }));
 
 /**
- * Pure so it stays testable without a DOM `window` (the toast store's timers require one).
+ * Pure so message selection stays independent of notification rendering.
  */
 export function screencastToggleToastMessage(isEnabled: boolean): string {
     return isEnabled ? 'Screencast Mode on' : 'Screencast Mode off';
