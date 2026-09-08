@@ -23,6 +23,22 @@ async function markdownlintRuleConfig(): Promise<Record<string, unknown>> {
 }
 
 describe('markdown semantics vs. fenced-code toolchain contract', () => {
+    it('accepts the required skill filename while linting its fenced code', async () => {
+        const eslint = new ESLint({ cwd: root });
+        const [result] = await eslint.lintText('```js\ndebugger;\n```\n', {
+            filePath: '.agents/skills/markdown-contract/SKILL.md',
+        });
+        const ruleIds = result.messages.map((message) => message.ruleId);
+        expect(ruleIds).toContain('no-debugger');
+        expect(ruleIds).not.toContain('unicorn/filename-case');
+        const [invalidName] = await eslint.lintText('```js\ndebugger;\n```\n', {
+            filePath: '.agents/skills/markdown-contract/Bad_Name.md',
+        });
+        expect(invalidName.messages.map((message) => message.ruleId)).toContain(
+            'unicorn/filename-case',
+        );
+    });
+
     it('flags a Markdown semantic violation with markdownlint', async () => {
         // `.markdownlint-cli2.jsonc` ignores `scripts/fixtures/markdown/**` so the real gate stays
         // green; lint the fixture directly here to prove the rule still fires.

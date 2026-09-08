@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -12,17 +12,26 @@ import { GitService } from '..';
 
 const temporaryDirectories: string[] = [];
 const gitServices: GitService[] = [];
+const loggers: StructuredLogger[] = [];
 
-afterEach(async () => {
+async function cleanupFixtures(): Promise<void> {
     const servicesToClose = [...gitServices];
     gitServices.length = 0;
     await Promise.allSettled(servicesToClose.map((git) => git.close()));
+    /**
+     * Pending log writes recreate missing directories, so drain them after producers stop and before removal.
+     */
+    const loggersToFlush = [...loggers];
+    loggers.length = 0;
+    await Promise.all(loggersToFlush.map((logger) => logger.flush()));
     const directoriesToRemove = [...temporaryDirectories];
     temporaryDirectories.length = 0;
     await Promise.all(
         directoriesToRemove.map((path) => rm(path, { recursive: true, force: true })),
     );
-});
+}
+
+afterEach(cleanupFixtures);
 
 /**
  * A Project whose root exists but is not a repository root, which is the shape that used to re-derive forever. Counts
@@ -37,12 +46,15 @@ async function createFixture(prefix: string) {
     const database = new CaxriDatabase(join(container, '.caxri-test.db'));
     const session = database.createSession(database.createProject(root).id, 'shell').session;
     const logger = new StructuredLogger(join(container, '.logs'));
+    loggers.push(logger);
     const write = vi.spyOn(logger, 'write');
     const git = new GitService(new ProjectRootResolver(database), logger);
     gitServices.push(git);
     return {
+        container,
         database,
         git,
+        logger,
         root,
         session,
         /**
@@ -63,6 +75,31 @@ async function createFixture(prefix: string) {
 }
 
 describe('Git discovery failure', () => {
+    it('waits for the fixture log drain before removing its directory', async () => {
+        const fixture = await createFixture('caxri-git-log-drain-');
+        await fixture.git.summary(fixture.session.id);
+        fixture.database.close();
+        const gate = Promise.withResolvers<void>();
+        const drain = fixture.logger.flush.bind(fixture.logger);
+        const flush = vi.spyOn(fixture.logger, 'flush').mockImplementationOnce(async () => {
+            await gate.promise;
+            await drain();
+        });
+        const cleanup = Promise.allSettled([cleanupFixtures()]);
+        try {
+            await vi.waitFor(() => expect(flush).toHaveBeenCalled());
+            await expect(stat(fixture.container)).resolves.toBeDefined();
+            gate.resolve();
+            await expect(cleanup).resolves.toEqual([{ status: 'fulfilled', value: undefined }]);
+            await expect(stat(fixture.container)).rejects.toMatchObject({ code: 'ENOENT' });
+        } finally {
+            gate.resolve();
+            await cleanup;
+            await drain();
+            await rm(fixture.container, { recursive: true, force: true });
+        }
+    });
+
     it('stops rediscovering a Project root that is not a repository', async () => {
         const fixture = await createFixture('caxri-git-nonrepo-');
 

@@ -103,17 +103,13 @@ to last render — the component was dragged along, it did not need to run).
       }
     },
   });
-  await new Promise((r) => setTimeout(r, 10000));
+  await new Promise((resolve) => setTimeout(resolve, 10000));
   scan({ enabled: true, showToolbar: true, onRender: undefined });
-  const rows = Object.entries(counts).sort((a, b) => b[1].total - a[1].total);
-  return (
-    rows.length +
-    ' components\n' +
-    rows
-      .slice(0, 60)
-      .map(([n, c]) => `${c.total}\t${c.unnecessary}\t${n}`)
-      .join('\n')
-  );
+  const rows = Object.entries(counts).toSorted((a, b) => b[1].total - a[1].total);
+  return `${rows.length} components\n${rows
+    .slice(0, 60)
+    .map(([n, c]) => `${c.total}\t${c.unnecessary}\t${n}`)
+    .join('\n')}`;
 })();
 ```
 
@@ -126,14 +122,14 @@ component mounted twice. Assign each fiber a stable id and key on it:
 
 ```js
 const ids = new WeakMap();
-let next = 1;
+const sequence = { next: 1 };
 const idOf = (f) => {
-  let id = ids.get(f) ?? (f.alternate && ids.get(f.alternate)) ?? next++;
+  const id = ids.get(f) ?? (f.alternate && ids.get(f.alternate)) ?? sequence.next++;
   ids.set(f, id);
   if (f.alternate) ids.set(f.alternate, id); // alternates share one id
   return id;
 };
-const key = nameOf(fiber) + '#' + idOf(fiber);
+const key = `${nameOf(fiber)}#${idOf(fiber)}`;
 ```
 
 Record `first`/`last` timestamps per instance too — mount waves are visible
@@ -190,16 +186,14 @@ scan({
     if (!['SuspectA', 'SuspectB'].includes(name)) return;
     for (const r of renders)
       out.push(
-        name +
-          ' ' +
-          JSON.stringify(
-            (r.changes || []).map((c) => ({
-              t: c.type,
-              n: c.name,
-              prev: String(c.prevValue).slice(0, 60),
-              next: String(c.nextValue).slice(0, 60),
-            })),
-          ),
+        `${name} ${JSON.stringify(
+          (r.changes || []).map((c) => ({
+            t: c.type,
+            n: c.name,
+            prev: String(c.prevValue).slice(0, 60),
+            next: String(c.nextValue).slice(0, 60),
+          })),
+        )}`,
       );
   },
 });
@@ -220,7 +214,7 @@ scan({
     if ((fiber.type?.displayName || fiber.type?.name) !== 'SuspectA') return;
     let a = fiber.memoizedState,
       b = fiber.alternate?.memoizedState,
-      i = 0;
+      index = 0;
     const diff = [];
     while (a && b) {
       if (a.memoizedState !== b.memoizedState) {
@@ -231,32 +225,37 @@ scan({
           'create' in a.memoizedState;
         if (!isEffect)
           diff.push(
-            i +
-              ': ' +
-              String(b.memoizedState).slice(0, 40) +
-              ' -> ' +
-              String(a.memoizedState).slice(0, 40),
+            `${index}: ${String(b.memoizedState).slice(0, 40)} -> ${String(a.memoizedState).slice(0, 40)}`,
           );
       }
       a = a.next;
       b = b.next;
-      i++;
+      index++;
     }
-    out.push('hooks=' + i + ' changed: ' + diff.join(' | '));
+    out.push(`hooks=${index} changed: ${diff.join(' | ')}`);
   },
 });
 ```
 
 **Context reads are not in this list.** `useContext` records into
 `fiber.dependencies`, not `memoizedState`, so a component driven entirely by
-context shows `hooks=0` and no diff. Walk both:
+context shows `hooks=0` and no diff. Pass each suspect fiber and your
+context-count map to this helper:
 
 ```js
-let da = fiber.dependencies?.firstContext, db = alt.dependencies?.firstContext, j = 0;
-while (da && db) {
-  if (da.memoizedValue !== db.memoizedValue)
-    ctx[j + ':' + (da.context?.displayName || 'ctx')] = (ctx[...] || 0) + 1;
-  da = da.next; db = db.next; j++;
+function countChangedContexts(fiber, counts) {
+  let currentContext = fiber.dependencies?.firstContext;
+  let previousContext = fiber.alternate?.dependencies?.firstContext;
+  let contextIndex = 0;
+  while (currentContext && previousContext) {
+    if (currentContext.memoizedValue !== previousContext.memoizedValue) {
+      const key = `${contextIndex}:${currentContext.context?.displayName || 'ctx'}`;
+      counts[key] = (counts[key] || 0) + 1;
+    }
+    currentContext = currentContext.next;
+    previousContext = previousContext.next;
+    contextIndex++;
+  }
 }
 ```
 
@@ -325,24 +324,24 @@ expect(mounts).toBe(1); // was 2 before the fix
 Mock the transport, push one message, assert zero commits:
 
 ```tsx
-let dockCommits = 0;
+const commits = { dock: 0 };
 render(
   <Sidebar
     live
     dock={
-      <Profiler id="dock" onRender={() => dockCommits++}>
+      <Profiler id="dock" onRender={() => commits.dock++}>
         <Dock />
       </Profiler>
     }
   />,
 );
-dockCommits = 0; // discard mount
+commits.dock = 0; // discard mount
 act(() => subs[0].onPayload({ quotes: [{ symbol: 'NVDA.US', last: 123.45 }] }));
 expect(screen.getByText('$123.45')).toBeTruthy(); // the value did arrive
-expect(dockCommits).toBe(0); // and nobody else moved
+expect(commits.dock).toBe(0); // and nobody else moved
 ```
 
-Assert both halves. `dockCommits === 0` alone also passes when the feature
+Assert both halves. `commits.dock === 0` alone also passes when the feature
 is broken.
 
 **Re-measure.** Run `count.js` again on the same page, same sample length,
@@ -351,11 +350,13 @@ and report before → after per component. Numbers, not "feels faster".
 **Assert the page actually loaded before you trust a sample.** A boot sample
 taken from a run that stalled on a skeleton, an error boundary, or a failed
 request measures the shell and nothing else — and it looks like a clean,
-small number. Return a `loaded` flag alongside the counts and refuse any
+small number. Return an `isLoaded` flag alongside the counts and refuse any
 sample where it is false:
 
 ```js
-const loaded = !document.querySelector('[class*=keleton]') && document.body.innerText.length > 500;
+// eslint-disable-next-line unicorn/prefer-dom-node-text-content -- Readiness counts visible text, excluding hidden nodes.
+const visibleText = document.body.innerText;
+const isLoaded = !document.querySelector('[class*=keleton]') && visibleText.length > 500;
 ```
 
 Cross-check the component names too: if the user can see a sidebar full of
@@ -367,15 +368,15 @@ instances by mount timestamp; a late wave is usually one list. Resolve each
 one's DOM node and measure it:
 
 ```js
-const el = domOf(fiber); // walk fiber.child until stateNode is an Element
-const r = el.getBoundingClientRect();
-const hidden = r.width === 0 || r.height === 0 || el.offsetParent === null;
+const element = domOf(fiber); // walk fiber.child until stateNode is an Element
+const r = element.getBoundingClientRect();
+const isHidden = r.width === 0 || r.height === 0 || element.offsetParent === null;
 ```
 
 `72 rows, visible=0` turns a vague "the page is heavy" into a specific bug.
 Walk that node's DOM ancestors printing `display` / `visibility` / box size to
 find which wrapper hides it, then map that element back to a component
-(`el[Object.keys(el).find(k => k.startsWith('__reactFiber$'))]`) to name the
+(`element[Object.keys(element).find(k => k.startsWith('__reactFiber$'))]`) to name the
 owner. Burned once — a local database
 version mismatch held the app on its skeleton, and a 454-render sample got
 reported as the fix's before/after when the real boot was 27,000.
