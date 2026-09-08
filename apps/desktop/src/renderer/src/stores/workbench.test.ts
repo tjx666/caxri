@@ -25,7 +25,7 @@ vi.mock('../lib/caxri', () => ({
 }));
 
 import { useSessionViewStore } from './session-view';
-import { useToastStore } from './toasts';
+import { dismissToast, getToasts } from './toasts';
 import {
     refreshWorkbench,
     registerSessionSelectionConvergence,
@@ -43,7 +43,7 @@ afterEach(() => {
     mocks.reset();
     useWorkbenchStore.setState({ bootstrap: undefined, attachEpoch: 0, isFullScreen: false });
     useSessionViewStore.setState({ documents: {}, recentDocuments: {} });
-    useToastStore.setState({ toasts: [] });
+    dismissToast();
 });
 
 describe('workbench Runtime events', () => {
@@ -420,7 +420,7 @@ describe('workbench Runtime events', () => {
         unsubscribe();
     });
 
-    it('keeps a visible error when another Desktop replaces this window', () => {
+    it('shows an error when another Desktop replaces this window', () => {
         const unsubscribe = subscribeWorkbenchEvents(eventHandlers());
 
         mocks.emit({
@@ -429,12 +429,11 @@ describe('workbench Runtime events', () => {
         });
 
         expect(mocks.request).not.toHaveBeenCalled();
-        expect(useToastStore.getState().toasts).toEqual([
+        expect(getToasts()).toEqual([
             expect.objectContaining({
-                kind: 'error',
-                message:
-                    'Another Caxri window took over this profile. Continue in the other window.',
-                persist: true,
+                type: 'error',
+                title: 'Another Caxri window took over this profile. Continue in the other window.',
+                duration: 4000,
             }),
         ]);
         unsubscribe();
@@ -472,14 +471,14 @@ describe('workbench Runtime events', () => {
             payload: { terminalId: 'terminal-1', provider: 'codex', status: 'rate-limited' },
         });
 
-        expect(useToastStore.getState().toasts).toEqual([
+        expect(getToasts()).toEqual([
             expect.objectContaining({
-                kind: 'success',
-                message: 'Sent Esc and continue to Codex after a matched recovery rule.',
+                type: 'success',
+                title: 'Sent Esc and continue to Codex after a matched recovery rule.',
             }),
             expect.objectContaining({
-                kind: 'error',
-                message: 'Automatic recovery paused for Codex after 3 attempts in 10 minutes.',
+                type: 'error',
+                title: 'Automatic recovery paused for Codex after 3 attempts in 10 minutes.',
             }),
         ]);
         unsubscribe();

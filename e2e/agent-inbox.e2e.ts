@@ -216,7 +216,7 @@ process.stdin.resume();
             receiver.request('agent.message.wait', { timeoutMs: 1_000 }),
         ).resolves.toMatchObject({ message: { body: racedBody, origin: 'peer' } });
         await expect(approval).toHaveCount(0);
-        await expect(running.page.locator('[data-slot="toast"][data-kind="error"]')).toHaveCount(0);
+        await expect(running.page.locator('[data-sonner-toast][data-type="error"]')).toHaveCount(0);
 
         const staleBody = 'peer-message-stale privacy-sentinel';
         const stale = await sender.request('agent.message.send', {
@@ -248,7 +248,7 @@ process.stdin.resume();
         await expect(
             pageRequest(running.page, 'agent.message.deny', { messageId: stale.messageId }),
         ).resolves.toMatchObject({ status: 'expired' });
-        await expect(running.page.locator('[data-slot="toast"][data-kind="error"]')).toHaveCount(0);
+        await expect(running.page.locator('[data-sonner-toast][data-type="error"]')).toHaveCount(0);
         await expect.poll(async () => (await captures(capturePath)).length).toBe(3);
         const restarted = (await captures(capturePath)).at(2);
         if (!restarted) throw new Error('Restarted Agent Endpoint capture missing');

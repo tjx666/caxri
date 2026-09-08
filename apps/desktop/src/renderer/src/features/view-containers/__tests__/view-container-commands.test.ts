@@ -11,7 +11,7 @@ vi.mock('../../../lib/caxri', () => ({ caxri: { request: mocks.request } }));
 
 import { caxriQueryKey, queryClient } from '../../../queries/client';
 import { useChromeLayoutStore } from '../../../stores/chrome-layout';
-import { useToastStore } from '../../../stores/toasts';
+import { dismissToast, getToasts } from '../../../stores/toasts';
 import { useWorkbenchStore } from '../../../stores/workbench';
 import {
     didExecuteViewCatalogCommand,
@@ -75,7 +75,7 @@ beforeEach(() => {
     mocks.request.mockResolvedValue({});
     queryClient.clear();
     useChromeLayoutStore.setState({ secondarySidebarVisible: false });
-    useToastStore.setState({ toasts: [] });
+    dismissToast();
     useWorkbenchStore.setState({
         bootstrap: {
             selectedSessionId: 'session-1',
@@ -202,8 +202,8 @@ describe('didExecuteViewCatalogCommand', () => {
         didExecuteViewCatalogCommand(catalog(), 'publisher.fixture.refresh');
 
         await vi.waitFor(() =>
-            expect(useToastStore.getState().toasts).toEqual([
-                expect.objectContaining({ kind: 'error', message: 'fixture failed' }),
+            expect(getToasts()).toEqual([
+                expect.objectContaining({ type: 'error', title: 'fixture failed' }),
             ]),
         );
     });
@@ -285,10 +285,10 @@ describe('didExecuteViewCatalogCommand', () => {
 
         await executeViewCatalogShortcut('publisher.fixture.unknown');
 
-        expect(useToastStore.getState().toasts).toEqual([
+        expect(getToasts()).toEqual([
             expect.objectContaining({
-                kind: 'error',
-                message: 'Unknown command: publisher.fixture.unknown',
+                type: 'error',
+                title: 'Unknown command: publisher.fixture.unknown',
             }),
         ]);
     });

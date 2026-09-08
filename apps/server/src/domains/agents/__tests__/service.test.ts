@@ -11,10 +11,16 @@ import type { AgentAdapter } from '../service';
 import { AgentService, SLOW_AGENT_PROBE_MS } from '../service';
 
 const temporaryDirectories: string[] = [];
+const loggers: StructuredLogger[] = [];
 
 afterEach(async () => {
     clearExecutableCache();
     vi.unstubAllEnvs();
+    /**
+     * Async logging must finish before fixture directories are removed.
+     */
+    await Promise.all(loggers.map((logger) => logger.flush()));
+    loggers.length = 0;
     const pendingCleanup = [...temporaryDirectories];
     temporaryDirectories.length = 0;
     await Promise.all(pendingCleanup.map((path) => rm(path, { recursive: true, force: true })));
@@ -90,6 +96,7 @@ describe('Agent adapter fallback', () => {
             }),
         );
         const logger = new StructuredLogger(join(directory, 'logs'));
+        loggers.push(logger);
         const service = createTestAgentService(
             {
                 claude: { provider: 'claude', snapshot },
@@ -129,6 +136,7 @@ describe('Agent adapter fallback', () => {
             }),
         );
         const logger = new StructuredLogger(join(directory, 'logs'));
+        loggers.push(logger);
         const write = vi.spyOn(logger, 'write');
         const service = createTestAgentService({ codex: { provider: 'codex', snapshot } }, logger);
 
@@ -159,6 +167,7 @@ describe('Agent adapter fallback', () => {
             }),
         );
         const logger = new StructuredLogger(join(directory, 'logs'));
+        loggers.push(logger);
         const write = vi.spyOn(logger, 'write');
         const service = createTestAgentService({ codex: { provider: 'codex', snapshot } }, logger);
 
@@ -185,6 +194,7 @@ describe('Agent adapter fallback', () => {
             }),
         );
         const logger = new StructuredLogger(join(directory, 'logs'));
+        loggers.push(logger);
         const write = vi.spyOn(logger, 'write');
         const service = createTestAgentService({ codex: { provider: 'codex', snapshot } }, logger);
         const now = vi
@@ -213,6 +223,7 @@ describe('Agent adapter fallback', () => {
             }),
         );
         const logger = new StructuredLogger(join(directory, 'logs'));
+        loggers.push(logger);
         const write = vi.spyOn(logger, 'write');
         const service = createTestAgentService({ codex: { provider: 'codex', snapshot } }, logger);
 
