@@ -19,6 +19,14 @@ import type { PluginOption } from 'vite';
  */
 const isBundleAnalysisEnabled = process.env.CAXRI_BUNDLE_ANALYZE === '1';
 const isReactProfilingEnabled = process.env.CAXRI_REACT_PROFILING === '1';
+/**
+ * Opt-in react-scan render counting for development audits (`CAXRI_REACT_SCAN=1`). The boot module must be the first
+ * import of the Renderer entry: react-scan installs the React DevTools hook on import, and react-dom only registers
+ * with a hook that already exists when it evaluates, so injecting react-scan over CDP after load measures nothing.
+ */
+const isReactScanEnabled = process.env.CAXRI_REACT_SCAN === '1';
+const reactScanBootModuleId = 'virtual:caxri-react-scan-boot';
+const resolvedReactScanBootModuleId = `\0${reactScanBootModuleId}`;
 
 function bundleAnalysisPlugins(reportName: string): PluginOption[] {
     if (!isBundleAnalysisEnabled) return [];
@@ -153,6 +161,24 @@ export default defineConfig(async ({ command }) => {
                 },
             },
             plugins: [
+                {
+                    name: 'caxri-react-scan-boot',
+                    resolveId(id: string) {
+                        return id === reactScanBootModuleId
+                            ? resolvedReactScanBootModuleId
+                            : undefined;
+                    },
+                    load(id: string) {
+                        if (id !== resolvedReactScanBootModuleId) return;
+                        return isReactScanEnabled
+                            ? [
+                                  "import { scan } from 'react-scan';",
+                                  'scan({ enabled: false, showToolbar: false });',
+                                  'globalThis.__CAXRI_REACT_SCAN__ = { scan };',
+                              ].join('\n')
+                            : 'export {};';
+                    },
+                },
                 react(),
                 reactCompiler,
                 tailwindcss(),
