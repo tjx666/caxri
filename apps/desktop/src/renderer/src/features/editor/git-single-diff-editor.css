@@ -1,0 +1,18 @@
+/** Use Monaco's active diff colors so single-sided files follow the same imported theme. */
+.git-single-diff-editor .git-added-line {
+    background: var(--vscode-diffEditor-insertedLineBackground);
+}
+
+.git-single-diff-editor .git-deleted-line {
+    background: var(--vscode-diffEditor-removedLineBackground);
+}
+
+.git-single-diff-editor .git-added-indicator::before {
+    content: '+';
+    color: var(--success);
+}
+
+.git-single-diff-editor .git-deleted-indicator::before {
+    content: '−';
+    color: var(--danger);
+}
