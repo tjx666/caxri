@@ -66,13 +66,6 @@ interface AgentMessagingSettings {
     enabled: boolean;
 }
 
-interface AgentNamingSettings {
-    /**
-     * Explicitly authorizes an extra low-cost model call after eligible Agent turns.
-     */
-    enabled: boolean;
-}
-
 interface AgentPasteSummarySettings {
     /**
      * Authorizes one low-cost model call when Caxri replaces a long Terminal paste with a local-file reference.
@@ -85,7 +78,6 @@ export interface AgentProviderSettings {
     hooks: AgentHookSettings;
     launch: AgentLaunchSettings;
     messaging: AgentMessagingSettings;
-    naming: AgentNamingSettings;
     pasteSummary: AgentPasteSummarySettings;
     recovery: AgentOutputRecoverySettings;
 }
@@ -94,10 +86,6 @@ export interface AgentProviderSettings {
  * Display and executable metadata for one Agent provider.
  */
 export interface AgentProviderCatalogEntry {
-    /**
-     * Declares the single authority that generates automatic Session names for this provider.
-     */
-    automaticSessionNaming: 'caxri' | 'native';
     /**
      * Human-readable name shown in the Renderer (e.g. Settings, Create Session dialog).
      */
@@ -121,14 +109,12 @@ export interface AgentProviderCatalogEntry {
 
 export const agentProviderCatalog = {
     claude: {
-        automaticSessionNaming: 'caxri',
         defaultLaunchArgs: ['--dangerously-skip-permissions'],
         displayName: 'Claude Code',
         executableName: 'claude',
         imageInput: undefined,
     },
     codex: {
-        automaticSessionNaming: 'native',
         defaultLaunchArgs: ['--dangerously-bypass-approvals-and-sandbox'],
         displayName: 'Codex',
         executableName: 'codex',
@@ -146,7 +132,6 @@ export const defaultAgentProviderSettings = Object.fromEntries(
             actions: structuredClone(defaultAgentActionsSettings),
             hooks: { enabled: true },
             messaging: { enabled: true },
-            naming: { enabled: true },
             pasteSummary: { enabled: true },
             recovery: { ...defaultAgentOutputRecoverySettings, patterns: [] },
             launch: {

@@ -88,7 +88,6 @@ export async function createDomainServices(
         agentOutputRecoverySettings,
         agents,
         coordinator,
-        sessionAutoNaming,
         sessionRenames,
     } = agentRuntime;
     let shellIntegration: ShellIntegrationService | undefined;
@@ -222,7 +221,6 @@ export async function createDomainServices(
     const forgetSessionRuntime = (sessionId: string): void => {
         terminalRestores.forget(sessionId);
         terminalSuspension.forgetSession(sessionId);
-        sessionAutoNaming.forgetSession(sessionId);
         coordinator.forgetSession(sessionId);
         transcripts.forgetSession(sessionId);
         terminals.terminateSession(sessionId);
@@ -408,7 +406,6 @@ export async function createDomainServices(
         projectStatus.dispose();
         terminalRestores.close();
         await terminalSuspension.close();
-        await sessionAutoNaming.close();
         coordinator.close();
         longPastes.close();
         unsubscribeTerminalSettings();
@@ -649,15 +646,10 @@ export async function createDomainServices(
                 hasUnread: result.session.hasUnread,
             };
         },
-        'session.rename': ({ sessionId, displayTitle }, signal, finalizeDurably) => {
-            sessionAutoNaming.pauseSession(sessionId);
-            return sessionRenames.rename(sessionId, displayTitle, signal, finalizeDurably);
-        },
-        'session.resumeAutomaticNaming': ({ sessionId }) =>
-            sessionAutoNaming.resumeSession(sessionId),
+        'session.rename': ({ sessionId, displayTitle }, signal, finalizeDurably) =>
+            sessionRenames.rename(sessionId, displayTitle, signal, finalizeDurably),
         'session.archive': async ({ sessionId }) => {
             terminalRestores.cancel(sessionId);
-            sessionAutoNaming.forgetSession(sessionId);
             const session = database.archiveSession(sessionId);
             await terminalSuspension.suspendSession(sessionId);
             observeSelectedSession(selectedSessionId(), true);
@@ -718,7 +710,6 @@ export async function createDomainServices(
         },
         'terminal.close': ({ terminalId }) => {
             const sessionId = database.getTerminal(terminalId)?.sessionId;
-            sessionAutoNaming.forgetTerminal(terminalId);
             coordinator.forgetTerminal(terminalId);
             transcripts.forgetTerminal(terminalId);
             terminals.close(terminalId);
@@ -758,7 +749,6 @@ export async function createDomainServices(
             introspection.records.terminal(query, principal),
         'terminal.terminateAll': async () => {
             terminalRestores.close();
-            await sessionAutoNaming.close();
             coordinator.close();
             await terminals.shutdown('terminate');
             return null;

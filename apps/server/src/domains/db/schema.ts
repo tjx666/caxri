@@ -75,11 +75,6 @@ export const sessions = sqliteTable(
         layoutVersion: integer('layout_version').notNull().default(DEFAULT_LAYOUT_VERSION),
         displayTitle: text('display_title').notNull(),
         titleMode: text('title_mode').notNull().default('automatic'),
-        autoNamingState: text('auto_naming_state').notNull().default('active'),
-        /**
-         * Private ownership mirror used only to distinguish Caxri writes from later provider-side manual renames.
-         */
-        lastAutoTitle: text('last_auto_title'),
     },
     (table) => [
         index('sessions_project_activity').on(

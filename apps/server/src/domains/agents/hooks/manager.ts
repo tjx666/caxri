@@ -5,7 +5,6 @@ import { basename, dirname, join } from 'node:path';
 import process from 'node:process';
 
 import type {
-    AgentAutomaticNamingHealth,
     AgentHookHealth,
     AgentHookHealthMap,
     AgentProvider,
@@ -153,8 +152,6 @@ function healthFor(status: AgentHookEntryStatus, isActive: boolean): AgentHookHe
  */
 export class AgentHookManager {
     private readonly activeProviders = new Set<AgentProvider>();
-    private readonly autoNamingConflicts = new Map<AgentProvider, string>();
-    private readonly autoNamingHealth = new Map<AgentProvider, AgentAutomaticNamingHealth>();
     private bridgePath?: string;
     private closed = false;
     private configReconcileTimer?: NodeJS.Timeout;
@@ -288,9 +285,6 @@ export class AgentHookManager {
             const targets = adapter.configTargets(this.options.environment);
             const targetById = new Map(targets.map((target) => [target.id, target]));
             let documents = await readTargets(targets);
-            const autoNamingConflict = adapter.autoNamingConflict?.(documents);
-            if (autoNamingConflict) this.autoNamingConflicts.set(provider, autoNamingConflict);
-            else this.autoNamingConflicts.delete(provider);
             let status = adapter.inspect(documents, this.desired(provider)).status;
             if (!isGloballyEnabled) {
                 this.loseAuthority(provider);
@@ -457,18 +451,13 @@ export class AgentHookManager {
     }
 
     private setHealth(provider: AgentProvider, health: AgentHookHealth): void {
-        const autoNamingConflict = this.autoNamingConflicts.get(provider);
-        const automaticNaming = autoNamingConflict
-            ? { kind: 'blocked' as const, message: autoNamingConflict }
-            : this.autoNamingHealth.get(provider);
-        const hookHealth: AgentHookHealth = {
+        const next: AgentHookHealth = {
             kind: health.kind,
             ...(health.message && { message: health.message }),
         };
-        health = { ...hookHealth, ...(automaticNaming && { automaticNaming }) };
         const previous = this.health[provider];
-        if (JSON.stringify(previous) === JSON.stringify(health)) return;
-        this.health = { ...this.health, [provider]: health };
+        if (JSON.stringify(previous) === JSON.stringify(next)) return;
+        this.health = { ...this.health, [provider]: next };
         /**
          * Only the health `kind` values are logged. A `conflict` or `unparseable` message is adapter-authored from the
          * user's own provider config and can quote its contents, so it stays on the Settings surface and out of
@@ -479,11 +468,7 @@ export class AgentHookManager {
                 stage: 'serverCore',
                 provider,
                 from: previous.kind,
-                to: health.kind,
-                ...(previous.automaticNaming?.kind !== health.automaticNaming?.kind && {
-                    automaticNamingFrom: previous.automaticNaming?.kind ?? 'none',
-                    automaticNamingTo: health.automaticNaming?.kind ?? 'none',
-                }),
+                to: next.kind,
             },
         });
         this.options.send({ event: 'agentHooks.changed', payload: this.getHealth() });
@@ -702,15 +687,6 @@ export class AgentHookManager {
 
     getHealth(): AgentHookHealthMap {
         return structuredClone(this.health);
-    }
-
-    setAutomaticNamingHealth(provider: AgentProvider, health: AgentAutomaticNamingHealth): void {
-        this.autoNamingHealth.set(provider, health);
-        this.setHealth(provider, this.health[provider]);
-    }
-
-    hasAutoNamingConflict(provider: AgentProvider): boolean {
-        return this.autoNamingConflicts.has(provider);
     }
 
     reconcile(settings: Record<AgentProvider, AgentProviderSettings>): Promise<void> {

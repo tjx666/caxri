@@ -362,7 +362,6 @@ process.stdout.write('Fake Claude subagent lifecycle ready\r\n');
         const current = await pageRequest<{ value: AppSettings }>(running.page, 'settings.get');
         const settings = structuredClone(current.value);
         settings['agents.providers'].claude.hooks.enabled = true;
-        settings['agents.providers'].claude.naming.enabled = false;
         settings['agents.notifications.enabled'] = true;
         settings['agents.notifications.completionThresholdSeconds'] = 0;
         await pageRequest(running.page, 'settings.update', {

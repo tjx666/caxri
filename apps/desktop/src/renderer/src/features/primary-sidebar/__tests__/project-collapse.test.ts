@@ -36,7 +36,6 @@ const session = (
     layoutVersion: 2,
     displayTitle: id,
     titleMode: 'automatic',
-    autoNamingState: 'active',
     ...overrides,
 });
 

@@ -97,9 +97,8 @@ const currentTitle = (sessionId) => {
     return undefined;
   }
 };
-const generatedTitle = (count) => provider === 'claude'
-  ? (count === 1 ? 'Claude Automatic Naming' : 'Claude Resumed Naming')
-  : (count === 1 ? 'Codex Native Naming' : 'Codex Resumed Naming');
+// Codex is the only provider whose fixture writes a title: it generates its thread name natively.
+const nativeCodexTitle = (count) => count === 1 ? 'Codex Native Title' : 'Codex Renewed Title';
 const generatedPasteSummary = 'Actual error: build failed with code E42 at src/task.ts:17; repeated progress lines were omitted.';
 
 const resumeIndex = process.argv.indexOf('--resume');
@@ -128,16 +127,17 @@ if (isClaudeGeneration || isCodexGeneration) {
   process.stdin.setEncoding('utf8');
   process.stdin.on('data', (chunk) => { input += chunk; });
   process.stdin.on('end', () => {
-    if (isCodexGeneration && !input.includes('If the text is a log, build trace, test output, or diagnostic dump:')) {
-      appendReceipt({ kind: 'unexpectedCodexTextGeneration' });
+    // The long-paste summary is Caxri's only low-cost model call for either provider, so a call
+    // without those instructions is a regression that must fail the Acceptance run loudly.
+    if (!input.includes('If the text is a log, build trace, test output, or diagnostic dump:')) {
+      appendReceipt({ kind: 'unexpectedTextGeneration', provider });
       process.exit(7);
       return;
     }
     const mode = consumeMode();
     const count = nextCount();
     const sessionId = mode.sessionId ?? '';
-    const generatedText = provider === 'claude' ? generatedTitle(count) : generatedPasteSummary;
-    const text = mode.kind === 'same' ? currentTitle(sessionId) : (mode.title ?? generatedText);
+    const text = mode.kind === 'same' ? currentTitle(sessionId) : (mode.title ?? generatedPasteSummary);
     appendReceipt({
       argumentContainsPrivateInput: process.argv.join(' ').includes(privateMarker),
       call: count,
@@ -147,7 +147,7 @@ if (isClaudeGeneration || isCodexGeneration) {
     });
     const finish = () => {
       if (mode.kind === 'fail') process.exit(7);
-      if (provider === 'claude') process.stdout.write(text || generatedTitle(count));
+      if (provider === 'claude') process.stdout.write(text || generatedPasteSummary);
       else process.stdout.write(JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', text: text || generatedPasteSummary } }) + '\n');
     };
     if (mode.kind === 'hold') waitForRelease(finish);
@@ -254,7 +254,7 @@ const finishTurn = () => {
   }
   const mode = consumeMode();
   const count = nextCount();
-  const title = mode.kind === 'same' ? currentTitle(sessionId) : (mode.title ?? generatedTitle(count));
+  const title = mode.kind === 'same' ? currentTitle(sessionId) : (mode.title ?? nativeCodexTitle(count));
   const applyNativeTitle = () => {
     if (mode.kind !== 'fail' && title) {
       const database = path.join(sqliteRoot, 'state_9.sqlite');
@@ -289,7 +289,7 @@ const startInitialTurn = () => {
     return;
   }
   try {
-    startTurn('Initial automatic naming topic');
+    startTurn('Initial acceptance topic');
     setTimeout(() => {
       try { finishTurn(); } catch (error) { appendReceipt({ kind: 'fixtureError', message: error.name }); }
     }, 150);
@@ -298,7 +298,7 @@ const startInitialTurn = () => {
   }
 };
 
-appendTranscript('Initial automatic naming topic', false);
+appendTranscript('Initial acceptance topic', false);
 setTimeout(startInitialTurn, 50);
 
 const bracketedPasteStart = '\u001b[200~';

@@ -84,7 +84,7 @@ function session(overrides: Partial<SessionRecord> = {}): SessionRecord {
         displayTitle: 'Session',
         titleMode: 'automatic',
         ...overrides,
-    } as SessionRecord;
+    };
 }
 
 function pullRequestJson(overrides: Record<string, unknown> = {}): string {

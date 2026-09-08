@@ -56,11 +56,6 @@ describe('filterSettingsRows', () => {
             'mobile.access',
         ]);
     });
-
-    it('offers Caxri automatic naming only for providers that Caxri names', () => {
-        expect(settingsRows.some((row) => row.id === 'agents.claude.naming')).toBe(true);
-        expect(settingsRows.some((row) => row.id === 'agents.codex.naming')).toBe(false);
-    });
 });
 
 describe('buildSettingsList', () => {

@@ -7,7 +7,7 @@ import type {
     SessionRecord,
     TerminalRecord,
 } from '@caxri/protocol';
-import { Archive, ChevronDown, FolderGit2, Paintbrush, RotateCcw, SquarePen } from 'lucide-react';
+import { Archive, ChevronDown, FolderGit2, Paintbrush, SquarePen } from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';
 import { CommandTooltip } from '../../components/command-tooltip';
@@ -17,12 +17,7 @@ import { Input } from '../../components/ui/input';
 import { Tooltip } from '../../components/ui/tooltip';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { cn } from '../../lib/utilities';
-import {
-    archiveSession,
-    canResumeAutomaticSessionNaming,
-    didSelectSession,
-    resumeAutomaticSessionNaming,
-} from '../session/session-actions';
+import { archiveSession, didSelectSession } from '../session/session-actions';
 import { useSessionTitleScroll } from './hooks/use-session-title-scroll';
 import { primarySidebarRevealRowId } from './primary-sidebar-tree';
 import { ProjectIcon } from './project-icon';
@@ -242,23 +237,6 @@ function ActiveSessionRow({
                     trigger={sessionCard}
                     worktreeProject={worktreeProject}
                 />
-            )}
-            {canResumeAutomaticSessionNaming(session, terminal) && (
-                <Tooltip content="Resume automatic naming">
-                    <button
-                        type="button"
-                        className="pointer-events-none absolute top-1/2 right-7 grid size-5 -translate-y-1/2 cursor-pointer place-items-center rounded border-0 bg-elevated p-0 text-muted opacity-0 transition-opacity group-hover/session-row:pointer-events-auto group-hover/session-row:opacity-100 hover:text-foreground"
-                        aria-label={`Resume automatic naming for ${session.displayTitle}`}
-                        aria-keyshortcuts="R"
-                        tabIndex={-1}
-                        onClick={(event) => {
-                            event.stopPropagation();
-                            resumeAutomaticSessionNaming(session.id);
-                        }}
-                    >
-                        <RotateCcw size={12} />
-                    </button>
-                </Tooltip>
             )}
             <Tooltip content="Archive Session">
                 <button

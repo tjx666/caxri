@@ -24,6 +24,7 @@ import agentProcessStateMigrationSql from './0018_empty_marten_broadcloak.sql?ra
 import sessionAutoNamingMigrationSql from './0019_mean_mojo.sql?raw';
 import terminalAgentCwdMigrationSql from './0020_friendly_silver_sable.sql?raw';
 import projectOwnerMigrationSql from './0021_mature_xavin.sql?raw';
+import dropSessionAutoNamingMigrationSql from './0022_natural_apocalypse.sql?raw';
 import migrationJournal from './meta/_journal.json';
 
 interface MigrationJournal {
@@ -85,6 +86,7 @@ export const migrationManifest = [
     { tag: '0019_mean_mojo', sql: sessionAutoNamingMigrationSql },
     { tag: '0020_friendly_silver_sable', sql: terminalAgentCwdMigrationSql },
     { tag: '0021_mature_xavin', sql: projectOwnerMigrationSql },
+    { tag: '0022_natural_apocalypse', sql: dropSessionAutoNamingMigrationSql },
 ] as const;
 
 // Intentional: this check must run at module initialization (see the docstring above) so an

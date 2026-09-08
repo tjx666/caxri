@@ -28,7 +28,6 @@ function session(patch: Partial<SessionRecord> & Pick<SessionRecord, 'id'>): Ses
         layoutVersion: 1,
         displayTitle: 'Investigate hooks',
         titleMode: 'automatic',
-        autoNamingState: 'active',
         primaryAgentTerminalId: 'terminal-1',
         ...overrides,
     };

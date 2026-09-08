@@ -44,7 +44,6 @@ function session(
         layoutVersion: 1,
         displayTitle: id.replaceAll('-', ' '),
         titleMode: 'manual',
-        autoNamingState: 'stopped',
     };
 }
 

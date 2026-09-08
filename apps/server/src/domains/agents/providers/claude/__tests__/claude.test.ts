@@ -30,7 +30,6 @@ import { clearExecutableCache } from '../../../discovery';
 import { AgentService, createLocalAgentAdapters } from '../../../service';
 import { claudeProvider, renameClaudeSession } from '..';
 import { clearClaudeMetadataCache } from '../metadata-cache';
-import { claudeTranscriptPath, claudeTranscriptRoot } from '../paths';
 
 const temporaryDirectories: string[] = [];
 
@@ -65,59 +64,8 @@ function claudeRenameContext(
 }
 
 describe('Claude Code provider', () => {
-    it('reads a bounded naming source and distinguishes an explicit native title', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-claude-naming-source-'));
-        temporaryDirectories.push(directory);
-        const root = join(directory, 'project');
-        const config = join(directory, 'claude');
-        const sessionId = 'claude-naming-session';
-        await Promise.all([
-            mkdir(root),
-            mkdir(join(config, 'sessions'), { recursive: true }),
-            mkdir(claudeTranscriptRoot(config, root), { recursive: true }),
-        ]);
-        await writeFile(
-            join(config, 'sessions', 'session.json'),
-            JSON.stringify({
-                cwd: root,
-                name: 'Manual Claude title',
-                nameSource: 'custom',
-                sessionId,
-            }),
-            'utf8',
-        );
-        await writeFile(
-            claudeTranscriptPath(config, root, sessionId),
-            [
-                { type: 'user', message: { content: 'Investigate lifecycle hooks' } },
-                {
-                    type: 'assistant',
-                    message: { content: [{ type: 'text', text: 'I found the coordinator.' }] },
-                },
-            ]
-                .map((record) => JSON.stringify(record))
-                .join('\n'),
-            'utf8',
-        );
-
-        await expect(
-            claudeProvider.naming?.readSource(
-                { agentSessionId: sessionId, rootPath: root },
-                {
-                    homeDirectory: directory,
-                    variables: { CLAUDE_CONFIG_DIR: config },
-                },
-            ),
-        ).resolves.toMatchObject({
-            assistantMessages: ['I found the coordinator.'],
-            currentProviderTitle: 'Manual Claude title',
-            providerTitleState: 'explicit',
-            userMessages: ['Investigate lifecycle hooks'],
-        });
-    });
-
     it('sends low-cost prompt content only through stdin and blocks instruction files', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-claude-naming-command-'));
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-claude-low-cost-command-'));
         temporaryDirectories.push(directory);
         const executable = join(directory, 'claude.cjs');
         const argumentsPath = join(directory, 'arguments.json');
@@ -148,7 +96,7 @@ process.stdin.setEncoding('utf8');
 process.stdin.on('data', (chunk) => { input += chunk; });
 process.stdin.on('end', () => {
     writeFileSync(${JSON.stringify(inputPath)}, input);
-    process.stdout.write('Claude Naming Lifecycle');
+    process.stdout.write('Claude Paste Summary');
 });
 `,
             'utf8',
@@ -160,21 +108,23 @@ process.stdin.on('end', () => {
         };
 
         await expect(
-            claudeProvider.naming?.generateTitle({
+            claudeProvider.pasteSummary?.summarize({
                 cwd: projectDirectory,
                 environment: claudeEnvironment,
                 executable,
-                prompt: 'private transcript excerpt',
+                prompt: 'long paste fixture',
                 version: '2.1.251 (Claude Code)',
             }),
-        ).resolves.toBe('Claude Naming Lifecycle');
+        ).resolves.toBe('Claude Paste Summary');
         const arguments_ = JSON.parse(await readFile(argumentsPath, 'utf8')) as string[];
         expect(arguments_).toEqual(
             expect.arrayContaining(['--model', 'haiku', '--no-session-persistence', '--safe-mode']),
         );
-        expect(arguments_[arguments_.indexOf('--system-prompt') + 1]).toContain('Do not use emoji');
-        expect(arguments_.join(' ')).not.toContain('private transcript excerpt');
-        expect(await readFile(inputPath, 'utf8')).toBe('private transcript excerpt');
+        expect(arguments_[arguments_.indexOf('--system-prompt') + 1]).toContain(
+            'If the text is a log, build trace, test output, or diagnostic dump:',
+        );
+        expect(arguments_.join(' ')).not.toContain('long paste fixture');
+        expect(await readFile(inputPath, 'utf8')).toBe('long paste fixture');
         expect(await readFile(cwdPath, 'utf8')).not.toBe(projectDirectory);
         /**
          * Claude Code resolves its user memory from the configuration directory, so an isolated cwd alone cannot stop
@@ -186,24 +136,6 @@ process.stdin.on('end', () => {
         };
         expect(exposure.globalInstructions).toBe('blocked');
         expect(exposure.projectSource).toBe('blocked');
-
-        await expect(
-            claudeProvider.pasteSummary?.summarize({
-                cwd: projectDirectory,
-                environment: claudeEnvironment,
-                executable,
-                prompt: 'long paste fixture',
-                version: '2.1.251 (Claude Code)',
-            }),
-        ).resolves.toBe('Claude Naming Lifecycle');
-        expect(JSON.parse(await readFile(argumentsPath, 'utf8'))).toEqual(
-            expect.arrayContaining(['--model', 'haiku', '--no-session-persistence']),
-        );
-        const pasteArguments = JSON.parse(await readFile(argumentsPath, 'utf8')) as string[];
-        expect(pasteArguments[pasteArguments.indexOf('--system-prompt') + 1]).toContain(
-            'If the text is a log, build trace, test output, or diagnostic dump:',
-        );
-        expect(await readFile(inputPath, 'utf8')).toBe('long paste fixture');
     });
 
     it('renames the exact native session with structured arguments and returns the provider-authoritative name', async () => {
@@ -521,7 +453,7 @@ process.stdin.on('end', () => {
             service.snapshot('claude', { rootPath: root, processState: 'running' }),
         ).resolves.toMatchObject({ title: 'Migrate market search to ES with flags' });
 
-        // A `/rename` (interactive or Caxri's own non-interactive automatic naming) appends `custom-title`, which
+        // A `/rename` (interactive or Caxri's own non-interactive manual rename) appends `custom-title`, which
         // the live metadata never reflects; it must win over the earlier ai-title.
         await appendFile(
             transcript,
@@ -574,7 +506,7 @@ process.stdin.on('end', () => {
             'utf8',
         );
         // Without a readable transcript title, the directory-derived placeholder must not surface as a title:
-        // persisting it would overwrite the name automatic naming already wrote.
+        // persisting it would overwrite the name the last rename already wrote.
         const escaped = await service.snapshot('claude', {
             rootPath: root,
             processState: 'running',
@@ -729,7 +661,7 @@ process.stdin.on('end', () => {
         ).resolves.toMatchObject({ title: 'My renamed session' });
 
         // A derived placeholder name without any transcript title must not surface: persisting it would overwrite
-        // the title automatic naming already wrote.
+        // the title the last rename already wrote.
         await writeFile(
             join(config, 'sessions', 'named.json'),
             JSON.stringify({
