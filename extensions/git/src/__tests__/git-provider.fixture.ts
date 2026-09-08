@@ -1,3 +1,5 @@
+import './host-api.fixture';
+
 import type { CaxriApi, GitCommitDetails, GitCommitPage, GitSummary, WorkspaceGit } from 'caxri';
 import { vi } from 'vitest';
 
@@ -55,7 +57,9 @@ const commitPage: GitCommitPage = {
 };
 export const scopeId = 'session-a:project-a';
 
-export function createHarness(options: { avatars?: boolean } = {}) {
+export function createHarness(
+    options: { avatars?: boolean; diffExclude?: Readonly<Record<string, boolean>> } = {},
+) {
     const git = {
         summary: vi.fn<WorkspaceGit['summary']>(() => Promise.resolve(summary)),
         sync: vi.fn<WorkspaceGit['sync']>(() => Promise.resolve()),
@@ -65,8 +69,11 @@ export function createHarness(options: { avatars?: boolean } = {}) {
         commitDetails: vi.fn<WorkspaceGit['commitDetails']>(() => Promise.resolve(commitDetails)),
         remoteHost: vi.fn<WorkspaceGit['remoteHost']>(() => Promise.resolve('github.com')),
     } satisfies WorkspaceGit;
-    const getConfigRequest = vi.fn<(key: string) => Promise<boolean | undefined>>();
-    getConfigRequest.mockResolvedValue(options.avatars);
+    const getConfigRequest =
+        vi.fn<(key: string) => Promise<boolean | Readonly<Record<string, boolean>> | undefined>>();
+    getConfigRequest.mockImplementation((key) =>
+        Promise.resolve(key === 'git.diffExclude' ? options.diffExclude : options.avatars),
+    );
     const getConfig: CaxriApi['workspace']['getConfiguration'] = async <Value = unknown>(
         key: string,
     ): Promise<Value | undefined> => (await getConfigRequest(key)) as Value | undefined;

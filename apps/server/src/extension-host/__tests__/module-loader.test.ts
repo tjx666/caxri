@@ -1,5 +1,6 @@
 import { pathToFileURL } from 'node:url';
 
+import { isGlobMatch } from '@caxri/utils';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
@@ -14,6 +15,7 @@ interface LoadedExtensionApiModule {
     readonly default: unknown;
     readonly ProjectStatusSummaryErrorMessage: unknown;
     readonly TreeItem: unknown;
+    readonly isGlobMatch: typeof isGlobMatch;
 }
 
 function isLoadedExtensionApiModule(value: unknown): value is LoadedExtensionApiModule {
@@ -22,7 +24,9 @@ function isLoadedExtensionApiModule(value: unknown): value is LoadedExtensionApi
         value !== null &&
         'default' in value &&
         'ProjectStatusSummaryErrorMessage' in value &&
-        'TreeItem' in value
+        'TreeItem' in value &&
+        'isGlobMatch' in value &&
+        typeof value.isGlobMatch === 'function'
     );
 }
 
@@ -51,6 +55,7 @@ describe('extensionApiModuleUrl', () => {
                     api: { id: 'first-generation-1' },
                     runtime: {
                         Disposable: class {},
+                        isGlobMatch,
                         EventEmitter: class {},
                         CancellationTokenSource: class {},
                         ProjectStatusSummaryErrorMessage: projectStatusSummaryErrorMessage,
@@ -66,6 +71,7 @@ describe('extensionApiModuleUrl', () => {
                     api: { id: 'second-generation-1' },
                     runtime: {
                         Disposable: class {},
+                        isGlobMatch,
                         EventEmitter: class {},
                         CancellationTokenSource: class {},
                         ProjectStatusSummaryErrorMessage: projectStatusSummaryErrorMessage,
@@ -81,6 +87,7 @@ describe('extensionApiModuleUrl', () => {
                     api: { id: 'first-generation-2' },
                     runtime: {
                         Disposable: class {},
+                        isGlobMatch,
                         EventEmitter: class {},
                         CancellationTokenSource: class {},
                         ProjectStatusSummaryErrorMessage: projectStatusSummaryErrorMessage,
@@ -124,6 +131,7 @@ describe('extensionApiModuleUrl', () => {
             'default',
             'Disposable',
             'EventEmitter',
+            'isGlobMatch',
             'ProjectStatusSummaryErrorMessage',
             'ThemeIcon',
             'TreeItem',
@@ -132,6 +140,8 @@ describe('extensionApiModuleUrl', () => {
         expect(first.default).toBe(firstAgain.default);
         expect(first.ProjectStatusSummaryErrorMessage).toBe(projectStatusSummaryErrorMessage);
         expect(first.TreeItem).toBe(LoadedTreeItem);
+        expect(first.isGlobMatch('src/example.test.ts', { '**/*.test.*': true })).toBe(true);
+        expect(first.isGlobMatch('src/example.ts', { '**/*.test.*': true })).toBe(false);
         expect(first.default).not.toBe(second.default);
         expect(first.default).not.toBe(reloaded.default);
         expect(new Set([firstUrl, secondUrl, reloadedUrl]).size).toBe(3);

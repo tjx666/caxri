@@ -1,3 +1,5 @@
+import './host-api.fixture';
+
 import type { GitCommitDetails, GitPullRequestChanges, GitSummary } from 'caxri';
 import { ProjectStatusSummaryErrorMessage } from 'caxri';
 import { describe, expect, it } from 'vitest';
@@ -332,5 +334,153 @@ describe('Git source-control view model', () => {
         });
 
         expect(model.emptyMessage).toBe('This folder is not a Git repository.');
+    });
+
+    it('filters working files while preserving totals and exposes an accessible toggle', () => {
+        const filteredSummary: GitSummary = {
+            ...summary,
+            repositories: [
+                {
+                    ...summary.repositories[0],
+                    changedFileCount: 3,
+                    files: [
+                        ...summary.repositories[0].files,
+                        {
+                            path: 'src/extension.test.ts',
+                            index: ' ',
+                            workingTree: 'M',
+                            kind: 'modified',
+                        },
+                        {
+                            path: 'src/__tests__/fixture.ts',
+                            index: ' ',
+                            workingTree: 'M',
+                            kind: 'modified',
+                        },
+                    ],
+                },
+            ],
+        };
+        const excludePatterns = {
+            '**/*.test.*': true,
+            '**/__tests__/**': true,
+        };
+
+        const hidden = buildSourceControlViewModel({
+            excludePatterns,
+            mode: 'working',
+            summary: filteredSummary,
+        });
+        expect(hidden.headerActions?.[0]).toMatchObject({
+            icon: { kind: 'theme', id: 'eye' },
+            label: 'Show excluded files (2)',
+            pressed: false,
+            tooltip: 'Show excluded files (2)',
+        });
+        expect(hidden.providers[0].groups[0]).toMatchObject({
+            count: 3,
+            hiddenCount: 2,
+            resources: [{ label: 'extension.ts' }],
+        });
+        expect(hidden.providers[0].groups[0].actions[0]).toMatchObject({
+            disabled: true,
+            tooltip: 'Show excluded files to discard all changes.',
+        });
+
+        const shown = buildSourceControlViewModel({
+            excludePatterns,
+            mode: 'working',
+            isShowingExcluded: true,
+            summary: filteredSummary,
+        });
+        expect(shown.headerActions?.[0]).toMatchObject({
+            icon: { kind: 'theme', id: 'eye-off' },
+            label: 'Hide excluded files (2)',
+            pressed: true,
+        });
+        expect(shown.providers[0].groups[0].resources).toHaveLength(3);
+        expect(shown.providers[0].groups[0].hiddenCount).toBeUndefined();
+        expect(shown.providers[0].groups[0].actions[0].disabled).toBe(false);
+        expect(shown.providers[0].groups[0].actions[1].command.arguments?.[0]).toContain(
+            '?showExcluded=true',
+        );
+    });
+
+    it('uses the excluded-only empty state for working, commit, and pull-request changes', () => {
+        const testFile = {
+            path: 'src/feature.spec.ts',
+            index: 'M',
+            workingTree: ' ',
+            kind: 'modified' as const,
+        };
+        const excludePatterns = { '**/*.spec.*': true };
+        const working = buildSourceControlViewModel({
+            excludePatterns,
+            mode: 'working',
+            summary: {
+                ...summary,
+                repositories: [
+                    {
+                        ...summary.repositories[0],
+                        changedFileCount: 1,
+                        files: [testFile],
+                    },
+                ],
+            },
+        });
+        const details: GitCommitDetails = {
+            commit: {
+                sha: summary.repositories[0].head!,
+                shortSha: '0123456',
+                subject: 'Test only',
+                body: '',
+                author: 'Caxri',
+                authorEmail: 'caxri@example.com',
+                authoredAt: 1,
+                decorations: [],
+                parents: [],
+            },
+            additions: 1,
+            deletions: 0,
+            files: [{ path: testFile.path, status: 'modified' }],
+            filesTruncated: false,
+        };
+        const commit = buildSourceControlViewModel({
+            detailsByRepository: new Map([['repo-1', details]]),
+            excludePatterns,
+            mode: 'commit',
+            summary,
+        });
+        const pullRequest = buildSourceControlViewModel({
+            excludePatterns,
+            mode: 'pull-request',
+            pullRequestsByRepository: new Map([
+                [
+                    'repo-1',
+                    {
+                        repositoryId: 'repo-1',
+                        number: 1,
+                        title: 'Test only',
+                        url: 'https://github.com/example/caxri/pull/1',
+                        baseRefName: 'main',
+                        headRefName: 'tests',
+                        baseOid: 'a'.repeat(40),
+                        headOid: 'b'.repeat(40),
+                        additions: 1,
+                        deletions: 0,
+                        files: [testFile],
+                    },
+                ],
+            ]),
+            summary,
+        });
+
+        for (const model of [working, commit, pullRequest])
+            expect(model.providers[0].groups[0]).toMatchObject({
+                count: 1,
+                emptyMessage: '1 excluded file hidden.',
+                hiddenCount: 1,
+                resources: [],
+            });
     });
 });

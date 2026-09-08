@@ -222,6 +222,9 @@ describe('pnpm workspace contract', () => {
             'packages/system',
             'packages/utils',
         ]);
+        expect(packageBoundaries.find(({ id }) => id === 'extension-api')?.allowedPackages).toEqual(
+            [],
+        );
 
         const appsRoot = join(root, 'apps');
         if (!existsSync(appsRoot)) return;

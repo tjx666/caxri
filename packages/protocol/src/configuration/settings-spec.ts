@@ -350,6 +350,15 @@ export const settingsSpec = [
         keywords: ['hide', 'ignore', 'glob', 'pattern', 'tree'],
     },
     {
+        kind: 'complex',
+        key: 'git.diffExclude',
+        title: 'Excluded Git diff files',
+        description:
+            'Hide matching repository-relative paths from Git change lists and Open All Changes. Use the Source Control eye button to show them temporarily. Supports *, **, and ?; this does not change Git tracking.',
+        category: 'files',
+        keywords: ['git', 'diff', 'test', 'spec', 'hide', 'ignore', 'glob', 'source control'],
+    },
+    {
         kind: 'integer',
         key: 'files.maxFileBytes',
         title: 'Maximum editable file size',

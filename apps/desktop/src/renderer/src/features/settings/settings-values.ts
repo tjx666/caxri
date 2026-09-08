@@ -51,7 +51,7 @@ export function isRowModified(binding: SettingRowBinding, context: SettingsValue
         case 'ignored-checks':
             return settings['projectStatus.ignoredChecks'].length > 0;
         case 'files-exclude':
-            return !isEqual(settings['files.exclude'], defaultAppSettings['files.exclude']);
+            return !isEqual(settings[binding.key], defaultAppSettings[binding.key]);
         case 'remote-debugging':
             return argvConfig !== undefined && !argvConfig.remoteDebugging;
         case 'hardware-acceleration':
@@ -143,8 +143,8 @@ export function rowResetAction(
         case 'files-exclude':
             return {
                 kind: 'field',
-                key: 'files.exclude',
-                value: structuredClone(defaultAppSettings['files.exclude']),
+                key: binding.key,
+                value: structuredClone(defaultAppSettings[binding.key]),
             };
         case 'remote-debugging':
             return { kind: 'argv', changes: { remoteDebugging: true } };

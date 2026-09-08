@@ -1,0 +1,42 @@
+import type { GitFileStatus } from '@caxri/protocol';
+import { describe, expect, it } from 'vitest';
+
+import { describeHiddenGitDiffFiles, filterGitDiffFiles } from '../git-diff-filter';
+
+const files: GitFileStatus[] = [
+    { index: ' ', kind: 'modified', path: 'README.md', workingTree: 'M' },
+    { index: ' ', kind: 'modified', path: 'src/example.test.ts', workingTree: 'M' },
+    { index: ' ', kind: 'modified', path: 'src/example.spec.ts', workingTree: 'M' },
+];
+
+describe('filterGitDiffFiles', () => {
+    it('filters enabled repository-relative patterns and reports the hidden count', () => {
+        expect(
+            filterGitDiffFiles(files, { '**/*.test.*': true, '**/*.spec.*': false }, false),
+        ).toEqual({ files: [files[0], files[2]], hiddenCount: 1 });
+    });
+
+    it('returns every file when the aggregate tab explicitly shows exclusions', () => {
+        expect(filterGitDiffFiles(files, { '**/*.test.*': true }, true)).toEqual({
+            files,
+            hiddenCount: 0,
+        });
+    });
+
+    it('distinguishes an all-hidden aggregate from a repository with no changes', () => {
+        const filtered = filterGitDiffFiles(
+            files.slice(1),
+            { '**/*.test.*': true, '**/*.spec.*': true },
+            false,
+        );
+
+        expect(filtered.files).toEqual([]);
+        expect(filtered.hiddenCount).toBe(2);
+        expect(describeHiddenGitDiffFiles(filtered.hiddenCount, true)).toBe(
+            'All 2 changed files are hidden by Git diff exclusions.',
+        );
+        expect(describeHiddenGitDiffFiles(2_000, true, true)).toBe(
+            'All 2,000 loaded changed files are hidden by Git diff exclusions.',
+        );
+    });
+});

@@ -295,6 +295,7 @@ describe('workspace package manifests', () => {
 
             expect(manifest.devDependencies).toEqual({
                 '@caxri/protocol': 'workspace:*',
+                ...(name === 'git' && { '@caxri/utils': 'workspace:*' }),
                 'caxri': 'workspace:*',
             });
             expect(manifest.version).toBe(appManifest.version);

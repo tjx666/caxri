@@ -1,3 +1,5 @@
+import './host-api.fixture';
+
 import type { GitCommitDetails, GitCommitPage, SourceControlAction } from 'caxri';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -22,6 +24,27 @@ const commit = {
 const page: GitCommitPage = { commits: [commit] };
 
 describe('Git Source Control history projection', () => {
+    it('preserves a structured hidden count when every committed file is excluded', () => {
+        const result = buildSourceControlHistoryDetails({
+            details: {
+                commit,
+                files: [{ path: 'src/example.test.ts', status: 'modified' }],
+                filesTruncated: false,
+                additions: 1,
+                deletions: 1,
+            },
+            excludePatterns: { '**/*.test.*': true },
+            registerAction: (action) => ({ id: 'action-1', ...action }),
+            repositoryId: 'repo',
+            revision: '1',
+        });
+        expect(result).toMatchObject({
+            resources: [],
+            hiddenCount: 1,
+            summary: '1 file changed · 1 hidden',
+        });
+    });
+
     it('registers an open-changes action for file-scoped history items', () => {
         const registerAction = vi.fn((action: ActionRegistration): SourceControlAction => ({
             id: 'action-1',
@@ -92,5 +115,30 @@ describe('Git Source Control history projection', () => {
         expect(result.resources[0].accessibilityLabel.length).toBeLessThanOrEqual(1_024);
         expect(result.resources[0].editorResource).toBeUndefined();
         expect(result.resources[0].action).toBeUndefined();
+    });
+
+    it('filters repository commit details and keeps the raw changed-file summary', () => {
+        const details: GitCommitDetails = {
+            commit,
+            additions: 2,
+            deletions: 0,
+            files: [
+                { path: 'src/feature.ts', status: 'modified' },
+                { path: 'src/feature.test.ts', status: 'modified' },
+            ],
+            filesTruncated: false,
+        };
+
+        const result = buildSourceControlHistoryDetails({
+            details,
+            excludePatterns: { '**/*.test.*': true },
+            registerAction: (action) => ({ id: 'action-1', ...action }),
+            repositoryId: 'repo-1',
+            revision: '1',
+        });
+
+        expect(result.summary).toBe('2 files changed · 1 hidden');
+        expect(result.resources).toHaveLength(1);
+        expect(result.resources[0].label).toBe('feature.ts');
     });
 });

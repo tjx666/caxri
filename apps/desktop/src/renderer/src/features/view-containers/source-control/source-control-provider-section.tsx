@@ -158,6 +158,9 @@ function GroupCaption({
                         </Button>
                     </Tooltip>
                 ))}
+                {(group.hiddenCount ?? 0) > 0 && (
+                    <span className="font-normal normal-case">{group.hiddenCount} hidden</span>
+                )}
                 <span>{group.count}</span>
             </span>
         </div>
