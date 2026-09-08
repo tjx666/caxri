@@ -105,22 +105,34 @@ export interface RawToken {
 }
 
 /**
- * Detaches a path suffix from CJK prose only when the suffix has an explicit path marker or follows a full-width
- * opening bracket. Bare Project-relative paths after sentence punctuation remain ambiguous (`目录。version/file.ts` may be
- * one valid path), so treating every CJK punctuation mark as a separator would corrupt them, while `见（src/a.ts）` cannot
- * be one path. The implicit boundaries apply only to the default setting; custom word separators retain exact control
- * over tokenization.
+ * Detaches a path suffix from CJK prose when the suffix has an explicit path marker or follows a CJK label colon or
+ * full-width opening bracket. Bare Project-relative paths after sentence punctuation remain ambiguous
+ * (`目录。version/file.ts` may be one valid path), so treating every CJK punctuation mark as a separator would corrupt
+ * them, while `见（src/a.ts）` cannot be one path. The implicit boundaries apply only to the default setting; custom word
+ * separators retain exact control over tokenization.
  */
 export function detachPathCandidateFromCjkProse(token: RawToken, wordSeparators: string): RawToken {
     if (wordSeparators !== TERMINAL_DEFAULT_WORD_SEPARATORS) return token;
     const firstSlash = token.text.indexOf('/');
     const searchStart = (firstSlash === -1 ? token.text.length : firstSlash) - 1;
+    const firstCjkCharacter = token.text.search(
+        /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u,
+    );
     for (let index = searchStart; index >= 0; index -= 1) {
-        if (!CJK_PROSE_BOUNDARIES.has(token.text[index])) continue;
+        /**
+         * A CJK label's colon introduces a bare relative path. Limit this to the first segment so colons in explicit
+         * paths and the `file://` scheme keep their meaning; line/column suffixes are parsed separately.
+         */
+        const isLabelColon =
+            (token.text[index] === ':' || token.text[index] === '：') &&
+            firstCjkCharacter >= 0 &&
+            firstCjkCharacter < index;
+        if (!isLabelColon && !CJK_PROSE_BOUNDARIES.has(token.text[index])) continue;
         const suffix = token.text.slice(index + 1);
         const candidate = suffix.slice(0, trailingCjkProseOffset(suffix, wordSeparators));
         const trimmed = trimTerminalLinkToken(candidate);
         if (
+            !isLabelColon &&
             !CJK_OPENING_WRAPPERS.has(token.text[index]) &&
             !trimmed.text.startsWith('.') &&
             !trimmed.text.startsWith('/') &&
