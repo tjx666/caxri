@@ -1,9 +1,10 @@
 import type { ComponentProps, Ref } from 'react';
-import { useEffect, useId } from 'react';
+import { useEffect, useId, useState } from 'react';
 
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { X } from 'lucide-react';
 
+import { resolvePickerFinalFocus } from '@/lib/picker-final-focus';
 import { cn } from '@/lib/utilities';
 import { useDialogStore } from '@/stores/dialogs';
 
@@ -59,49 +60,64 @@ function DialogOverlay({ className, ...properties }: DialogPrimitive.Backdrop.Pr
     );
 }
 
-export function DialogContent({
-    backdropClassName,
+type DialogPopupProperties = DialogPrimitive.Popup.Props & {
+    ref?: Ref<HTMLDivElement>;
+    showCloseButton?: boolean;
+};
+
+type DialogContentProperties = DialogPopupProperties & {
+    backdropClassName?: string;
+};
+
+export function DialogContent({ backdropClassName, ...properties }: DialogContentProperties) {
+    return (
+        <DialogPortal>
+            <DialogOverlay className={backdropClassName} />
+            <DialogPopup {...properties} />
+        </DialogPortal>
+    );
+}
+
+/**
+ * The popup half of {@link DialogContent}, split out so a variant can run per-open hooks: Base UI's Portal renders
+ * nothing while the dialog is closed, so anything rendered inside it mounts fresh on every open even when the owning
+ * `Dialog` stays mounted for the app's lifetime (Command Palette, Terminal link picker).
+ */
+function DialogPopup({
     className,
     children,
     showCloseButton = true,
     ...properties
-}: DialogPrimitive.Popup.Props & {
-    backdropClassName?: string;
-    ref?: Ref<HTMLDivElement>;
-    showCloseButton?: boolean;
-}) {
+}: DialogPopupProperties) {
     return (
-        <DialogPortal>
-            <DialogOverlay className={backdropClassName} />
-            <DialogPrimitive.Popup
-                data-slot="dialog-content"
-                className={cn(
-                    // Tailwind v4 emits centering as the standalone `translate` CSS
-                    // property (not `transform`), so it composes independently of the
-                    // `enter`/`exit` keyframes below (which animate `transform`) instead
-                    // of being clobbered by them.
-                    // `outline-none` also covers the popup container itself being focused
-                    // (e.g. via `initialFocus`), where the browser would otherwise draw a
-                    // default focus ring around the whole dialog.
-                    'fixed top-1/2 left-1/2 z-[51] max-h-[calc(100vh-48px)] w-[min(520px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 overflow-auto rounded-lg border border-border bg-surface shadow-[0_16px_48px_var(--shadow)] outline-none',
-                    'motion-safe:data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 motion-safe:data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
-                    'duration-(--motion-overlay-enter) data-closed:duration-(--motion-overlay-exit)',
-                    className,
-                )}
-                {...properties}
-            >
-                {children}
-                {showCloseButton && (
-                    <DialogPrimitive.Close
-                        data-slot="dialog-close"
-                        className="absolute top-2 right-2 grid size-7 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 hover:bg-elevated"
-                        aria-label="Close"
-                    >
-                        <X aria-hidden="true" size={15} />
-                    </DialogPrimitive.Close>
-                )}
-            </DialogPrimitive.Popup>
-        </DialogPortal>
+        <DialogPrimitive.Popup
+            data-slot="dialog-content"
+            className={cn(
+                // Tailwind v4 emits centering as the standalone `translate` CSS
+                // property (not `transform`), so it composes independently of the
+                // `enter`/`exit` keyframes below (which animate `transform`) instead
+                // of being clobbered by them.
+                // `outline-none` also covers the popup container itself being focused
+                // (e.g. via `initialFocus`), where the browser would otherwise draw a
+                // default focus ring around the whole dialog.
+                'fixed top-1/2 left-1/2 z-[51] max-h-[calc(100vh-48px)] w-[min(520px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 overflow-auto rounded-lg border border-border bg-surface shadow-[0_16px_48px_var(--shadow)] outline-none',
+                'motion-safe:data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 motion-safe:data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
+                'duration-(--motion-overlay-enter) data-closed:duration-(--motion-overlay-exit)',
+                className,
+            )}
+            {...properties}
+        >
+            {children}
+            {showCloseButton && (
+                <DialogPrimitive.Close
+                    data-slot="dialog-close"
+                    className="absolute top-2 right-2 grid size-7 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 hover:bg-elevated"
+                    aria-label="Close"
+                >
+                    <X aria-hidden="true" size={15} />
+                </DialogPrimitive.Close>
+            )}
+        </DialogPrimitive.Popup>
     );
 }
 
@@ -114,17 +130,36 @@ export function DialogContent({
  */
 export function PickerDialogContent({
     backdropClassName,
-    className,
     ...properties
-}: Omit<ComponentProps<typeof DialogContent>, 'showCloseButton'>) {
+}: Omit<DialogContentProperties, 'showCloseButton'>) {
     return (
-        <DialogContent
-            backdropClassName={cn('bg-transparent backdrop-blur-none', backdropClassName)}
+        <DialogPortal>
+            <DialogOverlay className={cn('bg-transparent backdrop-blur-none', backdropClassName)} />
+            <PickerPopup {...properties} />
+        </DialogPortal>
+    );
+}
+
+/**
+ * Pickers open from keyboard commands, so Base UI has no trigger to hand focus back to on close. `finalFocus` therefore
+ * decides from the element that held focus when the picker opened (see `lib/picker-final-focus.ts`). This component
+ * lives inside the Portal, which mounts it fresh on every open, so a `useState` initializer captures that element
+ * exactly once per open — even for pickers whose `Dialog` stays mounted while closed.
+ *
+ * Passing a function (rather than a boolean) also makes Base UI restore focus unconditionally, skipping its "focus
+ * already moved elsewhere, leave it" guard. Every picker closes with focus still inside the popup or on `body`, so the
+ * guard never applied to them; a picker that hands focus to another surface before closing must return `false` here.
+ */
+function PickerPopup({ className, ...properties }: Omit<DialogPopupProperties, 'showCloseButton'>) {
+    const [elementFocusedBeforeOpen] = useState(() => document.activeElement);
+    return (
+        <DialogPopup
             className={cn(
                 'top-[18%] w-[min(560px,calc(100vw-32px))] translate-y-0 overflow-hidden',
                 className,
             )}
             showCloseButton={false}
+            finalFocus={() => resolvePickerFinalFocus(elementFocusedBeforeOpen)}
             {...properties}
         />
     );

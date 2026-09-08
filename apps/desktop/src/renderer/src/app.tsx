@@ -36,7 +36,9 @@ import { startViewEventBridge } from './features/view-containers/view-event-brid
 import { LoadingScreen } from './features/workbench/loading-screen';
 import { PanelDivider } from './features/workbench/panel-divider';
 import { WorkbenchColumn } from './features/workbench/workbench-column';
+import { activeWorkbenchFocusElement } from './features/workbench/workbench-focus';
 import { WorkbenchRootPrompt } from './features/workbench/workbench-root-prompt';
+import { registerPickerFallbackFocus } from './lib/picker-final-focus';
 import { applyCssTheme } from './lib/theme-css';
 import { cn } from './lib/utilities';
 import { useRuntimeQueryInvalidation } from './queries/invalidation';
@@ -106,6 +108,7 @@ export function App() {
     useFileMutationReconciliation(isAttached);
     useRuntimeQueryInvalidation();
     useEffect(() => startViewEventBridge(), []);
+    useEffect(() => registerPickerFallbackFocus(activeWorkbenchFocusElement), []);
     useSessionMruSwitcherLifecycle();
     useSessionNavigationHistory();
     useCommandShortcuts();
