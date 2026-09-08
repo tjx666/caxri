@@ -24,7 +24,7 @@ const mocks = vi.hoisted(() => {
 vi.mock('../../../lib/caxri', () => ({ caxri: mocks }));
 
 import { getSessionDocuments, useSessionViewStore } from '../../../stores/session-view';
-import { useToastStore } from '../../../stores/toasts';
+import { dismissToast, getToasts } from '../../../stores/toasts';
 import { useWorkbenchStore } from '../../../stores/workbench';
 import { useFileOperationStore } from '../../view-containers/resource-explorer/file-operation-state';
 import { subscribeExternalDocumentSync } from '../external-sync';
@@ -92,7 +92,7 @@ beforeEach(() => {
 afterEach(() => {
     useFileOperationStore.getState().clear();
     useWorkbenchStore.setState({ bootstrap: undefined });
-    useToastStore.getState().dismiss();
+    dismissToast();
 });
 
 describe('subscribeExternalDocumentSync', () => {
@@ -206,7 +206,7 @@ describe('subscribeExternalDocumentSync', () => {
                 getSessionDocuments('session-1', 'project-1')?.['/project/first.ts'],
             ).toMatchObject({ content: 'disk content', dirty: false });
         });
-        expect(useToastStore.getState().toasts).toEqual([]);
+        expect(getToasts()).toEqual([]);
         unsubscribe();
     });
 
@@ -313,8 +313,8 @@ describe('subscribeExternalDocumentSync', () => {
         });
 
         await vi.waitFor(() => {
-            expect(useToastStore.getState().toasts).toContainEqual(
-                expect.objectContaining({ kind: 'info', persist: true }),
+            expect(getToasts()).toContainEqual(
+                expect.objectContaining({ type: 'info', duration: Infinity }),
             );
         });
         unsubscribe();
@@ -377,11 +377,11 @@ describe('subscribeExternalDocumentSync', () => {
         });
 
         await vi.waitFor(() => {
-            expect(useToastStore.getState().toasts).toEqual([
+            expect(getToasts()).toEqual([
                 expect.objectContaining({
-                    kind: 'info',
-                    message: '2 open files reloaded from disk; external changes take precedence.',
-                    persist: true,
+                    type: 'info',
+                    title: '2 open files reloaded from disk; external changes take precedence.',
+                    duration: Infinity,
                 }),
             ]);
         });
@@ -415,7 +415,7 @@ describe('subscribeExternalDocumentSync', () => {
                 dirty: false,
             });
         });
-        expect(useToastStore.getState().toasts).toEqual([]);
+        expect(getToasts()).toEqual([]);
         unsubscribe();
     });
 

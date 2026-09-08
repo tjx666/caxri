@@ -27,12 +27,8 @@ describe('AgentCoordinator subagent lifecycle', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-claude-subagent-finished-'));
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'claude');
-        const coordinator = new AgentCoordinator(
-            database,
-            createAgents(),
-            () => {},
-            new StructuredLogger(join(directory, 'logs')),
-        );
+        const logger = new StructuredLogger(join(directory, 'logs'));
+        const coordinator = new AgentCoordinator(database, createAgents(), () => {}, logger);
 
         try {
             coordinator.beginTerminalLaunch(created.terminal!.id, 'launch-1');
@@ -63,6 +59,7 @@ describe('AgentCoordinator subagent lifecycle', () => {
         } finally {
             coordinator.close();
             database.close();
+            await logger.flush();
             await rm(directory, { recursive: true, force: true });
         }
     });
@@ -71,12 +68,8 @@ describe('AgentCoordinator subagent lifecycle', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-claude-subagent-running-'));
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'claude');
-        const coordinator = new AgentCoordinator(
-            database,
-            createAgents(),
-            () => {},
-            new StructuredLogger(join(directory, 'logs')),
-        );
+        const logger = new StructuredLogger(join(directory, 'logs'));
+        const coordinator = new AgentCoordinator(database, createAgents(), () => {}, logger);
         const terminalId = created.terminal!.id;
 
         try {
@@ -170,6 +163,7 @@ describe('AgentCoordinator subagent lifecycle', () => {
         } finally {
             coordinator.close();
             database.close();
+            await logger.flush();
             await rm(directory, { recursive: true, force: true });
         }
     });
@@ -179,12 +173,8 @@ describe('AgentCoordinator subagent lifecycle', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-claude-subagent-no-resume-'));
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'claude');
-        const coordinator = new AgentCoordinator(
-            database,
-            createAgents(),
-            () => {},
-            new StructuredLogger(join(directory, 'logs')),
-        );
+        const logger = new StructuredLogger(join(directory, 'logs'));
+        const coordinator = new AgentCoordinator(database, createAgents(), () => {}, logger);
         const terminalId = created.terminal!.id;
         const signal = (
             phase: 'turnStarted' | 'turnFinished' | 'subagentStarted',
@@ -221,6 +211,7 @@ describe('AgentCoordinator subagent lifecycle', () => {
             vi.useRealTimers();
             coordinator.close();
             database.close();
+            await logger.flush();
             await rm(directory, { recursive: true, force: true });
         }
     });
@@ -241,11 +232,12 @@ describe('AgentCoordinator subagent lifecycle', () => {
                 status: 'unknown',
             }),
         );
+        const logger = new StructuredLogger(join(directory, 'logs'));
         const coordinator = new AgentCoordinator(
             database,
             createAgents(snapshot),
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            logger,
         );
         const terminalId = created.terminal!.id;
         const signal = (
@@ -305,6 +297,7 @@ describe('AgentCoordinator subagent lifecycle', () => {
         } finally {
             coordinator.close();
             database.close();
+            await logger.flush();
             await rm(directory, { recursive: true, force: true });
         }
     });
@@ -321,11 +314,12 @@ describe('AgentCoordinator subagent lifecycle', () => {
                 status: 'unknown',
             }),
         );
+        const logger = new StructuredLogger(join(directory, 'logs'));
         const coordinator = new AgentCoordinator(
             database,
             createAgents(snapshot),
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            logger,
         );
         const terminalId = created.terminal!.id;
 
@@ -352,6 +346,7 @@ describe('AgentCoordinator subagent lifecycle', () => {
         } finally {
             coordinator.close();
             database.close();
+            await logger.flush();
             await rm(directory, { recursive: true, force: true });
         }
     });
@@ -370,11 +365,12 @@ describe('AgentCoordinator subagent lifecycle', () => {
                 status: 'waiting',
             }),
         );
+        const logger = new StructuredLogger(join(directory, 'logs'));
         const coordinator = new AgentCoordinator(
             database,
             createAgents(snapshot),
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            logger,
         );
         const terminalId = created.terminal!.id;
 
@@ -414,6 +410,7 @@ describe('AgentCoordinator subagent lifecycle', () => {
         } finally {
             coordinator.close();
             database.close();
+            await logger.flush();
             await rm(directory, { recursive: true, force: true });
         }
     });
