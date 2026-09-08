@@ -62,7 +62,7 @@ export function setScopedSubtreeExpanded(
 export function knownDirectoryChildrenFromQueries(
     queries: readonly FileListQuerySnapshot[],
     viewId: string,
-    scopeId: string,
+    contextKey: string,
 ): Map<string, readonly string[]> {
     const knownChildren = new Map<string, readonly string[]>();
     for (const query of queries) {
@@ -83,7 +83,7 @@ export function knownDirectoryChildrenFromQueries(
         if (
             parameters.viewId !== viewId ||
             parameters.operation !== 'files.list' ||
-            parameters.contextKey !== scopeId ||
+            parameters.contextKey !== contextKey ||
             typeof parameters.arguments !== 'object' ||
             parameters.arguments === null
         )

@@ -59,11 +59,15 @@ export function AgentMessageApprovalDialog() {
                     existing.filter(({ messageId }) => messageId !== event.payload.messageId),
                 );
         });
+        // Returning the same array when nothing expired keeps this 1s tick from re-rendering the dialog subtree.
         const expiryTimer = setInterval(
             () =>
-                setMessages((existing) =>
-                    existing.filter(({ expiresAt }) => expiresAt > Date.now()),
-                ),
+                setMessages((existing) => {
+                    const now = Date.now();
+                    return existing.some(({ expiresAt }) => expiresAt <= now)
+                        ? existing.filter(({ expiresAt }) => expiresAt > now)
+                        : existing;
+                }),
             1_000,
         );
         return () => {
