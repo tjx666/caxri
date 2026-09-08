@@ -1,8 +1,12 @@
 import { Buffer } from 'node:buffer';
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const electronMock = vi.hoisted(() => ({
+    app: { getPath: vi.fn<(name: string) => string>() },
     clipboard: {
         write: vi.fn<(items: Array<{ items: Record<string, unknown> }>) => Promise<void>>(),
     },
@@ -14,6 +18,7 @@ const electronMock = vi.hoisted(() => ({
     nativeImage: { createFromDataURL: vi.fn() },
 }));
 vi.mock('electron', () => ({
+    app: electronMock.app,
     clipboard: electronMock.clipboard,
     ClipboardItem: electronMock.ClipboardItem,
     nativeImage: electronMock.nativeImage,
@@ -65,6 +70,7 @@ function requestWith(terminalRecord: unknown, deliver = vi.fn(() => Promise.reso
 }
 
 beforeEach(() => {
+    electronMock.app.getPath.mockReset();
     electronMock.clipboard.write.mockReset();
     electronMock.clipboard.write.mockResolvedValue(undefined);
     electronMock.ClipboardItem.mockClear();
@@ -273,5 +279,93 @@ describe('bugReport.captureScreenshot', () => {
             width: 20,
         });
         expect(capturePage).toHaveBeenCalledOnce();
+    });
+});
+
+describe('bugReport.saveScreenshot', () => {
+    const jpegBytes = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
+    const dataUrl = `data:image/jpeg;base64,${jpegBytes.toString('base64')}`;
+    const yesterday = new Date(Date.now() - 25 * 60 * 60 * 1000);
+    let temporaryRoot: string;
+
+    beforeEach(async () => {
+        temporaryRoot = await mkdtemp(join(tmpdir(), 'caxri-bug-report-test-'));
+        electronMock.app.getPath.mockReturnValue(temporaryRoot);
+    });
+
+    afterEach(async () => {
+        await rm(temporaryRoot, { force: true, recursive: true });
+    });
+
+    it('writes the original JPEG bytes and returns the saved path', async () => {
+        const handle = handler(requestWith(undefined));
+
+        const result = (await handle({
+            method: 'bugReport.saveScreenshot',
+            params: { dataUrl },
+        })) as { path: string };
+
+        expect(electronMock.app.getPath).toHaveBeenCalledWith('temp');
+        expect(result.path.startsWith(join(temporaryRoot, 'caxri-bug-reports'))).toBe(true);
+        expect(result.path.endsWith('.jpg')).toBe(true);
+        await expect(readFile(result.path)).resolves.toEqual(jpegBytes);
+        // The unredacted capture must not be readable by another account on a shared machine.
+        expect((await stat(result.path)).mode & 0o777).toBe(0o600);
+        expect((await stat(join(temporaryRoot, 'caxri-bug-reports'))).mode & 0o777).toBe(0o700);
+        // The cheap SOI check replaced a full decode, so Electron is never asked to rasterize here.
+        expect(electronMock.nativeImage.createFromDataURL).not.toHaveBeenCalled();
+    });
+
+    it('rejects base64 whose bytes are not a JPEG', async () => {
+        const handle = handler(requestWith(undefined));
+
+        await expect(
+            handle({
+                method: 'bugReport.saveScreenshot',
+                params: {
+                    dataUrl: `data:image/jpeg;base64,${Buffer.from('not-a-jpeg').toString('base64')}`,
+                },
+            }),
+        ).rejects.toMatchObject({ code: 'VALIDATION' });
+        await expect(readdir(temporaryRoot)).resolves.toEqual([]);
+    });
+
+    it('prunes screenshots older than a day and keeps recent ones', async () => {
+        const directory = join(temporaryRoot, 'caxri-bug-reports');
+        await mkdir(directory, { recursive: true });
+        const expired = join(directory, 'caxri-bug-report-expired.jpg');
+        const recent = join(directory, 'caxri-bug-report-recent.jpg');
+        await writeFile(expired, jpegBytes);
+        await writeFile(recent, jpegBytes);
+        await utimes(expired, yesterday, yesterday);
+        const handle = handler(requestWith(undefined));
+
+        const result = (await handle({
+            method: 'bugReport.saveScreenshot',
+            params: { dataUrl },
+        })) as { path: string };
+
+        const remaining = await readdir(directory);
+        expect(remaining).not.toContain('caxri-bug-report-expired.jpg');
+        expect(remaining).toContain('caxri-bug-report-recent.jpg');
+        expect(remaining).toContain(result.path.slice(directory.length + 1));
+    });
+
+    it('never deletes an expired entry Caxri does not own', async () => {
+        const directory = join(temporaryRoot, 'caxri-bug-reports');
+        const foreignDirectory = join(directory, 'caxri-bug-report-folder.jpg');
+        await mkdir(foreignDirectory, { recursive: true });
+        const foreignFile = join(directory, 'notes.txt');
+        await writeFile(foreignFile, 'unrelated');
+        await utimes(foreignFile, yesterday, yesterday);
+        await utimes(foreignDirectory, yesterday, yesterday);
+        const handle = handler(requestWith(undefined));
+
+        await handle({ method: 'bugReport.saveScreenshot', params: { dataUrl } });
+
+        const remaining = await readdir(directory);
+        expect(remaining).toContain('notes.txt');
+        // A directory wearing a Caxri-shaped name is still not a Caxri screenshot.
+        expect(remaining).toContain('caxri-bug-report-folder.jpg');
     });
 });

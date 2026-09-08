@@ -121,6 +121,7 @@ export const effectfulCommandRecovery = {
     'pathBrowser.close': 'memory',
     'diagnostics.export': 'memory',
     'bugReport.captureScreenshot': 'memory',
+    'bugReport.saveScreenshot': 'memory',
     'bugReport.send': 'durable',
     'updates.download': 'memory',
     'updates.cancel': 'memory',

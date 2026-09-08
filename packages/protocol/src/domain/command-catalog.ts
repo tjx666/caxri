@@ -461,15 +461,16 @@ export const commandDefinitions: CommandDefinition[] = [
     {
         id: 'developer.reportBug',
         title: 'Report Bug to Agent',
-        category: 'Developer',
+        category: 'Help',
         description: 'Preview and send a privacy-safe local bug report to a running Agent',
+        nativeMenu: { menu: 'help', group: 1, order: 0 },
     },
     {
         id: 'diagnostics.export',
         title: 'Export Diagnostics',
         category: 'Help',
         description: 'Export a privacy-safe diagnostics bundle',
-        nativeMenu: { menu: 'help', group: 1, order: 0 },
+        nativeMenu: { menu: 'help', group: 1, order: 1 },
     },
 ];
 
@@ -591,6 +592,11 @@ export const defaultKeybindings: Keybinding[] = [
      */
     { key: 'cmd+j', command: 'panel.toggle' },
     { key: 'cmd+,', command: 'settings.open' },
+    /**
+     * `Cmd+Shift+B` is free in Caxri: VS Code spends it on the build-task chord, which has no Caxri equivalent. "B"
+     * reads as the bug mnemonic, matching the Help menu's Report Bug to Agent item.
+     */
+    { key: 'cmd+shift+b', command: 'developer.reportBug' },
 ];
 
 /**
@@ -668,5 +674,9 @@ export const defaultKeybindingChanges = [
     {
         type: 'add',
         binding: { key: 'cmd+alt+k', command: 'editor.sendReferenceToTerminal' },
+    },
+    {
+        type: 'add',
+        binding: { key: 'cmd+shift+b', command: 'developer.reportBug' },
     },
 ] satisfies readonly DefaultKeybindingChange[];
