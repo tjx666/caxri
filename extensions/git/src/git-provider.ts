@@ -32,6 +32,7 @@ interface RegisteredAction {
 
 interface DetailState<Value> {
     cancellation: CancellationTokenSource;
+    identity?: string;
     key: string;
     status: 'error' | 'loading' | 'ready';
     value?: Value;
@@ -145,7 +146,7 @@ export class GitProvider implements SourceControlProvider {
         };
     }
 
-    private clearDetails(state: GitProviderScopeState): void {
+    private clearDetails(state: GitProviderScopeState, shouldPreservePullRequests = false): void {
         if (state.contentTimer) clearTimeout(state.contentTimer);
         state.contentTimer = undefined;
         for (const detail of [...state.commitDetails.values(), ...state.pullRequests.values()]) {
@@ -153,7 +154,10 @@ export class GitProvider implements SourceControlProvider {
             detail.cancellation.dispose();
         }
         state.commitDetails.clear();
-        state.pullRequests.clear();
+        if (shouldPreservePullRequests) {
+            // Keep settled content visible while a replacement request runs in the same repository context.
+            for (const detail of state.pullRequests.values()) detail.key = '';
+        } else state.pullRequests.clear();
     }
 
     private scheduleContentChange(state: GitProviderScopeState): void {
@@ -235,7 +239,8 @@ export class GitProvider implements SourceControlProvider {
     }
 
     private loadPullRequest(state: GitProviderScopeState, repo: GitRepositorySummary): void {
-        const key = `${repo.head ?? ''}:${state.refreshSequence}`;
+        const identity = JSON.stringify([repo.rootPath, repo.branch, repo.head]);
+        const key = `${identity}:${state.refreshSequence}`;
         const current = state.pullRequests.get(repo.id);
         if (current?.key === key) return;
         current?.cancellation.cancel();
@@ -243,8 +248,10 @@ export class GitProvider implements SourceControlProvider {
         const cancellation = new CancellationTokenSource();
         const detail: DetailState<GitPullRequestChanges | null> = {
             cancellation,
+            identity,
             key,
             status: 'loading',
+            value: current?.identity === identity ? current.value : undefined,
         };
         state.pullRequests.set(repo.id, detail);
         /**
@@ -430,11 +437,11 @@ export class GitProvider implements SourceControlProvider {
             (!state.commitSelection || request.preferredModeId === 'commit')
         ) {
             state.mode = request.preferredModeId;
-            this.clearDetails(state);
+            this.clearDetails(state, true);
         }
         if (request.refresh > state.refreshSequence) {
             state.refreshSequence = request.refresh;
-            this.clearDetails(state);
+            this.clearDetails(state, true);
         }
         const revision = this.nextRevision(state);
         const rawSummary = await this.workspace.git.summary(state.forceSequence, token);
@@ -471,8 +478,8 @@ export class GitProvider implements SourceControlProvider {
             } else if (state.mode === 'pull-request') {
                 this.loadPullRequest(state, repo);
                 const detail = state.pullRequests.get(repo.id);
-                if (detail?.status === 'ready') pullRequests.set(repo.id, detail.value ?? null);
-                else if (detail?.status === 'error') detailErrors.set(repo.id, true);
+                if (detail?.status === 'error') detailErrors.set(repo.id, true);
+                else if (detail?.value !== undefined) pullRequests.set(repo.id, detail.value);
             }
         }
         /**
@@ -655,7 +662,7 @@ export class GitProvider implements SourceControlProvider {
                 'PROJECT_SCOPE_DENIED',
                 'Git commit does not belong to the active Session',
             );
-        this.clearDetails(state);
+        this.clearDetails(state, true);
         state.commitSelection = { repositoryId: repoId, sha };
         state.mode = 'commit';
         this.changed.fire({ kind: 'selection', selectedModeId: 'commit' });
@@ -671,7 +678,7 @@ export class GitProvider implements SourceControlProvider {
         if (state) {
             state.commitOpenSequence += 1;
             if (state.mode !== mode || state.commitSelection) {
-                this.clearDetails(state);
+                this.clearDetails(state, true);
                 state.commitSelection = undefined;
                 state.mode = mode;
                 this.scheduleContentChange(state);
@@ -681,12 +688,12 @@ export class GitProvider implements SourceControlProvider {
     }
 
     /**
-     * Watcher-driven or context-driven re-read: drops cached details and asks the Renderer to re-read the view, but
+     * Watcher-driven or context-driven re-read: invalidates details and asks the Renderer to re-read the view, but
      * keeps the Server-facing nonce so the Server joins its current generation instead of forcing a re-discovery.
      */
     refresh(scopeId?: string): void {
         for (const state of this.statesFor(scopeId)) {
-            this.clearDetails(state);
+            this.clearDetails(state, true);
             this.nextRevision(state);
         }
         this.changed.fire({ kind: 'refresh' });

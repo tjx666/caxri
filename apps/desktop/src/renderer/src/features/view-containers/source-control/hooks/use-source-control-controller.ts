@@ -108,10 +108,9 @@ export function buildSourceControlSnapshotRequest(
 }
 
 /**
- * Keeps the last resolved tree visible while a same-context refresh advances the query generation. Comparing request
- * keys instead of the provider's selected mode also covers a persisted mode that the provider had to replace with a
- * fallback. A real mode or active-file switch receives no placeholder, so unrelated Source Control data is never
- * presented while the newly selected model loads.
+ * Keeps the last resolved model mounted during refresh and mode navigation. Its own mode selection and labels stay
+ * together until the replacement arrives, and fetching blocks revision-bound actions. Active-file changes receive no
+ * placeholder so file-specific content never crosses that boundary.
  *
  * Session and Workbench Root changes remount `ScopedSourceControlView` with a new scope key, so placeholder data never
  * crosses those ownership boundaries.
@@ -150,8 +149,7 @@ export function sourceControlSnapshotQueryOptions({
                 previousQuery?.queryKey ?? [],
             );
             if (!previousRequest) return;
-            return previousRequest.preferredModeId === request.preferredModeId &&
-                previousRequest.activeResource === request.activeResource
+            return previousRequest.activeResource === request.activeResource
                 ? previousData
                 : undefined;
         },
@@ -209,10 +207,17 @@ export function useSourceControlController(
         presentation?.refreshErrorMessage ?? 'Source Control refresh failed',
     );
     useEffect(() => {
+        // A transition placeholder still names the old mode, not a provider fallback for the new request.
+        if (snapshot.isPlaceholderData) return;
         const selectedModeId = snapshot.data?.selectedModeId;
         if (selectedModeId && selectedModeId !== navigation.modeId)
             updateNavigation({ modeId: selectedModeId });
-    }, [navigation.modeId, snapshot.data?.selectedModeId, updateNavigation]);
+    }, [
+        navigation.modeId,
+        snapshot.data?.selectedModeId,
+        snapshot.isPlaceholderData,
+        updateNavigation,
+    ]);
     useEffect(
         () =>
             !session
