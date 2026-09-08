@@ -10,7 +10,7 @@ vi.mock('../../../../lib/caxri', () => ({ caxri: { request: mocks.request } }));
 
 import { queryClient } from '../../../../queries/client';
 import { useSessionViewStore } from '../../../../stores/session-view';
-import { dismissToast, useToastStore } from '../../../../stores/toasts';
+import { dismissToast, getToasts } from '../../../../stores/toasts';
 import { useWorkbenchStore } from '../../../../stores/workbench';
 import { controlledViewQueryKey } from '../../view-operation-client';
 import { didTrashFile, duplicateFile, moveFile, pasteFile, renameFile } from '../file-actions';
@@ -188,10 +188,10 @@ describe('file action lifecycle', () => {
                 label: 'Moving item in background…',
             }),
         ]);
-        expect(useToastStore.getState().toasts).toContainEqual(
+        expect(getToasts()).toContainEqual(
             expect.objectContaining({
-                kind: 'info',
-                message: 'File change is still finishing safely in the background',
+                type: 'info',
+                title: 'File change is still finishing safely in the background',
             }),
         );
 
@@ -269,8 +269,8 @@ describe('file action lifecycle', () => {
 
         await expect(didTrashFile(client, 'session-a', '/project/source.txt')).resolves.toBe(true);
 
-        expect(useToastStore.getState().toasts).toContainEqual(
-            expect.objectContaining({ kind: 'success', message: "Moved 'source.txt' to Trash" }),
+        expect(getToasts()).toContainEqual(
+            expect.objectContaining({ type: 'success', title: "Moved 'source.txt' to Trash" }),
         );
     });
 
@@ -279,7 +279,7 @@ describe('file action lifecycle', () => {
 
         await expect(didTrashFile(client, 'session-a', '/project/source.txt')).resolves.toBe(false);
 
-        expect(useToastStore.getState().toasts).toEqual([]);
+        expect(getToasts()).toEqual([]);
     });
 
     it('tells Main about unsaved changes and keeps a persistent notice that they were discarded', async () => {
@@ -317,12 +317,11 @@ describe('file action lifecycle', () => {
             path: '/project/source.txt',
             hasUnsavedChanges: true,
         });
-        expect(useToastStore.getState().toasts).toContainEqual(
+        expect(getToasts()).toContainEqual(
             expect.objectContaining({
-                kind: 'info',
-                persist: true,
-                message:
-                    "Unsaved changes to 'source.txt' were discarded; only the last saved version moved to Trash",
+                type: 'info',
+                duration: Infinity,
+                title: "Unsaved changes to 'source.txt' were discarded; only the last saved version moved to Trash",
             }),
         );
     });
@@ -362,9 +361,7 @@ describe('file action lifecycle', () => {
             path: '/project/source.txt',
             hasUnsavedChanges: false,
         });
-        expect(useToastStore.getState().toasts).not.toContainEqual(
-            expect.objectContaining({ kind: 'info' }),
-        );
+        expect(getToasts()).not.toContainEqual(expect.objectContaining({ type: 'info' }));
     });
 });
 
@@ -450,9 +447,9 @@ describe('moveFile conflict prompt', () => {
             'files.move',
             expect.objectContaining({ conflict: 'replace' }),
         );
-        expect(useToastStore.getState().toasts.some((toast) => toast.kind === 'error')).toBe(false);
-        expect(useToastStore.getState().toasts).toContainEqual(
-            expect.objectContaining({ kind: 'success', message: "'source.txt' moved" }),
+        expect(getToasts().some((toast) => toast.type === 'error')).toBe(false);
+        expect(getToasts()).toContainEqual(
+            expect.objectContaining({ type: 'success', title: "'source.txt' moved" }),
         );
     });
 
@@ -566,7 +563,7 @@ describe('moveFile conflict prompt', () => {
             path: source,
             projectId: 'project-1',
         });
-        expect(useToastStore.getState().toasts.some((toast) => toast.kind === 'error')).toBe(false);
+        expect(getToasts().some((toast) => toast.type === 'error')).toBe(false);
     });
 
     it('toasts a non-CONFLICT first-attempt failure exactly once', async () => {
@@ -600,10 +597,8 @@ describe('moveFile conflict prompt', () => {
         // suppression registry is now blind to the error code, so this must toast exactly once.
         await expect(moveFile(client, 'session-a', source, directory)).resolves.toBeUndefined();
 
-        const errorToasts = useToastStore
-            .getState()
-            .toasts.filter((toast) => toast.kind === 'error');
-        expect(errorToasts).toEqual([expect.objectContaining({ message: 'Disk is full' })]);
+        const errorToasts = getToasts().filter((toast) => toast.type === 'error');
+        expect(errorToasts).toEqual([expect.objectContaining({ title: 'Disk is full' })]);
     });
 
     it('does not leak a suppression entry after a conflict-free move succeeds', async () => {

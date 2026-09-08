@@ -7,6 +7,64 @@
  */
 @import 'tw-animate-css';
 
+/** Sonner supplies layout and lifecycle; these overrides follow the live Caxri theme. */
+.caxri-toaster[data-sonner-toaster][data-sonner-theme] {
+    --normal-bg: var(--elevated);
+    --normal-text: var(--foreground);
+    --normal-border: var(--border);
+    --border-radius: var(--radius-md);
+    font-family: inherit;
+    z-index: 80;
+}
+
+.caxri-toaster[data-sonner-toaster] [data-sonner-toast][data-styled='true'] {
+    padding: 10px 12px;
+    border-left: 3px solid var(--muted);
+    box-shadow: 0 8px 24px var(--shadow);
+}
+
+.caxri-toaster[data-sonner-toaster] [data-sonner-toast][data-type='success'] {
+    border-left-color: var(--success);
+}
+
+.caxri-toaster[data-sonner-toaster] [data-sonner-toast][data-type='error'] {
+    border-left-color: var(--danger);
+}
+
+.caxri-toaster [data-icon] {
+    color: var(--muted);
+}
+
+.caxri-toaster [data-type='success'] [data-icon] {
+    color: var(--success);
+}
+
+.caxri-toaster [data-type='error'] [data-icon] {
+    color: var(--danger);
+}
+
+.caxri-toaster[data-sonner-toaster] [data-sonner-toast] [data-title] {
+    font-size: inherit;
+    font-weight: 400;
+}
+
+.caxri-toaster[data-sonner-toaster] [data-sonner-toast] [data-button] {
+    color: var(--foreground);
+    background: var(--elevated);
+    border: 1px solid var(--border);
+}
+
+.caxri-toaster[data-sonner-toaster] [data-sonner-toast] [data-close-button] {
+    color: var(--muted);
+    background: var(--elevated);
+    border-color: var(--border);
+}
+
+.caxri-toaster[data-sonner-toaster] [data-sonner-toast] [data-close-button]:hover {
+    color: var(--foreground);
+    background: var(--surface);
+}
+
 :root {
     /*
      * Motion tokens — the single timing source for every layer of the motion stack

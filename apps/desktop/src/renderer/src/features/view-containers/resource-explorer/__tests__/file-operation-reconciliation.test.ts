@@ -9,7 +9,7 @@ vi.mock('../../../../lib/caxri', () => ({ caxri: { request: mocks.request } }));
 
 import { queryClient } from '../../../../queries/client';
 import { getSessionDocuments, useSessionViewStore } from '../../../../stores/session-view';
-import { dismissToast, useToastStore } from '../../../../stores/toasts';
+import { dismissToast, getToasts } from '../../../../stores/toasts';
 import { useWorkbenchStore } from '../../../../stores/workbench';
 import { controlledViewQueryKey } from '../../view-operation-client';
 import { createReconciliationQueue, reconcileFileMutation } from '../file-operation-reconciliation';
@@ -295,8 +295,8 @@ describe('file mutation reconciliation', () => {
             operationId: operation.id,
         });
         expect(useFileOperationStore.getState().operations).toEqual([]);
-        expect(useToastStore.getState().toasts).toContainEqual(
-            expect.objectContaining({ kind: 'success', message: "'source.txt' moved" }),
+        expect(getToasts()).toContainEqual(
+            expect.objectContaining({ type: 'success', title: "'source.txt' moved" }),
         );
     });
 
@@ -362,15 +362,13 @@ describe('file mutation reconciliation', () => {
         };
 
         await expect(reconcileFileMutation(client, operation)).resolves.toBeUndefined();
-        expect(useToastStore.getState().toasts).toContainEqual(
+        expect(getToasts()).toContainEqual(
             expect.objectContaining({
-                kind: 'info',
-                message: 'File change is still synchronizing in the background',
+                type: 'info',
+                title: 'File change is still synchronizing in the background',
             }),
         );
-        expect(useToastStore.getState().toasts).not.toContainEqual(
-            expect.objectContaining({ kind: 'error' }),
-        );
+        expect(getToasts()).not.toContainEqual(expect.objectContaining({ type: 'error' }));
         expect(sessionStates().map((state) => paneTabPaths(state))).toEqual([
             [nextPath],
             [nextPath],
@@ -429,12 +427,10 @@ describe('file mutation reconciliation', () => {
                 [previousPath]: { content: 'new source body', dirty: true, path: previousPath },
             },
         });
-        expect(useToastStore.getState().toasts).toContainEqual(
-            expect.objectContaining({ kind: 'success', message: "'source.txt' moved" }),
+        expect(getToasts()).toContainEqual(
+            expect.objectContaining({ type: 'success', title: "'source.txt' moved" }),
         );
-        expect(useToastStore.getState().toasts).not.toContainEqual(
-            expect.objectContaining({ kind: 'error' }),
-        );
+        expect(getToasts()).not.toContainEqual(expect.objectContaining({ type: 'error' }));
     });
 
     it('does not replay a remap whose durable checkpoint survived Renderer reload', async () => {
@@ -565,13 +561,11 @@ describe('file mutation reconciliation', () => {
 
         await reconcileFileMutation(client, operation);
 
-        expect(useToastStore.getState().toasts).not.toContainEqual(
-            expect.objectContaining({ kind: 'success' }),
-        );
-        expect(useToastStore.getState().toasts).toContainEqual(
+        expect(getToasts()).not.toContainEqual(expect.objectContaining({ type: 'success' }));
+        expect(getToasts()).toContainEqual(
             expect.objectContaining({
-                kind: 'info',
-                message: 'File change is still synchronizing in the background',
+                type: 'info',
+                title: 'File change is still synchronizing in the background',
             }),
         );
         expect(useFileOperationStore.getState().operations).toHaveLength(1);
@@ -579,8 +573,8 @@ describe('file mutation reconciliation', () => {
         await vi.runOnlyPendingTimersAsync();
         await vi.waitFor(() => expect(acknowledgeAttempts).toBe(2));
 
-        expect(useToastStore.getState().toasts).toContainEqual(
-            expect.objectContaining({ kind: 'success', message: "'source.txt' moved" }),
+        expect(getToasts()).toContainEqual(
+            expect.objectContaining({ type: 'success', title: "'source.txt' moved" }),
         );
         expect(useFileOperationStore.getState().operations).toEqual([]);
     });
