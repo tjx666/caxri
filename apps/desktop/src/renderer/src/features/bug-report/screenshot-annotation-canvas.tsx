@@ -27,6 +27,30 @@ import {
  */
 const HIT_STROKE_WIDTH = 14;
 
+/**
+ * Shared SVG stroke presentation for every mark. Module scope so React Doctor does not flag a per-render rebuild.
+ */
+const strokeProperties = {
+    fill: 'none',
+    stroke: ANNOTATION_COLOR,
+    strokeWidth: ANNOTATION_STROKE_WIDTH,
+    vectorEffect: 'non-scaling-stroke',
+} as const;
+const haloProperties = {
+    fill: 'none',
+    stroke: ANNOTATION_COLOR,
+    strokeOpacity: 0.3,
+    strokeWidth: ANNOTATION_STROKE_WIDTH * 4,
+    vectorEffect: 'non-scaling-stroke',
+} as const;
+const hitProperties = {
+    fill: 'none',
+    pointerEvents: 'stroke',
+    stroke: 'transparent',
+    strokeWidth: HIT_STROKE_WIDTH,
+    vectorEffect: 'non-scaling-stroke',
+} as const;
+
 function AnnotationShape({
     annotation,
     isSelected,
@@ -45,26 +69,6 @@ function AnnotationShape({
               onSelect();
           }
         : undefined;
-    const strokeProperties = {
-        fill: 'none',
-        stroke: ANNOTATION_COLOR,
-        strokeWidth: ANNOTATION_STROKE_WIDTH,
-        vectorEffect: 'non-scaling-stroke',
-    } as const;
-    const haloProperties = {
-        fill: 'none',
-        stroke: ANNOTATION_COLOR,
-        strokeOpacity: 0.3,
-        strokeWidth: ANNOTATION_STROKE_WIDTH * 4,
-        vectorEffect: 'non-scaling-stroke',
-    } as const;
-    const hitProperties = {
-        fill: 'none',
-        pointerEvents: 'stroke',
-        stroke: 'transparent',
-        strokeWidth: HIT_STROKE_WIDTH,
-        vectorEffect: 'non-scaling-stroke',
-    } as const;
 
     if (annotation.kind === 'box') {
         const box = normalizeBox(annotation);
