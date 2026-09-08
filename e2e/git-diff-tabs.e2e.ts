@@ -53,17 +53,26 @@ test('Switching between two working diff tabs keeps each diff pointed at its own
             await expect(original).not.toContainText('fresh-one');
             await expect(modified).toContainText('beta-changed');
             /**
-             * Monaco decorates a removed line twice (content overlay plus gutter margin), so the single edited line is
-             * two elements. A stale model pair instead marks every line of the file removed.
+             * Inline layout duplicates the removed line in its gutter; side-by-side layout has one overlay. Either way
+             * only one source line changed. A stale model pair instead marks every line of the file removed.
              */
-            await expect(deletedLines).toHaveCount(2);
+            await expect.poll(() => deletedLines.count()).toBeGreaterThan(0);
+            await expect.poll(() => deletedLines.count()).toBeLessThanOrEqual(2);
         };
         const expectFreshDiff = async (): Promise<void> => {
-            await expect(diff.locator('.monaco-diff-editor')).toBeVisible();
-            await expect(modified).toContainText('fresh-one');
-            await expect(modified).toContainText('fresh-two');
-            await expect(original).not.toContainText('fresh-one');
-            await expect(original).not.toContainText('alpha');
+            await expect(diff).toContainText('fresh-one');
+            await expect(diff).toContainText('fresh-two');
+            await expect(diff).not.toContainText('alpha');
+            /**
+             * An absent original must not appear as a deleted blank line.
+             */
+            await expect(diff.locator('.line-delete')).toHaveCount(0);
+            await expect(diff.locator('.git-added-line')).not.toHaveCount(0);
+            await expect(
+                page.getByRole('button', { name: 'Next Change', exact: true }),
+            ).toBeEnabled();
+            await page.getByRole('button', { name: 'Next Change', exact: true }).click();
+            await expect(diff.getByRole('textbox', { name: 'Added file contents' })).toBeFocused();
         };
 
         await repo.getByRole('button', { name: 'tracked.ts', exact: true }).click();
@@ -80,7 +89,32 @@ test('Switching between two working diff tabs keeps each diff pointed at its own
         await freshTab.click();
         await expectFreshDiff();
 
+        await page.setViewportSize({ width: 1000, height: 700 });
+        await expectFreshDiff();
+        await diff.screenshot({ path: test.info().outputPath('added-file-narrow.png') });
+
+        await page.setViewportSize({ width: 1800, height: 1000 });
+        await expectFreshDiff();
+        await diff.screenshot({ path: test.info().outputPath('added-file-wide.png') });
+
         await trackedTab.click();
+        await expectTrackedDiff();
+
+        /**
+         * A live file can cross between two-sided and all-deleted without changing its tab identity.
+         */
+        await writeFile(join(root, 'tracked.ts'), '', 'utf8');
+        await expect(diff).toContainText('alpha');
+        await expect(diff.locator('.git-deleted-line')).not.toHaveCount(0);
+        await expect(diff.locator('.line-insert, .git-added-line')).toHaveCount(0);
+        await expect(
+            page.getByRole('button', { name: 'Previous Change', exact: true }),
+        ).toBeEnabled();
+        await page.getByRole('button', { name: 'Previous Change', exact: true }).click();
+        await expect(diff.getByRole('textbox', { name: 'Deleted file contents' })).toBeFocused();
+        await diff.screenshot({ path: test.info().outputPath('emptied-file.png') });
+
+        await writeFile(join(root, 'tracked.ts'), trackedWorking, 'utf8');
         await expectTrackedDiff();
     } finally {
         try {

@@ -28,14 +28,16 @@ test('Git Pull Request mode shows committed PR changes instead of the working tr
         { cwd: root },
     );
     await writeFile(join(root, 'tracked.txt'), 'before\n', 'utf8');
-    await execFileAsync('git', ['add', 'tracked.txt'], { cwd: root });
+    await writeFile(join(root, 'deleted-at-head.txt'), 'deleted first\ndeleted second\n', 'utf8');
+    await execFileAsync('git', ['add', 'tracked.txt', 'deleted-at-head.txt'], { cwd: root });
     await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: root });
     const baseOid = (
         await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: root })
     ).stdout.trim();
     await execFileAsync('git', ['switch', '-c', 'feature/pull-request'], { cwd: root });
     await writeFile(join(root, 'tracked.txt'), 'after\n', 'utf8');
-    await writeFile(join(root, 'pr-only.txt'), 'pull request\n', 'utf8');
+    await writeFile(join(root, 'pr-only.txt'), 'pull request first\npull request second\n', 'utf8');
+    await execFileAsync('git', ['rm', 'deleted-at-head.txt'], { cwd: root });
     await execFileAsync('git', ['add', 'tracked.txt', 'pr-only.txt'], { cwd: root });
     await execFileAsync('git', ['commit', '-m', 'pull request changes'], { cwd: root });
     const headOid = (
@@ -143,6 +145,7 @@ test('Git Pull Request mode shows committed PR changes instead of the working tr
             ),
         ).toBe(false);
         await running.page.screenshot({ path: test.info().outputPath('pr-mode-switch.png') });
+        await expect(files.locator('.git-row[title="deleted-at-head.txt"]')).toBeVisible();
         await expect(files.locator('.git-row[title="tracked.txt"]')).toBeVisible();
         await expect(files.locator('.git-row[title="working-only.txt"]')).toHaveCount(0);
         await expect(
@@ -178,6 +181,51 @@ test('Git Pull Request mode shows committed PR changes instead of the working tr
             running.page.getByText('Unable to load pull request changes.', { exact: true }),
         ).toBeVisible();
         await expect(files.locator('.git-row[title="pr-only.txt"]')).toBeVisible();
+
+        const diff = running.page.locator('.git-file-diff');
+        await files.locator('.git-row[title="pr-only.txt"]').click();
+        const addedEditor = diff.locator('.git-single-diff-editor');
+        await expect(addedEditor).toBeVisible();
+        await expect(diff.locator('.monaco-diff-editor')).toHaveCount(0);
+        await expect(diff).toContainText('pull request first');
+        await expect(diff).toContainText('pull request second');
+        const addedLines = addedEditor.locator('.view-lines');
+        const addedText = (await addedLines.textContent()) ?? '';
+        await addedEditor.getByRole('textbox', { name: 'Added file contents' }).press('x');
+        await expect(addedLines).toHaveText(addedText);
+        await expect(diff.locator('.git-added-line')).not.toHaveCount(0);
+        await expect(diff.locator('.git-deleted-line')).toHaveCount(0);
+        await expect(diff.locator('.git-deleted-indicator')).toHaveCount(0);
+        const addedIndicator = diff.locator('.git-added-indicator').first();
+        await expect(addedIndicator).toBeAttached();
+        expect(
+            await addedIndicator.evaluate((element) =>
+                getComputedStyle(element, '::before').content.replaceAll(/["']/g, ''),
+            ),
+        ).toBe('+');
+        await diff.screenshot({ path: test.info().outputPath('git-pr-added-file-diff.png') });
+
+        await files.locator('.git-row[title="deleted-at-head.txt"]').click();
+        const deletedEditor = diff.locator('.git-single-diff-editor');
+        await expect(deletedEditor).toBeVisible();
+        await expect(diff.locator('.monaco-diff-editor')).toHaveCount(0);
+        await expect(diff).toContainText('deleted first');
+        await expect(diff).toContainText('deleted second');
+        const deletedLines = deletedEditor.locator('.view-lines');
+        const deletedText = (await deletedLines.textContent()) ?? '';
+        await deletedEditor.getByRole('textbox', { name: 'Deleted file contents' }).press('x');
+        await expect(deletedLines).toHaveText(deletedText);
+        await expect(diff.locator('.git-deleted-line')).not.toHaveCount(0);
+        await expect(diff.locator('.git-added-line')).toHaveCount(0);
+        await expect(diff.locator('.git-added-indicator')).toHaveCount(0);
+        const deletedIndicator = diff.locator('.git-deleted-indicator').first();
+        await expect(deletedIndicator).toBeAttached();
+        expect(
+            await deletedIndicator.evaluate((element) =>
+                getComputedStyle(element, '::before').content.replaceAll(/["']/g, ''),
+            ),
+        ).toBe('−');
+        await diff.screenshot({ path: test.info().outputPath('git-pr-deleted-file-diff.png') });
     } finally {
         await rm(refreshGate, { force: true });
         try {

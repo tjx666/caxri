@@ -4,13 +4,21 @@ import type { MonacoDiffEditor } from '@monaco-editor/react';
 
 export type DiffNavigationDirection = 'next' | 'previous';
 
+/**
+ * The navigation boundary also accepts a one-hunk, single-sided code editor.
+ */
+export type DiffEditorActions = Pick<
+    MonacoDiffEditor,
+    'getLineChanges' | 'goToDiff' | 'onDidUpdateDiff'
+>;
+
 export interface DiffEditorActionState {
     hasChanges: boolean;
 }
 
 interface DiffEditorRegistration {
     disposeDiffListener: () => void;
-    editor: MonacoDiffEditor;
+    editor: DiffEditorActions;
     hasChanges: boolean;
 }
 
@@ -71,7 +79,7 @@ export function subscribeDiffEditorActions(
 export function registerDiffEditorActions(
     tabPath: string,
     paneId: string,
-    editor: MonacoDiffEditor,
+    editor: DiffEditorActions,
 ): () => void {
     const key = registrationKey(tabPath, paneId);
     const previous = registrations.get(key);
