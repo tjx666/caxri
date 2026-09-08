@@ -10,8 +10,7 @@ import { useResourceExplorerClient } from '../controlled-view-context';
 import { didTrashFile, duplicateFile, moveFile, pasteFile, rememberFile } from './file-actions';
 import type { FileClipboardEntry } from './file-clipboard';
 import { useFileClipboardStore } from './file-clipboard';
-import type { PendingFileOperation } from './file-operation-state';
-import { isPathBlockedByFileOperations } from './file-operation-state';
+import { useIsPathBlockedByFileOperations } from './file-operation-state';
 import type { EditRequest } from './file-tree-item-types';
 import { BUSY_DISABLED_REASON } from './file-tree-item-types';
 import {
@@ -19,22 +18,28 @@ import {
     focusParentTreeItem,
     focusTreeItemEdge,
 } from './file-tree-navigation';
+import {
+    setScopeFocusPath,
+    setScopePathExpanded,
+    setScopeSelectedPath,
+} from './resource-explorer-scope-store';
 
 export interface UseFileTreeItemInteractionsOptions {
-    clearFocusPath: () => void;
     depth: number;
     editing?: EditRequest;
     entry: FileEntry;
     expanded: boolean;
-    focusPath?: string;
+    /**
+     * Whether any row in this scope is selected; the roving Tab stop falls back to the first root row otherwise.
+     */
+    hasSelection: boolean;
     index: number;
-    operations: readonly PendingFileOperation[];
+    isFocusRequested: boolean;
+    isSelected: boolean;
     projectId: string;
-    selectedPath?: string;
+    scopeId: string;
     sessionId: string;
-    setExpanded: (isNextExpanded: boolean | ((isCurrentExpanded: boolean) => boolean)) => void;
     setEditing: (editing?: EditRequest) => void;
-    setSelectedPath: (path?: string) => void;
 }
 
 export interface UseFileTreeItemInteractionsResult {
@@ -57,7 +62,6 @@ export interface UseFileTreeItemInteractionsResult {
     pasteDisabledReason: string | undefined;
     pasteIntoEntry: () => Promise<void>;
     rowRef: RefObject<HTMLButtonElement | null>;
-    setExpanded: (isNextExpanded: boolean | ((isCurrentExpanded: boolean) => boolean)) => void;
     setIsDropTarget: Dispatch<SetStateAction<boolean>>;
     startCreate: (itemKind: 'file' | 'directory') => void;
     startRename: () => void;
@@ -71,20 +75,18 @@ export interface UseFileTreeItemInteractionsResult {
  * does not change any rendered output or handler semantics.
  */
 export function useFileTreeItemInteractions({
-    clearFocusPath,
     depth,
     editing,
     entry,
     expanded,
-    focusPath,
+    hasSelection,
     index,
-    operations,
+    isFocusRequested,
+    isSelected,
     projectId,
-    selectedPath,
+    scopeId,
     sessionId,
-    setExpanded,
     setEditing,
-    setSelectedPath,
 }: UseFileTreeItemInteractionsOptions): UseFileTreeItemInteractionsResult {
     const client = useResourceExplorerClient();
     const [isDropTarget, setIsDropTarget] = useState(false);
@@ -96,27 +98,26 @@ export function useFileTreeItemInteractions({
     const parentDirectory = parentDirectoryPath(entry.path);
     const pasteDirectory = entry.kind === 'directory' ? entry.path : parentDirectory;
     const isClipboardEmpty = !clipboard || clipboard.projectId !== projectId;
-    const isPasteBlocked = isPathBlockedByFileOperations(operations, projectId, pasteDirectory);
+    const isPasteBlocked = useIsPathBlockedByFileOperations(projectId, pasteDirectory);
     const isPasteDisabled = isClipboardEmpty || isPasteBlocked;
     const pasteDisabledReason = isClipboardEmpty
         ? 'Nothing to paste'
         : isPasteBlocked
           ? BUSY_DISABLED_REASON
           : undefined;
-    const isDuplicateBlocked = isPathBlockedByFileOperations(
-        operations,
-        projectId,
-        parentDirectory,
-    );
+    const isDuplicateBlocked = useIsPathBlockedByFileOperations(projectId, parentDirectory);
     const isDragBlocked =
-        isPathBlockedByFileOperations(operations, projectId, entry.path) ||
-        isPathBlockedByFileOperations(operations, projectId, parentDirectory);
+        useIsPathBlockedByFileOperations(projectId, entry.path) || isDuplicateBlocked;
     /**
      * Roving tabindex: exactly one row in the whole tree is a Tab stop. The selected row owns it; with no selection,
      * the very first root-level row is the fallback so Tab always lands somewhere sensible instead of nowhere.
      */
-    const isRovingTabStop = selectedPath ? selectedPath === entry.path : depth === 0 && index === 0;
+    const isRovingTabStop = hasSelection ? isSelected : depth === 0 && index === 0;
 
+    const setExpanded = (
+        isNextExpanded: boolean | ((isCurrentExpanded: boolean) => boolean),
+    ): void => setScopePathExpanded(scopeId, entry.path, isNextExpanded);
+    const setSelectedPath = (path?: string): void => setScopeSelectedPath(scopeId, path);
     const startRename = (): void => {
         if (isEditable) setEditing({ kind: 'rename', entry });
     };
@@ -244,10 +245,10 @@ export function useFileTreeItemInteractions({
     };
 
     useEffect(() => {
-        if (isRenaming || focusPath !== entry.path) return;
+        if (isRenaming || !isFocusRequested) return;
         rowReference.current?.focus();
-        clearFocusPath();
-    }, [clearFocusPath, entry.path, focusPath, isRenaming]);
+        setScopeFocusPath(scopeId, undefined);
+    }, [isFocusRequested, isRenaming, scopeId]);
 
     return {
         clipboard,
@@ -269,7 +270,6 @@ export function useFileTreeItemInteractions({
         pasteDisabledReason,
         pasteIntoEntry,
         rowRef: rowReference,
-        setExpanded,
         setIsDropTarget,
         startCreate,
         startRename,
