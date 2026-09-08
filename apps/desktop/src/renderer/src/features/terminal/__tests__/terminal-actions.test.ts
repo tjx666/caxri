@@ -40,6 +40,7 @@ import {
     createTerminal,
     didPasteIntoTerminal,
     focusTerminalById,
+    getTerminalFocusElement,
     hasActiveTerminalSelection,
     isTerminalAttached,
     markTerminalAttached,
@@ -292,6 +293,19 @@ describe('focus handler registration contract', () => {
 
         expect(handler).toHaveBeenCalledTimes(1);
         unregister();
+    });
+
+    it('exposes the mounted Terminal focus element and yields null for unknown or element-less handlers', () => {
+        const element = {} as HTMLElement;
+        const unregister = registerTerminalFocusHandler('terminal-focus', vi.fn(), () => element);
+        const unregisterBare = registerTerminalFocusHandler('terminal-bare', vi.fn());
+
+        expect(getTerminalFocusElement('terminal-focus')).toBe(element);
+        expect(getTerminalFocusElement('terminal-bare')).toBeNull();
+        expect(getTerminalFocusElement('terminal-missing')).toBeNull();
+        unregister();
+        unregisterBare();
+        expect(getTerminalFocusElement('terminal-focus')).toBeNull();
     });
 
     it('does not let a stale unregister callback evict a newer focus handler', () => {

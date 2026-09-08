@@ -772,6 +772,10 @@ export function useTerminalPaneRuntime({
         [terminalId],
     );
     const focusTerminal = useCallback((): void => xtermReference.current?.focus(), []);
+    const getFocusElement = useCallback(
+        (): HTMLElement | null => xtermReference.current?.textarea ?? null,
+        [],
+    );
     const pasteFromClipboard = useCallback((): void => {
         // Sync command handlers float this promise; its own path reports failures through onError.
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
@@ -783,6 +787,7 @@ export function useTerminalPaneRuntime({
         endSearch,
         find,
         focusTerminal,
+        getFocusElement,
         longPastePending,
         pasteFromClipboard,
         searchResults,

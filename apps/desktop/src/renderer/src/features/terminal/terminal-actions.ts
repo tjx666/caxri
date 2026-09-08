@@ -223,12 +223,24 @@ export function canSendTerminalInput(terminalId: string): boolean {
 }
 
 /**
- * Dialogs opened from a keyboard command have no DOM trigger for Radix to restore focus to. The mounted Terminal pane
- * therefore exposes its live xterm focus operation through the same ownership-safe registry used by clear and copy.
+ * Dialogs opened from a keyboard command have no DOM trigger for Base UI to restore focus to. The mounted Terminal pane
+ * therefore exposes its live xterm focus operation through the same ownership-safe registry used by clear and copy. The
+ * element getter serves the picker close path, where Base UI wants the target element itself rather than an imperative
+ * focus call (see `lib/picker-final-focus.ts`).
  */
-const focusHandlers = new Map<string, () => void>();
+interface TerminalFocusHandler {
+    focus: () => void;
+    getFocusElement: () => HTMLElement | null;
+}
 
-export function registerTerminalFocusHandler(terminalId: string, handler: () => void): () => void {
+const focusHandlers = new Map<string, TerminalFocusHandler>();
+
+export function registerTerminalFocusHandler(
+    terminalId: string,
+    focus: () => void,
+    getFocusElement: () => HTMLElement | null = () => null,
+): () => void {
+    const handler: TerminalFocusHandler = { focus, getFocusElement };
     focusHandlers.set(terminalId, handler);
     return () => {
         if (focusHandlers.get(terminalId) === handler) focusHandlers.delete(terminalId);
@@ -236,7 +248,11 @@ export function registerTerminalFocusHandler(terminalId: string, handler: () => 
 }
 
 export function focusTerminalById(terminalId: string): void {
-    focusHandlers.get(terminalId)?.();
+    focusHandlers.get(terminalId)?.focus();
+}
+
+export function getTerminalFocusElement(terminalId: string): HTMLElement | null {
+    return focusHandlers.get(terminalId)?.getFocusElement() ?? null;
 }
 
 /**

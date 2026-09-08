@@ -206,6 +206,7 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         endSearch,
         find,
         focusTerminal,
+        getFocusElement,
         longPastePending,
         pasteFromClipboard,
         searchResults,
@@ -237,8 +238,8 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
     const openDetectedLinkShortcut = useCommandShortcut('terminal.openDetectedLink');
 
     useEffect(
-        () => registerTerminalFocusHandler(terminalId, focusTerminal),
-        [focusTerminal, terminalId],
+        () => registerTerminalFocusHandler(terminalId, focusTerminal, getFocusElement),
+        [focusTerminal, getFocusElement, terminalId],
     );
 
     useEffect(
@@ -297,6 +298,14 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
             className={terminalPaneClassName}
             data-terminal-id={terminalId}
             onFocus={() => activateTerminal(terminalId)}
+            // The pane's own padding around the xterm grid is not focusable, so a click that lands a few pixels off
+            // the grid would silently drop focus to `document.body` while the Terminal still looks active. Keep the
+            // click from moving focus and hand it to the Terminal instead, as clicking the grid itself would.
+            onMouseDown={(event) => {
+                if (event.target !== event.currentTarget) return;
+                event.preventDefault();
+                focusTerminal();
+            }}
             style={{ backgroundColor: terminalTheme?.background ?? 'var(--background)' }}
         >
             <ContextMenu
