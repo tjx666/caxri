@@ -186,9 +186,17 @@ test('Session MRU default reaches through Monaco and form focus without intercep
         await quickSwitch(running.page);
         await expect.poll(() => selectedSessionId(running.page)).toBe(sessionA);
 
+        /**
+         * Server selection can settle before the Renderer replaces the previous Session's search subscription. Wait for
+         * the rendered selection before sending a command that belongs to the new Session.
+         */
+        await expect(
+            running.page.locator(
+                `.session-row[aria-selected="true"] [data-session-id="${sessionA}"]`,
+            ),
+        ).toBeVisible();
         await running.page.keyboard.press('Meta+Shift+F');
         const searchInput = running.page.getByRole('textbox', { name: 'Find Project files' });
-        await searchInput.focus();
         await expect(searchInput).toBeFocused();
         const composingEventWasNotCanceled = await searchInput.evaluate((target) =>
             target.dispatchEvent(
