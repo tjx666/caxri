@@ -1,13 +1,17 @@
+import type { BootstrapState } from '@caxri/protocol';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { useWorkbenchStore } from '../../../../stores/workbench';
 import { controlledViewQueryKey } from '../../view-operation-client';
 import {
     clearStaleScopeFocusPath,
     collapseScope,
+    pruneResourceExplorerScopes,
     setScopeFocusPath,
     setScopePathExpanded,
     setScopeSelectedPath,
     setScopeSubtreeExpanded,
+    subscribeResourceExplorerScopePruning,
     useResourceExplorerScopeStore,
 } from '../resource-explorer-scope-store';
 import { scopedValue } from '../resource-explorer-state';
@@ -91,5 +95,34 @@ describe('Resource Explorer scope store', () => {
 
         clearStaleScopeFocusPath(scopeA, '/project/b.ts');
         expect(useResourceExplorerScopeStore.getState().focusByScope[scopeA]).toBeUndefined();
+    });
+
+    it('drops the state of Sessions that no longer exist and keeps live scopes by reference', () => {
+        setScopePathExpanded(scopeA, '/a/src', true);
+        setScopeSelectedPath(scopeB, '/b/file.ts');
+        setScopeFocusPath(scopeB, '/b/file.ts');
+        const liveExpanded = useResourceExplorerScopeStore.getState().expandedByScope;
+
+        pruneResourceExplorerScopes(new Set(['session-a']));
+
+        const state = useResourceExplorerScopeStore.getState();
+        expect(state.expandedByScope).toBe(liveExpanded);
+        expect(state.selectionByScope).toEqual({});
+        expect(state.focusByScope).toEqual({});
+    });
+
+    it('prunes when the bootstrap Session list changes', () => {
+        const unsubscribe = subscribeResourceExplorerScopePruning();
+        setScopePathExpanded(scopeB, '/b/src', true);
+        useWorkbenchStore.setState({
+            bootstrap: {
+                selectedSessionId: 'session-a',
+                sessions: [{ id: 'session-a', workbenchProjectId: 'project-a' }],
+                sessionStates: [],
+                terminals: [],
+            } as unknown as BootstrapState,
+        });
+        expect(useResourceExplorerScopeStore.getState().expandedByScope).toEqual({});
+        unsubscribe();
     });
 });

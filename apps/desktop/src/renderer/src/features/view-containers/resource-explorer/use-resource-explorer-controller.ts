@@ -29,6 +29,7 @@ import {
     collapseScope,
     setScopeFocusPath,
     setScopeSelectedPath,
+    subscribeResourceExplorerScopePruning,
 } from './resource-explorer-scope-store';
 import { fileOperationsForProject, fileTreeRootCaption } from './resource-explorer-state';
 
@@ -228,6 +229,7 @@ export function useResourceExplorerController(): ResourceExplorerController | un
         },
         [sessionId],
     );
+    useEffect(() => subscribeResourceExplorerScopePruning(), []);
 
     if (!session || !scopeId) return undefined;
 

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
 import { queryClient } from '../../../queries/client';
+import { useWorkbenchStore } from '../../../stores/workbench';
 import {
     knownDirectoryChildrenFromQueries,
     scopedValue,
@@ -129,4 +130,46 @@ export function collapseScope(scopeId: string): void {
 export function clearStaleScopeFocusPath(scopeId: string, focusedPath: string): void {
     const pending = useResourceExplorerScopeStore.getState().focusByScope[scopeId];
     if (pending !== undefined && pending !== focusedPath) setScopeFocusPath(scopeId, undefined);
+}
+
+function withoutScopes<Value>(
+    record: Record<string, Value>,
+    isStale: (scopeId: string) => boolean,
+): Record<string, Value> {
+    const staleIds = Object.keys(record).filter((scopeId) => isStale(scopeId));
+    if (staleIds.length === 0) return record;
+    const next = { ...record };
+    for (const scopeId of staleIds) delete next[scopeId];
+    return next;
+}
+
+/**
+ * Drops the tree state of Sessions that no longer exist. The Files view stays mounted for the app's lifetime, so
+ * without this every archived or deleted Session would keep its expanded paths resident until restart.
+ */
+export function pruneResourceExplorerScopes(liveSessionIds: ReadonlySet<string>): void {
+    const isStale = (scopeId: string): boolean =>
+        !liveSessionIds.has(scopeId.slice(0, scopeId.indexOf(':')));
+    useResourceExplorerScopeStore.setState((state) => {
+        const expandedByScope = withoutScopes(state.expandedByScope, isStale);
+        const focusByScope = withoutScopes(state.focusByScope, isStale);
+        const selectionByScope = withoutScopes(state.selectionByScope, isStale);
+        return expandedByScope === state.expandedByScope &&
+            focusByScope === state.focusByScope &&
+            selectionByScope === state.selectionByScope
+            ? state
+            : { expandedByScope, focusByScope, selectionByScope };
+    });
+}
+
+/**
+ * Prunes whenever the bootstrap Session list changes. Started by the Files controller so the subscription lives exactly
+ * as long as a Files view exists.
+ */
+export function subscribeResourceExplorerScopePruning(): () => void {
+    return useWorkbenchStore.subscribe((state, previous) => {
+        const sessions = state.bootstrap?.sessions;
+        if (!sessions || sessions === previous.bootstrap?.sessions) return;
+        pruneResourceExplorerScopes(new Set(sessions.map((session) => session.id)));
+    });
 }
