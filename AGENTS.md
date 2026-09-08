@@ -154,6 +154,7 @@ directories.
 | File placement, naming, splits, test location             | `source-layout`        |
 | React composition, hooks, shared helpers                  | `react`                |
 | Renderer styling tokens                                   | `DESIGN.md`            |
+| React render-count audit over CDP with react-scan         | `react-rerender-audit` |
 | Focused lint / type / test / knip; formatting             | `quality-check`        |
 | Vitest unit/integration regressions                       | `unit-testing`         |
 | Playwright Electron workflows                             | `e2e-testing`          |
