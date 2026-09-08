@@ -45,6 +45,7 @@ interface GitProviderScopeState {
     commitOpenSequence: number;
     commitSelection?: { repositoryId: string; sha: string };
     contentTimer?: ReturnType<typeof setTimeout>;
+    diffExclude: Readonly<Record<string, boolean>>;
     mode: GitSourceControlMode;
     pullRequests: Map<string, DetailState<GitPullRequestChanges | null>>;
     repositories: Map<string, GitRepositorySummary>;
@@ -52,6 +53,7 @@ interface GitProviderScopeState {
     revision: string;
     revisionSequence: number;
     refreshSequence: number;
+    isShowingExcluded: boolean;
     /**
      * Server-facing refresh nonce. Only a user-initiated refresh (panel Refresh, Sync, Discard, or the
      * `caxri.git.refresh` command) advances it; watcher-driven and active-context re-reads keep the previous value so
@@ -116,6 +118,7 @@ export class GitProvider implements SourceControlProvider {
             avatarHosts: new Map(),
             commitDetails: new Map(),
             commitOpenSequence: 0,
+            diffExclude: {},
             mode: 'working',
             pullRequests: new Map(),
             pullRequestForcedSequences: new Map(),
@@ -125,6 +128,7 @@ export class GitProvider implements SourceControlProvider {
             refreshSequence: 0,
             revision: '0',
             revisionSequence: 0,
+            isShowingExcluded: false,
         };
         this.scopes.set(scopeId, state);
         return state;
@@ -340,7 +344,8 @@ export class GitProvider implements SourceControlProvider {
         token: CancellationToken,
     ): Promise<Omit<SourceControlActionResult, 'revision'>> {
         const result = await this.dispatchCommand(state, command, token);
-        if (result.refresh) this.requestForcedRefresh(state);
+        if (result.refresh && command.id !== 'caxri.git.toggleExcludedFiles')
+            this.requestForcedRefresh(state);
         return result;
     }
 
@@ -351,6 +356,9 @@ export class GitProvider implements SourceControlProvider {
     ): Promise<Omit<SourceControlActionResult, 'revision'>> {
         const arguments_ = command.arguments ?? [];
         switch (command.id) {
+            case 'caxri.git.toggleExcludedFiles':
+                state.isShowingExcluded = !state.isShowingExcluded;
+                return { effects: [], refresh: true };
             case 'caxri.git.refresh':
                 return { effects: [], refresh: true };
             case 'caxri.git.openChanges': {
@@ -390,8 +398,13 @@ export class GitProvider implements SourceControlProvider {
                 };
             }
             case 'caxri.git.discardAll': {
-                const [repoId] = arguments_;
-                if (typeof repoId !== 'string' || !state.repositories.has(repoId))
+                const [repoId, isBlockedByExclusions = false] = arguments_;
+                if (
+                    typeof repoId !== 'string' ||
+                    typeof isBlockedByExclusions !== 'boolean' ||
+                    isBlockedByExclusions ||
+                    !state.repositories.has(repoId)
+                )
                     throw providerError('PROVIDER_FAILED', 'Discard target is unavailable');
                 const result = await this.workspace.git.discard(repoId, { kind: 'all' }, token);
                 return { effects: [], refresh: result?.canceled !== true };
@@ -448,6 +461,14 @@ export class GitProvider implements SourceControlProvider {
         assertNotCancelled(token);
         if (revision !== state.revision)
             throw providerError('GENERATION_EXPIRED', 'Source Control snapshot was superseded');
+        const diffExclude =
+            await this.workspace.getConfiguration<Readonly<Record<string, boolean>>>(
+                'git.diffExclude',
+            );
+        assertNotCancelled(token);
+        if (revision !== state.revision)
+            throw providerError('GENERATION_EXPIRED', 'Source Control snapshot was superseded');
+        state.diffExclude = diffExclude ?? {};
 
         if (
             state.commitSelection &&
@@ -495,10 +516,12 @@ export class GitProvider implements SourceControlProvider {
                 revision,
                 detailsByRepository: details,
                 detailErrorsByRepository: detailErrors,
+                excludePatterns: state.diffExclude,
                 selectedCommitSha: state.commitSelection?.sha,
                 pullRequestsByRepository: pullRequests,
                 fileHistoryRepositories: rawSummary.repositories,
                 registerAction: this.registerActionFor(state),
+                isShowingExcluded: state.isShowingExcluded,
             }),
         );
     }
@@ -599,9 +622,11 @@ export class GitProvider implements SourceControlProvider {
         this.assertRevision(state, request.revision);
         return buildSourceControlHistoryDetails({
             details,
+            excludePatterns: state.diffExclude,
             registerAction: this.registerActionFor(state),
             repositoryId: request.historyId,
             revision: request.revision,
+            isShowingExcluded: state.isShowingExcluded,
         });
     }
 

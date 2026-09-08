@@ -11,6 +11,7 @@ export type GitDiffTab =
           kind: 'changes';
           repositoryId: string;
           repositoryName: string;
+          showExcluded?: true;
           source: 'pull-request' | 'working';
       }
     | {
@@ -27,16 +28,26 @@ export function gitFileDiffTabPath(repoId: string, path: string): string {
     return `${GIT_DIFF_TAB_PREFIX}file/${encodeURIComponent(repoId)}/${encodeURIComponent(path)}`;
 }
 
-export function gitChangesDiffTabPath(repoId: string, repoName: string): string {
-    return `${GIT_DIFF_TAB_PREFIX}changes/${encodeURIComponent(repoId)}/${encodeURIComponent(repoName)}`;
+export function gitChangesDiffTabPath(
+    repoId: string,
+    repoName: string,
+    isShowingExcluded = false,
+): string {
+    const path = `${GIT_DIFF_TAB_PREFIX}changes/${encodeURIComponent(repoId)}/${encodeURIComponent(repoName)}`;
+    return isShowingExcluded ? `${path}?showExcluded=true` : path;
 }
 
 export function gitPullRequestFileDiffTabPath(repoId: string, path: string): string {
     return `${GIT_DIFF_TAB_PREFIX}pr-file/${encodeURIComponent(repoId)}/${encodeURIComponent(path)}`;
 }
 
-export function gitPullRequestChangesDiffTabPath(repoId: string, repoName: string): string {
-    return `${GIT_DIFF_TAB_PREFIX}pr-changes/${encodeURIComponent(repoId)}/${encodeURIComponent(repoName)}`;
+export function gitPullRequestChangesDiffTabPath(
+    repoId: string,
+    repoName: string,
+    isShowingExcluded = false,
+): string {
+    const path = `${GIT_DIFF_TAB_PREFIX}pr-changes/${encodeURIComponent(repoId)}/${encodeURIComponent(repoName)}`;
+    return isShowingExcluded ? `${path}?showExcluded=true` : path;
 }
 
 export function gitCommitFileDiffTabPath(repoId: string, sha: string, path: string): string {
@@ -56,14 +67,28 @@ export function parseGitDiffTab(path: string): GitDiffTab | undefined {
                 sha: commitMatch[2],
                 source: 'commit',
             };
-        const match = /^(file|changes|pr-file|pr-changes)\/([^/]+)\/(.+)$/.exec(rest);
-        if (!match) return undefined;
-        const repoId = decodeURIComponent(match[2]);
-        const value = decodeURIComponent(match[3]);
-        const source = match[1].startsWith('pr-') ? 'pull-request' : 'working';
-        return match[1].endsWith('file')
-            ? { kind: 'file', path: value, repositoryId: repoId, source }
-            : { kind: 'changes', repositoryId: repoId, repositoryName: value, source };
+        const fileMatch = /^(file|pr-file)\/([^/]+)\/([^?]+)$/.exec(rest);
+        if (fileMatch) {
+            const source = fileMatch[1].startsWith('pr-') ? 'pull-request' : 'working';
+            return {
+                kind: 'file',
+                path: decodeURIComponent(fileMatch[3]),
+                repositoryId: decodeURIComponent(fileMatch[2]),
+                source,
+            };
+        }
+        const changesMatch = /^(changes|pr-changes)\/([^/]+)\/([^?]+)(\?showExcluded=true)?$/.exec(
+            rest,
+        );
+        if (!changesMatch) return undefined;
+        const source = changesMatch[1].startsWith('pr-') ? 'pull-request' : 'working';
+        return {
+            kind: 'changes',
+            repositoryId: decodeURIComponent(changesMatch[2]),
+            repositoryName: decodeURIComponent(changesMatch[3]),
+            ...(changesMatch[4] && { showExcluded: true as const }),
+            source,
+        };
     } catch {
         return undefined;
     }

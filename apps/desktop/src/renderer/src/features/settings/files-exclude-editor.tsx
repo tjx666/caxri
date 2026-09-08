@@ -9,15 +9,22 @@ import { Switch } from '../../components/ui/switch';
 import { Tooltip } from '../../components/ui/tooltip';
 
 interface FilesExcludeEditorProperties {
+    label: string;
+    placeholder?: string;
     value: AppSettings['files.exclude'];
     onChange: (value: AppSettings['files.exclude']) => void;
 }
 
 /**
- * Glob-pattern map editor for `files.exclude`: each pattern keeps its enabled flag so a pattern can be paused without
+ * Glob-pattern map editor for file visibility: each pattern keeps its enabled flag so a pattern can be paused without
  * losing it, mirroring the VS Code representation of the same setting.
  */
-export function FilesExcludeEditor({ value, onChange }: FilesExcludeEditorProperties) {
+export function FilesExcludeEditor({
+    label,
+    value,
+    onChange,
+    placeholder = '**/node_modules',
+}: FilesExcludeEditorProperties) {
     const [draft, setDraft] = useState('');
     const patterns = Object.keys(value);
 
@@ -29,7 +36,7 @@ export function FilesExcludeEditor({ value, onChange }: FilesExcludeEditorProper
     };
 
     return (
-        <div className="flex flex-col gap-1">
+        <div role="group" aria-label={label} className="flex flex-col gap-1">
             <ul aria-label="Excluded file patterns" className="m-0 flex list-none flex-col p-0">
                 {patterns.map((pattern) => (
                     <li
@@ -68,7 +75,7 @@ export function FilesExcludeEditor({ value, onChange }: FilesExcludeEditorProper
                 <Input
                     aria-label="New excluded pattern"
                     className="bg-background"
-                    placeholder="**/node_modules"
+                    placeholder={placeholder}
                     size="dense"
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}

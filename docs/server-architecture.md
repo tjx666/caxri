@@ -327,6 +327,7 @@ The following current graph means “may import” and is enforced by ESLint:
 agent-skills  -> protocol
 client        -> protocol, utils
 protocol      -> utils
+extension-api -> no workspace dependencies
 system        -> protocol, utils
 server        -> agent-skills, extension-api, protocol, system, utils
 desktop       -> client, protocol, system, utils

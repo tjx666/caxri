@@ -404,8 +404,14 @@ function rowControl(properties: SettingRowProperties): {
             return {
                 control: (
                     <FilesExcludeEditor
-                        value={settings['files.exclude']}
-                        onChange={(value) => onFieldChange('files.exclude', value)}
+                        label={
+                            binding.key === 'git.diffExclude'
+                                ? 'Excluded Git diff files'
+                                : 'Excluded files'
+                        }
+                        placeholder={binding.key === 'git.diffExclude' ? '**/*.test.*' : undefined}
+                        value={settings[binding.key]}
+                        onChange={(value) => onFieldChange(binding.key, value)}
                     />
                 ),
             };

@@ -590,6 +590,9 @@ importers:
       '@caxri/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
+      '@caxri/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
       caxri:
         specifier: workspace:*
         version: link:../../packages/extension-api

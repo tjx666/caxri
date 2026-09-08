@@ -24,6 +24,10 @@ export interface SourceControlAction {
     accessibilityLabel?: string;
     tooltip?: string;
     disabled?: boolean;
+    /**
+     * Whether this toggle-style action currently represents an active state.
+     */
+    pressed?: boolean;
     progressLabel?: string;
     emphasis?: 'danger';
     errorMessage?: string;
@@ -82,6 +86,7 @@ export interface SourceControlGroup {
     id: string;
     label: string;
     count: number;
+    hiddenCount?: number;
     expandedByDefault: boolean;
     emptyMessage: string;
     truncationMessage?: string;
@@ -145,6 +150,10 @@ export interface SourceControlViewModel {
     modes: SourceControlMode[];
     selectedModeId: string;
     refreshAction: SourceControlAction;
+    /**
+     * Generic actions displayed in the Source Control header.
+     */
+    headerActions?: SourceControlAction[];
     fileHistory?: SourceControlFileHistory;
     providers: SourceControlProviderModel[];
     emptyMessage?: string;
@@ -179,6 +188,10 @@ export interface SourceControlHistoryDetails {
     deletions: number;
     resources: SourceControlResource[];
     truncated: boolean;
+    /**
+     * Number of loaded changed files omitted by visibility settings.
+     */
+    hiddenCount?: number;
 }
 
 export type SourceControlActionEffect =

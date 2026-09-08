@@ -1,6 +1,8 @@
 import type { SourceControlViewModel } from '@caxri/protocol';
 import type { LucideIcon } from 'lucide-react';
 import {
+    Eye,
+    EyeOff,
     FileDiff,
     FileText,
     FolderGit2,
@@ -19,6 +21,8 @@ import { FileTypeIcon } from '../../../icons/files/file-type-icon';
 type ModelIcon = SourceControlViewModel['refreshAction']['icon'];
 
 const icons: Readonly<Record<string, LucideIcon>> = {
+    'eye': Eye,
+    'eye-off': EyeOff,
     'diff': FileDiff,
     'file': FileText,
     'folder-git': FolderGit2,

@@ -30,11 +30,15 @@ export function SourceControlHistoryDetails({
     return (
         <div className="commit-details border-y border-border bg-background py-1">
             <div className="px-3 py-1 text-[10px] font-bold tracking-[0.06em] text-muted uppercase">
-                {descriptor.detailsLabel} · {details.data.resources.length}
+                {descriptor.detailsLabel} ·{' '}
+                {details.data.resources.length + (details.data.hiddenCount ?? 0)}
+                {!!details.data.hiddenCount && ` · ${details.data.hiddenCount} hidden`}
             </div>
             {details.data.resources.length === 0 ? (
                 <div className="px-3 py-2 text-[11px] text-muted">
-                    {descriptor.detailsEmptyMessage}
+                    {details.data.hiddenCount
+                        ? details.data.summary
+                        : descriptor.detailsEmptyMessage}
                 </div>
             ) : (
                 details.data.resources.map((resource) => (

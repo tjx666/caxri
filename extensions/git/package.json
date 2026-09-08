@@ -10,6 +10,7 @@
     },
     "devDependencies": {
         "@caxri/protocol": "workspace:*",
+        "@caxri/utils": "workspace:*",
         "caxri": "workspace:*"
     },
     "engines": {
@@ -50,7 +51,8 @@
                         "refreshErrorMessage": "Git refresh failed"
                     },
                     "configurationDependencies": [
-                        "git.fetchGitHubAvatars"
+                        "git.fetchGitHubAvatars",
+                        "git.diffExclude"
                     ]
                 }
             ]

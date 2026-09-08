@@ -51,6 +51,31 @@ describe('Git diff tabs', () => {
         expect(gitDiffTabLabel(changes!)).toBe('PR Changes: workspace');
     });
 
+    it('round-trips the bounded show-excluded flag for aggregate diffs', () => {
+        const working = gitChangesDiffTabPath('repo/1', 'workspace/name', true);
+        const pullRequest = gitPullRequestChangesDiffTabPath('repo', 'workspace', true);
+
+        expect(working).toBe(
+            'caxri-git-diff://changes/repo%2F1/workspace%2Fname?showExcluded=true',
+        );
+        expect(parseGitDiffTab(working)).toEqual({
+            kind: 'changes',
+            repositoryId: 'repo/1',
+            repositoryName: 'workspace/name',
+            showExcluded: true,
+            source: 'working',
+        });
+        expect(parseGitDiffTab(pullRequest)).toMatchObject({
+            kind: 'changes',
+            showExcluded: true,
+            source: 'pull-request',
+        });
+        expect(parseGitDiffTab(`${working}&path=src%2Fsecret.ts`)).toBeUndefined();
+        expect(parseGitDiffTab(`${gitFileDiffTabPath('repo', 'src/a.ts')}?showExcluded=true`)).toBe(
+            undefined,
+        );
+    });
+
     it('round-trips commit file identities with a sha-qualified label', () => {
         const sha = '0123456789abcdef0123456789abcdef01234567';
         const tab = parseGitDiffTab(gitCommitFileDiffTabPath('repo/1', sha, 'src/a#b?c.ts'));
