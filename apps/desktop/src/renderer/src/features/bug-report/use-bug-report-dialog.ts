@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer } from 'react';
+import { useEffect, useMemo, useReducer, useRef } from 'react';
 
 import type { MethodResult } from '@caxri/protocol';
 import { errorMessage } from '@caxri/protocol';
@@ -10,16 +10,27 @@ import { getBootstrap } from '../../stores/selectors';
 import { pushToast } from '../../stores/toasts';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { getActivePaneTab } from '../workbench/pane-actions';
-import type { BugReportContext, BugReportDraft } from './bug-report';
+import type { BugReportContext, BugReportDraft, BugReportScreenshotReference } from './bug-report';
 import {
-    bugReportImageFallback,
+    bugReportImageDeliveryNotice,
     buildBugReport,
     chooseBugReportTarget,
     runningAgentTargets,
 } from './bug-report';
+import type { ScreenshotAnnotation } from './screenshot-annotations';
 
 type DiagnosticsContext = MethodResult<'bugReport.context'>;
-export type Screenshot = MethodResult<'bugReport.captureScreenshot'>;
+type CapturedScreenshot = MethodResult<'bugReport.captureScreenshot'>;
+
+/**
+ * The original capture is never overwritten: re-opening the annotator has to redraw the marks over a clean image, so
+ * `annotatedDataUrl` is a derived rasterization that is thrown away and rebuilt on every edit.
+ */
+interface BugReportScreenshot {
+    annotatedDataUrl: string | undefined;
+    annotations: ScreenshotAnnotation[];
+    original: CapturedScreenshot;
+}
 
 interface ReportSource {
     project: BugReportContext['project'];
@@ -73,14 +84,18 @@ function initialReportState(): {
 }
 
 interface BugReportDialogState {
+    annotatorOpen: boolean;
     busy: boolean;
+    /**
+     * Hides the dialog chrome so a capture shows the workbench, not this dialog.
+     */
     captureHidden: boolean;
+    capturing: boolean;
     contextError: string | undefined;
     diagnostics: DiagnosticsContext | undefined;
     draft: BugReportDraft;
-    includeScreenshot: boolean;
     report: string | undefined;
-    screenshot: Screenshot | undefined;
+    screenshot: BugReportScreenshot | undefined;
     screenshotError: string | undefined;
     selectedTargetId: string | undefined;
     sendError: string | undefined;
@@ -94,12 +109,14 @@ type BugReportDialogUpdate =
 function createBugReportDialogState(): BugReportDialogState {
     const initial = initialReportState();
     return {
+        annotatorOpen: false,
         busy: false,
-        captureHidden: false,
+        // The dialog mounts hidden so the automatic capture below never photographs itself.
+        captureHidden: true,
+        capturing: true,
         contextError: initial.contextError,
         diagnostics: undefined,
         draft: EMPTY_DRAFT,
-        includeScreenshot: false,
         report: undefined,
         screenshot: undefined,
         screenshotError: undefined,
@@ -117,9 +134,10 @@ function bugReportDialogReducer(
 }
 
 /**
- * Owns the Bug Report dialog's reducer state, diagnostics fetch, and preview/send flow so the rendering component can
- * stay focused on layout. Behavior — redaction, screenshot capture, and Session/Agent liveness checks on send — is
- * unchanged from the previous single-component version.
+ * Owns the Bug Report dialog's reducer state, diagnostics fetch, screenshot lifecycle, and preview/send flow so the
+ * rendering components stay focused on layout. The screenshot is captured once when the dialog opens — the owner's
+ * dominant flow is "capture, mark the broken area, describe it", and an opt-in checkbox made the user reproduce the
+ * problem a second time after they had already navigated away from it.
  */
 export function useBugReportDialog() {
     const [state, updateState] = useReducer(
@@ -129,12 +147,13 @@ export function useBugReportDialog() {
     );
     const bootstrap = useWorkbenchStore((state) => state.bootstrap);
     const {
+        annotatorOpen,
         busy,
         captureHidden,
+        capturing,
         contextError,
         diagnostics,
         draft,
-        includeScreenshot,
         report,
         screenshot,
         screenshotError,
@@ -164,23 +183,71 @@ export function useBugReportDialog() {
         };
     }, [source]);
 
+    /**
+     * Hides the dialog, waits two frames so the compositor has actually painted without it, and captures. Both frames
+     * are required: the first commits the `invisible` class, the second is the paint that class produces.
+     */
+    const captureScreenshot = async (): Promise<void> => {
+        updateState({
+            capturing: true,
+            captureHidden: true,
+            screenshot: undefined,
+            screenshotError: undefined,
+        });
+        await afterPaint();
+        try {
+            updateState({
+                screenshot: {
+                    annotatedDataUrl: undefined,
+                    annotations: [],
+                    original: await caxri.request('bugReport.captureScreenshot'),
+                },
+            });
+        } catch (error) {
+            updateState({
+                screenshotError: errorMessage(error, 'Unable to capture the Caxri window.'),
+            });
+        } finally {
+            updateState({ captureHidden: false, capturing: false });
+        }
+    };
+
+    /**
+     * React StrictMode double-invokes mount effects in development; a ref (which survives that remount, unlike reducer
+     * state, which has not re-rendered yet when the effect runs again) keeps the window from being captured twice.
+     */
+    const hasRequestedCapture = useRef(false);
+    useEffect(() => {
+        if (hasRequestedCapture.current) return;
+        hasRequestedCapture.current = true;
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, captureScreenshot() reports its own errors
+        void captureScreenshot();
+    }, []);
+
+    /**
+     * The image bytes last written by `bugReport.saveScreenshot` and the file they landed in. Preview → Back → Preview
+     * is a normal edit loop, and without this every pass would write another multi-megabyte copy of identical bytes
+     * into the temp directory, all of them referenced by a report the user never sent. A ref rather than reducer state
+     * because it must not re-render anything: it only ever answers "have I already saved exactly this?".
+     */
+    const savedScreenshot = useRef<{ dataUrl: string; path: string }>(undefined);
+
     const targets = useMemo(
         () => runningAgentTargets(bootstrap?.terminals ?? [], source?.session.id ?? ''),
         [bootstrap?.terminals, source?.session.id],
     );
     const target = targets.find((item) => item.id === selectedTargetId);
-    const imageFallbackNotice = bugReportImageFallback(target?.provider);
+    const imageDeliveryNotice = bugReportImageDeliveryNotice(target?.provider);
     const isSessionChanged = Boolean(source && bootstrap?.selectedSessionId !== source.session.id);
     const canPreview = Boolean(
-        source && diagnostics && draft.actual.trim() && draft.expected.trim() && draft.steps.trim(),
+        source && diagnostics && draft.actual.trim() && draft.expected.trim(),
     );
+    const previewDataUrl = screenshot
+        ? (screenshot.annotatedDataUrl ?? screenshot.original.dataUrl)
+        : undefined;
 
     const updateDraft = (field: keyof BugReportDraft, value: string): void => {
         updateState((current) => ({ draft: { ...current.draft, [field]: value } }));
-    };
-
-    const setIncludeScreenshot = (isChecked: boolean): void => {
-        updateState({ includeScreenshot: isChecked });
     };
 
     const setSelectedTargetId = (value: string | undefined): void => {
@@ -191,32 +258,66 @@ export function useBugReportDialog() {
         updateState({ report: undefined });
     };
 
+    const removeScreenshot = (): void => {
+        updateState({ screenshot: undefined, screenshotError: undefined });
+    };
+
+    const openAnnotator = (): void => {
+        updateState({ annotatorOpen: true });
+    };
+
+    const closeAnnotator = (): void => {
+        updateState({ annotatorOpen: false });
+    };
+
+    const applyAnnotations = (
+        annotations: ScreenshotAnnotation[],
+        annotatedDataUrl: string | undefined,
+    ): void => {
+        updateState((current) => ({
+            annotatorOpen: false,
+            screenshot: current.screenshot && {
+                ...current.screenshot,
+                annotations,
+                annotatedDataUrl,
+            },
+        }));
+    };
+
     const preview = async (): Promise<void> => {
         if (!source || !diagnostics || !canPreview) return;
         const context: BugReportContext = { ...diagnostics, ...source };
-        updateState({
-            busy: true,
-            screenshot: undefined,
-            screenshotError: undefined,
-            sendError: undefined,
-        });
+        updateState({ busy: true, sendError: undefined });
         try {
-            if (includeScreenshot) {
-                updateState({ captureHidden: true });
-                await afterPaint();
+            let reference: BugReportScreenshotReference | undefined;
+            if (screenshot) {
                 try {
-                    updateState({
-                        screenshot: await caxri.request('bugReport.captureScreenshot'),
-                    });
+                    const dataUrl = screenshot.annotatedDataUrl ?? screenshot.original.dataUrl;
+                    const cached = savedScreenshot.current;
+                    const path =
+                        cached?.dataUrl === dataUrl
+                            ? cached.path
+                            : (await caxri.request('bugReport.saveScreenshot', { dataUrl })).path;
+                    savedScreenshot.current = { dataUrl, path };
+                    reference = {
+                        annotations: screenshot.annotations,
+                        height: screenshot.original.height,
+                        path,
+                        width: screenshot.original.width,
+                    };
+                    updateState({ screenshotError: undefined });
                 } catch (error) {
+                    // A failed save must not block the report: the text half is still worth sending, it just cannot
+                    // name a file the Agent can open.
                     updateState({
-                        screenshotError: errorMessage(error, 'Unable to capture the Caxri window.'),
+                        screenshotError: errorMessage(
+                            error,
+                            'Unable to save the screenshot file. The report will not include an image path.',
+                        ),
                     });
-                } finally {
-                    updateState({ captureHidden: false });
                 }
             }
-            updateState({ report: buildBugReport(draft, context) });
+            updateState({ report: buildBugReport(draft, context, reference) });
         } finally {
             updateState({ busy: false });
         }
@@ -255,7 +356,12 @@ export function useBugReportDialog() {
         try {
             await caxri.request('bugReport.send', {
                 report,
-                screenshot,
+                // The Agent-facing image is the annotated one; the original only exists so the marks stay editable.
+                screenshot: screenshot && {
+                    dataUrl: screenshot.annotatedDataUrl ?? screenshot.original.dataUrl,
+                    height: screenshot.original.height,
+                    width: screenshot.original.width,
+                },
                 sessionId: source.session.id,
                 terminalId: liveTarget.id,
             });
@@ -269,16 +375,23 @@ export function useBugReportDialog() {
     };
 
     return {
+        annotatorOpen,
+        applyAnnotations,
         backToForm,
         busy,
         canPreview,
         captureHidden,
+        captureScreenshot,
+        capturing,
+        closeAnnotator,
         contextError,
         copyReport,
         draft,
-        imageFallbackNotice,
-        includeScreenshot,
+        imageDeliveryNotice,
+        openAnnotator,
         preview,
+        previewDataUrl,
+        removeScreenshot,
         report,
         screenshot,
         screenshotError,
@@ -286,7 +399,6 @@ export function useBugReportDialog() {
         send,
         sendError,
         sessionChanged: isSessionChanged,
-        setIncludeScreenshot,
         setSelectedTargetId,
         target,
         targets,

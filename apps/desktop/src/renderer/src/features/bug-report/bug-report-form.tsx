@@ -1,20 +1,27 @@
+import { useEffect, useRef } from 'react';
+
 import { Alert } from '../../components/ui/alert';
 import { Button } from '../../components/ui/button';
-import { Checkbox } from '../../components/ui/checkbox';
 import { Field, FieldLabel } from '../../components/ui/field';
 import { Textarea } from '../../components/ui/textarea';
 import type { BugReportDraft } from './bug-report';
+import { BugReportScreenshotField } from './bug-report-screenshot-field';
 
 interface BugReportFormProperties {
+    annotationCount: number;
     busy: boolean;
     canPreview: boolean;
+    capturing: boolean;
     contextError: string | undefined;
     draft: BugReportDraft;
     hasTargets: boolean;
-    imageFallbackNotice: string;
-    includeScreenshot: boolean;
-    onIncludeScreenshotChange: (isChecked: boolean) => void;
+    imageDeliveryNotice: string;
+    onAnnotate: () => void;
+    onCapture: () => void;
     onPreview: () => void;
+    onRemoveScreenshot: () => void;
+    screenshotDataUrl: string | undefined;
+    screenshotError: string | undefined;
     updateDraft: (field: keyof BugReportDraft, value: string) => void;
 }
 
@@ -22,17 +29,63 @@ interface BugReportFormProperties {
  * The draft-entry step of the Bug Report dialog, shown before a report has been previewed.
  */
 export function BugReportForm({
+    annotationCount,
     busy,
     canPreview,
+    capturing,
     contextError,
     draft,
     hasTargets,
-    imageFallbackNotice,
-    includeScreenshot,
-    onIncludeScreenshotChange,
+    imageDeliveryNotice,
+    onAnnotate,
+    onCapture,
     onPreview,
+    onRemoveScreenshot,
+    screenshotDataUrl,
+    screenshotError,
     updateDraft,
 }: BugReportFormProperties) {
+    const actualReference = useRef<HTMLTextAreaElement>(null);
+
+    /**
+     * Claims initial focus once the automatic capture is over, because nothing else can. The dialog mounts with
+     * `visibility: hidden` so the capture never photographs the dialog itself, and a hidden subtree is unfocusable:
+     * both Base UI's initial-focus pass and a plain `autoFocus` run during that window and silently do nothing, leaving
+     * focus wherever it was before the dialog opened (usually the Terminal). Re-running on every transition back to
+     * visible also repairs the same loss after a Retake, since hiding the dialog blurs whatever it contained. The
+     * `activeElement` guard only yields to a form control the user has already focused: once the dialog becomes
+     * visible, Base UI's focus manager lands focus on the popup container itself, which counts as "inside the dialog"
+     * but is not a place the user can type. The `capturing` flag clears one paint before the `invisible` class is
+     * actually gone from the computed style, so the focus call polls a few frames for real visibility instead of firing
+     * into a still-hidden subtree.
+     */
+    useEffect(() => {
+        if (capturing) return;
+        let frame = 0;
+        let remainingFrames = 30;
+        const focusWhenVisible = (): void => {
+            const textarea = actualReference.current;
+            const dialog = textarea?.closest('[data-bug-report-dialog]');
+            if (!textarea || !dialog) return;
+            if (getComputedStyle(textarea).visibility === 'hidden') {
+                remainingFrames -= 1;
+                if (remainingFrames > 0) frame = requestAnimationFrame(focusWhenVisible);
+                return;
+            }
+            const active = document.activeElement;
+            const isUserControlFocused =
+                active instanceof HTMLElement &&
+                dialog.contains(active) &&
+                (active instanceof HTMLTextAreaElement ||
+                    active instanceof HTMLInputElement ||
+                    active instanceof HTMLButtonElement ||
+                    active instanceof HTMLSelectElement);
+            if (!isUserControlFocused) textarea.focus();
+        };
+        frame = requestAnimationFrame(focusWhenVisible);
+        return () => cancelAnimationFrame(frame);
+    }, [capturing]);
+
     return (
         <div className="grid gap-3 p-4">
             {contextError && (
@@ -46,11 +99,21 @@ export function BugReportForm({
                     manually.
                 </Alert>
             )}
+            <BugReportScreenshotField
+                annotationCount={annotationCount}
+                capturing={capturing}
+                dataUrl={screenshotDataUrl}
+                imageDeliveryNotice={imageDeliveryNotice}
+                screenshotError={screenshotError}
+                onAnnotate={onAnnotate}
+                onCapture={onCapture}
+                onRemove={onRemoveScreenshot}
+            />
             <Field>
                 <FieldLabel htmlFor="bug-report-actual">Actual behavior</FieldLabel>
                 <Textarea
+                    ref={actualReference}
                     id="bug-report-actual"
-                    autoFocus
                     maxLength={12_000}
                     placeholder="What happened?"
                     value={draft.actual}
@@ -68,7 +131,7 @@ export function BugReportForm({
                 />
             </Field>
             <Field>
-                <FieldLabel htmlFor="bug-report-steps">Reproduction steps</FieldLabel>
+                <FieldLabel htmlFor="bug-report-steps">Reproduction steps (optional)</FieldLabel>
                 <Textarea
                     id="bug-report-steps"
                     maxLength={12_000}
@@ -77,32 +140,6 @@ export function BugReportForm({
                     onChange={(event) => updateDraft('steps', event.target.value)}
                 />
             </Field>
-            <div className="grid gap-1 text-muted">
-                <Field orientation="horizontal" className="justify-start gap-2">
-                    <Checkbox
-                        id="bug-report-screenshot"
-                        checked={includeScreenshot}
-                        onCheckedChange={(isChecked) => onIncludeScreenshotChange(isChecked)}
-                    />
-                    <FieldLabel htmlFor="bug-report-screenshot" className="text-[12px] font-normal">
-                        Capture a screenshot of the current Caxri window, including any open files
-                        and terminal output visible on screen
-                    </FieldLabel>
-                </Field>
-                {includeScreenshot && (
-                    /**
-                     * AGENTS.md requires diagnostics to exclude source contents and Terminal output; the text report
-                     * above honors that (see `bug-report.ts`'s doc comment), but a screenshot is captured
-                     * pixel-for-pixel and cannot be redacted the same way. This warning makes that gap explicit instead
-                     * of leaving it as a silently unexplained full-window capture.
-                     */
-                    <Alert variant="warning" className="border-0 p-0 pl-6">
-                        Unlike the text report, this screenshot is not redacted: it shows everything
-                        on screen exactly as it appears, including source code and Terminal output.
-                    </Alert>
-                )}
-                <p className="m-0 pl-6 text-[11px]">{imageFallbackNotice}</p>
-            </div>
             <div className="flex justify-end gap-2">
                 <Button disabled={!canPreview || busy} onClick={onPreview}>
                     {busy ? 'Preparing…' : 'Preview Report'}

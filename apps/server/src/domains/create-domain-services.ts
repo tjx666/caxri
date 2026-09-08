@@ -515,6 +515,7 @@ export async function createDomainServices(
         'editor.confirmDiscard': () => mainOwned('editor.confirmDiscard'),
         'diagnostics.export': () => mainOwned('diagnostics.export'),
         'bugReport.captureScreenshot': () => mainOwned('bugReport.captureScreenshot'),
+        'bugReport.saveScreenshot': () => mainOwned('bugReport.saveScreenshot'),
         'bugReport.context': () => diagnostics.reportContext(),
         'bugReport.send': () => mainOwned('bugReport.send'),
         'bugReport.deliver': ({ pasteImage, report, sessionId, terminalId }) => {

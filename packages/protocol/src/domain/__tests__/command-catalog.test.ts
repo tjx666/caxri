@@ -51,6 +51,7 @@ describe('command registry', () => {
                     args: { text: '\t\n' },
                 },
                 { key: 'cmd+w', command: 'workbench.closeActiveTab' },
+                { key: 'cmd+shift+b', command: 'developer.reportBug' },
             ]),
         );
         expect(
@@ -80,7 +81,7 @@ describe('command registry', () => {
             expect.objectContaining({
                 id: 'developer.reportBug',
                 title: 'Report Bug to Agent',
-                category: 'Developer',
+                category: 'Help',
             }),
         );
     });
@@ -125,6 +126,9 @@ describe('command registry', () => {
             ['session.navigateBack', 'session.navigateForward'],
             ['session.detach', 'session.resume'],
         ]);
+        expect(
+            getNativeMenuCommandGroups('help').map((group) => group.map((command) => command.id)),
+        ).toEqual([['processExplorer.open'], ['developer.reportBug', 'diagnostics.export']]);
     });
 
     it('migrates every released default generation to commands the current catalog can execute', () => {

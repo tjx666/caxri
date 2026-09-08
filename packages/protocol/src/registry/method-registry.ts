@@ -332,6 +332,16 @@ export const methods = {
         params: noParameters,
         result: bugReportScreenshot,
     },
+    /**
+     * Persists the previewed capture so a report can point an Agent at an image file. It writes to disk like
+     * `diagnostics.export`, so it carries the same `desktop` write policy rather than the capture method's control
+     * policy.
+     */
+    'bugReport.saveScreenshot': {
+        ...desktopWrite,
+        params: z.object({ dataUrl: bugReportScreenshot.shape.dataUrl }),
+        result: z.object({ path: z.string().min(1).max(4_096) }),
+    },
     'bugReport.send': {
         ...desktopWrite,
         params: z.object({

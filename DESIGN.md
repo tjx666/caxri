@@ -498,3 +498,6 @@ resolving one requires updating the sections above in the same change.
   memory and, per the global-shortcut rule, cannot fire while focus is in Monaco or xterm — where
   focus usually rests. Rebinding (e.g. `Command+B` for the PrimarySidebar) is an open product
   decision.
+- **Bug Report annotation ink** — `screenshot-annotations.ts` hard-codes `#f43f5e` and `#ffffff`
+  instead of theme tokens. The same color has to appear in the live SVG overlay and in the
+  rasterized JPEG the Agent opens, and no token can repaint bytes already written to a file.
