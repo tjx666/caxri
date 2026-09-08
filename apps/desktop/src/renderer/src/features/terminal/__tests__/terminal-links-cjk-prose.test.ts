@@ -7,6 +7,32 @@ import { findTerminalLinks } from '../terminal-links';
  * boundaries are inferred from the token itself (`terminal-file-candidate.ts`).
  */
 describe('findTerminalLinks with CJK prose', () => {
+    it.each([':', '：'])('detaches a CJK label ending in %s from a relative path', (separator) => {
+        const prefix = `字段说明${separator}`;
+        for (const suffix of ['', ':57', ':57:3', '#L57-L59']) {
+            const path = `src/example.ts${suffix}`;
+            expect(findTerminalLinks(`${prefix}${path} 的字段`)).toMatchObject([
+                {
+                    startIndex: prefix.length,
+                    endIndex: prefix.length + path.length,
+                    target: 'src/example.ts',
+                    text: path,
+                },
+            ]);
+        }
+    });
+
+    it('preserves colons inside explicit paths and file URLs', () => {
+        for (const path of ['./说明:src/example.ts', 'docs/说明:目录/example.ts']) {
+            expect(findTerminalLinks(`${path}:57`)).toMatchObject([
+                { target: path, location: { startLine: 57, endLine: 57 } },
+            ]);
+        }
+        expect(findTerminalLinks('file:///src/example.ts')).toMatchObject([
+            { target: 'file:///src/example.ts' },
+        ]);
+    });
+
     it('splits a path from glued CJK prose at a word-separator parenthesis', () => {
         // Regression: `realpath '/…/串联 (src/api/workflows/es-reindex.ts)'` ENOENT — the CJK
         // prefix and wrapping parentheses were folded into the clicked path.
