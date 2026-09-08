@@ -54,7 +54,6 @@ vi.mock('../../../stores/workbench', () => ({
 }));
 
 import {
-    canResumeAutomaticSessionNaming,
     deleteSelectedSession,
     deleteSession,
     didReorderProject,
@@ -63,7 +62,6 @@ import {
     openProjectInExternalEditor,
     openSelectedProjectInExternalEditor,
     openSelectedSessionPullRequest,
-    resumeAutomaticSessionNaming,
     selectAdjacentSession,
     selectProject,
 } from '../session-actions';
@@ -162,20 +160,6 @@ describe('Session actions', () => {
             path: '/workspace/repository-worktree',
             sessionId: 'session-1',
         });
-    });
-
-    it('offers Resume only when Caxri owns automatic naming for the provider', () => {
-        const stopped = { autoNamingState: 'stopped' as const, titleMode: 'manual' as const };
-
-        expect(canResumeAutomaticSessionNaming(stopped, { provider: 'claude' })).toBe(true);
-        expect(canResumeAutomaticSessionNaming(stopped, { provider: 'codex' })).toBe(false);
-        expect(canResumeAutomaticSessionNaming(stopped, { provider: undefined })).toBe(false);
-        expect(
-            canResumeAutomaticSessionNaming(
-                { autoNamingState: 'active', titleMode: 'automatic' },
-                { provider: 'claude' },
-            ),
-        ).toBe(false);
     });
 
     it('does not start Session creation when a Project has no active Sessions', () => {
@@ -293,18 +277,6 @@ describe('Session actions', () => {
             targetIndex: 2,
         });
         expect(mocks.tryCommand.mock.calls[0]?.[2]).toBeUndefined();
-    });
-
-    it('resumes automatic Session naming and refreshes the Workbench', async () => {
-        resumeAutomaticSessionNaming('session-1');
-        await mocks.tryCommand.mock.results[0]?.value;
-
-        expect(mocks.caxriRequest).toHaveBeenCalledWith('session.resumeAutomaticNaming', {
-            sessionId: 'session-1',
-        });
-        expect(mocks.tryCommand.mock.calls[0]?.[2]).toEqual({
-            refresh: mocks.refreshWorkbench,
-        });
     });
 
     it('cleans up stores and queries when Session deletion is confirmed', async () => {

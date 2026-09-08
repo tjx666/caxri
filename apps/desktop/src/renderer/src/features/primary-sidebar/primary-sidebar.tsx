@@ -22,8 +22,6 @@ import {
 import {
     archiveSession,
     beginSessionCreation,
-    canResumeAutomaticSessionNaming,
-    resumeAutomaticSessionNaming,
     SESSION_PULL_REQUESTS_REFETCH_INTERVAL_MS,
 } from '../session/session-actions';
 import { activeSessionsInSidebarOrder } from '../session/session-activity-order';
@@ -195,7 +193,6 @@ export function PrimarySidebar() {
      *
      * - Up/Down/Home/End walk every Project heading and its active Sessions.
      * - Left/Right expand/collapse a Project, or move a Session row to its owning Project.
-     * - R resumes automatic naming for a stopped Session.
      * - Delete/Backspace on a focused Session row archives it (reversible via the Archived Sessions dialog, so no
      *   confirmation) — the keyboard equivalent of the Archive button. Focus moves to the next row (falling back to the
      *   previous row when the archived row was last) before the row leaves the DOM, so the roving Tab stop never falls
@@ -247,21 +244,6 @@ export function PrimarySidebar() {
                 if (focusAfterArchive) focusRow(focusAfterArchive);
             }
             return;
-        }
-        if (event.key.toLowerCase() === 'r') {
-            const row = treeRows.find((item) => item.id === rowId);
-            const session =
-                row?.kind === 'session' ? sessions.find((item) => item.id === row.id) : undefined;
-            if (
-                session &&
-                canResumeAutomaticSessionNaming(
-                    session,
-                    terminals.find((item) => item.id === session.primaryAgentTerminalId),
-                )
-            ) {
-                event.preventDefault();
-                resumeAutomaticSessionNaming(session.id);
-            }
         }
     };
 

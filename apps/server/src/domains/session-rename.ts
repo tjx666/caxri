@@ -3,7 +3,6 @@ import { CaxriError, sessionRenameTitleSchema } from '@caxri/protocol';
 
 import type { AgentCoordinator, AgentService } from './agents';
 import type { CaxriDatabase } from './db';
-import { isPlaceholderSessionTitle } from './session-policy';
 
 const MAXIMUM_AGENT_TARGET_CHANGES = 3;
 
@@ -130,104 +129,6 @@ export class SessionRenameService {
         const renamed = finalizeDurably ? finalizeDurably(commit) : commit();
         for (const terminalId of renamedTerminalIds) this.coordinator.probeTerminal(terminalId);
         return renamed;
-    }
-
-    /**
-     * Applies an automatic title through the same per-Session queue as manual renames, but records only the private
-     * ownership mirror. The normal metadata probe remains the sole path that projects provider titles into Caxri.
-     */
-    renameAutomatically(
-        sessionId: string,
-        displayTitle: string,
-        appGuard: () => boolean, // eslint-disable-line unicorn/consistent-boolean-name -- predicate callback
-        signal?: AbortSignal,
-        providerOwnershipGuard?: () => Promise<boolean>, // eslint-disable-line unicorn/consistent-boolean-name -- predicate callback
-    ): Promise<string | undefined> {
-        const parsedTitle = sessionRenameTitleSchema.safeParse(displayTitle);
-        if (!parsedTitle.success) return Promise.resolve(undefined);
-        return this.queue.run(sessionId, async () => {
-            if (!appGuard() || signal?.aborted) return;
-            let target = await this.primaryAgentTarget(sessionId);
-            if (!target || !appGuard()) return;
-            let appliedTitle: string;
-            const renamedTerminalIds = new Set<string>();
-            for (let attempt = 0; ; attempt += 1) {
-                if (signal?.aborted || !appGuard()) return;
-                let isProviderOwnershipCurrent = true;
-                if (providerOwnershipGuard) {
-                    // eslint-disable-next-line no-await-in-loop -- revalidate directly before each provider write
-                    isProviderOwnershipCurrent = await providerOwnershipGuard();
-                }
-                if (!isProviderOwnershipCurrent || signal?.aborted || !appGuard()) return;
-                // The ownership read is asynchronous. Recheck the exact provider binding after it returns so a
-                // Terminal rebind cannot send the generated title to the Session that just lost ownership.
-                // eslint-disable-next-line no-await-in-loop -- this is the final identity fence before the provider write
-                const guardedTarget = await this.primaryAgentTarget(sessionId);
-                if (!guardedTarget || !SessionRenameService.isSameTarget(target, guardedTarget))
-                    return;
-                if (signal?.aborted || !appGuard()) return;
-                // eslint-disable-next-line no-await-in-loop -- changed targets must be renamed in observed order
-                const renamed = await this.agents.renameSession(target.provider, {
-                    agentSessionId: target.agentSessionId,
-                    cwd: target.cwd,
-                    displayTitle: parsedTitle.data,
-                    signal,
-                });
-                appliedTitle = renamed.displayTitle;
-                renamedTerminalIds.add(target.terminalId);
-                /**
-                 * Record each successful public provider write before checking for another rebind. If the primary
-                 * target keeps changing and the retry budget is exhausted, the next turn must not mistake Caxri's own
-                 * last write for a provider-native manual rename.
-                 */
-                if (!this.database.sessionNaming.recordAutomaticTitle(sessionId, appliedTitle))
-                    return;
-                // eslint-disable-next-line no-await-in-loop -- each provider result must be checked against current identity
-                const currentTarget = await this.primaryAgentTarget(sessionId);
-                if (!currentTarget || SessionRenameService.isSameTarget(target, currentTarget))
-                    break;
-                if (attempt + 1 >= MAXIMUM_AGENT_TARGET_CHANGES) {
-                    for (const terminalId of renamedTerminalIds)
-                        this.coordinator.probeTerminal(terminalId);
-                    return;
-                }
-                target = currentTarget;
-            }
-            /**
-             * Once the public provider write succeeded, preserve its ownership mirror even if a newer turn invalidated
-             * this request during the subprocess response. Otherwise the next generation would misclassify Caxri's own
-             * late title as a provider-side manual rename. A concurrent manual Caxri rename is serialized behind this
-             * operation and clears the mirror when it commits.
-             */
-            for (const terminalId of renamedTerminalIds) this.coordinator.probeTerminal(terminalId);
-            return appGuard() && !signal?.aborted ? appliedTitle : undefined;
-        });
-    }
-
-    /**
-     * Serializes explicit Resume with manual and automatic renames. The persisted Session title is the baseline Caxri
-     * already displayed; a later provider-side mismatch is treated as newer manual ownership on the next turn.
-     */
-    resumeAutomaticNaming(
-        sessionId: string,
-        appGuard: () => boolean | Promise<boolean> = () => true,
-    ): Promise<SessionRecord | undefined> {
-        return this.queue.run(sessionId, async () => {
-            if (!(await appGuard())) return;
-            const session = this.database.getSession(sessionId);
-            if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
-            const baseline = isPlaceholderSessionTitle(session.displayTitle)
-                ? undefined
-                : session.displayTitle;
-            if (!this.database.sessionNaming.resume(sessionId, baseline))
-                throw new CaxriError('NOT_FOUND', 'Session not found');
-            const resumed = this.database.getSession(sessionId)!;
-            this.emit({
-                event: 'state.changed',
-                payload: { kind: 'records', sessionIds: [sessionId], terminalIds: [] },
-            });
-            return resumed;
-        });
     }
 
     rename(

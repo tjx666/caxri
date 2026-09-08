@@ -78,7 +78,6 @@ process.stdout.write('Fake Codex ready\r\n');
             const current = await pageRequest<{ value: AppSettings }>(running.page, 'settings.get');
             const settings = structuredClone(current.value);
             settings['agents.providers'].codex.hooks.enabled = true;
-            settings['agents.providers'].codex.naming.enabled = false;
             await pageRequest(running.page, 'settings.update', {
                 source: JSON.stringify(settings),
             });

@@ -498,7 +498,7 @@ process.stdin.on('end', () => {
                 0,
             );
         const longPrompt =
-            '\u{A0}Please\tinvestigate the automatic Session naming behavior and fix ownership';
+            '\u{A0}Please\tinvestigate the Terminal restore behavior and fix ownership';
         writableDatabase
             .prepare('INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
             .run(

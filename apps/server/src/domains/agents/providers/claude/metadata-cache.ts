@@ -29,8 +29,8 @@ interface CachedSessionsDirectory {
     names: string[];
 }
 
-export const MAX_CLAUDE_METADATA_BYTES = 128 * 1024;
-export const MAX_CLAUDE_METADATA_FILES = 512;
+const MAX_CLAUDE_METADATA_BYTES = 128 * 1024;
+const MAX_CLAUDE_METADATA_FILES = 512;
 const MAX_CONCURRENT_CLAUDE_READS = 8;
 const MAX_CACHED_SESSION_DIRECTORIES = 8;
 

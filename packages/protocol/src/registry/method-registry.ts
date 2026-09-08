@@ -439,7 +439,6 @@ export const methods = {
         }),
         result: sessionRecordSchema,
     },
-    'session.resumeAutomaticNaming': sessionIdWrite,
     'session.archive': sessionIdWrite,
     'session.unarchive': sessionIdWrite,
     'session.unarchiveMany': {

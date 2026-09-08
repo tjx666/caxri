@@ -55,13 +55,11 @@ export class CaxriDatabase {
     private readonly db: CaxriDatabase_;
     private readonly agentIdentity: AgentIdentity;
     readonly protocolState: CaxriDatabase_['protocolState'];
-    readonly sessionNaming: CaxriDatabase_['sessionNaming'];
 
     constructor(path: string, options?: CaxriDatabaseOptions) {
         this.db = new CaxriDatabase_(path, options);
         this.agentIdentity = new AgentIdentity(this.db);
         this.protocolState = this.db.protocolState;
-        this.sessionNaming = this.db.sessionNaming;
     }
 
     private insertTerminal(sessionId: string, kind: TerminalKind, cwd?: string): TerminalRecord {

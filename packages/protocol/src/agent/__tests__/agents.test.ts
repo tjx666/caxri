@@ -10,11 +10,6 @@ describe('agentProviderCatalog capabilities', () => {
             terminalInput: '\u{16}',
         });
     });
-
-    it('declares exactly one automatic Session naming owner per provider', () => {
-        expect(agentProviderCatalog.claude.automaticSessionNaming).toBe('caxri');
-        expect(agentProviderCatalog.codex.automaticSessionNaming).toBe('native');
-    });
 });
 
 describe('defaultAgentProviderSettings', () => {
@@ -32,7 +27,6 @@ describe('defaultAgentProviderSettings', () => {
             );
             expect(defaultAgentProviderSettings[provider].hooks.enabled).toBe(true);
             expect(defaultAgentProviderSettings[provider].messaging.enabled).toBe(true);
-            expect(defaultAgentProviderSettings[provider].naming.enabled).toBe(true);
             expect(defaultAgentProviderSettings[provider].recovery).toEqual({
                 enabled: false,
                 patterns: [],

@@ -21,7 +21,6 @@ const session: SessionRecord = {
     layoutVersion: 2,
     displayTitle: 'Needs input',
     titleMode: 'automatic',
-    autoNamingState: 'active',
 };
 
 describe('Session attention acknowledgement', () => {
