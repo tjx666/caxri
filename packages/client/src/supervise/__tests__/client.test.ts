@@ -287,7 +287,10 @@ describe('ServerClient WebSocket handshake', () => {
             const closed = vi.fn();
             client.onClose(closed);
 
-            expect(closed.mock.calls[0]?.[0]).toBe('replaced');
+            /**
+             * The resumed socket can deliver the queued control frame on the next event-loop turn.
+             */
+            await vi.waitFor(() => expect(closed.mock.calls[0]?.[0]).toBe('replaced'));
         } finally {
             client?.close();
             for (const socket of server.clients) socket.terminate();
