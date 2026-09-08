@@ -87,6 +87,16 @@ export function isPathBlockedByFileOperations(
 }
 
 /**
+ * Row-level subscription to {@link isPathBlockedByFileOperations}: the selector returns a boolean, so a tree row only
+ * re-renders when its own blocking state flips rather than whenever the operation list changes identity.
+ */
+export function useIsPathBlockedByFileOperations(projectId: string, path: string): boolean {
+    return useFileOperationStore((state) =>
+        isPathBlockedByFileOperations(state.operations, projectId, path),
+    );
+}
+
+/**
  * Every pending operation for a Project whose affected subtree overlaps `path`, oldest first.
  */
 export function fileOperationsBlockingPath(

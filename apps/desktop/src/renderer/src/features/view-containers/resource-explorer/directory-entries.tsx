@@ -15,38 +15,42 @@ import { openFile } from '../../editor/document-actions';
 import { useResourceExplorerClient } from '../controlled-view-context';
 import { controlledViewQueryKey } from '../view-operation-client';
 import { createItem, rememberFile, renameFile } from './file-actions';
-import type { PendingFileOperation } from './file-operation-state';
 import { FileTreeItemMenu } from './file-tree-item-menu';
 import type { EditRequest, FocusTarget } from './file-tree-item-types';
 import { fileTreeLeafIndent, fileTreeRowStyle } from './file-tree-row-style';
+import {
+    clearStaleScopeFocusPath,
+    setScopePathExpanded,
+    setScopeSelectedPath,
+    setScopeSubtreeExpanded,
+    useHasScopeSelection,
+    useIsPathExpanded,
+    useIsPathFocusRequested,
+    useIsPathSelected,
+} from './resource-explorer-scope-store';
 import { fileTreeRowTooltip, symlinkRowDescription } from './resource-explorer-state';
 import { useFileTreeItemInteractions } from './use-file-tree-item-interactions';
 
 export { type EditRequest, type FocusTarget };
 
+/**
+ * Expansion, selection, focus requests, and file-operation blocking are not props: every row subscribes to its own
+ * boolean in `resource-explorer-scope-store` / `useFileOperationStore`, so toggling one folder or selecting one file
+ * re-renders only the rows whose state actually changed.
+ */
 export interface TreeProperties {
-    clearFocusPath: () => void;
     depth?: number;
     directory: string;
     editing?: EditRequest;
-    expandedPaths: ReadonlySet<string>;
-    focusPath?: string;
-    /**
-     * Only the operations for the current Project; each row scopes blocking to its own subtree.
-     */
-    operations: readonly PendingFileOperation[];
     projectId: string;
     projectRoot: string;
-    selectedPath?: string;
+    /**
+     * `sessionId:workbenchProjectId`; keys the per-Session tree state.
+     */
+    scopeId: string;
     sessionId: string;
     requestFocus: (target: FocusTarget) => void;
     setEditing: (editing?: EditRequest) => void;
-    setPathExpanded: (
-        path: string,
-        isNextExpanded: boolean | ((isCurrentExpanded: boolean) => boolean),
-        isRecursive?: boolean,
-    ) => void;
-    setSelectedPath: (path?: string) => void;
 }
 
 /**
@@ -141,26 +145,17 @@ export function DirectoryEntries({
     directory,
     depth = 0,
     editing,
-    expandedPaths,
-    operations,
-    focusPath,
     projectId,
     projectRoot,
-    selectedPath,
-    clearFocusPath,
+    scopeId,
     requestFocus,
     setEditing,
-    setPathExpanded,
-    setSelectedPath,
 }: TreeProperties) {
     const client = useResourceExplorerClient();
+    // Listings are cached per Project, not per Session: every Session of a Project shares the same root, so a
+    // Session switch reuses the loaded tree instead of clearing it and refetching each directory.
     const { data, isError, isPending, error } = useQuery({
-        queryKey: controlledViewQueryKey(
-            client.viewId,
-            'files.list',
-            { directory },
-            `${sessionId}:${projectId}`,
-        ),
+        queryKey: controlledViewQueryKey(client.viewId, 'files.list', { directory }, projectId),
         queryFn: ({ signal }) => client.listDirectory(directory, signal),
     });
     const entries = data?.entries ?? [];
@@ -195,7 +190,7 @@ export function DirectoryEntries({
                             requestFocus(editing.returnFocus);
                             return;
                         }
-                        setSelectedPath(created.path);
+                        setScopeSelectedPath(scopeId, created.path);
                         setEditing(undefined);
                         requestFocus({ kind: 'path', path: created.path });
                     }}
@@ -206,20 +201,14 @@ export function DirectoryEntries({
                     key={entry.path}
                     depth={depth}
                     editing={editing}
-                    expandedPaths={expandedPaths}
                     entry={entry}
                     index={index}
-                    operations={operations}
-                    focusPath={focusPath}
                     projectId={projectId}
                     projectRoot={projectRoot}
-                    selectedPath={selectedPath}
+                    scopeId={scopeId}
                     sessionId={sessionId}
-                    clearFocusPath={clearFocusPath}
                     requestFocus={requestFocus}
                     setEditing={setEditing}
-                    setPathExpanded={setPathExpanded}
-                    setSelectedPath={setSelectedPath}
                 />
             ))}
             {isShowEmptyState && (
@@ -250,19 +239,17 @@ function FileTreeItem({
     sessionId,
     depth = 0,
     editing,
-    expandedPaths,
-    operations,
-    focusPath,
     projectId,
     projectRoot,
-    selectedPath,
-    clearFocusPath,
+    scopeId,
     requestFocus,
     setEditing,
-    setPathExpanded,
-    setSelectedPath,
 }: Omit<TreeProperties, 'directory'> & { entry: FileEntry; index: number }) {
     const client = useResourceExplorerClient();
+    const expanded = useIsPathExpanded(scopeId, entry.path);
+    const selected = useIsPathSelected(scopeId, entry.path);
+    const hasSelection = useHasScopeSelection(scopeId);
+    const isFocusRequested = useIsPathFocusRequested(scopeId, entry.path);
     const {
         clipboard,
         confirmTrash,
@@ -271,7 +258,6 @@ function FileTreeItem({
         duplicateBlocked,
         duplicateEntry,
         editable,
-        expanded,
         handleKeyDown,
         isDropTarget,
         isRenaming,
@@ -283,26 +269,23 @@ function FileTreeItem({
         pasteDisabledReason,
         pasteIntoEntry,
         rowRef,
-        setExpanded,
         setIsDropTarget,
         startCreate,
         startRename,
         symlinkReasonId,
     } = useFileTreeItemInteractions({
-        clearFocusPath,
         depth,
         editing,
         entry,
-        expanded: expandedPaths.has(entry.path),
-        focusPath,
+        expanded,
+        hasSelection,
         index,
-        operations,
+        isFocusRequested,
+        isSelected: selected,
         projectId,
-        selectedPath,
+        scopeId,
         sessionId,
-        setExpanded: (next) => setPathExpanded(entry.path, next),
         setEditing,
-        setSelectedPath,
     });
 
     if (isRenaming)
@@ -322,7 +305,7 @@ function FileTreeItem({
                         requestFocus({ kind: 'path', path: entry.path });
                         return;
                     }
-                    setSelectedPath(moved.path);
+                    setScopeSelectedPath(scopeId, moved.path);
                     setEditing(undefined);
                     requestFocus({ kind: 'path', path: moved.path });
                 }}
@@ -337,13 +320,13 @@ function FileTreeItem({
             aria-disabled={editable ? undefined : true}
             aria-expanded={entry.kind === 'directory' ? expanded : undefined}
             aria-level={depth + 1}
-            aria-selected={selectedPath === entry.path}
+            aria-selected={selected}
             tabIndex={isRovingTabStop ? 0 : -1}
             className={treeRowClassName}
             data-cut={clipboard?.mode === 'cut' && clipboard.path === entry.path}
             data-drop-target={isDropTarget}
             data-git-ignored={entry.gitIgnored}
-            data-selected={selectedPath === entry.path}
+            data-selected={selected}
             draggable={editable && !dragBlocked}
             style={fileTreeRowStyle({
                 depth,
@@ -352,19 +335,24 @@ function FileTreeItem({
             })}
             title={fileTreeRowTooltip(entry)}
             onClick={(event) => {
-                setSelectedPath(entry.path);
+                setScopeSelectedPath(scopeId, entry.path);
                 if (entry.kind === 'directory') {
-                    if (event.altKey) setPathExpanded(entry.path, !expanded, true);
-                    else setExpanded((value) => !value);
+                    if (event.altKey)
+                        setScopeSubtreeExpanded(
+                            scopeId,
+                            client.viewId,
+                            projectId,
+                            entry.path,
+                            !expanded,
+                        );
+                    else setScopePathExpanded(scopeId, entry.path, !expanded);
                 } else if (editable) discard(openFile(entry.path, { preview: true }));
             }}
             onDoubleClick={() => {
                 if (entry.kind === 'file') discard(openFile(entry.path));
             }}
-            onFocus={() => {
-                if (focusPath && focusPath !== entry.path) clearFocusPath();
-            }}
-            onContextMenu={() => setSelectedPath(entry.path)}
+            onFocus={() => clearStaleScopeFocusPath(scopeId, entry.path)}
+            onContextMenu={() => setScopeSelectedPath(scopeId, entry.path)}
             onCopy={(event) => {
                 event.preventDefault();
                 rememberFile(projectId, entry.path, 'copy');
@@ -445,18 +433,12 @@ function FileTreeItem({
                     depth={depth + 1}
                     directory={entry.path}
                     editing={editing}
-                    expandedPaths={expandedPaths}
-                    operations={operations}
-                    focusPath={focusPath}
                     projectId={projectId}
                     projectRoot={projectRoot}
-                    selectedPath={selectedPath}
+                    scopeId={scopeId}
                     sessionId={sessionId}
-                    clearFocusPath={clearFocusPath}
                     requestFocus={requestFocus}
                     setEditing={setEditing}
-                    setPathExpanded={setPathExpanded}
-                    setSelectedPath={setSelectedPath}
                 />
             )}
         </div>

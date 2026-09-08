@@ -277,6 +277,58 @@ describe('subscribeRuntimeQueryInvalidation', () => {
         unsubscribe();
     });
 
+    it('invalidates the Project-shared Files listing when another Session of the Project changes files', () => {
+        vi.useFakeTimers();
+        const queryClient = new QueryClient();
+        const sharedListing = [
+            'viewContainers.viewOperation',
+            {
+                viewId: 'publisher.files.explorer',
+                operation: 'files.list',
+                arguments: { directory: '/project/src' },
+                contextKey: 'project-p',
+            },
+        ] as const;
+        const otherProjectListing = [
+            'viewContainers.viewOperation',
+            {
+                viewId: 'publisher.files.explorer',
+                operation: 'files.list',
+                arguments: { directory: '/project/src' },
+                contextKey: 'project-q',
+            },
+        ] as const;
+        queryClient.setQueryData(sharedListing, []);
+        queryClient.setQueryData(otherProjectListing, []);
+        useWorkbenchStore.setState({
+            bootstrap: {
+                selectedSessionId: 'session-a',
+                sessions: [
+                    { id: 'session-a', workbenchProjectId: 'project-p' },
+                    { id: 'session-b', workbenchProjectId: 'project-p' },
+                ],
+                sessionStates: [],
+                terminals: [],
+            } as unknown as BootstrapState,
+        });
+        const unsubscribe = subscribeRuntimeQueryInvalidation(queryClient);
+
+        mocks.state.handler?.({
+            event: 'files.changed',
+            payload: {
+                sessionId: 'session-b',
+                workbenchProjectId: 'project-p',
+                overflow: false,
+                changes: [{ path: '/project/src/index.ts', kind: 'update' }],
+            },
+        });
+        vi.advanceTimersByTime(150);
+
+        expect(queryClient.getQueryState(sharedListing)?.isInvalidated).toBe(true);
+        expect(queryClient.getQueryState(otherProjectListing)?.isInvalidated).toBe(false);
+        unsubscribe();
+    });
+
     it('targets Resource Explorer content invalidation by view, root scope, and changed directory', () => {
         vi.useFakeTimers();
         const queryClient = new QueryClient();
@@ -289,7 +341,7 @@ describe('subscribeRuntimeQueryInvalidation', () => {
                     viewId: filesView,
                     operation: 'files.list',
                     arguments: { directory: '/project/src' },
-                    contextKey: 'session-a:project-p',
+                    contextKey: 'project-p',
                 },
             ],
             [],
@@ -309,7 +361,7 @@ describe('subscribeRuntimeQueryInvalidation', () => {
                     viewId: filesView,
                     operation: 'files.list',
                     arguments: { directory: '/project/docs' },
-                    contextKey: 'session-a:project-p',
+                    contextKey: 'project-p',
                 },
             ],
             [],
@@ -376,7 +428,7 @@ describe('subscribeRuntimeQueryInvalidation', () => {
                     viewId: filesView,
                     operation: 'files.list',
                     arguments: { directory: '/project/src' },
-                    contextKey: 'session-a:project-p',
+                    contextKey: 'project-p',
                 },
             ])?.isInvalidated,
         ).toBe(true);
@@ -387,7 +439,7 @@ describe('subscribeRuntimeQueryInvalidation', () => {
                     viewId: filesView,
                     operation: 'files.list',
                     arguments: { directory: '/project/docs' },
-                    contextKey: 'session-a:project-p',
+                    contextKey: 'project-p',
                 },
             ])?.isInvalidated,
         ).toBe(false);

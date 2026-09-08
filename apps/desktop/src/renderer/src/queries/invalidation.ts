@@ -39,6 +39,11 @@ function isDirectoryAffected(
     return changes.some((path) => path === directory || parentDirectoryPath(path) === directory);
 }
 
+/**
+ * Controlled-view reads use two context keys: `files.list` is cached per Project (`workbenchProjectId`) so Sessions of
+ * the same Project share one tree, while the remaining reads stay Session-scoped
+ * (`${sessionId}:${workbenchProjectId}`).
+ */
 function isControlledContextMatch(
     parameters: Record<string, unknown>,
     sessionIds: ReadonlySet<string> | undefined,
@@ -47,6 +52,7 @@ function isControlledContextMatch(
     if (!sessionIds || !workbenchProjectId) return true;
     const contextKey = parameters.contextKey;
     if (typeof contextKey !== 'string') return true;
+    if (contextKey === workbenchProjectId) return true;
     return [...sessionIds].some((sessionId) => contextKey === `${sessionId}:${workbenchProjectId}`);
 }
 

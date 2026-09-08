@@ -172,6 +172,7 @@ describe('pnpm workspace contract', () => {
             'oxlint-tsgolint': '^7.0.2001',
             'prettier-plugin-tailwindcss': '^0.8.1',
             'react-qr-code': '2.2.0',
+            'react-scan': '^0.5.7',
             'semver': '^7.8.5',
             'sonda': '^0.14.0',
             'ws': '^8.21.3',
