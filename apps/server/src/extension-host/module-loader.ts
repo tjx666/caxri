@@ -61,6 +61,7 @@ export function extensionApiModuleUrl(owner: RegisteredExtensionModule): string 
         'export default binding.api;',
         'export const Disposable = binding.runtime.Disposable;',
         'export const EventEmitter = binding.runtime.EventEmitter;',
+        'export const isGlobMatch = binding.runtime.isGlobMatch;',
         'export const CancellationTokenSource = binding.runtime.CancellationTokenSource;',
         'export const ProjectStatusSummaryErrorMessage = binding.runtime.ProjectStatusSummaryErrorMessage;',
         'export const ThemeIcon = binding.runtime.ThemeIcon;',

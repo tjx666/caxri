@@ -527,6 +527,7 @@ describe('extension view contracts', () => {
             label: 'Refresh',
             icon: { kind: 'theme', id: 'refresh' },
             command: { id: 'publisher.fixture.refresh' },
+            pressed: true,
         };
         const model = {
             revision: '7',
@@ -543,6 +544,7 @@ describe('extension view contracts', () => {
             ],
             selectedModeId: 'primary',
             refreshAction: action,
+            headerActions: [action],
             fileHistory: {
                 label: 'File History',
                 description: 'README.md',

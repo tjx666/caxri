@@ -21,8 +21,8 @@ import { useSelectedSession, useTheme } from '../../stores/selectors';
 import { describeFailure } from '../../stores/toasts';
 import { openFile } from './document-actions';
 import { resolveRegisteredEditorLanguage } from './editor-language';
+import { GitChangesDiffList } from './git-changes-diff-list';
 import { registerDiffEditorActions } from './git-diff-actions';
-import { describeTruncatedGitChanges, shouldShowGitTruncationBanner } from './git-diff-truncation';
 
 const emptyWorkClassName =
     'empty-work flex h-full flex-col items-center justify-center gap-3 text-muted';
@@ -606,35 +606,29 @@ function ChangesDiffList({
     repositoryId,
     repositoryRootPath,
     sessionId,
+    showExcluded,
     source,
     truncated = false,
 }: {
-    /**
-     * Untruncated total behind `files`, mirroring the sidebar's `changedFileCount` (see `git-repo-section.tsx`).
-     * Required whenever `truncated` is true; the Pull Request list never truncates this way and omits both.
-     */
     changedFileCount?: number;
     emptyLabel: string;
-    files: GitFileStatus[];
+    files: readonly GitFileStatus[];
     repositoryId: string;
     repositoryRootPath?: string;
     sessionId: string;
+    showExcluded: boolean;
     source: GitDiffTab['source'];
     truncated?: boolean;
 }) {
-    if (files.length === 0) return <div className={emptyWorkClassName}>{emptyLabel}</div>;
     return (
-        <div className="git-multi-diff absolute inset-0 overflow-auto bg-background">
-            {shouldShowGitTruncationBanner(source, truncated) && (
-                <div
-                    role="status"
-                    aria-live="polite"
-                    className="git-multi-diff-truncated sticky top-0 z-10 border-b border-border bg-surface px-3 py-1.5 text-[11px] text-muted"
-                >
-                    {describeTruncatedGitChanges(files.length, changedFileCount ?? files.length)}
-                </div>
-            )}
-            {files.map((file) => (
+        <GitChangesDiffList
+            changedFileCount={changedFileCount}
+            emptyLabel={emptyLabel}
+            files={files}
+            showExcluded={showExcluded}
+            source={source}
+            truncated={truncated}
+            renderFile={(file) => (
                 <GitChangesDiffItem
                     key={file.path}
                     file={file}
@@ -643,8 +637,8 @@ function ChangesDiffList({
                     sessionId={sessionId}
                     source={source}
                 />
-            ))}
-        </div>
+            )}
+        />
     );
 }
 
@@ -681,6 +675,7 @@ function WorkingChangesDiffEditor({ tab }: { tab: Extract<GitDiffTab, { kind: 'c
             repositoryId={repo.id}
             repositoryRootPath={repo.rootPath}
             sessionId={sessionId}
+            showExcluded={tab.showExcluded === true}
             source="working"
             truncated={repo.truncated}
         />
@@ -726,6 +721,7 @@ function PullRequestChangesDiffEditor({ tab }: { tab: Extract<GitDiffTab, { kind
             repositoryId={pullRequest.repositoryId}
             repositoryRootPath={repoRootPath}
             sessionId={sessionId}
+            showExcluded={tab.showExcluded === true}
             source="pull-request"
         />
     );

@@ -13,6 +13,22 @@ const settings = (): AppSettings => structuredClone(defaultAppSettings);
 const argv: ArgvConfig = { hardwareAcceleration: true, remoteDebugging: true };
 
 describe('isRowModified', () => {
+    it('tracks and resets Git exclusions independently of file-tree exclusions', () => {
+        const current = settings();
+        const binding = { type: 'files-exclude', key: 'git.diffExclude' } as const;
+        expect(isRowModified(binding, { settings: current })).toBe(false);
+        current['git.diffExclude'] = {};
+        expect(isRowModified(binding, { settings: current })).toBe(true);
+        expect(rowResetAction(binding, current)).toEqual({
+            kind: 'field',
+            key: 'git.diffExclude',
+            value: defaultAppSettings['git.diffExclude'],
+        });
+        expect(
+            isRowModified({ type: 'files-exclude', key: 'files.exclude' }, { settings: current }),
+        ).toBe(false);
+    });
+
     it('flags a scalar setting only when it diverges from its default', () => {
         const current = settings();
         expect(

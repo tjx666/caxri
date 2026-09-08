@@ -10,6 +10,20 @@ import {
 import { settingsSpec } from '../settings-spec.js';
 
 describe('settings spec and schema agreement', () => {
+    it('allows replacing Git diff exclusions without changing file-tree defaults', () => {
+        expect(appSettingsFileSchema.parse({})['git.diffExclude']).toEqual({
+            '**/*.test.*': true,
+            '**/*.spec.*': true,
+            '**/__tests__/**': true,
+        });
+        const parsed = appSettingsFileSchema.parse({ 'git.diffExclude': {} });
+        expect(parsed['git.diffExclude']).toEqual({});
+        expect(parsed['files.exclude']).toEqual(DEFAULT_FILES_EXCLUDE);
+        expect(
+            appSettingsSchema.safeParse({ 'git.diffExclude': { '**/tests/**': 'yes' } }).success,
+        ).toBe(false);
+    });
+
     it('covers exactly the spec keys', () => {
         const byCodePoint = (left: string, right: string): number => left.localeCompare(right);
         expect(Object.keys(appSettingsSchema.shape).toSorted(byCodePoint)).toEqual(
