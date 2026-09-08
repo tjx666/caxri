@@ -23,6 +23,7 @@ import { openFile } from './document-actions';
 import { resolveRegisteredEditorLanguage } from './editor-language';
 import { GitChangesDiffList } from './git-changes-diff-list';
 import { registerDiffEditorActions } from './git-diff-actions';
+import { GitSingleDiffEditor } from './git-single-diff-editor';
 
 const emptyWorkClassName =
     'empty-work flex h-full flex-col items-center justify-center gap-3 text-muted';
@@ -61,6 +62,9 @@ function useNearMultiDiffViewport(): {
     return { active, containerRef: containerReference };
 }
 
+/**
+ * Callers key the content shape so swapping single/double-sided editors fully releases the previous models.
+ */
 function DiffSurface({
     contentHeight,
     document,
@@ -167,6 +171,28 @@ function DiffSurface({
         ) : (
             editorElement
         );
+    if (
+        document.format === 'contents' &&
+        (document.original === '') !== (document.modified === '')
+    ) {
+        const isAdded = document.original === '';
+        return withStackedSurface(
+            <GitSingleDiffEditor
+                editorInstanceId={editorInstanceId}
+                kind={isAdded ? 'added' : 'deleted'}
+                language={isAdded ? modifiedLanguage : originalLanguage}
+                modelPath={gitDiffModelPath(
+                    sessionId,
+                    modelRepoId,
+                    isAdded ? document.path : (document.originalPath ?? document.path),
+                    isAdded ? 'modified' : 'original',
+                )}
+                navigationKey={navigationKey}
+                onContentHeightChange={stacked ? onContentHeightChange : undefined}
+                value={isAdded ? document.modified : document.original}
+            />,
+        );
+    }
     if (document.format === 'patch')
         return withStackedSurface(
             <Editor
@@ -289,6 +315,7 @@ function FileDiffResult({
     return (
         <div className="git-file-diff absolute inset-0 overflow-hidden">
             <DiffSurface
+                key={`${document.format}:${!document.original}:${!document.modified}`}
                 document={document}
                 editorInstanceId={editorInstanceId}
                 navigationKey={navigationKey}
@@ -431,6 +458,7 @@ function GitChangesDiffResult({
     if (!document) return <div className={gitMultiDiffPlaceholderClassName}>Loading diff…</div>;
     return (
         <DiffSurface
+            key={`${document.format}:${!document.original}:${!document.modified}`}
             stacked
             contentHeight={contentHeight}
             document={document}

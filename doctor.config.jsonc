@@ -14,6 +14,7 @@
                 "files": [
                     "apps/desktop/src/renderer/src/features/editor/code-editor.tsx",
                     "apps/desktop/src/renderer/src/features/editor/git-diff-editor.tsx",
+                    "apps/desktop/src/renderer/src/features/editor/git-single-diff-editor.tsx",
                     "apps/desktop/src/renderer/src/features/settings/config-editor.tsx",
                     "apps/desktop/src/renderer/src/lib/monaco.ts",
                     // React Doctor evaluates the base tree with the candidate config. Keep the
@@ -22,6 +23,7 @@
                     "src/renderer/src/features/editor/agent-transcript-editor.tsx",
                     "src/renderer/src/features/editor/code-editor.tsx",
                     "src/renderer/src/features/editor/git-diff-editor.tsx",
+                    "src/renderer/src/features/editor/git-single-diff-editor.tsx",
                     "src/renderer/src/features/settings/config-editor.tsx",
                     "src/renderer/src/lib/monaco.ts",
                 ],
