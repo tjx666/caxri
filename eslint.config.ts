@@ -162,9 +162,10 @@ export default defineConfig(
                 {
                     case: 'kebabCase',
                     /**
-                     * `__tests__` is a directory-role convention documented in source-layout, not a naming violation.
+                     * `__tests__` is a directory-role convention documented in source-layout. `SKILL.md` is the
+                     * required skill entrypoint name that fenced snippets inherit as their physical filename.
                      */
-                    ignore: [/^__tests__$/],
+                    ignore: [/^__tests__$/, /^SKILL\.md$/],
                 },
             ],
             /**

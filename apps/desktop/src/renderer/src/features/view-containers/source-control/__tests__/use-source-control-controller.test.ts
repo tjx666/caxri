@@ -141,7 +141,7 @@ describe('Source Control snapshot queries', () => {
         }
     });
 
-    it('does not present the previous mode while a mode switch is pending', async () => {
+    it('keeps the labeled previous model mounted while a mode switch is pending', async () => {
         const queryClient = new QueryClient({
             defaultOptions: { queries: { retry: false } },
         });
@@ -170,10 +170,13 @@ describe('Source Control snapshot queries', () => {
             observer.setOptions(options('commit'));
 
             expect(observer.getCurrentResult()).toMatchObject({
-                data: undefined,
+                data: initial,
                 isFetching: true,
-                isPlaceholderData: false,
+                isPlaceholderData: true,
             });
+            const next = model('2', 'commit');
+            pending.resolve(next);
+            await vi.waitFor(() => expect(observer.getCurrentResult().data).toBe(next));
         } finally {
             unsubscribe();
             queryClient.clear();
