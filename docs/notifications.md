@@ -14,19 +14,22 @@ are also read. Users can remove one entry or clear the list without changing the
 
 Eligible popups expose **Don't show this type again** in their options menu; eligible history
 rows offer the same action. The preference applies to all Projects served by the current Server
-profile and survives restart. Muted reminders still enter history with a **Muted** label, but do
-not produce a popup or increase the unread count. Muting also marks existing eligible entries
+profile and survives restart. Muted reminders still enter history, but do not produce a popup
+or increase the unread count. The **Muted** label reflects the type's current preference on all
+eligible rows, including older entries; it does not record whether an event originally showed a
+popup. Restoring the preference removes that label. Muting also marks existing eligible entries
 of that type read. A repeated event can make an unmuted, previously read entry unread again.
 
 The center's settings button opens **Settings → Notifications**. Turn **Worktree fallback
 reminders** or **Automatic Agent recovery reminders** on to restore that type. The same category
-contains **System notifications**, the Agent completion duration threshold, and **Delivery
+contains **System notifications**, **Completed turn threshold**, and **Delivery
 failure notifications**. These are separate controls: muting a recovery reminder does not
 disable native Agent notifications or change recovery itself.
 
 Errors and persistent data-loss notices never offer reminder suppression, even if a caller
 attaches a reminder type. The separate delivery failure setting still controls its own producer;
-the error rule does not override that setting. Success feedback such as copying normally stays
+the error rule does not override that setting. Disabling delivery failure notifications prevents
+those alerts from being emitted, including their history entries. Success feedback such as copying normally stays
 ephemeral unless the caller explicitly opts into history, supplies a reminder type, or marks the
 notice persistent.
 
@@ -57,8 +60,9 @@ and cannot replay a popup's immediate action.
 `notifications.worktreeFallback` and `notifications.agentRecovery` are independent boolean
 settings, both defaulting to `true`. Muting patches only the selected scalar key. The Renderer
 waits for a successful Server response before syncing preferences and dismissing active popups
-of that type. A failed write leaves the reminders visible and reports **Unable to mute
-notifications** through the command error path.
+of that type. A failed write leaves the reminders visible and reports an error through the command
+error path. The displayed text can be the Server's error message; **Unable to mute notifications**
+is the command's diagnostic label, not a guaranteed prefix for every failure.
 
 History uses an ordinary Zustand memory store with no persistence middleware:
 
