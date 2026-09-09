@@ -5,7 +5,7 @@ import type { GitDiffDocument, GitDiffTab, GitFileStatus } from '@caxri/protocol
 import { gitDiffModelPath } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
 import type { DiffOnMount, MonacoDiffEditor, OnMount } from '@monaco-editor/react';
-import Editor, { DiffEditor } from '@monaco-editor/react';
+import Editor from '@monaco-editor/react';
 import { ChevronDown, ChevronRight, FileSymlink } from 'lucide-react';
 
 import { useEditorFontFamily } from '@/hooks/use-editor-font-family';
@@ -23,6 +23,8 @@ import { openFile } from './document-actions';
 import { resolveRegisteredEditorLanguage } from './editor-language';
 import { GitChangesDiffList } from './git-changes-diff-list';
 import { registerDiffEditorActions } from './git-diff-actions';
+import { observeGitEditorContentHeight } from './git-diff-model-lifecycle';
+import { GitMonacoDiffEditor } from './git-monaco-diff-editor';
 import { GitSingleDiffEditor } from './git-single-diff-editor';
 
 const emptyWorkClassName =
@@ -113,17 +115,7 @@ function DiffSurface({
             contentSizeListeners.current = [];
             diffEditorRegistrationReference.current?.();
             diffEditorRegistrationReference.current = undefined;
-            /**
-             * Detach both models before disposing them. Monaco otherwise observes a disposed model from a still-mounted
-             * diff widget when many editors unmount together. The detach also hides the models from the wrapper's own
-             * unmount disposal, so they must be disposed here: `getOrCreateModel` would otherwise hand a remount the
-             * leaked model with its stale text, and `setModels` never re-applies the new document values.
-             */
-            const models = editorReference.current?.getModel();
-            editorReference.current?.setModel(null);
             editorReference.current = null;
-            models?.original.dispose();
-            models?.modified.dispose();
         },
         [],
     );
@@ -175,21 +167,16 @@ function DiffSurface({
         document.format === 'contents' &&
         (document.original === '') !== (document.modified === '')
     ) {
-        const isAdded = document.original === '';
         return withStackedSurface(
             <GitSingleDiffEditor
+                document={document}
                 editorInstanceId={editorInstanceId}
-                kind={isAdded ? 'added' : 'deleted'}
-                language={isAdded ? modifiedLanguage : originalLanguage}
-                modelPath={gitDiffModelPath(
-                    sessionId,
-                    modelRepoId,
-                    isAdded ? document.path : (document.originalPath ?? document.path),
-                    isAdded ? 'modified' : 'original',
-                )}
+                modifiedLanguage={modifiedLanguage}
+                modelRepoId={modelRepoId}
                 navigationKey={navigationKey}
                 onContentHeightChange={stacked ? onContentHeightChange : undefined}
-                value={isAdded ? document.modified : document.original}
+                originalLanguage={originalLanguage}
+                sessionId={sessionId}
             />,
         );
     }
@@ -204,17 +191,9 @@ function DiffSurface({
                 beforeMount={() => applyEditorTheme(theme)}
                 onMount={(editor: Parameters<OnMount>[0]) => {
                     if (!stacked) return;
-                    /**
-                     * The overlay horizontal scrollbar eats into the viewport; without the allowance a long-line diff
-                     * overflows a few px vertically and re-captures the wheel.
-                     */
-                    const syncHeight = (): void =>
-                        onContentHeightChange?.(
-                            editor.getContentHeight() +
-                                editor.getLayoutInfo().horizontalScrollbarHeight,
-                        );
-                    contentSizeListeners.current.push(editor.onDidContentSizeChange(syncHeight));
-                    syncHeight();
+                    contentSizeListeners.current.push(
+                        ...observeGitEditorContentHeight([editor], editor, onContentHeightChange),
+                    );
                 }}
                 options={{
                     automaticLayout: true,
@@ -229,7 +208,8 @@ function DiffSurface({
             />,
         );
     return withStackedSurface(
-        <DiffEditor
+        <GitMonacoDiffEditor
+            stacked={stacked}
             original={document.original}
             modified={document.modified}
             originalLanguage={originalLanguage}
@@ -253,19 +233,13 @@ function DiffSurface({
                 if (!stacked) return;
                 const original = editor.getOriginalEditor();
                 const modified = editor.getModifiedEditor();
-                /**
-                 * Horizontal-scrollbar allowance: see the patch-editor branch above.
-                 */
-                const syncHeight = (): void =>
-                    onContentHeightChange?.(
-                        Math.max(original.getContentHeight(), modified.getContentHeight()) +
-                            modified.getLayoutInfo().horizontalScrollbarHeight,
-                    );
                 contentSizeListeners.current.push(
-                    original.onDidContentSizeChange(syncHeight),
-                    modified.onDidContentSizeChange(syncHeight),
+                    ...observeGitEditorContentHeight(
+                        [original, modified],
+                        modified,
+                        onContentHeightChange,
+                    ),
                 );
-                syncHeight();
             }}
             options={{
                 automaticLayout: true,
@@ -274,11 +248,9 @@ function DiffSurface({
                 minimap: { enabled: false },
                 originalEditable: false,
                 readOnly: true,
-                renderSideBySide: true,
                 scrollBeyondLastLine: false,
                 wordWrap: 'off',
                 ...(stacked && {
-                    hideUnchangedRegions: { enabled: true },
                     scrollbar: { alwaysConsumeMouseWheel: false },
                 }),
             }}
