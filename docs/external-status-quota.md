@@ -22,6 +22,27 @@ against a 60s success TTL), from every surface at once, in every open worktree S
 GraphQL budget is shared with the user's own shell, the Agent's `gh` calls, and editor extensions on
 the same account, so the app's recovery behaviour was what kept the account limited.
 
+## Branch publication in Project Status
+
+The branch row compares the local branch with the **same-named branch on origin**. It does not
+claim to describe a differently named upstream, another remote, or the configured push destination.
+Server reads the branch ref through one quota-governed GitHub GraphQL query per repository per
+summary refresh. Local tracking refs are only cache invalidation inputs: a stale ref never proves
+that a remote branch exists. Git changes invalidate the tree, including a local push that leaves
+HEAD unchanged. The Status Bar overview does not make this extra query.
+
+The row shows `Not on origin`, `Synced`, or `↑N` / `↓N` commit differences. Counts compare captured
+immutable commit IDs only when the remote commit and complete history are locally available.
+Otherwise `On origin` confirms existence without claiming that every local commit has been pushed.
+No fetch, network Git command, or repository mutation is performed. The tooltip names the compared
+branch and check time; results are snapshots governed by the existing summary TTL and manual refresh.
+
+An inaccessible repository, malformed response, authentication failure, or offline refresh shows
+`Unknown` and suppresses the branch link. Only an accessible repository with a null ref proves
+absence. Publication and PR errors share one GitHub error presentation. Detached HEAD, no commits,
+no origin, and unsupported non-GitHub origins are handled without a remote query. A branch link is
+available only after remote existence has been confirmed.
+
 ## The hub
 
 `ExternalStatusHub` (`hub.ts`) is constructed once in `createRootServices` and injected into

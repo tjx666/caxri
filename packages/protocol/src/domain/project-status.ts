@@ -49,6 +49,28 @@ const projectStatusRepoSchema = z.object({
     defaultBranch: z.string().optional(),
     githubUrl: z.url().optional(),
     branchUrl: z.url().optional(),
+    publication: z
+        .object({
+            state: z.enum([
+                'checking',
+                'unpublished',
+                'published',
+                'synced',
+                'ahead',
+                'behind',
+                'diverged',
+                'unknown',
+                'no-origin',
+                'unsupported',
+                'detached',
+                'unborn',
+            ]),
+            remoteBranch: z.string().optional(),
+            checkedAt: z.number().optional(),
+            ahead: z.number().int().nonnegative().optional(),
+            behind: z.number().int().nonnegative().optional(),
+        })
+        .optional(),
     pullRequest: z
         .object({
             number: z.number().int().positive(),

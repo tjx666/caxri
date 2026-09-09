@@ -342,6 +342,9 @@ describe('ProjectStatusService', () => {
             if (command === 'git' && arguments_[0] === 'rev-parse') {
                 return Promise.resolve('1234567890abcdef\n');
             }
+            if (command === 'gh' && arguments_[0] === 'api') {
+                return Promise.resolve(JSON.stringify({ data: { repository: { ref: null } } }));
+            }
             if (command === 'gh') {
                 return Promise.resolve(
                     JSON.stringify({
@@ -469,7 +472,7 @@ describe('ProjectStatusService', () => {
             environment: 'preview',
             inspectorUrl: 'https://vercel.com/lobehub/project/preview',
         });
-        expect(runner.mock.calls.filter(([command]) => command === 'gh')).toHaveLength(1);
+        expect(runner.mock.calls.filter(([command]) => command === 'gh')).toHaveLength(2);
         expect(runner.mock.calls.find(([command]) => command === 'linear')?.[1]).toContain(
             'id=LOBE-42',
         );

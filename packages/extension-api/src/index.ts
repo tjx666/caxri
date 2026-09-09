@@ -276,6 +276,28 @@ export interface ProjectStatusRepository {
     defaultBranch?: string;
     githubUrl?: string;
     branchUrl?: string;
+    /**
+     * Publication on origin at checkedAt; local tracking refs are never proof of remote existence.
+     */
+    publication?: {
+        state:
+            | 'checking'
+            | 'unpublished'
+            | 'published'
+            | 'synced'
+            | 'ahead'
+            | 'behind'
+            | 'diverged'
+            | 'unknown'
+            | 'no-origin'
+            | 'unsupported'
+            | 'detached'
+            | 'unborn';
+        remoteBranch?: string;
+        checkedAt?: number;
+        ahead?: number;
+        behind?: number;
+    };
     pullRequest?: {
         number: number;
         title: string;
