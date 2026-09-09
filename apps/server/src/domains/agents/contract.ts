@@ -5,6 +5,7 @@ import process from 'node:process';
 
 import type { AgentActivityState, AgentProvider, ProcessState } from '@caxri/protocol';
 
+import type { AgentDelegationAdapter } from './delegation-contract';
 import type { AgentHookAdapter, AgentLifecycleSignal } from './hooks/contract';
 import type { AgentTranscriptLocation } from './transcript-security';
 
@@ -165,6 +166,14 @@ export interface AgentProviderDescriptor {
             version?: string;
         },
     ): Promise<{ args: string[]; agentSessionId: string }>;
+    delegation?: AgentDelegationAdapter;
+    /**
+     * Reads content-free persisted finality for one exact native turn, independently of transcript discovery.
+     */
+    readTurnStatus?(
+        context: Pick<AgentSnapshotContext, 'agentSessionId' | 'agentTurnId'>,
+        environment: AgentEnvironment,
+    ): Promise<LocalAgentState['status']>;
     generateTitle?(context: AgentProviderPasteSummaryGenerationContext): Promise<string>;
     actions?: AgentActionDiscoveryAdapter;
     hooks?: AgentHookAdapter;

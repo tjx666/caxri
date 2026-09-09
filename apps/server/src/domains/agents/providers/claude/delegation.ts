@@ -1,4 +1,70 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+
+import { CaxriError } from '@caxri/protocol';
+import { coerce, gte } from 'semver';
+
+import type { AgentDelegationAdapter } from '../../delegation-contract';
+import { validateDelegationArguments } from '../../delegation-contract';
+
+const valueFlags = new Set([
+    '--model',
+    '--effort',
+    '--permission-mode',
+    '--agent',
+    '--name',
+    '--tools',
+]);
+const booleanFlags = new Set([
+    '--verbose',
+    '--disable-slash-commands',
+    '--strict-mcp-config',
+    '--dangerously-skip-permissions',
+]);
+
+export const claudeDelegationAdapter: AgentDelegationAdapter = {
+    completion: 'stop-digest',
+    createSessionId: randomUUID,
+    validateLaunch: (launch) => validateDelegationArguments(launch, valueFlags, booleanFlags),
+    verifyVersion: (source) => {
+        const version = coerce(source ?? '');
+        if (version?.major !== 2 || !gte(version, '2.1.196'))
+            throw new CaxriError(
+                'UNAVAILABLE',
+                'Visible delegation requires Claude Code 2.1.196+ within major 2',
+            );
+    },
+    freshLaunch: (launch, pointer, directory, sessionId) => {
+        if (!sessionId || !/^[\da-f-]{36}$/u.test(sessionId))
+            throw new CaxriError(
+                'VALIDATION',
+                'Delegation launch requires a generated session identifier',
+            );
+        return {
+            ...launch,
+            args: [
+                ...launch.args,
+                '--session-id',
+                sessionId,
+                '--add-dir',
+                directory,
+                '--',
+                pointer,
+            ],
+        };
+    },
+    resumeLaunch: (launch, directory) => ({
+        ...launch,
+        args: [...launch.args, '--add-dir', directory],
+    }),
+    extractCompletion: (content, evidence) => {
+        if (!evidence.answerDigest) return;
+        const answer = extractClaudeDelegationAnswer(content, {
+            ...evidence,
+            answerDigest: evidence.answerDigest,
+        });
+        return answer ? { kind: 'answer', ...answer } : undefined;
+    },
+};
 
 export interface ClaudeDelegationAnswer {
     text: string;

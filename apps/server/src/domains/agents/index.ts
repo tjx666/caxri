@@ -1,6 +1,8 @@
 export { listAgentActions, recordRecentAgentAction } from './actions';
 export { type AgentEnvironment, agentProviderStateRoot, defaultAgentEnvironment } from './contract';
 export { AgentCoordinator } from './coordinator';
+export { delegationAdapter } from './delegation';
+export type { DelegationCompletion } from './delegation-contract';
 export { discoverExecutable, readVersion } from './discovery';
 export { AgentHookManager } from './hooks';
 export {
@@ -17,9 +19,11 @@ export {
     normalizeGeneratedAgentTitle,
     readAgentTitleMessages,
 } from './title-generation';
+export type { DelegationTranscriptBatch } from './transcript';
 export {
     locateAgentTranscript,
     readAgentTranscript,
+    readDelegationTranscript,
     resolveAgentTranscriptLocation,
 } from './transcript';
 export {

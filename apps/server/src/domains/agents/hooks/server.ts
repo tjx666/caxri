@@ -268,7 +268,6 @@ function parsePacket(
             digest !== undefined &&
             (typeof digest !== 'string' ||
                 !/^[a-f0-9]{64}$/u.test(digest) ||
-                signal.provider !== 'claude' ||
                 signal.phase !== phase ||
                 signal.agentId !== undefined)
         )

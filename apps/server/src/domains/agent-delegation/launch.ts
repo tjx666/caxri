@@ -2,44 +2,20 @@ import { createHash } from 'node:crypto';
 import { lstat, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import type { AgentLaunchSettings } from '@caxri/protocol';
+import type { AgentLaunchSettings, AgentProvider } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
-const valueFlags = new Set([
-    '--model',
-    '--effort',
-    '--permission-mode',
-    '--agent',
-    '--name',
-    '--tools',
-]);
-const booleanFlags = new Set([
-    '--verbose',
-    '--disable-slash-commands',
-    '--strict-mcp-config',
-    '--dangerously-skip-permissions',
-]);
+import { delegationAdapter } from '../agents';
 
 /**
  * Delegations own native session identity and interactive submission. An ambiguous positional argument or caller-owned
  * session flag must fail before a Terminal or task file is created.
  */
-export function validateDelegationLaunch(launch: AgentLaunchSettings): void {
-    for (let index = 0; index < launch.args.length; index++) {
-        const argument = launch.args[index];
-        const flag = argument.split('=', 1)[0];
-        if (booleanFlags.has(argument)) continue;
-        if (valueFlags.has(flag)) {
-            const value = argument.includes('=')
-                ? argument.slice(flag.length + 1)
-                : launch.args[++index];
-            if (value && !value.startsWith('-')) continue;
-        }
-        throw new CaxriError(
-            'CONFLICT',
-            'Agent launch arguments are unsupported for visible delegation',
-        );
-    }
+export function validateDelegationLaunch(
+    provider: AgentProvider,
+    launch: AgentLaunchSettings,
+): void {
+    delegationAdapter(provider).validateLaunch(launch);
 }
 
 async function privateDirectory(path: string): Promise<void> {
@@ -86,15 +62,13 @@ export async function prepareDelegationFollowUp(
 export async function prepareDelegationLaunch(
     userDataPath: string,
     delegationId: string,
-    providerSessionId: string,
+    provider: AgentProvider,
+    providerSessionId: string | undefined,
     prompt: string,
     frozenLaunch: AgentLaunchSettings,
 ): Promise<{ launch: AgentLaunchSettings; promptDigest: string }> {
-    validateDelegationLaunch(frozenLaunch);
-    if (
-        !/^(?:[\da-f-]{36}|dispatch-[\da-f]{64})$/u.test(delegationId) ||
-        !/^[\da-f-]{36}$/u.test(providerSessionId)
-    )
+    validateDelegationLaunch(provider, frozenLaunch);
+    if (!/^(?:[\da-f-]{36}|dispatch-[\da-f]{64})$/u.test(delegationId))
         throw new CaxriError('VALIDATION', 'Delegation launch requires generated identifiers');
     const root = join(userDataPath, 'delegations');
     await privateDirectory(root);
@@ -104,18 +78,12 @@ export async function prepareDelegationLaunch(
     await writeFile(path, prompt, { encoding: 'utf8', flag: 'wx', mode: 0o600 });
     const pointer = `Read the delegated task from ${JSON.stringify(path)} and carry it out. Delegation ID: ${delegationId}.`;
     return {
-        launch: {
-            executable: frozenLaunch.executable,
-            args: [
-                ...frozenLaunch.args,
-                '--session-id',
-                providerSessionId,
-                '--add-dir',
-                directory,
-                '--',
-                pointer,
-            ],
-        },
+        launch: delegationAdapter(provider).freshLaunch(
+            frozenLaunch,
+            pointer,
+            directory,
+            providerSessionId,
+        ),
         promptDigest: createHash('sha256').update(pointer).digest('hex'),
     };
 }
