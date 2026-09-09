@@ -102,12 +102,6 @@ interface WorkTabProperties {
 const TAB_MAX_WIDTH = 2000;
 
 /**
- * Floor for an evenly divided Terminal tab. Once enough Terminal tabs are open to push past it, flex stops shrinking
- * and the bar's `overflow-x-auto` takes over — even division degrades to scrolling rather than to unreadable slivers.
- */
-const TERMINAL_TAB_MIN_WIDTH = 80;
-
-/**
  * Document tabs keep their intrinsic filename width, matching VS Code's default `tabSizing: fit`. Overflow scrolls the
  * rail instead of abbreviating filenames while adjacent Terminal tabs still have unused room.
  */
@@ -174,7 +168,8 @@ export function WorkTab({
      * leaves the tab with no id for `aria-controls`/roving focus to target. See `Tooltip`'s `triggerId`.
      */
     const tabIdProperty = labelTooltip || !isPresent ? {} : { id: tabId };
-    const targetMinWidth = fill ? TERMINAL_TAB_MIN_WIDTH : DOCUMENT_TAB_MIN_WIDTH;
+    // Keep the displayed title and accessories readable before the rail takes over horizontal scrolling.
+    const targetMinWidth = fill ? 'max-content' : DOCUMENT_TAB_MIN_WIDTH;
     // Motion keeps re-applying whatever value it last resolved for a key present in `initial`/`animate`/`exit` on
     // every re-render of the component, even to a plain DOM mutation made outside Motion — so `minWidth` and
     // `overflow` cannot be Motion-managed keys landed via `transitionEnd` or an animation-complete callback: when
