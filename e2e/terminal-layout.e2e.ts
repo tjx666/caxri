@@ -149,19 +149,26 @@ test('Terminal split layout drags, resizes, restores, and preserves the live PTY
         const firstTerminalId = (
             await pageRequest<{ terminals: Array<{ id: string }> }>(running.page, 'app.bootstrap')
         ).terminals[0].id;
-        const initialInput = running.page.locator(
-            `.terminal-pane[data-terminal-id="${firstTerminalId}"] .xterm-helper-textarea`,
+        const firstPane = running.page.locator(
+            `.terminal-pane[data-terminal-id="${firstTerminalId}"]`,
         );
-        await initialInput.focus();
-        await initialInput.pressSequentially('export CAXRI_SPLIT_CONTINUITY=alive');
-        await initialInput.press('Enter');
-        await initialInput.pressSequentially(String.raw`printf "$CAXRI_SPLIT_CONTINUITY\n"`);
-        await initialInput.press('Enter');
+        /**
+         * Layout remounts can expose the textarea before PTY replay finishes. Like the grid probe above, verify
+         * continuity through the input contract after attachment; keyboard routing has separate coverage.
+         * Stage-specific formatted output cannot match command echo or a previous probe's successful output.
+         */
+        await expect(
+            firstPane.locator('.terminal-surface[data-terminal-attached="true"]'),
+        ).toBeVisible();
+        await pageRequest(running.page, 'terminal.input', {
+            data: `${String.raw`export CAXRI_SPLIT_CONTINUITY=alive; printf 'CAXRI_SPLIT_INITIAL_%s_END\n' "$CAXRI_SPLIT_CONTINUITY"`}\r`,
+            terminalId: firstTerminalId,
+        });
         await expect(
             running.page.locator(
                 `.terminal-pane[data-terminal-id="${firstTerminalId}"] .xterm-rows`,
             ),
-        ).toContainText('alive');
+        ).toContainText('CAXRI_SPLIT_INITIAL_alive_END');
         await pressNewTerminal(running.page);
         const secondTerminalId = await waitForNewTerminalId(running.page, [firstTerminalId]);
         await splitTerminalToRight(running.page, secondTerminalId);
@@ -224,17 +231,18 @@ test('Terminal split layout drags, resizes, restores, and preserves the live PTY
         await dragFirstTab(0, 0.9, 0.5);
         await expect(running.page.locator('.workbench-pane')).toHaveCount(2);
 
-        const firstInput = running.page.locator(
-            `.terminal-pane[data-terminal-id="${firstTerminalId}"] .xterm-helper-textarea`,
-        );
-        await firstInput.focus();
-        await firstInput.pressSequentially(String.raw`printf "$CAXRI_SPLIT_CONTINUITY\n"`);
-        await firstInput.press('Enter');
+        await expect(
+            firstPane.locator('.terminal-surface[data-terminal-attached="true"]'),
+        ).toBeVisible();
+        await pageRequest(running.page, 'terminal.input', {
+            data: `${String.raw`printf 'CAXRI_SPLIT_MOVED_%s_END\n' "$CAXRI_SPLIT_CONTINUITY"`}\r`,
+            terminalId: firstTerminalId,
+        });
         await expect(
             running.page.locator(
                 `.terminal-pane[data-terminal-id="${firstTerminalId}"] .xterm-rows`,
             ),
-        ).toContainText('alive');
+        ).toContainText('CAXRI_SPLIT_MOVED_alive_END');
         await expect
             .poll(() => pageRequest<number>(running.page, 'terminal.runningCount'))
             .toBe(runningBeforeMove);
