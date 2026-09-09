@@ -12,6 +12,7 @@ const bindings = [
     { event: 'SubagentStart', phase: 'subagentStarted' },
     { event: 'PermissionRequest', phase: 'attentionRequested' },
     { event: 'Stop', phase: 'turnFinished', reply: 'emptyJson' },
+    { event: 'StopFailure', phase: 'turnFinished' },
     { event: 'SubagentStop', phase: 'turnFinished', reply: 'emptyJson' },
     { event: 'PreToolUse', matcher: '^Bash$', phase: 'shellToolStarted' },
     { event: 'PostToolUse', matcher: '^Bash$', phase: 'shellToolFinished' },
@@ -54,7 +55,7 @@ function disabledHookPolicy(source: string | undefined): string | undefined {
 
 export const claudeHookAdapter: AgentHookAdapter = {
     bindings,
-    schemaVersion: 8,
+    schemaVersion: 9,
     configTargets: (environment) => [
         {
             id: SETTINGS_TARGET,

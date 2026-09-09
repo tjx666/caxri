@@ -40,6 +40,7 @@ interface CreateAgentRuntimeOptions {
      * Observes every accepted lifecycle signal after the coordinator has applied it.
      */
     onLifecycleSignal?: (signal: AgentLifecycleSignal) => void;
+    onLifecycleApplied?: (signal: AgentLifecycleSignal) => void;
     send: (event: ServerEvent) => void;
     userDataPath: string;
     watchHub: WatchHub;
@@ -76,7 +77,10 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
         /**
          * A parent Stop can be deferred until background subagents finish; raw hook acceptance is not completion.
          */
-        onLifecycleApplied: (signal) => namingState.service?.observe(signal),
+        onLifecycleApplied: (signal) => {
+            namingState.service?.observe(signal);
+            options.onLifecycleApplied?.(signal);
+        },
         refreshDelayMs: dependencies.agentRefreshDelayMs,
     });
     const sessionRenames = new SessionRenameService(database, agents, coordinator, send);

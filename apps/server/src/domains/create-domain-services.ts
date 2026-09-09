@@ -13,7 +13,9 @@ import type {
 import { agentProviderCatalog, CaxriError } from '@caxri/protocol';
 import { logEventCatalog } from '@caxri/system';
 
-import { AgentDispatchService, createAgentCommandHandlers } from './agent-dispatch';
+import { createAgentCommandRuntime } from './agent-command-runtime';
+import type { AgentDelegationService } from './agent-delegation';
+import type { AgentDispatchService } from './agent-dispatch';
 import { createAgentRuntime } from './agent-runtime';
 import { LongPasteService } from './agents';
 import { createBackgroundTasks, refreshWatchSessionInBackground } from './background-tasks';
@@ -61,12 +63,14 @@ export async function createDomainServices(
     } = await createRootServices(dependencies);
     const selectedSessionId = () => database.getAppState('lastSelectedSessionId') ?? undefined;
     const suspensionState: { service?: TerminalSuspensionService } = {};
+    const delegationState: { service?: AgentDelegationService } = {};
     const agentRuntime = await createAgentRuntime({
         configuration,
         database,
         dependencies,
         logger,
         onLifecycleSignal: (signal) => suspensionState.service?.observeLifecycle(signal),
+        onLifecycleApplied: (signal) => delegationState.service?.observe(signal),
         send,
         userDataPath,
         watchHub,
@@ -109,6 +113,7 @@ export async function createDomainServices(
                 terminal.provider,
                 launchId,
             );
+            delegationState.service?.bindEnvironment(terminal.id, launchId, hookEnvironment);
             if (!launch || terminal.kind === 'shell') return hookEnvironment;
             const session = database.getSession(terminal.sessionId);
             if (!session) throw new CaxriError('CONFLICT', 'Agent Session no longer exists');
@@ -146,6 +151,7 @@ export async function createDomainServices(
             return dependencies.agentEndpoints?.activate(terminal.id);
         },
         onLifecycleRetired: async (terminalId, launchId) => {
+            delegationState.service?.interruptTerminal(terminalId);
             suspensionState.service?.forgetTerminal(terminalId);
             agentHooks.endTerminalLaunch(terminalId, launchId);
             await provenance.retireAgentWorkbenchProvenance({
@@ -157,7 +163,10 @@ export async function createDomainServices(
         },
         onOutputActivity: (terminalId, processId) =>
             coordinator.observeOutput(terminalId, processId),
-        onInput: (terminalId) => suspensionState.service?.observeInput(terminalId),
+        onInput: (terminalId) => {
+            suspensionState.service?.observeInput(terminalId);
+            delegationState.service?.interruptTerminal(terminalId, true);
+        },
         onAgentStateChanged: (terminalId, state) =>
             agentDispatchState.service?.observeTerminalState(terminalId, state),
         shellIntegration: (executable, environment) =>
@@ -388,7 +397,7 @@ export async function createDomainServices(
         send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.delete' } });
         return bootstrapState();
     };
-    const dispatchService = new AgentDispatchService({
+    const agentCommands = createAgentCommandRuntime({
         database,
         coordinator,
         emit: send,
@@ -397,9 +406,11 @@ export async function createDomainServices(
         terminalDirectoryIdentity,
         terminalWorkingDirectory,
         terminals,
+        userDataPath,
+        agentEnvironment,
     });
-    agentDispatchState.service = dispatchService;
-    dispatchService.initialize();
+    agentDispatchState.service = agentCommands.dispatchService;
+    delegationState.service = agentCommands.delegationService;
     const sessionSelections = new SessionSelectionQueue();
     let isClosed = false;
     async function close(): Promise<void> {
@@ -412,7 +423,8 @@ export async function createDomainServices(
         longPastes.close();
         unsubscribeTerminalSettings();
         await terminals.shutdown('orderly');
-        dispatchService.close();
+        agentCommands.dispatchService.close();
+        agentCommands.delegationService.close();
         await workbenchRoots.close();
         await agentRuntime.close();
         await dependencies.agentEndpoints?.close();
@@ -436,15 +448,7 @@ export async function createDomainServices(
         'agent.grants': () => mainOwned('agent.grants'),
         'agent.grant': () => mainOwned('agent.grant'),
         'agent.revoke': () => mainOwned('agent.revoke'),
-        ...createAgentCommandHandlers({
-            coordinator,
-            database,
-            dispatch: dispatchService,
-            emit: send,
-            endpoints: dependencies.agentEndpoints,
-            mainOwned,
-            terminals,
-        }),
+        ...agentCommands.handlers,
         'agent.message.send': () => mainOwned('agent.message.send'),
         'agent.message.reply': () => mainOwned('agent.message.reply'),
         'agent.message.wait': () => mainOwned('agent.message.wait'),

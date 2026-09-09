@@ -1,0 +1,146 @@
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import process from 'node:process';
+
+import type {
+    AgentDelegationAnswer,
+    AgentDelegationReceipt,
+    BootstrapState,
+} from '@caxri/protocol';
+
+import { delegationFixtureSource } from '../scripts/agent-delegation-fixture.ts';
+import { createFakeAgentMode } from './support/agent-fixture.ts';
+import { expect, test } from './support/fixtures.ts';
+import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
+
+test('visible delegation preserves caller focus and returns the exact durable answer', async () => {
+    const testInfo = test.info();
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-delegation-e2e-'));
+    const userData = join(directory, 'profile');
+    const root = join(directory, 'project');
+    const contextPath = join(directory, 'context.json');
+    const resultPath = join(directory, 'result.json');
+    const cliPath = join(import.meta.dirname, '..', 'apps/cli/dist/caxri.cjs');
+    await mkdir(root);
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: {
+            codex: {
+                executableSource: String.raw`#!${process.execPath}
+// 合成调用方通过继承的受管凭据运行真实 CLI，仅保存非秘密上下文及断言回执。
+const fs = require('node:fs');
+const { spawnSync } = require('node:child_process');
+if(process.argv.includes('--version')) { console.log('codex-cli 0.151.0'); process.exit(0); }
+const cli = args => spawnSync(process.execPath, [${JSON.stringify(cliPath)}, ...args, '--json'], {encoding:'utf8',env:process.env,timeout:25000});
+const contextCall = cli(['agent-context']);
+if(contextCall.status !== 0) process.exit(1);
+const context = JSON.parse(contextCall.stdout);
+fs.writeFileSync(${JSON.stringify(contextPath)}, JSON.stringify(context));
+process.stdin.setRawMode?.(true);
+let launched = false;
+process.stdin.on('data', chunk => {
+  if(launched || !chunk.toString().includes('delegate')) return;
+  launched = true;
+  const taskPath = ${JSON.stringify(join(directory, 'task.md'))};
+  fs.writeFileSync(taskPath,'Synthetic task');
+  const args=['agent','delegate','create','--project',context.endpoint.projectId,'--session',context.endpoint.sessionId,'--provider','claude','--prompt-file',taskPath,'--request-id','synthetic-delegation'];
+  const created=cli(args);
+  if(created.status!==0){fs.writeFileSync(${JSON.stringify(resultPath)},JSON.stringify({code:created.status}));return;}
+  const receipt=JSON.parse(created.stdout);
+  const retried=cli(args);
+  const waited=cli(['agent','delegate','wait',receipt.delegationId,'--timeout','20000']);
+  const result=waited.status===0?JSON.parse(waited.stdout):null;
+  fs.writeFileSync(${JSON.stringify(resultPath)},JSON.stringify({code:waited.status,receipt:result?.receipt,retriedSame:retried.status===0&&JSON.parse(retried.stdout).delegationId===receipt.delegationId,answerMatched:result?.answer?.text==='Synthetic delegation complete'}));
+  process.stdout.write('Synthetic caller collected delegated answer\r\n');
+});
+process.stdin.resume();
+process.stdout.write('Synthetic caller ready\r\n');
+`,
+            },
+            claude: {
+                executableSource: delegationFixtureSource(),
+            },
+        },
+    });
+    const running = await launchCaxri({
+        agentMode,
+        userDataDir: userData,
+        testRootPath: root,
+        env: { CAXRI_E2E_AGENT_HOOKS: '1' },
+    });
+    try {
+        const sessionId = await createProjectSession(running.page, 'codex');
+        await expect(running.page.locator('.xterm-rows')).toContainText('Synthetic caller ready');
+        const context = JSON.parse(await readFile(contextPath, 'utf8')) as {
+            endpoint: {
+                ref: { hostId: string; endpointId: string; generation: number };
+                terminalId: string;
+            };
+        };
+        await pageRequest(running.page, 'agent.grant', {
+            endpoint: context.endpoint.ref,
+            policy: 'agent:delegate',
+            ttlMs: 60000,
+        });
+        const before = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
+        await pageRequest(running.page, 'terminal.input', {
+            terminalId: context.endpoint.terminalId,
+            data: 'delegate\r',
+        });
+        await expect
+            .poll(
+                async () => {
+                    try {
+                        return JSON.parse(await readFile(resultPath, 'utf8')) as unknown;
+                    } catch (error) {
+                        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+                        throw error;
+                    }
+                },
+                { timeout: 25000 },
+            )
+            .toMatchObject({
+                code: 0,
+                retriedSame: true,
+                answerMatched: true,
+                receipt: { status: 'completed', callerTerminalId: context.endpoint.terminalId },
+            });
+        const receipt = (
+            JSON.parse(await readFile(resultPath, 'utf8')) as { receipt: AgentDelegationReceipt }
+        ).receipt;
+        await expect(running.page.locator('.workbench-pane')).toHaveCount(2);
+        const after = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
+        expect(
+            after.sessionStates.find((state) => state.sessionId === sessionId)?.paneLayout
+                .activePaneId,
+        ).toBe(
+            before.sessionStates.find((state) => state.sessionId === sessionId)?.paneLayout
+                .activePaneId,
+        );
+        await expect
+            .poll(
+                async () => {
+                    const result = await pageRequest<{
+                        receipt: AgentDelegationReceipt;
+                        answer?: AgentDelegationAnswer;
+                    }>(running.page, 'agent.delegation.result', {
+                        delegationId: receipt.delegationId,
+                    });
+                    return result.receipt.status;
+                },
+                { timeout: 20_000 },
+            )
+            .toBe('completed');
+        const result = await pageRequest<{
+            receipt: AgentDelegationReceipt;
+            answer?: AgentDelegationAnswer;
+        }>(running.page, 'agent.delegation.result', { delegationId: receipt.delegationId });
+        expect(result.answer?.text).toBe('Synthetic delegation complete');
+        expect(result.answer?.truncated).toBe(false);
+        await running.page.screenshot({ path: testInfo.outputPath('visible-delegation.png') });
+    } finally {
+        await running.app.close();
+        await rm(directory, { recursive: true, force: true });
+    }
+});

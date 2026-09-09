@@ -270,3 +270,20 @@ export const protocolChangefeed = sqliteTable(
     },
     (table) => [index('protocol_changefeed_epoch_sequence').on(table.stateEpoch, table.sequence)],
 );
+
+/**
+ * Delegation bodies and answers are private domain data, never bootstrap state or command-journal payloads. Session
+ * ownership gives deletion an explicit retention boundary without deleting any Project files.
+ */
+export const agentDelegations = sqliteTable(
+    'agent_delegations',
+    {
+        id: text('id').primaryKey(),
+        sessionId: text('session_id')
+            .notNull()
+            .references(() => sessions.id, { onDelete: 'cascade' }),
+        status: text('status').notNull(),
+        recordJson: text('record_json').notNull(),
+    },
+    (table) => [index('agent_delegations_status').on(table.status)],
+);

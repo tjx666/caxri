@@ -23,6 +23,7 @@ import {
 import { logEventCatalog, startEventLoopMonitor, StructuredLogger } from '@caxri/system';
 
 import { createServerDomainService } from '../core/create-domain-service';
+import { agentCommandRequest } from './agent-command-request';
 import { createAgentEndpointControl } from './agent-endpoints/control';
 import { AgentEndpointRegistry } from './agent-endpoints/registry';
 import { AgentInboxRegistry } from './agent-inbox/registry';
@@ -329,28 +330,28 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                             request.params.grantId,
                         ),
                     };
-                case 'agent.dispatch.start': {
-                    assertProjectScope(context, request.params.projectId);
-                    return forwardDomainOperation({
-                        method: 'agent.dispatch.startInternal',
-                        params: {
-                            dispatchId: dispatchIdFor(context, invocation.requestId),
-                            principal: context.principal,
-                            input: request.params,
-                        },
-                    });
-                }
-                case 'agent.dispatch.resume': {
-                    assertProjectScope(context, request.params.projectId);
-                    return forwardDomainOperation({
-                        method: 'agent.dispatch.resumeInternal',
-                        params: {
-                            dispatchId: dispatchIdFor(context, invocation.requestId),
-                            principal: context.principal,
-                            input: request.params,
-                        },
-                    });
-                }
+                case 'agent.dispatch.start':
+                case 'agent.dispatch.resume':
+                case 'agent.delegation.create':
+                case 'agent.delegation.status':
+                case 'agent.delegation.result':
+                    return forwardDomainOperation(
+                        agentCommandRequest(request, context, invocation.requestId, agentEndpoints),
+                    );
+                case 'agent.delegation.wait':
+                    return requestCancellations.run(
+                        principalRequestKey(context, invocation.requestId),
+                        (signal) =>
+                            forwardDomainOperation(
+                                agentCommandRequest(
+                                    request,
+                                    context,
+                                    invocation.requestId,
+                                    agentEndpoints,
+                                ),
+                                signal,
+                            ),
+                    );
                 case 'agent.dispatch.status':
                     return domainService.request('agent.dispatch.statusInternal', {
                         dispatchId: request.params.dispatchId,

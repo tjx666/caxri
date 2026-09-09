@@ -360,6 +360,7 @@ export function operatorContext(profileId: string): CommandExecutionContext {
             'agents.read',
             'agents.control',
             'agents.dispatch',
+            'agents.delegate',
             'agents.grant',
             'events.read',
             'host.read',

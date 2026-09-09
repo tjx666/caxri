@@ -5,6 +5,7 @@ import { isNonExpiringServerOperation, isNonExpiringViewOperation } from '../req
 describe('isNonExpiringServerOperation', () => {
     it('allows the documented non-expiring methods', () => {
         expect(isNonExpiringServerOperation('agent.dispatch.waitInternal')).toBe(true);
+        expect(isNonExpiringServerOperation('agent.delegation.waitInternal')).toBe(true);
         expect(isNonExpiringServerOperation('agent.message.wait')).toBe(true);
         for (const method of [
             'files.create',
