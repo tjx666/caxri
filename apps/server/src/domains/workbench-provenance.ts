@@ -1,4 +1,4 @@
-import type { AgentProvider, NewWorktreeBehavior, TerminalRecord } from '@caxri/protocol';
+import type { AgentProvider, TerminalRecord } from '@caxri/protocol';
 import { CaxriError, errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
@@ -45,17 +45,29 @@ interface AttributableWorktreeCreation {
 }
 
 interface AgentWorktreeAttributionOptions {
-    addCandidate(input: { repositoryKey: string; rootPath: string; sessionId: string }): void;
-    behavior(): NewWorktreeBehavior;
+    followWorktree(
+        input: { repositoryKey: string; rootPath: string; sessionId: string },
+        isStillAuthorized: () => boolean,
+    ): Promise<void>;
     database: CaxriDatabase;
     git: GitService;
     logger: StructuredLogger;
     runQueued<T>(run: () => Promise<T>): Promise<T>;
-    selectAuthorized(
-        sessionId: string,
-        projectId: string,
-        isStillAuthorized: () => boolean,
-    ): Promise<void>;
+}
+
+/**
+ * Detects manual root changes across every asynchronous phase of worktree attribution and following.
+ */
+export function isSameWorkbenchBinding(
+    left: ReturnType<CaxriDatabase['getSessionWorkbenchBinding']>,
+    right: ReturnType<CaxriDatabase['getSessionWorkbenchBinding']>,
+): boolean {
+    return (
+        left?.projectId === right?.projectId &&
+        left?.workbenchProjectId === right?.workbenchProjectId &&
+        left?.rootDevice === right?.rootDevice &&
+        left?.rootInode === right?.rootInode
+    );
 }
 
 function launchKey(reference: { launchId: string; terminalId: string }): string {
@@ -316,6 +328,12 @@ export class AgentWorktreeAttribution {
         repoKey: string,
         entries: readonly AttributableWorktreeCreation[],
     ): Promise<void> {
+        const initiatingBindings = new Map(
+            entries.map(({ baseline }) => [
+                baseline.sessionId,
+                this.options.database.getSessionWorkbenchBinding(baseline.sessionId),
+            ]),
+        );
         let topology: GitWorktreeTopology;
         try {
             topology = await this.options.git.worktreeTopology(entries[0].ownerRoot);
@@ -334,34 +352,30 @@ export class AgentWorktreeAttribution {
         const additions = topology.worktrees.filter(({ rootPath }) => !rootPaths.has(rootPath));
         if (additions.length !== 1) return;
         const [addition] = additions;
-        if (this.options.behavior() === 'ignore') return;
-        const authorized = this.options.database.findProjectByRootPath(addition.rootPath);
-        if (authorized && this.options.behavior() === 'continueWhenAuthorized') {
-            try {
-                await this.options.selectAuthorized(
-                    baseline.sessionId,
-                    authorized.id,
-                    () =>
-                        !pending.ambiguous &&
-                        this.pendingCreations.get(key) === pending &&
-                        this.provenanceBaselines.get(launchKey(baseline)) === baseline,
-                );
-            } catch {
-                // A retired launch or a changed topology makes the observed intent inert.
-            }
-            return;
+        try {
+            await this.options.followWorktree(
+                {
+                    repositoryKey: topology.repositoryKey,
+                    rootPath: addition.rootPath,
+                    sessionId: baseline.sessionId,
+                },
+                () =>
+                    !pending.ambiguous &&
+                    isSameWorkbenchBinding(
+                        initiatingBindings.get(baseline.sessionId),
+                        this.options.database.getSessionWorkbenchBinding(baseline.sessionId),
+                    ) &&
+                    this.pendingCreations.get(key) === pending &&
+                    this.provenanceBaselines.get(launchKey(baseline)) === baseline,
+            );
+        } catch {
+            /**
+             * A vanished or replaced root must not discard attribution for other repositories in this batch.
+             */
+            this.options.logger.write('debug', workbenchRootLogEvents.provenanceUnavailable, {
+                fields: { reason: 'selection_unavailable', terminalId: baseline.terminalId },
+            });
         }
-        if (
-            pending.ambiguous ||
-            this.pendingCreations.get(key) !== pending ||
-            this.provenanceBaselines.get(launchKey(baseline)) !== baseline
-        )
-            return;
-        this.options.addCandidate({
-            repositoryKey: topology.repositoryKey,
-            rootPath: addition.rootPath,
-            sessionId: baseline.sessionId,
-        });
     }
 
     /**

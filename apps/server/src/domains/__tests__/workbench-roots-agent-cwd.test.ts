@@ -3,7 +3,14 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { agentCwdSignal, fixture } from './workbench-roots.fixture';
+import type { GitWorktreeTopology } from '../git';
+import {
+    agentCwdSignal,
+    beginWorktreeCreation,
+    fixture,
+    prime,
+    shellFinished,
+} from './workbench-roots.fixture';
 
 /**
  * Claude Code's built-in `EnterWorktree` moves the Agent's own directory without running a shell command, and its
@@ -41,21 +48,30 @@ describe('WorkbenchRootService reported Agent working directory', () => {
         context.database.close();
     });
 
-    it('discards a reported directory that Git topology does not list as a worktree root', async () => {
-        const context = await fixture();
-        const nested = join(context.ownerRoot, 'packages');
-        await mkdir(nested);
-        const terminal = context.sessions[0].terminal!;
+    it.each(['ask', 'continueAutomatically'] as const)(
+        'rejects directories outside worktree topology in %s mode',
+        async (behavior) => {
+            const context = await fixture();
+            context.setBehavior(behavior);
+            const nested = join(context.ownerRoot, 'packages');
+            await mkdir(nested);
+            const terminal = context.sessions[0].terminal!;
 
-        context.service.observeAgentCwd(agentCwdSignal(context, nested));
-        context.service.observeAgentCwd(agentCwdSignal(context, context.worktreeRoot));
+            context.service.observeAgentCwd(agentCwdSignal(context, nested));
+            context.service.observeAgentCwd(agentCwdSignal(context, context.worktreeRoot));
 
-        await vi.waitFor(() => expect(context.worktreeTopology).toHaveBeenCalledTimes(2));
-        expect(context.database.getTerminal(terminal.id)?.agentCwd).toBeUndefined();
-        expect(context.events.filter((event) => event.event === 'workbench.candidate')).toEqual([]);
-        await context.service.close();
-        context.database.close();
-    });
+            await vi.waitFor(() => expect(context.worktreeTopology).toHaveBeenCalledTimes(2));
+            await prime(context);
+            expect(context.database.findProjectByRootPath(context.worktreeRoot)).toBeUndefined();
+            expect(context.database.findProjectByRootPath(nested)).toBeUndefined();
+            expect(context.database.getTerminal(terminal.id)?.agentCwd).toBeUndefined();
+            expect(context.events.filter((event) => event.event === 'workbench.candidate')).toEqual(
+                [],
+            );
+            await context.service.close();
+            context.database.close();
+        },
+    );
 
     it('discards a reported directory that does not exist', async () => {
         const context = await fixture();
@@ -114,6 +130,143 @@ describe('WorkbenchRootService reported Agent working directory', () => {
         await context.service.close();
         context.database.close();
     });
+
+    it('automatically authorizes and selects a verified Agent worktree without asking', async () => {
+        const context = await fixture();
+        context.setBehavior('continueAutomatically');
+        context.setWorktrees([
+            { branch: 'main', rootPath: context.ownerRoot },
+            { branch: 'feature/entered', rootPath: context.worktreeRoot },
+        ]);
+
+        context.service.observeAgentCwd(agentCwdSignal(context, context.worktreeRoot));
+
+        await vi.waitFor(() =>
+            expect(context.database.getSession(context.sessions[0].session.id)?.rootPath).toBe(
+                context.worktreeRoot,
+            ),
+        );
+        expect(context.database.findProjectByRootPath(context.worktreeRoot)).toMatchObject({
+            ownerProjectId: context.owner.id,
+        });
+        expect(context.events.filter((event) => event.event === 'workbench.candidate')).toEqual([]);
+        expect(context.database.getTerminal(context.sessions[0].terminal!.id)?.cwd).toBe(
+            context.ownerRoot,
+        );
+        await context.service.close();
+        context.database.close();
+    });
+
+    it.each(['agentCwd', 'worktreeAdd'] as const)(
+        'preserves a manual root selection during the first %s topology read',
+        async (source) => {
+            const context = await fixture();
+            context.setBehavior('continueAutomatically');
+            if (source === 'worktreeAdd') {
+                await prime(context);
+                await beginWorktreeCreation(context);
+            }
+            context.setWorktrees([
+                { branch: 'main', rootPath: context.ownerRoot },
+                { branch: 'feature/entered', rootPath: context.worktreeRoot },
+            ]);
+            const pending = Promise.withResolvers<GitWorktreeTopology>();
+            context.worktreeTopology.mockClear();
+            context.worktreeTopology.mockImplementationOnce(() => pending.promise);
+            if (source === 'agentCwd')
+                context.service.observeAgentCwd(agentCwdSignal(context, context.worktreeRoot));
+            else
+                context.service.observeShellToolFinished(
+                    shellFinished(context, { worktreeCreateIntent: true }),
+                );
+            await vi.waitFor(() => expect(context.worktreeTopology).toHaveBeenCalledTimes(1));
+
+            const manualRoot = join(context.directory, 'manual');
+            await mkdir(manualRoot);
+            const manual = context.database.createProject(manualRoot, context.owner.id);
+            context.database.selectWorkbenchProject(context.sessions[0].session.id, manual.id);
+            pending.resolve(context.getTopology());
+            await prime(context);
+
+            expect(context.database.getSession(context.sessions[0].session.id)?.rootPath).toBe(
+                manualRoot,
+            );
+            expect(context.database.findProjectByRootPath(context.worktreeRoot)).toBeUndefined();
+            expect(context.events.filter((event) => event.event === 'workbench.candidate')).toEqual(
+                [],
+            );
+            await context.service.close();
+            context.database.close();
+        },
+    );
+
+    it.each(['setting', 'retirement', 'selection'] as const)(
+        'does not authorize a worktree when %s changes during its identity check',
+        async (change) => {
+            const checking = Promise.withResolvers<void>();
+            const resume = Promise.withResolvers<void>();
+            const context = await fixture(1, {
+                beforeRootIdentityRealpath: () => {
+                    checking.resolve();
+                    return resume.promise;
+                },
+            });
+            context.setBehavior('continueAutomatically');
+            context.setWorktrees([
+                { branch: 'main', rootPath: context.ownerRoot },
+                { branch: 'feature/entered', rootPath: context.worktreeRoot },
+            ]);
+            context.service.observeAgentCwd(agentCwdSignal(context, context.worktreeRoot));
+            await checking.promise;
+            let expectedRoot = context.ownerRoot;
+            if (change === 'setting') context.setBehavior('ask');
+            else if (change === 'retirement')
+                context.service.retireTerminal(context.sessions[0].terminal!.id);
+            else {
+                const otherRoot = join(context.directory, 'manual');
+                await mkdir(otherRoot);
+                const other = context.database.createProject(otherRoot, context.owner.id);
+                context.database.selectWorkbenchProject(context.sessions[0].session.id, other.id);
+                expectedRoot = otherRoot;
+            }
+            resume.resolve();
+            // Drain reconciliation without closing the service and invalidating its guards.
+            await prime(context);
+            expect(context.database.findProjectByRootPath(context.worktreeRoot)).toBeUndefined();
+            expect(context.database.getSession(context.sessions[0].session.id)?.rootPath).toBe(
+                expectedRoot,
+            );
+            expect(context.events.filter((event) => event.event === 'workbench.candidate')).toEqual(
+                [],
+            );
+            await context.service.close();
+            context.database.close();
+        },
+    );
+
+    it.each(['ask', 'continueWhenAuthorized'] as const)(
+        'still asks for a new worktree in %s mode',
+        async (behavior) => {
+            const context = await fixture();
+            context.setBehavior(behavior);
+            context.setWorktrees([
+                { branch: 'main', rootPath: context.ownerRoot },
+                { branch: 'feature/entered', rootPath: context.worktreeRoot },
+            ]);
+            context.service.observeAgentCwd(agentCwdSignal(context, context.worktreeRoot));
+            await vi.waitFor(() =>
+                expect(
+                    context.events.filter((event) => event.event === 'workbench.candidate'),
+                ).toHaveLength(1),
+            );
+            expect(context.database.findProjectByRootPath(context.worktreeRoot)).toBeUndefined();
+            expect(context.database.getSession(context.sessions[0].session.id)?.rootPath).toBe(
+                context.ownerRoot,
+            );
+            await context.service.close();
+            context.database.close();
+        },
+    );
 
     it('continues into an already authorized worktree without asking', async () => {
         const context = await fixture();

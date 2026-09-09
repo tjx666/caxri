@@ -614,32 +614,46 @@ describe('WorkbenchRootService worktree attribution', () => {
         manual.database.close();
     });
 
-    it('automatically selects a hook-attributed worktree only when it is already authorized', async () => {
-        const context = await fixture();
-        const worktreeProject = context.database.createProject(context.worktreeRoot);
-        context.setBehavior('continueWhenAuthorized');
-        await prime(context);
-        await beginWorktreeCreation(context);
-        context.setWorktrees([
-            { branch: 'main', rootPath: context.ownerRoot },
-            { branch: 'feature/authorized', rootPath: context.worktreeRoot },
-        ]);
+    it.each([
+        ['continueWhenAuthorized', true],
+        ['continueAutomatically', true],
+        ['continueAutomatically', false],
+    ] as const)(
+        'follows attributed worktrees in %s mode with prior authorization %s',
+        async (behavior, previouslyAuthorized) => {
+            const context = await fixture();
+            if (previouslyAuthorized) context.database.createProject(context.worktreeRoot);
+            context.setBehavior(behavior);
+            await prime(context);
+            await beginWorktreeCreation(context);
+            context.setWorktrees([
+                { branch: 'main', rootPath: context.ownerRoot },
+                { branch: 'feature/authorized', rootPath: context.worktreeRoot },
+            ]);
 
-        expect(
-            context.service.observeShellToolFinished(
-                shellFinished(context, { worktreeCreateIntent: true }),
-            ),
-        ).toBe('accepted');
-        await vi.waitFor(() =>
-            expect(context.database.getSession(context.sessions[0].session.id)).toMatchObject({
-                workbenchProjectId: worktreeProject.id,
-                rootPath: context.worktreeRoot,
-            }),
-        );
-        expect(context.events.filter((event) => event.event === 'workbench.candidate')).toEqual([]);
-        await context.service.close();
-        context.database.close();
-    });
+            expect(
+                context.service.observeShellToolFinished(
+                    shellFinished(context, { worktreeCreateIntent: true }),
+                ),
+            ).toBe('accepted');
+            await vi.waitFor(() =>
+                expect(context.database.getSession(context.sessions[0].session.id)).toMatchObject({
+                    rootPath: context.worktreeRoot,
+                }),
+            );
+            expect(context.events.filter((event) => event.event === 'workbench.candidate')).toEqual(
+                [],
+            );
+            const project = context.database.findProjectByRootPath(context.worktreeRoot);
+            expect(project).toBeDefined();
+            if (!previouslyAuthorized) expect(project?.ownerProjectId).toBe(context.owner.id);
+            expect(
+                context.database.getSession(context.sessions[0].session.id)?.workbenchProjectId,
+            ).toBe(project?.id);
+            await context.service.close();
+            context.database.close();
+        },
+    );
 
     it('accepts a recreated path only after validation proves its prior removal', async () => {
         const context = await fixture();
