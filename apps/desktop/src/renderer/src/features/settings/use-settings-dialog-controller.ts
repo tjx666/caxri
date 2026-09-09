@@ -353,7 +353,7 @@ export function useSettingsDialogController() {
                 setView('ui');
                 return;
             }
-            if (request.view === 'hardware-acceleration') {
+            if (request.view === 'hardware-acceleration' || request.view === 'notifications') {
                 setTab('settings');
                 setView('ui');
                 return;
@@ -540,6 +540,7 @@ export function useSettingsDialogController() {
         state,
         tab,
         trustedDomainsFocusRequestId: request.view === 'trusted-domains' ? request.id : undefined,
+        notificationsFocusRequestId: request.view === 'notifications' ? request.id : undefined,
         updateArgvConfig,
         updateBinding,
         updateSettingsField,

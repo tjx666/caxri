@@ -18,6 +18,14 @@ folder or user files.
 
 ## Process model
 
+Desktop notification history is a bounded Renderer-memory projection, separate from Sonner's
+live toast queue. Only typed reminder preferences persist in `settings.jsonc`, through the
+existing Server-owned scalar settings patch path. History never stores action closures or writes
+message bodies to logs or disk. Main forwards accepted Agent banner decisions as transient
+`agent.notification` events carrying only Session identity and attention kind; delivery history
+uses the existing `projectStatus.alert`. Neither projection raises another popup or replays on
+reconnect. Failures and persistent data-loss notices bypass reminder suppression.
+
 ```text
 Desktop Main
   -> secure BrowserWindow + native dialogs

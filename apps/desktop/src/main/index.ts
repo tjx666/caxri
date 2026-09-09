@@ -746,6 +746,7 @@ if (ownsProfileInstance) {
             )
                 return;
             notifications = createDesktopNotifications({
+                sendEvent,
                 currentDirectory,
                 focusMainWindow,
                 getWindow: () => mainWindow,

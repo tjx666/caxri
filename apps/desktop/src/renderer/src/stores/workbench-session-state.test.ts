@@ -13,6 +13,14 @@ vi.mock('../lib/caxri', () => ({
     caxri: { onEvent: mocks.onEvent, request: mocks.request },
 }));
 
+// Session-state fixtures deliberately omit unrelated bootstrap configuration.
+vi.mock('./notifications', () => ({
+    syncNotificationSettings: vi.fn(),
+    recordNotification: vi.fn(),
+    canMuteNotification: () => false,
+    isNotificationMuted: () => false,
+}));
+
 import { resetExternalEditorStateForTests } from '../features/editor/external-editor-state';
 import { useSessionViewStore } from './session-view';
 import { patchSessionState, refreshWorkbench, useWorkbenchStore } from './workbench';

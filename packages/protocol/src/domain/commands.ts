@@ -59,6 +59,7 @@ export const commandIds = [
     'settings.open',
     'settings.openSource',
     'settings.openKeybindings',
+    'settings.openNotifications',
     'settings.manageTrustedDomains',
     'updates.check',
     'pathBrowser.open',

@@ -17,6 +17,7 @@ export type TransientServerEvent = Extract<
     {
         event:
             | 'agent.message.held'
+            | 'agent.notification'
             | 'agent.message.receipt'
             | 'agent.messaging.changed'
             | 'command.execute'
@@ -38,6 +39,7 @@ export type TransientServerEvent = Extract<
 export type DurableServerEvent = Exclude<ServerEvent, TransientServerEvent>;
 
 const TRANSIENT_SERVER_EVENT_NAMES = new Set<ServerEvent['event']>([
+    'agent.notification',
     'terminal.output',
     'terminal.outputRecovery',
     'agent.messaging.changed',

@@ -461,6 +461,17 @@ Use the close or action button to dismiss; clicking the message body does not di
 internal transition/removal timing is a third-party exception to the motion token layers above;
 its built-in reduced-motion media rule disables animation. Theme overrides live in `styles/styles.css`.
 
+**Notifications** — the status bar bell opens a 384px-wide, viewport-constrained popover with
+recent messages, Project context, occurrence counts, removal, clear-all, and a Settings shortcut.
+History holds at most 100 entries in this window's memory and never stores action callbacks;
+reloading the window clears it. Opening the center marks its entries read. Ordinary success
+feedback such as copying a path stays ephemeral. Native Agent and delivery alerts enter the
+same history without a second popup. Reminder popups offer an options button to stop showing
+that event type across all Projects; muted events remain in history without an unread count.
+Settings → Notifications restores those preferences and groups the existing native notification
+controls. Failures and persistent data-loss notices cannot be muted. Worktree fallback is an
+ordinary four-second reminder now that its record remains available in the center.
+
 **Confirmations** — destructive commands (Delete Session, Delete Project) require a native confirm
 dialog naming the target ("Delete session 'api-fix'? Files on disk are not touched."). Every other
 "are you sure" moment uses the one in-app confirmation modal behind
