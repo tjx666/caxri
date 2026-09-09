@@ -11,7 +11,9 @@ export function shouldPrepareLongPaste(options: {
     );
 }
 
-export function formatLongPasteReference(result: TerminalLongPasteResult): string {
+export function formatLongPasteReference(
+    result: Exclude<TerminalLongPasteResult, { status: 'passthrough' }>,
+): string {
     const filePath = JSON.stringify(result.filePath);
     const lines = `${result.lineCount} ${result.lineCount === 1 ? 'line' : 'lines'}`;
     const characters = `${result.characterCount} ${result.characterCount === 1 ? 'character' : 'characters'}`;
@@ -97,6 +99,13 @@ export class TerminalLongPasteController {
                  * the replacement if it still looked pending. No browser input can interleave within this task.
                  */
                 this.releaseInput();
+                if (result.status === 'passthrough') {
+                    /**
+                     * Native paste is allowed only for a live, unsupported Agent, never after a preparation failure.
+                     */
+                    if (this.options.canAcceptAgentInput()) this.options.paste(text);
+                    return;
+                }
                 this.options.pasteAgentExact(
                     formatLongPasteReference(result),
                     result.agentLaunchId,

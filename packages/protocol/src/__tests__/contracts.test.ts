@@ -11,7 +11,9 @@ import {
     MAX_CONFIGURATION_SOURCE_BYTES,
     MAX_FILE_BROWSE_ENTRIES,
     MAX_KEYBINDINGS,
+    MAX_LONG_PASTE_CHARACTERS,
     MAX_TERMINAL_INPUT_LENGTH,
+    MAX_TERMINAL_INPUT_PAYLOAD_LENGTH,
     methods,
     parseCaxriRequest,
     parseCaxriResult,
@@ -66,9 +68,22 @@ describe('method table', () => {
         expect(() =>
             parseCaxriRequest('terminal.input', {
                 terminalId: 'terminal-1',
-                data: 'x'.repeat(1_048_577),
+                data: 'x'.repeat(MAX_TERMINAL_INPUT_PAYLOAD_LENGTH + 1),
             }),
         ).toThrow();
+    });
+
+    it('accepts the largest long paste with the complete bracketed-paste envelope', () => {
+        const content = 'x'.repeat(MAX_LONG_PASTE_CHARACTERS);
+        expect(() =>
+            parseCaxriRequest('terminal.prepareLongPaste', { terminalId: 'terminal-1', content }),
+        ).not.toThrow();
+        expect(() =>
+            parseCaxriRequest('terminal.input', {
+                terminalId: 'terminal-1',
+                data: `\u{1B}[200~${content}\u{1B}[201~`,
+            }),
+        ).not.toThrow();
     });
 
     it('defaults Terminal restart to resuming the bound Agent session', () => {
