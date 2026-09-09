@@ -6,7 +6,7 @@ import { compareSessionSidebarOrder } from '@caxri/protocol';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { CURRENT_SCHEMA_VERSION, migrationManifest } from '../migrations/manifest';
+import { migrationManifest, schemaVersionForMigration } from '../migrations/manifest';
 import { CaxriDatabase } from '../repository';
 
 const directories: string[] = [];
@@ -117,9 +117,22 @@ describe('Session sidebar order', () => {
         directories.push(directory);
         const path = join(directory, 'state.db');
         const previous = new Database(path);
-        const previousMigrations = migrationManifest.slice(0, -1);
+        /**
+         * Pin the pre-order schema so future migrations cannot silently skip the backfill under test.
+         */
+        const previousMigrations = migrationManifest.slice(
+            0,
+            migrationManifest.findIndex(
+                (migration) => migration.tag === '0023_session-sidebar-order',
+            ),
+        );
         for (const migration of previousMigrations)
             previous.exec(migration.sql.replaceAll('--> statement-breakpoint', ''));
+        expect(
+            (previous.pragma('table_info(sessions)') as Array<{ name: string }>).map(
+                (column) => column.name,
+            ),
+        ).not.toContain('sidebar_order');
         previous
             .prepare(
                 'INSERT INTO projects (id, root_path, display_title, created_at, last_opened_at) VALUES (?, ?, ?, 1, 1)',
@@ -131,7 +144,7 @@ describe('Session sidebar order', () => {
         insert.run('a', 'p', 'Alpha', 1, 10);
         insert.run('b', 'p', 'Beta', 2, 20);
         insert.run('c', 'p', 'Gamma', 3, 20);
-        previous.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 1}`);
+        previous.pragma(`user_version = ${schemaVersionForMigration('0022_natural_apocalypse')}`);
         previous.close();
         const upgraded = new CaxriDatabase(path);
         connections.push(upgraded);
@@ -139,8 +152,12 @@ describe('Session sidebar order', () => {
             upgraded
                 .listSessions('p')
                 .toSorted(compareSessionSidebarOrder)
-                .map((row) => row.id),
-        ).toEqual(['c', 'b', 'a']);
+                .map((row) => [row.id, row.sidebarOrder]),
+        ).toEqual([
+            ['c', 0],
+            ['b', 1],
+            ['a', 2],
+        ]);
         expect(upgraded.getSession('a')?.lastSessionActivityAt).toBe(10);
     });
 });
