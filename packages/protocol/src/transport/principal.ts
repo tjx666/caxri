@@ -25,6 +25,7 @@ export const capabilityIds = [
     'agents.read',
     'agents.message',
     'agents.dispatch',
+    'agents.delegate',
     'agents.control',
     'agents.grant',
     'desktop.window',

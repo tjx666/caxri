@@ -586,12 +586,15 @@ export async function runCli(
             return 0;
         }
         const command = remoteCommand(parsed.tokens);
-        let parameters = command.parseParams(parsed.tokens.slice(command.path.length));
+        let parameters = await command.parseParams(parsed.tokens.slice(command.path.length));
         /**
          * Pull/lifecycle waits map `--timeout` to long poll; connect timing may be split.
          */
         if (command.method === 'agent.message.wait') parameters = { timeoutMs: parsed.timeoutMs };
-        else if (command.method === 'agent.dispatch.wait')
+        else if (
+            command.method === 'agent.dispatch.wait' ||
+            command.method === 'agent.delegation.wait'
+        )
             parameters = { ...(parameters as object), timeoutMs: parsed.timeoutMs };
         if (!endpointCredential && command.requiresAgentEndpoint)
             throw new CaxriError(
@@ -610,7 +613,18 @@ export async function runCli(
                 'VALIDATION',
                 'Mutation commands require an explicit --profile Host selector',
             );
-        if (isMutates) await confirmMutation(command, parsed, automation, options, io);
+        if (isMutates)
+            await confirmMutation(
+                {
+                    confirmation: endpointCredential
+                        ? command.confirmation
+                        : (command.ownerConfirmation ?? command.confirmation),
+                },
+                parsed,
+                automation,
+                options,
+                io,
+            );
         client = await connect({
             ...(endpointCredential && { credential: endpointCredential }),
             profilePath: profile.path,

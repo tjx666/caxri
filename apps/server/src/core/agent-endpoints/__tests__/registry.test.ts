@@ -33,6 +33,26 @@ function activate(
 }
 
 describe('AgentEndpointRegistry', () => {
+    it('grants delegation without granting general Terminal or Agent control', () => {
+        let now = 1;
+        const registry = new AgentEndpointRegistry('host-1', {
+            token: () => TOKEN,
+            now: () => now,
+        });
+        const endpoint = begin(registry);
+        activate(registry, endpoint);
+        const credential = { ...endpoint.ref, token: TOKEN };
+        expect(registry.authenticate(credential).capabilities).not.toContain('agents.delegate');
+        registry.grant(endpoint.ref, 'agent:delegate', 1_000);
+        const granted = registry.authenticate(credential).capabilities;
+        expect(granted).toContain('agents.delegate');
+        expect(granted).not.toContain('agents.control');
+        expect(granted).not.toContain('agents.dispatch');
+        expect(granted).not.toContain('terminals.steer');
+        now = 2_000;
+        expect(registry.authenticate(credential).capabilities).not.toContain('agents.delegate');
+    });
+
     it('keeps a pre-spawn credential pending until its exact launch activates', () => {
         const registry = new AgentEndpointRegistry('host-1', { token: () => TOKEN });
         const endpoint = begin(registry);

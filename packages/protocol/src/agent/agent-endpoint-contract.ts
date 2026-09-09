@@ -48,7 +48,12 @@ export const agentMessagingCapabilitySchema = z.strictObject({
     nextAction: agentMessagingNextActionSchema,
     providerVersion: z.string().trim().min(1).max(200).optional(),
 });
-export const agentGrantPolicySchema = z.enum(['debug:read', 'business:write', 'agent:control']);
+export const agentGrantPolicySchema = z.enum([
+    'debug:read',
+    'business:write',
+    'agent:control',
+    'agent:delegate',
+]);
 
 export const agentEndpointSummarySchema = z.object({
     ref: agentEndpointRefSchema,

@@ -2,6 +2,10 @@ import { z } from 'zod';
 
 import { agentActionMethods } from '../agent/agent-action-contract.js';
 import {
+    agentDelegationInternalMethods,
+    agentDelegationMethods,
+} from '../agent/agent-delegation-contract.js';
+import {
     agentDispatchInternalMethods,
     agentDispatchMethods,
 } from '../agent/agent-dispatch-contract.js';
@@ -179,6 +183,7 @@ const externalOpenResult = z.discriminatedUnion('status', [
 export const methods = {
     ...agentActionMethods,
     ...agentDispatchMethods,
+    ...agentDelegationMethods,
     ...agentEndpointMethods,
     ...agentInboxMethods,
     ...businessMethods,
@@ -727,6 +732,7 @@ export const methods = {
  */
 export const internalMethods = {
     ...agentDispatchInternalMethods,
+    ...agentDelegationInternalMethods,
     ...businessInternalMethods,
     ...gitInternalMethods,
     ...mobileInternalMethods,

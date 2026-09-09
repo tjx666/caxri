@@ -5,6 +5,7 @@ import {
     settingsPatchChangeSchema,
 } from '@caxri/protocol';
 
+import { DELEGATION_COMMANDS } from './delegation';
 import { SKILL_COMMANDS } from './skills';
 import type { CliCommandDefinition } from './types';
 
@@ -323,6 +324,7 @@ function terminalSend(tokens: readonly string[]): Record<string, unknown> {
 }
 
 export const CLI_COMMANDS = [
+    ...DELEGATION_COMMANDS,
     {
         kind: 'local',
         path: ['capabilities'],

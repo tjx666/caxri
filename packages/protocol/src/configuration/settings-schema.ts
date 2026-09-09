@@ -53,7 +53,7 @@ const filesExcludeRecordSchema = z
         message: `File exclusions support at most ${MAX_FILES_EXCLUDE_PATTERNS} patterns`,
     });
 
-const agentLaunchSettingsSchema = z.object({
+export const agentLaunchSettingsSchema = z.object({
     executable: z.string().trim().min(1).max(4_096),
     args: z.array(z.string().max(4_096)).max(64),
 });

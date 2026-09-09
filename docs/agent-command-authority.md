@@ -1,15 +1,19 @@
 # Agent command authority
 
-Caxri exposes three intentionally separate local command domains. Sharing a PTY implementation does
+Caxri exposes separate local command domains. Sharing a PTY implementation does
 not make their authority, origin, retry, or audit semantics interchangeable.
 
 | Domain                 | CLI                                                                           | Required authority                                                                             | Content boundary                                                                                                      |
 | ---------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | Peer Message           | `agent message send\|wait\|reply`                                             | Managed Agent Endpoint with `agents.message`                                                   | Bounded peer-origin text stays in Server Core memory and never becomes PTY input.                                     |
+| Visible Delegation     | `agent delegate create\|status\|wait\|result`                                 | Explicit generation-scoped `agent:delegate` grant, or authenticated owner                      | Private task/result storage, exact turn evidence, and a same-Session visible child Terminal.                          |
 | Agent Dispatch/Control | `agent dispatch start\|resume\|status\|wait`, `agent control interrupt\|stop` | Same-Project reads use `agents.read`; mutations require a project-scoped `agent:control` grant | Server Core owns durable receipts, exact provider bindings, and Endpoint generations; Terminal Host owns PTY signals. |
 | Human Terminal Steer   | `terminal send --terminal <id> --text <text> [--enter]`                       | Authenticated Desktop or human CLI owner with `terminals.steer`                                | Bounded simulated user input; never a Peer Message and never available to an Agent credential.                        |
 
 ## Dispatch lifecycle
+
+For task submission and final answers, use [visible delegation](agent-delegation.md). Dispatch
+receipts describe process lifecycle and cannot prove that a particular task has finished.
 
 - `start` creates one fresh Agent Terminal and provider conversation in an exact Project Session.
 - `resume` requires the Terminal ID and its currently bound provider session ID. Matching a provider

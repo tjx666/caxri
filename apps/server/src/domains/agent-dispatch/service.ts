@@ -52,6 +52,19 @@ export interface AgentDispatchServiceOptions {
 
 type DispatchReason = AgentDispatchFailure['reason'];
 
+export interface AgentDispatchStartOptions {
+    launch: AgentLaunchSettings;
+    cwd?: string;
+    /**
+     * Checks current layout capacity after async path validation, immediately before durable creation.
+     */
+    beforeCreate?(): void;
+    /**
+     * Runs after durable Terminal creation and before any provider process can start.
+     */
+    prepared(terminal: TerminalRecord): void;
+}
+
 function dispatchFingerprint(principal: Principal, operation: string, input: unknown): string {
     return createHash('sha256')
         .update(JSON.stringify({ principal, operation, input }))
@@ -142,6 +155,7 @@ export class AgentDispatchService {
         dispatchId: string,
         principal: Principal,
         input: AgentDispatchStartParameters,
+        options?: AgentDispatchStartOptions,
     ): Promise<AgentDispatchReceipt> {
         const fingerprint = dispatchFingerprint(principal, 'start', input);
         const existing = this.existing(dispatchId, fingerprint);
@@ -149,10 +163,14 @@ export class AgentDispatchService {
         const session = this.targetSession(input.projectId, input.sessionId);
         const ownerProject = this.options.database.getProject(session.projectId);
         if (!ownerProject) throw new CaxriError('NOT_FOUND', 'Project not found');
-        const launch = this.options.launchSettings(input.provider);
+        const launch = options?.launch ?? this.options.launchSettings(input.provider);
         const projected = launchProjection(input.provider, launch, 'fresh');
-        const cwd = await this.options.terminalWorkingDirectory(ownerProject.rootPath);
+        const cwd = await this.options.terminalWorkingDirectory(
+            options?.cwd ?? ownerProject.rootPath,
+        );
         const identity = await this.options.terminalDirectoryIdentity(cwd);
+        options?.beforeCreate?.();
+        const previousLayout = this.options.database.getSessionState(input.sessionId).paneLayout;
         const { stored, terminal } = this.options.database.createAgentDispatchWithTerminal(
             {
                 dispatchId,
@@ -170,6 +188,15 @@ export class AgentDispatchService {
         );
         this.publish(stored.receipt);
         try {
+            options?.prepared(terminal);
+        } catch (error) {
+            // Preparation is synchronous and no process exists yet; restore the exact pre-insert layout.
+            this.options.database.closeTerminal(terminal.id);
+            const state = this.options.database.getSessionState(input.sessionId);
+            this.options.database.updateSessionState({ ...state, paneLayout: previousLayout });
+            return this.fail(dispatchId, error, 'launch_failed');
+        }
+        try {
             this.options.emit({
                 event: 'state.changed',
                 payload: { kind: 'full', reason: 'terminal.create' },
@@ -178,7 +205,7 @@ export class AgentDispatchService {
         } catch (error) {
             return this.fail(dispatchId, error, 'launch_failed');
         }
-        return this.launch(dispatchId, terminal, identity);
+        return this.launch(dispatchId, terminal, identity, undefined, launch);
     }
 
     private async resumeOnce(
@@ -241,6 +268,7 @@ export class AgentDispatchService {
         terminal: TerminalRecord,
         expectedWorkingDirectory: TerminalWorkingDirectoryIdentity,
         resumeAgentSessionId?: string,
+        launchSettings?: AgentLaunchSettings,
     ): Promise<AgentDispatchReceipt> {
         try {
             await (resumeAgentSessionId
@@ -248,7 +276,10 @@ export class AgentDispatchService {
                       expectedWorkingDirectory,
                       resumeAgentSessionId,
                   })
-                : this.options.terminals.start(terminal, { expectedWorkingDirectory }));
+                : this.options.terminals.start(terminal, {
+                      expectedWorkingDirectory,
+                      launchSettings,
+                  }));
             await this.options.terminals.waitForAgentRunning(terminal.id);
             const running = this.options.database.getTerminal(terminal.id);
             const currentEndpoint = this.options.endpoints?.endpointForTerminal(terminal.id);
@@ -387,8 +418,11 @@ export class AgentDispatchService {
         dispatchId: string,
         principal: Principal,
         input: AgentDispatchStartParameters,
+        options?: AgentDispatchStartOptions,
     ): Promise<AgentDispatchReceipt> {
-        return this.inFlight.run(dispatchId, () => this.startOnce(dispatchId, principal, input));
+        return this.inFlight.run(dispatchId, () =>
+            this.startOnce(dispatchId, principal, input, options),
+        );
     }
 
     resume(
