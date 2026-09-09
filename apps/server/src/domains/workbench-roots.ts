@@ -638,7 +638,11 @@ export class WorkbenchRootService {
         const active = this.requireProject(session.workbenchProjectId);
         try {
             const topology = await this.loadTopology(owner.rootPath);
-            const linked = topology.worktrees.filter((root) => root.rootPath !== owner.rootPath);
+            /**
+             * Git lists the main checkout first; the owning Project may itself be a linked checkout.
+             * https://git-scm.com/docs/git-worktree#Documentation/git-worktree.txt-list
+             */
+            const linked = topology.worktrees.slice(1);
             const preferred =
                 linked.find((root) => root.rootPath === active.rootPath) ?? linked.at(0);
             return dirname(preferred?.rootPath ?? owner.rootPath);

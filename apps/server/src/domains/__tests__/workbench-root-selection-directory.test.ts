@@ -49,6 +49,19 @@ describe('Workbench Root selection directory', () => {
         context.database.close();
     });
 
+    it('keeps an independently added linked Project beside its own worktree', async () => {
+        const context = await fixture();
+        const sessionId = context.sessions[0].session.id;
+        context.setWorktrees([
+            { branch: 'main', rootPath: join(context.directory, 'main-repository', 'root') },
+            { branch: 'feature', rootPath: context.ownerRoot },
+        ]);
+
+        expect(await context.service.selectionDirectory(sessionId)).toBe(context.directory);
+        await context.service.close();
+        context.database.close();
+    });
+
     it('rejects unknown Sessions before consulting Git', async () => {
         const context = await fixture();
 
