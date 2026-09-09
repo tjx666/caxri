@@ -42,6 +42,20 @@ export function applyDelegationLifecycle(
         return patch('interrupted', 'session_changed');
     if (signal.phase === 'turnStarted') {
         if (record.turnId && signal.agentTurnId === record.turnId) return;
+        if (
+            record.turnId &&
+            signal.agentContinuedTurnId === record.turnId &&
+            signal.agentTurnId &&
+            signal.agentPromptDigest
+        ) {
+            const digests = [...(record.continuationPromptDigests ?? []), signal.agentPromptDigest];
+            if (digests.length > 64) return patch('answer_unavailable', 'payload_overflow');
+            return {
+                ...patch('running'),
+                turnId: signal.agentTurnId,
+                continuationPromptDigests: digests,
+            };
+        }
         if (record.turnId || signal.agentPromptDigest !== record.promptDigest)
             return patch('answer_unavailable', 'correlation_missing');
         if (!signal.agentTurnId) return patch('answer_unavailable', 'correlation_missing');

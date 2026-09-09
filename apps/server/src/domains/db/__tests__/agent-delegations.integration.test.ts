@@ -40,6 +40,24 @@ async function fixture() {
 }
 
 describe('Agent delegation persistence', () => {
+    it('backfills indexed Terminal ownership from the preceding schema without losing task data', async () => {
+        const { database, path, record, session } = await fixture();
+        const terminalId = database.listTerminals(session.id)[0].id;
+        record.receipt.terminalId = terminalId;
+        database.agentDelegations.insert(record);
+        database.database.exec('DROP INDEX agent_delegations_terminal');
+        database.database.exec('ALTER TABLE agent_delegations DROP COLUMN terminal_id');
+        database.database.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 1}`);
+        database.close();
+        const upgraded = new CaxriDatabase(path);
+        try {
+            expect(upgraded.agentDelegations.hasTerminal(terminalId)).toBe(true);
+            expect(upgraded.agentDelegations.get(record.receipt.delegationId)).toEqual(record);
+        } finally {
+            upgraded.close();
+        }
+    });
+
     it('retains a private completed answer across database restart and excludes it from active tasks', async () => {
         const { database, path, record } = await fixture();
         database.agentDelegations.insert(record);
@@ -66,11 +84,11 @@ describe('Agent delegation persistence', () => {
         }
     });
 
-    it('upgrades the immediately previous schema without losing Session or Terminal records', async () => {
+    it('creates delegation storage without losing Session or Terminal records', async () => {
         const { database, path, record, session } = await fixture();
         const terminals = database.listTerminals(session.id);
         database.database.exec('DROP TABLE agent_delegations');
-        database.database.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 1}`);
+        database.database.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 2}`);
         database.close();
         const upgraded = new CaxriDatabase(path);
         try {

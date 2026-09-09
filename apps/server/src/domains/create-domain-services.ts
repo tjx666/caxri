@@ -19,6 +19,7 @@ import type { AgentDispatchService } from './agent-dispatch';
 import { createAgentRuntime } from './agent-runtime';
 import { LongPasteService } from './agents';
 import { createBackgroundTasks, refreshWatchSessionInBackground } from './background-tasks';
+import { createDeletionHandlers } from './deletion-handlers';
 import { DiagnosticsService } from './diagnostics';
 import type { DomainDependencies, DomainHandlers, DomainServices } from './domain-services';
 import { createIntrospectionServices } from './introspection';
@@ -105,7 +106,7 @@ export async function createDomainServices(
             dependencies.terminal?.agentOutputRecoverySettings ?? agentOutputRecoverySettings,
         shellEnvironment: (terminal) => agentHooks.shellEnvironment(terminal.id),
         onShellRetired: (terminalId) => agentHooks.endShellLaunch(terminalId),
-        lifecycleEnvironment: async (terminal, launch, launchId) => {
+        lifecycleEnvironment: async (terminal, launch, launchId, delegationId) => {
             if (!launchId)
                 throw new CaxriError('CONFLICT', 'Managed Agent launch identity is unavailable');
             const hookEnvironment = agentHooks.terminalEnvironment(
@@ -113,7 +114,12 @@ export async function createDomainServices(
                 terminal.provider,
                 launchId,
             );
-            delegationState.service?.bindEnvironment(terminal.id, launchId, hookEnvironment);
+            delegationState.service?.bindEnvironment(
+                terminal.id,
+                launchId,
+                hookEnvironment,
+                delegationId,
+            );
             if (!launch || terminal.kind === 'shell') return hookEnvironment;
             const session = database.getSession(terminal.sessionId);
             if (!session) throw new CaxriError('CONFLICT', 'Agent Session no longer exists');
@@ -151,7 +157,7 @@ export async function createDomainServices(
             return dependencies.agentEndpoints?.activate(terminal.id);
         },
         onLifecycleRetired: async (terminalId, launchId) => {
-            delegationState.service?.interruptTerminal(terminalId);
+            delegationState.service?.interruptTerminal(terminalId, false, launchId);
             suspensionState.service?.forgetTerminal(terminalId);
             agentHooks.endTerminalLaunch(terminalId, launchId);
             await provenance.retireAgentWorkbenchProvenance({
@@ -376,15 +382,6 @@ export async function createDomainServices(
         send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.unarchive' } });
         return restored;
     };
-    const deleteSessions = (sessionIds: readonly string[]): BootstrapState => {
-        for (const sessionId of sessionIds) forgetSessionRuntime(sessionId);
-        git.evictSessions(sessionIds);
-        projectStatus.evictSessions(sessionIds);
-        for (const sessionId of sessionIds) database.deleteSession(sessionId);
-        observeSelectedSession(selectedSessionId(), true);
-        send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.delete' } });
-        return bootstrapState();
-    };
     const agentCommands = createAgentCommandRuntime({
         database,
         coordinator,
@@ -562,24 +559,6 @@ export async function createDomainServices(
                 'Project creation cancellation is owned by the Main process',
             );
         },
-        'project.delete': ({ projectId }) => {
-            // Covers the worktree Projects deleted alongside this one, so nothing under them keeps a live cache.
-            const { owned: ownedSessions, workbench: affectedWorkbenchSessions } =
-                database.projectDeletionScope(projectId);
-            const affectedSessionIds = [
-                ...new Set(
-                    [...ownedSessions, ...affectedWorkbenchSessions].map((session) => session.id),
-                ),
-            ];
-            for (const session of ownedSessions) forgetSessionRuntime(session.id);
-            git.evictSessions(affectedSessionIds);
-            projectStatus.evictSessions(affectedSessionIds);
-            database.deleteProject(projectId);
-            workbenchRoots.projectDeleted(affectedWorkbenchSessions.map((session) => session.id));
-            observeSelectedSession(selectedSessionId(), true);
-            send({ event: 'state.changed', payload: { kind: 'full', reason: 'project.delete' } });
-            return bootstrapState();
-        },
         'project.list': () => ({ view: 'desktop', projects: database.listProjects() }),
         'project.query': () => mainOwned('project.query'),
         'project.queryForPrincipal': ({ principal, query }) =>
@@ -681,8 +660,19 @@ export async function createDomainServices(
             }),
         'session.unarchive': ({ sessionId }) => unarchiveSessions([sessionId])[0],
         'session.unarchiveMany': ({ sessionIds }) => unarchiveSessions([...new Set(sessionIds)]),
-        'session.delete': ({ sessionId }) => deleteSessions([sessionId]),
-        'session.deleteMany': ({ sessionIds }) => deleteSessions([...new Set(sessionIds)]),
+        ...createDeletionHandlers({
+            database,
+            delegations: agentCommands.delegationService,
+            bootstrapState,
+            forgetSessionRuntime,
+            evictSessions: (ids) => {
+                git.evictSessions(ids);
+                projectStatus.evictSessions(ids);
+            },
+            projectDeleted: (ids) => workbenchRoots.projectDeleted(ids),
+            restoreSelection: () => observeSelectedSession(selectedSessionId(), true),
+            send,
+        }),
         'session.updateState': (state) => {
             database.updateSessionState(state);
             return database.getSessionState(state.sessionId);

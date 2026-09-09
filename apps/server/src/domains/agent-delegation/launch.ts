@@ -54,6 +54,32 @@ async function privateDirectory(path: string): Promise<void> {
 }
 
 /**
+ * A running native session already trusts only its original task directory. Follow-ups stay inside that exact grant;
+ * each exclusive file and pointer carries a fresh task identity without replacing an earlier task body.
+ */
+export async function prepareDelegationFollowUp(
+    userDataPath: string,
+    rootDelegationId: string,
+    delegationId: string,
+    prompt: string,
+): Promise<{ pointer: string; promptDigest: string }> {
+    for (const id of [rootDelegationId, delegationId])
+        if (!/^(?:[\da-f-]{36}|dispatch-[\da-f]{64})$/u.test(id))
+            throw new CaxriError(
+                'VALIDATION',
+                'Delegation follow-up requires generated identifiers',
+            );
+    const root = join(userDataPath, 'delegations');
+    await privateDirectory(root);
+    const directory = join(root, rootDelegationId);
+    await privateDirectory(directory);
+    const path = join(directory, `${delegationId}.md`);
+    await writeFile(path, prompt, { encoding: 'utf8', flag: 'wx', mode: 0o600 });
+    const pointer = `Read the delegated task from ${JSON.stringify(path)} and carry it out. Delegation ID: ${delegationId}.`;
+    return { pointer, promptDigest: createHash('sha256').update(pointer).digest('hex') };
+}
+
+/**
  * Only the opaque pointer reaches argv (and process inspection). The task body lives in the private profile; exclusive
  * creation prevents a retry from replacing previously submitted work.
  */

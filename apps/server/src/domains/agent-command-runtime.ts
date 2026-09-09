@@ -27,6 +27,23 @@ export function createAgentCommandRuntime(
         dispatch: dispatchService,
         userDataPath: options.userDataPath,
         dimensions: (terminalId) => options.terminals.dimensions(terminalId),
+        inputEpoch: (terminalId) => options.terminals.inputEpoch(terminalId),
+        currentLaunchId: (terminalId) =>
+            options.terminals.agentProcessId(terminalId) === undefined
+                ? undefined
+                : options.terminals.agentLaunchId(terminalId),
+        isIdle: (terminalId, launchId, turnId) =>
+            options.coordinator.hasIdleProof(terminalId, launchId, turnId),
+        write: (terminalId, launchId, data) => {
+            const accepted = options.terminals.writeAgentExact(
+                terminalId,
+                data,
+                launchId,
+                'delegation',
+            );
+            if (accepted) options.coordinator.observeInput(terminalId, data);
+            return accepted;
+        },
         launchSettings: () => options.launchSettings('claude'),
         verifyLaunch: async (launch) => {
             const version = coerce((await readVersion('claude', launch.executable)) ?? '');

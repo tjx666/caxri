@@ -66,6 +66,7 @@ export class TerminalManager {
     private readonly onOutputActivity?: TerminalManagerOptions['onOutputActivity'];
     private readonly onStateChanged?: TerminalManagerOptions['onStateChanged'];
     private readonly onInput?: TerminalManagerOptions['onInput'];
+    private readonly inputEpochs = new Map<string, number>();
     private readonly terminalColors?: TerminalManagerOptions['terminalColors'];
 
     constructor(
@@ -362,11 +363,17 @@ export class TerminalManager {
                 record,
                 resolved.value,
                 options?.expectedWorkingDirectory,
+                options?.delegationId,
             );
             if (!prepared.ok) {
                 failureReason = prepared.failureReason;
                 throw prepared.error;
             }
+            if (options?.shouldStart && !options.shouldStart())
+                throw new CaxriError(
+                    'CANCELLED',
+                    'Terminal launch was cancelled during preparation',
+                );
             if (prepared.value.agent)
                 this.agentLaunches.set(record.id, prepared.value.agent.launchId);
             if (prepared.value.agent)
@@ -421,14 +428,24 @@ export class TerminalManager {
         }
     }
 
+    private observeUserInput(terminalId: string, data: string): void {
+        if (isTerminalProtocolResponse(data)) return;
+        this.inputEpochs.set(terminalId, this.inputEpoch(terminalId) + 1);
+        this.onInput?.(terminalId);
+    }
+
     start(record: TerminalRecord, options?: TerminalStartOptions): Promise<TerminalRecord> {
         if (this.execution.processId(record.id) !== undefined)
             return Promise.resolve(this.database.getTerminal(record.id)!);
         return this.starts.run(record.id, () => this.spawn(record, options));
     }
 
+    inputEpoch(terminalId: string): number {
+        return this.inputEpochs.get(terminalId) ?? 0;
+    }
+
     write(terminalId: string, data: string): boolean {
-        if (!isTerminalProtocolResponse(data)) this.onInput?.(terminalId);
+        this.observeUserInput(terminalId, data);
         return this.execution.write(terminalId, data);
     }
 
@@ -437,15 +454,20 @@ export class TerminalManager {
         data: string,
         abortSignal?: AbortSignal,
     ): Promise<boolean> {
-        if (!isTerminalProtocolResponse(data)) this.onInput?.(terminalId);
+        this.observeUserInput(terminalId, data);
         return this.execution.writeAcknowledged(terminalId, data, abortSignal);
     }
 
     /**
      * Checks and accepts a generated Agent input in one synchronous Server Core turn.
      */
-    writeAgentExact(terminalId: string, data: string, expectedAgentLaunchId: string): boolean {
-        if (!isTerminalProtocolResponse(data)) this.onInput?.(terminalId);
+    writeAgentExact(
+        terminalId: string,
+        data: string,
+        expectedAgentLaunchId: string,
+        origin: 'human' | 'delegation' = 'human',
+    ): boolean {
+        if (origin === 'human') this.observeUserInput(terminalId, data);
         return this.execution.writeAgentExact(terminalId, data, expectedAgentLaunchId);
     }
 
@@ -455,7 +477,7 @@ export class TerminalManager {
      * the current attachment.
      */
     writeAgent(terminalId: string, data: string): Promise<boolean> {
-        if (!isTerminalProtocolResponse(data)) this.onInput?.(terminalId);
+        this.observeUserInput(terminalId, data);
         return this.execution.writeAgent(terminalId, data);
     }
 
@@ -628,6 +650,7 @@ export class TerminalManager {
 
     close(terminalId: string): void {
         this.viewSizes.delete(terminalId);
+        this.inputEpochs.delete(terminalId);
         if (this.execution.processId(terminalId) !== undefined)
             this.retireAgentLifecycleSoon(terminalId, 'stopped');
         this.execution.close(terminalId);

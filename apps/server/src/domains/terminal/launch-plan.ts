@@ -120,6 +120,7 @@ export class TerminalLaunchPlanner {
                         ...agentProviders[record.kind].resumeArguments(start.resumeAgentSessionId),
                     );
                 }
+                if (start?.initialPrompt) agentArguments.push('--', start.initialPrompt);
                 return {
                     ok: true,
                     value: {
@@ -147,6 +148,7 @@ export class TerminalLaunchPlanner {
         record: TerminalRecord,
         resolved: ResolvedTerminalLaunch,
         expectedWorkingDirectory?: TerminalWorkingDirectoryIdentity,
+        delegationId?: string,
     ): Promise<TerminalLaunchPlanResult<TerminalLaunchPlan>> {
         try {
             await assertTerminalWorkingDirectory(record.cwd, expectedWorkingDirectory);
@@ -208,6 +210,7 @@ export class TerminalLaunchPlanner {
                               record,
                               resolved.agent.launch,
                               resolved.agent.launchId,
+                              delegationId,
                           )),
                       },
                   }
