@@ -48,6 +48,11 @@ local checks is not completion while PR creation, CI, merge, issue closeout, or 
 still pending. Continue authorized work; if a concrete blocker prevents progress, report the exact
 unfinished step and blocker instead of declaring the task complete.
 
+At entry, record which delivery steps are complete and which remain. A generic instruction to
+avoid unrequested remote mutations does not narrow this explicitly activated workflow: the request
+that activates it supplies that authorization. Honor a task-specific restriction instead when the
+user explicitly limits the current run.
+
 ## Create or resolve a checkout
 
 Create a semantic branch from the latest `origin/main`, install independent dependencies with `ni`,
