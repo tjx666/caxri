@@ -6,6 +6,7 @@ import { z } from 'zod';
  */
 export const logEventCatalog = {
     agent: {
+        automaticNamingFinished: 'agent.automatic_naming_finished',
         integrationReconcileFailed: 'agent.integration_reconcile_failed',
         probe: 'agent.probe',
         probeFailed: 'agent.probe_failed',

@@ -79,6 +79,16 @@ export const sessions = sqliteTable(
         layoutVersion: integer('layout_version').notNull().default(DEFAULT_LAYOUT_VERSION),
         displayTitle: text('display_title').notNull(),
         titleMode: text('title_mode').notNull().default('automatic'),
+        automaticNaming: text('automatic_naming', { mode: 'json' }).$type<{
+            agentSessionId: string;
+            terminalId: string;
+            provider: string;
+            cwd: string;
+            title: string;
+            previousTitle?: string;
+            status: 'pending' | 'complete' | 'stopped';
+            updatedAt: number;
+        }>(),
     },
     (table) => [
         index('sessions_project_activity').on(
