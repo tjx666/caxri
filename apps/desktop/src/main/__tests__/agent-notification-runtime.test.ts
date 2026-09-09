@@ -4,8 +4,19 @@ const electronMock = vi.hoisted(() => ({
     Notification: class {},
 }));
 vi.mock('electron', () => electronMock);
+vi.mock(import('../agent-notifications'), async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+        ...actual,
+        createAgentNotificationCoordinator: vi.fn(actual.createAgentNotificationCoordinator),
+    };
+});
 
-import { activateAgentNotificationSession } from '../agent-notification-runtime';
+import {
+    activateAgentNotificationSession,
+    createDesktopAgentNotifications,
+} from '../agent-notification-runtime';
+import { createAgentNotificationCoordinator } from '../agent-notifications';
 import type { DesktopServerConnection } from '../server-connection';
 
 function harness(sessions: Array<{ archivedAt?: number; id: string }>) {
@@ -25,7 +36,7 @@ function harness(sessions: Array<{ archivedAt?: number; id: string }>) {
         focusMainWindow,
         options: {
             focusMainWindow,
-            logger: () => {},
+            logger: (): undefined => undefined,
             supervisor: { request } as unknown as DesktopServerConnection,
         },
         request,
@@ -34,6 +45,31 @@ function harness(sessions: Array<{ archivedAt?: number; id: string }>) {
 
 describe('Agent notification activation', () => {
     beforeEach(() => vi.clearAllMocks());
+
+    it('forwards accepted native attention decisions as content-free history events', () => {
+        const sendEvent = vi.fn();
+        const test = harness([]);
+        const coordinator = createDesktopAgentNotifications({
+            ...test.options,
+            getWindow: () => {},
+            sendEvent,
+        });
+        const options = vi.mocked(createAgentNotificationCoordinator).mock.calls[0][0];
+        const decision = {
+            attentionEpoch: 1,
+            attentionKind: 'waiting' as const,
+            sessionId: 'session-1',
+            durationMs: 1_000,
+        };
+        options.onDecision?.({ ...decision, outcome: 'disabled' });
+        expect(sendEvent).not.toHaveBeenCalled();
+        options.onDecision?.({ ...decision, outcome: 'shown' });
+        expect(sendEvent).toHaveBeenCalledExactlyOnceWith({
+            event: 'agent.notification',
+            payload: { sessionId: 'session-1', attentionKind: 'waiting' },
+        });
+        coordinator.dispose();
+    });
 
     it('focuses Caxri before selecting the exact active Session', async () => {
         const test = harness([{ id: 'session-1' }]);

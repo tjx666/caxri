@@ -2,7 +2,13 @@ import type { AgentProvider } from '@caxri/protocol';
 import { create } from 'zustand';
 
 export type SettingsView =
-    'ui' | 'source' | 'keybindings' | 'trusted-domains' | 'agent-actions' | 'hardware-acceleration';
+    | 'ui'
+    | 'source'
+    | 'keybindings'
+    | 'trusted-domains'
+    | 'agent-actions'
+    | 'hardware-acceleration'
+    | 'notifications';
 
 interface DialogState {
     archivedSessionsOpen: boolean;

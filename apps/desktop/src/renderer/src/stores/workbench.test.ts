@@ -24,6 +24,13 @@ vi.mock('../lib/caxri', () => ({
     caxri: { onEvent: mocks.onEvent, request: mocks.request },
 }));
 
+// These minimal bootstrap fixtures exercise record convergence, not configuration projection.
+vi.mock(import('./notifications'), async (importOriginal) => ({
+    ...(await importOriginal()),
+    syncNotificationSettings: vi.fn(),
+}));
+
+import { useNotificationStore } from './notifications';
 import { useSessionViewStore } from './session-view';
 import { dismissToast, getToasts } from './toasts';
 import {
@@ -47,6 +54,52 @@ afterEach(() => {
 });
 
 describe('workbench Runtime events', () => {
+    it('keeps delivery failures from different branches separate while grouping branch repeats', () => {
+        useNotificationStore.setState({ entries: [], isOpen: false, mutedTypes: [], sequence: 0 });
+        const unsubscribe = subscribeWorkbenchEvents(eventHandlers());
+        for (const branch of ['main', 'feature', 'main']) {
+            mocks.emit({
+                event: 'projectStatus.alert',
+                payload: {
+                    sessionId: 'session-1',
+                    kind: 'check',
+                    repository: 'example',
+                    branch,
+                    name: 'Unit tests',
+                },
+            });
+        }
+        expect(useNotificationStore.getState().entries).toMatchObject([
+            { projectTitle: 'example · main', count: 2 },
+            { projectTitle: 'example · feature', count: 1 },
+        ]);
+        unsubscribe();
+    });
+
+    it('retains native notification events without producing a second popup', () => {
+        useNotificationStore.setState({ entries: [], isOpen: false, mutedTypes: [], sequence: 0 });
+        const unsubscribe = subscribeWorkbenchEvents(eventHandlers());
+        mocks.emit({
+            event: 'agent.notification',
+            payload: { sessionId: 'missing-session', attentionKind: 'waiting' },
+        });
+        mocks.emit({
+            event: 'projectStatus.alert',
+            payload: {
+                sessionId: 'session-1',
+                kind: 'check',
+                repository: 'example',
+                branch: 'main',
+                name: 'Unit tests',
+            },
+        });
+        expect(getToasts()).toEqual([]);
+        expect(useNotificationStore.getState().entries.map((entry) => entry.message)).toEqual([
+            'CI failed: Unit tests',
+            'Agent is waiting for your input.',
+        ]);
+        unsubscribe();
+    });
     it('patches a Terminal exit through app.records without requesting app.bootstrap', async () => {
         const running = { id: 'terminal-1', lastProcessState: 'running' };
         useWorkbenchStore.setState({
