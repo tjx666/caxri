@@ -202,6 +202,26 @@ export interface TreeDataProvider<T> {
     getTreeItem(element: T): ProviderResult<TreeItem>;
 }
 
+/**
+ * Numeric activity owned by a view; the Workbench formats and aggregates it on the container.
+ */
+export interface ViewBadge {
+    count: number;
+    description: string;
+    tone?: 'neutral' | 'danger';
+}
+
+export interface ViewBadgeProvider {
+    /**
+     * Fires within a scoped Workspace notification or provider callback; unscoped events are ignored.
+     */
+    readonly onDidChangeBadge?: Event<void>;
+    /**
+     * Runs in the requested Workbench scope, including before the view has ever been opened.
+     */
+    provideBadge(request: { scopeId: string }, token: CancellationToken): ProviderResult<ViewBadge>;
+}
+
 export interface ExtensionContext {
     readonly extensionId: string;
     readonly generation: number;
@@ -307,6 +327,7 @@ export interface CaxriApi {
         ): Disposable;
     };
     readonly views: {
+        registerViewBadgeProvider(viewId: string, provider: ViewBadgeProvider): Disposable;
         registerTreeDataProvider<T>(viewId: string, provider: TreeDataProvider<T>): Disposable;
         registerSourceControlProvider(viewId: string, provider: SourceControlProvider): Disposable;
     };
@@ -351,6 +372,7 @@ const caxri: CaxriApi = Object.freeze({
         registerCommand: () => unavailable('commands.registerCommand'),
     }),
     views: Object.freeze({
+        registerViewBadgeProvider: () => unavailable('views.registerViewBadgeProvider'),
         registerSourceControlProvider: () => unavailable('views.registerSourceControlProvider'),
         registerTreeDataProvider: () => unavailable('views.registerTreeDataProvider'),
     }),

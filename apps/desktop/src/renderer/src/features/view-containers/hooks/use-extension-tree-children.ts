@@ -3,16 +3,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { TreeItemDto } from '@caxri/protocol';
 
-import { caxri } from '../../lib/caxri';
-import type { RootLoadProgress } from './extension-tree-refresh-state';
-import type { ExtensionTreeState } from './extension-tree-state';
+import { caxri } from '../../../lib/caxri';
+import type { RootLoadProgress } from '../extension-tree-refresh-state';
+import type { ExtensionTreeState } from '../extension-tree-state';
 import {
     focusTreeItem,
     isTreeSnapshotReady,
     reconcileTreeItems,
     replaceTreeChildren,
     treeSnapshotLoading,
-} from './extension-tree-state';
+} from '../extension-tree-state';
 
 export const ROOT_HANDLE = '__caxri_tree_root__';
 

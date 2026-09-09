@@ -35,7 +35,8 @@ vi.mock('../catalog', () => ({
                     containerId: 'publisher.fixture',
                     source: { kind: 'extension', extensionId: 'publisher.fixture' },
                     extensionId: 'publisher.fixture',
-                    viewKind: 'tree',
+                    viewKind: { kind: 'tree' },
+                    badge: true,
                     title: 'Fixture',
                     lifecycle: state.lifecycle,
                 },
@@ -175,6 +176,68 @@ describe('ExtensionService generation lifecycle', () => {
         supervisorHarness.startListeners.length = 0;
         supervisorHarness.treeChildrenFailure = undefined;
         supervisorHarness.viewOperationResult = undefined;
+    });
+
+    it('activates once for concurrent badge reads and rejects undeclared badge views', async () => {
+        const logger = new StructuredLogger(
+            '/tmp/caxri-extension-badge-test',
+            'server-core',
+            'error',
+        );
+        const service = new ExtensionService({
+            ...observationIdentity,
+            appVersion: '0.0.17',
+            commit: 'test',
+            extensionHostPath: '/out/main/extension-host.js',
+            extensionRoots: ['/extensions'],
+            includeTestOnly: true,
+            logger,
+            activeContext: () =>
+                Promise.resolve({
+                    ownerProjectId: 'project-1',
+                    sessionId: 'session-1',
+                    workbenchProjectId: 'project-1',
+                }),
+            projectIds: () => Promise.resolve(['project-1']),
+            projectStatus: () => Promise.resolve({ repositories: [], refreshedAt: 1 }),
+            workspaceRequest: () => Promise.resolve(null),
+        });
+        await service.start();
+        supervisorHarness.viewOperationResult = { count: 3, description: '3 changes' };
+        const request = {
+            viewId: 'publisher.fixture.tree',
+            operation: 'badge.snapshot' as const,
+            arguments: {},
+            context: {
+                kind: 'session' as const,
+                sessionId: 'session-1',
+                workbenchProjectId: 'project-1',
+            },
+        };
+        const first = service.viewOperation({ ...request, requestId: 'badge-1' });
+        const second = service.viewOperation({ ...request, requestId: 'badge-2' });
+        await vi.waitFor(() =>
+            expect(
+                supervisorHarness.requests.filter(({ method }) => method === 'activate'),
+            ).toHaveLength(1),
+        );
+        supervisorHarness.activation.resolve();
+        expect(await Promise.all([first, second])).toEqual([
+            { count: 3, description: '3 changes' },
+            { count: 3, description: '3 changes' },
+        ]);
+        expect(
+            supervisorHarness.requests.filter(({ method }) => method === 'activate'),
+        ).toHaveLength(1);
+        await expect(
+            service.viewOperation({
+                ...request,
+                viewId: 'publisher.fixture.sourceControl',
+                requestId: 'undeclared',
+            }),
+        ).rejects.toMatchObject({ code: 'CAPABILITY_DENIED' });
+        await service.shutdown();
+        await logger.flush();
     });
 
     it('cancels a controlled operation before activation when its Renderer scope is stale', async () => {
