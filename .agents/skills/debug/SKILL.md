@@ -21,8 +21,9 @@ description: Diagnose Caxri failures across Desktop Main, Server Core, Terminal 
 4. Trace the typed method and event from its owning `packages/protocol` domain through the Server
    dispatcher, Preload, and Renderer consumer. Treat the selected Session root as a security and
    state-lifetime boundary.
-5. Never print terminal output, file contents, credentials, or snapshots, and never weaken path
-   containment to make a symlink error disappear.
+5. Never print terminal output, file contents, credentials, or snapshots. Apply `AGENTS.md`'s
+   trusted workspace-link policy when diagnosing file navigation; preserve the boundary against
+   arbitrary outside paths instead of rejecting every external link target.
 6. Add a focused regression test at the lowest useful layer. Use Electron E2E when the process
    boundary is part of the failure.
 7. Call the Skill tool with "quality-check" with the changed source and regression test before any

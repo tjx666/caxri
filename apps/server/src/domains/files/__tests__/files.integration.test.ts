@@ -2,6 +2,7 @@ import { Buffer } from 'node:buffer';
 import type { Dir } from 'node:fs';
 import type * as FsPromises from 'node:fs/promises';
 import {
+    lstat,
     mkdir,
     mkdtemp,
     open,
@@ -240,7 +241,7 @@ describe('FileService', () => {
         expect(didFingerprintChange(fingerprints, '/root/file.ts', 'version-2', 3)).toBe(true);
     });
 
-    it('reads and writes text under the Project root and rejects traversal/symlink escapes', async () => {
+    it('reads and saves workspace links while rejecting direct outside paths', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-files-'));
         temporaryDirectories.push(directory);
         const root = join(directory, 'project');
@@ -262,7 +263,49 @@ describe('FileService', () => {
             'updated',
         );
         await expect(service.read(session.id, outside)).rejects.toThrow('outside');
-        await expect(service.read(session.id, join(root, 'escape.txt'))).rejects.toThrow('outside');
+        const canonicalRoot = await realpath(root);
+        const alias = join(canonicalRoot, 'escape.txt');
+        expect(await service.authorizeOpen({ sessionId: session.id, path: alias })).toMatchObject({
+            path: alias,
+            name: 'escape.txt',
+            kind: 'file',
+            root: { path: canonicalRoot },
+        });
+        expect(await service.read(session.id, alias)).toMatchObject({
+            path: alias,
+            content: 'secret',
+        });
+        expect(await service.write(session.id, alias, 'linked update')).toMatchObject({
+            path: alias,
+            content: 'linked update',
+        });
+        expect((await lstat(alias)).isSymbolicLink()).toBe(true);
+        expect(await readFile(outside, 'utf8')).toBe('linked update');
+        await symlink(directory, join(root, 'linked-directory'));
+        const child = join(canonicalRoot, 'linked-directory', 'outside.txt');
+        expect(
+            await service.browse({
+                sessionId: session.id,
+                directory: join(canonicalRoot, 'linked-directory'),
+                query: 'outside',
+            }),
+        ).toMatchObject({
+            entries: [expect.objectContaining({ path: child })],
+        });
+        expect(
+            await service.list(session.id, join(canonicalRoot, 'linked-directory')),
+        ).toContainEqual(expect.objectContaining({ path: child, name: 'outside.txt' }));
+        expect(await service.read(session.id, child)).toMatchObject({
+            path: child,
+            content: 'linked update',
+        });
+        expect(await service.write(session.id, child, 'nested update')).toMatchObject({
+            path: child,
+            content: 'nested update',
+        });
+        await expect(service.read(session.id, '../outside.txt')).rejects.toThrow('outside');
+        await symlink('missing-target', join(root, 'broken-link'));
+        await expect(service.read(session.id, join(root, 'broken-link'))).rejects.toThrow();
         database.close();
     });
 

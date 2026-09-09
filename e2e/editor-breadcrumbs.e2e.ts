@@ -66,9 +66,9 @@ test('Editor breadcrumbs browse siblings with one keyboard focus model', async (
         );
         await expect(
             componentSiblings.getByRole('option', {
-                name: 'linked.ts, symbolic link unavailable',
+                name: 'linked.ts',
             }),
-        ).toHaveAttribute('aria-disabled', 'true');
+        ).not.toHaveAttribute('aria-disabled', 'true');
         await writeFile(join(components, 'created.ts'), 'export const created = true;\n', 'utf8');
         await expect(
             componentSiblings.getByRole('option', { name: 'created.ts', exact: true }),

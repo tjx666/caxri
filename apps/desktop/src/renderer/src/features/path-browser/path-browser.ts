@@ -1,3 +1,4 @@
+import { isDirectoryEntry } from '../../lib/file-entry';
 import { isPathAtOrBelow } from '../../lib/file-path';
 
 export type PathBrowserMode = 'free' | 'project';
@@ -66,14 +67,14 @@ export function filterPathEntries<T extends { name: string }>(
  * Completes only an authoritative unique result and preserves every path segment before the final filter.
  */
 export function completePathQuery(
-    entries: ReadonlyArray<{ kind?: string; name: string }>,
+    entries: ReadonlyArray<{ kind?: string; linkKind?: string; name: string }>,
     input: string,
     isTruncated = false,
 ): string | undefined {
     if (isTruncated || entries.length !== 1) return undefined;
     const parsed = parsePathBrowserInput(input);
     const [entry] = entries;
-    return `${parsed.directoryPart}${entry.name}${entry.kind === 'directory' ? '/' : ''}`;
+    return `${parsed.directoryPart}${entry.name}${isDirectoryEntry(entry) ? '/' : ''}`;
 }
 
 /**

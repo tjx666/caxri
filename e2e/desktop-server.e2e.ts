@@ -64,7 +64,7 @@ function runCli(
 
 test('routes bounded Desktop open, focus, and reveal operations through the existing Host', async () => {
     allowE2EErrors([
-        { source: 'server-core', event: 'ipc.request_failed', code: 'PATH_DENIED', count: 2 },
+        { source: 'server-core', event: 'ipc.request_failed', code: 'PATH_DENIED', count: 1 },
     ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-desktop-host-e2e-'));
     const userData = join(testDirectory, 'user-data');
@@ -144,7 +144,7 @@ test('routes bounded Desktop open, focus, and reveal operations through the exis
                 path: join(root, 'escape.ts'),
                 launchIfNeeded: false,
             }),
-        ).rejects.toMatchObject({ code: 'PATH_DENIED' });
+        ).resolves.toMatchObject({ state: 'requested' });
 
         await running.app.evaluate(({ shell }) => {
             shell.showItemInFolder = (path) => {

@@ -55,15 +55,15 @@ describe('editor breadcrumb picker selection', () => {
         { kind: 'symlink' as const, name: 'linked.ts', path: '/project/src/linked.ts' },
     ];
 
-    it('moves within available entries without landing on a symbolic link', () => {
+    it('moves through workspace links like other entries', () => {
         expect(adjacentBreadcrumbPickerPath(entries, undefined, 'next')).toBe(
             '/project/src/components',
         );
         expect(adjacentBreadcrumbPickerPath(entries, '/project/src/beta.ts', 'next')).toBe(
-            '/project/src/beta.ts',
+            '/project/src/linked.ts',
         );
         expect(adjacentBreadcrumbPickerPath(entries, undefined, 'last')).toBe(
-            '/project/src/beta.ts',
+            '/project/src/linked.ts',
         );
     });
 

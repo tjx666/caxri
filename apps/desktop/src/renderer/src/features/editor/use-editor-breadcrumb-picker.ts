@@ -3,8 +3,10 @@ import { useEffect, useId, useRef, useState } from 'react';
 
 import type { FileEntry } from '@caxri/protocol';
 
+import { resolveEntryKind } from '../../lib/file-entry';
 import { parentDirectoryPath, projectRelativePath } from '../../lib/file-path';
 import { useCaxriQuery } from '../../queries/client';
+import { tryCommand } from '../../stores/toasts';
 import type { EditorBreadcrumbSegment } from './editor-breadcrumbs-model';
 import {
     adjacentBreadcrumbPickerPath,
@@ -46,6 +48,7 @@ export function useEditorBreadcrumbPicker({
 }): EditorBreadcrumbPickerState {
     const optionIdPrefix = useId();
     const listboxReference = useRef<HTMLDivElement>(null);
+    const activation = useRef(0);
     const typeaheadReference = useRef<{
         prefix: string;
         timer?: ReturnType<typeof setTimeout>;
@@ -59,22 +62,23 @@ export function useEditorBreadcrumbPicker({
     const listing = useCaxriQuery('files.list', { sessionId, directory: currentDirectory });
     const entries = listing.data?.entries ?? EMPTY_ENTRIES;
     const directoryLabel = editorBreadcrumbDirectoryLabel(currentDirectory, projectRoot);
-    const activePath = entries.some(
-        (entry) => entry.kind !== 'symlink' && entry.path === requestedActivePath,
-    )
+    const activePath = entries.some((entry) => entry.path === requestedActivePath)
         ? requestedActivePath
         : adjacentBreadcrumbPickerPath(entries, undefined, 'first');
     const activeIndex = entries.findIndex((entry) => entry.path === activePath);
     const activeOptionId = activeIndex === -1 ? undefined : `${optionIdPrefix}-${activeIndex}`;
 
     const activateEntry = (entry: FileEntry): void => {
-        if (entry.kind === 'symlink') return;
-        if (entry.kind === 'directory') {
-            setCurrentDirectory(entry.path);
-            setRequestedActivePath(undefined);
-            return;
-        }
-        onOpenFile(entry.path);
+        const intent = ++activation.current;
+        // eslint-disable-next-line no-void -- tryCommand owns error presentation
+        void tryCommand('Unable to open path', async () => {
+            const kind = await resolveEntryKind(sessionId, entry);
+            if (intent !== activation.current) return;
+            if (kind === 'directory') {
+                setCurrentDirectory(entry.path);
+                setRequestedActivePath(undefined);
+            } else onOpenFile(entry.path);
+        });
     };
 
     useEffect(() => {
@@ -87,6 +91,7 @@ export function useEditorBreadcrumbPicker({
 
     useEffect(
         () => () => {
+            activation.current += 1;
             if (typeaheadReference.current.timer) clearTimeout(typeaheadReference.current.timer);
         },
         [],
@@ -117,13 +122,14 @@ export function useEditorBreadcrumbPicker({
                 if (projectRelativePath(parent, projectRoot) === undefined) return;
                 event.preventDefault();
                 setCurrentDirectory(parent);
+                activation.current += 1;
                 setRequestedActivePath(currentDirectory);
                 return;
             }
             case 'ArrowRight':
             case 'Enter': {
                 const entry = entries.find((candidate) => candidate.path === activePath);
-                if (!entry || entry.kind === 'symlink') return;
+                if (!entry) return;
                 event.preventDefault();
                 activateEntry(entry);
                 return;
@@ -164,7 +170,7 @@ export function useEditorBreadcrumbPicker({
         listboxReference,
         onEntryClick: activateEntry,
         onEntryPointerMove: (entry) => {
-            if (entry.kind !== 'symlink') setRequestedActivePath(entry.path);
+            setRequestedActivePath(entry.path);
         },
         onKeyDown,
         optionId: (index) => `${optionIdPrefix}-${index}`,

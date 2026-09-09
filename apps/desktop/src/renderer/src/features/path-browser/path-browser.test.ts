@@ -54,6 +54,9 @@ describe('path browser navigation', () => {
     });
 
     it('completes the final segment while preserving relative, Home, and absolute directories', () => {
+        expect(
+            completePathQuery([{ kind: 'symlink', linkKind: 'directory', name: 'linked' }], 'li'),
+        ).toBe('linked/');
         expect(completePathQuery([{ kind: 'file', name: 'README.md' }], 'src/re')).toBe(
             'src/README.md',
         );

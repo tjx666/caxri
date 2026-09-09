@@ -160,16 +160,20 @@ function PathBrowserContent({
                                         ? `${listboxId}-option-${index}-reason`
                                         : undefined
                                 }
-                                aria-disabled={entry.kind === 'symlink'}
+                                aria-disabled={
+                                    entry.kind === 'symlink' && snapshot?.mode === 'free'
+                                }
                                 aria-selected={index === effectiveSelectedIndex}
                                 className={cn(
                                     'flex h-8 w-full cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 text-left text-[12px] text-foreground hover:bg-elevated',
                                     index === effectiveSelectedIndex && 'bg-elevated',
-                                    entry.kind === 'symlink' && 'cursor-not-allowed text-muted',
+                                    entry.kind === 'symlink' &&
+                                        snapshot?.mode === 'free' &&
+                                        'cursor-not-allowed text-muted',
                                 )}
                                 role="option"
                                 type="button"
-                                disabled={entry.kind === 'symlink'}
+                                disabled={entry.kind === 'symlink' && snapshot?.mode === 'free'}
                                 title={
                                     entry.kind === 'symlink'
                                         ? symlinkRowDescription(entry)
