@@ -1,6 +1,3 @@
-import { CaxriError } from '@caxri/protocol';
-import { coerce, gte } from 'semver';
-
 import { AgentDelegationService, createDelegationHandlers } from './agent-delegation';
 import type { AgentDispatchServiceOptions } from './agent-dispatch';
 /**
@@ -9,7 +6,12 @@ import type { AgentDispatchServiceOptions } from './agent-dispatch';
 // react-doctor-disable-next-line react-doctor/no-barrel-import
 import { AgentDispatchService, createAgentCommandHandlers } from './agent-dispatch';
 import type { AgentEnvironment } from './agents';
-import { readAgentTranscript, readVersion } from './agents';
+import {
+    delegationAdapter,
+    readAgentTranscript,
+    readDelegationTranscript,
+    readVersion,
+} from './agents';
 import { mainOwned } from './service-handlers';
 
 /**
@@ -44,15 +46,20 @@ export function createAgentCommandRuntime(
             if (accepted) options.coordinator.observeInput(terminalId, data);
             return accepted;
         },
-        launchSettings: () => options.launchSettings('claude'),
-        verifyLaunch: async (launch) => {
-            const version = coerce((await readVersion('claude', launch.executable)) ?? '');
-            if (version?.major !== 2 || !gte(version, '2.1.196'))
-                throw new CaxriError(
-                    'UNAVAILABLE',
-                    'Visible delegation requires Claude Code 2.1.196+ within major 2',
-                );
-        },
+        launchSettings: (provider) => options.launchSettings(provider),
+        verifyLaunch: async (launch, provider) =>
+            delegationAdapter(provider).verifyVersion(
+                await readVersion(provider, launch.executable),
+            ),
+        readNativeTranscript: (terminalId, sessionId, offset, turnId) =>
+            readDelegationTranscript(
+                options.database,
+                terminalId,
+                sessionId,
+                offset,
+                options.agentEnvironment,
+                turnId,
+            ),
         readTranscript: (terminalId) =>
             readAgentTranscript(options.database, terminalId, true, options.agentEnvironment),
     });

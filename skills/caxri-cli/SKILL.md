@@ -98,7 +98,8 @@ state access.
 
 ## Keep dispatch, control, and steer separate
 
-- `agent delegate create` runs a task from `--prompt-file` in a visible Claude child Terminal.
+- `agent delegate create` runs a task from `--prompt-file` in a visible Claude or Codex child Terminal,
+  selected with `--provider claude|codex`.
   It needs an explicit `agent:delegate` grant and exact `--project`/`--session` selectors.
   Save the returned delegation ID; use `agent delegate wait <id>` and `agent delegate result <id>`
   to retrieve the exact saved answer. A wait timeout never authorizes resubmitting the task.

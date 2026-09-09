@@ -1,6 +1,7 @@
 import type { AgentDelegationReceipt } from '@caxri/protocol';
 
 import type { AgentLifecycleSignal } from '../agents';
+import { delegationAdapter } from '../agents';
 import type { StoredAgentDelegation } from '../db';
 
 export function isDelegationActive(receipt: AgentDelegationReceipt): boolean {
@@ -31,6 +32,17 @@ export function applyDelegationLifecycle(
         signal.launchId !== record.launchId
     )
         return;
+    const isNativeCompletion =
+        delegationAdapter(record.receipt.provider).completion === 'native-completion';
+    if (
+        isNativeCompletion &&
+        !record.providerSessionId &&
+        signal.agentSessionId &&
+        ['launching', 'awaiting_ready', 'submitting'].includes(record.receipt.status)
+    ) {
+        record = { ...record, providerSessionId: signal.agentSessionId };
+        if (signal.phase !== 'turnStarted') return record;
+    }
     const patch = (
         status: AgentDelegationReceipt['status'],
         failure?: AgentDelegationReceipt['failure'],
@@ -41,6 +53,8 @@ export function applyDelegationLifecycle(
     if (signal.agentSessionId && signal.agentSessionId !== record.providerSessionId)
         return patch('interrupted', 'session_changed');
     if (signal.phase === 'turnStarted') {
+        if (isNativeCompletion && !record.providerSessionId)
+            return patch('answer_unavailable', 'correlation_missing');
         if (record.turnId && signal.agentTurnId === record.turnId) return;
         if (
             record.turnId &&
@@ -64,6 +78,8 @@ export function applyDelegationLifecycle(
     if (!record.turnId || signal.agentTurnId !== record.turnId) return;
     if (signal.phase === 'attentionRequested') return patch('blocked', 'permission_required');
     if (signal.phase !== 'turnFinished') return;
+    // Codex may continue this same turn after another Stop hook blocks; keep it cancelable until native completion.
+    if (isNativeCompletion) return;
     if (signal.agentFailure) {
         const failures = {
             rate_limit: 'rate_limited',

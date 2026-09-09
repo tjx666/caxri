@@ -24,6 +24,7 @@ import {
     throwAgentRenameError,
 } from '../../rename';
 import { AGENT_TITLE_SYSTEM_INSTRUCTIONS } from '../../title-generation';
+import { codexDelegationAdapter } from './delegation';
 import { codexHookAdapter } from './hooks';
 import { generateCodexLowCostText } from './low-cost-generation';
 import { resolveCodexHome, resolveCodexStateDirectories } from './paths';
@@ -272,7 +273,7 @@ interface CodexTurnRow {
 }
 
 async function readCodexTurnStatus(
-    context: AgentSnapshotContext,
+    context: Pick<AgentSnapshotContext, 'agentSessionId' | 'agentTurnId'>,
     stateDirectories: string[],
 ): Promise<LocalAgentState['status']> {
     if (!context.agentSessionId || !context.agentTurnId) return undefined;
@@ -565,6 +566,9 @@ async function readCodexState(
 }
 
 export const codexProvider: AgentProviderDescriptor = {
+    delegation: codexDelegationAdapter,
+    readTurnStatus: (context, environment) =>
+        readCodexTurnStatus(context, resolveCodexStateDirectories(environment)),
     generateTitle: (context) =>
         generateCodexLowCostText(
             context,

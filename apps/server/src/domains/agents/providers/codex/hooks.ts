@@ -69,6 +69,7 @@ function hooksSource(documents: AgentHookDocuments): string | undefined {
 
 export const codexHookAdapter: AgentHookAdapter = {
     bindings,
+    // Digest capture is launch-environment opt-in; unchanged hook commands must retain their existing trust identity.
     schemaVersion: 8,
     configTargets: (environment) => {
         const home = codexHome(environment.homeDirectory, environment.variables.CODEX_HOME);

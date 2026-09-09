@@ -1,5 +1,4 @@
-import { Buffer } from 'node:buffer';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
@@ -8,18 +7,19 @@ import type {
     AgentDelegationCreate,
     AgentDelegationReceipt,
     AgentLaunchSettings,
+    AgentProvider,
     AgentTranscript,
     Principal,
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
 import type { AgentDispatchService } from '../agent-dispatch';
-import type { AgentLifecycleSignal } from '../agents';
+import type { AgentLifecycleSignal, DelegationTranscriptBatch } from '../agents';
 /**
  * Provider transcript extraction stays behind the agents domain's public API.
  */
 // react-doctor-disable-next-line react-doctor/no-barrel-import
-import { extractClaudeDelegationAnswer } from '../agents';
+import { delegationAdapter } from '../agents';
 import type { CaxriDatabase, StoredAgentDelegation } from '../db';
 import { SingleFlight } from '../single-flight';
 import {
@@ -29,6 +29,7 @@ import {
 } from './launch';
 import { assertDelegationLayout, delegationLayout } from './layout';
 import { applyDelegationLifecycle, isDelegationActive } from './lifecycle';
+import { applyDelegationCompletion, shouldCollectDelegation } from './result';
 import { removeDelegationFiles } from './storage';
 
 interface DelegationAuthority {
@@ -40,9 +41,15 @@ interface AgentDelegationServiceOptions {
     database: CaxriDatabase;
     dispatch: Pick<AgentDispatchService, 'start'> & Partial<Pick<AgentDispatchService, 'resume'>>;
     userDataPath: string;
-    launchSettings(): AgentLaunchSettings;
-    verifyLaunch(launch: AgentLaunchSettings): Promise<void>;
+    launchSettings(provider: AgentProvider): AgentLaunchSettings;
+    verifyLaunch(launch: AgentLaunchSettings, provider: AgentProvider): Promise<void>;
     readTranscript(terminalId: string): Promise<AgentTranscript | null>;
+    readNativeTranscript?(
+        terminalId: string,
+        sessionId: string,
+        offset: number | undefined,
+        turnId: string | undefined,
+    ): Promise<DelegationTranscriptBatch>;
     dimensions?(terminalId: string): { cols: number; rows: number } | undefined;
     inputEpoch?(terminalId: string): number;
     currentLaunchId?(terminalId: string): string | undefined;
@@ -157,19 +164,24 @@ export class AgentDelegationService {
     private scheduleCollection(record: StoredAgentDelegation): void {
         const id = record.receipt.delegationId;
         if (this.isClosed || this.collectors.has(id)) return;
-        const timer = setTimeout(async () => {
-            this.collectors.delete(id);
-            try {
-                const result = await this.result(id, {
-                    principal: record.principal,
-                    callerTerminalId: record.receipt.callerTerminalId,
-                });
-                if (result.receipt.status === 'collecting') this.scheduleCollection(record);
-            } catch {
-                // Session deletion or shutdown ends ownership; never copy provider content into diagnostics.
-                if (!this.isClosed) this.fail(id, 'result_missing');
-            }
-        }, 200);
+        const timer = setTimeout(
+            async () => {
+                this.collectors.delete(id);
+                try {
+                    const result = await this.result(id, {
+                        principal: record.principal,
+                        callerTerminalId: record.receipt.callerTerminalId,
+                    });
+                    if (isDelegationActive(result.receipt)) this.scheduleCollection(record);
+                } catch {
+                    // Session deletion or shutdown ends ownership; never copy provider content into diagnostics.
+                    if (!this.isClosed) this.fail(id, 'result_missing');
+                }
+            },
+            delegationAdapter(record.receipt.provider).completion === 'native-completion'
+                ? 2_000
+                : 200,
+        );
         timer.unref();
         this.collectors.set(id, timer);
     }
@@ -177,59 +189,50 @@ export class AgentDelegationService {
     private async collectResult(id: string, authority: DelegationAuthority) {
         let record = this.owned(id, authority);
         if (
-            record.receipt.status === 'collecting' &&
+            shouldCollectDelegation(record) &&
             record.receipt.terminalId &&
-            record.responseDigest &&
             record.providerSessionId
         ) {
-            const transcript = await this.options.readTranscript(record.receipt.terminalId);
+            const adapter = delegationAdapter(record.receipt.provider);
+            const isNative = adapter.completion === 'native-completion';
+            const batch = isNative
+                ? await this.options.readNativeTranscript?.(
+                      record.receipt.terminalId,
+                      record.providerSessionId,
+                      record.transcriptOffset,
+                      record.turnId,
+                  )
+                : undefined;
+            const transcript = isNative
+                ? undefined
+                : await this.options.readTranscript(record.receipt.terminalId);
             if (this.isClosed) return { receipt: record.receipt, answer: record.answer };
             const current = this.owned(id, authority);
             // Human input, restart or another collector may have invalidated this asynchronous read.
             if (current.receipt.revision !== record.receipt.revision)
                 return { receipt: current.receipt, answer: current.answer };
-            const answer =
-                transcript?.content &&
-                extractClaudeDelegationAnswer(transcript.content, {
-                    sessionId: record.providerSessionId,
-                    promptDigest: record.promptDigest,
-                    answerDigest: record.responseDigest,
-                    continuationPromptDigests: record.continuationPromptDigests,
-                });
-            if (answer) {
-                const byteLength = Buffer.byteLength(answer.text);
-                record =
-                    byteLength > 65_536
-                        ? this.save({
-                              ...record,
-                              receipt: {
-                                  ...record.receipt,
-                                  status: 'answer_unavailable',
-                                  failure: 'payload_overflow',
-                              },
-                          })
-                        : this.save({
-                              ...record,
-                              receipt: {
-                                  ...record.receipt,
-                                  status: 'completed',
-                                  failure: undefined,
-                              },
-                              answer: {
-                                  ...answer,
-                                  byteLength,
-                                  source: 'transcript',
-                                  truncated: false,
-                              },
-                          });
-            } else if (this.now() - record.receipt.updatedAt > 15_000)
+            const content = batch?.content ?? transcript?.content;
+            const completion = batch?.failure
+                ? { kind: 'failed' as const, failure: batch.failure }
+                : content
+                  ? adapter.extractCompletion(content, {
+                        sessionId: record.providerSessionId,
+                        promptDigest: record.promptDigest,
+                        answerDigest: record.responseDigest,
+                        turnId: record.turnId,
+                        continuationPromptDigests: record.continuationPromptDigests,
+                    })
+                  : undefined;
+            const next = applyDelegationCompletion(
+                record,
+                completion,
+                this.now(),
+                batch?.isFinished,
+            );
+            if (next || (batch?.offset !== undefined && batch.offset !== record.transcriptOffset))
                 record = this.save({
-                    ...record,
-                    receipt: {
-                        ...record.receipt,
-                        status: 'answer_unavailable',
-                        failure: 'result_missing',
-                    },
+                    ...(next ?? record),
+                    transcriptOffset: batch?.offset ?? record.transcriptOffset,
                 });
         }
         return { receipt: record.receipt, answer: record.answer };
@@ -303,14 +306,10 @@ export class AgentDelegationService {
             },
             {
                 delegationId: id,
-                launch: {
-                    ...record.frozenLaunch,
-                    args: [
-                        ...record.frozenLaunch.args,
-                        '--add-dir',
-                        join(this.options.userDataPath, 'delegations', record.rootDelegationId!),
-                    ],
-                },
+                launch: delegationAdapter(record.receipt.provider).resumeLaunch(
+                    record.frozenLaunch,
+                    join(this.options.userDataPath, 'delegations', record.rootDelegationId!),
+                ),
                 initialPrompt: prepared.pointer,
                 replaceLaunchId: expectedLaunchId,
                 shouldStart,
@@ -425,14 +424,16 @@ export class AgentDelegationService {
             if (
                 previous &&
                 (previous.input.projectId !== input.projectId ||
-                    previous.input.sessionId !== input.sessionId)
+                    previous.input.sessionId !== input.sessionId ||
+                    previous.input.provider !== input.provider)
             )
                 throw new CaxriError('FORBIDDEN', 'Follow-up must remain in its original Session');
             const frozenLaunch = structuredClone(
-                previous?.frozenLaunch ?? this.options.launchSettings(),
+                previous?.frozenLaunch ?? this.options.launchSettings(input.provider),
             );
-            validateDelegationLaunch(frozenLaunch);
-            if (!previous || input.resumeFrom) await this.options.verifyLaunch(frozenLaunch);
+            validateDelegationLaunch(input.provider, frozenLaunch);
+            if (!previous || input.resumeFrom)
+                await this.options.verifyLaunch(frozenLaunch, input.provider);
             const now = this.now();
             let record = this.options.database.agentDelegations.insert({
                 receipt: {
@@ -452,7 +453,10 @@ export class AgentDelegationService {
                 input,
                 fingerprint,
                 frozenLaunch,
-                providerSessionId: previous?.providerSessionId ?? randomUUID(),
+                providerSessionId:
+                    previous?.providerSessionId ??
+                    delegationAdapter(input.provider).createSessionId(),
+                transcriptOffset: previous?.transcriptOffset,
                 rootDelegationId:
                     previous?.rootDelegationId ?? previous?.receipt.delegationId ?? id,
                 promptDigest: '',
@@ -465,7 +469,8 @@ export class AgentDelegationService {
                 const prepared = await prepareDelegationLaunch(
                     this.options.userDataPath,
                     id,
-                    record.providerSessionId!,
+                    input.provider,
+                    record.providerSessionId,
                     input.prompt,
                     frozenLaunch,
                 );
@@ -593,6 +598,15 @@ export class AgentDelegationService {
             inputEpoch: this.options.inputEpoch?.(terminalId),
             receipt: { ...record.receipt, status: 'awaiting_ready' },
         });
+        const id = record.receipt.delegationId;
+        const timer = setTimeout(() => {
+            this.submissionTimers.delete(id);
+            const current = this.options.database.agentDelegations.get(id);
+            if (current && !current.turnId && isDelegationActive(current.receipt))
+                this.fail(id, 'startup_not_ready');
+        }, this.options.submissionTimeoutMs ?? 15_000);
+        timer.unref();
+        this.submissionTimers.set(id, timer);
         return true;
     }
 
@@ -635,11 +649,11 @@ export class AgentDelegationService {
         const next = applyDelegationLifecycle(record, signal);
         if (next) {
             const saved = this.save(next);
-            if (saved.receipt.status !== 'submitting') {
+            if (saved.turnId || !isDelegationActive(saved.receipt)) {
                 clearTimeout(this.submissionTimers.get(saved.receipt.delegationId));
                 this.submissionTimers.delete(saved.receipt.delegationId);
             }
-            if (saved.receipt.status === 'collecting') this.scheduleCollection(saved);
+            if (shouldCollectDelegation(saved)) this.scheduleCollection(saved);
         }
     }
 
@@ -669,11 +683,16 @@ export class AgentDelegationService {
     initialize(): void {
         for (const record of this.options.database.agentDelegations.active()) {
             if (
-                record.receipt.status === 'collecting' &&
-                record.responseDigest &&
+                ((record.receipt.status === 'collecting' && record.responseDigest) ||
+                    (record.turnId &&
+                        delegationAdapter(record.receipt.provider).completion ===
+                            'native-completion')) &&
                 record.providerSessionId
             ) {
-                this.scheduleCollection(this.save(record));
+                // A retired native process may have persisted completion just before Server restart; never replay it.
+                this.scheduleCollection(
+                    this.save({ ...record, receipt: { ...record.receipt, status: 'collecting' } }),
+                );
                 continue;
             }
             this.save({
@@ -761,13 +780,19 @@ export class AgentDelegationService {
     async result(id: string, authority: DelegationAuthority) {
         const record = this.owned(id, authority);
         if (
-            record.receipt.status !== 'collecting' ||
+            !shouldCollectDelegation(record) ||
             performance.now() < (this.nextCollections.get(id) ?? 0)
         )
             return { receipt: record.receipt, answer: record.answer };
         return this.collections.run(id, () => {
             // Many waiters share one bounded transcript read per poll interval.
-            this.nextCollections.set(id, performance.now() + 200);
+            this.nextCollections.set(
+                id,
+                performance.now() +
+                    (delegationAdapter(record.receipt.provider).completion === 'native-completion'
+                        ? 2_000
+                        : 200),
+            );
             return this.collectResult(id, authority);
         });
     }

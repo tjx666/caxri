@@ -26,16 +26,24 @@ async function sharedDirectory(): Promise<string> {
 }
 
 describe('stageAgentHookBridge', () => {
-    it.each([
-        { size: 16, enabled: false, event: 'Stop' },
-        { size: 90_000, enabled: false, event: 'Stop' },
-        { size: 16, enabled: true, event: 'Stop' },
-        { size: 90_000, enabled: true, event: 'Stop' },
-        { size: 1_100_000, enabled: true, event: 'Stop' },
-        { size: 16, enabled: true, event: 'StopFailure' },
-    ])(
-        'preserves Claude identity and opt-in digests without content: %j',
-        async ({ size, enabled, event }) => {
+    it.each(
+        [
+            { size: 16, enabled: false, event: 'Stop' },
+            { size: 90_000, enabled: false, event: 'Stop' },
+            { size: 16, enabled: true, event: 'Stop' },
+            { size: 90_000, enabled: true, event: 'Stop' },
+            { size: 1_100_000, enabled: true, event: 'Stop' },
+            { size: 16, enabled: true, event: 'StopFailure' },
+            { size: 16, enabled: true, event: 'UserPromptSubmit' },
+        ].flatMap((entry) =>
+            (entry.event === 'StopFailure' ? ['claude'] : ['claude', 'codex']).map((provider) => ({
+                ...entry,
+                provider,
+            })),
+        ),
+    )(
+        'preserves provider identity and opt-in digests without content: %j',
+        async ({ size, enabled, event, provider }) => {
             const answer = 'synthetic'.repeat(Math.ceil(size / 9));
             const sharedPath = await sharedDirectory();
             const bridgePath = await stageAgentHookBridge(sharedPath);
@@ -57,7 +65,12 @@ describe('stageAgentHookBridge', () => {
             try {
                 const invocation = execFileAsync(
                     bridgePath,
-                    ['--provider', 'claude', '--phase', 'turnFinished'],
+                    [
+                        '--provider',
+                        provider,
+                        '--phase',
+                        event === 'UserPromptSubmit' ? 'turnStarted' : 'turnFinished',
+                    ],
                     {
                         env: {
                             CAXRI_HOOK_LAUNCH_ID: 'fixture-launch',
@@ -74,9 +87,11 @@ describe('stageAgentHookBridge', () => {
                     JSON.stringify({
                         session_id: 'fixture-session',
                         prompt_id: 'fixture-prompt',
+                        turn_id: 'fixture-prompt',
                         hook_event_name: event,
                         error: 'rate_limit',
                         last_assistant_message: answer,
+                        prompt: answer,
                     }),
                 );
                 await invocation;
@@ -92,6 +107,10 @@ describe('stageAgentHookBridge', () => {
                         createHash('sha256').update(answer).digest('hex'),
                     );
                 else expect(packets[0]).not.toHaveProperty('agentResponseDigest');
+                if (event === 'UserPromptSubmit')
+                    expect(packets[0]?.agentPromptDigest).toBe(
+                        createHash('sha256').update(answer).digest('hex'),
+                    );
                 if (enabled && event === 'StopFailure')
                     expect(packets[0]?.agentFailure).toBe('rate_limit');
                 if (enabled && size > 1_048_576)
@@ -116,7 +135,7 @@ describe('stageAgentHookBridge', () => {
         ]);
         expect(wrapperSource).toContain('#!/bin/sh');
         expect(bridgeScript).toContain("require('node:net')");
-        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 17 });
+        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 18 });
         expect(wrapperStats.mode & 0o777).toBe(0o700);
     });
 
@@ -188,7 +207,7 @@ describe('stageAgentHookBridge', () => {
             readFile(bridgePath, 'utf8'),
             readFile(join(binDirectory, 'bridge.cjs'), 'utf8'),
         ]);
-        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 17 });
+        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 18 });
         expect(wrapperSource).toContain('#!/bin/sh');
         expect(scriptSource).toContain("require('node:net')");
     });

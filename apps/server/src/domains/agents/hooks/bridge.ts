@@ -183,7 +183,7 @@ function hasWorktreeCreateIntent(payload) {
 function readIdentifiers(callback) {
   let source = '';
   let done = false;
-  const captureDigests = provider === 'claude' && process.env.CAXRI_HOOK_DIGEST === '1';
+  const captureDigests = ['claude', 'codex'].includes(provider) && process.env.CAXRI_HOOK_DIGEST === '1';
   const sourceLimit = captureDigests ? 1048576 : 65536;
   let overflow = false;
   function prefixString(keys) {
@@ -336,7 +336,7 @@ readIdentifiers(({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateInt
 }
 `;
 
-const BRIDGE_VERSION = 17;
+const BRIDGE_VERSION = 18;
 
 const BRIDGE_WRAPPER = String.raw`#!/bin/sh
 bridge_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
