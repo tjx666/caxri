@@ -163,7 +163,7 @@ test('a pane holding a Terminal and a document treats both tabs the same', async
 
         // The same Terminal tab, now that its pane has somewhere to split from.
         await terminalTab.click({ button: 'right' });
-        await expect(running.page.getByRole('menuitem', { name: 'Close Others' })).toBeEnabled();
+        await expect(running.page.getByRole('menuitem', { name: 'Close Others' })).toBeDisabled();
         await running.page.getByRole('menuitem', { name: 'Split Right' }).click();
         await expect(panes).toHaveCount(2);
 

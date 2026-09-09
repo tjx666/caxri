@@ -596,47 +596,63 @@ describe('closing a dirty editor tab', () => {
 });
 
 describe('closing a mixed pane of Terminal and document tabs', () => {
-    it('closes the Terminal PTY instead of only dropping its tab when Close All spans both kinds', async () => {
-        installEmptySession();
-        useWorkbenchStore.setState((state) => ({
-            bootstrap: state.bootstrap
-                ? {
-                      ...state.bootstrap,
-                      sessionStates: [
-                          {
-                              ...state.bootstrap.sessionStates[0],
-                              paneLayout: {
-                                  root: {
-                                      type: 'pane',
-                                      id: 'pane-1',
-                                      tabs: [
-                                          {
-                                              id: 'tab-file',
-                                              resource: { kind: 'file', path: '/project/a.ts' },
-                                          },
-                                          {
-                                              id: 'tab-terminal',
-                                              resource: {
-                                                  kind: 'terminal',
-                                                  terminalId: 'terminal-1',
+    it.each(['all', 'others', 'right'] as const)(
+        'preserves the Terminal PTY when an editor closes %s',
+        async (mode) => {
+            installEmptySession();
+            useWorkbenchStore.setState((state) => ({
+                bootstrap: state.bootstrap
+                    ? {
+                          ...state.bootstrap,
+                          sessionStates: [
+                              {
+                                  ...state.bootstrap.sessionStates[0],
+                                  paneLayout: {
+                                      root: {
+                                          type: 'pane',
+                                          id: 'pane-1',
+                                          tabs: [
+                                              {
+                                                  id: 'tab-file',
+                                                  resource: { kind: 'file', path: '/project/a.ts' },
                                               },
-                                          },
-                                      ],
-                                      activeTabId: 'tab-file',
+                                              {
+                                                  id: 'tab-terminal',
+                                                  resource: {
+                                                      kind: 'terminal',
+                                                      terminalId: 'terminal-1',
+                                                  },
+                                              },
+                                          ],
+                                          activeTabId: 'tab-file',
+                                      },
+                                      activePaneId: 'pane-1',
                                   },
-                                  activePaneId: 'pane-1',
                               },
-                          },
-                      ],
-                  }
-                : undefined,
-        }));
+                          ],
+                      }
+                    : undefined,
+            }));
 
-        await closeDocumentTabFamily('tab-file', 'all');
+            await closeDocumentTabFamily('tab-file', mode);
 
-        expect(mocks.request).toHaveBeenCalledWith('terminal.close', { terminalId: 'terminal-1' });
-        expect(paneTabPaths(useWorkbenchStore.getState().bootstrap!.sessionStates[0])).toEqual([]);
-    });
+            expect(mocks.request).not.toHaveBeenCalledWith('terminal.close', {
+                terminalId: 'terminal-1',
+            });
+            expect(paneTabPaths(useWorkbenchStore.getState().bootstrap!.sessionStates[0])).toEqual(
+                mode === 'all' ? ['terminal-1'] : ['/project/a.ts', 'terminal-1'],
+            );
+
+            // Explicitly closing the Terminal must still release its PTY and preserve any editor.
+            await closeDocumentTabFamily('tab-terminal', 'all');
+            expect(mocks.request).toHaveBeenCalledWith('terminal.close', {
+                terminalId: 'terminal-1',
+            });
+            expect(paneTabPaths(useWorkbenchStore.getState().bootstrap!.sessionStates[0])).toEqual(
+                mode === 'all' ? [] : ['/project/a.ts'],
+            );
+        },
+    );
 });
 
 describe('editing the pane tree through document actions', () => {

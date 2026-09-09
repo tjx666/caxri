@@ -399,8 +399,8 @@ export function pinPaneTab(layout: PaneLayout, tabId: string): PaneLayout {
 export type PaneTabCloseMode = 'all' | 'one' | 'others' | 'right';
 
 /**
- * Close Others / Close to the Right / Close All are pane-local, matching VS Code: they act on the bar the tab lives in,
- * never on occurrences in other panes.
+ * Bulk closes stay inside the anchor's pane and resource kind: closing editors must never terminate a Terminal, and
+ * Terminal bulk actions must leave documents open. Filter before resolving positions to preserve tab order.
  */
 export function paneTabIdsToClose(
     layout: PaneLayout,
@@ -409,7 +409,7 @@ export function paneTabIdsToClose(
 ): string[] {
     const found = findTab(layout, tabId);
     if (!found) return [];
-    const { tabs } = found.pane;
+    const tabs = found.pane.tabs.filter((tab) => tab.resource.kind === found.tab.resource.kind);
     const index = tabs.findIndex((tab) => tab.id === tabId);
     if (mode === 'one') return [tabId];
     if (mode === 'all') return tabs.map((tab) => tab.id);
