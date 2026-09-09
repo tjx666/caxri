@@ -1,6 +1,7 @@
 import type { ComponentProps } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 
-import { Command as CommandPrimitive } from 'cmdk';
+import { Command as CommandPrimitive, useCommandState } from 'cmdk';
 
 import { cn } from '@/lib/utilities';
 
@@ -36,9 +37,19 @@ export function CommandInput({
 export function CommandList({
     className,
     ...properties
-}: ComponentProps<typeof CommandPrimitive.List>) {
+}: Omit<ComponentProps<typeof CommandPrimitive.List>, 'ref'>) {
+    const search = useCommandState((state) => state.search);
+    const listReference = useRef<HTMLDivElement>(null);
+    /**
+     * Cmdk only scrolls when selection changes. A refined search with the same first result must also reveal the
+     * freshly ranked list instead of retaining the previous scroll position, including with external filtering.
+     */
+    useLayoutEffect(() => {
+        listReference.current?.scrollTo({ top: 0 });
+    }, [search]);
     return (
         <CommandPrimitive.List
+            ref={listReference}
             data-slot="command-list"
             className={cn('max-h-[360px] overflow-auto p-1', className)}
             {...properties}
