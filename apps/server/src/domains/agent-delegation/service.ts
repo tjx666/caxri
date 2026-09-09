@@ -24,6 +24,8 @@ import {
     delegationRoster,
     resolveDelegationAdmission,
 } from './admission';
+import type { DelegationTranscriptReader } from './collection';
+import { readDelegationCompletion } from './collection';
 import { prepareDelegationFollowUp, prepareDelegationLaunch } from './launch';
 import { assertDelegationLayout, delegationLayout } from './layout';
 import { applyDelegationLifecycle, isDelegationActive } from './lifecycle';
@@ -154,36 +156,12 @@ export class AgentDelegationService {
             record.receipt.terminalId &&
             record.providerSessionId
         ) {
-            const adapter = delegationAdapter(record.receipt.provider);
-            const isNative = adapter.completion === 'native-completion';
-            const batch = isNative
-                ? await this.options.readNativeTranscript?.(
-                      record.receipt.terminalId,
-                      record.providerSessionId,
-                      record.transcriptOffset,
-                      record.turnId,
-                  )
-                : undefined;
-            const transcript = isNative
-                ? undefined
-                : await this.options.readTranscript(record.receipt.terminalId);
+            const { completion, batch } = await readDelegationCompletion(record, this.options);
             if (this.isClosed) return { receipt: record.receipt, answer: record.answer };
             const current = this.owned(id, authority);
             // Human input, restart or another collector may have invalidated this asynchronous read.
             if (current.receipt.revision !== record.receipt.revision)
                 return { receipt: current.receipt, answer: current.answer };
-            const content = batch?.content ?? transcript?.content;
-            const completion = batch?.failure
-                ? { kind: 'failed' as const, failure: batch.failure }
-                : content
-                  ? adapter.extractCompletion(content, {
-                        sessionId: record.providerSessionId,
-                        promptDigest: record.promptDigest,
-                        answerDigest: record.responseDigest,
-                        turnId: record.turnId,
-                        continuationPromptDigests: record.continuationPromptDigests,
-                    })
-                  : undefined;
             const next = applyDelegationCompletion(
                 record,
                 completion,

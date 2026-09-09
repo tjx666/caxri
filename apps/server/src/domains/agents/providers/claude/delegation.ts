@@ -1,10 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto';
 
+import type { AgentDelegationUsage } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 import { coerce, gte } from 'semver';
 
 import type { AgentDelegationAdapter } from '../../delegation-contract';
 import { replaceDelegationArguments, validateDelegationArguments } from '../../delegation-contract';
+import { collectClaudeUsage, totalClaudeUsage } from './delegation-usage';
 
 const valueFlags = new Set([
     '--model',
@@ -74,6 +76,7 @@ export const claudeDelegationAdapter: AgentDelegationAdapter = {
 export interface ClaudeDelegationAnswer {
     text: string;
     messageId: string;
+    usage?: AgentDelegationUsage;
 }
 
 export interface ClaudeDelegationEvidence {
@@ -130,6 +133,14 @@ export function extractClaudeDelegationAnswer(
     const continuationDigests = evidence.continuationPromptDigests ?? [];
     const descendants = new Set<string>();
     const messageVariants = new Map<string, string[]>();
+    const usages = new Map<string, AgentDelegationUsage | undefined | null>();
+    let hasMalformedUsageEvidence = false;
+    let matched: ClaudeDelegationAnswer | undefined;
+    const finish = () => {
+        if (!matched) return;
+        const usage = hasMalformedUsageEvidence ? undefined : totalClaudeUsage(usages);
+        return usage ? { ...matched, usage } : matched;
+    };
     for (const line of appendedTranscript.split('\n')) {
         let record: Record<string, unknown>;
         try {
@@ -137,6 +148,7 @@ export function extractClaudeDelegationAnswer(
             if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) continue;
             record = parsed as Record<string, unknown>;
         } catch {
+            if (promptId !== undefined && line.trim()) hasMalformedUsageEvidence = true;
             continue;
         }
         if (record.sessionId !== evidence.sessionId || record.isSidechain === true) continue;
@@ -157,7 +169,7 @@ export function extractClaudeDelegationAnswer(
                         (text) => digest(text) !== continuationDigests[continuationIndex],
                     )
                 )
-                    return;
+                    return finish();
                 continuationIndex++;
                 descendants.add(record.uuid);
                 continue;
@@ -176,6 +188,12 @@ export function extractClaudeDelegationAnswer(
         descendants.add(record.uuid);
         if (record.type !== 'assistant') continue;
         const messageId = (message as Record<string, unknown> | undefined)?.id;
+        /**
+         * The authenticated answer closes the set of API calls owned by this task. Later streaming snapshots may finish
+         * those calls' counters, but a new API message after that answer belongs to unproven subsequent work.
+         */
+        if (!matched || (typeof messageId === 'string' && usages.has(messageId)))
+            collectClaudeUsage(usages, message as Record<string, unknown> | undefined, record.uuid);
         const previous = typeof messageId === 'string' ? messageVariants.get(messageId) : undefined;
         const candidates = previous
             ? [
@@ -192,7 +210,7 @@ export function extractClaudeDelegationAnswer(
             messageVariants.set(messageId, candidates);
         const answer = candidates.find((text) => digest(text) === evidence.answerDigest);
         if (answer !== undefined && continuationIndex === continuationDigests.length)
-            return { text: answer, messageId: record.uuid };
+            matched ??= { text: answer, messageId: record.uuid };
     }
-    return;
+    return finish();
 }
