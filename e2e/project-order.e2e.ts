@@ -28,6 +28,10 @@ async function seedProjects(databasePath: string, roots: string[]): Promise<void
         );
         database.exec(source.replaceAll('--> statement-breakpoint', ''));
     }
+    /**
+     * Keep the drag fixture recent so the default idle-collapse policy cannot hide its Session after 500ms.
+     */
+    const fixtureCreatedAt = Date.now();
     const insert = database.prepare(
         `INSERT INTO projects
          (id, root_path, display_title, order_index, created_at, last_opened_at)
@@ -35,7 +39,14 @@ async function seedProjects(databasePath: string, roots: string[]): Promise<void
     );
     roots.forEach((root, orderIndex) => {
         const title = root.split('/').at(-1)!;
-        insert.run(`project-${orderIndex}`, root, title, orderIndex, orderIndex, orderIndex);
+        insert.run(
+            `project-${orderIndex}`,
+            root,
+            title,
+            orderIndex,
+            fixtureCreatedAt,
+            fixtureCreatedAt,
+        );
     });
     database
         .prepare(
@@ -43,7 +54,7 @@ async function seedProjects(databasePath: string, roots: string[]): Promise<void
              (id, project_id, created_at, last_opened_at, display_title)
              VALUES (?, ?, ?, ?, ?)`,
         )
-        .run('session-0', 'project-0', 0, 0, 'Alpha Session');
+        .run('session-0', 'project-0', fixtureCreatedAt, fixtureCreatedAt, 'Alpha Session');
     database.pragma('user_version = 10');
     database.close();
 }
