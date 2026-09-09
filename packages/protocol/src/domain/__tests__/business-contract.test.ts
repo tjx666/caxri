@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { appSettingsSchema } from '../../configuration/settings-schema.js';
 import { settingsSpecByKey } from '../../configuration/settings-spec.js';
 import {
     businessInternalMethods,
@@ -43,6 +44,26 @@ describe('terminalQuerySchema', () => {
 });
 
 describe('settingsPatchChangeSchema', () => {
+    it('requires the user settings surface to enable automatic worktree authorization', () => {
+        expect(
+            appSettingsSchema.safeParse({
+                'workbench.newWorktreeBehavior': 'continueAutomatically',
+            }).success,
+        ).toBe(true);
+        expect(
+            settingsPatchChangeSchema.safeParse({
+                key: 'workbench.newWorktreeBehavior',
+                value: 'continueAutomatically',
+            }).success,
+        ).toBe(false);
+        for (const value of ['ask', 'continueWhenAuthorized', 'ignore']) {
+            expect(
+                settingsPatchChangeSchema.safeParse({ key: 'workbench.newWorktreeBehavior', value })
+                    .success,
+            ).toBe(true);
+        }
+    });
+
     it('enforces the documented terminal.fontSize bounds', () => {
         const { min, max } = settingsSpecByKey['terminal.fontSize'];
         expect(
