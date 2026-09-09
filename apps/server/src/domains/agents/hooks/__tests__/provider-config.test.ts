@@ -46,6 +46,33 @@ function install(
 }
 
 describe('Agent provider hook configuration adapters', () => {
+    it('repairs an owned group in place without changing positional trust keys for neighboring hooks', () => {
+        interface Document {
+            hooks: Record<string, Array<{ hooks: Array<{ type: string; command: string }> }>>;
+        }
+        const parse = (source: string) => JSON.parse(source) as Document;
+        const original = parse(install(codexHookAdapter, 'hooks', '{}\n', 'codex'));
+        const owned = original.hooks.UserPromptSubmit[0];
+        const foreign = { hooks: [{ type: 'command', command: '/synthetic/user-hook' }] };
+        original.hooks.UserPromptSubmit = [owned, foreign];
+        const unchanged = codexHookAdapter.render(
+            new Map([['hooks', JSON.stringify(original)]]),
+            desired('codex', codexHookAdapter.schemaVersion),
+        )[0].source;
+        expect(parse(unchanged).hooks.UserPromptSubmit).toEqual([owned, foreign]);
+        owned.hooks[0].command = owned.hooks[0].command.replace(
+            `--schema ${codexHookAdapter.schemaVersion}`,
+            '--schema 7',
+        );
+        const repaired = codexHookAdapter.render(
+            new Map([['hooks', JSON.stringify(original)]]),
+            desired('codex', codexHookAdapter.schemaVersion),
+        )[0].source;
+        expect(parse(repaired).hooks.UserPromptSubmit[1]).toEqual(foreign);
+        expect(parse(repaired).hooks.UserPromptSubmit[0].hooks[0].command).toContain(
+            `--schema ${codexHookAdapter.schemaVersion}`,
+        );
+    });
     it.each([
         '{ "hooks": false }',
         '{ "hooks": [] }',
