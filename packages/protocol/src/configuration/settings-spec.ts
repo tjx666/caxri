@@ -302,8 +302,8 @@ export const settingsSpec = [
         keywords: ['link', 'path', 'word', 'separator', 'double click', 'selection'],
         nullable: false,
         maxLength: 128,
-        // Matches the VS Code `terminal.integrated.wordSeparators` default, including the leading space.
-        default: ' ()[]{}\',"`─‘’“”|',
+        // Extend the VS Code baseline so double-click selection also stops at Chinese punctuation.
+        default: ' ()[]{}\',"`─‘’“”|，。；：！？、（）【】「」『』《》',
     },
     {
         kind: 'complex',
