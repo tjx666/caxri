@@ -149,12 +149,21 @@ test('Session dragging preserves order across restart and yields only to subsequ
             { projectId: a.projectId, defaultAgent: null },
         );
         await expect.poll(order).toEqual([fresh.id, a.id, b.id]);
-        for (let index = 0; index < 3; index += 1)
+        const newSessionIds: string[] = [];
+        for (let index = 0; index < 3; index += 1) {
             // eslint-disable-next-line no-await-in-loop -- deterministic creation order for the window boundary
-            await pageRequest(running.page, 'session.create', {
-                projectId: a.projectId,
-                defaultAgent: null,
-            });
+            const { session } = await pageRequest<{ session: SessionRecord }>(
+                running.page,
+                'session.create',
+                { projectId: a.projectId, defaultAgent: null },
+            );
+            newSessionIds.unshift(session.id);
+        }
+        /**
+         * The capped list already has five rows before the last creation renders. Wait for its actual IDs so a late
+         * creation event cannot shift the boundary after capturing the keyboard-move baseline.
+         */
+        await expect.poll(order).toEqual([...newSessionIds, fresh.id, a.id]);
         const lastVisible = running.page.locator('.session-card').last();
         await expect(running.page.locator('.session-card')).toHaveCount(5);
         const beforeBoundaryMove = await order();
