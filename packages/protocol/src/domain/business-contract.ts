@@ -120,7 +120,12 @@ export const settingsPatchChangeSchema = z.discriminatedUnion('key', [
     }),
     z.object({
         key: z.literal('workbench.newWorktreeBehavior'),
-        value: appSettingsSchema.shape['workbench.newWorktreeBehavior'].unwrap(),
+        /**
+         * Agent-writable settings must not grant new filesystem authority; automatic following is a user choice.
+         */
+        value: appSettingsSchema.shape['workbench.newWorktreeBehavior']
+            .unwrap()
+            .exclude(['continueAutomatically']),
     }),
     z.object({
         key: z.literal('terminal.fontSize'),
