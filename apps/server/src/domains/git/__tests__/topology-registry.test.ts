@@ -49,11 +49,19 @@ describe('RepoTopologyRegistry', () => {
             expect.arrayContaining([expect.stringContaining('primary')]),
         );
         expect(first.worktrees).toHaveLength(2);
+        expect(first.worktrees.map((root) => root.isMain)).toEqual([true, false]);
         const spawnsAfterFirst = calls();
         expect(spawnsAfterFirst).toBe(2);
         const second = await registry.topology(primaryRoot);
         expect(second).toBe(first);
         expect(calls()).toBe(spawnsAfterFirst);
+    });
+
+    it('does not promote a linked checkout when an earlier topology entry is unavailable', async () => {
+        const { registry } = createRegistry(() => [join(base, 'missing-primary'), linkedRoot]);
+        const topology = await registry.topology(linkedRoot);
+        expect(topology.worktrees).toHaveLength(1);
+        expect(topology.worktrees[0].isMain).toBe(false);
     });
 
     it('joins the cached topology when looked up from a sibling linked root', async () => {

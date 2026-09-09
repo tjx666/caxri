@@ -187,7 +187,13 @@ export function StatusBar() {
                  * the PrimarySidebar already offers "Add your first Project" at full size. Restating it in the status bar
                  * says nothing new and gives the emptiest screen its most prominent line of prose.
                  */}
-                {sessionId && <WorkbenchRootPicker branch={repo?.branch} sessionId={sessionId} />}
+                {sessionId && (
+                    <WorkbenchRootPicker
+                        key={sessionId}
+                        branch={repo?.branch}
+                        sessionId={sessionId}
+                    />
+                )}
                 {repo && sessionId && (
                     <BranchPicker
                         branch={repo.branch}
