@@ -68,7 +68,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const provider = ${JSON.stringify(provider)};
 if (process.argv.includes('--version')) {
-  process.stdout.write(${JSON.stringify(provider === 'codex' ? 'codex-cli 0.151.0\n' : '2.1.251 (Claude Code)\n')});
+  process.stdout.write(${JSON.stringify(provider === 'grok' ? 'grok 1.0.24\n' : provider === 'codex' ? 'codex-cli 0.151.0\n' : '2.1.251 (Claude Code)\n')});
   process.exit(0);
 }
 const resumeIndex = process.argv.indexOf('--resume');

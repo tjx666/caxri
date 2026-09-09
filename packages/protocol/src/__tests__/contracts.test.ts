@@ -145,6 +145,7 @@ describe('method table', () => {
             methods['settings.get'].result.shape.value.shape['agents.providers'].safeParse({
                 claude: entry,
                 codex: entry,
+                grok: entry,
             }).success,
         ).toBe(true);
     });

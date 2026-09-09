@@ -42,6 +42,7 @@ interface RunnerAgentEnvironmentPolicy {
 const RUNNER_AGENT_ENVIRONMENT_POLICIES = {
     claude: { directoryName: 'claude', environmentKeys: ['CLAUDE_CONFIG_DIR'] },
     codex: { directoryName: 'codex', environmentKeys: ['CODEX_HOME'] },
+    grok: { directoryName: 'grok', environmentKeys: ['GROK_HOME'] },
 } satisfies Record<AgentProvider, RunnerAgentEnvironmentPolicy>;
 
 /**

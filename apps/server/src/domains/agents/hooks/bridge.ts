@@ -27,6 +27,8 @@ for (let index = 2; index < process.argv.length - 1; index += 2) {
 // machine, so it must stay identical across builds or they would rewrite each other's entries. Each Caxri instance
 // tells the bridge which schema it expects through the launch environment, next to the socket that instance owns.
 const provider = args.get('provider');
+// Grok imports Claude hooks by default. Those inherited commands must not identify it as Claude Code.
+if (process.env.GROK_SESSION_ID && provider !== 'grok') process.exit(0);
 const schemaFromEnvironment = Number(process.env['CAXRI_HOOK_SCHEMA_' + String(provider).toUpperCase()]);
 // A shell profile sourced after launch can overwrite the variable with anything; a non-numeric value must not turn
 // every signal in the Terminal into an unexplained rejection.
@@ -186,6 +188,12 @@ function readIdentifiers(callback) {
       const index = source.indexOf(marker);
       if (index >= 0 && index < commonEnd) commonEnd = index;
     }
+    if (provider === 'grok') {
+      for (const marker of ['"prompt"', '"lastAssistantMessage"']) {
+        const index = source.indexOf(marker);
+        if (index >= 0 && index < commonEnd) commonEnd = index;
+      }
+    }
     const common = source.slice(0, commonEnd);
     for (const key of keys) {
       const match = common.match(new RegExp('(?:^|[,{])\\s*"' + key + '"\\s*:\\s*"([a-zA-Z0-9_.-]{1,256})"'));
@@ -203,17 +211,36 @@ function readIdentifiers(callback) {
     let worktreeCreateIntent = false;
     try {
       const payload = JSON.parse(source);
+      if (provider === 'grok') {
+        // A shutdown Stop has no completed turn. Child/background activity cannot settle the main Session.
+        if (payload.agent_id || payload.agentId) return callback({ ignored: true });
+        if (signal.phase === 'sessionIdentified' && !['new', 'load'].includes(payload.source))
+          return callback({ ignored: true });
+        if (signal.phase === 'turnFinished' && (payload.reason !== 'end_turn' || !payload.promptId ||
+            (Array.isArray(payload.backgroundTasks) && payload.backgroundTasks.length) ||
+            (Array.isArray(payload.sessionCrons) && payload.sessionCrons.length)))
+          return callback({ ignored: true });
+      }
       const agentValue = payload && (payload.agent_id ?? payload.agentId);
       if (typeof agentValue === 'string' && agentValue.length > 0 && agentValue.length <= 256) agentId = agentValue;
       const value = payload && (payload.session_id ?? payload.sessionId);
       if (typeof value === 'string' && value.length > 0 && value.length <= 256) sessionId = value;
-      const turnValue = payload && (payload.turn_id ?? payload.turnId);
+      const turnValue = payload && (payload.turn_id ?? payload.turnId ?? (provider === 'grok' ? payload.promptId : undefined));
       if (typeof turnValue === 'string' && turnValue.length > 0 && turnValue.length <= 256) turnId = turnValue;
       const toolValue = payload && (payload.tool_use_id ?? payload.toolUseId);
       if (typeof toolValue === 'string' && toolValue.length > 0 && toolValue.length <= 256) toolUseId = toolValue;
       worktreeCreateIntent = hasWorktreeCreateIntent(payload);
       cwd = readCwd(payload);
     } catch {
+      if (provider === 'grok') {
+        // Large prompts follow the common header. Recover start identity without reading prompt text;
+        // completion still requires the full payload to prove reason and absence of background work.
+        if (signal.phase !== 'turnStarted' || prefixString(['agent_id', 'agentId']))
+          return callback({ ignored: true });
+        sessionId = prefixString(['sessionId', 'session_id']);
+        turnId = prefixString(['promptId']);
+        return callback(sessionId && turnId ? { sessionId, turnId } : { ignored: true });
+      }
       // Common hook fields precede event-specific tool input/results. A large payload is intentionally truncated, but
       // these bounded opaque identifiers remain recoverable without retaining or parsing provider content. The cwd is
       // deliberately not recovered here: its character class overlaps provider content, and every later hook event
@@ -241,7 +268,8 @@ if (!hasAnyLaunchContext) {
   process.exitCode = exitCodes.launchContextUnavailable;
 } else {
 if (process.env.CAXRI_HOOK_RECEIPTS === '1') reportBridgeStarted();
-readIdentifiers(({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateIntent }) => {
+readIdentifiers(({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateIntent, ignored }) => {
+  if (ignored) { process.stdin.pause(); return; }
   if (agentId) signal.agentId = agentId;
   if (cwd) signal.agentCwd = cwd;
   if (sessionId) signal.agentSessionId = sessionId;
@@ -285,7 +313,7 @@ readIdentifiers(({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateInt
 }
 `;
 
-const BRIDGE_VERSION = 14;
+const BRIDGE_VERSION = 15;
 
 const BRIDGE_WRAPPER = String.raw`#!/bin/sh
 bridge_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)

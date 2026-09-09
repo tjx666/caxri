@@ -290,13 +290,14 @@ export function decideAgentLifecycleUpdate(
     const lastActivityState: AgentActivityState =
         phase === 'turnStarted'
             ? 'running'
-            : phase === 'attentionRequested'
-              ? 'waiting'
-              : 'completed';
-    const requestedAttention =
-        phase === 'attentionRequested' || phase === 'turnFinished'
-            ? (lastActivityState as SessionAttentionKind)
-            : undefined;
+            : phase === 'turnFailed'
+              ? 'failed'
+              : phase === 'attentionRequested'
+                ? 'waiting'
+                : 'completed';
+    const requestedAttention = ['attentionRequested', 'turnFinished', 'turnFailed'].includes(phase)
+        ? (lastActivityState as SessionAttentionKind)
+        : undefined;
     const attentionKind = reliableAttentionTransition(
         session,
         lastActivityState,

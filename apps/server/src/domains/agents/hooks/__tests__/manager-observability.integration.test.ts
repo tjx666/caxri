@@ -32,6 +32,7 @@ describe('AgentHookManager observability', () => {
         settings.codex.hooks.enabled = true;
         // Only Codex is under observation; keep the Claude default from adding a second install write.
         settings.claude.hooks.enabled = false;
+        settings.grok.hooks.enabled = false;
         const signals = vi.fn<(signal: AgentLifecycleSignal) => AgentSignalDecision>(
             () => 'accepted',
         );

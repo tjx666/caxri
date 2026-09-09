@@ -22,16 +22,19 @@ describe('E2E Agent isolation environment', () => {
             const environment = await createE2EAgentIsolationEnvironment(fixtureRoot);
 
             expect(new Set(e2eAgentStateEnvironmentKeys)).toEqual(
-                new Set(['CLAUDE_CONFIG_DIR', 'CODEX_HOME', 'CODEX_SQLITE_HOME']),
+                new Set(['CLAUDE_CONFIG_DIR', 'CODEX_HOME', 'CODEX_SQLITE_HOME', 'GROK_HOME']),
             );
             expect(environment).toMatchObject({
                 CLAUDE_CONFIG_DIR: join(fixtureRoot, 'claude'),
                 CODEX_HOME: join(fixtureRoot, 'codex'),
                 CODEX_SQLITE_HOME: join(fixtureRoot, 'codex'),
+                GROK_HOME: join(fixtureRoot, 'grok'),
                 HOME: join(fixtureRoot, 'home'),
             });
             await Promise.all(
-                ['CLAUDE_CONFIG_DIR', 'CODEX_HOME', 'HOME'].map((key) => access(environment[key]!)),
+                ['CLAUDE_CONFIG_DIR', 'CODEX_HOME', 'GROK_HOME', 'HOME'].map((key) =>
+                    access(environment[key]!),
+                ),
             );
         } finally {
             await rm(fixtureRoot, { recursive: true, force: true });

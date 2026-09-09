@@ -172,6 +172,7 @@ export class TerminalSuspensionService {
                 sample.turnInFlight = true;
                 return;
             case 'turnFinished':
+            case 'turnFailed':
             case 'attentionRequested':
                 sample.lastTurnFinishedAt = now;
                 sample.turnInFlight = false;

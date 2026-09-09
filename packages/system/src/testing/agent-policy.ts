@@ -218,6 +218,7 @@ interface RealE2EAgentLaunchPolicy {
  * test surface; a catalog extension cannot inherit Codex's reviewed arguments by omission.
  */
 const REAL_E2E_AGENT_LAUNCH_POLICIES: Record<AgentProvider, RealE2EAgentLaunchPolicy | null> = {
+    grok: null,
     claude: null,
     codex: {
         argumentPrefix: [

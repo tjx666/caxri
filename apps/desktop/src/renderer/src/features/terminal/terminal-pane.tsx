@@ -190,7 +190,8 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         ? agentProviderCatalog[provider].imageInput?.terminalInput
         : undefined;
     const longPasteEnabled = provider
-        ? settings['agents.providers'][provider].pasteSummary.enabled
+        ? agentProviderCatalog[provider].capabilities.pasteSummary &&
+          settings['agents.providers'][provider].pasteSummary.enabled
         : false;
     const longPasteThreshold = settings['terminal.longPasteThreshold'];
     const canAcceptAgentInput = isAgentProcessRunning(terminal?.lastAgentProcessState);

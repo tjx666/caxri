@@ -142,10 +142,13 @@ describe('AgentMessagingCapabilityProbe', () => {
 
         await checkAll();
         await checkAll();
-        expect(providerProbe).toHaveBeenCalledTimes(agentProviderIds.length);
+        const supportedCount = agentProviderIds.filter(
+            (provider) => agentProviderCatalog[provider].capabilities.messaging,
+        ).length;
+        expect(providerProbe).toHaveBeenCalledTimes(supportedCount);
         probe.invalidate();
         await checkAll();
-        expect(providerProbe).toHaveBeenCalledTimes(agentProviderIds.length * 2);
+        expect(providerProbe).toHaveBeenCalledTimes(supportedCount * 2);
     });
 
     it('coalesces identical concurrent provider and launch checks', async () => {

@@ -80,6 +80,18 @@ export function createInterruptedTerminalRestorer(options: InterruptedTerminalRe
                 ].includes(terminal.lastAgentProcessState ?? 'stopped');
                 const resumeAgentSessionId =
                     shouldRestoreAgent && terminal.provider ? terminal.agentSessionId : undefined;
+                if (shouldRestoreAgent && !resumeAgentSessionId && terminal.provider === 'grok') {
+                    database.updateTerminalState(
+                        terminal.id,
+                        'failed',
+                        'agent_session_unavailable',
+                    );
+                    send({
+                        event: 'state.changed',
+                        payload: { kind: 'records', sessionIds: [], terminalIds: [terminal.id] },
+                    });
+                    return false;
+                }
                 if (resumeAgentSessionId) coordinator.prepareTerminalResume(terminal.id);
                 else if (shouldRestoreAgent) coordinator.prepareTerminalStart(terminal.id);
                 try {

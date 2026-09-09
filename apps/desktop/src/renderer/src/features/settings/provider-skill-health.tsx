@@ -1,4 +1,5 @@
 import type { AgentProvider, AgentSkillHealth } from '@caxri/protocol';
+import { agentProviderCatalog } from '@caxri/protocol';
 
 import { skillScopeHealth, skillScopeSummary } from './provider-health';
 
@@ -12,6 +13,12 @@ interface ProviderSkillHealthProperties {
  * concrete repair command when an installation needs attention.
  */
 export function ProviderSkillHealth({ provider, agentSkillHealth }: ProviderSkillHealthProperties) {
+    if (!agentProviderCatalog[provider].capabilities.actions)
+        return (
+            <span className="text-muted">
+                Bundled skills are unavailable for {agentProviderCatalog[provider].displayName}.
+            </span>
+        );
     return (
         <div
             data-agent-skill-health={provider}

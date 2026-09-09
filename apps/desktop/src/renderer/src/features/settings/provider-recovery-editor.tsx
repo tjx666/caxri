@@ -36,6 +36,7 @@ interface FieldDraft {
 const RECOVERY_PATTERN_PLACEHOLDERS: Record<AgentProvider, string> = {
     claude: 'API Error: The response stopped arriving. The response above may be incomplete.',
     codex: 'API timeout\nretry failed',
+    grok: 'API timeout',
 };
 
 function currentDraft(state: FieldDraft, canonical: string): FieldDraft {

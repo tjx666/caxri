@@ -41,6 +41,7 @@ interface MatchingRule {
 const BUILTIN_RECOVERY_PATTERNS: Record<AgentProvider, readonly string[]> = {
     claude: ['⚠ Selected model is at capacity. Please try a different model.'],
     codex: [],
+    grok: [],
 };
 
 /**
@@ -50,6 +51,7 @@ const BUILTIN_RECOVERY_PATTERNS: Record<AgentProvider, readonly string[]> = {
 const CURSOR_LINE_OMISSION_PATTERNS: Record<AgentProvider, readonly RegExp[]> = {
     claude: [/^[^a-z\d]*cogitated for (?:\d+\s*[hms]\s*)+$/iu, /^❯$/u],
     codex: [],
+    grok: [],
 };
 
 function settingsSignature(settings: AgentOutputRecoverySettings): string {

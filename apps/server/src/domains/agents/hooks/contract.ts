@@ -8,6 +8,7 @@ export const agentLifecyclePhases = [
     'subagentStarted',
     'attentionRequested',
     'turnFinished',
+    'turnFailed',
     'shellToolStarted',
     'shellToolFinished',
     'shellToolFailed',
@@ -41,6 +42,10 @@ export type AgentSignalIgnoredReason =
      * The signal carries a superseded launch id: the PTY restarted and an older Agent process is still firing.
      */
     | 'staleLaunch'
+    /**
+     * The event belongs to a replaced provider session or an older turn in the same PTY.
+     */
+    | 'staleProviderTurn'
     /**
      * A subagent-scoped signal matched a tracked scope but released nothing yet, because sibling subagents are still
      * running or no parent completion was waiting on it. This is the ordinary rhythm of a multi-subagent turn, kept
