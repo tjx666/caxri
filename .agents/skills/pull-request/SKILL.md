@@ -9,6 +9,11 @@ Deliver the current topic branch without weakening validation or disturbing unre
 Routing this skill for a readiness question is read-only and never grants remote mutation
 authority.
 
+When the user follows up on unfinished delivery by directing the agent to proceed with the
+discussed merge, carry that authorization through commit, PR publication, checks, merge, and remote
+readback. Do not end again at local validation or PR creation. A status-only question such as
+"has it merged?" remains read-only and does not grant merge authorization.
+
 1. Refresh the current branch, working tree, remote refs, linked issue state, existing PR state,
    and required checks before making a delivery decision. Remote mutations require explicit user or
    owning-workflow authorization.

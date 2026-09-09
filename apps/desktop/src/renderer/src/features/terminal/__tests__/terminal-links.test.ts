@@ -286,19 +286,27 @@ describe('registerTerminalLinks', () => {
         expect(openUrl).toHaveBeenCalledWith('https://example.com');
     });
 
-    it('does not expose an adjacent bare path after CJK prose', async () => {
+    it('exposes a bare path separated from CJK prose by punctuation', async () => {
         const text = '说明。workspace/apps/server/src/file.ts:15';
         const terminal = createTerminal(text, cellsFor(text));
         const { context, openFile } = baseContext();
         const registration = registerTerminalLinks(terminal.terminal, context);
 
-        expect(await terminal.links()).toBeUndefined();
-        expect(registration.getViewportLinks()).toEqual([]);
+        expect(await terminal.links()).toMatchObject([
+            { text: 'workspace/apps/server/src/file.ts:15', range: { start: { x: 4, y: 1 } } },
+        ]);
+        expect(registration.getViewportLinks()).toMatchObject([
+            { kind: 'file', target: 'workspace/apps/server/src/file.ts:15' },
+        ]);
         terminal.terminal.options.linkHandler?.activate({ metaKey: true } as MouseEvent, text, {
             start: { x: 1, y: 1 },
             end: { x: 1, y: 1 },
         });
-        expect(openFile).not.toHaveBeenCalled();
+        expect(openFile).toHaveBeenCalledWith('workspace/apps/server/src/file.ts', {
+            mode: 'line',
+            startLine: 15,
+            endLine: 15,
+        });
     });
 
     it('exposes current-viewport links with accessible actions that reuse typed activation', () => {

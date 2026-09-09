@@ -1,3 +1,5 @@
+import { defaultAppSettings } from '@caxri/protocol';
+
 import { parseTerminalFileLocation } from './terminal-file-location';
 import { trimTerminalLinkToken } from './terminal-link-token';
 
@@ -26,10 +28,9 @@ export const CJK_PROSE_BOUNDARIES = new Set([
 ]);
 
 /**
- * Matches the VS Code `terminal.integrated.wordSeparators` default (leading space included). The
- * `terminal.wordSeparators` setting overrides it; this constant is only the not-yet-loaded fallback.
+ * Share the settings default so selection and fallback link detection cannot drift before settings load.
  */
-export const TERMINAL_DEFAULT_WORD_SEPARATORS = ' ()[]{}\',"`─‘’“”|';
+export const TERMINAL_DEFAULT_WORD_SEPARATORS = defaultAppSettings['terminal.wordSeparators'];
 
 /**
  * Only the current user's exact `~/...` shorthand is actionable. Server owns OS user lookup and deliberately rejects

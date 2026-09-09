@@ -10,6 +10,19 @@ import {
 import { settingsSpec } from '../settings-spec.js';
 
 describe('settings spec and schema agreement', () => {
+    it('separates Chinese punctuation by default while preserving identifiers and custom choices', () => {
+        const separators = appSettingsFileSchema.parse({})['terminal.wordSeparators'];
+        for (const character of '，。；：！？、（）【】「」『』《》') {
+            expect(separators).toContain(character);
+        }
+        expect(separators).not.toContain('_');
+        expect(
+            appSettingsFileSchema.parse({ 'terminal.wordSeparators': ' ,' })[
+                'terminal.wordSeparators'
+            ],
+        ).toBe(' ,');
+    });
+
     it('allows replacing Git diff exclusions without changing file-tree defaults', () => {
         expect(appSettingsFileSchema.parse({})['git.diffExclude']).toEqual({
             '**/*.test.*': true,
