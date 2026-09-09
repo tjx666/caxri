@@ -36,6 +36,8 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e] [-
 - `--e2e-grep '<pattern>'` narrows `--e2e` to one Playwright test-title pattern.
 - Rebuild before focused Electron E2E whenever relevant `src/` files changed after the previous
   build; the checker's `--e2e` path performs that rebuild automatically.
+- Finish `--lint` before starting a build or Electron E2E. Its automatic fixes mutate source;
+  running both concurrently invalidates the build-freshness receipt before Electron can launch.
 
 Pass a test path explicitly when a source file has a nonstandard test that does not directly import
 the source boundary. The checker never launches full Electron E2E, packaging, or performance gates
