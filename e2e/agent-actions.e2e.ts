@@ -32,6 +32,73 @@ async function capturedInput(path: string): Promise<string> {
     return (await capturedInputChunks(path)).join('');
 }
 
+test('Agent skill search reveals the first result after scrolling', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-agent-search-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    const names = ['fix-ci', ...Array.from({ length: 20 }, (_, index) => `fix-task-${index}`)];
+    await Promise.all(
+        names.map(async (name) => {
+            const directory = join(root, '.claude', 'skills', name);
+            await mkdir(directory, { recursive: true });
+            await writeFile(
+                join(directory, 'SKILL.md'),
+                `---\nname: ${name}\ndescription: Fix a test workflow\n---\nSynthetic search fixture.\n`,
+            );
+        }),
+    );
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: { claude: { startupOutput: 'SEARCH_READY\r\n' } },
+    });
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        await createProjectSession(running.page, 'claude');
+        await expect(running.page.locator('.xterm-rows')).toContainText('SEARCH_READY');
+        await running.page.keyboard.press('Meta+Shift+A');
+        const picker = running.page.locator('[data-agent-actions-picker]');
+        const search = picker.getByPlaceholder('Search skills and slash commands…');
+        const list = picker.locator('[cmdk-list]');
+        const first = picker.locator('[data-agent-action="/fix-ci"]');
+        await search.fill('fi');
+        await expect(first).toHaveAttribute('data-selected', 'true');
+        await list.evaluate((element) => {
+            element.scrollTop = element.scrollHeight;
+        });
+        await expect(first).not.toBeInViewport();
+        await search.fill('fix');
+        await expect.poll(() => list.evaluate((element) => element.scrollTop)).toBe(0);
+        await expect(first).toBeInViewport();
+        await expect(first).toHaveAttribute('data-selected', 'true');
+        await picker.screenshot({ path: test.info().outputPath('agent-search.png') });
+        await search.press('ArrowDown');
+        await expect(first).toHaveAttribute('data-selected', 'false');
+        await search.fill('fix-');
+        await expect(first).toHaveAttribute('data-selected', 'true');
+        await expect(first).toBeInViewport();
+        await search.press('Escape');
+
+        await running.page.keyboard.press('Meta+Shift+P');
+        const palette = running.page.getByRole('dialog');
+        const paletteSearch = palette.getByPlaceholder('Search projects, sessions, and commands…');
+        const paletteList = palette.locator('[cmdk-list]');
+        await paletteSearch.fill('ter');
+        await paletteList.evaluate((element) => {
+            element.scrollTop = element.scrollHeight;
+        });
+        await expect
+            .poll(() => paletteList.evaluate((element) => element.scrollTop))
+            .toBeGreaterThan(0);
+        await paletteSearch.fill('term');
+        await expect.poll(() => paletteList.evaluate((element) => element.scrollTop)).toBe(0);
+        await expect(palette.locator('[cmdk-item][data-selected="true"]')).toBeInViewport();
+        await paletteSearch.press('Escape');
+    } finally {
+        await running.app.close();
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
 test('Agent Commands & Skills stays discoverable, describes its target, and preserves Terminal input', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-agent-actions-e2e-'));
     const userData = join(testDirectory, 'user-data');

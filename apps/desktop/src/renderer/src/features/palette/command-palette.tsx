@@ -1,6 +1,3 @@
-import type { ReactNode, RefObject } from 'react';
-import { useLayoutEffect, useRef, useState } from 'react';
-
 import type { ViewCatalogSnapshot } from '@caxri/protocol';
 import { commandDefinitions } from '@caxri/protocol';
 
@@ -98,35 +95,6 @@ function DynamicCommandRow({
     );
 }
 
-/**
- * Owns the query so it unmounts with the dialog content and never leaks into the next open. `cmdk` only scrolls the
- * list when the selected item's value changes, so a keystroke that keeps the same top result (e.g. `repor` → `report`)
- * would leave the list wherever it was scrolled, hiding the group heading and any results above the previous viewport.
- * Every search change belongs at the top of the freshly ranked list.
- */
-function PaletteCommand({
-    children,
-}: {
-    children: (listReference: RefObject<HTMLDivElement | null>) => ReactNode;
-}) {
-    const [search, setSearch] = useState('');
-    const listReference = useRef<HTMLDivElement>(null);
-    useLayoutEffect(() => {
-        listReference.current?.scrollTo({ top: 0 });
-    }, [search]);
-    return (
-        <Command label="Command Palette" className="w-full">
-            <CommandInput
-                autoFocus
-                placeholder="Search projects, sessions, and commands…"
-                value={search}
-                onValueChange={setSearch}
-            />
-            {children(listReference)}
-        </Command>
-    );
-}
-
 export function CommandPalette() {
     const isOpen = useDialogStore((state) => state.paletteOpen);
     const onOpenChange = setPaletteOpen;
@@ -164,70 +132,72 @@ export function CommandPalette() {
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
             <PickerDialogContent>
                 <DialogTitle className="sr-only">Command Palette</DialogTitle>
-                <PaletteCommand>
-                    {(listReference) => (
-                        <CommandList ref={listReference}>
-                            <CommandEmpty>No Project, Session, or command found.</CommandEmpty>
-                            <CommandGroup heading="Projects">
-                                {projectResults.map((project) => (
+                <Command label="Command Palette" className="w-full">
+                    <CommandInput
+                        autoFocus
+                        placeholder="Search projects, sessions, and commands…"
+                    />
+                    <CommandList>
+                        <CommandEmpty>No Project, Session, or command found.</CommandEmpty>
+                        <CommandGroup heading="Projects">
+                            {projectResults.map((project) => (
+                                <CommandItem
+                                    key={project.id}
+                                    value={`Project ${project.displayTitle} ${project.rootPath}`}
+                                    onSelect={() => {
+                                        onOpenChange(false);
+                                        selectProject(project.id);
+                                    }}
+                                >
+                                    <span>{project.displayTitle}</span>
+                                    <small className={commandItemMetaClassName}>Project</small>
+                                </CommandItem>
+                            ))}
+                        </CommandGroup>
+                        <CommandGroup heading="Sessions">
+                            {sessions.map((session) => {
+                                const project = projects.find(
+                                    (item) => item.id === session.projectId,
+                                );
+                                return (
                                     <CommandItem
-                                        key={project.id}
-                                        value={`Project ${project.displayTitle} ${project.rootPath}`}
+                                        key={session.id}
+                                        // `cmdk` tracks the selected row by `value`, not by React key, so two
+                                        // sessions sharing a title and project (e.g. two "Untitled" sessions
+                                        // in one worktree) would both render as selected. The id keeps every
+                                        // value unique without changing what the search matches on.
+                                        value={`Session ${session.displayTitle} ${project?.displayTitle ?? ''} ${project?.rootPath ?? ''} ${session.id}`}
                                         onSelect={() => {
                                             onOpenChange(false);
-                                            selectProject(project.id);
+                                            // eslint-disable-next-line no-void -- intentional floating-promise discard, didSelectSession() reports its own errors
+                                            void didSelectSession(session.id);
                                         }}
                                     >
-                                        <span>{project.displayTitle}</span>
-                                        <small className={commandItemMetaClassName}>Project</small>
+                                        <span>{session.displayTitle}</span>
+                                        <small className={commandItemMetaClassName}>
+                                            {project?.displayTitle ?? 'Session'}
+                                        </small>
                                     </CommandItem>
-                                ))}
-                            </CommandGroup>
-                            <CommandGroup heading="Sessions">
-                                {sessions.map((session) => {
-                                    const project = projects.find(
-                                        (item) => item.id === session.projectId,
-                                    );
-                                    return (
-                                        <CommandItem
-                                            key={session.id}
-                                            // `cmdk` tracks the selected row by `value`, not by React key, so two
-                                            // sessions sharing a title and project (e.g. two "Untitled" sessions
-                                            // in one worktree) would both render as selected. The id keeps every
-                                            // value unique without changing what the search matches on.
-                                            value={`Session ${session.displayTitle} ${project?.displayTitle ?? ''} ${project?.rootPath ?? ''} ${session.id}`}
-                                            onSelect={() => {
-                                                onOpenChange(false);
-                                                // eslint-disable-next-line no-void -- intentional floating-promise discard, didSelectSession() reports its own errors
-                                                void didSelectSession(session.id);
-                                            }}
-                                        >
-                                            <span>{session.displayTitle}</span>
-                                            <small className={commandItemMetaClassName}>
-                                                {project?.displayTitle ?? 'Session'}
-                                            </small>
-                                        </CommandItem>
-                                    );
-                                })}
-                            </CommandGroup>
-                            <CommandGroup heading="Commands">
-                                {commandDefinitions.map((command) =>
-                                    command.requiresArguments ||
-                                    !isCommandVisibleInPalette(command, whenContext) ? null : (
-                                        <CommandRow key={command.id} command={command} />
-                                    ),
-                                )}
-                                {getPaletteExtensionCommands(catalog).map((command) => (
-                                    <DynamicCommandRow
-                                        key={command.id}
-                                        catalog={catalog!}
-                                        command={command}
-                                    />
-                                ))}
-                            </CommandGroup>
-                        </CommandList>
-                    )}
-                </PaletteCommand>
+                                );
+                            })}
+                        </CommandGroup>
+                        <CommandGroup heading="Commands">
+                            {commandDefinitions.map((command) =>
+                                command.requiresArguments ||
+                                !isCommandVisibleInPalette(command, whenContext) ? null : (
+                                    <CommandRow key={command.id} command={command} />
+                                ),
+                            )}
+                            {getPaletteExtensionCommands(catalog).map((command) => (
+                                <DynamicCommandRow
+                                    key={command.id}
+                                    catalog={catalog!}
+                                    command={command}
+                                />
+                            ))}
+                        </CommandGroup>
+                    </CommandList>
+                </Command>
             </PickerDialogContent>
         </Dialog>
     );
