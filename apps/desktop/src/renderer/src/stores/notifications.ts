@@ -73,10 +73,11 @@ export function syncNotificationSettings(
         previous.every((type, index) => type === mutedTypes[index])
     )
         return;
+    const mutedTypeSet = new Set(mutedTypes);
     useNotificationStore.setState((state) => ({
         mutedTypes,
         entries: state.entries.map((entry) =>
-            canMuteNotification(entry) && entry.type && mutedTypes.includes(entry.type)
+            canMuteNotification(entry) && entry.type && mutedTypeSet.has(entry.type)
                 ? { ...entry, unread: false }
                 : entry,
         ),

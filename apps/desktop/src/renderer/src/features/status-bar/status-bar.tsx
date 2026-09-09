@@ -101,6 +101,52 @@ function showSecondarySidebar(command: Extract<CommandId, `secondarySidebar.show
     executeCommand(command);
 }
 
+function RepoChangesStatus({ additions, deletions }: { additions: number; deletions: number }) {
+    return (
+        <StatusItem
+            icon={FileDiff}
+            ariaLabel={`Open changes: ${additions} ${additions === 1 ? 'addition' : 'additions'}, ${deletions} ${deletions === 1 ? 'deletion' : 'deletions'}`}
+            title="Show primary repository changes"
+            onClick={() => showSecondarySidebar('secondarySidebar.showGit')}
+        >
+            +{additions} -{deletions}
+        </StatusItem>
+    );
+}
+
+function ActivePaneStatus({
+    showChildProcessCount,
+    showMemory,
+}: {
+    showChildProcessCount: boolean;
+    showMemory: boolean;
+}) {
+    const session = useSelectedSession();
+    const activeResource = useActivePaneTab()?.resource;
+    if (
+        session &&
+        activeResource?.kind === 'file' &&
+        !isExternalEditorTabPath(activeResource.path) &&
+        !parseGitDiffTab(activeResource.path)
+    )
+        return (
+            <ActiveFileStatus
+                sessionId={session.id}
+                path={activeResource.path}
+                workbenchProjectId={session.workbenchProjectId}
+            />
+        );
+    if (activeResource?.kind === 'terminal')
+        return (
+            <ActiveTerminalStatus
+                showChildProcessCount={showChildProcessCount}
+                showMemory={showMemory}
+                terminalId={activeResource.terminalId}
+            />
+        );
+    return null;
+}
+
 export function StatusBar() {
     const session = useSelectedSession();
     const workbenchProject = useSelectedWorkbenchProject();
@@ -109,7 +155,6 @@ export function StatusBar() {
     const repo = overview?.repository;
     const serverStatus = useWorkbenchStore((state) => state.bootstrap?.runtime.status);
     const degraded = serverStatus ? DEGRADED_STATES[serverStatus] : undefined;
-    const activeResource = useActivePaneTab()?.resource;
     const [containerReference, containerWidth] = useContainerWidth<HTMLElement>();
     const chipVisibility = resolveChipVisibility(containerWidth);
     return (
@@ -161,14 +206,7 @@ export function StatusBar() {
                     </StatusItem>
                 )}
                 {repo && (
-                    <StatusItem
-                        icon={FileDiff}
-                        ariaLabel={`Open changes: ${repo.additions} ${repo.additions === 1 ? 'addition' : 'additions'}, ${repo.deletions} ${repo.deletions === 1 ? 'deletion' : 'deletions'}`}
-                        title="Show primary repository changes"
-                        onClick={() => showSecondarySidebar('secondarySidebar.showGit')}
-                    >
-                        +{repo.additions} -{repo.deletions}
-                    </StatusItem>
+                    <RepoChangesStatus additions={repo.additions} deletions={repo.deletions} />
                 )}
             </div>
             {/*
@@ -191,23 +229,10 @@ export function StatusBar() {
                     </Tooltip>
                 )}
                 <ScreencastModeChip />
-                {sessionId &&
-                    activeResource?.kind === 'file' &&
-                    !isExternalEditorTabPath(activeResource.path) &&
-                    !parseGitDiffTab(activeResource.path) && (
-                        <ActiveFileStatus
-                            sessionId={sessionId}
-                            path={activeResource.path}
-                            workbenchProjectId={session.workbenchProjectId}
-                        />
-                    )}
-                {activeResource?.kind === 'terminal' && (
-                    <ActiveTerminalStatus
-                        showChildProcessCount={chipVisibility.childProcessCount}
-                        showMemory={chipVisibility.memory}
-                        terminalId={activeResource.terminalId}
-                    />
-                )}
+                <ActivePaneStatus
+                    showChildProcessCount={chipVisibility.childProcessCount}
+                    showMemory={chipVisibility.memory}
+                />
             </div>
         </footer>
     );

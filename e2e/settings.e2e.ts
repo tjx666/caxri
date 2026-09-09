@@ -293,6 +293,7 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
         await expect(dialog.getByRole('alert')).toHaveCount(0);
         await expect(sourceEditor.locator('.view-lines')).toContainText('keep-source-comment');
         await dialog.getByRole('button', { name: 'UI' }).click();
+        await revealSettingsSection(dialog, 'Terminal');
         await expect(dialog.getByRole('spinbutton', { name: 'Font size' })).toHaveValue('17');
         // The source editor commits on blur/leaving the view instead of behind Apply, and there is
         // no per-tab dirty marker anymore — the persisted value already reflects the edit.
@@ -318,6 +319,7 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
         // to block on): it discards the uncommitted invalid edit and the structured UI reverts to
         // the last-known-good value instead of showing something broken.
         await dialog.getByRole('button', { name: 'UI' }).click();
+        await revealSettingsSection(dialog, 'Terminal');
         await expect(dialog.getByRole('spinbutton', { name: 'Font size' })).toHaveValue('17');
         await expect(dialog.locator('.monaco-editor')).toHaveCount(0);
         await expect
@@ -352,6 +354,7 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
         await running.page.keyboard.press('Escape');
         await running.page.keyboard.press('Meta+,');
         dialog = running.page.getByRole('dialog');
+        await revealSettingsSection(dialog, 'Terminal');
         await expect(dialog.getByRole('spinbutton', { name: 'Font size' })).toHaveValue('17');
         await expect(dialog.locator('.monaco-editor')).toHaveCount(0);
         await expect
