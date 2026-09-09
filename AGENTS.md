@@ -40,8 +40,11 @@ directories.
 - When an authorized implementation exposes an obvious, narrow defect in this file or a repository
   skill, repair it in the same change. That does not authorize unrelated or remote mutation.
 - Use `docs/` for durable explanations of shipped behavior, core modules, protocols, architectural
-  decisions, and operator knowledge. After a core module or large feature lands, explicitly ask
-  whether its lasting design or operational knowledge belongs there.
+  decisions, and operator knowledge. Deliver a core module or large feature with the applicable
+  long-term documentation and links from existing discovery entry points in the same change.
+  Do not defer necessary documentation to a post-delivery permission question. If an authorized
+  delivery omitted it, complete it as follow-up work; ask only when a real product decision or
+  material scope expansion needs the user's direction.
 - Use `.agents/skills/` for agent-discoverable, task-routed execution workflows and the architecture
   or toolchain contracts an agent must load to work safely. Keep reusable automation beside its
   owning skill. Keep each skill description specific enough for reliable routing.

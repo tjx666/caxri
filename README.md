@@ -101,6 +101,7 @@ architecture contracts live in the owning `.agents/skills/` entries. Bundle budg
 | [docs/cli.md](docs/cli.md)                                                             | The `caxri` CLI manual                                 |
 | [docs/agent-command-authority.md](docs/agent-command-authority.md)                     | Agent capability and audit boundaries                  |
 | [docs/agent-actions.md](docs/agent-actions.md)                                         | Unified Agent skills and slash-command picker          |
+| [docs/notifications.md](docs/notifications.md)                                         | Notification history and reminder preferences          |
 | [docs/bundle-size.md](docs/bundle-size.md)                                             | Bundle baseline and the CI budget gate                 |
 | [RELEASING.md](RELEASING.md)                                                           | Release workflow for the unsigned DMG                  |
 | [Project architecture](.agents/skills/project-architecture/references/architecture.md) | Process model, recovery contracts, dependency baseline |
