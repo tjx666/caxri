@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
     getQueryData: vi.fn(),
     getSelectedSession: vi.fn(),
     openExternalUrl: vi.fn(() => Promise.resolve()),
-    registerSessionSelectionConvergence: vi.fn(() => ({
+    registerSessionCommandConvergence: vi.fn(() => ({
         cancel: vi.fn(),
         promise: Promise.resolve(),
     })),
@@ -48,7 +48,7 @@ vi.mock('../../../stores/session-view', () => ({
 }));
 vi.mock('../../../stores/toasts', () => ({ pushToast: vi.fn(), tryCommand: mocks.tryCommand }));
 vi.mock('../../../stores/workbench', () => ({
-    registerSessionSelectionConvergence: mocks.registerSessionSelectionConvergence,
+    registerSessionCommandConvergence: mocks.registerSessionCommandConvergence,
     refreshWorkbench: mocks.refreshWorkbench,
     useWorkbenchStore: { getState: () => ({ bootstrap: undefined }) },
 }));
@@ -57,6 +57,7 @@ import {
     deleteSelectedSession,
     deleteSession,
     didReorderProject,
+    didReorderSession,
     didSelectSession,
     moveTerminalToNewSession,
     openProjectInExternalEditor,
@@ -75,7 +76,7 @@ describe('Session actions', () => {
         mocks.getQueryData.mockReset();
         mocks.getSelectedSession.mockReset();
         mocks.openExternalUrl.mockClear();
-        mocks.registerSessionSelectionConvergence.mockClear();
+        mocks.registerSessionCommandConvergence.mockClear();
         mocks.refreshWorkbench.mockClear();
         mocks.removeSessionQueries.mockClear();
         mocks.selectSelectedProject.mockReset();
@@ -216,7 +217,7 @@ describe('Session actions', () => {
         const convergence = Promise.withResolvers<void>();
         const cancel = vi.fn();
         mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-2' });
-        mocks.registerSessionSelectionConvergence.mockReturnValueOnce({
+        mocks.registerSessionCommandConvergence.mockReturnValueOnce({
             cancel,
             promise: convergence.promise,
         });
@@ -224,7 +225,7 @@ describe('Session actions', () => {
         const selected = didSelectSession('session-2');
         await vi.waitFor(() => expect(mocks.caxriRequest).toHaveBeenCalledOnce());
 
-        expect(mocks.registerSessionSelectionConvergence.mock.invocationCallOrder[0]).toBeLessThan(
+        expect(mocks.registerSessionCommandConvergence.mock.invocationCallOrder[0]).toBeLessThan(
             mocks.caxriRequest.mock.invocationCallOrder[0],
         );
         await expect(Promise.race([selected, Promise.resolve('pending')])).resolves.toBe('pending');
@@ -232,6 +233,43 @@ describe('Session actions', () => {
         convergence.resolve();
         await expect(selected).resolves.toBe(true);
         expect(cancel).not.toHaveBeenCalled();
+    });
+
+    it('keeps a relative reorder pending until its event-driven snapshot is applied', async () => {
+        const convergence = Promise.withResolvers<void>();
+        const cancel = vi.fn();
+        mocks.caxriRequest.mockResolvedValueOnce(null);
+        mocks.registerSessionCommandConvergence.mockReturnValueOnce({
+            cancel,
+            promise: convergence.promise,
+        });
+        const reordered = didReorderSession('session-1', 'session-2', 'after');
+        await vi.waitFor(() =>
+            expect(mocks.caxriRequest).toHaveBeenCalledWith('session.reorder', {
+                sessionId: 'session-1',
+                anchorSessionId: 'session-2',
+                placement: 'after',
+            }),
+        );
+        expect(mocks.registerSessionCommandConvergence).toHaveBeenCalledWith('session.reorder');
+        await expect(Promise.race([reordered, Promise.resolve('pending')])).resolves.toBe(
+            'pending',
+        );
+        convergence.resolve();
+        await expect(reordered).resolves.toBe(true);
+        expect(mocks.refreshWorkbench).not.toHaveBeenCalled();
+        expect(cancel).not.toHaveBeenCalled();
+    });
+
+    it('cancels the snapshot waiter when a reorder fails', async () => {
+        const cancel = vi.fn();
+        mocks.registerSessionCommandConvergence.mockReturnValueOnce({
+            cancel,
+            promise: new Promise(() => {}),
+        });
+        mocks.tryCommand.mockResolvedValueOnce(undefined);
+        await expect(didReorderSession('session-1', 'missing', 'before')).resolves.toBe(false);
+        expect(cancel).toHaveBeenCalledOnce();
     });
 
     it('walks adjacent Sessions in visible Project and activity order', async () => {

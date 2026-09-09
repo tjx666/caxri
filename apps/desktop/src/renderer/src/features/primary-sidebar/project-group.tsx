@@ -18,6 +18,7 @@ import { Tooltip } from '../../components/ui/tooltip';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { cn } from '../../lib/utilities';
 import { archiveSession, didSelectSession } from '../session/session-actions';
+import type { SessionOrderController } from './hooks/use-session-order';
 import { useSessionTitleScroll } from './hooks/use-session-title-scroll';
 import { primarySidebarRevealRowId } from './primary-sidebar-tree';
 import { ProjectIcon } from './project-icon';
@@ -43,6 +44,8 @@ function sessionTerminal(
 }
 
 interface ActiveSessionRowProperties {
+    sessionOrder: SessionOrderController;
+    visibleSessions: readonly SessionRecord[];
     focusRenameInput: (element: HTMLInputElement | null) => void;
     onBeginRename: () => void;
     onBlurRename: () => void;
@@ -70,6 +73,8 @@ interface ActiveSessionRowProperties {
 }
 
 function ActiveSessionRow({
+    sessionOrder,
+    visibleSessions,
     focusRenameInput,
     onBeginRename,
     onBlurRename,
@@ -102,13 +107,20 @@ function ActiveSessionRow({
         <div
             data-row-id={session.id}
             data-session-id={session.id}
+            draggable={!renaming}
+            onDragStart={(event) => sessionOrder.startDrag(event, session.id)}
+            onDragEnd={() => sessionOrder.endDrag()}
+            onDragOver={(event) => sessionOrder.dragOver(event, session.id)}
+            onDrop={(event) => sessionOrder.drop(event, session.id)}
             className={cn(
                 sessionCardClassName,
                 'focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none',
                 selected && 'active bg-elevated',
                 renaming && 'cursor-text',
+                sessionOrder.draggedId === session.id && 'opacity-50',
             )}
             role={renaming ? undefined : 'button'}
+            aria-keyshortcuts={renaming ? undefined : 'Alt+ArrowUp Alt+ArrowDown'}
             tabIndex={renaming ? undefined : roving ? 0 : -1}
             onFocus={(event) => setFocused(event.currentTarget.matches(':focus-visible'))}
             onBlur={() => setFocused(false)}
@@ -119,6 +131,8 @@ function ActiveSessionRow({
             }}
             onDoubleClick={onBeginRename}
             onKeyDown={(event) => {
+                if (!renaming) sessionOrder.keyDown(event, session, visibleSessions);
+                if (event.defaultPrevented) return;
                 if (!renaming && event.key === 'Enter') {
                     event.preventDefault();
                     onBeginRename();
@@ -225,6 +239,15 @@ function ActiveSessionRow({
             className="session-row group/session-row relative"
             role="treeitem"
         >
+            {sessionOrder.dropTarget?.anchorSessionId === session.id && (
+                <div
+                    aria-hidden="true"
+                    className={cn(
+                        'session-drop-marker pointer-events-none absolute inset-x-0 z-10 h-0.5 bg-accent',
+                        sessionOrder.dropTarget.placement === 'before' ? 'top-0' : 'bottom-0',
+                    )}
+                />
+            )}
             {renaming ? (
                 sessionCard
             ) : (
@@ -232,7 +255,7 @@ function ActiveSessionRow({
                     project={project}
                     pullRequest={pullRequest}
                     session={session}
-                    suppressed={menuOpen}
+                    suppressed={menuOpen || sessionOrder.draggedId !== undefined}
                     terminal={terminal}
                     trigger={sessionCard}
                     worktreeProject={worktreeProject}
@@ -268,6 +291,7 @@ function ActiveSessionRow({
 }
 
 interface ProjectGroupProperties {
+    sessionOrder: SessionOrderController;
     active: boolean;
     animateProject: boolean;
     dragged: boolean;
@@ -310,7 +334,7 @@ interface ProjectGroupProperties {
     selectedSessionId?: string;
     terminals: TerminalRecord[];
     /**
-     * Sessions the window renders, most recently active first.
+     * Sessions the window renders, in durable sidebar order (frozen while dragging).
      */
     visibleSessions: SessionRecord[];
     /**
@@ -321,6 +345,7 @@ interface ProjectGroupProperties {
 }
 
 export function ProjectGroup({
+    sessionOrder,
     active,
     animateProject,
     dragged,
@@ -483,6 +508,8 @@ export function ProjectGroup({
                     >
                         {visibleSessions.map((session) => (
                             <ActiveSessionRow
+                                sessionOrder={sessionOrder}
+                                visibleSessions={visibleSessions}
                                 key={session.id}
                                 focusRenameInput={focusRenameInput}
                                 onBeginRename={() =>

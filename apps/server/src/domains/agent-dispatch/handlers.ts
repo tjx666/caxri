@@ -98,6 +98,7 @@ export function createAgentCommandHandlers(
         'agent.control.stopInternal': ({ endpoint }) => signalAgent(endpoint, 'SIGHUP'),
         'terminal.sendInternal': async ({ attentionEpoch, enter, terminalId, text }) => {
             let claimedSessionId: string | undefined;
+            let claimedActivityAt: number | undefined;
             if (attentionEpoch !== undefined) {
                 const terminal = options.database.getTerminal(terminalId);
                 const session = terminal
@@ -127,6 +128,7 @@ export function createAgentCommandHandlers(
                         'Agent attention changed before the reply was accepted',
                     );
                 claimedSessionId = session.id;
+                claimedActivityAt = session.lastSessionActivityAt;
             }
             const data = `${text}${enter ? '\r' : ''}`;
             const isRunning = options.terminals.processId(terminalId) !== undefined;
@@ -142,6 +144,7 @@ export function createAgentCommandHandlers(
                         claimedSessionId,
                         terminalId,
                         attentionEpoch,
+                        claimedActivityAt!,
                     );
                 throw error;
             }
@@ -151,11 +154,13 @@ export function createAgentCommandHandlers(
                         claimedSessionId,
                         terminalId,
                         attentionEpoch,
+                        claimedActivityAt!,
                     );
                 throw new CaxriError('UNAVAILABLE', 'Terminal is no longer running');
             }
             const observed = isRunning && options.coordinator.observeInput(terminalId, data);
-            if (claimedSessionId)
+            if (claimedSessionId) {
+                options.database.touchSessionActivity(claimedSessionId, 'user_submission');
                 options.emit({
                     event: 'state.changed',
                     payload: {
@@ -164,7 +169,7 @@ export function createAgentCommandHandlers(
                         terminalIds: [],
                     },
                 });
-            else if (observed) recordUserSubmission(terminalId);
+            } else if (observed) recordUserSubmission(terminalId);
             return {
                 terminalId,
                 accepted: true,

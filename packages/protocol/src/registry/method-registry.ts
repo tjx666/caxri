@@ -47,6 +47,7 @@ import {
     persistedWindowStateSchema,
     projectRecordSchema,
     sessionRecordSchema,
+    sessionReorderParametersSchema,
     sessionStateSchema,
     terminalKindSchema,
     terminalRecordSchema,
@@ -391,11 +392,13 @@ export const methods = {
         }),
         result: projectRecordSchema,
     },
+    'session.reorder': {
+        ...serverWrite,
+        params: sessionReorderParametersSchema,
+        result: z.null(),
+    },
     'session.create': {
         ...serverWrite,
-        /**
-         * A `null` defaultAgent creates the Session without any Terminal.
-         */
         params: z.object({
             projectId: identifierSchema,
             defaultAgent: terminalKindSchema.nullable(),

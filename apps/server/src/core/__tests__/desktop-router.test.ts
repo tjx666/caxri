@@ -19,6 +19,7 @@ const session = {
     rootPath: project.rootPath,
     createdAt: 1,
     lastOpenedAt: 1,
+    sidebarOrder: 0,
     lastSessionActivityAt: 1,
     lastSessionActivityReason: 'created',
     lastActivityState: 'idle',

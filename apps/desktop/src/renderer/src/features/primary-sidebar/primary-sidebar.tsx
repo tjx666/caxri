@@ -53,6 +53,7 @@ function isPrimarySidebarVerticalKey(key: string): key is PrimarySidebarVertical
     return (PRIMARY_SIDEBAR_VERTICAL_KEYS as readonly string[]).includes(key);
 }
 import { useProjectOrder } from './hooks/use-project-order';
+import { useSessionOrder } from './hooks/use-session-order';
 import { useSessionRename } from './hooks/use-session-rename';
 
 const NO_RECORDS: never[] = [];
@@ -101,10 +102,12 @@ export function PrimarySidebar() {
         label: 'session.pullRequests',
         intervalMs: SESSION_PULL_REQUESTS_REFETCH_INTERVAL_MS,
     }).data?.pullRequests;
-    const sidebarSessions = useMemo(
+    const orderedSessions = useMemo(
         () => activeSessionsInSidebarOrder(projects, sessions),
         [projects, sessions],
     );
+    const sessionOrder = useSessionOrder(orderedSessions);
+    const sidebarSessions = sessionOrder.sessions;
     /**
      * Workbench Root Projects keyed by Session id, for the Sessions currently working outside their own Project. This
      * is what replaces the hidden top-level worktree entry, so it must resolve against the full Project list.
@@ -274,6 +277,11 @@ export function PrimarySidebar() {
                 className="project-list min-h-0 flex-1 overflow-auto p-2"
                 role="tree"
                 onDragOver={(event) => {
+                    if (
+                        !(event.target instanceof Element) ||
+                        !event.target.closest('.session-card')
+                    )
+                        sessionOrder.leaveList();
                     if (!hasProjectDragType(event.dataTransfer.types)) return;
                     projectOrder.onListDragOver(event);
                 }}
@@ -327,6 +335,7 @@ export function PrimarySidebar() {
                             renamingSessionId={sessionRename.renamingSessionId}
                             rovingRowId={rovingRowId}
                             selectedSessionId={selectedSessionId}
+                            sessionOrder={sessionOrder}
                             terminals={terminals}
                             visibleSessions={visibleSessions}
                             worktreeProjects={worktreeProjects}
@@ -343,6 +352,9 @@ export function PrimarySidebar() {
                 )}
                 <div className="project-order-announcement sr-only" aria-live="polite">
                     {projectOrder.projectOrderAnnouncement}
+                </div>
+                <div className="session-order-announcement sr-only" aria-live="polite">
+                    {sessionOrder.announcement}
                 </div>
             </div>
             <div className="shrink-0 border-t border-border p-2">
