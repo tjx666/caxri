@@ -12,7 +12,7 @@
         "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json"
     },
     "dependencies": {
-        "@base-ui/react": "^1.8.0",
+        "@base-ui/react": "1.7.0",
         "@caxri/client": "workspace:*",
         "@caxri/protocol": "workspace:*",
         "@caxri/system": "workspace:*",

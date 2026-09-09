@@ -19,6 +19,11 @@ Keep these compatibility exceptions:
 
 - `@xterm/*`: exact beta versions from one verified upstream commit, with matching core peers.
 - `electron-vite`: exact accepted beta until the stable Vite 8 integration is adopted.
+- `@base-ui/react`: exact 1.7.0. Version 1.8.0 triggers a `PopoverStore` / `syncTriggerCount`
+  update loop when opening the multi-trigger Editor breadcrumb picker (React error 185).
+  `e2e/editor-breadcrumbs.e2e.ts` reproduces it locally and in
+  [CI run 34299568185](https://github.com/tjx666/caxri/actions/runs/34299568185).
+  Re-evaluate the pin only after that regression passes on a newer release.
 - `typescript` / `@typescript/native` npm aliases: exact TypeScript 6 API and TypeScript 7 CLI pair.
 - Expo-managed mobile runtime dependencies and React types: SDK-recommended exact or tilde ranges.
   This includes React, React Native, Metro, FlashList, Reanimated, Worklets, and native addons.
