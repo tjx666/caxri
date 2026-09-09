@@ -738,7 +738,7 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                         event.payload.kind === 'check'
                             ? `CI failed: ${event.payload.name}`
                             : `${event.payload.name} deployment failed`,
-                    projectId: event.payload.repository,
+                    projectId: `${event.payload.repository}:${event.payload.branch}`,
                     projectTitle: `${event.payload.repository} · ${event.payload.branch}`,
                 });
                 return;
