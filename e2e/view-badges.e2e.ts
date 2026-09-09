@@ -26,7 +26,6 @@ test('Git badge loads before its panel and follows changes and Workbench Root sw
     const running = await launchCaxri({
         userDataDir: join(directory, 'profile'),
         testRootPath: root,
-        env: { CAXRI_TEST_ROOT_PATHS: JSON.stringify([root, worktree]) },
     });
     try {
         const gitTab = running.page.getByRole('tab', { name: 'Git', exact: true });
@@ -49,7 +48,11 @@ test('Git badge loads before its panel and follows changes and Workbench Root sw
             .getByRole('combobox', { name: 'Switch Workbench Root from owner, branch main' })
             .click();
         await running.page
-            .getByRole('option', { name: 'Authorize another worktree…', exact: true })
+            .getByRole('option', { name: 'feature/clean, Authorize', exact: true })
+            .click();
+        await running.page
+            .getByRole('dialog', { name: 'Authorize worktree?' })
+            .getByRole('button', { name: 'Authorize and switch', exact: true })
             .click();
         const selector = running.page.getByRole('combobox', {
             name: 'Switch Workbench Root from worktree, branch feature/clean',
@@ -62,7 +65,9 @@ test('Git badge loads before its panel and follows changes and Workbench Root sw
         await expect(gitTab).toHaveAccessibleDescription('1 change');
         await writeFile(join(root, 'while-away.txt'), '');
         await selector.click();
-        await running.page.getByRole('option', { name: 'owner · main', exact: true }).click();
+        await running.page
+            .getByRole('option', { name: 'main, Main worktree', exact: true })
+            .click();
         await expect(badge).toHaveText('4');
         await running.page
             .getByRole('tablist', { name: 'Secondary Side Bar' })
