@@ -23,7 +23,7 @@ import { openFile } from './document-actions';
 import { resolveRegisteredEditorLanguage } from './editor-language';
 import { GitChangesDiffList } from './git-changes-diff-list';
 import { registerDiffEditorActions } from './git-diff-actions';
-import { useGitDiffViewStore } from './git-diff-view-store';
+import { observeGitEditorContentHeight } from './git-diff-model-lifecycle';
 import { GitMonacoDiffEditor } from './git-monaco-diff-editor';
 import { GitSingleDiffEditor } from './git-single-diff-editor';
 
@@ -101,11 +101,6 @@ function DiffSurface({
     const editorReference = useRef<MonacoDiffEditor | null>(null);
     const diffEditorRegistrationReference = useRef<(() => void) | undefined>(undefined);
     const fontFamily = useEditorFontFamily();
-    const inlineView = useGitDiffViewStore((state) => state.inlineView);
-    const collapseUnchanged = useGitDiffViewStore((state) => state.collapseUnchanged ?? stacked);
-    const showWhitespaceDifferences = useGitDiffViewStore(
-        (state) => state.showWhitespaceDifferences,
-    );
     const contentSizeListeners = useRef<Array<{ dispose(): void }>>([]);
     useEffect(() => {
         if (theme) applyEditorTheme(theme);
@@ -172,21 +167,16 @@ function DiffSurface({
         document.format === 'contents' &&
         (document.original === '') !== (document.modified === '')
     ) {
-        const isAdded = document.original === '';
         return withStackedSurface(
             <GitSingleDiffEditor
+                document={document}
                 editorInstanceId={editorInstanceId}
-                kind={isAdded ? 'added' : 'deleted'}
-                language={isAdded ? modifiedLanguage : originalLanguage}
-                modelPath={gitDiffModelPath(
-                    sessionId,
-                    modelRepoId,
-                    isAdded ? document.path : (document.originalPath ?? document.path),
-                    isAdded ? 'modified' : 'original',
-                )}
+                modifiedLanguage={modifiedLanguage}
+                modelRepoId={modelRepoId}
                 navigationKey={navigationKey}
                 onContentHeightChange={stacked ? onContentHeightChange : undefined}
-                value={isAdded ? document.modified : document.original}
+                originalLanguage={originalLanguage}
+                sessionId={sessionId}
             />,
         );
     }
@@ -201,17 +191,9 @@ function DiffSurface({
                 beforeMount={() => applyEditorTheme(theme)}
                 onMount={(editor: Parameters<OnMount>[0]) => {
                     if (!stacked) return;
-                    /**
-                     * The overlay horizontal scrollbar eats into the viewport; without the allowance a long-line diff
-                     * overflows a few px vertically and re-captures the wheel.
-                     */
-                    const syncHeight = (): void =>
-                        onContentHeightChange?.(
-                            editor.getContentHeight() +
-                                editor.getLayoutInfo().horizontalScrollbarHeight,
-                        );
-                    contentSizeListeners.current.push(editor.onDidContentSizeChange(syncHeight));
-                    syncHeight();
+                    contentSizeListeners.current.push(
+                        ...observeGitEditorContentHeight([editor], editor, onContentHeightChange),
+                    );
                 }}
                 options={{
                     automaticLayout: true,
@@ -227,6 +209,7 @@ function DiffSurface({
         );
     return withStackedSurface(
         <GitMonacoDiffEditor
+            stacked={stacked}
             original={document.original}
             modified={document.modified}
             originalLanguage={originalLanguage}
@@ -250,19 +233,13 @@ function DiffSurface({
                 if (!stacked) return;
                 const original = editor.getOriginalEditor();
                 const modified = editor.getModifiedEditor();
-                /**
-                 * Horizontal-scrollbar allowance: see the patch-editor branch above.
-                 */
-                const syncHeight = (): void =>
-                    onContentHeightChange?.(
-                        Math.max(original.getContentHeight(), modified.getContentHeight()) +
-                            modified.getLayoutInfo().horizontalScrollbarHeight,
-                    );
                 contentSizeListeners.current.push(
-                    original.onDidContentSizeChange(syncHeight),
-                    modified.onDidContentSizeChange(syncHeight),
+                    ...observeGitEditorContentHeight(
+                        [original, modified],
+                        modified,
+                        onContentHeightChange,
+                    ),
                 );
-                syncHeight();
             }}
             options={{
                 automaticLayout: true,
@@ -271,10 +248,6 @@ function DiffSurface({
                 minimap: { enabled: false },
                 originalEditable: false,
                 readOnly: true,
-                renderSideBySide: !inlineView,
-                useInlineViewWhenSpaceIsLimited: false,
-                hideUnchangedRegions: { enabled: collapseUnchanged },
-                ignoreTrimWhitespace: !showWhitespaceDifferences,
                 scrollBeyondLastLine: false,
                 wordWrap: 'off',
                 ...(stacked && {

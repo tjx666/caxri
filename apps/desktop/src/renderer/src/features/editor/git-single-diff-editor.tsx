@@ -2,12 +2,13 @@ import './git-single-diff-editor.css';
 
 import { useLayoutEffect, useState } from 'react';
 
+import type { GitDiffDocument } from '@caxri/protocol';
+import { gitDiffModelPath } from '@caxri/protocol';
 import Editor from '@monaco-editor/react';
 import type { editor as Monaco } from 'monaco-editor';
 
 import { useEditorFontFamily } from '@/hooks/use-editor-font-family';
 
-import type { SingleDiffKind } from './git-single-diff-binding';
 import { bindSingleDiffEditor } from './git-single-diff-binding';
 
 /**
@@ -16,22 +17,26 @@ import { bindSingleDiffEditor } from './git-single-diff-binding';
  * both wide and inline layouts. The wrapper owns this instance's unique model and disposes it on unmount.
  */
 export function GitSingleDiffEditor({
+    document,
     editorInstanceId,
-    kind,
-    language,
-    modelPath,
+    modifiedLanguage,
+    modelRepoId,
     navigationKey,
     onContentHeightChange,
-    value,
+    originalLanguage,
+    sessionId,
 }: {
+    document: GitDiffDocument;
     editorInstanceId?: string;
-    kind: SingleDiffKind;
-    language: string | undefined;
-    modelPath: string;
+    modifiedLanguage: string | undefined;
+    modelRepoId: string;
     navigationKey?: string;
     onContentHeightChange?: (height: number) => void;
-    value: string;
+    originalLanguage: string | undefined;
+    sessionId: string;
 }) {
+    const isAdded = document.original === '';
+    const kind = isAdded ? 'added' : 'deleted';
     const [editor, setEditor] = useState<Monaco.IStandaloneCodeEditor | null>(null);
     const fontFamily = useEditorFontFamily();
     useLayoutEffect(() => {
@@ -45,9 +50,14 @@ export function GitSingleDiffEditor({
     return (
         <Editor
             className="git-single-diff-editor h-full w-full"
-            language={language}
-            path={modelPath}
-            value={value}
+            language={isAdded ? modifiedLanguage : originalLanguage}
+            path={gitDiffModelPath(
+                sessionId,
+                modelRepoId,
+                isAdded ? document.path : (document.originalPath ?? document.path),
+                isAdded ? 'modified' : 'original',
+            )}
+            value={isAdded ? document.modified : document.original}
             theme="caxri-active"
             onMount={setEditor}
             options={{
