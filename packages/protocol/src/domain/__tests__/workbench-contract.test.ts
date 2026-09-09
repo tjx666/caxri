@@ -48,10 +48,12 @@ describe('workbenchMethods', () => {
 });
 
 describe('workbenchInternalMethods', () => {
-    it('keeps every internal handoff Server-owned and write-effect', () => {
-        for (const spec of Object.values(workbenchInternalMethods)) {
+    it('keeps internal handoffs Server-owned with only the directory hint read-only', () => {
+        for (const [method, spec] of Object.entries(workbenchInternalMethods)) {
             expect(spec.owner).toBe('server');
-            expect(spec.effect).toBe('write');
+            expect(spec.effect).toBe(
+                method === 'session.workbenchRoot.selectionDirectory' ? 'read' : 'write',
+            );
         }
     });
 
