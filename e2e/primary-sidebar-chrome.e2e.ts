@@ -565,9 +565,8 @@ test('work tabs divide evenly, leave a draggable titlebar, and pin New Terminal 
         assertAligned(await alignedBottoms('.primary-sidebar-title', '.work-tabs'));
         await running.page.keyboard.press('Meta+]');
 
-        // A tab whose title fits offers no tooltip: repeating a label the user can already read is noise. The
-        // reveal-on-clip half of this rule is covered in `work-tab-sizing.e2e.ts`, where enough tabs squeeze
-        // every label past its box.
+        // A tab whose title fits offers no tooltip: repeating a label the user can already read is noise.
+        // `work-tab-sizing.e2e.ts` also verifies that crowded tabs preserve their displayed titles and scroll.
         const terminalTab = strip.locator('.work-tab[data-terminal-id] .tab-select').first();
         const isLabelClipped = await terminalTab
             .locator('.tab-label')
