@@ -13,6 +13,7 @@ import { useCaxriQuery } from '../../queries/client';
 import { useSelectedSession } from '../../stores/selectors';
 import { openEditorTab, openFileForSession } from './document-actions';
 import { didNavigateDiffEditor, useDiffEditorActionState } from './git-diff-actions';
+import { GitDiffViewOptions } from './git-diff-view-options';
 
 /**
  * Fixed actions for the active file or single-file Git diff. The optional `git.fileHead` annotation already resolves
@@ -21,8 +22,14 @@ import { didNavigateDiffEditor, useDiffEditorActionState } from './git-diff-acti
 export function EditorTabActions({ path, paneId }: { paneId?: string; path: string }) {
     const gitDiffTab = parseGitDiffTab(path);
     if (gitDiffTab) {
-        if (gitDiffTab.kind === 'changes') return null;
-        return <GitDiffTabActions paneId={paneId} tab={gitDiffTab} tabPath={path} />;
+        return (
+            <>
+                {gitDiffTab.kind !== 'changes' && (
+                    <GitDiffTabActions paneId={paneId} tab={gitDiffTab} tabPath={path} />
+                )}
+                <GitDiffViewOptions stacked={gitDiffTab.kind === 'changes'} />
+            </>
+        );
     }
     return <FileEditorTabActions path={path} />;
 }
