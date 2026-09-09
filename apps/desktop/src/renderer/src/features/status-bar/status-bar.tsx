@@ -11,6 +11,7 @@ import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
 import { useSelectedSession, useSelectedWorkbenchProject } from '../../stores/selectors';
 import { useWorkbenchStore } from '../../stores/workbench';
+import { NotificationCenter } from '../toasts/notification-center';
 import { useActivePaneTab } from '../workbench/pane-actions';
 import { ActiveFileStatus } from './active-file-status';
 import { ActiveTerminalStatus } from './active-terminal-status';
@@ -181,6 +182,7 @@ export function StatusBar() {
              * Terminal progress) don't fit.
              */}
             <div className="statusbar-actions flex min-w-0 shrink items-center gap-2 overflow-x-auto">
+                <NotificationCenter />
                 {degraded && (
                     <Tooltip content={degraded.detail}>
                         <span className={cn(statusStateClassName, degraded.className)}>

@@ -31,6 +31,7 @@ export interface SettingsPageProperties {
     agentActionsFocusRequest?: { id: number; provider: AgentProvider };
     hardwareAccelerationFocusRequestId?: number;
     trustedDomainsFocusRequestId?: number;
+    notificationsFocusRequestId?: number;
     onArgvConfigChange: (changes: ArgvConfigChanges) => void;
     onFieldChange: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
 }
@@ -164,6 +165,7 @@ export function SettingsPage(properties: SettingsPageProperties) {
     const handledFocusRequest = useRef(0);
     const handledAgentActionsFocusRequest = useRef(0);
     const handledHardwareAccelerationFocusRequest = useRef(0);
+    const handledNotificationsFocusRequest = useRef(0);
 
     const visibleRows = useMemo(() => filterSettingsRows(settingsRows, query), [query]);
     const list = useMemo(() => buildSettingsList(settingsCategories, visibleRows), [visibleRows]);
@@ -230,6 +232,25 @@ export function SettingsPage(properties: SettingsPageProperties) {
         );
         if (index !== -1) virtualizer.scrollToIndex(index, { align: 'start' });
     }, [list, properties.hardwareAccelerationFocusRequestId, virtualizer]);
+
+    useEffect(() => {
+        const requestId = properties.notificationsFocusRequestId;
+        if (
+            !requestId ||
+            handledNotificationsFocusRequest.current === requestId ||
+            virtualItems.length === 0
+        )
+            return;
+        const index = list.findIndex(
+            (item) => item.kind === 'category' && item.category.id === 'notifications',
+        );
+        if (index === -1) return;
+        /**
+         * Wait for measured items: the first mount has no scroll range, so an earlier request is discarded.
+         */
+        handledNotificationsFocusRequest.current = requestId;
+        virtualizer.scrollToIndex(index, { align: 'start' });
+    }, [list, properties.notificationsFocusRequestId, virtualizer, virtualItems.length]);
 
     const handlers = {
         onArgvConfigChange: properties.onArgvConfigChange,

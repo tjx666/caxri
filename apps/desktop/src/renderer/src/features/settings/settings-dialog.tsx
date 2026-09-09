@@ -107,8 +107,13 @@ function SettingsDialogView(controller: SettingsDialogController) {
                             sourceView
                         ) : (
                             <SettingsPage
-                                key={controller.agentActionsFocusRequest?.id ?? 'settings'}
+                                key={
+                                    controller.notificationsFocusRequestId ??
+                                    controller.agentActionsFocusRequest?.id ??
+                                    'settings'
+                                }
                                 agentActionsFocusRequest={controller.agentActionsFocusRequest}
+                                notificationsFocusRequestId={controller.notificationsFocusRequestId}
                                 agentHookHealth={controller.agentHookHealth}
                                 agentSkillHealth={controller.agentSkillHealth}
                                 argvConfig={controller.argvConfig}

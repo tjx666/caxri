@@ -9,6 +9,7 @@ import { agentProviderCatalog, agentProviderIds } from '../agent/agents.js';
 
 export const settingCategories = [
     { id: 'general', title: 'General' },
+    { id: 'notifications', title: 'Notifications' },
     { id: 'mobile', title: 'Mobile' },
     { id: 'terminal', title: 'Terminal' },
     { id: 'editor', title: 'Editor' },
@@ -96,6 +97,26 @@ const MEBIBYTE = 1024 * 1024;
 export const MAX_CONFIGURABLE_FILE_BYTES = 16 * MEBIBYTE;
 
 export const settingsSpec = [
+    {
+        kind: 'boolean',
+        key: 'notifications.worktreeFallback',
+        title: 'Worktree fallback reminders',
+        description:
+            'Show a popup when an unavailable worktree returns to its Project. Turn on to restore muted reminders. Applies to all Projects; recent events remain in Notifications.',
+        category: 'notifications',
+        keywords: ['mute', 'unmute', 'silent', 'reminder', 'notification'],
+        default: true,
+    },
+    {
+        kind: 'boolean',
+        key: 'notifications.agentRecovery',
+        title: 'Automatic Agent recovery reminders',
+        description:
+            'Show a popup after automatic Agent recovery. Turn on to restore muted reminders. Applies to all Projects; failures always appear.',
+        category: 'notifications',
+        keywords: ['mute', 'unmute', 'silent', 'reminder', 'notification'],
+        default: true,
+    },
     {
         kind: 'enum',
         key: 'session.defaultAgent',
@@ -397,7 +418,7 @@ export const settingsSpec = [
         key: 'projectStatus.notifications.enabled',
         title: 'Delivery failure notifications',
         description: 'Notify when a CI check or a Vercel deployment starts failing',
-        category: 'projectStatus',
+        category: 'notifications',
         keywords: [
             'notification',
             'alert',
@@ -434,7 +455,7 @@ export const settingsSpec = [
         title: 'System notifications',
         description:
             'Notify when a background Agent needs attention; provider lifecycle hooks must also be enabled',
-        category: 'agents',
+        category: 'notifications',
         keywords: ['notification', 'alert', 'background', 'attention', 'waiting', 'completed'],
         default: true,
     },
@@ -443,7 +464,7 @@ export const settingsSpec = [
         key: 'agents.notifications.completionThresholdSeconds',
         title: 'Completed turn threshold',
         description: 'Only notify for completed Agent turns that ran for at least this long',
-        category: 'agents',
+        category: 'notifications',
         keywords: ['notification', 'duration', 'minimum', 'completed', 'turn'],
         min: 0,
         max: 3_600,

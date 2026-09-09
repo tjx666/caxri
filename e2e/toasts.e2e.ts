@@ -7,12 +7,11 @@ import type { ServerEvent } from '@caxri/protocol';
 import type { E2EApp } from './support/electron-app.ts';
 import type { Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
-import { launchCaxri } from './support/helpers.ts';
+import { launchCaxri, pageRequest } from './support/helpers.ts';
 
 const ERROR_TITLE = 'File not found';
 const SUCCESS_TITLE = 'Sent Esc and continue to Codex after a matched recovery rule.';
-const PERSISTENT_TITLE =
-    'The active worktree is no longer available. Returned to Fallback Project.';
+const FALLBACK_TITLE = 'The active worktree is no longer available. Returned to Fallback Project.';
 
 async function publishServerEvent(app: E2EApp, event: ServerEvent): Promise<void> {
     await app.evaluate(({ BrowserWindow }, nextEvent) => {
@@ -121,10 +120,20 @@ test('Sonner notifications expire, dedupe, run actions, and stay keyboard-dismis
             },
         });
         await running.page.clock.runFor(1);
-        const persistentToast = toastWithTitle(running.page, PERSISTENT_TITLE);
+        const persistentToast = toastWithTitle(running.page, FALLBACK_TITLE);
         await expect(persistentToast).toBeVisible();
-        await running.page.clock.runFor(4_100);
+        await running.page.clock.runFor(3_000);
         await expect(persistentToast).toBeVisible();
+        await persistentToast.getByRole('button', { name: 'Notification options' }).click();
+        const muteButton = running.page.getByRole('button', {
+            name: "Don't show this type again",
+            exact: true,
+        });
+        await muteButton.hover();
+        await running.page.clock.runFor(10_000);
+        await expect(muteButton).toBeVisible();
+        await running.page.keyboard.press('Escape');
+        await running.page.clock.runFor(250);
         const closeButton = persistentToast.getByRole('button', {
             name: 'Dismiss notification',
         });
@@ -139,6 +148,94 @@ test('Sonner notifications expire, dedupe, run actions, and stay keyboard-dismis
         } catch {
             // Ignore close failures during test cleanup.
         }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('Notification center mutes a type, persists preferences, and restores reminders', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-notifications-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await mkdir(root, { recursive: true });
+    const fallback: ServerEvent = {
+        event: 'workbench.changed',
+        payload: {
+            reason: 'fallback',
+            returnedProjectTitle: 'Fallback Project',
+            sessionId: 'session-e2e',
+            workbenchProjectId: 'project-e2e',
+        },
+    };
+    let running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    try {
+        await publishServerEvent(running.app, fallback);
+        const reminder = toastWithTitle(running.page, FALLBACK_TITLE);
+        await expect(reminder).toBeVisible();
+        await reminder.getByRole('button', { name: 'Notification options' }).click();
+        await running.page
+            .getByRole('button', { name: "Don't show this type again", exact: true })
+            .click();
+        await expect(reminder).toHaveCount(0);
+        await publishServerEvent(running.app, fallback);
+        await running.page.getByRole('button', { name: 'Notifications', exact: true }).click();
+        const center = running.page.getByRole('dialog', { name: 'Notifications', exact: true });
+        await expect(center.getByText(FALLBACK_TITLE, { exact: true })).toBeVisible();
+        await expect(center.getByText('2 occurrences')).toBeVisible();
+        await expect(center.getByText('Muted', { exact: true })).toBeVisible();
+        await expect(reminder).toHaveCount(0);
+        await running.page.keyboard.press('Escape');
+        await expect(center).toHaveCount(0);
+
+        await running.app.close();
+        running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+        await publishServerEvent(running.app, fallback);
+        await running.page.getByRole('button', { name: 'Notifications', exact: true }).click();
+        const restoredCenter = running.page.getByRole('dialog', {
+            name: 'Notifications',
+            exact: true,
+        });
+        await expect(restoredCenter.getByText('Muted', { exact: true })).toBeVisible();
+        await expect(toastWithTitle(running.page, FALLBACK_TITLE)).toHaveCount(0);
+        await restoredCenter
+            .getByRole('button', { name: 'Notification settings', exact: true })
+            .click();
+        const settings = running.page.getByRole('dialog', { name: 'Settings', exact: true });
+        await expect(
+            settings.getByRole('heading', { name: 'General', exact: true }),
+        ).not.toBeInViewport();
+        await expect(
+            settings.getByRole('heading', { name: 'Notifications', exact: true }),
+        ).toBeInViewport();
+        const toggle = settings.getByRole('switch', {
+            name: 'Worktree fallback reminders',
+            exact: true,
+        });
+        await expect(toggle).not.toBeChecked();
+        await toggle.click();
+        await expect(toggle).toBeChecked();
+        await expect
+            .poll(async () => pageRequest(running.page, 'settings.get'))
+            .toMatchObject({ value: { 'notifications.worktreeFallback': true } });
+        await running.page.keyboard.press('Escape');
+        await expect(settings).toHaveCount(0);
+        await publishServerEvent(running.app, fallback);
+        await expect(toastWithTitle(running.page, FALLBACK_TITLE)).toBeVisible();
+        await publishServerEvent(running.app, settingsError(ERROR_TITLE));
+        await running.page
+            .locator('footer')
+            .getByRole('button', { name: /^Notifications/ })
+            .click();
+        const finalCenter = running.page.getByRole('dialog', {
+            name: 'Notifications',
+            exact: true,
+        });
+        await expect(finalCenter.getByText(ERROR_TITLE, { exact: true })).toBeVisible();
+        await finalCenter
+            .getByRole('button', { name: 'Clear all notifications', exact: true })
+            .click();
+        await expect(finalCenter.getByText('No recent notifications')).toBeVisible();
+    } finally {
+        await running.app.close();
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

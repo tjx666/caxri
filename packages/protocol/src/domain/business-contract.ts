@@ -92,6 +92,8 @@ export const terminalQueryResultSchema = z.object({
 export const inspectableSettingsSchema = appSettingsSchema.pick({
     'session.defaultAgent': true,
     'workbench.newWorktreeBehavior': true,
+    'notifications.worktreeFallback': true,
+    'notifications.agentRecovery': true,
     'terminal.fontSize': true,
     'terminal.scrollback': true,
     'terminal.copyOnSelect': true,
@@ -100,6 +102,8 @@ export const inspectableSettingsSchema = appSettingsSchema.pick({
     'files.maxFileBytes': true,
 });
 export const settingsPatchKeySchema = z.enum([
+    'notifications.worktreeFallback',
+    'notifications.agentRecovery',
     'session.defaultAgent',
     'workbench.newWorktreeBehavior',
     'terminal.fontSize',
@@ -114,6 +118,14 @@ export const settingsPatchKeySchema = z.enum([
  * always carry an explicit value, never silently fall back to the default.
  */
 export const settingsPatchChangeSchema = z.discriminatedUnion('key', [
+    z.object({
+        key: z.literal('notifications.worktreeFallback'),
+        value: appSettingsSchema.shape['notifications.worktreeFallback'].unwrap(),
+    }),
+    z.object({
+        key: z.literal('notifications.agentRecovery'),
+        value: appSettingsSchema.shape['notifications.agentRecovery'].unwrap(),
+    }),
     z.object({
         key: z.literal('session.defaultAgent'),
         value: appSettingsSchema.shape['session.defaultAgent'].unwrap(),

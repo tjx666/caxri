@@ -1,5 +1,6 @@
 import process from 'node:process';
 
+import type { ServerEvent } from '@caxri/protocol';
 import { isCaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
@@ -20,6 +21,7 @@ interface DesktopAgentNotificationOptions {
     getWindow: () => BrowserWindow | undefined;
     logger: () => StructuredLogger | undefined;
     supervisor: DesktopServerConnection;
+    sendEvent: (event: ServerEvent) => void;
 }
 
 /**
@@ -51,6 +53,7 @@ export function createDesktopAgentNotifications({
     getWindow,
     logger,
     supervisor,
+    sendEvent,
 }: DesktopAgentNotificationOptions): AgentNotificationCoordinator {
     const delivery = createAgentNotificationDelivery({
         alerter: createAlerterNotificationDriver({ appIconPath }),
@@ -75,6 +78,18 @@ export function createDesktopAgentNotifications({
         loadRecords: (parameters) => supervisor.request('app.records', parameters),
         loadSettings: async () => (await supervisor.request('settings.get')).value,
         onDecision: (decision) => {
+            if (
+                decision.outcome === 'shown' &&
+                (decision.attentionKind === 'waiting' || decision.attentionKind === 'completed')
+            ) {
+                sendEvent({
+                    event: 'agent.notification',
+                    payload: {
+                        sessionId: decision.sessionId,
+                        attentionKind: decision.attentionKind,
+                    },
+                });
+            }
             logger()?.write('info', logEventCatalog.agentNotifications.decided, {
                 fields: {
                     attentionEpoch: decision.attentionEpoch,

@@ -1,11 +1,21 @@
+import { useEffect } from 'react';
+
 import { CircleCheck, CircleX, Info, X } from 'lucide-react';
 import { Toaster } from 'sonner';
+
+import { configureReminderPresentation } from '../../stores/toasts';
+import { NotificationOptions } from './notification-options';
 
 /**
  * Sonner owns notification timing, stacking, keyboard access, and interaction pauses. The shared stylesheet maps its
  * presentation to Caxri tokens without creating another queue or animation lifecycle.
  */
 export function ToastOutlet() {
+    useEffect(
+        () =>
+            configureReminderPresentation((properties) => <NotificationOptions {...properties} />),
+        [],
+    );
     return (
         <Toaster
             className="caxri-toaster"

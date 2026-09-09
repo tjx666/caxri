@@ -16,6 +16,7 @@ interface DesktopNotificationOptions {
     logger: () => StructuredLogger | undefined;
     resourcesPath: string;
     supervisor: DesktopServerConnection;
+    sendEvent: (event: ServerEvent) => void;
 }
 
 export interface DesktopNotifications {
@@ -42,6 +43,7 @@ export function createDesktopNotifications({
     logger,
     resourcesPath,
     supervisor,
+    sendEvent,
 }: DesktopNotificationOptions): DesktopNotifications {
     const appIconPath = resolveNotificationAppIconPath({
         currentDirectory,
@@ -49,6 +51,7 @@ export function createDesktopNotifications({
         resourcesPath,
     });
     const agents = createDesktopAgentNotifications({
+        sendEvent,
         appIconPath,
         focusMainWindow,
         getWindow,

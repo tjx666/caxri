@@ -240,6 +240,13 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('settings.open', (context) => context.dialogs.openSettings(), {
         allowInEditable: true,
     }),
+    fromCatalog(
+        'settings.openNotifications',
+        (context) => context.dialogs.openSettings('notifications'),
+        {
+            allowInEditable: true,
+        },
+    ),
     fromCatalog('settings.openSource', (context) => context.dialogs.openSettings('source'), {
         allowInEditable: true,
     }),

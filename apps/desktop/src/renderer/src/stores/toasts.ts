@@ -2,6 +2,41 @@ import { errorMessage, isCaxriError } from '@caxri/protocol';
 import type { ToastT } from 'sonner';
 import { toast } from 'sonner';
 
+import { caxri } from '../lib/caxri';
+import type { NotificationType } from './notifications';
+import {
+    canMuteNotification,
+    isNotificationMuted,
+    notificationTypes,
+    recordNotification,
+    syncNotificationSettings,
+} from './notifications';
+
+const activeReminderToasts = new Map<string | number, NotificationType>();
+const openReminderMenus = new Set<string | number>();
+
+interface ReminderOptionsProperties {
+    onMute: () => void;
+    onOpenChange: (isOpen: boolean) => void;
+}
+
+/**
+ * Presentation is installed by the outlet so the notification store never imports feature components.
+ */
+const presentation = {
+    render: undefined as
+        ((properties: ReminderOptionsProperties) => ToastT['description']) | undefined,
+};
+
+export function configureReminderPresentation(
+    render: (properties: ReminderOptionsProperties) => ToastT['description'],
+): () => void {
+    presentation.render = render;
+    return () => {
+        if (presentation.render === render) presentation.render = undefined;
+    };
+}
+
 export type ToastKind = 'info' | 'success' | 'error';
 
 interface ToastAction {
@@ -10,6 +45,16 @@ interface ToastAction {
 }
 
 export interface ToastOptions {
+    /**
+     * Stable, opt-in classification for reminders that may be muted.
+     */
+    type?: NotificationType;
+    projectId?: string;
+    projectTitle?: string;
+    /**
+     * Success feedback is ephemeral unless explicitly retained; other kinds are retained by default.
+     */
+    history?: boolean;
     /**
      * Keeps a notification on screen until the user dismisses it. Reserved for events that already cost the user
      * something irreversible — an external write replacing an unsaved buffer — where a 4-second auto-dismiss can
@@ -34,14 +79,76 @@ export function getToasts(): ToastT[] {
  * Sonner's id API; Sonner owns expiration, interaction pauses, and removal.
  */
 export function pushToast(kind: ToastKind, message: string, options?: ToastOptions): void {
-    const newest = getToasts().at(-1);
-    const id = newest?.type === kind && newest.title === message ? newest.id : undefined;
-    toast[kind](message, {
+    const input = { kind, message, ...options };
+    if (
+        options?.history ??
+        (kind !== 'success' || Boolean(options?.type) || Boolean(options?.persist))
+    )
+        recordNotification(input);
+    if (isNotificationMuted(input)) return;
+    const active = getToasts();
+    const activeIds = new Set(active.map((entry) => entry.id));
+    for (const key of activeReminderToasts.keys()) {
+        if (activeIds.has(key)) {
+            continue;
+        }
+
+        activeReminderToasts.delete(key);
+        openReminderMenus.delete(key);
+    }
+    const newest = active.at(-1);
+    const type = canMuteNotification(input) ? options?.type : undefined;
+    const id =
+        newest?.type === kind &&
+        newest.title === message &&
+        activeReminderToasts.get(newest.id) === type
+            ? newest.id
+            : undefined;
+    const toastId = toast[kind](message, {
         id,
-        duration: options?.persist ? Infinity : 4_000,
+        duration:
+            options?.persist || (id !== undefined && openReminderMenus.has(id)) ? Infinity : 4_000,
+        description: type
+            ? presentation.render?.({
+                  onMute: () => {
+                      // eslint-disable-next-line no-void -- muteNotification reports write failures through tryCommand
+                      void muteNotification(type);
+                  },
+                  onOpenChange: (isOpen) => {
+                      if (isOpen) openReminderMenus.add(toastId);
+                      else openReminderMenus.delete(toastId);
+                      // A portaled options menu is outside Sonner's hover boundary; hold its owner until the menu closes.
+                      if (getToasts().some((entry) => entry.id === toastId))
+                          toast[kind](message, {
+                              id: toastId,
+                              duration: isOpen ? Infinity : 4_000,
+                          });
+                  },
+              })
+            : undefined,
         action: options?.action
             ? { label: options.action.label, onClick: options.action.onSelect }
             : undefined,
+    });
+    if (type) activeReminderToasts.set(toastId, type);
+    else activeReminderToasts.delete(toastId);
+}
+
+/**
+ * Commit the single preference before hiding anything, so failed writes never pretend to have muted reminders.
+ */
+export async function muteNotification(type: NotificationType): Promise<void> {
+    await tryCommand('Unable to mute notifications', async () => {
+        const result = await caxri.request('settings.patch', {
+            changes: [{ key: notificationTypes[type].key, value: false }],
+        });
+        syncNotificationSettings(result.value);
+        for (const [id, entryType] of activeReminderToasts) {
+            if (entryType !== type) continue;
+            toast.dismiss(id);
+            activeReminderToasts.delete(id);
+            openReminderMenus.delete(id);
+        }
     });
 }
 
