@@ -3,10 +3,19 @@ import { describe, expect, it } from 'vitest';
 import { findTerminalLinks } from '../terminal-links';
 
 /**
- * Plain-text file candidates glued to CJK prose: the default word separators contain no CJK punctuation, so these
- * boundaries are inferred from the token itself (`terminal-file-candidate.ts`).
+ * Plain-text file candidates glued to CJK prose, including location links parsed before word tokenization.
  */
 describe('findTerminalLinks with CJK prose', () => {
+    it.each(Array.from('，。；：！？、（）【】「」『』《》'))(
+        'separates adjacent fallback file links at %s',
+        (separator) => {
+            expect(findTerminalLinks(`src/first.ts${separator}src/second.ts`)).toMatchObject([
+                { kind: 'file', target: 'src/first.ts' },
+                { kind: 'file', target: 'src/second.ts' },
+            ]);
+        },
+    );
+
     it.each([':', '：'])('detaches a CJK label ending in %s from a relative path', (separator) => {
         const prefix = `字段说明${separator}`;
         for (const suffix of ['', ':57', ':57:3', '#L57-L59']) {
@@ -72,7 +81,9 @@ describe('findTerminalLinks with CJK prose', () => {
     });
 
     it('rejects ambiguous CJK prose while preserving an explicit relative path', () => {
-        expect(findTerminalLinks('说明。workspace/apps/server/src/file.ts:15')).toEqual([]);
+        expect(findTerminalLinks('说明。workspace/apps/server/src/file.ts:15')).toMatchObject([
+            { kind: 'file', target: 'workspace/apps/server/src/file.ts', startIndex: 3 },
+        ]);
         expect(findTerminalLinks('账单/配置状态给了陌生人。')).toEqual([]);
         expect(findTerminalLinks('./账单/配置状态 src/Makefile')).toHaveLength(2);
     });
