@@ -1,5 +1,5 @@
 import type { EditorNavigationTarget } from '@caxri/protocol';
-import { errorMessage } from '@caxri/protocol';
+import { errorMessage, isCaxriError } from '@caxri/protocol';
 import { editorModelPath } from '@desktop-shared/editor-state';
 import type { ITheme, Terminal } from '@xterm/xterm';
 
@@ -33,6 +33,15 @@ import type { TerminalSearchResults } from './terminal-search';
  * per-file line budget.
  */
 export const onError = (message: string): void => pushToast('error', message);
+
+/**
+ * Closing or detaching a Terminal cancels its pending stream operations, sometimes before React tears down the pane.
+ * That lifecycle signal needs no notification; actual transport and Server failures remain visible.
+ */
+export function reportTerminalOperationError(error: unknown, fallback: string): void {
+    if (isCaxriError(error) && error.code === 'CANCELLED') return;
+    onError(errorMessage(error, fallback));
+}
 
 /**
  * A blocked OSC 52 write is expected policy enforcement, not a failure — it uses `info` (which auto-dismisses) rather
@@ -87,6 +96,7 @@ export function registerTerminalInputHandlers(
     isRunning: () => boolean,
     expectedAgentLaunchId: () => string | undefined = () => {},
 ): () => void {
+    let isDisposed = false;
     const sendInput = async (data: string): Promise<void> => {
         try {
             const expected = expectedAgentLaunchId();
@@ -98,7 +108,7 @@ export function registerTerminalInputHandlers(
                     expectedAgentLaunchId: expected,
                 });
         } catch (error) {
-            onError(errorMessage(error, 'Terminal input failed'));
+            if (!isDisposed) reportTerminalOperationError(error, 'Terminal input failed');
         }
     };
     const dataDisposable = terminal.onData((data) => {
@@ -117,6 +127,7 @@ export function registerTerminalInputHandlers(
         },
     });
     return () => {
+        isDisposed = true;
         unregisterInputGate();
         unregisterPasteHandler();
         dataDisposable.dispose();
