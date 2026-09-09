@@ -208,7 +208,9 @@ process.stdout.write('Workbench Agent ready\r\n');
             name: 'Switch Workbench Root from worktree, branch feature/workbench',
         });
         await selector.click();
-        await running.page.getByRole('option', { name: 'owner · main', exact: true }).click();
+        await running.page
+            .getByRole('option', { name: 'main, Main worktree', exact: true })
+            .click();
         await expectWorkbenchRoot(running.page, sessionId, root, 'main');
         // Back on its own root, the Session row carries no worktree marker.
         await expect(
@@ -228,9 +230,7 @@ process.stdout.write('Workbench Agent ready\r\n');
             name: 'Switch Workbench Root from owner, branch main',
         });
         await ownerSelector.click();
-        await running.page
-            .getByRole('option', { name: 'worktree · feature/workbench', exact: true })
-            .click();
+        await running.page.getByRole('option', { name: 'feature/workbench', exact: true }).click();
         await expectWorkbenchRoot(running.page, sessionId, worktree, 'feature/workbench');
         await running.page.getByRole('tab', { name: 'worktree-only.txt', exact: true }).click();
         await expect(running.page.locator('.view-lines')).toContainText('worktree dirty buffer');
@@ -359,10 +359,24 @@ test('Workbench Root selector authorizes a linked worktree when hooks are disabl
     await execFileAsync('git', ['worktree', 'add', '-b', 'feature/manual', worktree], {
         cwd: root,
     });
+    for (let index = 0; index < 7; index += 1) {
+        // Git writes separate pointer birth times; the oldest target should remain discoverable through Show all.
+        // eslint-disable-next-line no-await-in-loop -- preserve deterministic creation order.
+        await execFileAsync(
+            'git',
+            [
+                'worktree',
+                'add',
+                '-b',
+                `feature/recent-${index}`,
+                join(testDirectory, `recent-${index}`),
+            ],
+            { cwd: root },
+        );
+    }
     const running = await launchCaxri({
         userDataDir: userData,
         testRootPath: root,
-        env: { CAXRI_TEST_ROOT_PATHS: JSON.stringify([root, worktree]) },
     });
     try {
         const sessionId = await createProjectSession(running.page, 'shell');
@@ -370,8 +384,41 @@ test('Workbench Root selector authorizes a linked worktree when hooks are disabl
             name: 'Switch Workbench Root from owner, branch main',
         });
         await selector.click();
+        const popup = running.page.getByRole('dialog', { name: 'Workbench Roots', exact: true });
+        await expect(
+            running.page.getByRole('option', { name: 'feature/recent-6, Authorize', exact: true }),
+        ).toBeVisible();
+        await expect(
+            running.page.getByRole('option', { name: 'feature/manual, Authorize', exact: true }),
+        ).toHaveCount(0);
+        await expect(popup.getByRole('option')).toHaveCount(7);
+        await popup.screenshot({ path: test.info().outputPath('worktree-recent.png') });
+        await running.page.getByRole('option', { name: /Show all worktrees/ }).click();
+        const search = running.page.getByRole('combobox', {
+            name: 'Search worktrees',
+            exact: true,
+        });
+        await search.fill('feature/manual');
+        await expect(popup.getByRole('option')).toHaveCount(1);
+        await popup.screenshot({ path: test.info().outputPath('worktree-search.png') });
         await running.page
-            .getByRole('option', { name: 'Authorize another worktree…', exact: true })
+            .getByRole('option', { name: 'feature/manual, Authorize', exact: true })
+            .click();
+
+        const confirmation = running.page.getByRole('dialog', { name: 'Authorize worktree?' });
+        await expect(confirmation).toContainText(worktree);
+        await confirmation.screenshot({ path: test.info().outputPath('worktree-authorize.png') });
+        await confirmation.getByRole('button', { name: 'Cancel', exact: true }).click();
+        const beforeAuthorization = await pageRequest<BootstrapState>(
+            running.page,
+            'app.bootstrap',
+        );
+        expect(beforeAuthorization.projects.length).toBe(1);
+        await running.page
+            .getByRole('option', { name: 'feature/manual, Authorize', exact: true })
+            .click();
+        await confirmation
+            .getByRole('button', { name: 'Authorize and switch', exact: true })
             .click();
 
         await expectWorkbenchRoot(running.page, sessionId, worktree, 'feature/manual');
@@ -390,12 +437,13 @@ test('Workbench Root selector authorizes a linked worktree when hooks are disabl
             ),
         ).toBeVisible();
         await authorizedSelector.click();
+        await running.page.getByRole('option', { name: /Show all worktrees/ }).click();
         await expect(
-            running.page.getByRole('option', { name: 'owner · main', exact: true }),
+            running.page.getByRole('option', { name: 'main, Main worktree', exact: true }),
         ).toBeVisible();
         await expect(
             running.page.getByRole('option', {
-                name: 'manual-worktree · feature/manual',
+                name: 'feature/manual',
                 exact: true,
             }),
         ).toBeVisible();

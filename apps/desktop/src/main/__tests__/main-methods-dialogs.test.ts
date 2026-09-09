@@ -375,10 +375,13 @@ describe('Workbench Root Authority delegation', () => {
         await expect(
             handle({
                 method: 'session.authorizeWorkbenchRoot',
-                params: { sessionId: 'session-1' },
+                params: { sessionId: 'session-1', worktreeId: 'worktree-1' },
             }),
         ).resolves.toEqual({ id: 'session-1' });
-        expect(authorizeSelection).toHaveBeenCalledWith({ sessionId: 'session-1' });
+        expect(authorizeSelection).toHaveBeenCalledWith({
+            sessionId: 'session-1',
+            worktreeId: 'worktree-1',
+        });
     });
 
     it('forwards session.continueInWorktree with its params to the authority', async () => {

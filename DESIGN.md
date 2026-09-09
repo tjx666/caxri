@@ -162,6 +162,14 @@ stays a read-only reading because writing that preference again would change not
 Persistent metrics use concise icon-plus-value labels; explanatory prose belongs in their
 accessible names and hover tooltips.
 
+The Workbench Root picker shows branch labels on one line, with directory hints only for detached
+or duplicate branch labels and complete paths in shared tooltips. Its compact list pins the current
+root, includes the five newest other linked roots, and keeps the Git main worktree reachable with
+a `Main worktree` marker. `Show all worktrees…` expands the same popover into a searchable list.
+Unknown creation times sort last, deterministically. An `Authorize` label distinguishes discovered
+but unapproved roots; selecting one opens the shared in-app confirmation with its full destination
+and `Authorize and switch`. Cancel grants nothing. Approved roots switch directly without Finder.
+
 **PrimarySidebar** — flatten the double-box nesting: project groups are a disclosure row
 (Folder/FolderOpen icon + name + count, no border, no card); sessions are flat rows indented 16px.
 Selection is an `--elevated` fill (radius 6), no border and no accent — the primarySidebar stays

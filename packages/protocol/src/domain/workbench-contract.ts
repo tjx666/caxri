@@ -27,7 +27,7 @@ export const workbenchMethods = {
     },
     'session.authorizeWorkbenchRoot': {
         ...commandPolicy('desktop', 'write'),
-        params: z.object({ sessionId: identifierSchema }),
+        params: z.object({ sessionId: identifierSchema, worktreeId: identifierSchema }),
         result: z.union([canceled, sessionRecordSchema]),
     },
     'session.dismissWorkbenchCandidate': {
@@ -46,9 +46,9 @@ export const workbenchMethods = {
  * Main-only authority handoff; Renderer commands cannot submit a path to authorize a candidate.
  */
 export const workbenchInternalMethods = {
-    'session.workbenchRoot.selectionDirectory': {
+    'session.workbenchRoot.resolve': {
         ...commandPolicy('server', 'read'),
-        params: z.object({ sessionId: identifierSchema }),
+        params: z.object({ sessionId: identifierSchema, worktreeId: identifierSchema }),
         result: pathSchema,
     },
     'session.workbenchCandidate.claim': {
@@ -76,7 +76,11 @@ export const workbenchInternalMethods = {
     },
     'session.workbenchRoot.authorizeSelection': {
         ...commandPolicy('server', 'write'),
-        params: z.object({ sessionId: identifierSchema, rootPath: pathSchema }),
+        params: z.object({
+            sessionId: identifierSchema,
+            rootPath: pathSchema,
+            worktreeId: identifierSchema,
+        }),
         result: sessionRecordSchema,
     },
     'session.validateWorkbenchRoots': {

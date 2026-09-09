@@ -326,14 +326,29 @@ const agentHookHealthSchema = z.object({
 export const agentHookHealthMapSchema = z.record(agentProviderSchema, agentHookHealthSchema);
 
 /**
- * One authorized Project that belongs to the owning repository's linked-worktree topology.
+ * A discovered worktree; display paths never grant filesystem access.
  */
-export const workbenchRootOptionSchema = z.object({
-    projectId: identifierSchema,
-    displayTitle: z.string().min(1).max(1_024),
-    branch: z.string().min(1).max(1_024),
-    owner: z.boolean(),
-});
+export const workbenchRootOptionSchema = z
+    .object({
+        projectId: identifierSchema.optional(),
+        worktreeId: identifierSchema,
+        authorization: z.enum(['authorized', 'required']),
+        rootPath: pathSchema,
+        isMain: z.boolean(),
+        createdAt: z.number().positive().optional(),
+        displayTitle: z.string().min(1).max(1_024),
+        branch: z.string().min(1).max(1_024),
+        owner: z.boolean(),
+    })
+    .refine(
+        (option) =>
+            option.authorization === 'authorized'
+                ? option.projectId !== undefined
+                : option.projectId === undefined,
+        {
+            message: 'Only authorized worktrees carry a Project ID',
+        },
+    );
 
 export const persistedWindowStateSchema = z.object({
     bounds: z.object({

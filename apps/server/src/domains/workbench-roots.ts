@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import { lstat, realpath } from 'node:fs/promises';
-import { dirname } from 'node:path';
 
 import type {
     NewWorktreeBehavior,
@@ -23,6 +22,11 @@ import {
     BoundedSerialBatcher,
     isSameWorkbenchBinding,
 } from './workbench-provenance';
+import {
+    discoverWorkbenchRoots,
+    unavailableWorkbenchRoot,
+    worktreeIdentityId,
+} from './workbench-root-discovery';
 
 const CANDIDATE_TTL_MS = 10 * 60_000;
 const MAX_CANDIDATES = 256;
@@ -508,38 +512,18 @@ export class WorkbenchRootService {
             topology = await this.loadTopology(owner.rootPath);
         } catch {
             const active = this.options.database.getProject(session.workbenchProjectId);
-            return [owner, ...(active && active.id !== owner.id ? [active] : [])].map(
-                (project) => ({
-                    projectId: project.id,
-                    displayTitle: project.displayTitle,
-                    branch: 'No branch',
-                    owner: project.id === owner.id,
-                }),
+            return [owner, ...(active && active.id !== owner.id ? [active] : [])].map((project) =>
+                unavailableWorkbenchRoot(project, owner.id),
             );
         }
-        const projectsByRoot = new Map(
-            this.options.database.listProjects().map((project) => [project.rootPath, project]),
+        const options = await discoverWorkbenchRoots(
+            topology,
+            this.options.database.listProjects(),
+            owner.id,
+            sessionId,
         );
-        const options = topology.worktrees.flatMap((worktree) => {
-            const project = projectsByRoot.get(worktree.rootPath);
-            return project
-                ? [
-                      {
-                          projectId: project.id,
-                          displayTitle: project.displayTitle,
-                          branch: worktree.branch,
-                          owner: project.id === owner.id,
-                      },
-                  ]
-                : [];
-        });
         if (options.every((option) => option.projectId !== owner.id))
-            options.unshift({
-                projectId: owner.id,
-                displayTitle: owner.displayTitle,
-                branch: 'No branch',
-                owner: true,
-            });
+            options.unshift(unavailableWorkbenchRoot(owner, owner.id));
         return options.toSorted((left, right) => Number(right.owner) - Number(left.owner));
     }
 
@@ -629,33 +613,29 @@ export class WorkbenchRootService {
     }
 
     /**
-     * Starts the native picker beside actual linked roots, including roots not yet authorized. This is only a
-     * navigation hint: Main must still obtain a folder selection before granting access.
+     * Resolves only a currently discoverable, identity-bound worktree within this Session's repository.
      */
-    async selectionDirectory(sessionId: string): Promise<string> {
-        const session = this.requireSession(sessionId);
-        const owner = this.requireProject(session.projectId);
-        const active = this.requireProject(session.workbenchProjectId);
-        try {
-            const topology = await this.loadTopology(owner.rootPath);
-            /**
-             * Git lists the main checkout first; the owning Project may itself be a linked checkout.
-             * https://git-scm.com/docs/git-worktree#Documentation/git-worktree.txt-list
-             */
-            const linked = topology.worktrees.slice(1);
-            const preferred =
-                linked.find((root) => root.rootPath === active.rootPath) ?? linked.at(0);
-            return dirname(preferred?.rootPath ?? owner.rootPath);
-        } catch {
-            // A missing Git repository must not prevent the user from opening the folder picker.
-            return dirname(active.rootPath);
-        }
+    async resolveWorktree(sessionId: string, worktreeId: string): Promise<string> {
+        const roots = await this.listOptions(sessionId);
+        const root = roots.find((option) => option.worktreeId === worktreeId);
+        if (!root)
+            throw new CaxriError(
+                'NOT_FOUND',
+                'The worktree is no longer available. Reopen the picker.',
+            );
+        return root.rootPath;
     }
 
     /**
-     * Authorizes a user-selected linked worktree even when provider hooks are unavailable.
+     * Main supplies the identity-bound ID after explicit confirmation. Direct internal callers already hold a root
+     * grant.
      */
-    async authorizeSelection(sessionId: string, rootPath: string): Promise<SessionRecord> {
+    async authorizeSelection(
+        sessionId: string,
+        rootPath: string,
+        worktreeId?: string,
+    ): Promise<SessionRecord> {
+        const startedAt = performance.now();
         const canonical = await realpath(rootPath);
         if (canonical !== rootPath)
             throw new CaxriError('PATH_DENIED', 'Selected Workbench Root is not canonical');
@@ -667,11 +647,23 @@ export class WorkbenchRootService {
                 'PATH_DENIED',
                 'Selected folder is not a linked worktree of the owning Project',
             );
-        await this.rootIdentity(canonical);
-        // Auto-registration, as in `authorizeCandidate`: an explicit picker selection is still Caxri registering a
-        // worktree on the owning Project's behalf, not the user adding a standalone Project.
+        const identity = await this.rootIdentity(canonical);
+        if (
+            worktreeId &&
+            worktreeIdentityId(topology.repositoryKey, canonical, identity, sessionId) !==
+                worktreeId
+        )
+            throw new CaxriError('CONFLICT', 'The worktree changed. Reopen the picker.');
+        // No asynchronous gap after registration: failed post-registration validation must not leave a root grant.
+        this.requireSession(sessionId);
         const project = this.options.database.createProject(canonical, owner.id);
-        return this.select(sessionId, project.id, 'authorized');
+        return this.commitSelection(
+            sessionId,
+            project.id,
+            'authorized',
+            project.id === owner.id ? undefined : identity,
+            startedAt,
+        );
     }
 
     async validateSession(sessionId: string): Promise<boolean> {
@@ -755,7 +747,7 @@ type WorkbenchRootHandlers = Pick<
     | 'session.workbenchCandidate.cancel'
     | 'session.workbenchCandidate.claim'
     | 'session.workbenchRoot.authorizeSelection'
-    | 'session.workbenchRoot.selectionDirectory'
+    | 'session.workbenchRoot.resolve'
     | 'session.workbenchRoots'
 >;
 
@@ -768,8 +760,8 @@ export function createWorkbenchRootHandlers(
 ): WorkbenchRootHandlers {
     return {
         'session.authorizeWorkbenchRoot': () => mainOwned('session.authorizeWorkbenchRoot'),
-        'session.workbenchRoot.selectionDirectory': ({ sessionId }) =>
-            service.selectionDirectory(sessionId),
+        'session.workbenchRoot.resolve': ({ sessionId, worktreeId }) =>
+            service.resolveWorktree(sessionId, worktreeId),
         'session.continueInWorktree': () => mainOwned('session.continueInWorktree'),
         'session.workbenchRoots': ({ sessionId }) => service.listOptions(sessionId),
         'session.selectWorkbenchRoot': ({ sessionId, projectId }) =>
@@ -786,8 +778,8 @@ export function createWorkbenchRootHandlers(
             service.cancelCandidate(sessionId, candidateId);
             return null;
         },
-        'session.workbenchRoot.authorizeSelection': ({ sessionId, rootPath }) =>
-            service.authorizeSelection(sessionId, rootPath),
+        'session.workbenchRoot.authorizeSelection': ({ sessionId, rootPath, worktreeId }) =>
+            service.authorizeSelection(sessionId, rootPath, worktreeId),
         'session.validateWorkbenchRoots': async ({ sessionId }) => {
             await service.validate(sessionId);
             return null;
