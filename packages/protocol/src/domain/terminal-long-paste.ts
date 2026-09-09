@@ -13,6 +13,10 @@ export const terminalLongPasteParametersSchema = z.object({
 });
 
 export const terminalLongPasteResultSchema = z.discriminatedUnion('status', [
+    /**
+     * Shell-promoted Agents retain native paste without acquiring managed process control.
+     */
+    z.object({ status: z.literal('passthrough') }),
     z.object({
         agentLaunchId: identifierSchema,
         characterCount: z.number().int().min(1).max(MAX_LONG_PASTE_CHARACTERS),
