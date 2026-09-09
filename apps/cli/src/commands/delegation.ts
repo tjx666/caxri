@@ -2,7 +2,7 @@ import { Buffer } from 'node:buffer';
 import { constants } from 'node:fs';
 import { open } from 'node:fs/promises';
 
-import { CaxriError } from '@caxri/protocol';
+import { agentDelegationCreateSchema, CaxriError } from '@caxri/protocol';
 
 import type { RemoteCommandDefinition } from './types';
 
@@ -17,6 +17,10 @@ async function createParameters(tokens: readonly string[]) {
                 '--project',
                 '--session',
                 '--provider',
+                '--preset',
+                '--model',
+                '--effort',
+                '--caller',
                 '--prompt-file',
                 '--follow-up',
                 '--resume',
@@ -33,11 +37,10 @@ async function createParameters(tokens: readonly string[]) {
     const projectId = values.get('--project');
     const sessionId = values.get('--session');
     const path = values.get('--prompt-file');
-    const provider = values.get('--provider');
-    if (!projectId || !sessionId || !path || (provider !== 'claude' && provider !== 'codex'))
+    if (!projectId || !sessionId || !path)
         throw new CaxriError(
             'VALIDATION',
-            'Delegation requires --project, --session, --provider claude|codex and --prompt-file',
+            'Delegation requires --project, --session and --prompt-file',
         );
     const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
     try {
@@ -51,14 +54,18 @@ async function createParameters(tokens: readonly string[]) {
         const { bytesRead } = await file.read(buffer, 0, buffer.length, 0);
         if (bytesRead > 16_384)
             throw new CaxriError('VALIDATION', 'Delegation task exceeds 16 KiB');
-        return {
+        return agentDelegationCreateSchema.parse({
             projectId,
             sessionId,
-            provider,
+            provider: values.get('--provider'),
+            preset: values.get('--preset'),
+            model: values.get('--model'),
+            effort: values.get('--effort'),
+            callerProvider: values.get('--caller'),
             prompt: buffer.subarray(0, bytesRead).toString('utf8'),
             ...(values.has('--follow-up') && { followUpOf: values.get('--follow-up') }),
             ...(values.has('--resume') && { resumeFrom: values.get('--resume') }),
-        };
+        });
     } finally {
         await file.close();
     }
@@ -71,6 +78,32 @@ function identity(tokens: readonly string[]) {
 }
 
 export const DELEGATION_COMMANDS: RemoteCommandDefinition[] = [
+    {
+        kind: 'remote',
+        path: ['agent', 'delegate', 'presets'],
+        method: 'agent.delegation.presets',
+        summary: 'List the delegation presets available to this caller.',
+        usage: '--project <id> --session <id> [--caller <claude|codex>]',
+        parseParams: (tokens) => {
+            const values: Record<string, string> = {};
+            const flags: Record<string, string> = {
+                '--project': 'projectId',
+                '--session': 'sessionId',
+                '--caller': 'callerProvider',
+            };
+            for (let index = 0; index < tokens.length; index += 2) {
+                const key = flags[tokens[index]];
+                const value = tokens[index + 1];
+                if (!key || !value || value.startsWith('--') || values[key])
+                    throw new CaxriError(
+                        'VALIDATION',
+                        'Expected unique project, session and optional caller options',
+                    );
+                values[key] = value;
+            }
+            return values;
+        },
+    },
     {
         kind: 'remote',
         path: ['agent', 'delegate', 'stop'],
@@ -93,7 +126,7 @@ export const DELEGATION_COMMANDS: RemoteCommandDefinition[] = [
         path: ['agent', 'delegate', 'create'],
         method: 'agent.delegation.create',
         summary: 'Run a task in a visible Agent Terminal and preserve its exact result.',
-        usage: '--project <id> --session <id> --provider <claude|codex> --prompt-file <path> [--follow-up <id> | --resume <id>]',
+        usage: '--project <id> --session <id> --prompt-file <path> [--preset <name> | --provider <claude|codex> [--model <name>] [--effort <level>]] [--caller <claude|codex>] [--follow-up <id> | --resume <id>]',
         ownerConfirmation: 'Create this visible Agent delegation?',
         parseParams: createParameters,
     },

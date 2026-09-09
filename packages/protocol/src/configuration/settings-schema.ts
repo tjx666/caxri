@@ -4,6 +4,7 @@ import {
     agentActionsSettingsFileSchema,
     agentActionsSettingsSchema,
 } from '../agent/agent-action-settings.js';
+import { agentDelegationSettingsSchema } from '../agent/agent-delegation-settings.js';
 import type { AgentProvider, AgentProviderSettings } from '../agent/agents.js';
 import {
     agentProviderIds,
@@ -168,6 +169,7 @@ export const appSettingsSchema = z.object({
     'workbench.fontFamily': nullableStringField(spec['workbench.fontFamily']),
     'workbench.externalEditor': nullableStringField(spec['workbench.externalEditor']),
     'agents.providers': agentProvidersSchema,
+    'agents.delegation': agentDelegationSettingsSchema,
     'agents.notifications.enabled': booleanField(spec['agents.notifications.enabled']),
     'agents.notifications.completionThresholdSeconds': integerField(
         spec['agents.notifications.completionThresholdSeconds'],

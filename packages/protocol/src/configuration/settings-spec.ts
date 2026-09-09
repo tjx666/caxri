@@ -450,6 +450,14 @@ export const settingsSpec = [
         ],
     },
     {
+        kind: 'complex',
+        key: 'agents.delegation',
+        title: 'Agent delegation',
+        description: 'Named delegation presets, caller bindings and maximum delegation depth',
+        category: 'agents',
+        keywords: ['presets', 'delegation', 'model', 'effort', 'depth', 'caller'],
+    },
+    {
         kind: 'boolean',
         key: 'agents.notifications.enabled',
         title: 'System notifications',
