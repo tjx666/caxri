@@ -8,6 +8,65 @@ import {
 } from '../terminal-long-paste';
 
 describe('long Terminal paste', () => {
+    it.each(['stopped', 'disposed'] as const)(
+        'does not deliver a delayed native paste after the Agent is %s',
+        async (state) => {
+            const response = Promise.withResolvers<{ status: 'passthrough' }>();
+            let isRunning = true;
+            const paste = vi.fn();
+            const controller = new TerminalLongPasteController({
+                canAcceptAgentInput: () => isRunning,
+                enabled: () => true,
+                onDropped: vi.fn(),
+                onFailure: vi.fn(),
+                onPendingChange: vi.fn(),
+                paste,
+                pasteAgentExact: paste,
+                request: () => response.promise,
+                threshold: () => 1,
+            });
+            controller.intercept('pending native text');
+            if (state === 'disposed') controller.dispose();
+            else isRunning = false;
+            response.resolve({ status: 'passthrough' });
+            await response.promise;
+
+            expect(controller.isPending()).toBe(false);
+            expect(paste).not.toHaveBeenCalled();
+        },
+    );
+
+    it.each(['keyboard', 'clipboard'] as const)(
+        'preserves native paste for an unmanaged Agent through the %s entry point',
+        async (entry) => {
+            const content = 'native paste\n'.repeat(200);
+            const pending: boolean[] = [];
+            const paste = vi.fn(() => expect(pending.at(-1)).toBe(false));
+            const pasteAgentExact = vi.fn();
+            const onFailure = vi.fn();
+            const controller = new TerminalLongPasteController({
+                canAcceptAgentInput: () => true,
+                enabled: () => true,
+                onDropped: vi.fn(),
+                onFailure,
+                onPendingChange: (value) => pending.push(value),
+                paste,
+                pasteAgentExact,
+                request: () => Promise.resolve({ status: 'passthrough' }),
+                threshold: () => 1_024,
+            });
+
+            if (entry === 'keyboard') expect(controller.intercept(content)).toBe(true);
+            else await controller.pasteFromClipboard(() => Promise.resolve(content));
+            await vi.waitFor(() => expect(controller.isPending()).toBe(false));
+
+            expect(paste).toHaveBeenCalledExactlyOnceWith(content);
+            expect(pasteAgentExact).not.toHaveBeenCalled();
+            expect(onFailure).not.toHaveBeenCalled();
+            expect(pending).toEqual([true, false]);
+        },
+    );
+
     it('triggers only above the configurable threshold for a running enabled Agent', () => {
         expect(
             shouldPrepareLongPaste({

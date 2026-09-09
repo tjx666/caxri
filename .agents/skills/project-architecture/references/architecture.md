@@ -543,7 +543,10 @@ separately by the in-memory launch ID and Agent process ID. Agent exit therefore
 without emitting `terminal.exit`; only the Shell root exiting stops the Terminal. Durable
 provider, title, and Agent session identity remain attached to the Terminal so a later explicit resume can
 start another managed generation. A manually launched foreground Agent receives no managed identity or control;
-bounded process probes only publish and later revoke its interactive availability. Managed startup supports zsh and bash; when the configured platform Shell is
+bounded process probes only publish and later revoke its interactive availability.
+Long-paste preparation returns an explicit native-paste result for these manually launched Agents before
+saving or summarizing text. Managed Agents retain generation-fenced summaries and file-reference fallback;
+preparation errors never trigger native-paste fallback. Managed startup supports zsh and bash; when the configured platform Shell is
 unsupported, Agent Terminals use macOS's system zsh while ordinary Shell Terminals keep the configured executable.
 `terminal.restart`, Resume, and Fresh deliberately replace the Shell PTY too:
 injecting a command into an existing prompt could append to an unpublished edit or disrupt foreground job control.
