@@ -54,6 +54,28 @@ afterEach(() => {
 });
 
 describe('workbench Runtime events', () => {
+    it('keeps delivery failures from different branches separate while grouping branch repeats', () => {
+        useNotificationStore.setState({ entries: [], isOpen: false, mutedTypes: [], sequence: 0 });
+        const unsubscribe = subscribeWorkbenchEvents(eventHandlers());
+        for (const branch of ['main', 'feature', 'main']) {
+            mocks.emit({
+                event: 'projectStatus.alert',
+                payload: {
+                    sessionId: 'session-1',
+                    kind: 'check',
+                    repository: 'example',
+                    branch,
+                    name: 'Unit tests',
+                },
+            });
+        }
+        expect(useNotificationStore.getState().entries).toMatchObject([
+            { projectTitle: 'example · main', count: 2 },
+            { projectTitle: 'example · feature', count: 1 },
+        ]);
+        unsubscribe();
+    });
+
     it('retains native notification events without producing a second popup', () => {
         useNotificationStore.setState({ entries: [], isOpen: false, mutedTypes: [], sequence: 0 });
         const unsubscribe = subscribeWorkbenchEvents(eventHandlers());
