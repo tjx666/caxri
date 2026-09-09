@@ -71,7 +71,12 @@ function WorktreeOption({
     );
 }
 
-export function WorkbenchRootPicker({ branch, sessionId }: { branch?: string; sessionId: string }) {
+interface WorkbenchRootPickerProperties {
+    branch?: string;
+    sessionId: string;
+}
+
+function WorkbenchRootPickerContent({ branch, sessionId }: WorkbenchRootPickerProperties) {
     const session = useSelectedSession();
     const workbenchProject = useSelectedWorkbenchProject();
     const picker = useWorkbenchRootPicker(sessionId);
@@ -162,4 +167,11 @@ export function WorkbenchRootPicker({ branch, sessionId }: { branch?: string; se
             </PopoverContent>
         </Popover>
     );
+}
+
+/**
+ * Resets pending menu state when the selected Session changes.
+ */
+export function WorkbenchRootPicker(properties: WorkbenchRootPickerProperties) {
+    return <WorkbenchRootPickerContent key={properties.sessionId} {...properties} />;
 }
