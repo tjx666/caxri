@@ -1,5 +1,5 @@
 export { listAgentActions, recordRecentAgentAction } from './actions';
-export { type AgentEnvironment, defaultAgentEnvironment } from './contract';
+export { type AgentEnvironment, agentProviderStateRoot, defaultAgentEnvironment } from './contract';
 export { AgentCoordinator } from './coordinator';
 export { discoverExecutable, readVersion } from './discovery';
 export { AgentHookManager } from './hooks';
@@ -11,6 +11,11 @@ export {
 export { LongPasteService } from './long-paste';
 export { agentProviders } from './providers';
 export { type AgentAdapter, AgentService, createLocalAgentAdapters } from './service';
+export {
+    buildAgentTitlePrompt,
+    normalizeGeneratedAgentTitle,
+    readAgentTitleMessages,
+} from './title-generation';
 export {
     locateAgentTranscript,
     readAgentTranscript,

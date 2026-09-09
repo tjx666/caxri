@@ -17,6 +17,7 @@ import {
 import type { ConfigService } from './config';
 import type { CaxriDatabase } from './db';
 import type { DomainDependencies } from './domain-services';
+import { SessionAutoNamingService } from './session-auto-naming';
 import { SessionRenameService } from './session-rename';
 import type { WatchHub } from './watch-hub';
 import * as provenance from './workbench-provenance';
@@ -70,10 +71,31 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
         dependencies.agentAdapters ??
             createLocalAgentAdapters(agentEnvironment, agentLaunchSettings),
     );
+    const namingState: { service?: SessionAutoNamingService } = {};
     const coordinator = new AgentCoordinator(database, agents, send, logger, {
+        /**
+         * A parent Stop can be deferred until background subagents finish; raw hook acceptance is not completion.
+         */
+        onLifecycleApplied: (signal) => namingState.service?.observe(signal),
         refreshDelayMs: dependencies.agentRefreshDelayMs,
     });
     const sessionRenames = new SessionRenameService(database, agents, coordinator, send);
+    const automaticNaming = new SessionAutoNamingService(
+        database,
+        agents,
+        sessionRenames,
+        agentEnvironment,
+        (terminalId, launchId) => {
+            const provider = database.getTerminal(terminalId)?.provider;
+            return Boolean(
+                provider &&
+                configuration.getSettings().value['agents.providers'][provider].hooks.enabled &&
+                coordinator.isCurrentTerminalLaunch(terminalId, launchId),
+            );
+        },
+        logger,
+    );
+    namingState.service = automaticNaming;
     const agentHooks = new AgentHookManager({
         discoverExecutable,
         environment: agentEnvironment,
@@ -88,7 +110,9 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
                 workbenchRoots,
                 signal,
             );
-            if (decision === 'accepted') options.onLifecycleSignal?.(signal);
+            if (decision === 'accepted') {
+                options.onLifecycleSignal?.(signal);
+            }
             return decision;
         },
         hookExecutable: dependencies.hookExecutable ?? process.execPath,
@@ -127,6 +151,7 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
         awaitSettingsReconcile: () => settingsReconcile,
         close: async () => {
             unsubscribeSettings();
+            await automaticNaming.close();
             await settingsReconcile;
             await agentHooks.close();
         },

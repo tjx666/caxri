@@ -39,6 +39,7 @@ const BRACKETED_PASTE_START = '\u{1B}[200~';
 const BRACKETED_PASTE_END = '\u{1B}[201~';
 
 export interface AgentCoordinatorOptions {
+    onLifecycleApplied?: (signal: AgentLifecycleSignal) => void;
     /**
      * Trailing delay before Agent Terminal output refreshes durable Agent metadata.
      */
@@ -88,7 +89,7 @@ export class AgentCoordinator {
         private readonly agents: AgentService,
         private readonly emit: (event: ServerEvent) => void,
         private readonly logger: StructuredLogger,
-        options: AgentCoordinatorOptions = {},
+        private readonly options: AgentCoordinatorOptions = {},
     ) {
         this.shellProcessProbe = new ShellProcessProbe({
             detect: options.detectForegroundAgent ?? detectForegroundAgentProvider,
@@ -180,6 +181,7 @@ export class AgentCoordinator {
             })
         )
             this.emitAgentMetadataChange(event.terminalId);
+        this.options.onLifecycleApplied?.(event);
     }
 
     /**

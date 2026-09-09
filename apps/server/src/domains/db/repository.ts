@@ -330,6 +330,18 @@ export class CaxriDatabase {
         return this.db.sessions.get(sessionId)!;
     }
 
+    automaticSessionNaming(sessionId: string) {
+        return this.db.sessions.automaticNaming(sessionId);
+    }
+
+    setAutomaticSessionNaming(
+        sessionId: string,
+        value: NonNullable<ReturnType<CaxriDatabase['automaticSessionNaming']>>,
+        displayTitle?: string,
+    ): boolean {
+        return this.db.sessions.setAutomaticNaming(sessionId, value, displayTitle);
+    }
+
     updateAgentMetadata(
         terminalId: string,
         snapshot: AgentSnapshot,

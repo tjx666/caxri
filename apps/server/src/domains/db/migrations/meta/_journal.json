@@ -169,6 +169,13 @@
             "when": 1788932780528,
             "tag": "0023_session-sidebar-order",
             "breakpoints": true
+        },
+        {
+            "idx": 24,
+            "version": "6",
+            "when": 1788943649703,
+            "tag": "0024_session-naming-sync",
+            "breakpoints": true
         }
     ]
 }

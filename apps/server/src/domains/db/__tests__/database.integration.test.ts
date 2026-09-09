@@ -423,11 +423,11 @@ describe('CaxriDatabaseConnection', () => {
                 'workbench_root_inode',
                 'last_session_activity_at',
                 'last_session_activity_reason',
+                'automatic_naming',
             ]),
         );
         /**
-         * Caxri no longer generates Session titles, so its private naming mirror must be gone after the upgrade while
-         * `title_mode` — the ownership flag manual rename still writes — stays.
+         * The retired naming mirror stays absent; the new synchronization intent does not alter manual ownership.
          */
         expect(
             (upgraded.database.pragma('table_info(sessions)') as Array<{ name: string }>).map(
