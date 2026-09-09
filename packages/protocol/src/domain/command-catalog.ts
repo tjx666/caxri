@@ -419,6 +419,12 @@ export const commandDefinitions: CommandDefinition[] = [
         description: 'Edit Caxri keyboard shortcuts',
     },
     {
+        id: 'settings.openNotifications',
+        title: 'Open Notification Settings',
+        category: 'Preferences',
+        description: 'Manage notification preferences and restore muted reminders',
+    },
+    {
         id: 'settings.manageTrustedDomains',
         title: 'Manage Trusted Domains',
         category: 'Preferences',

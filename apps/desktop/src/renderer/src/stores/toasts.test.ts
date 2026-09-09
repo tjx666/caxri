@@ -3,9 +3,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
     refreshWorkbench: vi.fn(() => Promise.resolve()),
+    request: vi.fn(),
 }));
 
-import { describeFailure, dismissToast, getToasts, pushToast, tryCommand } from './toasts';
+vi.mock('../lib/caxri', () => ({ caxri: { request: mocks.request } }));
+
+import { syncNotificationSettings, useNotificationStore } from './notifications';
+import {
+    describeFailure,
+    dismissToast,
+    getToasts,
+    muteNotification,
+    pushToast,
+    tryCommand,
+} from './toasts';
 
 describe('Sonner notification adapter', () => {
     beforeEach(() => {
@@ -14,7 +25,9 @@ describe('Sonner notification adapter', () => {
         );
         vi.stubGlobal('cancelAnimationFrame', clearTimeout);
         mocks.refreshWorkbench.mockClear();
+        mocks.request.mockReset();
         dismissToast();
+        useNotificationStore.setState({ entries: [], isOpen: false, mutedTypes: [], sequence: 0 });
     });
 
     afterEach(() => {
@@ -27,6 +40,40 @@ describe('Sonner notification adapter', () => {
         pushToast('info', 'second');
 
         expect(getToasts().map((toast) => toast.title)).toEqual(['first', 'second']);
+    });
+
+    it('retains muted reminders without creating a popup and keeps errors visible', () => {
+        syncNotificationSettings({
+            'notifications.worktreeFallback': false,
+            'notifications.agentRecovery': true,
+        });
+        pushToast('info', 'Returned to Project', { type: 'worktree-fallback' });
+        expect(getToasts()).toEqual([]);
+        expect(useNotificationStore.getState().entries).toMatchObject([{ unread: false }]);
+        pushToast('error', 'Failed to return', { type: 'worktree-fallback' });
+        expect(getToasts()).toHaveLength(1);
+    });
+
+    it('keeps copy success out of history and retains explicitly persistent success', () => {
+        pushToast('success', 'Path copied');
+        expect(useNotificationStore.getState().entries).toEqual([]);
+        pushToast('success', 'Recovered', { persist: true });
+        expect(useNotificationStore.getState().entries).toHaveLength(1);
+    });
+
+    it('keeps reminders visible when persistence fails and dismisses them only after a successful mute', async () => {
+        pushToast('info', 'Returned to Project', { type: 'worktree-fallback' });
+        mocks.request.mockRejectedValueOnce(new Error('Could not save settings'));
+        await muteNotification('worktree-fallback');
+        expect(getToasts().map((entry) => entry.title)).toContain('Returned to Project');
+        expect(useNotificationStore.getState().mutedTypes).toEqual([]);
+        mocks.request.mockResolvedValueOnce({
+            value: { 'notifications.worktreeFallback': false, 'notifications.agentRecovery': true },
+        });
+        await muteNotification('worktree-fallback');
+        expect(getToasts().map((entry) => entry.title)).not.toContain('Returned to Project');
+        expect(getToasts().map((entry) => entry.title)).toContain('Could not save settings');
+        expect(useNotificationStore.getState().mutedTypes).toEqual(['worktree-fallback']);
     });
 
     it('dismisses a single toast by id and leaves the others', () => {

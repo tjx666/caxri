@@ -25,6 +25,7 @@ import {
 } from '../features/workbench/workbench-root-prompt-store';
 import { caxri } from '../lib/caxri';
 import { openSettings } from './dialogs';
+import { recordNotification, syncNotificationSettings } from './notifications';
 import { mergeStructurally } from './structural-sharing';
 import { describeFailure, pushToast } from './toasts';
 
@@ -329,6 +330,7 @@ function applySnapshot(
         ...patched,
         sessionStates: patched.sessionStates.map(mergeExternalEditorTabs),
     };
+    syncNotificationSettings(current.settings);
     useWorkbenchStore.setState((previous) => {
         const terminals = applyFullTerminalSnapshot(
             previous.bootstrap?.terminals ?? [],
@@ -680,7 +682,11 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                     pushToast(
                         'info',
                         `The active worktree is no longer available. Returned to ${event.payload.returnedProjectTitle}.`,
-                        { persist: true },
+                        {
+                            type: 'worktree-fallback',
+                            projectId: event.payload.workbenchProjectId,
+                            projectTitle: event.payload.returnedProjectTitle,
+                        },
                     );
                 return;
             case 'window.fullScreen':
@@ -698,7 +704,10 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                     pushToast(
                         'success',
                         `Sent Esc and continue to ${providerName} after a matched recovery rule.`,
-                        { action: { label: 'Open Settings', onSelect: openSettings } },
+                        {
+                            type: 'agent-recovery',
+                            action: { label: 'Open Settings', onSelect: openSettings },
+                        },
                     );
                 else
                     pushToast(
@@ -708,6 +717,31 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                     );
                 return;
             }
+            case 'agent.notification': {
+                const bootstrap = useWorkbenchStore.getState().bootstrap;
+                const session = bootstrap?.sessions.find(
+                    (item) => item.id === event.payload.sessionId,
+                );
+                recordNotification({
+                    kind: 'info',
+                    message: `${session?.displayTitle ?? 'Agent'} ${event.payload.attentionKind === 'waiting' ? 'is waiting for your input.' : 'completed a turn.'}`,
+                    projectId: session?.projectId,
+                    projectTitle: bootstrap?.projects.find((item) => item.id === session?.projectId)
+                        ?.displayTitle,
+                });
+                return;
+            }
+            case 'projectStatus.alert':
+                recordNotification({
+                    kind: 'error',
+                    message:
+                        event.payload.kind === 'check'
+                            ? `CI failed: ${event.payload.name}`
+                            : `${event.payload.name} deployment failed`,
+                    projectId: event.payload.repository,
+                    projectTitle: `${event.payload.repository} · ${event.payload.branch}`,
+                });
+                return;
             case 'agent.dispatch.changed':
             case 'viewContainers.catalogChanged':
             case 'viewContainers.treeChanged':
@@ -720,7 +754,6 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
             case 'files.changed':
             case 'files.operationChanged':
             case 'git.changed':
-            case 'projectStatus.alert':
             case 'projectStatus.changed':
             case 'sessionPullRequests.changed':
             case 'terminal.exit':

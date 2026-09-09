@@ -243,6 +243,13 @@ export const serverEventPayloads = {
     ]),
     'window.fullScreen': z.object({ isFullScreen: z.boolean() }),
     /**
+     * Main's accepted native notification decision, without Agent transcript or notification body.
+     */
+    'agent.notification': z.object({
+        sessionId: identifierSchema,
+        attentionKind: z.enum(['waiting', 'completed']),
+    }),
+    /**
      * Main-originated, content-free request after Chromium restarts the GPU process. Every mounted Terminal handles
      * this independently so background panes discard invalid WebGL contexts without touching their PTY lifecycle.
      */

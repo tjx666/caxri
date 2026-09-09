@@ -7,6 +7,45 @@ import { describe, expect, it, vi } from 'vitest';
 import { ConfigService } from '../../config';
 
 describe('CLI settings patch application handler', () => {
+    it('persists independent notification preferences and restores them after reopening', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-notification-settings-'));
+        const emit = vi.fn();
+        const service = new ConfigService(directory, emit);
+        await service.initialize();
+        try {
+            await service.patchSettings(
+                [{ key: 'notifications.worktreeFallback', value: false }],
+                false,
+            );
+            await service.patchSettings(
+                [{ key: 'notifications.agentRecovery', value: false }],
+                false,
+            );
+            expect(service.getSettings().value).toMatchObject({
+                'notifications.worktreeFallback': false,
+                'notifications.agentRecovery': false,
+            });
+            expect(emit).toHaveBeenCalledWith(
+                expect.objectContaining({ event: 'settings.changed' }),
+            );
+        } finally {
+            await service.close();
+        }
+        const reopened = new ConfigService(directory, vi.fn());
+        await reopened.initialize();
+        try {
+            const result = await reopened.patchSettings(
+                [{ key: 'notifications.worktreeFallback', value: true }],
+                false,
+            );
+            expect(result.value).toMatchObject({
+                'notifications.worktreeFallback': true,
+                'notifications.agentRecovery': false,
+            });
+        } finally {
+            await reopened.close();
+        }
+    });
     it('validates dry runs through the real schema without writing or emitting', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-settings-dry-run-'));
         const emit = vi.fn();

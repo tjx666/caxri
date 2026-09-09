@@ -153,6 +153,8 @@ const spec = settingsSpecByKey;
  * payload; lenient `settings.jsonc` parsing lives in `appSettingsFileSchema` below.
  */
 export const appSettingsSchema = z.object({
+    'notifications.worktreeFallback': booleanField(spec['notifications.worktreeFallback']),
+    'notifications.agentRecovery': booleanField(spec['notifications.agentRecovery']),
     'session.defaultAgent': z
         .enum(enumValues(spec['session.defaultAgent'].options))
         .nullable()

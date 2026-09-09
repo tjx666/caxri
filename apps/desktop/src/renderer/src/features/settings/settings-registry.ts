@@ -297,6 +297,8 @@ const rows: SettingRowDescriptor[] = [
         ...specRow('projectStatus.ignoredChecks'),
         binding: { type: 'ignored-checks' },
     },
+    specRow('notifications.worktreeFallback'),
+    specRow('notifications.agentRecovery'),
     specRow('projectStatus.notifications.enabled'),
     specRow('agents.notifications.enabled'),
     specRow('agents.notifications.completionThresholdSeconds'),
