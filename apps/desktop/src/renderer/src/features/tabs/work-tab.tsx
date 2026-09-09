@@ -146,8 +146,8 @@ export function WorkTab({
     const isVisuallyActive = active && isPresent;
     const dirtyDescriptionId = `${tabId}-dirty`;
     /**
-     * `terminalTabLabel` compresses a PTY title to fit the tab, and CSS truncates whatever still overflows. Both losses
-     * are visual only: the untouched title stays the tab's accessible name (below) and its tooltip, so a keyboard user
+     * `terminalTabLabel` abbreviates PTY path titles independently of the tab's content-width floor. This abbreviation
+     * is visual only: the untouched title stays the tab's accessible name (below) and its tooltip, so a keyboard user
      * reaches it the same way a pointer user does. `keepLabelAsAccessibleName` opts a caller like a Document tab out of
      * this swap — see the property's own doc comment.
      */
