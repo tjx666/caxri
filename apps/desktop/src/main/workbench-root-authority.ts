@@ -205,6 +205,9 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
                 ? { canceled: false, filePaths: [testRoot] }
                 : await chooseDirectory(options.getWindow(), {
                       title: 'Authorize Workbench Root',
+                      defaultPath: await options
+                          .getServer()
+                          .request('session.workbenchRoot.selectionDirectory', parameters),
                       properties: ['openDirectory'],
                   });
             const selectedPath = result.filePaths[0];

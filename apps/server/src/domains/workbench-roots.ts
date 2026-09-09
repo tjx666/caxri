@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { lstat, realpath } from 'node:fs/promises';
+import { dirname } from 'node:path';
 
 import type {
     NewWorktreeBehavior,
@@ -628,6 +629,30 @@ export class WorkbenchRootService {
     }
 
     /**
+     * Starts the native picker beside actual linked roots, including roots not yet authorized. This is only a
+     * navigation hint: Main must still obtain a folder selection before granting access.
+     */
+    async selectionDirectory(sessionId: string): Promise<string> {
+        const session = this.requireSession(sessionId);
+        const owner = this.requireProject(session.projectId);
+        const active = this.requireProject(session.workbenchProjectId);
+        try {
+            const topology = await this.loadTopology(owner.rootPath);
+            /**
+             * Git lists the main checkout first; the owning Project may itself be a linked checkout.
+             * https://git-scm.com/docs/git-worktree#Documentation/git-worktree.txt-list
+             */
+            const linked = topology.worktrees.slice(1);
+            const preferred =
+                linked.find((root) => root.rootPath === active.rootPath) ?? linked.at(0);
+            return dirname(preferred?.rootPath ?? owner.rootPath);
+        } catch {
+            // A missing Git repository must not prevent the user from opening the folder picker.
+            return dirname(active.rootPath);
+        }
+    }
+
+    /**
      * Authorizes a user-selected linked worktree even when provider hooks are unavailable.
      */
     async authorizeSelection(sessionId: string, rootPath: string): Promise<SessionRecord> {
@@ -730,6 +755,7 @@ type WorkbenchRootHandlers = Pick<
     | 'session.workbenchCandidate.cancel'
     | 'session.workbenchCandidate.claim'
     | 'session.workbenchRoot.authorizeSelection'
+    | 'session.workbenchRoot.selectionDirectory'
     | 'session.workbenchRoots'
 >;
 
@@ -742,6 +768,8 @@ export function createWorkbenchRootHandlers(
 ): WorkbenchRootHandlers {
     return {
         'session.authorizeWorkbenchRoot': () => mainOwned('session.authorizeWorkbenchRoot'),
+        'session.workbenchRoot.selectionDirectory': ({ sessionId }) =>
+            service.selectionDirectory(sessionId),
         'session.continueInWorktree': () => mainOwned('session.continueInWorktree'),
         'session.workbenchRoots': ({ sessionId }) => service.listOptions(sessionId),
         'session.selectWorkbenchRoot': ({ sessionId, projectId }) =>

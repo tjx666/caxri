@@ -578,13 +578,21 @@ describe('authorizeSelection', () => {
             canceled: true,
             filePaths: [],
         });
-        const request = vi.fn(() => Promise.resolve({ id: 'session-1' }));
+        const request = vi.fn(() => Promise.resolve('/workspace/repository-worktrees'));
         const { instance } = authority({ getServer: server(request) });
 
         await expect(instance.authorizeSelection({ sessionId: 'session-1' })).resolves.toEqual({
             canceled: true,
         });
-        expect(request).not.toHaveBeenCalled();
+        expect(request).toHaveBeenCalledExactlyOnceWith(
+            'session.workbenchRoot.selectionDirectory',
+            {
+                sessionId: 'session-1',
+            },
+        );
+        expect(electronMock.dialog.showOpenDialog).toHaveBeenCalledWith(
+            expect.objectContaining({ defaultPath: '/workspace/repository-worktrees' }),
+        );
     });
 
     it('revokes the grant when the Server rejects authorization, closing the retry window', async () => {
