@@ -86,6 +86,8 @@ export class FileService {
          */
         const resolveSessionPath = (sessionId: string, input?: string) =>
             this.resolveSessionPath(sessionId, input);
+        const resolveWorkspacePath = (sessionId: string, input?: string) =>
+            this.resolveSessionPath(sessionId, input, true);
         this.operations = new FileOperationQueue(options.maximumPendingOperations);
         this.mutationJournal = new FileMutationJournal(
             options.mutationJournalPath,
@@ -93,10 +95,10 @@ export class FileService {
             logger,
             options.mutationJournal,
         );
-        this.documents = new DocumentService(resolveSessionPath, logger, maxFileBytes, options);
+        this.documents = new DocumentService(resolveWorkspacePath, logger, maxFileBytes, options);
         this.watcher = new WatcherService(resolveSessionPath, emit, logger, options);
         this.listing = new ListingService(
-            resolveSessionPath,
+            resolveWorkspacePath,
             logger,
             options.fileTreeExcludes ?? (() => ({})),
             (sessionId, path) => this.watcher.noteDirectoryListed(sessionId, path),
@@ -116,8 +118,12 @@ export class FileService {
         };
     }
 
-    resolveSessionPath(sessionId: string, input?: string): Promise<ResolvedSessionPath> {
-        return this.projectRoots.resolveSessionPath(sessionId, input);
+    resolveSessionPath(
+        sessionId: string,
+        input?: string,
+        shouldFollowWorkspaceLinks = false,
+    ): Promise<ResolvedSessionPath> {
+        return this.projectRoots.resolveSessionPath(sessionId, input, shouldFollowWorkspaceLinks);
     }
 
     initialize(): Promise<void> {
@@ -314,30 +320,40 @@ export class FileService {
     async authorizeOpen(
         parameters: ServerOperationParameters<'files.authorizeOpen'>,
     ): Promise<ServerOperationResult<'files.authorizeOpen'>> {
-        const { path } = await this.projectRoots.resolveSessionPath(
+        const resolved = await this.projectRoots.resolveSessionPath(
             parameters.sessionId,
             parameters.path,
+            true,
         );
-        return this.operations.run(() => this.mutations.authorizeOpen(parameters), {
-            paths: [path],
-        });
+        return this.operations.run(
+            () => this.documents.authorizeOpen(parameters.sessionId, parameters.path, resolved),
+            {
+                paths: [resolved.path],
+            },
+        );
     }
 
     async read(sessionId: string, path: string, signal?: AbortSignal): Promise<FileDocument> {
         signal?.throwIfAborted();
-        const operationPath = await this.projectRoots.resolveSessionPath(sessionId, path);
-        return this.operations.run(() => this.documents.read(sessionId, path, signal), {
-            maximumWaitMs: MAXIMUM_DOCUMENT_QUEUE_WAIT_MS,
-            paths: [operationPath.path],
-        });
+        const operationPath = await this.projectRoots.resolveSessionPath(sessionId, path, true);
+        return this.operations.run(
+            () => this.documents.read(sessionId, path, signal, operationPath),
+            {
+                maximumWaitMs: MAXIMUM_DOCUMENT_QUEUE_WAIT_MS,
+                paths: [operationPath.path],
+            },
+        );
     }
 
     async write(sessionId: string, path: string, content: string): Promise<FileDocument> {
-        const operationPath = await this.projectRoots.resolveSessionPath(sessionId, path);
-        return this.operations.run(() => this.documents.write(sessionId, path, content), {
-            maximumWaitMs: MAXIMUM_DOCUMENT_QUEUE_WAIT_MS,
-            paths: [operationPath.path],
-        });
+        const operationPath = await this.projectRoots.resolveSessionPath(sessionId, path, true);
+        return this.operations.run(
+            () => this.documents.write(sessionId, path, content, operationPath),
+            {
+                maximumWaitMs: MAXIMUM_DOCUMENT_QUEUE_WAIT_MS,
+                paths: [operationPath.path],
+            },
+        );
     }
 
     search(

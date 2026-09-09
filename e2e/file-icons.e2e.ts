@@ -92,13 +92,13 @@ test('Files secondarySidebar identifies symlinks by their target instead of an u
         ]);
 
         const directoryLink = tree.getByRole('treeitem').first();
-        await expect(directoryLink).toHaveAttribute(
-            'title',
-            /dist → src \(symlink; browsing and changes are disabled for safety\)$/,
-        );
-        // Looking like a folder must not make the link act like one: it stays inert for pointer and assistive use.
-        await expect(directoryLink).toHaveAttribute('aria-disabled', 'true');
-        await expect(directoryLink).not.toHaveAttribute('aria-expanded', /.*/);
+        await expect(directoryLink).toHaveAttribute('title', /dist → src \(symlink\)$/);
+        await expect(directoryLink).not.toHaveAttribute('aria-disabled', 'true');
+        await expect(directoryLink).toHaveAttribute('aria-expanded', 'false');
+        await directoryLink.click();
+        await expect(directoryLink).toHaveAttribute('aria-expanded', 'true');
+        await directoryLink.press('ArrowLeft');
+        await expect(directoryLink).toHaveAttribute('aria-expanded', 'false');
     } finally {
         try {
             await running.app.close();

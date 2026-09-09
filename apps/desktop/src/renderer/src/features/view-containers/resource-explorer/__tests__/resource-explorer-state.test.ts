@@ -170,7 +170,7 @@ describe('Resource Explorer state', () => {
         expect(fileOperationsForProject(operations, undefined)).toEqual([]);
     });
 
-    it('explains where a symlink points and why it is inert', () => {
+    it('explains where a trusted workspace symlink points', () => {
         expect(
             fileTreeRowTooltip({
                 kind: 'symlink',
@@ -179,7 +179,7 @@ describe('Resource Explorer state', () => {
                 path: '/project/.agents/skills/acceptance',
             }),
         ).toBe(
-            '/project/.agents/skills/acceptance → ../../lobehub/.agents/skills/acceptance (symlink; browsing and changes are disabled for safety)',
+            '/project/.agents/skills/acceptance → ../../lobehub/.agents/skills/acceptance (symlink)',
         );
         expect(
             fileTreeRowTooltip({
@@ -188,22 +188,20 @@ describe('Resource Explorer state', () => {
                 linkTarget: './missing',
                 path: '/project/stale',
             }),
-        ).toContain('(broken symlink;');
+        ).toContain('(broken symlink)');
         expect(fileTreeRowTooltip({ kind: 'symlink', path: '/project/stale' })).toBe(
-            '/project/stale (symlink; browsing and changes are disabled for safety)',
+            '/project/stale (symlink)',
         );
     });
 
     it('tells a screen reader the same link facts the tooltip shows', () => {
         expect(
             symlinkRowDescription({ linkKind: 'directory', linkTarget: '../shared/skills' }),
-        ).toBe('Symlink to ../shared/skills. Browsing and changes are disabled for safety.');
+        ).toBe('Symlink to ../shared/skills.');
         expect(symlinkRowDescription({ linkKind: 'broken', linkTarget: './missing' })).toBe(
-            'Symlink to ./missing, which does not resolve. Browsing and changes are disabled for safety.',
+            'Symlink to ./missing, which does not resolve.',
         );
-        expect(symlinkRowDescription({})).toBe(
-            'Symlink. Browsing and changes are disabled for safety.',
-        );
+        expect(symlinkRowDescription({})).toBe('Symlink.');
     });
 
     it('shows the path plus the Git-ignored qualifier for an ordinary row', () => {

@@ -1,14 +1,34 @@
 import { lstat, realpath } from 'node:fs/promises';
-import { isAbsolute, relative, resolve } from 'node:path';
+import { dirname, isAbsolute, relative, resolve } from 'node:path';
 
 import { CaxriError } from '@caxri/protocol';
 
 import type { CaxriDatabase } from './db';
-import { assertInsideRoot } from './path-security';
+import { assertInsideRoot, isOutsideRoot } from './path-security';
+
+/**
+ * Accept alternate spellings of the Project root (such as macOS /var), without authorizing an outside leaf.
+ */
+async function workspaceEntryPath(root: string, candidate: string): Promise<string> {
+    if (!isOutsideRoot(relative(root, candidate))) return resolve(candidate);
+    if ((await realpath(candidate)) === root) return root;
+    let ancestor = dirname(candidate);
+    while (ancestor !== dirname(ancestor)) {
+        // eslint-disable-next-line no-await-in-loop -- each ancestor establishes the next possible root spelling
+        if ((await realpath(ancestor)) === root)
+            return resolve(root, relative(ancestor, candidate));
+        ancestor = dirname(ancestor);
+    }
+    throw new CaxriError('PATH_DENIED', 'Path is outside the Project root');
+}
 
 export interface ResolvedSessionPath {
     root: string;
     path: string;
+    /**
+     * Workspace entry identity, retained when a trusted link resolves to another location.
+     */
+    workspacePath?: string;
 }
 
 export interface ProjectRootResolverOptions {
@@ -45,7 +65,11 @@ export class ProjectRootResolver {
         return binding.workbenchProjectId;
     }
 
-    async resolveSessionPath(sessionId: string, input?: string): Promise<ResolvedSessionPath> {
+    async resolveSessionPath(
+        sessionId: string,
+        input?: string,
+        shouldFollowWorkspaceLinks = false,
+    ): Promise<ResolvedSessionPath> {
         const session = this.database.getSession(sessionId);
         if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
         const binding = this.database.getSessionWorkbenchBinding(sessionId);
@@ -89,8 +113,16 @@ export class ProjectRootResolver {
                 throw new CaxriError('CANCELLED', 'Workbench root is no longer available');
             throw error;
         }
-        const candidate = input && isAbsolute(input) ? input : resolve(root, input ?? '.');
+        const candidate = input && isAbsolute(input) ? resolve(input) : resolve(root, input ?? '.');
+        const workspacePath = shouldFollowWorkspaceLinks
+            ? await workspaceEntryPath(root, candidate)
+            : undefined;
         const resolved = await realpath(candidate);
+        /**
+         * Explorer/editor links are trusted through their workspace entry, even when the target is outside the root.
+         * Other domains keep canonical containment; never turn a returned physical target into a new entry authority.
+         */
+        if (shouldFollowWorkspaceLinks) return { root, path: resolved, workspacePath };
         assertInsideRoot(relative(root, resolved), 'Symlink target is outside the Project root');
         return { root, path: resolved };
     }

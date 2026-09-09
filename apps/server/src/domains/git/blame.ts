@@ -64,9 +64,11 @@ export class GitBlameService {
         } catch (error) {
             /**
              * A file move can rekey the active editor after this optional blame request starts; a now-missing target is
-             * stale metadata, not an IPC failure.
+             * stale metadata, not an IPC failure. Trusted workspace links may also resolve outside the Git scope; their
+             * documents stay editable without claiming repository metadata for the outside target.
              */
-            if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+            if (['ENOENT', 'PATH_DENIED'].includes((error as NodeJS.ErrnoException).code ?? ''))
+                return null;
             throw error;
         }
         const summary = await this.options.summary(sessionId);

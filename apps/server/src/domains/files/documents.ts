@@ -5,12 +5,11 @@ import { constants } from 'node:fs';
 import { lstat, open, realpath, rename, unlink } from 'node:fs/promises';
 import { basename, dirname, join, relative } from 'node:path';
 
-import type { FileDocument } from '@caxri/protocol';
+import type { FileDocument, ServerOperationResult } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
-import { isOutsideRoot } from '../path-security';
 import type { ResolvedSessionPath } from '../project-roots';
 
 export type ResolveSessionPath = (
@@ -56,7 +55,7 @@ async function removeTrustedTemporaryFile(
 }
 
 /**
- * Reads and writes text documents under a Session's Project root with TOCTOU-safe file handles.
+ * Reads and writes text documents reached through a Session's Project root with validated file handles.
  */
 export class DocumentService {
     private readonly beforeReplaceValidation?: () => Promise<void>;
@@ -74,9 +73,60 @@ export class DocumentService {
         this.replaceFile = options.replaceFile ?? rename;
     }
 
-    async read(sessionId: string, path: string, signal?: AbortSignal): Promise<FileDocument> {
-        signal?.throwIfAborted();
+    /**
+     * A queued operation must keep its original target while holding that target's queue slot.
+     */
+    private async resolveDocumentPath(
+        sessionId: string,
+        path: string,
+        expected?: ResolvedSessionPath,
+    ): Promise<ResolvedSessionPath> {
         const resolved = await this.resolveSessionPath(sessionId, path);
+        if (expected && (resolved.path !== expected.path || resolved.root !== expected.root))
+            throw new CaxriError('CONFLICT', 'File target changed during the operation');
+        return resolved;
+    }
+
+    /**
+     * Authorizes navigation using the workspace alias while identifying its actual target.
+     */
+    async authorizeOpen(
+        sessionId: string,
+        path: string,
+        expected?: ResolvedSessionPath,
+    ): Promise<ServerOperationResult<'files.authorizeOpen'>> {
+        const resolved = await this.resolveDocumentPath(sessionId, path, expected);
+        const [stats, rootStats] = await Promise.all([
+            lstat(resolved.path, { bigint: true }),
+            lstat(resolved.root, { bigint: true }),
+        ]);
+        if ((!stats.isDirectory() && !stats.isFile()) || (stats.isFile() && stats.nlink > 1n))
+            throw new CaxriError('PATH_DENIED', 'Only regular files and folders can be opened');
+        if (rootStats.isSymbolicLink() || !rootStats.isDirectory())
+            throw new CaxriError('PATH_DENIED', 'Project root changed during authorization');
+        const workspacePath = resolved.workspacePath ?? resolved.path;
+        return {
+            root: {
+                path: resolved.root,
+                device: rootStats.dev.toString(),
+                inode: rootStats.ino.toString(),
+            },
+            path: workspacePath,
+            name: basename(workspacePath),
+            kind: stats.isDirectory() ? 'directory' : 'file',
+            device: stats.dev.toString(),
+            inode: stats.ino.toString(),
+        };
+    }
+
+    async read(
+        sessionId: string,
+        path: string,
+        signal?: AbortSignal,
+        expected?: ResolvedSessionPath,
+    ): Promise<FileDocument> {
+        signal?.throwIfAborted();
+        const resolved = await this.resolveDocumentPath(sessionId, path, expected);
         signal?.throwIfAborted();
         const stats = await lstat(resolved.path);
         if (!stats.isFile() || stats.isSymbolicLink())
@@ -106,7 +156,7 @@ export class DocumentService {
             if (buffer.subarray(0, 8_192).includes(0))
                 throw new CaxriError('IO', 'Binary files cannot be opened in the editor');
             return {
-                path: resolved.path,
+                path: resolved.workspacePath ?? resolved.path,
                 content: buffer.toString('utf8'),
                 mtimeMs: openedStats.mtimeMs,
                 size: openedStats.size,
@@ -116,8 +166,13 @@ export class DocumentService {
         }
     }
 
-    async write(sessionId: string, path: string, content: string): Promise<FileDocument> {
-        const resolved = await this.resolveSessionPath(sessionId, path);
+    async write(
+        sessionId: string,
+        path: string,
+        content: string,
+        expected?: ResolvedSessionPath,
+    ): Promise<FileDocument> {
+        const resolved = await this.resolveDocumentPath(sessionId, path, expected);
         const stats = await lstat(resolved.path);
         if (!stats.isFile() || stats.isSymbolicLink())
             throw new CaxriError('IO', 'Only existing regular files can be saved');
@@ -159,12 +214,12 @@ export class DocumentService {
                  * receive the replacement bytes.
                  */
                 if (
+                    resolvedTemporaryPath !== temporaryPath ||
                     currentReplacementStats.isSymbolicLink() ||
                     !currentReplacementStats.isFile() ||
                     currentReplacementStats.dev !== openedReplacementStats.dev ||
                     currentReplacementStats.ino !== openedReplacementStats.ino ||
-                    currentReplacementStats.nlink > 1 ||
-                    isOutsideRoot(relative(resolved.root, resolvedTemporaryPath))
+                    currentReplacementStats.nlink > 1
                 )
                     throw new CaxriError('IO', 'Temporary file changed during save');
                 await replacement.writeFile(content, 'utf8');
@@ -179,6 +234,7 @@ export class DocumentService {
                 await replacement.close();
             }
             await this.beforeReplaceValidation?.();
+            await this.resolveDocumentPath(sessionId, path, resolved);
             const currentStats = await lstat(resolved.path);
             if (
                 currentStats.isSymbolicLink() ||
@@ -207,8 +263,11 @@ export class DocumentService {
             await removeTrustedTemporaryFile(temporaryPath, openedReplacementStats);
         }
         this.logger.write('info', logEventCatalog.file.saved, {
-            fields: { sessionId, path: relative(resolved.root, resolved.path) },
+            fields: {
+                sessionId,
+                path: relative(resolved.root, resolved.workspacePath ?? resolved.path),
+            },
         });
-        return this.read(sessionId, resolved.path);
+        return this.read(sessionId, resolved.workspacePath ?? resolved.path, undefined, resolved);
     }
 }
