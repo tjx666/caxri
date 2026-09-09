@@ -140,6 +140,15 @@ const keybindingsResult = z.object({
 });
 const themeResult = z.object({ value: themeTokensSchema, source: configSourceSchema });
 const exportedFile = z.object({ path: z.string() });
+const authorizedFileEntry = mutableFileEntrySchema.extend({
+    device: z.string().regex(/^\d+$/),
+    inode: z.string().regex(/^\d+$/),
+    root: z.object({
+        path: pathSchema,
+        device: z.string().regex(/^\d+$/),
+        inode: z.string().regex(/^\d+$/),
+    }),
+});
 const fileName = z
     .string()
     .trim()
@@ -553,6 +562,11 @@ export const methods = {
             truncated: z.boolean(),
         }),
     },
+    'files.resolveKind': {
+        ...serverRead,
+        params: z.object({ sessionId: identifierSchema, path: pathSchema }),
+        result: z.enum(['file', 'directory']),
+    },
     'files.browse': {
         ...serverRead,
         params: z.object({
@@ -764,28 +778,12 @@ export const internalMethods = {
     'files.authorizeTrash': {
         ...serverControl,
         params: z.object({ sessionId: identifierSchema, path: pathSchema }),
-        result: mutableFileEntrySchema.extend({
-            device: z.string().regex(/^\d+$/),
-            inode: z.string().regex(/^\d+$/),
-            root: z.object({
-                path: pathSchema,
-                device: z.string().regex(/^\d+$/),
-                inode: z.string().regex(/^\d+$/),
-            }),
-        }),
+        result: authorizedFileEntry,
     },
     'files.authorizeOpen': {
         ...serverControl,
         params: z.object({ sessionId: identifierSchema, path: pathSchema }),
-        result: mutableFileEntrySchema.extend({
-            device: z.string().regex(/^\d+$/),
-            inode: z.string().regex(/^\d+$/),
-            root: z.object({
-                path: pathSchema,
-                device: z.string().regex(/^\d+$/),
-                inode: z.string().regex(/^\d+$/),
-            }),
-        }),
+        result: authorizedFileEntry,
     },
     ...terminalFileLinkInternalMethods,
     'terminal.detachAll': { ...serverControl, params: noParameters, result: z.null() },

@@ -64,19 +64,14 @@ test('Cmd+P lazily browses Project paths from Terminal, Editor, and Files focus'
         await expect(
             rootListbox.locator('[data-symlink-icon="broken"] [data-file-icon="default_file"]'),
         ).toBeVisible();
-        // A folder-icon link stays inert, so the row explains why in its tooltip and accessible description.
+        // Workspace links retain their target description and participate in navigation.
         const directoryLinkOption = dialog.getByRole('option', {
             name: 'zz-link-to-dir',
             exact: false,
         });
-        await expect(directoryLinkOption).toHaveAttribute('aria-disabled', 'true');
-        await expect(directoryLinkOption).toHaveAttribute(
-            'title',
-            'Symlink to src. Browsing and changes are disabled for safety.',
-        );
-        await expect(directoryLinkOption).toHaveAccessibleDescription(
-            'Symlink to src. Browsing and changes are disabled for safety.',
-        );
+        await expect(directoryLinkOption).toHaveAttribute('aria-disabled', 'false');
+        await expect(directoryLinkOption).toHaveAttribute('title', 'Symlink to src.');
+        await expect(directoryLinkOption).toHaveAccessibleDescription('Symlink to src.');
         const rootListboxId = await rootListbox.getAttribute('id');
         const rootOptionId = await rootDirectoryOption.getAttribute('id');
         expect(rootListboxId).not.toBeNull();

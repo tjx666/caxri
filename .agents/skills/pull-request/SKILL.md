@@ -36,9 +36,9 @@ readback. Do not end again at local validation or PR creation. A status-only que
    validation, non-goals, and closing issue links. Read back the resulting PR.
 6. Treat queued or failed required checks, unresolved conflicts, and active review findings as real
    readiness blockers. Repair the owning branch and refresh the exact-head state instead of merging
-   stale evidence. Watch checks with `bun run scripts/watch-ci.ts [--run <id>]` in a background
-   shell by default rather than ad-hoc polling loops (newest run on the current branch when
-   `--run` is omitted). Concurrent sessions, including other worktrees, share one GitHub poller
+   stale evidence. Watch checks with `bun run scripts/watch-ci.ts --run <id>` using the
+   harness-specific ownership rules in the reference below. Concurrent sessions, including other
+   worktrees, share one GitHub poller
    through `~/.cache/caxri/ci-watch/`. Failed jobs raise an immediate macOS notification. Polling
    survives offline windows with capped backoff. The command exits 0/1 with the run conclusion.
    In Claude Code, execute the watcher in a background shell.

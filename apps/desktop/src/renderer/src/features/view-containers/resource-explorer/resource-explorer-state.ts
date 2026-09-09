@@ -1,6 +1,7 @@
 import type { FileEntry } from '@caxri/protocol';
 import { collectTreeSubtree, pathBasename } from '@caxri/utils';
 
+import { isDirectoryEntry } from '../../../lib/file-entry';
 import type { PendingFileOperation } from './file-operation-state';
 
 interface FileListQuerySnapshot {
@@ -98,7 +99,7 @@ export function knownDirectoryChildrenFromQueries(
             entries.flatMap((entry) =>
                 typeof entry === 'object' &&
                 entry !== null &&
-                (entry as { kind?: unknown }).kind === 'directory' &&
+                isDirectoryEntry(entry as FileEntry) &&
                 typeof (entry as { path?: unknown }).path === 'string'
                     ? [(entry as { path: string }).path]
                     : [],
@@ -126,7 +127,7 @@ export function fileTreeRowTooltip(
         return entry.gitIgnored ? `${entry.path} (Git ignored)` : entry.path;
     const target = entry.linkTarget === undefined ? '' : ` → ${entry.linkTarget}`;
     const linkKind = entry.linkKind === 'broken' ? 'broken symlink' : 'symlink';
-    return `${entry.path}${target} (${linkKind}; browsing and changes are disabled for safety)`;
+    return `${entry.path}${target} (${linkKind})`;
 }
 
 /**
@@ -136,7 +137,7 @@ export function fileTreeRowTooltip(
 export function symlinkRowDescription(entry: Pick<FileEntry, 'linkKind' | 'linkTarget'>): string {
     const target = entry.linkTarget === undefined ? '' : ` to ${entry.linkTarget}`;
     const unresolved = entry.linkKind === 'broken' ? ', which does not resolve' : '';
-    return `Symlink${target}${unresolved}. Browsing and changes are disabled for safety.`;
+    return `Symlink${target}${unresolved}.`;
 }
 
 /**

@@ -329,7 +329,7 @@ describe('FileMutationService', () => {
         });
         await expect(
             service.authorizeOpen({ sessionId, path: join(root, 'source-link') }),
-        ).rejects.toMatchObject({ code: 'PATH_DENIED' });
+        ).resolves.toMatchObject({ kind: 'file', path: join(root, 'source-link') });
         await expect(service.authorizeTrash({ sessionId, path: outside })).rejects.toMatchObject({
             code: 'PATH_DENIED',
         });

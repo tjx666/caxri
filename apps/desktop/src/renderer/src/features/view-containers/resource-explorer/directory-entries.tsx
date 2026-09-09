@@ -11,7 +11,6 @@ import { FileTypeIcon } from '../../../icons/files/file-type-icon';
 import { FILE_TREE_DRAG_TYPE, hasDraggedPath } from '../../../lib/file-drag';
 import { useToastOnQueryError } from '../../../queries/client';
 import { describeFailure } from '../../../stores/toasts';
-import { openFile } from '../../editor/document-actions';
 import { useResourceExplorerClient } from '../controlled-view-context';
 import { controlledViewQueryKey } from '../view-operation-client';
 import { createItem, rememberFile, renameFile } from './file-actions';
@@ -20,9 +19,7 @@ import type { EditRequest, FocusTarget } from './file-tree-item-types';
 import { fileTreeLeafIndent, fileTreeRowStyle } from './file-tree-row-style';
 import {
     clearStaleScopeFocusPath,
-    setScopePathExpanded,
     setScopeSelectedPath,
-    setScopeSubtreeExpanded,
     useHasScopeSelection,
     useIsPathExpanded,
     useIsPathFocusRequested,
@@ -251,6 +248,7 @@ function FileTreeItem({
     const hasSelection = useHasScopeSelection(scopeId);
     const isFocusRequested = useIsPathFocusRequested(scopeId, entry.path);
     const {
+        activateEntry,
         clipboard,
         confirmTrash,
         dragBlocked,
@@ -260,6 +258,7 @@ function FileTreeItem({
         editable,
         handleKeyDown,
         isDropTarget,
+        isDirectory,
         isRenaming,
         isRovingTabStop,
         openEntry,
@@ -317,8 +316,7 @@ function FileTreeItem({
             ref={rowRef}
             role="treeitem"
             aria-describedby={entry.kind === 'symlink' ? symlinkReasonId : undefined}
-            aria-disabled={editable ? undefined : true}
-            aria-expanded={entry.kind === 'directory' ? expanded : undefined}
+            aria-expanded={isDirectory ? expanded : undefined}
             aria-level={depth + 1}
             aria-selected={selected}
             tabIndex={isRovingTabStop ? 0 : -1}
@@ -330,27 +328,20 @@ function FileTreeItem({
             draggable={editable && !dragBlocked}
             style={fileTreeRowStyle({
                 depth,
-                isDirectory: entry.kind === 'directory',
+                isDirectory,
                 isExpanded: expanded,
             })}
             title={fileTreeRowTooltip(entry)}
-            onClick={(event) => {
-                setScopeSelectedPath(scopeId, entry.path);
-                if (entry.kind === 'directory') {
-                    if (event.altKey)
-                        setScopeSubtreeExpanded(
-                            scopeId,
-                            client.viewId,
-                            projectId,
-                            entry.path,
-                            !expanded,
-                        );
-                    else setScopePathExpanded(scopeId, entry.path, !expanded);
-                } else if (editable) discard(openFile(entry.path, { preview: true }));
-            }}
-            onDoubleClick={() => {
-                if (entry.kind === 'file') discard(openFile(entry.path));
-            }}
+            onClick={(event) =>
+                discard(
+                    activateEntry({
+                        preview: true,
+                        toggleDirectory: true,
+                        recursive: event.altKey,
+                    }),
+                )
+            }
+            onDoubleClick={() => discard(activateEntry())}
             onFocus={() => clearStaleScopeFocusPath(scopeId, entry.path)}
             onContextMenu={() => setScopeSelectedPath(scopeId, entry.path)}
             onCopy={(event) => {
@@ -390,8 +381,7 @@ function FileTreeItem({
             }}
             onKeyDown={handleKeyDown}
         >
-            {entry.kind === 'directory' &&
-                (expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />)}
+            {isDirectory && (expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />)}
             <FileTypeIcon entry={entry} expanded={expanded} />
             <span className="truncate">{entry.name}</span>
             {entry.kind === 'symlink' && (
@@ -428,7 +418,7 @@ function FileTreeItem({
     return (
         <div>
             {item}
-            {entry.kind === 'directory' && expanded && (
+            {isDirectory && expanded && (
                 <DirectoryEntries
                     depth={depth + 1}
                     directory={entry.path}

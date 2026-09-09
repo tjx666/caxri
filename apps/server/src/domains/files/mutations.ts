@@ -582,13 +582,6 @@ export class FileMutationService {
         );
     }
 
-    async authorizeOpen(
-        parameters: ServerOperationParameters<'files.authorizeOpen'>,
-    ): Promise<ServerOperationResult<'files.authorizeOpen'>> {
-        const entry = await this.resolveExisting(parameters.sessionId, parameters.path, true);
-        return entry;
-    }
-
     async authorizeTrash(
         parameters: ServerOperationParameters<'files.authorizeTrash'>,
     ): Promise<ServerOperationResult<'files.authorizeTrash'>> {

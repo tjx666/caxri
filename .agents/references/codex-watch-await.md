@@ -22,6 +22,10 @@ Reuse an active waiter. A tool yield, interrupted parent turn, or missing comple
 never authorizes restarting the watcher. Collect or confirm the old process stopped before an
 explicitly justified replacement for a new target.
 
+For a watcher with shared poller election, preserve shared pollers and other sessions during
+recovery. Retire only a confirmed task-owned follower. If the old shell cannot be resumed and
+its process is the shared poller, retain it and let the waiter own one follower.
+
 ## Collect the same process
 
 When `functions.exec` exposes `tools.exec_command`, `tools.write_stdin`, and `store`/`load`, keep

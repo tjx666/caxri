@@ -48,16 +48,12 @@ export function editorBreadcrumbDirectoryLabel(directory: string, projectRoot: s
 
 type PickerEntry = Pick<FileEntry, 'kind' | 'name' | 'path'>;
 
-function navigablePickerEntries(entries: readonly PickerEntry[]): readonly PickerEntry[] {
-    return entries.filter((entry) => entry.kind !== 'symlink');
-}
-
 export function adjacentBreadcrumbPickerPath(
     entries: readonly PickerEntry[],
     activePath: string | undefined,
     destination: 'first' | 'last' | 'next' | 'previous',
 ): string | undefined {
-    const navigable = navigablePickerEntries(entries);
+    const navigable = entries;
     if (navigable.length === 0) return undefined;
     if (destination === 'first') return navigable[0].path;
     if (destination === 'last') return navigable.at(-1)?.path;
@@ -73,7 +69,7 @@ export function typeaheadBreadcrumbPickerPath(
     activePath: string | undefined,
     prefix: string,
 ): string | undefined {
-    const navigable = navigablePickerEntries(entries);
+    const navigable = entries;
     if (!prefix || navigable.length === 0) return undefined;
     const currentIndex = navigable.findIndex((entry) => entry.path === activePath);
     const startingIndex = currentIndex === -1 ? -1 : currentIndex;

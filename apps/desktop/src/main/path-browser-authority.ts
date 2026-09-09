@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Dirent } from 'node:fs';
-import { lstat, opendir } from 'node:fs/promises';
+import { lstat, opendir, realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 
@@ -34,8 +34,8 @@ interface Candidate {
     id: string;
     kind: Entry['kind'];
     /**
-     * Display-only symlink metadata forwarded from Server Core. Main never resolves or authorizes the target; a symlink
-     * candidate stays unopenable regardless of what its target turned out to be.
+     * Display-only symlink metadata forwarded from Server Core. Workspace opens are reauthorized by Server Core; links
+     * encountered during free browsing remain unavailable.
      */
     linkKind?: Entry['linkKind'];
     linkTarget?: Entry['linkTarget'];
@@ -434,7 +434,7 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
         let directory: RootIdentity;
         let displayDirectory: string | undefined;
         try {
-            directory = await directoryIdentity(parsed.directory);
+            directory = await directoryIdentity(parsed.directory, mode === 'project');
         } catch (error) {
             if (mode !== 'project' || !(error instanceof CaxriError) || error.code !== 'NOT_FOUND')
                 throw error;
@@ -446,7 +446,7 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
                  * free-path browsing or swallowing permission and identity failures.
                  */
                 parsed = { directory: context.currentDirectory, filter: folderName };
-                directory = await directoryIdentity(context.currentDirectory);
+                directory = await directoryIdentity(context.currentDirectory, true);
             } else {
                 const located = await locateProjectDirectory(context, input);
                 if (!located) throw error;
@@ -460,9 +460,9 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
     }
 
     async function openCandidate(context: BrowserContext, candidate: Candidate): Promise<Opened> {
-        if (candidate.kind === 'symlink')
-            throw new CaxriError('PATH_DENIED', 'Symbolic links cannot be opened');
         const isCurrentProjectPath = isSameOrInside(context.root.path, candidate.path);
+        if (!isCurrentProjectPath && candidate.kind === 'symlink')
+            throw new CaxriError('PATH_DENIED', 'Links outside the workspace cannot be opened');
         if (!isCurrentProjectPath && context.mode === 'free') {
             if (candidate.kind !== 'file')
                 throw new CaxriError('VALIDATION', 'Path is not a regular file');
@@ -511,7 +511,7 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
         }
         if (authorized.kind !== 'directory')
             throw new CaxriError('CONFLICT', 'Directory changed after it was listed');
-        const directory = await directoryIdentity(authorized.path);
+        const directory = await directoryIdentity(authorized.path, isCurrentProjectPath);
         context.currentDirectory = directory.path;
         context.listedDirectory = directory;
         if (isCurrentProjectPath) {
@@ -566,15 +566,13 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
             return serialize(browserId, async () => {
                 const context = contextFor(browserId);
                 if (target.kind === 'detachProject') {
-                    context.mode = 'free';
-                    context.currentDirectory = context.listedDirectory.path;
-                    context.freeOriginDirectory = context.listedDirectory.path;
-                    return browseFree(
-                        context,
-                        context.listedDirectory,
-                        '',
-                        trailingSlash(context.listedDirectory.path),
+                    const directory = await directoryIdentity(
+                        await realpath(context.listedDirectory.path),
                     );
+                    context.mode = 'free';
+                    context.currentDirectory = directory.path;
+                    context.freeOriginDirectory = directory.path;
+                    return browseFree(context, directory, '', trailingSlash(directory.path));
                 }
                 if (target.kind === 'parent') {
                     const parentPath = dirname(context.listedDirectory.path);
@@ -582,7 +580,10 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
                         context.mode === 'project' && !isSameOrInside(context.root.path, parentPath)
                             ? context.root.path
                             : parentPath;
-                    const directory = await directoryIdentity(boundedParent);
+                    const directory = await directoryIdentity(
+                        boundedParent,
+                        context.mode === 'project',
+                    );
                     context.currentDirectory = directory.path;
                     context.listedDirectory = directory;
                     if (context.mode === 'free') {
@@ -593,9 +594,21 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
                 }
                 const candidate = context.candidates.get(target.entryId);
                 if (!candidate) throw new CaxriError('PATH_DENIED', 'Path browser entry expired');
-                if (candidate.kind === 'symlink')
+                if (
+                    candidate.kind === 'symlink' &&
+                    !isSameOrInside(context.root.path, candidate.path)
+                )
                     throw new CaxriError('PATH_DENIED', 'Symbolic links cannot be opened');
-                return candidate.kind === 'file'
+                const kind =
+                    candidate.kind === 'symlink'
+                        ? (
+                              await options.getServer().request('files.authorizeOpen', {
+                                  sessionId: context.browseSessionId,
+                                  path: candidate.path,
+                              })
+                          ).kind
+                        : candidate.kind;
+                return kind === 'file'
                     ? openCandidate(context, candidate)
                     : navigateDirectory(context, candidate);
             });

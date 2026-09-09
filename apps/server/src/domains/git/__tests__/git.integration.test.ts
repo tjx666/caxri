@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
@@ -126,6 +126,11 @@ describe('GitService', () => {
             uncommitted: false,
         });
         await rm(path);
+        await expect(git.blame({ sessionId: session.id, path, line: 2 })).resolves.toBeNull();
+        const outside = await mkdtemp(join(tmpdir(), 'caxri-git-blame-linked-'));
+        temporaryDirectories.push(outside);
+        await writeFile(join(outside, 'linked.ts'), 'fixture');
+        await symlink(join(outside, 'linked.ts'), path);
         await expect(git.blame({ sessionId: session.id, path, line: 2 })).resolves.toBeNull();
         database.close();
     });
