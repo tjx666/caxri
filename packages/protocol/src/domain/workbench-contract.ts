@@ -46,6 +46,11 @@ export const workbenchMethods = {
  * Main-only authority handoff; Renderer commands cannot submit a path to authorize a candidate.
  */
 export const workbenchInternalMethods = {
+    'session.workbenchRoot.selectionDirectory': {
+        ...commandPolicy('server', 'read'),
+        params: z.object({ sessionId: identifierSchema }),
+        result: pathSchema,
+    },
     'session.workbenchCandidate.claim': {
         ...commandPolicy('server', 'write'),
         params: z.object({ sessionId: identifierSchema, candidateId: identifierSchema }),
