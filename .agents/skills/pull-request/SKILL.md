@@ -36,9 +36,8 @@ readback. Do not end again at local validation or PR creation. A status-only que
    validation, non-goals, and closing issue links. Read back the resulting PR.
 6. Treat queued or failed required checks, unresolved conflicts, and active review findings as real
    readiness blockers. Repair the owning branch and refresh the exact-head state instead of merging
-   stale evidence. Watch checks with `bun run scripts/watch-ci.ts [--run <id>]` in a background
-   shell by default rather than ad-hoc polling loops (newest run on the current branch when
-   `--run` is omitted). Concurrent sessions, including other worktrees, share one GitHub poller
+   stale evidence. Watch checks with `bun run scripts/watch-ci.ts --run <id>` using the
+   harness-specific ownership rules below. Concurrent sessions, including other worktrees, share one GitHub poller
    through `~/.cache/caxri/ci-watch/`. Failed jobs raise an immediate macOS notification. Polling
    survives offline windows with capped backoff. The command exits 0/1 with the run conclusion.
    In Claude Code, execute the watcher in a background shell.
@@ -52,3 +51,23 @@ readback. Do not end again at local validation or PR creation. A status-only que
    do not switch it to `main`. Switch or update the primary checkout only when its working tree is
    clean and the update is fast-forward; otherwise preserve it and report the exact dirty-state or
    divergence blocker.
+
+## CI watcher ownership
+
+- In Codex, the primary agent obtains the run ID and working directory, then creates one independent
+  waiter with `fork_turns="none"`, `model="gpt-5.6-luna"`, and `reasoning_effort="low"`. Pass only
+  the run ID, working directory, watcher command, and collection/recovery instructions.
+- The waiter starts the watcher itself, owns its shell session, and collects that same process
+  through `write_stdin` until it exits. If `functions.exec` yields a running cell, resume that cell
+  with `functions.wait`. Never launch duplicate watchers or report empty output or unchanged queues.
+- After completing independent work, the primary waits for the completion notification with
+  `wait_agent(timeout_ms=3600000)`, subject to higher-priority runtime wait limits. Do not poll the
+  waiter, read its cache repeatedly, or make extra GitHub requests to manufacture progress.
+- The waiter returns the run ID, final conclusion, exit code, and relevant failure output. The
+  primary diagnoses failures or verifies the passing run against the current PR head and required
+  checks before an authorized merge.
+- On recovery, identify this task's existing watcher before starting another. Preserve shared
+  pollers and other sessions; retire only a confirmed task-owned follower. If the old shell cannot
+  be resumed and its process is the shared poller, retain it and let the waiter own one follower.
+- In Claude Code, use one native background shell and collect that same process; Codex waiter
+  orchestration does not apply.
