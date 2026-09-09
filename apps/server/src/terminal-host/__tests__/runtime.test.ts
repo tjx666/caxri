@@ -29,6 +29,7 @@ const terminal: TerminalRecord = {
     updatedAt: 1,
 };
 const temporaryDirectories: string[] = [];
+const loggers: StructuredLogger[] = [];
 
 function privateRequest(
     request: TerminalHostRequestEnvelope['request'],
@@ -94,6 +95,7 @@ function createRuntime(
     const messages: TerminalHostMessage[] = [];
     const protocolViolation = vi.fn();
     const logger = new StructuredLogger(join(directory, 'logs'), 'terminal-host');
+    loggers.push(logger);
     return {
         logger,
         messages,
@@ -113,7 +115,12 @@ function createRuntime(
     };
 }
 
-afterEach(() => {
+afterEach(async () => {
+    /**
+     * Await the async writers before deleting their directories, which otherwise races with log creation in CI.
+     */
+    await Promise.all(loggers.map((logger) => logger.flush()));
+    loggers.length = 0;
     for (const directory of temporaryDirectories)
         rmSync(directory, { force: true, recursive: true });
     temporaryDirectories.length = 0;
