@@ -283,8 +283,7 @@ function createBinding(registration: ExtensionHostRegistration): ApiBinding {
         badgeViewIds: new Set(
             Object.values(registration.manifest.contributes.views)
                 .flat()
-                .filter((view) => view.badge)
-                .map((view) => view.id),
+                .flatMap((view) => (view.badge ? [view.id] : [])),
         ),
         assertCurrent: () => {
             assertBindingCurrent(registration);

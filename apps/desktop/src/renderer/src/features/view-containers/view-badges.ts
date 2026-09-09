@@ -15,7 +15,7 @@ export function badgeViews(
 ) {
     if (!catalog) return [];
     const containers = new Set(
-        catalog.containers.filter((entry) => entry.location === location).map((entry) => entry.id),
+        catalog.containers.flatMap((entry) => (entry.location === location ? [entry.id] : [])),
     );
     return catalog.views.flatMap((view) => {
         if (!view.badge || !containers.has(view.containerId) || view.source.kind !== 'extension')

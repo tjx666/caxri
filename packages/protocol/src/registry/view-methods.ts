@@ -24,7 +24,7 @@ const extensionViewOperationSchema = z.discriminatedUnion('operation', [
     z.object({
         ...common,
         operation: z.literal('badge.snapshot'),
-        arguments: z.object({}).strict(),
+        arguments: z.strictObject({}),
     }),
     z.object({
         ...common,
