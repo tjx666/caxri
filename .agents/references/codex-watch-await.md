@@ -67,6 +67,33 @@ prefer `wait_agent({ timeout_ms: 3600000 })`, subject to the current tool contra
 higher-priority instructions. Keep shell collection and `functions.wait` in the waiter so the
 primary remains available for user input.
 
+### Long waits are supported; advice is not a hard limit
+
+Check the current `wait_agent` contract rather than inferring its limits from general guidance.
+In a host that exposes `timeout_ms` up to `3600000` and wakes the wait for agent updates or new
+user input, request the one-hour wait when the waiter is the only remaining work. This is a
+maximum waiting window, not a promise to block user input for an hour.
+
+An instruction to **avoid** blocking waits longer than 60 seconds because they **may** prevent
+communication expresses a responsiveness concern; it does not itself establish a mandatory
+60-second cap. Apply that concern to the actual tool behavior. An interruptible `wait_agent`
+can preserve responsiveness while waiting for a notification. Do not mechanically shorten it to
+60 seconds, or claim that higher-priority instructions prohibit an hour, solely on that wording.
+This is an interpretation of the advice, not permission to override higher-priority instructions:
+an explicit mandatory cap or a real host limit still applies. Do not assume shell waits and outer
+`functions.wait` calls have the same limits or interruption behavior as `wait_agent`.
+
+When explaining repeated waits to the user, distinguish notification waiting from status probes:
+`wait_agent` awaits an update; `list_agents` inspects agent status; the watcher owns its own remote
+polling. Repeated short notification waits may still create unnecessary tool turns and visible
+noise, even without extra GitHub requests. Prefer the supported long notification wait instead
+of defending that noise merely because it is not remote polling.
+
+If a shorter wait is actually necessary, identify the concrete tool limit, mandatory instruction,
+or observed responsiveness problem. Distinguish a recommendation from a prohibition and a tool
+capability from an execution choice. If an earlier explanation called advice a hard limit,
+correct that explanation and use the appropriate wait duration on the same active waiter.
+
 Do not poll the waiter, narrate unchanged queue state, or issue extra GitHub probes to manufacture
 progress. Handle new user input and resume waiting on the same waiter. Renewing a wait after its
 permitted timeout is different from deliberately polling at short intervals.
