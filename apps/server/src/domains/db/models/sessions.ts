@@ -32,6 +32,7 @@ import {
 } from '../schema';
 import { didConsumeAttentionReply, didReleaseAttentionReply } from './attention-replies';
 import { sessionActivityUpdate } from './session-activity';
+import { didWriteAutomaticNaming, readAutomaticNaming } from './session-naming';
 import {
     effectiveWorkbenchProjectId,
     mapSession,
@@ -576,6 +577,18 @@ export class SessionsModel {
                 .where(eq(sessions.id, id))
                 .run().changes === 1
         );
+    }
+
+    automaticNaming(id: string) {
+        return readAutomaticNaming(this.database, id);
+    }
+
+    setAutomaticNaming(
+        id: string,
+        value: NonNullable<typeof sessions.$inferSelect.automaticNaming>,
+        displayTitle?: string,
+    ): boolean {
+        return didWriteAutomaticNaming(this.database, id, value, displayTitle);
     }
 
     setActivityStateByPrimaryTerminal(

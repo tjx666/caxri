@@ -17,6 +17,7 @@ import {
     assertAgentRenameVersion,
     throwAgentRenameError,
 } from '../../rename';
+import { AGENT_TITLE_SYSTEM_INSTRUCTIONS } from '../../title-generation';
 import type { TranscriptScanCursor } from '../../transcript-scan';
 import { scanTranscriptLines } from '../../transcript-scan';
 import { claudeHookAdapter } from './hooks';
@@ -235,19 +236,28 @@ function claudeStatus(value: unknown): AgentActivityState | undefined {
 async function resolveClaudeTitle(
     metadata: ClaudeSessionMetadata,
     configDirectory: string,
-): Promise<string | undefined> {
+): Promise<Pick<LocalAgentState, 'title' | 'titleSource'>> {
     const name = typeof metadata.name === 'string' ? metadata.name.trim() : '';
-    if (name && metadata.nameSource !== 'derived') return name;
     if (typeof metadata.cwd === 'string' && typeof metadata.sessionId === 'string') {
         const transcript = await readTranscriptTitles(
             configDirectory,
             metadata.cwd,
             metadata.sessionId,
         );
+        if (transcript.customTitle)
+            return { title: transcript.customTitle, titleSource: 'explicit' };
+        if (name && metadata.nameSource === 'user') return { title: name, titleSource: 'explicit' };
         const title = transcriptTitle(transcript);
-        if (title) return title;
+        if (title) return { title, titleSource: 'automatic' };
     }
-    return undefined;
+    return name && metadata.nameSource !== 'derived'
+        ? {
+              title: name,
+              ...(metadata.nameSource === 'user'
+                  ? { titleSource: 'explicit' as const }
+                  : { titleSource: 'automatic' as const }),
+          }
+        : {};
 }
 
 /**
@@ -319,11 +329,17 @@ async function readClaudeState(
     return {
         sessionId: typeof latest.sessionId === 'string' ? latest.sessionId : undefined,
         status: isStatusIsCurrentGeneration ? claudeStatus(latest.status) : undefined,
-        title: await resolveClaudeTitle(latest, configDirectory),
+        ...(await resolveClaudeTitle(latest, configDirectory)),
     };
 }
 
 export const claudeProvider: AgentProviderDescriptor = {
+    generateTitle: (context) =>
+        generateClaudeLowCostText(
+            context,
+            AGENT_TITLE_SYSTEM_INSTRUCTIONS,
+            'Automatic Session naming',
+        ),
     actions: {
         roots: (context, environment) => {
             const configuredDirectory = environment.variables.CLAUDE_CONFIG_DIR;

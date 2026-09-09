@@ -52,7 +52,45 @@ export class AgentIdentity {
             }
             const session = this.db.sessions.get(terminal.sessionId);
             if (!session) return false;
-            const decision = decideAgentMetadataUpdate(terminal, session, snapshot);
+            const naming = this.db.sessions.automaticNaming(session.id);
+            const ownsTitle =
+                naming &&
+                session.titleMode === 'automatic' &&
+                session.primaryAgentTerminalId === terminal.id;
+            let projectedSnapshot = snapshot;
+            if (ownsTitle && naming.status !== 'stopped') {
+                const isSameBinding =
+                    naming.terminalId === terminal.id &&
+                    naming.agentSessionId === snapshot.sessionId &&
+                    naming.provider === snapshot.provider;
+                const externalRename =
+                    isSameBinding &&
+                    naming.status === 'complete' &&
+                    snapshot.observedAt > naming.updatedAt &&
+                    snapshot.title &&
+                    snapshot.title !== naming.title &&
+                    snapshot.titleSource === 'explicit';
+                if (!isSameBinding && snapshot.sessionId) {
+                    this.db.sessions.setAutomaticNaming(session.id, {
+                        ...naming,
+                        status: 'stopped',
+                        updatedAt: Date.now(),
+                    });
+                } else if (externalRename) {
+                    this.db.sessions.setAutomaticNaming(session.id, {
+                        ...naming,
+                        status: 'stopped',
+                        updatedAt: Date.now(),
+                    });
+                    this.db.sessions.rename(session.id, snapshot.title!);
+                } else if (
+                    naming.status === 'pending' ||
+                    snapshot.observedAt <= naming.updatedAt ||
+                    snapshot.titleSource === 'automatic'
+                )
+                    projectedSnapshot = { ...snapshot, title: undefined };
+            }
+            const decision = decideAgentMetadataUpdate(terminal, session, projectedSnapshot);
             if (!decision) return false;
             if (decision.sessionPatch) {
                 const activityReason =

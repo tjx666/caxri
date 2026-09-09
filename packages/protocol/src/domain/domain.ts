@@ -665,6 +665,10 @@ export const bootstrapStateSchema = z.object({
 });
 
 export interface AgentSnapshot {
+    /**
+     * Native provenance when available; an absent value must never be assumed to mean a user rename.
+     */
+    titleSource?: 'automatic' | 'explicit';
     provider: AgentProvider;
     /**
      * Present only for a provider-owned reliable attention signal, never a process fallback.

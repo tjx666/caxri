@@ -39,6 +39,7 @@ export interface AgentSnapshotContext {
 }
 
 export interface LocalAgentState {
+    titleSource?: 'automatic' | 'explicit';
     sessionId?: string;
     status?: AgentActivityState;
     title?: string;
@@ -129,6 +130,7 @@ export function defaultAgentEnvironment(
  * representation; generic Server code owns every filesystem mutation, bridge process, and lifecycle signal.
  */
 export interface AgentProviderDescriptor {
+    generateTitle?(context: AgentProviderPasteSummaryGenerationContext): Promise<string>;
     actions?: AgentActionDiscoveryAdapter;
     hooks?: AgentHookAdapter;
     id: AgentProvider;
