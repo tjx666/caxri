@@ -23,6 +23,7 @@ import {
     assertAgentRenameVersion,
     throwAgentRenameError,
 } from '../../rename';
+import { AGENT_TITLE_SYSTEM_INSTRUCTIONS } from '../../title-generation';
 import { codexHookAdapter } from './hooks';
 import { generateCodexLowCostText } from './low-cost-generation';
 import { resolveCodexHome, resolveCodexStateDirectories } from './paths';
@@ -507,6 +508,12 @@ async function readCodexState(
 }
 
 export const codexProvider: AgentProviderDescriptor = {
+    generateTitle: (context) =>
+        generateCodexLowCostText(
+            context,
+            AGENT_TITLE_SYSTEM_INSTRUCTIONS,
+            'Automatic Session naming',
+        ),
     actions: {
         roots: (context, environment) => [
             {

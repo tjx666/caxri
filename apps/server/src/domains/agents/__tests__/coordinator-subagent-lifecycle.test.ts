@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { CaxriDatabase } from '../../db/repository';
 import { AgentCoordinator } from '../coordinator';
+import type { AgentLifecycleSignal } from '../hooks/contract';
 import type { AgentAdapter } from '../service';
 import { AgentService } from '../service';
 
@@ -174,7 +175,10 @@ describe('AgentCoordinator subagent lifecycle', () => {
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'claude');
         const logger = new StructuredLogger(join(directory, 'logs'));
-        const coordinator = new AgentCoordinator(database, createAgents(), () => {}, logger);
+        const applied = vi.fn<(signal: AgentLifecycleSignal) => void>();
+        const coordinator = new AgentCoordinator(database, createAgents(), () => {}, logger, {
+            onLifecycleApplied: applied,
+        });
         const terminalId = created.terminal!.id;
         const signal = (
             phase: 'turnStarted' | 'turnFinished' | 'subagentStarted',
@@ -196,11 +200,20 @@ describe('AgentCoordinator subagent lifecycle', () => {
             signal('turnFinished', 'subagent-1');
 
             vi.advanceTimersByTime(9_999);
+            expect(applied).not.toHaveBeenCalledWith(
+                expect.objectContaining({ phase: 'turnFinished' }),
+            );
             expect(database.getSession(created.session.id)).toMatchObject({
                 attentionEpoch: 0,
                 lastActivityState: 'running',
             });
             vi.advanceTimersByTime(1);
+            expect(applied).toHaveBeenCalledWith(
+                expect.objectContaining({ phase: 'turnFinished', terminalId }),
+            );
+            expect(
+                applied.mock.calls.filter(([event]) => event.phase === 'turnFinished'),
+            ).toHaveLength(1);
             expect(database.getSession(created.session.id)).toMatchObject({
                 attentionEpoch: 1,
                 hasUnread: true,

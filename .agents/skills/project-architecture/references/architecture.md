@@ -476,22 +476,30 @@ probe reads process and open-file metadata only, never rollout contents; ambiguo
 expired Terminal generations leave the binding unchanged. Lifecycle hooks remain authoritative, and another
 Terminal's claimed identity or a discarded fresh-start identity cannot be reclaimed through this fallback.
 
-Session titles are projected from the provider's own native title only; Caxri never generates one. Latest Codex owns
-generation natively; Caxri reads only its explicit thread name and compares it with Codex's whitespace-normalized
-first-prompt prefix inside the SQLite query. A matching name is returned as absent, so the raw prompt never crosses into
-Server Core. Codex persists no provenance for its provisional and generated writes; if the generated title is identical
-to the provisional value, Caxri keeps it hidden because privacy takes precedence over that ambiguous display case.
-Claude Code likewise generates its own `ai-title`, which the transcript scan reads back alongside the `custom-title`
-record a `/rename` appends; a `custom-title` outranks any `ai-title` regardless of append order. The metadata probe is
-the sole path that projects a provider title into Caxri, so no Agent transcript text ever reaches a title.
+Codex and Claude Sessions receive one Caxri-generated title after an authenticated main-turn completion supplies
+useful conversation context. The naming service reads a bounded, provider-authorized transcript tail in Server memory,
+selects visible user and assistant messages, and excludes instructions and tool records. It never uses Git branch
+names. Unclear tasks defer naming; generation uses the existing isolated, tool-disabled provider text runner.
+`sessions.automatic_naming` persists the exact provider binding and pending title before native rename, then records
+the provider-returned title and completion. Automatic and manual writes share the Session rename queue. Every async
+boundary revalidates manual intent, archive state, primary binding, cwd, and launch identity; old work never follows a
+new Agent binding. Matching pending readback completes a recovered intent without repeating `/rename`.
 
-Manual rename remains user-owned and stays the only Caxri-authored title write. `session.rename` resolves the exact
+Completion ends generation for that Caxri Session, including after restart. Later native metadata may synchronize a
+name but never triggers another write. Claude's transcript `custom-title` outranks `ai-title` and stale live metadata;
+only `nameSource: user` is an explicit metadata fallback. Newer explicit external renames acquire manual ownership,
+while AI titles and pre-write snapshots cannot undo Caxri's completed rename. Codex does not persist title provenance:
+its later native name is synchronized without guessing who changed it. A first-turn native manual rename cannot be
+distinguished from an automatic title; a manual rename through Caxri is always protected. Codex's provisional
+first-prompt prefix remains filtered inside the native SQLite query, so raw prompts never become displayed names.
+
+Manual rename remains user-owned. `session.rename` resolves the exact
 primary Agent identity, sends the new name through the provider's public rename boundary, and commits the
 provider-authoritative result to SQLite inside a per-Session queue so a slower earlier request cannot overwrite a newer
 one. It sets `title_mode` to `manual`, which stops the metadata probe from replacing the user's title with a later
 provider-native one.
 
-Long-paste summaries remain the one low-cost model call Caxri makes. It runs under a macOS `sandbox-exec` profile that
+Long-paste summaries and automatic titles use a macOS `sandbox-exec` profile that
 denies reads of the Project root and of the global instruction files the CLI offers no switch for (`AGENTS.md` and
 `AGENTS.override.md` for Codex, `CLAUDE.md` and `CLAUDE.local.md` for Claude), because an isolated working directory
 alone cannot reach a file the CLI resolves from its own configuration directory. Pasted text and model output never

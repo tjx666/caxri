@@ -2,6 +2,11 @@ import type { AgentProvider, ServerEvent, SessionRecord } from '@caxri/protocol'
 import { CaxriError, sessionRenameTitleSchema } from '@caxri/protocol';
 
 import type { AgentCoordinator, AgentService } from './agents';
+/**
+ * Server domain boundaries require the owning public root; structure tests reject cross-domain deep imports.
+ */
+// react-doctor-disable-next-line react-doctor/no-barrel-import
+import { agentProviderStateRoot } from './agents';
 import type { CaxriDatabase } from './db';
 
 const MAXIMUM_AGENT_TARGET_CHANGES = 3;
@@ -36,8 +41,8 @@ export class SessionRenameQueue {
 }
 
 /**
- * Owns manual Session rename from exact primary-Agent identity resolution through provider synchronization and the
- * durable Caxri title update.
+ * Owns Session rename from exact primary-Agent identity resolution through provider synchronization and the durable
+ * Caxri title update.
  */
 export class SessionRenameService {
     private static isSameTarget(first: AgentRenameTarget, second: AgentRenameTarget): boolean {
@@ -48,6 +53,8 @@ export class SessionRenameService {
             first.cwd === second.cwd
         );
     }
+
+    private readonly manualRevisions = new Map<string, number>();
 
     constructor(
         private readonly database: CaxriDatabase,
@@ -81,7 +88,7 @@ export class SessionRenameService {
             throw new CaxriError('INTERNAL', 'Primary Agent Terminal has no provider');
         return {
             agentSessionId: terminal.agentSessionId,
-            cwd: terminal.cwd,
+            cwd: agentProviderStateRoot(terminal),
             provider: terminal.provider,
             terminalId: terminal.id,
         };
@@ -131,6 +138,117 @@ export class SessionRenameService {
         return renamed;
     }
 
+    revision(sessionId: string): number {
+        return this.manualRevisions.get(sessionId) ?? 0;
+    }
+
+    /**
+     * Automatic writes share the manual queue, but never follow a changed primary binding or claim manual ownership.
+     */
+    renameAutomatically(
+        sessionId: string,
+        target: AgentRenameTarget,
+        displayTitle: string,
+        canApply: () => boolean,
+        signal: AbortSignal,
+    ): Promise<boolean> {
+        return this.queue.run(sessionId, async () => {
+            const isEligible = async (): Promise<boolean> => {
+                if (
+                    signal.aborted ||
+                    !canApply() ||
+                    this.database.getSession(sessionId)?.titleMode !== 'automatic'
+                )
+                    return false;
+                const current = await this.primaryAgentTarget(sessionId);
+                return Boolean(
+                    current &&
+                    SessionRenameService.isSameTarget(target, current) &&
+                    canApply() &&
+                    !signal.aborted,
+                );
+            };
+            if (!(await isEligible())) return false;
+            const snapshot = await this.agents.snapshot(target.provider, {
+                rootPath: target.cwd,
+                agentSessionId: target.agentSessionId,
+            });
+            if (!(await isEligible()) || snapshot.sessionId !== target.agentSessionId) return false;
+            let state = this.database.automaticSessionNaming(sessionId);
+            if (state?.status === 'complete' || state?.status === 'stopped') return false;
+            if (!state && snapshot.titleSource === 'explicit') {
+                if (snapshot.title) this.database.renameSession(sessionId, snapshot.title);
+                return false;
+            }
+            if (
+                state &&
+                (state.agentSessionId !== target.agentSessionId ||
+                    state.terminalId !== target.terminalId ||
+                    state.cwd !== target.cwd ||
+                    state.provider !== target.provider)
+            ) {
+                this.database.setAutomaticSessionNaming(sessionId, {
+                    ...state,
+                    status: 'stopped',
+                    updatedAt: Date.now(),
+                });
+                return false;
+            }
+            if (
+                state &&
+                snapshot.title &&
+                snapshot.title !== state.title &&
+                snapshot.title !== state.previousTitle &&
+                snapshot.titleSource !== 'automatic'
+            ) {
+                this.database.setAutomaticSessionNaming(sessionId, {
+                    ...state,
+                    status: 'stopped',
+                    updatedAt: Date.now(),
+                });
+                return false;
+            }
+            state ??= {
+                ...target,
+                title: displayTitle,
+                previousTitle: snapshot.title,
+                status: 'pending',
+                updatedAt: Date.now(),
+            };
+            this.database.setAutomaticSessionNaming(sessionId, state);
+            /**
+             * The pending intent survives a crash after provider success, so readback can finish without another
+             * rename.
+             */
+            const renamed =
+                snapshot.title === state.title
+                    ? { displayTitle: state.title }
+                    : await this.agents.renameSession(target.provider, {
+                          ...target,
+                          displayTitle: state.title,
+                          signal,
+                      });
+            if (!(await isEligible())) return false;
+            const applied = this.database.setAutomaticSessionNaming(
+                sessionId,
+                {
+                    ...state,
+                    title: renamed.displayTitle,
+                    status: 'complete',
+                    updatedAt: Date.now(),
+                },
+                renamed.displayTitle,
+            );
+            if (applied)
+                this.emit({
+                    event: 'state.changed',
+                    payload: { kind: 'records', sessionIds: [sessionId], terminalIds: [] },
+                });
+            this.coordinator.probeTerminal(target.terminalId);
+            return applied;
+        });
+    }
+
     rename(
         sessionId: string,
         displayTitle: string,
@@ -146,6 +264,7 @@ export class SessionRenameService {
                 ),
             );
         const normalizedTitle = parsedTitle.data;
+        this.manualRevisions.set(sessionId, this.revision(sessionId) + 1);
         return this.queue.run(sessionId, () =>
             this.apply(sessionId, normalizedTitle, signal, finalizeDurably),
         );
