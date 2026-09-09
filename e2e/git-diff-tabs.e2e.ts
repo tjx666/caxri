@@ -10,6 +10,83 @@ import { createProjectSession, launchCaxri } from './support/helpers.ts';
 const trackedCommitted = 'alpha\nbeta\ngamma\ndelta\n';
 const trackedWorking = 'alpha\nbeta-changed\ngamma\ndelta\n';
 
+test('Diff view options control layout, unchanged regions, and whitespace across tabs', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-diff-options-e2e-'));
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', root]);
+    await execFileAsync('git', ['init', '-b', 'main'], { cwd: root });
+    await execFileAsync('git', ['config', 'user.email', 'caxri@example.com'], { cwd: root });
+    await execFileAsync('git', ['config', 'user.name', 'Caxri E2E'], { cwd: root });
+    const lines = Array.from({ length: 80 }, (_, index) => `const line${index} = ${index};`);
+    await writeFile(join(root, 'layout.ts'), `${lines.join('\n')}\n`);
+    await writeFile(join(root, 'whitespace.ts'), 'const value = 1;\n');
+    await execFileAsync('git', ['add', '.'], { cwd: root });
+    await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: root });
+    lines[40] = 'const changed = true;';
+    await writeFile(join(root, 'layout.ts'), `${lines.join('\n')}\n`);
+    await writeFile(join(root, 'whitespace.ts'), '  const value = 1;  \n');
+    const running = await launchCaxri({
+        userDataDir: join(testDirectory, 'user-data'),
+        testRootPath: root,
+    });
+    try {
+        const page = running.page;
+        await createProjectSession(page);
+        await page.getByRole('tab', { name: 'Git', exact: true }).click();
+        const repo = page.locator('.git-repository-section');
+        await repo.getByRole('button', { name: 'layout.ts', exact: true }).click();
+        const diff = page.locator('.git-file-diff');
+        await expect(diff.locator('.monaco-diff-editor')).toBeVisible();
+        await page.getByRole('button', { name: 'Diff View Options', exact: true }).click();
+        await page.getByRole('switch', { name: 'Inline View', exact: true }).check();
+        await page.getByRole('switch', { name: 'Collapse Unchanged Regions', exact: true }).check();
+        await page.keyboard.press('Escape');
+        await expect(diff.locator('.editor.modified')).toContainText('const line40 = 40;');
+        await expect(diff.locator('.editor.modified')).toContainText('const changed = true;');
+        await expect(diff.getByText('37 hidden lines', { exact: true }).first()).toBeVisible();
+        await diff.screenshot({ path: test.info().outputPath('inline-collapsed.png') });
+        await page.getByRole('button', { name: 'Diff View Options', exact: true }).click();
+        await page.getByRole('switch', { name: 'Inline View', exact: true }).uncheck();
+        await page
+            .getByRole('switch', { name: 'Collapse Unchanged Regions', exact: true })
+            .uncheck();
+        await page.keyboard.press('Escape');
+        await expect(diff.locator('.editor.modified')).not.toContainText('const line40 = 40;');
+        await expect(diff.locator('.diff-hidden-lines')).toHaveCount(0);
+        await repo.getByRole('button', { name: 'whitespace.ts', exact: true }).click();
+        const next = page.getByRole('button', { name: 'Next Change', exact: true });
+        await expect(next).toBeDisabled();
+        await page.getByRole('button', { name: 'Diff View Options', exact: true }).click();
+        await page
+            .getByRole('switch', {
+                name: 'Show Leading/Trailing Whitespace Differences',
+                exact: true,
+            })
+            .check();
+        await page.keyboard.press('Escape');
+        await expect(next).toBeEnabled();
+        await expect(diff.locator('.line-insert')).not.toHaveCount(0);
+        await diff.screenshot({ path: test.info().outputPath('whitespace-differences.png') });
+        await repo.getByRole('button', { name: 'Open Changes', exact: true }).click();
+        await page.getByRole('button', { name: 'Diff View Options', exact: true }).click();
+        await expect(
+            page.getByRole('switch', {
+                name: 'Show Leading/Trailing Whitespace Differences',
+                exact: true,
+            }),
+        ).toBeChecked();
+        await page.getByRole('switch', { name: 'Inline View', exact: true }).check();
+        await page.getByRole('switch', { name: 'Collapse Unchanged Regions', exact: true }).check();
+        await page.keyboard.press('Escape');
+        const stacked = page.locator('.git-multi-diff .monaco-diff-editor').first();
+        await expect(stacked).toBeVisible();
+        await expect(stacked.locator('.editor.modified')).toContainText('const line40 = 40;');
+    } finally {
+        await running.app.close();
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
 /**
  * Two working diff tabs in one pane share the pane's single Editor slot. The regression this guards let Monaco keep the
  * diff widget it was first mounted with, so re-selecting the tracked tab recomputed its diff against the untracked
