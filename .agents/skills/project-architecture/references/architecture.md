@@ -294,6 +294,11 @@ data, not proof that a process survived.
 
 ## PTY lifecycle and backpressure
 
+The Client binary-stream writer reserves one validated payload larger than the ordinary burst budget
+separately from that bounded burst. A concurrent resize or small input can queue before or after a large
+paste without consuming its allowance; a second large payload is rejected until the first settles.
+WebSocket callback backpressure and the socket high-water mark still apply to every chunk.
+
 Server Core resolves only discovered allowlisted programs (`$SHELL` or a registered Agent provider),
 builds structured launch plans with a persisted cwd and filtered environment, and sends those plans over
 the private protocol. Terminal Host exclusively spawns and owns the resulting PTYs. Each provider owns
