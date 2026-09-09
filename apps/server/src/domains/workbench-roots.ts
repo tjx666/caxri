@@ -17,7 +17,11 @@ import type { DomainHandlers } from './domain-services';
 import type { GitService, GitWorktreeTopology } from './git';
 import { SingleFlight } from './single-flight';
 import type { WorktreeProvenanceScope } from './workbench-provenance';
-import { AgentWorktreeAttribution, BoundedSerialBatcher } from './workbench-provenance';
+import {
+    AgentWorktreeAttribution,
+    BoundedSerialBatcher,
+    isSameWorkbenchBinding,
+} from './workbench-provenance';
 
 const CANDIDATE_TTL_MS = 10 * 60_000;
 const MAX_CANDIDATES = 256;
@@ -50,18 +54,6 @@ interface WorkbenchRootServiceOptions {
     logger: StructuredLogger;
 }
 
-function isSameWorkbenchBinding(
-    left: ReturnType<CaxriDatabase['getSessionWorkbenchBinding']>,
-    right: ReturnType<CaxriDatabase['getSessionWorkbenchBinding']>,
-): boolean {
-    return (
-        left?.projectId === right?.projectId &&
-        left?.workbenchProjectId === right?.workbenchProjectId &&
-        left?.rootDevice === right?.rootDevice &&
-        left?.rootInode === right?.rootInode
-    );
-}
-
 /**
  * Owns the bridge from authenticated, generation-scoped Agent hooks to authoritative Git worktree topology. The hook
  * reports only bounded command intent and an opaque tool id; a path remains inert until paired before/after topology
@@ -83,15 +75,12 @@ export class WorkbenchRootService {
 
     constructor(private readonly options: WorkbenchRootServiceOptions) {
         this.worktreeAttribution = new AgentWorktreeAttribution({
-            addCandidate: (input) => this.addCandidate(input),
-            behavior: () => this.options.behavior(),
+            followWorktree: (input, isStillAuthorized) =>
+                this.followWorktree(input, isStillAuthorized),
             database: this.options.database,
             git: this.options.git,
             logger: this.options.logger,
             runQueued: (run) => this.runQueued(run),
-            selectAuthorized: async (sessionId, projectId, isStillAuthorized) => {
-                await this.select(sessionId, projectId, 'selected', isStillAuthorized);
-            },
         });
         this.deletionValidations = new BoundedSerialBatcher({
             capacity: MAX_PENDING_DELETION_VALIDATIONS,
@@ -328,6 +317,7 @@ export class WorkbenchRootService {
         if (!session) return;
         const owner = this.options.database.getProject(session.projectId);
         if (!owner) return;
+        const initiatingBinding = this.options.database.getSessionWorkbenchBinding(session.id);
         let canonical: string;
         try {
             canonical = await realpath(reported);
@@ -358,25 +348,88 @@ export class WorkbenchRootService {
         )
             return;
         this.options.database.setTerminalAgentCwd(current.id, current.provider, canonical);
+        await this.followWorktree(
+            {
+                repositoryKey: topology.repositoryKey,
+                rootPath: canonical,
+                sessionId: currentSession.id,
+            },
+            () =>
+                this.isCurrentObservation(signal.terminalId, reported) &&
+                isSameWorkbenchBinding(
+                    initiatingBinding,
+                    this.options.database.getSessionWorkbenchBinding(session.id),
+                ),
+        );
+    }
+
+    /**
+     * Automatic following is standing user authorization for proven Session worktrees, not arbitrary reported paths.
+     * Recheck policy, provenance, binding, topology and identity before the synchronous registration/selection commit
+     * so a changed setting, retired Agent or manual root selection cannot leave an unintended durable root grant.
+     */
+    private async followWorktree(
+        input: { repositoryKey: string; rootPath: string; sessionId: string },
+        isStillAuthorized: () => boolean,
+    ): Promise<void> {
         const behavior = this.options.behavior();
-        if (behavior === 'ignore') return;
-        const authorized = this.options.database.findProjectByRootPath(canonical);
-        if (authorized && behavior === 'continueWhenAuthorized') {
-            if (currentSession.workbenchProjectId === authorized.id) return;
-            try {
-                await this.select(currentSession.id, authorized.id, 'selected', () =>
-                    this.isCurrentObservation(signal.terminalId, reported),
-                );
-            } catch {
-                // A retired launch or a changed topology makes the observed divergence inert.
-            }
+        if (behavior === 'ignore' || !isStillAuthorized()) return;
+        const authorized = this.options.database.findProjectByRootPath(input.rootPath);
+        if (
+            behavior !== 'continueAutomatically' &&
+            !(authorized && behavior === 'continueWhenAuthorized')
+        ) {
+            this.addCandidate(input);
             return;
         }
-        this.addCandidate({
-            repositoryKey: topology.repositoryKey,
-            rootPath: canonical,
-            sessionId: currentSession.id,
+        const startedAt = performance.now();
+        const binding = this.options.database.getSessionWorkbenchBinding(input.sessionId);
+        if (!binding || (authorized && binding.workbenchProjectId === authorized.id)) return;
+        const owner = this.requireProject(binding.projectId);
+        const topology = await this.loadTopology(owner.rootPath);
+        if (
+            topology.repositoryKey !== input.repositoryKey ||
+            topology.worktrees.every((worktree) => worktree.rootPath !== input.rootPath)
+        )
+            return;
+        const identity = await this.rootIdentity(input.rootPath);
+        if (
+            this.options.behavior() !== behavior ||
+            !isStillAuthorized() ||
+            !isSameWorkbenchBinding(
+                binding,
+                this.options.database.getSessionWorkbenchBinding(input.sessionId),
+            )
+        )
+            return;
+        const project = authorized ?? this.options.database.createProject(input.rootPath, owner.id);
+        this.commitSelection(
+            input.sessionId,
+            project.id,
+            authorized ? 'selected' : 'authorized',
+            identity,
+            startedAt,
+        );
+    }
+
+    private commitSelection(
+        sessionId: string,
+        projectId: string,
+        reason: 'selected' | 'authorized',
+        identity: { device: string; inode: string } | undefined,
+        startedAt: number,
+    ): SessionRecord {
+        const selected = this.options.database.selectWorkbenchProject(
+            sessionId,
+            projectId,
+            identity,
+        );
+        this.publishChange(selected, reason);
+        this.options.logger.write('info', workbenchRootLogEvents.selected, {
+            durationMs: performance.now() - startedAt,
+            fields: { reason, sessionId, projectId, policy: this.options.behavior() },
         });
+        return selected;
     }
 
     setRootChangedHandler(handler: (sessionId: string) => void): void {
@@ -511,17 +564,7 @@ export class WorkbenchRootService {
         }
         if (!isStillAuthorized())
             throw new CaxriError('UNAVAILABLE', 'Workbench selection authority expired');
-        const selected = this.options.database.selectWorkbenchProject(
-            sessionId,
-            projectId,
-            identity,
-        );
-        this.publishChange(selected, reason);
-        this.options.logger.write('info', workbenchRootLogEvents.selected, {
-            durationMs: performance.now() - startedAt,
-            fields: { reason, sessionId, projectId },
-        });
-        return selected;
+        return this.commitSelection(sessionId, projectId, reason, identity, startedAt);
     }
 
     claimCandidate(

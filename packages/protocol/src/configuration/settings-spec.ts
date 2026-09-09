@@ -116,12 +116,14 @@ export const settingsSpec = [
         kind: 'enum',
         key: 'workbench.newWorktreeBehavior',
         title: 'New worktree behavior',
-        description: 'First access to a worktree always requires folder authorization',
+        description:
+            'Choose whether to follow detected worktrees. Continue automatically authorizes new worktree folders without asking.',
         category: 'general',
         keywords: ['git', 'branch', 'checkout'],
         options: [
             { value: 'ask', label: 'Ask' },
             { value: 'continueWhenAuthorized', label: 'Continue when authorized' },
+            { value: 'continueAutomatically', label: 'Continue automatically' },
             { value: 'ignore', label: 'Ignore' },
         ],
         default: 'ask',

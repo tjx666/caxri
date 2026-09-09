@@ -57,7 +57,12 @@ const sessionActivityReasonSchema = z.enum([
 ]);
 const agentOperationSchema = z.enum(['compacting']);
 const sessionTitleModeSchema = z.enum(['automatic', 'manual']);
-export const newWorktreeBehaviorSchema = z.enum(['ask', 'continueWhenAuthorized', 'ignore']);
+export const newWorktreeBehaviorSchema = z.enum([
+    'ask',
+    'continueWhenAuthorized',
+    'continueAutomatically',
+    'ignore',
+]);
 export const terminalKindSchema = z.enum([...agentProviderIds, 'shell']);
 const processStateSchema = z.enum([
     'starting',
