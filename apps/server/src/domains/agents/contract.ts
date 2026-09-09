@@ -130,6 +130,23 @@ export function defaultAgentEnvironment(
  * representation; generic Server code owns every filesystem mutation, bridge process, and lifecycle signal.
  */
 export interface AgentProviderDescriptor {
+    /**
+     * Providers without a live-session metadata probe require installed hooks before managed launch.
+     */
+    requiresLifecycleHooks?: boolean;
+    /**
+     * Validates provider launch constraints and allocates an exact identity before the PTY starts.
+     */
+    prepareLaunch?(
+        this: void,
+        context: {
+            args: string[];
+            cwd: string;
+            environment: AgentEnvironment;
+            resumeAgentSessionId?: string;
+            version?: string;
+        },
+    ): Promise<{ args: string[]; agentSessionId: string }>;
     generateTitle?(context: AgentProviderPasteSummaryGenerationContext): Promise<string>;
     actions?: AgentActionDiscoveryAdapter;
     hooks?: AgentHookAdapter;
@@ -145,7 +162,7 @@ export interface AgentProviderDescriptor {
      * Sets the provider-owned conversation name through its supported public CLI boundary. Implementations must fail
      * closed for unsupported versions and must never write provider-private persistence directly.
      */
-    renameSession(context: AgentProviderSessionRenameContext): Promise<AgentSessionRenameResult>;
+    renameSession?(context: AgentProviderSessionRenameContext): Promise<AgentSessionRenameResult>;
     /**
      * Structured argv for restoring one provider conversation. This is Server launch behavior, not a browser-safe
      * identity or capability contract.

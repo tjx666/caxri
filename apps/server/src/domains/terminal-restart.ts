@@ -28,6 +28,11 @@ export function createTerminalRestartHandler(
         if (!current) throw new CaxriError('NOT_FOUND', 'Terminal not found');
         const expectedWorkingDirectory = await options.terminalDirectoryIdentity(current.cwd);
         const resumeAgentSessionId = mode === 'fresh' ? undefined : current.agentSessionId;
+        if (mode !== 'fresh' && !resumeAgentSessionId && current.provider === 'grok')
+            throw new CaxriError(
+                'UNAVAILABLE',
+                'Original Grok Build Session identity is unavailable; start a new Session explicitly',
+            );
         if (resumeAgentSessionId) options.coordinator.prepareTerminalResume(terminalId);
         else options.coordinator.prepareTerminalStart(terminalId);
         const terminal = await options.terminals.restart(terminalId, {

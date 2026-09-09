@@ -16,8 +16,9 @@ const CACHE_TTL_MS = 60_000;
 
 const VERIFIED_PROVIDER_RANGE: Record<
     AgentProvider,
-    { major: number; minimum: readonly [number, number, number] }
+    { major: number; minimum: readonly [number, number, number] } | null
 > = {
+    grok: null,
     claude: { major: 2, minimum: [2, 1, 80] as const },
     codex: { major: 0, minimum: [0, 147, 0] as const },
 };
@@ -199,7 +200,10 @@ export class AgentMessagingCapabilityProbe {
             const version = parseVersion(result.version);
             const supported = VERIFIED_PROVIDER_RANGE[input.provider];
             capability =
-                version && version[0] === supported.major && isAtLeast(version, supported.minimum)
+                version &&
+                supported &&
+                version[0] === supported.major &&
+                isAtLeast(version, supported.minimum)
                     ? {
                           deliveryMode: 'pull',
                           health: 'ready',
@@ -227,6 +231,8 @@ export class AgentMessagingCapabilityProbe {
     async check(input: AgentMessagingProbeInput): Promise<AgentMessagingCapability> {
         const checkedAt = this.now();
         if (!input.enabled) return unavailable(checkedAt, 'integration_disabled');
+        if (!VERIFIED_PROVIDER_RANGE[input.provider])
+            return unavailable(checkedAt, 'adapter_unavailable');
         const epoch = this.providerEpochs.get(input.provider) ?? 0;
         const key = `${input.provider}\u{0}${epoch}\u{0}${normalizedLaunchKey(input.provider, input.launch)}`;
         const cached = this.cache.get(key);

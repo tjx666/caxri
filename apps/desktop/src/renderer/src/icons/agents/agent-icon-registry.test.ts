@@ -12,7 +12,7 @@ describe('agentIconRegistry', () => {
     });
 
     it.each([
-        ['grok', 'Grok', 'mask-asset'],
+        ['grok', 'Grok Build', 'mask-asset'],
         ['opencode', 'OpenCode', 'mask-asset'],
         ['shell', 'Shell', 'shell'],
         ['unknown', 'Unknown Agent', 'unknown'],
@@ -23,7 +23,6 @@ describe('agentIconRegistry', () => {
     it('contains every supported and reserved identity exactly once', () => {
         expect(Object.keys(agentIconRegistry)).toEqual([
             ...agentProviderIds,
-            'grok',
             'opencode',
             'shell',
             'unknown',

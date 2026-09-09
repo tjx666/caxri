@@ -6,6 +6,7 @@ import type {
     SessionRecord,
     TerminalRecord,
 } from '@caxri/protocol';
+import { agentProviderCatalog } from '@caxri/protocol';
 
 import {
     ContextMenu,
@@ -53,11 +54,25 @@ export function SessionRowMenu({
     const openPullRequestShortcut = useCommandShortcut('session.openPullRequest');
     const detached = hasDetachedAgentTerminal(session.id, terminals);
     const canDetach = hasLiveAgentTerminal(session.id, terminals);
+    const primaryProvider = terminals.find(
+        (terminal) => terminal.id === session.primaryAgentTerminalId,
+    )?.provider;
+    const canRename =
+        !primaryProvider || agentProviderCatalog[primaryProvider].capabilities.nativeRename;
     return (
         <ContextMenu onOpenChange={onOpenChange}>
             <ContextMenuTrigger render={children} />
             <ContextMenuContent aria-label={`${session.displayTitle} actions`}>
-                <ContextMenuItem hint="enter" onClick={onBeginRename}>
+                <ContextMenuItem
+                    hint="enter"
+                    disabled={!canRename}
+                    disabledReason={
+                        canRename
+                            ? undefined
+                            : 'This Agent does not support native Session renaming'
+                    }
+                    onClick={onBeginRename}
+                >
                     Rename
                 </ContextMenuItem>
                 <ContextMenuItem hint="delete" onClick={() => archiveSession(session.id)}>

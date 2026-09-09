@@ -1,4 +1,5 @@
 import type { AppSettings, SessionRecord, TerminalRecord } from '@caxri/protocol';
+import { agentProviderCatalog } from '@caxri/protocol';
 
 export type TerminalSuspensionReason = 'idle' | 'untouched';
 
@@ -67,6 +68,7 @@ function decideTerminal(
     input: TerminalSuspensionPolicyInput,
 ): TerminalSuspensionReason | undefined {
     if (!terminal.provider || terminal.lastProcessState !== 'running') return undefined;
+    if (!agentProviderCatalog[terminal.provider].capabilities.automaticSuspension) return undefined;
     if (!LIVE_AGENT_STATES.has(terminal.lastAgentProcessState)) return undefined;
     if (terminal.sessionId === input.selectedSessionId) return undefined;
     const session = input.session(terminal.sessionId);

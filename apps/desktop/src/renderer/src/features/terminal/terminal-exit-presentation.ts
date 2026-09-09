@@ -18,6 +18,8 @@ export const FAILURE_REASON_LABELS: Record<TerminalFailureReason, string> = {
     working_directory_unavailable: 'Working directory no longer exists',
     executable_not_found: 'Agent CLI executable was not found',
     spawn_failed: 'Terminal process could not be started',
+    agent_session_unavailable:
+        'Original Agent Session could not be restored; check provider state or start fresh',
 };
 
 export function getTerminalExitPresentation(

@@ -124,8 +124,7 @@ export async function createDomainServices(
             const providerSettings =
                 configuration.getSettings().value['agents.providers'][terminal.kind];
             /**
-             * A launch with no active provider-hook context can never report a paired tool boundary. Avoid placing a
-             * forced Git topology read on every Agent launch when hooks are disabled or unavailable.
+             * Prime topology only when paired hook events can report a worktree change.
              */
             if (providerSettings.hooks.enabled && hookEnvironment.CAXRI_HOOK_TOKEN)
                 await provenance.primeAgentWorkbenchProvenance({

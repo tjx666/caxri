@@ -8,6 +8,7 @@ import { agentProviderIds, CaxriError } from '@caxri/protocol';
 import { resolveServerArtifact } from './artifact.js';
 
 const AGENT_LAUNCH_ENVIRONMENT_KEYS: Record<AgentProvider, readonly string[]> = {
+    grok: ['GROK_HOME'],
     claude: ['CLAUDE_CONFIG_DIR'],
     codex: ['CODEX_HOME', 'CODEX_SQLITE_HOME'],
 };

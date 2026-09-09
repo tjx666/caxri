@@ -227,7 +227,7 @@ describe('TerminalManager process integration', () => {
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'shell');
         const logger = createTestLogger(join(directory, 'logs'));
-        const detectedProviders: Array<'claude' | 'codex' | undefined> = [];
+        const detectedProviders: Array<'claude' | 'codex' | 'grok' | undefined> = [];
         const coordinator = new AgentCoordinator(
             database,
             createTestAgentService({

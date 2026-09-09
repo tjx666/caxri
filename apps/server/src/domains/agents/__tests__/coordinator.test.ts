@@ -20,6 +20,7 @@ function createAgents(snapshot: AgentAdapter['snapshot']): AgentService {
     const adapters: Record<AgentProvider, AgentAdapter> = {
         claude: { provider: 'claude', renameSession, snapshot },
         codex: { provider: 'codex', renameSession, snapshot },
+        grok: { provider: 'grok', renameSession, snapshot },
     };
     return new AgentService(undefined, adapters);
 }

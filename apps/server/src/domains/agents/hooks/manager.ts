@@ -11,7 +11,7 @@ import type {
     AgentProviderSettings,
     ServerEvent,
 } from '@caxri/protocol';
-import { agentProviderCatalog, agentProviderIds, errorMessage } from '@caxri/protocol';
+import { agentProviderCatalog, agentProviderIds, CaxriError, errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog, mapWithConcurrency } from '@caxri/system';
 
@@ -708,6 +708,18 @@ export class AgentHookManager {
         provider?: AgentProvider,
         launchId: string = randomUUID(),
     ): NodeJS.ProcessEnv {
+        if (
+            provider &&
+            agentProviders[provider].requiresLifecycleHooks &&
+            (!this.server ||
+                !this.bridgePath ||
+                !this.settings?.[provider].hooks.enabled ||
+                !['active', 'installedPending'].includes(this.health[provider].kind))
+        )
+            throw new CaxriError(
+                'UNAVAILABLE',
+                `${agentProviderCatalog[provider].displayName} requires installed lifecycle hooks for reliable Session identity`,
+            );
         if (!this.server || !this.bridgePath || !this.anyEnabled()) return {};
         return this.launchEnvironment(
             terminalId,

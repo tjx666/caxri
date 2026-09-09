@@ -53,6 +53,7 @@ describe('AgentCoordinator Session Activity', () => {
         const adapters: Record<AgentProvider, AgentAdapter> = {
             claude: { provider: 'claude', renameSession, snapshot },
             codex: { provider: 'codex', renameSession, snapshot },
+            grok: { provider: 'grok', renameSession, snapshot },
         };
         const coordinator = new AgentCoordinator(
             database,

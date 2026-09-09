@@ -15,6 +15,7 @@ export const agentSkillProviderIntegrations: Record<
     AgentProvider,
     AgentSkillProviderIntegration | null
 > = {
+    grok: null,
     claude: {
         configEnvironmentVariable: 'CLAUDE_CONFIG_DIR',
         defaultConfigDirectory: '.claude',
