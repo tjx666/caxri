@@ -277,6 +277,43 @@ function withBindings(
     return next.endsWith('\n') ? next : `${next}\n`;
 }
 
+/**
+ * Codex keys trust by event/group/handler position. Routine upgrades must replace existing standalone groups in place
+ * so repairing Caxri cannot invalidate neighboring user hooks. Malformed legacy duplicates still use normalization.
+ * https://github.com/openai/codex/tree/main/codex-rs/hooks
+ */
+function replaceBindingsInPlace(
+    source: string,
+    document: Record<string, unknown>,
+    desired: DesiredHookInstall,
+    bindings: readonly AgentHookBinding[],
+): string | undefined {
+    const hooks = record(document.hooks);
+    if (!hooks) return;
+    const installed = installedOwnedEntries(document, desired.provider);
+    if (
+        installed.some(
+            (entry) =>
+                bindings.every((binding) => binding.event !== entry.event) ||
+                installed.filter((candidate) => candidate.event === entry.event).length !== 1 ||
+                !Array.isArray(entry.group.hooks) ||
+                entry.group.hooks.length !== 1,
+        )
+    )
+        return;
+    let next = source;
+    const missing: AgentHookBinding[] = [];
+    for (const binding of bindings) {
+        const groups = hooks[binding.event];
+        const index = Array.isArray(groups)
+            ? groups.findIndex((group) => ownedHandlers(group, desired.provider).length > 0)
+            : -1;
+        if (index === -1) missing.push(binding);
+        else next = apply(next, ['hooks', binding.event, index], expectedGroup(desired, binding));
+    }
+    return withBindings(next, desired, missing);
+}
+
 export function renderJsonHooks(
     targetId: string,
     source: string | undefined,
@@ -289,7 +326,9 @@ export function renderJsonHooks(
     if (malformed) throw new Error(malformed);
     return {
         targetId,
-        source: withBindings(withoutOwnedHandlers(base, desired.provider), desired, bindings),
+        source:
+            replaceBindingsInPlace(base, document!, desired, bindings) ??
+            withBindings(withoutOwnedHandlers(base, desired.provider), desired, bindings),
     };
 }
 
