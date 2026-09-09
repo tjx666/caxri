@@ -159,8 +159,8 @@ For isolated and restart cases, include the adapter-generated
 one exact profile identity across launches. A plan with `fixturePreflight: terminal` must also
 include the ready `assets/<case-id>-fixture-preflight.json` receipt.
 
-A plan may declare the fixed `agentFixture: "agent-features-v1"` only when the case needs fake
-Claude Code or Codex processes. Launch with the matching `--agent-fixture` value and include
+A plan may declare `agentFixture: "agent-features-v1"` for fake Claude Code or Codex processes,
+or `agentFixture: "grok-build-v1"` for fake Grok Build. Launch with the matching `--agent-fixture` value and include
 `assets/<case-id>-agent-fixture.json` in the case evidence. Finalization requires the receipt to
 match the frozen id and every fixture launch to have completed owned-profile cleanup.
 
