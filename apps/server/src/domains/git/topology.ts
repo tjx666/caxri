@@ -9,6 +9,7 @@ const MAX_TOPOLOGIES = 256;
 interface RepoWorktree {
     branch: string;
     rootPath: string;
+    isMain: boolean;
 }
 
 /**
@@ -90,12 +91,12 @@ export class RepoTopologyRegistry {
         const repoKey = await realpath(commonDirectoryOutput.trim());
         const worktrees = (
             await Promise.all(
-                parseWorktreeEntries(worktreeOutput).map(async (entry) => {
+                parseWorktreeEntries(worktreeOutput).map(async (entry, index) => {
                     try {
                         const rootPath = await realpath(entry.rootPath);
                         const stats = await lstat(rootPath);
                         return stats.isDirectory() && !stats.isSymbolicLink()
-                            ? [{ branch: entry.branch, rootPath }]
+                            ? [{ branch: entry.branch, rootPath, isMain: index === 0 }]
                             : [];
                     } catch {
                         return [];

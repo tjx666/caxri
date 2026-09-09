@@ -654,8 +654,8 @@ describe('GitService', () => {
         expect(topology.repositoryKey).toBe(await realpath(join(root, '.git')));
         expect(topology.worktrees).toEqual(
             expect.arrayContaining([
-                { branch: 'main', rootPath: await realpath(root) },
-                { branch: 'feature', rootPath: await realpath(linked) },
+                { branch: 'main', rootPath: await realpath(root), isMain: true },
+                { branch: 'feature', rootPath: await realpath(linked), isMain: false },
             ]),
         );
         const startedAt = performance.now();
