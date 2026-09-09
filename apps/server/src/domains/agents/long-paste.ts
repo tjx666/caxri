@@ -141,9 +141,6 @@ export class LongPasteService {
             terminal.lastAgentProcessState !== 'running'
         )
             throw new CaxriError('CONFLICT', 'Long paste summaries require a running Agent');
-        const initialAgentLaunchId = this.agentLaunchId(parameters.terminalId);
-        if (initialAgentLaunchId === undefined)
-            throw new CaxriError('CONFLICT', 'Managed Agent process is not running');
         const provider = terminal.provider ?? terminal.kind;
         const settings = this.settings();
         if (!settings['agents.providers'][provider].pasteSummary.enabled)
@@ -155,6 +152,13 @@ export class LongPasteService {
             throw new CaxriError('VALIDATION', 'Pasted text exceeds the local file safety limit');
         if (signal?.aborted)
             throw new CaxriError('CANCELLED', 'Long paste preparation was cancelled');
+
+        const initialAgentLaunchId = this.agentLaunchId(parameters.terminalId);
+        /**
+         * Foreground detection can promote a Shell to an Agent without a managed launch. It keeps native paste:
+         * asynchronous summaries cannot be fenced to that child's lifetime. This is eligibility, not error recovery.
+         */
+        if (initialAgentLaunchId === undefined) return { status: 'passthrough' };
 
         const now = this.now();
         const filePath = join(this.directory, pasteFileName(now, this.identifier()));

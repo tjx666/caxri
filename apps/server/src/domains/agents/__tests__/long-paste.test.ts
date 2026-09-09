@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { defaultAppSettings, MAX_LONG_PASTE_SUMMARY_CHARACTERS } from '@caxri/protocol';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, assert, describe, expect, it, vi } from 'vitest';
 
 import { CaxriDatabase } from '../../db/repository';
 import { LongPasteService } from '../long-paste';
@@ -73,10 +73,22 @@ async function fixture(options?: {
         options?.cleanupIntervalMs,
     );
     services.push(service);
-    return { agentLaunch, service, settings, summarizePaste, terminal, userDataPath };
+    return { agentLaunch, database, service, settings, summarizePaste, terminal, userDataPath };
 }
 
 describe('LongPasteService', () => {
+    it('preserves native paste after a running Shell is promoted to an Agent', async () => {
+        const test = await fixture({ kind: 'shell' });
+        test.agentLaunch.current = undefined;
+        expect(test.database.promoteShellToAgent(test.terminal.id, 'codex')).toBe(true);
+
+        await expect(
+            test.service.prepare({ terminalId: test.terminal.id, content: 'x'.repeat(2_000) }),
+        ).resolves.toEqual({ status: 'passthrough' });
+        expect(test.summarizePaste).not.toHaveBeenCalled();
+        expect(await readdir(test.userDataPath)).not.toContain('pastes');
+    });
+
     it('counts visual lines across common newline encodings', () => {
         expect(countAgentPasteLines('first\r\nsecond\nthird\rfourth')).toBe(4);
         expect(countAgentPasteLines('one trailing line\n')).toBe(2);
@@ -106,6 +118,7 @@ describe('LongPasteService', () => {
             status: 'summarized',
             summary: 'Useful[31m summary\n- exact 42',
         });
+        assert(result.status === 'summarized');
         expect(result.filePath).toMatch(/\/pastes\/paste-20260831T123456-/u);
         expect(await readFile(result.filePath, 'utf8')).toBe(content);
         expect((await stat(result.filePath)).mode & 0o777).toBe(0o600);
@@ -134,6 +147,7 @@ describe('LongPasteService', () => {
         const result = await test.service.prepare({ terminalId: test.terminal.id, content });
 
         expect(result).toMatchObject({ status: 'unavailable' });
+        assert(result.status === 'unavailable');
         expect(await readFile(result.filePath, 'utf8')).toBe(content);
     });
 
@@ -169,6 +183,7 @@ describe('LongPasteService', () => {
         const result = await test.service.prepare({ terminalId: test.terminal.id, content });
 
         expect(result).toMatchObject({ status: 'unavailable' });
+        assert(result.status === 'unavailable');
         expect(await readFile(result.filePath, 'utf8')).toBe(content);
         expect(test.summarizePaste.mock.calls[0]?.[1].signal?.aborted).toBe(true);
     });
@@ -198,6 +213,7 @@ describe('LongPasteService', () => {
             terminalId: test.terminal.id,
             content: 'retention-bound input '.repeat(100),
         });
+        assert(result.status === 'summarized');
         /**
          * The filesystem owns mtime, so advance the injected clock from the persisted file instead of a fixed date.
          */
@@ -306,15 +322,5 @@ describe('LongPasteService', () => {
             }),
         ).rejects.toMatchObject({ code: 'CONFLICT' });
         expect(disabled.summarizePaste).not.toHaveBeenCalled();
-
-        const missingProcess = await fixture();
-        missingProcess.agentLaunch.current = undefined;
-        await expect(
-            missingProcess.service.prepare({
-                terminalId: missingProcess.terminal.id,
-                content: 'x'.repeat(2_000),
-            }),
-        ).rejects.toMatchObject({ code: 'CONFLICT' });
-        expect(missingProcess.summarizePaste).not.toHaveBeenCalled();
     });
 });
