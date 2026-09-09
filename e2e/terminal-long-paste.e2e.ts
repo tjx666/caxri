@@ -1,4 +1,5 @@
 import { Buffer } from 'node:buffer';
+import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readdir, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -16,6 +17,16 @@ import {
     pageRequest,
     typeTerminal,
 } from './support/helpers.ts';
+
+/**
+ * Compares complete synthetic input without expanding a megabyte-sized payload into failure logs.
+ */
+function inputFingerprint(value: string) {
+    return {
+        bytes: Buffer.byteLength(value),
+        sha256: createHash('sha256').update(value).digest('hex'),
+    };
+}
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires the first test argument to use object destructuring
 test('Shell-promoted Agent receives a complete native long paste without submitting', async ({}, testInfo) => {
@@ -85,12 +96,13 @@ process.stdout.write('\u001b[?2004hNATIVE_PASTE_READY\r\n');
         await input.focus();
         await input.press('Meta+V');
         const expected = `\u{1B}[200~${original.replaceAll('\n', '\r')}\u{1B}[201~`;
-        await expect.poll(() => readFile(capture, 'utf8')).toBe(expected);
+        const capturedInput = async () => inputFingerprint(await readFile(capture, 'utf8'));
+        await expect.poll(capturedInput).toEqual(inputFingerprint(expected));
         await expect(
             pane.getByRole('status').filter({ hasText: 'Summarizing pasted text…' }),
         ).toHaveCount(0);
         await input.press('z');
-        await expect.poll(() => readFile(capture, 'utf8')).toBe(`${expected}z`);
+        await expect.poll(capturedInput).toEqual(inputFingerprint(`${expected}z`));
         await expect(pane.locator('.xterm-rows')).toContainText(
             `NATIVE_PASTE_RECEIVED=${Buffer.byteLength(expected) + 1}`,
         );
