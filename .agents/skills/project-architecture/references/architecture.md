@@ -25,6 +25,8 @@ message bodies to logs or disk. Main forwards accepted Agent banner decisions as
 `agent.notification` events carrying only Session identity and attention kind; delivery history
 uses the existing `projectStatus.alert`. Neither projection raises another popup or replays on
 reconnect. Failures and persistent data-loss notices bypass reminder suppression.
+See [Notifications](../../../../docs/notifications.md) for the user flow, retention boundaries,
+producer ownership, and troubleshooting.
 
 ```text
 Desktop Main
