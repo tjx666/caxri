@@ -34,6 +34,7 @@ export class ExternalStatusCliError extends Error {
         readonly command: ExternalStatusSource,
         readonly kind: CliFailureKind,
         message: string,
+        readonly exitCode: number | null = null,
     ) {
         super(message);
     }
@@ -59,7 +60,7 @@ function classifyCliFailure(
     /**
      * A caught value is not guaranteed to be an `Error` with a populated message.
      */
-    error: { code?: string; killed?: boolean; message?: string; stderr?: string },
+    error: { code?: string | number; killed?: boolean; message?: string; stderr?: string },
 ): CliFailureKind {
     if (error.code === 'ENOENT') return 'not-found';
     const stderr = error.stderr ?? error.message ?? '';
@@ -84,9 +85,12 @@ export function externalStatusCommandOperation(
     arguments_: readonly string[],
 ): string {
     if (source === 'gh') {
-        if (arguments_[0] === 'pr') return `pr.${arguments_[1] ?? 'unknown'}`;
+        if (arguments_[0] === 'pr' && ['list', 'view'].includes(arguments_[1]))
+            return `pr.${arguments_[1]}`;
         // `gh api rate_limit` is the quota probe; its endpoint is a fixed literal, never user content.
-        return arguments_[0] === 'api' ? `api.${arguments_[1] ?? 'unknown'}` : 'unknown';
+        return arguments_[0] === 'api' && arguments_[1] === 'rate_limit'
+            ? 'api.rate_limit'
+            : 'unknown';
     }
     if (source === 'linear') return arguments_[0] === 'api' ? 'issue.get' : 'unknown';
     if (source === 'vc') return arguments_[0] === 'teams' ? 'teams.list' : 'deployments.list';
@@ -140,12 +144,22 @@ export async function runExternalStatusCommand(
         );
         return stdout;
     } catch (error) {
-        const failure = error as NodeJS.ErrnoException & { killed?: boolean; stderr?: string };
+        const failure = (error !== null && typeof error === 'object' ? error : {}) as {
+            code?: string | number;
+            killed?: boolean;
+            stderr?: string;
+            message?: string;
+        };
         throw new ExternalStatusCliError(
             source,
             classifyCliFailure(failure),
             // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- empty stderr also carries no useful detail
-            failure.stderr || failure.message,
+            failure.stderr || failure.message || 'External status command failed',
+            typeof failure.code === 'number' &&
+                Number.isSafeInteger(failure.code) &&
+                failure.code >= 0
+                ? failure.code
+                : null,
         );
     }
 }
