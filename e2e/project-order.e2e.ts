@@ -59,6 +59,12 @@ test('Project drag ordering shows feedback and persists across reload', async ()
     const projectTitles = () => running.page.locator('.project-select strong').allTextContents();
     try {
         await expect.poll(projectTitles).toEqual(['alpha', 'beta', 'gamma']);
+        // Session rows hydrate after Project headings; the drag target must exist before dispatching events.
+        await expect(
+            running.page.locator(
+                '.project-group[data-project-id="project-0"] [data-session-id="session-0"]',
+            ),
+        ).toBeVisible();
 
         await running.page.evaluate(() => {
             const source = document.querySelector<HTMLElement>(

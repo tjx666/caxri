@@ -2,7 +2,7 @@
 
 - Researched: 2026-08-04 (Asia/Shanghai)
 - Target: macOS 26 on arm64, Electron desktop application
-- Version authority: exact versions in `package.json` and the lockfile
+- Version authority: allowed ranges in workspace manifests and catalogs; resolved versions in `pnpm-lock.yaml`
 
 Only official project documentation, official repositories, and the npm registry were used. Package numbers are intentionally not duplicated here because `package.json` is the version source of truth.
 
@@ -11,9 +11,32 @@ dependencies aggressively; do not hand-roll commodity functionality or retain st
 to minimize dependency churn. Confirm architecture fit, browser/native boundaries, bundle/runtime
 cost, and supply-chain policy before adoption.
 
+Default ordinary dependency declarations to caret (`^`) ranges, including shared catalog entries.
+The lockfile keeps local and CI installations reproducible; a caret permits compatible updates
+when dependency resolution is intentionally refreshed, rather than updating every frozen install.
+
+Keep these compatibility exceptions:
+
+- `@xterm/*`: exact beta versions from one verified upstream commit, with matching core peers.
+- `electron-vite`: exact accepted beta until the stable Vite 8 integration is adopted.
+- `@base-ui/react`: exact 1.7.0. Version 1.8.0 triggers a `PopoverStore` / `syncTriggerCount`
+  update loop when opening the multi-trigger Editor breadcrumb picker (React error 185).
+  `e2e/editor-breadcrumbs.e2e.ts` reproduces it locally and in
+  [CI run 34299568185](https://github.com/tjx666/caxri/actions/runs/34299568185).
+  Re-evaluate the pin only after that regression passes on a newer release.
+- `typescript` / `@typescript/native` npm aliases: exact TypeScript 6 API and TypeScript 7 CLI pair.
+- Expo-managed mobile runtime dependencies and React types: SDK-recommended exact or tilde ranges.
+  This includes React, React Native, Metro, FlashList, Reanimated, Worklets, and native addons.
+- Corrective `overrides`: exact known-good versions, with the compatibility reason documented next
+  to the override. Revisit them when the affected upstream dependency changes.
+
+Tool runtime pins in `mise.toml` and `.bun-version`, workspace references, package versions, and
+extension engine contracts are not ordinary third-party dependency ranges.
+
 `ni` v29+ automatically enters catalog mode in this workspace. For a dependency owned by only one
-workspace, use `NI_CATALOG=false ni -E <package>@<version> --filter <workspace>` so it remains an
-exact workspace dependency instead of creating a shared catalog entry.
+workspace, use `NI_CATALOG=false ni '<package>@^<version>' --filter <workspace>` so it remains a
+workspace dependency instead of creating a shared catalog entry. Use `-E` only for an exception
+above or another explicitly documented compatibility constraint.
 
 Never change the `typescript` / `@typescript/native` dependency aliases or run
 `npm i typescript@latest`. The repository pins TypeScript 6 for typescript-eslint while compiling
@@ -34,7 +57,7 @@ with TypeScript 7; see [electron-toolchain.md](electron-toolchain.md).
 | Tailwind CSS            | <https://tailwindcss.com/docs/theme>                                                                            | v4 via `@tailwindcss/vite`. The default palette is unregistered; only semantic tokens bridged from the runtime theme variables compile (DESIGN.md principle 5), so imported themes restyle utilities live without a rebuild.                                                                                                              |
 | xterm.js                | <https://github.com/xtermjs/xterm.js>                                                                           | Current package namespace is `@xterm/*`. Caxri pins one exact beta commit across core/headless and compatible addons so WebGL fixes cannot drift independently. Renderer and Runtime headless screens both activate Unicode 11; OSC 52 uses a Caxri-owned, write-only, bounded provider; snapshot serialization remains bounded by Caxri. |
 | Parcel Watcher          | <https://github.com/parcel-bundler/watcher>                                                                     | Native recursive filesystem backends avoid per-path descriptors in large Projects and match the watcher foundation used by VS Code. It watches both active Project roots and the bounded global configuration directory.                                                                                                                  |
-| vscode-ripgrep          | <https://github.com/microsoft/vscode-ripgrep>                                                                   | The Server owns the exact `@vscode/ripgrep-universal` dependency and stages only the build platform's executable. Project Search invokes the artifact binary by absolute path with `--no-config` for bounded candidate enumeration; a terminable Worker retains Caxri's path, hard-link, content-read, and JavaScript regex contracts.    |
+| vscode-ripgrep          | <https://github.com/microsoft/vscode-ripgrep>                                                                   | The Server owns the `@vscode/ripgrep-universal` dependency and stages only the build platform's executable. Project Search invokes the artifact binary by absolute path with `--no-config` for bounded candidate enumeration; a terminable Worker retains Caxri's path, hard-link, content-read, and JavaScript regex contracts.          |
 | node-pty                | <https://github.com/microsoft/node-pty>                                                                         | Supports macOS and Electron. It is loaded only in the Runtime and rebuilt for Electron. PTY launches use executable + argv rather than shell strings.                                                                                                                                                                                     |
 | Monaco Editor           | <https://github.com/microsoft/monaco-editor>                                                                    | Use the ESM build and Vite worker URLs; the legacy AMD build is deprecated.                                                                                                                                                                                                                                                               |
 | better-sqlite3          | <https://github.com/WiseLibs/better-sqlite3>                                                                    | Selected for transactions, WAL, and predictable synchronous calls isolated in the Runtime. Current line requires modern Node and publishes Electron artifacts; real ABI is verified locally.                                                                                                                                              |

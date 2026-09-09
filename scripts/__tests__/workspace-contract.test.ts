@@ -168,15 +168,15 @@ describe('pnpm workspace contract', () => {
             'eslint-plugin-import-x': '^4.17.1',
             'markdownlint': '^0.41.1',
             'markdownlint-cli2': '^0.23.2',
-            'oxlint': '^1.80.0',
+            'oxlint': '^1.82.0',
             'oxlint-tsgolint': '^7.0.2001',
             'prettier-plugin-tailwindcss': '^0.8.1',
-            'react-qr-code': '2.2.0',
+            'react-qr-code': '^2.2.0',
             'react-scan': '^0.5.7',
             'semver': '^7.8.5',
             'sonda': '^0.14.0',
             'ws': '^8.21.3',
-            'zod': '4.5.2',
+            'zod': '^4.5.4',
         });
         expect(workspace.allowBuilds).toEqual({
             '@parcel/watcher': false,
@@ -187,10 +187,11 @@ describe('pnpm workspace contract', () => {
             'node-pty': true,
             'unrs-resolver': true,
         });
-        expect(workspace.overrides).toEqual({ dompurify: '3.4.14' });
-        expect(`^${rootManifest.devDependencies?.['@oxlint/plugins']}`).toBe(
-            workspace.catalog?.oxlint,
-        );
+        expect(workspace.overrides).toEqual({
+            'dompurify': '3.4.14',
+            'vitest@5.0.0>tinybench': '6.1.6',
+        });
+        expect(rootManifest.devDependencies?.['@oxlint/plugins']).toBe(workspace.catalog?.oxlint);
         // `--max-warnings=0` mirrors the `lint` script: ESLint exits 0 on a warning, so without it the hook lets
         // through exactly what CI rejects.
         expect(rootManifest['lint-staged']?.['*.{js,jsx,mjs,cjs}']?.[0]).toBe(
@@ -493,7 +494,7 @@ describe('pnpm workspace contract', () => {
                     `${extensionManifest.name}: native production dependency`,
                 ).not.toHaveProperty(dependency);
         }
-        expect(serverManifest.dependencies?.['@vscode/ripgrep-universal']).toBe('1.18.0');
+        expect(serverManifest.dependencies?.['@vscode/ripgrep-universal']).toBe('^1.18.0');
         expect(desktopManifest.dependencies ?? {}).not.toHaveProperty('@vscode/ripgrep-universal');
         expect(rootManifest.devDependencies ?? {}).not.toHaveProperty('@vscode/ripgrep-universal');
     });
@@ -559,8 +560,8 @@ const requiredProtocol = require('@caxri/protocol');
             to: 'server',
         });
         expect(rootManifest.devDependencies).toMatchObject({
-            'better-sqlite3': '13.0.3',
-            'node-pty': '1.1.0',
+            'better-sqlite3': '^13.0.3',
+            'node-pty': '^1.1.0',
             'ws': 'catalog:',
         });
     });
