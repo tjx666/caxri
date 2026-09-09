@@ -17,11 +17,12 @@ Pass `--json` when another tool or agent will consume the result.
 
 An isolated worktree is a self-contained development environment: its branch, dependencies, and
 profile cannot disturb the primary checkout or sibling agent sessions. That isolation is the point
-— when the user starts a standalone session and asks to switch to a worktree to get work done
-(e.g. "切 worktree 处理 issue #123"), they are delegating the entire development loop, not just
-the implementation. This flow governs exactly that standalone-session case; a run under the `go`
-workflow follows `go`'s own orchestration instead. Run it end to end without pausing for permission
-between stages:
+— when the user asks to switch to a worktree to get work done (e.g. "切 worktree 处理 issue #123"
+or "切 worktree 做一下"), they are delegating the entire development loop, including commit,
+push, PR creation, CI, merge, issue closeout, and primary-checkout synchronization. This applies
+equally when the request arrives midway through an existing conversation. A run under the `go`
+workflow follows `go`'s own orchestration instead. Inspection, listing, and dev-launch-only requests
+do not activate this delivery flow. Run it end to end without pausing for permission between stages:
 
 1. Ensure a GitHub issue tracks the task: when the request references an existing issue, use it;
    otherwise create one first (`gh issue create`, Simplified Chinese title and body, technical
@@ -36,8 +37,16 @@ between stages:
    behind — deferred findings, known flakes, consciously skipped scope — so nothing survives only
    in the session transcript.
 
-Stop for discussion instead of merging when review or CI surfaces a real product decision, or when
-the user asked for a narrower scope (e.g. implementation or report only).
+Narrow this flow only when the user explicitly limits delivery (e.g. "只实现，不提交" or
+"只分析"). Do not infer implementation-only scope from casual wording, the timing of the request,
+or the absence of a separate "open a PR" or "merge" instruction. Pause for discussion when review
+or CI exposes a real product decision; when the user pauses execution to ask a question, answer it
+without treating that pause as cancellation of the remaining delivery steps.
+
+Before reporting completion, verify every applicable step above against current evidence. Passing
+local checks is not completion while PR creation, CI, merge, issue closeout, or synchronization is
+still pending. Continue authorized work; if a concrete blocker prevents progress, report the exact
+unfinished step and blocker instead of declaring the task complete.
 
 ## Create or resolve a checkout
 
