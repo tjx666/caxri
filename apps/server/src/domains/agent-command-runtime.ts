@@ -1,3 +1,5 @@
+import type { AgentDelegationSettings } from '@caxri/protocol';
+
 import { AgentDelegationService, createDelegationHandlers } from './agent-delegation';
 import type { AgentDispatchServiceOptions } from './agent-dispatch';
 /**
@@ -21,11 +23,13 @@ export function createAgentCommandRuntime(
     options: AgentDispatchServiceOptions & {
         userDataPath: string;
         agentEnvironment: AgentEnvironment;
+        delegationSettings(): AgentDelegationSettings;
     },
 ) {
     const dispatchService = new AgentDispatchService(options);
     const delegationService = new AgentDelegationService({
         database: options.database,
+        delegationSettings: () => options.delegationSettings(),
         dispatch: dispatchService,
         userDataPath: options.userDataPath,
         dimensions: (terminalId) => options.terminals.dimensions(terminalId),

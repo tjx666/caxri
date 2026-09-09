@@ -4,6 +4,14 @@ import { identifierSchema } from '../domain/domain.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 import { principalSchema } from '../transport/principal.js';
+import {
+    delegationEffortSchema,
+    delegationModelSchema,
+    delegationPresetNameSchema,
+    delegationProviderSchema,
+    delegationRosterSchema,
+    delegationSelectionSchema,
+} from './agent-delegation-settings.js';
 
 export const agentDelegationStatusSchema = z.enum([
     'requested',
@@ -50,7 +58,10 @@ export const agentDelegationReceiptSchema = z.strictObject({
     terminalId: identifierSchema.optional(),
     followUpOf: identifierSchema.optional(),
     resumeFrom: identifierSchema.optional(),
-    provider: z.enum(['claude', 'codex']),
+    provider: delegationProviderSchema,
+    selection: delegationSelectionSchema.optional(),
+    depth: z.number().int().min(1).max(8).optional(),
+    parentDelegationId: identifierSchema.optional(),
     status: agentDelegationStatusSchema,
     failure: agentDelegationFailureSchema.optional(),
     revision: z.number().int().positive(),
@@ -77,12 +88,24 @@ export const agentDelegationCreateSchema = z
     .strictObject({
         projectId: identifierSchema,
         sessionId: identifierSchema,
-        provider: z.enum(['claude', 'codex']),
+        provider: delegationProviderSchema.optional(),
+        preset: delegationPresetNameSchema.optional(),
+        model: delegationModelSchema.optional(),
+        effort: delegationEffortSchema.optional(),
+        callerProvider: delegationProviderSchema.optional(),
         prompt: promptSchema,
         followUpOf: identifierSchema.optional(),
         resumeFrom: identifierSchema.optional(),
     })
-    .refine((value) => !(value.followUpOf && value.resumeFrom), 'Choose follow-up or exact resume');
+    .refine((value) => !(value.followUpOf && value.resumeFrom), 'Choose follow-up or exact resume')
+    .refine(
+        (value) => !value.preset || (!value.provider && !value.model && !value.effort),
+        'A preset owns its provider, model and effort',
+    )
+    .refine(
+        (value) => Boolean(value.provider ?? value.preset ?? value.followUpOf ?? value.resumeFrom),
+        'Choose a provider, preset or saved task',
+    );
 
 export const agentDelegationAnswerSchema = z.strictObject({
     text: z.string().max(65_536),
@@ -93,6 +116,11 @@ export const agentDelegationAnswerSchema = z.strictObject({
 });
 
 const identitySchema = z.strictObject({ delegationId: identifierSchema });
+const rosterParameters = z.strictObject({
+    projectId: identifierSchema,
+    sessionId: identifierSchema,
+    callerProvider: delegationProviderSchema.optional(),
+});
 const waitParameters = identitySchema.extend({
     timeoutMs: z.number().int().min(0).max(300_000).default(30_000),
 });
@@ -102,6 +130,11 @@ const resultSchema = z.strictObject({
 });
 
 export const agentDelegationMethods = {
+    'agent.delegation.presets': {
+        ...commandPolicy('server', 'read', ['agents.delegate']),
+        params: rosterParameters,
+        result: delegationRosterSchema,
+    },
     'agent.delegation.stop': {
         ...commandPolicy('server', 'control', ['agents.delegate']),
         params: identitySchema,
@@ -135,6 +168,11 @@ const authoritySchema = z.strictObject({
 });
 
 export const agentDelegationInternalMethods = {
+    'agent.delegation.presetsInternal': {
+        ...commandPolicy('server', 'read'),
+        params: authoritySchema.extend(rosterParameters.shape),
+        result: delegationRosterSchema,
+    },
     'agent.delegation.stopInternal': {
         ...commandPolicy('server', 'control'),
         params: authoritySchema.extend(identitySchema.shape),

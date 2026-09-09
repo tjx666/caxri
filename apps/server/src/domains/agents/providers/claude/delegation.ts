@@ -4,7 +4,7 @@ import { CaxriError } from '@caxri/protocol';
 import { coerce, gte } from 'semver';
 
 import type { AgentDelegationAdapter } from '../../delegation-contract';
-import { validateDelegationArguments } from '../../delegation-contract';
+import { replaceDelegationArguments, validateDelegationArguments } from '../../delegation-contract';
 
 const valueFlags = new Set([
     '--model',
@@ -25,6 +25,11 @@ export const claudeDelegationAdapter: AgentDelegationAdapter = {
     completion: 'stop-digest',
     createSessionId: randomUUID,
     validateLaunch: (launch) => validateDelegationArguments(launch, valueFlags, booleanFlags),
+    selectLaunch: (launch, selection) =>
+        replaceDelegationArguments(launch, new Set(['--model', '--effort']), [
+            ...(selection.model ? ['--model', selection.model] : []),
+            ...(selection.effort ? ['--effort', selection.effort] : []),
+        ]),
     verifyVersion: (source) => {
         const version = coerce(source ?? '');
         if (version?.major !== 2 || !gte(version, '2.1.196'))

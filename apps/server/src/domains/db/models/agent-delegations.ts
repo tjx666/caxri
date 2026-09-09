@@ -29,6 +29,7 @@ const storedDelegationSchema = z.strictObject({
     fingerprint: z.string(),
     promptDigest: z.string(),
     frozenLaunch: agentLaunchSettingsSchema,
+    frozenInstructions: z.string().max(8192).optional(),
     launchId: z.string().optional(),
     providerSessionId: z.string().optional(),
     turnId: z.string().optional(),

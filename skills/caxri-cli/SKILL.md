@@ -98,8 +98,11 @@ state access.
 
 ## Keep dispatch, control, and steer separate
 
-- `agent delegate create` runs a task from `--prompt-file` in a visible Claude or Codex child Terminal,
-  selected with `--provider claude|codex`.
+- `agent delegate create` runs a task from `--prompt-file` in a visible Claude or Codex child Terminal.
+  Use `agent delegate presets --project <id> --session <id>` to discover caller-specific presets,
+  then select `--preset <name>` or explicit `--provider` with optional `--model` and `--effort`.
+  The Server enforces preset exclusions and nesting depth. Follow-up and resume keep their saved
+  selection and instructions; do not resend a different model or try to override caller identity.
   It needs an explicit `agent:delegate` grant and exact `--project`/`--session` selectors.
   Save the returned delegation ID; use `agent delegate wait <id>` and `agent delegate result <id>`
   to retrieve the exact saved answer. A wait timeout never authorizes resubmitting the task.

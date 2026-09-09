@@ -1,4 +1,8 @@
-import type { AgentDelegationReceipt, AgentLaunchSettings } from '@caxri/protocol';
+import type {
+    AgentDelegationReceipt,
+    AgentLaunchSettings,
+    DelegationSelection,
+} from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
 export interface DelegationEvidence {
@@ -21,6 +25,7 @@ export interface AgentDelegationAdapter {
     completion: 'stop-digest' | 'native-completion';
     createSessionId(): string | undefined;
     validateLaunch(launch: AgentLaunchSettings): void;
+    selectLaunch(launch: AgentLaunchSettings, selection: DelegationSelection): AgentLaunchSettings;
     verifyVersion(version: string | undefined): void;
     freshLaunch(
         launch: AgentLaunchSettings,
@@ -59,4 +64,22 @@ export function validateDelegationArguments(
             'Agent launch arguments are unsupported for visible delegation',
         );
     }
+}
+
+/**
+ * Replaces a provider binding as a unit so an omitted model or effort never inherits another binding's flags.
+ */
+export function replaceDelegationArguments(
+    launch: AgentLaunchSettings,
+    flags: ReadonlySet<string>,
+    replacement: readonly string[],
+): AgentLaunchSettings {
+    const arguments_: string[] = [];
+    for (let index = 0; index < launch.args.length; index++) {
+        const argument = launch.args[index];
+        if (flags.has(argument.split('=', 1)[0])) {
+            if (!argument.includes('=')) index++;
+        } else arguments_.push(argument);
+    }
+    return { ...launch, args: [...arguments_, ...replacement] };
 }

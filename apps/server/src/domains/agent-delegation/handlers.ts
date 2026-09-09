@@ -3,6 +3,8 @@ import { mainOwned } from '../service-handlers';
 import type { AgentDelegationService } from './service';
 
 type DelegationMethod =
+    | 'agent.delegation.presets'
+    | 'agent.delegation.presetsInternal'
     | 'agent.delegation.stop'
     | 'agent.delegation.stopInternal'
     | 'agent.delegation.create'
@@ -18,6 +20,13 @@ export function createDelegationHandlers(
     service: AgentDelegationService,
 ): Pick<DomainHandlers, DelegationMethod> {
     return {
+        'agent.delegation.presets': () => mainOwned('agent.delegation.presets'),
+        'agent.delegation.presetsInternal': ({
+            projectId,
+            sessionId,
+            callerProvider,
+            ...authority
+        }) => service.presets(authority, { projectId, sessionId, callerProvider }),
         'agent.delegation.stop': () => mainOwned('agent.delegation.stop'),
         'agent.delegation.stopInternal': ({ delegationId, ...authority }) =>
             service.stop(delegationId, authority),
