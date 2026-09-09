@@ -62,8 +62,12 @@ directories.
 - Caxri currently has a single human maintainer (the repository owner), who usually runs multiple
   coding-agent sessions in parallel. Expect sibling sessions to be changing the repository at the
   same time as yours.
-- Small fixes and minor features are sometimes committed directly on `main` and pushed without a
-  pull request. `main` and remote branches can move at any moment.
+- Before modifying code, use a worktree dedicated to the current session's task. If this session
+  does not already have a related worktree, create and switch to one with `switch-worktree` before
+  editing. This is the default even for small fixes or a clean checkout. Do not modify code
+  directly on `main` or an unrelated task's branch unless the user explicitly requests it.
+- With explicit user authorization, small fixes and minor features may be committed directly on
+  `main` and pushed without a pull request. `main` and remote branches can move at any moment.
 - When you encounter commits you did not author — after a branch switch, fetch, rebase, or a PR
   merge — treat the newest commits as authoritative by default. Rebase or merge onto them and
   resolve conflicts in favor of the latest state. Do not stop to ask, and do not discard the
@@ -122,8 +126,12 @@ directories.
 
 ## Product invariants
 
-- Validate filesystem paths against the selected Session's authorized Project root. Git may access
-  another linked repository only when its root is covered by an explicitly added Project.
+- Validate filesystem entry paths against the selected Session's authorized Project root. In the
+  file explorer and editor, trust symlinks reached through that root, including targets outside it;
+  opening, expanding, and editing them must not require another Project or a confirmation prompt.
+  Keep the workspace entry path as the user's document identity and preserve the link when saving.
+  This does not authorize arbitrary outside paths that were not reached through a workspace link.
+  Git may access another linked repository only when its root is covered by an explicitly added Project.
 - A Project owns one local root. Sessions reference the Project by ID and cannot submit a root
   path.
 - Project and Session deletion remove metadata only. They must never remove the Project folder or
