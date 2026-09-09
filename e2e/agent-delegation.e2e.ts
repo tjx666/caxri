@@ -66,6 +66,7 @@ process.stdin.on('data', chunk => {
   const resumedReceipt=resumed.status===0?JSON.parse(resumed.stdout):null;
   const resumeWait=resumedReceipt?cli(['agent','delegate','wait',resumedReceipt.delegationId,'--timeout','20000']):null;
   const resumeResult=resumeWait?.status===0?JSON.parse(resumeWait.stdout):null;
+  if(![result,followResult,resumeResult].every(value=>value?.receipt.usage?.inputTokens===10&&value?.receipt.usage?.outputTokens===5)){fs.writeFileSync(${JSON.stringify(resultPath)},JSON.stringify({code:98}));return;}
   fs.writeFileSync(${JSON.stringify(resultPath)},JSON.stringify({code:waited.status,receipt:result?.receipt,retriedSame:retried.status===0&&JSON.parse(retried.stdout).delegationId===receipt.delegationId,answerMatched:result?.answer?.text==='Synthetic delegation complete',followStatus:followResult?.receipt.status,followAnswerMatched:followResult?.answer?.text==='Synthetic follow-up complete',resumeStatus:resumeResult?.receipt.status,resumeFailure:resumeResult?.receipt.failure,resumeAnswerMatched:resumeResult?.answer?.text==='Synthetic resume complete',sameTerminal:followReceipt?.terminalId===receipt.terminalId&&resumedReceipt?.terminalId===receipt.terminalId}));
   process.stdout.write('Synthetic caller collected delegated answer\r\n');
 });

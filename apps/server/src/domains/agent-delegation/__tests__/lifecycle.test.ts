@@ -37,6 +37,21 @@ const signal = {
 };
 
 describe('Delegation continuation correlation', () => {
+    it.each([
+        [undefined, 'new-turn', 'prompt_digest_missing'],
+        ['b'.repeat(64), 'new-turn', 'prompt_digest_mismatch'],
+        [record.promptDigest, undefined, 'turn_missing'],
+    ])(
+        'reports a closed reason for first-turn correlation failure (%#)',
+        (agentPromptDigest, agentTurnId, correlationFailure) => {
+            expect(
+                applyDelegationLifecycle(
+                    { ...record, turnId: undefined },
+                    { ...signal, phase: 'turnStarted', agentPromptDigest, agentTurnId },
+                )?.receipt,
+            ).toMatchObject({ failure: 'correlation_missing', correlationFailure });
+        },
+    );
     it('fails closed when a first Codex turn has no native session identity', () => {
         const codex: StoredAgentDelegation = {
             ...record,

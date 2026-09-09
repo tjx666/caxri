@@ -58,11 +58,20 @@ else {
       const records = [
         { type: 'user', uuid: turnId, parentUuid: null, message: { content: prompt } },
         { type: 'attachment', uuid: turnId + '-attachment', parentUuid: turnId },
-        { type: 'assistant', uuid: turnId + '-answer', parentUuid: turnId + '-attachment', message: { content: answer } },
+        { type: 'assistant', uuid: turnId + '-answer', parentUuid: turnId + '-attachment', message: { id: turnId + '-api-message', content: answer, usage: { input_tokens: 10, output_tokens: 5 } } },
       ];
       if (provider === 'codex') await signal(turnId, 'turnFinished', { agentResponseDigest: hash(answer) });
       const fileName = provider === 'claude' ? sessionId + '.jsonl' : 'rollout-' + day.join('-') + 'T12-00-00-' + sessionId + '.jsonl';
-      const rows = provider === 'claude' ? records.map(record => ({ ...record, sessionId })) : [{type:'event_msg',payload:{type:'task_complete',turn_id:turnId,last_agent_message:answer}}];
+      const transcriptPath = path.join(transcriptRoot, fileName);
+      const previousRows = provider === 'codex' && fs.existsSync(transcriptPath) ? fs.readFileSync(transcriptPath,'utf8').trim().split('\n').map(line=>JSON.parse(line)) : [];
+      const previousUsage = previousRows.findLast(row=>row.payload?.type==='token_count')?.payload.info.total_token_usage;
+      const totalUsage = {input_tokens:(previousUsage?.input_tokens??0)+10,output_tokens:(previousUsage?.output_tokens??0)+5};
+      const rows = provider === 'claude' ? records.map(record => ({ ...record, sessionId })) : [
+        ...(previousRows.length===0?[{type:'session_meta',payload:{id:sessionId}}]:[]),
+        {type:'event_msg',payload:{type:'task_started',turn_id:turnId}},
+        {type:'event_msg',payload:{type:'token_count',info:{total_token_usage:totalUsage}}},
+        {type:'event_msg',payload:{type:'task_complete',turn_id:turnId,last_agent_message:answer}},
+      ];
       fs.appendFileSync(path.join(transcriptRoot, fileName), rows.map(record => JSON.stringify(record)).join('\n') + '\n');
       if (provider === 'claude') await signal(turnId, 'turnFinished', { agentResponseDigest: hash(answer) });
       process.stdout.write(answer + '\r\n');

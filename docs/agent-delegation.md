@@ -7,7 +7,7 @@ inspection after its answer is collected.
 
 This implements Claude delegation and continuation, plus Codex target delegation, in
 [issue #686](https://github.com/tjx666/caxri/issues/686). It does not yet replace dianjiang:
-Grok delegation, usage accounting, and standalone directory
+Grok delegation and standalone directory
 authorization remain subsequent stages of that umbrella issue.
 Real Codex caller transport permissions are a separate validation boundary; target support does not
 claim that every Codex sandbox can connect to a Caxri Server socket.
@@ -130,6 +130,9 @@ forever. This state proves finality only and never substitutes for the answer ev
 A background-child continuation belongs to the task only when the coordinator proves its exact
 deferred parent turn and every subsequent prompt digest appears in order in the transcript ancestry.
 An unproven new prompt fails closed with `correlation_missing`; it is not labeled human input.
+The optional `correlationFailure` field identifies missing native-session, prompt-digest, turn, or
+answer-digest evidence, a mismatched prompt, a changed turn, or ambiguous native completion. These
+closed reasons never contain prompts, digests, or provider diagnostic text.
 Core-observed input in the child Terminal marks `human_intervened`; a retired launch marks unfinished
 work `interrupted`. Terminal protocol responses do not count as human input.
 
@@ -167,6 +170,31 @@ After Server restart, selecting a delegated Session restores the outer Shell onl
 resume requires the explicit operation above. The authenticated profile owner can recover saved
 tasks; managed caller authority remains generation-scoped, so a newly launched caller does not
 inherit the previous caller's delegation ownership.
+
+## Provider-reported usage
+
+Completed receipts optionally include `usage` with `source: "provider"` and `scope: "main-thread"`.
+These are native input/output counters for this task; available cache, reasoning and total counters
+remain separate. Counter meanings retain the provider's semantics and must not be added blindly
+across cache or reasoning categories. Child-agent billing and estimated prices are not included.
+An omitted usage object or counter means unknown, never zero.
+
+Claude aggregates API message usage only within the exact prompt ancestry, including proven native
+continuations. The authenticated final answer closes the set of API message identities; subsequent
+API calls are excluded even when a system or metadata record links them to that answer. Repeated
+streaming snapshots may finish an already-owned message's counters and count once. A missing
+message counter omits accounting without discarding the proven answer.
+
+Codex cumulative counters do not carry turn IDs. After an exact native completion, Caxri makes one
+additional bounded transcript read to find that task's start, preceding cumulative baseline and
+final counter. The task receives the delta, not the conversation total. A zero baseline requires
+evidence of the first task in a fresh native session. Counter resets, interleaved turns, missing
+baselines or incomplete evidence leave usage unknown. Native failure completions can retain proven
+usage too. A failed optional accounting read cannot turn a completed answer into a failure.
+
+The task's revision is checked after all asynchronous evidence reads, so human takeover, stop or
+relaunch invalidates accounting and answer collection together. Saved usage survives Server restart
+with its answer and is not recomputed on later result reads.
 
 ## Current launch boundary
 

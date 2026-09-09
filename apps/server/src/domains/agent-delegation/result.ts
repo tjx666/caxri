@@ -35,7 +35,19 @@ export function applyDelegationCompletion(
         )
             ? 'answer_unavailable'
             : 'failed';
-        return { ...record, receipt: { ...record.receipt, status, failure: completion.failure } };
+        return {
+            ...record,
+            receipt: {
+                ...record.receipt,
+                status,
+                failure: completion.failure,
+                correlationFailure:
+                    completion.failure === 'correlation_missing'
+                        ? 'completion_ambiguous'
+                        : undefined,
+                usage: completion.usage,
+            },
+        };
     }
     if (completion?.kind === 'answer') {
         const byteLength = Buffer.byteLength(completion.text);
@@ -46,11 +58,17 @@ export function applyDelegationCompletion(
                     ...record.receipt,
                     status: 'answer_unavailable',
                     failure: 'payload_overflow',
+                    usage: completion.usage,
                 },
             };
         return {
             ...record,
-            receipt: { ...record.receipt, status: 'completed', failure: undefined },
+            receipt: {
+                ...record.receipt,
+                status: 'completed',
+                failure: undefined,
+                usage: completion.usage,
+            },
             answer: {
                 text: completion.text,
                 messageId: completion.messageId,
