@@ -20,15 +20,15 @@ catalog:
   eslint-plugin-import-x: ^4.17.1
   markdownlint: ^0.41.1
   markdownlint-cli2: ^0.23.2
-  oxlint: ^1.80.0
+  oxlint: ^1.82.0
   oxlint-tsgolint: ^7.0.2001
   prettier-plugin-tailwindcss: ^0.8.1
-  react-qr-code: 2.2.0
+  react-qr-code: ^2.2.0
   react-scan: ^0.5.7
   semver: ^7.8.5
   sonda: ^0.14.0
   ws: ^8.21.3
-  zod: 4.5.2
+  zod: ^4.5.4
 
 minimumReleaseAgeExclude:
   - '@yutengjing/eslint-config-basic@4.0.0'
@@ -39,9 +39,21 @@ minimumReleaseAgeExclude:
   - knip@6.33.0
   - lucide-react@1.37.0
   - zod@4.5.2
+  - '@expo/cli@57.0.23'
+  - '@expo/metro-file-map@57.0.3'
+  - '@expo/ui@57.0.17'
+  - babel-preset-expo@57.0.11
+  - expo-glass-effect@57.0.2
+  - expo-modules-core@57.0.17
+  - expo-modules-jsi@57.1.0
+  - expo-router@57.0.20
+  - expo@57.0.21
 
 overrides:
   dompurify: 3.4.14
+  # Vitest 5.0.0 pins a tinybench release whose declarations require DOM types in Node projects.
+  # https://github.com/tinylibs/tinybench/releases/tag/v6.1.6
+  'vitest@5.0.0>tinybench': 6.1.6
 
 patchedDependencies:
   app-builder-lib: patches/app-builder-lib.patch

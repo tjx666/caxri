@@ -48,16 +48,20 @@ describe('xterm beta line resolver', () => {
                 mkdir(join(root, path), { recursive: true }),
             ),
         );
-        await writeFile(join(root, 'package.json'), JSON.stringify({ devDependencies: {} }));
+        await writeFile(
+            join(root, 'package.json'),
+            JSON.stringify({ dependencies: { react: '19.2.8' }, devDependencies: {} }),
+        );
         await writeFile(
             join(root, 'apps/desktop/package.json'),
             JSON.stringify({
-                dependencies: { '@xterm/xterm': '6.1.0-beta.301' },
+                dependencies: { '@xterm/xterm': '6.1.0-beta.301', 'react': '19.2.3' },
             }),
         );
 
-        await expect(readWorkspaceDependencies(root)).resolves.toMatchObject({
+        await expect(readWorkspaceDependencies(root)).resolves.toEqual({
             dependencies: { '@xterm/xterm': '6.1.0-beta.301' },
+            devDependencies: {},
         });
     });
 

@@ -37,6 +37,8 @@ const manifestSchema = z.object({
 
 function mergeDependencies(target: Record<string, string>, source: Record<string, string>): void {
     for (const [name, version] of Object.entries(source)) {
+        // Desktop and Expo intentionally use different React versions; only xterm pins must agree.
+        if (!name.startsWith('@xterm/')) continue;
         const existing = target[name];
         if (existing && existing !== version)
             throw new Error(`${name} has conflicting workspace manifest versions`);
