@@ -1,8 +1,41 @@
 import { describe, expect, it } from 'vitest';
 
+import { workbenchRootOptionSchema } from '../domain.js';
 import { workbenchInternalMethods, workbenchMethods } from '../workbench-contract.js';
 
 describe('workbenchMethods', () => {
+    it('requires an opaque discovery ID rather than a Renderer path for authorization', () => {
+        const schema = workbenchMethods['session.authorizeWorkbenchRoot'].params;
+        expect(schema.safeParse({ sessionId: 'session', rootPath: '/unapproved' }).success).toBe(
+            false,
+        );
+        expect(
+            schema.parse({ sessionId: 'session', worktreeId: 'opaque', rootPath: '/unapproved' }),
+        ).toEqual({ sessionId: 'session', worktreeId: 'opaque' });
+    });
+    it('keeps discovery and Project authorization states consistent', () => {
+        const root = {
+            worktreeId: 'opaque',
+            rootPath: '/worktree',
+            branch: 'feature',
+            displayTitle: 'worktree',
+            isMain: false,
+            owner: false,
+        };
+        expect(
+            workbenchRootOptionSchema.safeParse({ ...root, authorization: 'required' }).success,
+        ).toBe(true);
+        expect(
+            workbenchRootOptionSchema.safeParse({ ...root, authorization: 'authorized' }).success,
+        ).toBe(false);
+        expect(
+            workbenchRootOptionSchema.safeParse({
+                ...root,
+                authorization: 'required',
+                projectId: 'project',
+            }).success,
+        ).toBe(false);
+    });
     it('restricts Workbench Root authorization to the Desktop owner while selection stays Server-owned', () => {
         expect(workbenchMethods['session.authorizeWorkbenchRoot'].owner).toBe('desktop');
         expect(workbenchMethods['session.continueInWorktree'].owner).toBe('desktop');
@@ -48,12 +81,10 @@ describe('workbenchMethods', () => {
 });
 
 describe('workbenchInternalMethods', () => {
-    it('keeps internal handoffs Server-owned with only the directory hint read-only', () => {
+    it('keeps internal handoffs Server-owned with only worktree resolution read-only', () => {
         for (const [method, spec] of Object.entries(workbenchInternalMethods)) {
             expect(spec.owner).toBe('server');
-            expect(spec.effect).toBe(
-                method === 'session.workbenchRoot.selectionDirectory' ? 'read' : 'write',
-            );
+            expect(spec.effect).toBe(method === 'session.workbenchRoot.resolve' ? 'read' : 'write');
         }
     });
 

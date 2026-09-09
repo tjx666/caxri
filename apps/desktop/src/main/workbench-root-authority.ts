@@ -200,18 +200,9 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
         pathBrowser,
 
         async authorizeSelection(parameters: AuthorizeParameters) {
-            const testRoot = options.nextTestRoot();
-            const result = testRoot
-                ? { canceled: false, filePaths: [testRoot] }
-                : await chooseDirectory(options.getWindow(), {
-                      title: 'Authorize Workbench Root',
-                      defaultPath: await options
-                          .getServer()
-                          .request('session.workbenchRoot.selectionDirectory', parameters),
-                      properties: ['openDirectory'],
-                  });
-            const selectedPath = result.filePaths[0];
-            if (!selectedPath || result.canceled) return { canceled: true as const };
+            const selectedPath = await options
+                .getServer()
+                .request('session.workbenchRoot.resolve', parameters);
             const canonicalRoot = await realpath(selectedPath);
             options.grants.grant(canonicalRoot);
             try {
@@ -219,6 +210,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
                     options.getServer().request('session.workbenchRoot.authorizeSelection', {
                         sessionId: parameters.sessionId,
                         rootPath: canonicalRoot,
+                        worktreeId: parameters.worktreeId,
                     }),
                 );
             } catch (error) {

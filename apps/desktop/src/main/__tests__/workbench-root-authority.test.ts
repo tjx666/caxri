@@ -559,55 +559,59 @@ describe('pathBrowser', () => {
 describe('authorizeSelection', () => {
     it('canonicalizes the selected path, grants it, and forwards the realpath to the Server', async () => {
         const projectRoot = await temporaryDirectory();
-        const request = vi.fn(() => Promise.resolve({ id: 'session-1' }));
+        const request = vi.fn((method: string) =>
+            Promise.resolve(
+                method === 'session.workbenchRoot.resolve' ? projectRoot : { id: 'session-1' },
+            ),
+        );
         const { instance } = authority({
             getServer: server(request),
             nextTestRoot: () => projectRoot,
         });
 
-        const result = await instance.authorizeSelection({ sessionId: 'session-1' });
+        const result = await instance.authorizeSelection({
+            sessionId: 'session-1',
+            worktreeId: 'worktree-1',
+        });
         expect(result).toEqual({ id: 'session-1' });
         expect(request).toHaveBeenCalledWith('session.workbenchRoot.authorizeSelection', {
             sessionId: 'session-1',
             rootPath: projectRoot,
+            worktreeId: 'worktree-1',
         });
     });
 
-    it('returns canceled without granting when the dialog is dismissed', async () => {
-        electronMock.dialog.showOpenDialog.mockResolvedValueOnce({
-            canceled: true,
-            filePaths: [],
-        });
-        const request = vi.fn(() => Promise.resolve('/workspace/repository-worktrees'));
+    it('rejects stale discovery without opening a native picker or forwarding authorization', async () => {
+        const request = vi.fn(() => Promise.reject(new Error('Worktree unavailable')));
         const { instance } = authority({ getServer: server(request) });
 
-        await expect(instance.authorizeSelection({ sessionId: 'session-1' })).resolves.toEqual({
-            canceled: true,
+        await expect(
+            instance.authorizeSelection({ sessionId: 'session-1', worktreeId: 'stale' }),
+        ).rejects.toThrow('Worktree unavailable');
+        expect(request).toHaveBeenCalledExactlyOnceWith('session.workbenchRoot.resolve', {
+            sessionId: 'session-1',
+            worktreeId: 'stale',
         });
-        expect(request).toHaveBeenCalledExactlyOnceWith(
-            'session.workbenchRoot.selectionDirectory',
-            {
-                sessionId: 'session-1',
-            },
-        );
-        expect(electronMock.dialog.showOpenDialog).toHaveBeenCalledWith(
-            expect.objectContaining({ defaultPath: '/workspace/repository-worktrees' }),
-        );
+        expect(electronMock.dialog.showOpenDialog).not.toHaveBeenCalled();
     });
 
     it('revokes the grant when the Server rejects authorization, closing the retry window', async () => {
         const projectRoot = await temporaryDirectory();
         const grants = new ProjectRootGrants();
-        const request = vi.fn(() => Promise.reject(new Error('Runtime unavailable')));
+        const request = vi.fn((method: string) =>
+            method === 'session.workbenchRoot.resolve'
+                ? Promise.resolve(projectRoot)
+                : Promise.reject(new Error('Runtime unavailable')),
+        );
         const { instance } = authority({
             getServer: server(request),
             grants,
             nextTestRoot: () => projectRoot,
         });
 
-        await expect(instance.authorizeSelection({ sessionId: 'session-1' })).rejects.toThrow(
-            'Runtime unavailable',
-        );
+        await expect(
+            instance.authorizeSelection({ sessionId: 'session-1', worktreeId: 'worktree-1' }),
+        ).rejects.toThrow('Runtime unavailable');
         /**
          * ProjectRootGrants#use restores the grant on failure by itself, but authorizeSelection explicitly revokes it
          * again afterward so a failed authorization cannot be silently retried.

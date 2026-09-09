@@ -76,7 +76,7 @@ interface DiffTarget {
 
 export interface GitWorktreeTopology {
     repositoryKey: string;
-    worktrees: Array<{ branch: string; rootPath: string }>;
+    worktrees: Array<{ branch: string; rootPath: string; isMain?: boolean }>;
 }
 export { describeGitFailure } from './errors';
 export { withGitRequestSignal } from './request-signal';
@@ -464,7 +464,11 @@ export class GitService {
         const topology = await this.topologyRegistry.topology(projectRoot, { force: true });
         return {
             repositoryKey: topology.repositoryKey,
-            worktrees: topology.worktrees.map(({ branch, rootPath }) => ({ branch, rootPath })),
+            worktrees: topology.worktrees.map(({ branch, rootPath, isMain }) => ({
+                branch,
+                rootPath,
+                isMain,
+            })),
         };
     }
 
