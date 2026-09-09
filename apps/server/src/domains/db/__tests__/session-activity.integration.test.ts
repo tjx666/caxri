@@ -168,6 +168,41 @@ describe('Session Activity persistence', () => {
             ),
         ).toBe(false);
         expect(database.getSession(waiting.id)?.lastActivityState).toBe('running');
+        expect(database.getSession(waiting.id)).toMatchObject({
+            lastSessionActivityAt: waiting.lastSessionActivityAt,
+            lastSessionActivityReason: waiting.lastSessionActivityReason,
+            sidebarOrder: waiting.sidebarOrder,
+        });
+        expect(
+            database.releaseSessionAttentionReply(
+                waiting.id,
+                created.terminal!.id,
+                waiting.attentionEpoch,
+                waiting.lastSessionActivityAt,
+            ),
+        ).toBe(true);
+        expect(database.getSession(waiting.id)).toMatchObject({
+            lastActivityState: 'waiting',
+            lastSessionActivityAt: waiting.lastSessionActivityAt,
+            sidebarOrder: waiting.sidebarOrder,
+        });
+        expect(
+            database.consumeSessionAttentionReply(
+                waiting.id,
+                created.terminal!.id,
+                waiting.attentionEpoch,
+            ),
+        ).toBe(true);
+        database.touchSessionActivity(waiting.id, 'agent_started');
+        expect(
+            database.releaseSessionAttentionReply(
+                waiting.id,
+                created.terminal!.id,
+                waiting.attentionEpoch,
+                waiting.lastSessionActivityAt,
+            ),
+        ).toBe(false);
+        expect(database.getSession(waiting.id)?.lastActivityState).toBe('running');
         database.close();
     });
 });

@@ -16,7 +16,7 @@ import type {
     TerminalRecord,
     TerminalSnapshot,
 } from '@caxri/protocol';
-import { CaxriError, isTopLevelProject } from '@caxri/protocol';
+import { CaxriError, compareSessionSidebarOrder, isTopLevelProject } from '@caxri/protocol';
 import type Database from 'better-sqlite3';
 
 import type { AgentLifecycleSignal } from '../agents';
@@ -226,6 +226,44 @@ export class CaxriDatabase {
         return this.db.sessions.list(projectId);
     }
 
+    /**
+     * Resolves a drop against current rows, not a stale client index. Activity and dragging are serialized SQLite
+     * writes: the later operation wins without replaying older activity or changing its timestamp.
+     */
+    reorderSession(
+        sessionId: string,
+        anchorSessionId: string,
+        placement: 'before' | 'after',
+    ): void {
+        this.db.transaction(() => {
+            const session = this.db.sessions.get(sessionId);
+            const anchor = this.db.sessions.get(anchorSessionId);
+            if (!session || !anchor) throw new CaxriError('NOT_FOUND', 'Session no longer exists');
+            if (
+                session.projectId !== anchor.projectId ||
+                session.archivedAt !== undefined ||
+                anchor.archivedAt !== undefined
+            )
+                throw new CaxriError(
+                    'VALIDATION',
+                    'Only active Sessions in the same Project can be reordered',
+                );
+            if (sessionId === anchorSessionId) return;
+            const ids = this.db.sessions
+                .list(session.projectId)
+                .filter((row) => row.archivedAt === undefined)
+                .toSorted(compareSessionSidebarOrder)
+                .map((row) => row.id)
+                .filter((id) => id !== sessionId);
+            ids.splice(
+                ids.indexOf(anchorSessionId) + (placement === 'after' ? 1 : 0),
+                0,
+                sessionId,
+            );
+            this.db.sessions.reorder(ids);
+        });
+    }
+
     getSession(id: string): SessionRecord | undefined {
         return this.db.sessions.get(id);
     }
@@ -250,8 +288,14 @@ export class CaxriDatabase {
         sessionId: string,
         terminalId: string,
         attentionEpoch: number,
+        activityAt: number,
     ): boolean {
-        return this.db.sessions.releaseAttentionReply(sessionId, terminalId, attentionEpoch);
+        return this.db.sessions.releaseAttentionReply(
+            sessionId,
+            terminalId,
+            attentionEpoch,
+            activityAt,
+        );
     }
 
     getSessionWorkbenchBinding(id: string): SessionWorkbenchBinding | undefined {

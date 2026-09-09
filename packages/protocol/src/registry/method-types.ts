@@ -136,6 +136,7 @@ export const effectfulCommandRecovery = {
     'session.deleteMany': 'memory',
     'session.select': 'durable',
     'session.markRead': 'durable',
+    'session.reorder': 'durable',
     'session.rename': 'durable',
     'session.archive': 'durable',
     'session.unarchive': 'durable',

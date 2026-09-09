@@ -27,6 +27,7 @@ function session(
         rootPath: `/${projectId}`,
         createdAt: lastSessionActivityAt,
         lastOpenedAt: lastSessionActivityAt,
+        sidebarOrder: 0,
         lastSessionActivityAt,
         lastSessionActivityReason: 'created',
         lastActivityState: 'idle',

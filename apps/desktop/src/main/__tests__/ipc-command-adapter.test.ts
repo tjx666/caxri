@@ -34,6 +34,7 @@ function handler(): CommandAdapter {
                     rootPath: '/project',
                     createdAt: 1,
                     lastOpenedAt: 2,
+                    sidebarOrder: 0,
                     lastSessionActivityAt: 1,
                     lastSessionActivityReason: 'created',
                     lastActivityState: 'unknown',
