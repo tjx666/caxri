@@ -41,6 +41,15 @@ readback. Do not end again at local validation or PR creation. A status-only que
    `--run` is omitted). Concurrent sessions, including other worktrees, share one GitHub poller
    through `~/.cache/caxri/ci-watch/`. Failed jobs raise an immediate macOS notification. Polling
    survives offline windows with capped backoff. The command exits 0/1 with the run conclusion.
+   In Claude Code, execute the watcher in a background shell.
+   In Codex, delegate each run to one fresh-context waiter using an available low-cost model and
+   low reasoning effort. Supply the run ID and cwd; let the waiter start the watcher and own its
+   shell session from the beginning. It collects the same process until completion and returns
+   the terminal result without progress narration. The primary finishes independent work, then
+   waits with `wait_agent(timeout_ms=3600000)`; higher-priority harness limits still apply.
+   Do not poll the waiter, narrate unchanged queue state, or issue extra GitHub probes to manufacture
+   progress. Never restart a watcher merely because a tool yielded or the parent turn was interrupted.
+   If delegation is unavailable, the original process owner batches collection until completion.
 7. Merge only when explicitly authorized by the user or an active workflow such as `go`. Verify the
    remote merged state and merge commit before reporting completion.
 8. After the current task's PR is merged, inspect whether the task is running in the primary
