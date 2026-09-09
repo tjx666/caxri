@@ -1,3 +1,4 @@
+import { CaxriError } from '@caxri/protocol';
 import type { Terminal } from '@xterm/xterm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -7,15 +8,18 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../../../lib/caxri', () => ({ caxri: { request: mocks.caxriRequest } }));
 
+import { dismissToast, getToasts } from '../../../stores/toasts';
 import { canSendTerminalInput, didPasteIntoTerminal } from '../terminal-actions';
 import {
     detachTerminalQuietly,
     opaqueSearchColor,
     registerTerminalInputHandlers,
+    reportTerminalOperationError,
     xtermThemeWithoutOverviewRulerBorder,
 } from '../terminal-pane-support';
 
 beforeEach(() => {
+    dismissToast();
     mocks.caxriRequest.mockReset();
     mocks.caxriRequest.mockResolvedValue(undefined);
 });
@@ -64,7 +68,85 @@ describe('detachTerminalQuietly', () => {
     });
 });
 
+describe('reportTerminalOperationError', () => {
+    it('ignores typed lifecycle cancellation regardless of its message', () => {
+        reportTerminalOperationError(
+            new CaxriError('CANCELLED', 'Fixture cancelled'),
+            'Attach failed',
+        );
+        expect(getToasts()).toEqual([]);
+    });
+
+    it.each(['UNAVAILABLE', 'TIMEOUT', 'NOT_FOUND'] as const)(
+        'preserves real %s failures',
+        (code) => {
+            reportTerminalOperationError(new CaxriError(code, 'Fixture failed'), 'Attach failed');
+            expect(getToasts().map((toast) => toast.title)).toEqual(['Fixture failed']);
+        },
+    );
+
+    it('does not classify untyped errors by message', () => {
+        reportTerminalOperationError(
+            new Error('Terminal stream operation was cancelled'),
+            'Attach failed',
+        );
+        expect(getToasts().map((toast) => toast.title)).toEqual([
+            'Terminal stream operation was cancelled',
+        ]);
+    });
+});
+
 describe('registerTerminalInputHandlers', () => {
+    it.each([false, true])(
+        'does not notify for cancelled input (disposed: %s)',
+        async (disposed) => {
+            let onData: ((data: string) => void) | undefined;
+            const pending = Promise.withResolvers<unknown>();
+            mocks.caxriRequest.mockReturnValueOnce(pending.promise);
+            const terminal = {
+                onData: (handler: (data: string) => void) => {
+                    onData = handler;
+                    return { dispose: vi.fn() };
+                },
+            } as unknown as Terminal;
+            const unregister = registerTerminalInputHandlers(
+                terminal,
+                'cancelled-input',
+                () => true,
+            );
+            onData?.('fixture');
+            if (disposed) unregister();
+            pending.reject(new CaxriError('CANCELLED', 'Terminal stream operation was cancelled'));
+            await expect(pending.promise).rejects.toMatchObject({ code: 'CANCELLED' });
+            expect(getToasts()).toEqual([]);
+            if (!disposed) unregister();
+        },
+    );
+
+    it.each([false, true])(
+        'reports real input failures only to the live pane (disposed: %s)',
+        async (disposed) => {
+            let onData: ((data: string) => void) | undefined;
+            const pending = Promise.withResolvers<unknown>();
+            mocks.caxriRequest.mockReturnValueOnce(pending.promise);
+            const terminal = {
+                onData: (handler: (data: string) => void) => {
+                    onData = handler;
+                    return { dispose: vi.fn() };
+                },
+            } as unknown as Terminal;
+            const unregister = registerTerminalInputHandlers(terminal, 'failed-input', () => true);
+            onData?.('fixture');
+            if (disposed) unregister();
+            pending.reject(new CaxriError('UNAVAILABLE', 'Fixture transport failed'));
+            await expect(pending.promise).rejects.toMatchObject({ code: 'UNAVAILABLE' });
+            expect(getToasts().map((toast) => toast.title)).toEqual(
+                disposed ? [] : ['Fixture transport failed'],
+            );
+            if (!disposed) unregister();
+        },
+    );
+
     it('routes typed and dropped input through one live xterm path', async () => {
         let onData: ((data: string) => void) | undefined;
         const dataDisposable = { dispose: vi.fn() };

@@ -45,6 +45,7 @@ import {
     OSC52_BLOCK_MESSAGES,
     registerTerminalInputHandlers,
     registerTerminalPaneLinks,
+    reportTerminalOperationError,
     xtermThemeWithoutOverviewRulerBorder,
 } from '../terminal-pane-support';
 import { reconcileTerminalProcessFocus, shouldAutoFocusTerminal } from '../terminal-process-focus';
@@ -520,7 +521,7 @@ export function useTerminalPaneRuntime({
                         rows: xterm.rows,
                     }),
                 ),
-            (error) => onError(errorMessage(error, 'Terminal output recovery failed')),
+            (error) => reportTerminalOperationError(error, 'Terminal output recovery failed'),
         );
         replayReference.current = replay;
         const unsubscribe = caxri.onEvent((event) => {
@@ -580,7 +581,7 @@ export function useTerminalPaneRuntime({
                 if (initialSize && latestReference.current.processState === 'running')
                     resizeController.confirmSent(initialSize);
             } catch (error) {
-                if (!isDisposed) onError(errorMessage(error, 'Terminal attachment failed'));
+                if (!isDisposed) reportTerminalOperationError(error, 'Terminal attachment failed');
             }
             if (isDisposed) return;
             await replay.restoreInitial(attachment);
@@ -694,7 +695,7 @@ export function useTerminalPaneRuntime({
                 });
                 markTerminalAttached(terminalId, true);
             } catch (error) {
-                onError(errorMessage(error, 'Terminal reattachment failed'));
+                reportTerminalOperationError(error, 'Terminal reattachment failed');
             }
         };
         // Effects cannot be async themselves; the failure path above already reports the error.
@@ -740,7 +741,7 @@ export function useTerminalPaneRuntime({
                 });
                 markTerminalAttached(terminalId, true);
             } catch (error) {
-                onError(errorMessage(error, 'Terminal recovery reconciliation failed'));
+                reportTerminalOperationError(error, 'Terminal recovery reconciliation failed');
             }
         };
         // Effects cannot be async themselves; the failure path above already reports the error.
