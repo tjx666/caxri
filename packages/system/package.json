@@ -23,11 +23,11 @@
     "dependencies": {
         "@caxri/protocol": "workspace:*",
         "@caxri/utils": "workspace:*",
-        "es-toolkit": "1.52.0",
-        "jsonc-parser": "3.3.1"
+        "es-toolkit": "^1.52.0",
+        "jsonc-parser": "^3.3.1"
     },
     "devDependencies": {
-        "@types/node": "26.4.0"
+        "@types/node": "^26.5.0"
     },
     "engines": {
         "node": ">=24.0.0"

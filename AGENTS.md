@@ -75,6 +75,9 @@ directories.
 - Do not push, close issues, merge pull requests, or otherwise mutate remote state unless the user
   or an explicitly active workflow authorizes that exact scope. After any authorized mutation,
   refresh remote state before the final report.
+- Default ordinary dependency ranges to `^`. Keep exact pins or narrower ranges only for a
+  documented compatibility constraint; see `.agents/skills/project-architecture/references/stack-baseline.md`
+  for the current exceptions. The lockfile owns reproducible installation.
 - Install or update local dependencies only with `ni`. `pnpm-lock.yaml` is the only lockfile. Never
   run `bun install`, `npm install`, or `yarn`, never commit a second lockfile, and do not edit
   `pnpm-lock.yaml` by hand. Direct `pnpm install --frozen-lockfile` is reserved for the documented

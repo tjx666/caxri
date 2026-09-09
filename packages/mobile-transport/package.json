@@ -21,9 +21,9 @@
         "typecheck": "tsc --noEmit -p tsconfig.json"
     },
     "dependencies": {
-        "@noble/ciphers": "2.4.0",
-        "@noble/curves": "2.4.0",
-        "@noble/hashes": "2.4.0",
+        "@noble/ciphers": "^2.4.0",
+        "@noble/curves": "^2.4.0",
+        "@noble/hashes": "^2.4.0",
         "zod": "catalog:"
     },
     "engines": {
