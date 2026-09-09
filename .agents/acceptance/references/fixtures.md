@@ -40,6 +40,11 @@ the real PTY, hook, metadata, and provider rename boundaries; they do not inject
 events. Arbitrary executable paths, source, environment overrides, and host provider state are not
 fixture inputs.
 
+The `grok-build-v1` fixture replaces only Grok. Its fixed commands are `fixture:start`,
+`fixture:finish`, `fixture:fail`, `fixture:new`, `fixture:shutdown`, and `fixture:exit`.
+It writes content-free identity receipts and an observed grid marker under its isolated Grok
+home. Pair that marker with the actual Renderer rows for Terminal fixture preflight.
+
 The generated `assets/<case-id>-agent-fixture.json` receipt binds the launch to the frozen fixture
 and records whether its owned profile was cleaned. Include it in the case evidence; report
 finalization rejects a missing, mismatched, or incompletely cleaned receipt.
