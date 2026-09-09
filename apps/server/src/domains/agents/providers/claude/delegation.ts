@@ -9,6 +9,7 @@ export interface ClaudeDelegationEvidence {
     sessionId: string;
     promptDigest: string;
     answerDigest: string;
+    continuationPromptDigests?: readonly string[];
 }
 
 function digest(text: string): string {
@@ -54,6 +55,8 @@ export function extractClaudeDelegationAnswer(
     evidence: ClaudeDelegationEvidence,
 ): ClaudeDelegationAnswer | undefined {
     let promptId: string | undefined;
+    let continuationIndex = 0;
+    const continuationDigests = evidence.continuationPromptDigests ?? [];
     const descendants = new Set<string>();
     const messageVariants = new Map<string, string[]>();
     for (const line of appendedTranscript.split('\n')) {
@@ -74,8 +77,20 @@ export function extractClaudeDelegationAnswer(
                 : undefined;
         const variants = textVariants(content);
         if (record.type === 'user' && record.isMeta !== true && isHumanContent(content)) {
-            // A later human prompt, even with identical text, cannot extend the original answer's ancestry.
-            if (promptId !== undefined) return;
+            if (promptId !== undefined) {
+                // Only an ordered, coordinator-proven native continuation can extend this task's ancestry.
+                if (
+                    typeof record.parentUuid !== 'string' ||
+                    !descendants.has(record.parentUuid) ||
+                    variants.every(
+                        (text) => digest(text) !== continuationDigests[continuationIndex],
+                    )
+                )
+                    return;
+                continuationIndex++;
+                descendants.add(record.uuid);
+                continue;
+            }
             if (variants.every((text) => digest(text) !== evidence.promptDigest)) continue;
             promptId = record.uuid;
             descendants.add(promptId);
@@ -105,7 +120,8 @@ export function extractClaudeDelegationAnswer(
         if (typeof messageId === 'string' && candidates.length <= 81)
             messageVariants.set(messageId, candidates);
         const answer = candidates.find((text) => digest(text) === evidence.answerDigest);
-        if (answer !== undefined) return { text: answer, messageId: record.uuid };
+        if (answer !== undefined && continuationIndex === continuationDigests.length)
+            return { text: answer, messageId: record.uuid };
     }
     return;
 }

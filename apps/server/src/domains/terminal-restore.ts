@@ -71,13 +71,13 @@ export function createInterruptedTerminalRestorer(options: InterruptedTerminalRe
         const restored = await terminalRestores.restore(
             sessionId,
             interrupted.map((terminal) => async (isCurrent, abortSignal) => {
-                const shouldRestoreAgent = [
-                    'detached',
-                    'interrupted',
-                    'running',
-                    'starting',
-                    'suspended',
-                ].includes(terminal.lastAgentProcessState ?? 'stopped');
+                // Delegations require an explicit new task on their frozen native session; selection restores only
+                // the outer Shell so a restart cannot replay unknown work or replace the frozen launch configuration.
+                const shouldRestoreAgent =
+                    !database.agentDelegations.hasTerminal(terminal.id) &&
+                    ['detached', 'interrupted', 'running', 'starting', 'suspended'].includes(
+                        terminal.lastAgentProcessState ?? 'stopped',
+                    );
                 const resumeAgentSessionId =
                     shouldRestoreAgent && terminal.provider ? terminal.agentSessionId : undefined;
                 if (shouldRestoreAgent && !resumeAgentSessionId && terminal.provider === 'grok') {

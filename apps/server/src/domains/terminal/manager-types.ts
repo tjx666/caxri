@@ -33,6 +33,7 @@ export interface TerminalManagerOptions {
         record: TerminalRecord,
         launch?: AgentLaunchSettings,
         launchId?: string,
+        delegationId?: string,
     ) => NodeJS.ProcessEnv | Promise<NodeJS.ProcessEnv>;
     /**
      * Publishes a prepared generation only after its PTY is registered as live.
@@ -78,9 +79,17 @@ export interface TerminalWorkingDirectoryIdentity {
 
 export interface TerminalStartOptions {
     /**
+     * Server-owned task identity; never accepted from a public Terminal launch request.
+     */
+    delegationId?: string;
+    /**
      * Frozen Server-owned launch configuration for one admitted delegation.
      */
     launchSettings?: AgentLaunchSettings;
+    /**
+     * Server-generated private-file pointer, appended after provider-native resume arguments.
+     */
+    initialPrompt?: string;
     expectedWorkingDirectory?: TerminalWorkingDirectoryIdentity;
     resumeAgentSessionId?: string;
     /**

@@ -333,25 +333,24 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                 case 'agent.dispatch.start':
                 case 'agent.dispatch.resume':
                 case 'agent.delegation.create':
+                case 'agent.delegation.stop':
                 case 'agent.delegation.status':
                 case 'agent.delegation.result':
                     return forwardDomainOperation(
                         agentCommandRequest(request, context, invocation.requestId, agentEndpoints),
                     );
-                case 'agent.delegation.wait':
+                case 'agent.delegation.wait': {
+                    const operation = agentCommandRequest(
+                        request,
+                        context,
+                        invocation.requestId,
+                        agentEndpoints,
+                    );
                     return requestCancellations.run(
                         principalRequestKey(context, invocation.requestId),
-                        (signal) =>
-                            forwardDomainOperation(
-                                agentCommandRequest(
-                                    request,
-                                    context,
-                                    invocation.requestId,
-                                    agentEndpoints,
-                                ),
-                                signal,
-                            ),
+                        (signal) => forwardDomainOperation(operation, signal),
                     );
+                }
                 case 'agent.dispatch.status':
                     return domainService.request('agent.dispatch.statusInternal', {
                         dispatchId: request.params.dispatchId,
