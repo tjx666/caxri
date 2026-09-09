@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -17,6 +17,58 @@ async function expectSyntaxColors(editor: Locator): Promise<void> {
         )
         .toBeGreaterThan(1);
 }
+
+test('workspace file and directory links open and save without replacing links', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-workspace-links-e2e-'));
+    const root = join(testDirectory, 'project');
+    const shared = join(testDirectory, 'shared');
+    await Promise.all([mkdir(root), mkdir(shared)]);
+    await writeFile(join(shared, 'config.txt'), 'shared fixture\n');
+    await Promise.all([
+        symlink('../shared/config.txt', join(root, 'linked-config.txt')),
+        symlink('../shared', join(root, 'linked-folder')),
+    ]);
+    const running = await launchCaxri({
+        userDataDir: join(testDirectory, 'profile'),
+        testRootPath: root,
+    });
+    try {
+        await createProjectSession(running.page);
+        const tree = running.page.getByRole('tree', { name: 'Files' });
+        await tree.getByRole('treeitem', { name: /^linked-config\.txt/ }).dblclick();
+        const tab = running.page.locator('.work-tab', { hasText: 'linked-config.txt' });
+        await expect(tab).toBeVisible();
+        const editor = running.page.locator('.monaco-editor').last();
+        await expect(editor.locator('.view-lines')).toContainText('shared fixture');
+        await editor.click();
+        await running.page.keyboard.press('Meta+End');
+        await running.page.keyboard.type('saved through link');
+        await running.page.keyboard.press('Meta+S');
+        await expect
+            .poll(() => readFile(join(shared, 'config.txt'), 'utf8'))
+            .toContain('saved through link');
+        expect((await lstat(join(root, 'linked-config.txt'))).isSymbolicLink()).toBe(true);
+        const folder = tree.getByRole('treeitem', { name: /^linked-folder/ });
+        await folder.focus();
+        await folder.press('ArrowRight');
+        await expect(folder).toHaveAttribute('aria-expanded', 'true');
+        await tree.getByRole('treeitem', { name: 'config.txt', exact: true }).click();
+        await expect(editor.locator('.view-lines')).toContainText('saved through link');
+        await expect(tab).toBeVisible();
+        await running.page.keyboard.press('Meta+P');
+        const dialog = running.page.getByRole('dialog');
+        const pathInput = dialog.getByRole('combobox', { name: 'File path' });
+        await pathInput.fill('linked-folder/config');
+        await expect(dialog.getByRole('option', { name: /^config\.txt/ })).toBeVisible();
+        await pathInput.press('Enter');
+        await expect(dialog).toBeHidden();
+        await expect(editor.locator('.view-lines')).toContainText('saved through link');
+        await expect(running.page.locator('.toast')).toHaveCount(0);
+    } finally {
+        await running.app.close();
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
 
 test('ignore and rc dotfiles open with syntax highlighting', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-dotfile-syntax-e2e-'));

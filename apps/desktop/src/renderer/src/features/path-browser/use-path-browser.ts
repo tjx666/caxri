@@ -7,6 +7,7 @@ import { clamp } from 'es-toolkit';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 
 import { caxri } from '../../lib/caxri';
+import { isDirectoryEntry } from '../../lib/file-entry';
 import { setPathBrowserOpen } from '../../stores/dialogs';
 import { openExternalEditorDocument } from '../editor/external-editor-documents';
 import { createItem } from '../view-containers/resource-explorer/file-actions';
@@ -261,7 +262,7 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
     };
 
     const openEntry = async (entry: PathBrowserEntry): Promise<void> => {
-        if (!snapshot || entry.kind === 'symlink') return;
+        if (!snapshot || (entry.kind === 'symlink' && snapshot.mode === 'free')) return;
         requestGeneration.current += 1;
         setIsNavigating(true);
         setIsFetching(false);
@@ -287,8 +288,8 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
     };
 
     const choose = (entry: PathBrowserEntry | undefined): void => {
-        if (!snapshot || !entry || entry.kind === 'symlink') return;
-        if (entry.kind === 'directory') {
+        if (!snapshot || !entry || (entry.kind === 'symlink' && snapshot.mode === 'free')) return;
+        if (entry.kind === 'symlink' || isDirectoryEntry(entry)) {
             runPathBrowserDetached(
                 applySnapshotOperation(
                     caxri.request('pathBrowser.navigate', {
@@ -347,7 +348,7 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
             isComposing: event.nativeEvent.isComposing,
             key: event.key,
             mode: inputState.mode,
-            selectedKind: selected?.kind,
+            selectedKind: selected && isDirectoryEntry(selected) ? 'directory' : selected?.kind,
             selectionEnd: event.currentTarget.selectionEnd,
             selectionStart: event.currentTarget.selectionStart,
         });

@@ -93,6 +93,78 @@ function authorityOptions(
 }
 
 describe('path browser authority', () => {
+    it('opens and expands unprobed workspace links using the current Server-authorized kind', async () => {
+        const workspace = await temporaryDirectory('caxri-path-linked-workspace-');
+        const outside = await temporaryDirectory('caxri-path-linked-target-');
+        const root = await realpath(workspace);
+        await writeFile(join(outside, 'fixture.txt'), 'fixture');
+        await symlink(outside, join(root, 'folder-link'));
+        await symlink(join(outside, 'fixture.txt'), join(root, 'file-link'));
+        const { authority, openFile, request } = authorityOptions(root, root, {
+            async request(method, parameters) {
+                if (method === 'app.bootstrap') return bootstrap(root, root);
+                const input = parameters as { directory?: string; path?: string };
+                if (method === 'files.browse')
+                    return {
+                        entries:
+                            input.directory === root
+                                ? ['folder-link', 'file-link'].map((name) => ({
+                                      kind: 'symlink',
+                                      name,
+                                      path: join(root, name),
+                                  }))
+                                : [
+                                      {
+                                          kind: 'file',
+                                          name: 'fixture.txt',
+                                          path: join(input.directory!, 'fixture.txt'),
+                                      },
+                                  ],
+                        truncated: false,
+                    };
+                if (method === 'files.authorizeOpen') {
+                    const [stats, rootStats] = await Promise.all([
+                        lstat(await realpath(input.path!), { bigint: true }),
+                        lstat(root, { bigint: true }),
+                    ]);
+                    return {
+                        path: input.path,
+                        kind: stats.isDirectory() ? 'directory' : 'file',
+                        device: stats.dev.toString(),
+                        inode: stats.ino.toString(),
+                        root: {
+                            path: root,
+                            device: rootStats.dev.toString(),
+                            inode: rootStats.ino.toString(),
+                        },
+                    };
+                }
+                throw new Error(`Unexpected method: ${method}`);
+            },
+        });
+        const initial = await authority.start({ sessionId: 'session-1' });
+        const nested = await authority.navigate({
+            browserId: initial.browserId,
+            target: { kind: 'entry', entryId: initial.entries[0].id },
+        });
+        expect(nested).toMatchObject({ entries: [{ name: 'fixture.txt' }] });
+        expect(request).toHaveBeenLastCalledWith('files.browse', {
+            sessionId: 'session-1',
+            directory: join(root, 'folder-link'),
+            query: '',
+        });
+        const reopened = await authority.start({ sessionId: 'session-1' });
+        await expect(
+            authority.navigate({
+                browserId: reopened.browserId,
+                target: { kind: 'entry', entryId: reopened.entries[1].id },
+            }),
+        ).resolves.toMatchObject({ opened: true, kind: 'project' });
+        expect(openFile).toHaveBeenCalledWith(
+            expect.objectContaining({ path: join(root, 'file-link') }),
+        );
+    });
+
     it('starts from the Workbench Project and detaches to its absolute directory without a picker', async () => {
         const ownerRoot = await temporaryDirectory('caxri-path-owner-');
         const workbenchRoot = await temporaryDirectory('caxri-path-worktree-');

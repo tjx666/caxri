@@ -30,6 +30,49 @@ afterEach(async () => {
 });
 
 describe('DocumentService', () => {
+    it('rejects a link retargeted while its operation waits or its replacement is being written', async () => {
+        const temporaryDirectory = await mkdtemp(join(tmpdir(), 'caxri-document-link-race-'));
+        const directory = await realpath(temporaryDirectory);
+        temporaryDirectories.push(directory);
+        const root = join(directory, 'project');
+        await mkdir(root);
+        const first = join(directory, 'first.txt');
+        const second = join(directory, 'second.txt');
+        const alias = join(root, 'linked.txt');
+        await Promise.all([writeFile(first, 'first'), writeFile(second, 'second')]);
+        await symlink(first, alias);
+        const resolvePath = async () => ({
+            root,
+            path: await realpath(alias),
+            workspacePath: alias,
+        });
+        const admitted = await resolvePath();
+        await rename(alias, join(root, 'old-link'));
+        await symlink(second, alias);
+        const logger = new StructuredLogger(join(directory, 'logs'));
+        const service = new DocumentService(resolvePath, logger, () => 1024, {
+            beforeReplaceValidation: async () => {
+                await rename(alias, join(root, 'second-link'));
+                await symlink(first, alias);
+            },
+        });
+        await expect(
+            service.write('session', alias, 'queued edit', admitted),
+        ).rejects.toMatchObject({ code: 'CONFLICT' });
+        await expect(service.read('session', alias, undefined, admitted)).rejects.toMatchObject({
+            code: 'CONFLICT',
+        });
+        await expect(service.authorizeOpen('session', alias, admitted)).rejects.toMatchObject({
+            code: 'CONFLICT',
+        });
+        await expect(service.write('session', alias, 'mid-save edit')).rejects.toMatchObject({
+            code: 'CONFLICT',
+        });
+        expect(await readFile(first, 'utf8')).toBe('first');
+        expect(await readFile(second, 'utf8')).toBe('second');
+        await logger.flush();
+    });
+
     it('keeps the previous file intact when writing the replacement fails', async () => {
         const rootDirectory = await mkdtemp(join(tmpdir(), 'caxri-document-save-'));
         const root = await realpath(rootDirectory);

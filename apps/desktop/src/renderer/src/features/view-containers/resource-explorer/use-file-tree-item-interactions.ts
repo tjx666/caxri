@@ -4,8 +4,10 @@ import { useEffect, useId, useRef, useState } from 'react';
 import type { FileEntry } from '@caxri/protocol';
 
 import { dragPath } from '../../../lib/file-drag';
+import { isDirectoryEntry, resolveEntryKind } from '../../../lib/file-entry';
 import { parentDirectoryPath } from '../../../lib/file-path';
-import { openFile } from '../../editor/document-actions';
+import { tryCommand } from '../../../stores/toasts';
+import { openFileForSession } from '../../editor/document-actions';
 import { useResourceExplorerClient } from '../controlled-view-context';
 import { didTrashFile, duplicateFile, moveFile, pasteFile, rememberFile } from './file-actions';
 import type { FileClipboardEntry } from './file-clipboard';
@@ -22,6 +24,8 @@ import {
     setScopeFocusPath,
     setScopePathExpanded,
     setScopeSelectedPath,
+    setScopeSubtreeExpanded,
+    useResourceExplorerScopeStore,
 } from './resource-explorer-scope-store';
 
 export interface UseFileTreeItemInteractionsOptions {
@@ -43,6 +47,12 @@ export interface UseFileTreeItemInteractionsOptions {
 }
 
 export interface UseFileTreeItemInteractionsResult {
+    activateEntry: (options?: {
+        preview?: boolean;
+        toggleDirectory?: boolean;
+        recursive?: boolean;
+        directoriesOnly?: boolean;
+    }) => Promise<void>;
     clipboard: FileClipboardEntry | undefined;
     confirmTrash: () => Promise<void>;
     dragBlocked: boolean;
@@ -53,6 +63,7 @@ export interface UseFileTreeItemInteractionsResult {
     expanded: boolean;
     handleKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => void;
     isDropTarget: boolean;
+    isDirectory: boolean;
     isRenaming: boolean;
     isRovingTabStop: boolean;
     openEntry: () => void;
@@ -91,10 +102,22 @@ export function useFileTreeItemInteractions({
     const client = useResourceExplorerClient();
     const [isDropTarget, setIsDropTarget] = useState(false);
     const rowReference = useRef<HTMLButtonElement>(null);
+    const activation = useRef(0);
+    useEffect(
+        () => () => {
+            activation.current += 1;
+        },
+        [],
+    );
     const symlinkReasonId = useId();
     const clipboard = useFileClipboardStore((state) => state.entry);
     const isRenaming = editing?.kind === 'rename' && editing.entry.path === entry.path;
     const isEditable = entry.kind !== 'symlink';
+    const [resolvedKind, setResolvedKind] = useState<'file' | 'directory'>();
+    const isDirectory =
+        resolvedKind && entry.kind === 'symlink'
+            ? resolvedKind === 'directory'
+            : isDirectoryEntry(entry);
     const parentDirectory = parentDirectoryPath(entry.path);
     const pasteDirectory = entry.kind === 'directory' ? entry.path : parentDirectory;
     const isClipboardEmpty = !clipboard || clipboard.projectId !== projectId;
@@ -131,11 +154,38 @@ export function useFileTreeItemInteractions({
             returnFocus: { kind: 'path', path: entry.path },
         });
     };
+    const activateEntry: UseFileTreeItemInteractionsResult['activateEntry'] = async (
+        options = {},
+    ) => {
+        setSelectedPath(entry.path);
+        const intent = ++activation.current;
+        await tryCommand('Unable to open path', async () => {
+            const kind = await resolveEntryKind(sessionId, entry);
+            // A slow link probe must not replace a newer row selection or activation.
+            if (
+                intent !== activation.current ||
+                useResourceExplorerScopeStore.getState().selectionByScope[scopeId] !== entry.path
+            )
+                return;
+            setResolvedKind(kind);
+            if (kind === 'directory') {
+                const isNextExpanded = options.toggleDirectory ? !expanded : true;
+                if (options.recursive)
+                    setScopeSubtreeExpanded(
+                        scopeId,
+                        client.viewId,
+                        projectId,
+                        entry.path,
+                        isNextExpanded,
+                    );
+                else setExpanded(isNextExpanded);
+            } else if (!options.directoriesOnly)
+                await openFileForSession(sessionId, entry.path, { preview: options.preview });
+        });
+    };
     const openEntry = (): void => {
-        if (entry.kind === 'directory') setExpanded(true);
-        // openFile funnels its own failures into a toast via tryCommand, nothing to await here.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-        else void openFile(entry.path);
+        // eslint-disable-next-line no-void -- activateEntry owns error presentation
+        void activateEntry();
     };
     const pasteIntoEntry = async (): Promise<void> => {
         const currentClipboard = useFileClipboardStore.getState().entry;
@@ -193,17 +243,19 @@ export function useFileTreeItemInteractions({
             return;
         }
         if (event.key === 'ArrowRight') {
-            if (entry.kind !== 'directory') return;
+            if (!isDirectory && entry.kind !== 'symlink') return;
             event.preventDefault();
             // Collapsed -> expand in place; already expanded -> move focus into the first child,
             // matching the standard ARIA treeview keyboard pattern.
-            if (!expanded) setExpanded(true);
-            else focusAdjacentTreeItem(event.currentTarget, 1);
+            if (!expanded) {
+                // eslint-disable-next-line no-void -- activateEntry owns error presentation
+                void activateEntry({ directoriesOnly: true });
+            } else focusAdjacentTreeItem(event.currentTarget, 1);
             return;
         }
         if (event.key === 'ArrowLeft') {
             event.preventDefault();
-            if (expanded && entry.kind === 'directory') setExpanded(false);
+            if (expanded && isDirectory) setExpanded(false);
             else focusParentTreeItem(event.currentTarget);
             return;
         }
@@ -251,6 +303,7 @@ export function useFileTreeItemInteractions({
     }, [isFocusRequested, isRenaming, scopeId]);
 
     return {
+        activateEntry,
         clipboard,
         confirmTrash,
         dragBlocked: isDragBlocked,
@@ -261,6 +314,7 @@ export function useFileTreeItemInteractions({
         expanded,
         handleKeyDown,
         isDropTarget,
+        isDirectory,
         isRenaming,
         isRovingTabStop,
         openEntry,

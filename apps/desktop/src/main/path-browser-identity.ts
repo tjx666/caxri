@@ -1,5 +1,5 @@
 import { lstat, realpath } from 'node:fs/promises';
-import { dirname, isAbsolute, relative, sep } from 'node:path';
+import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 
 import { CaxriError } from '@caxri/protocol';
 
@@ -42,8 +42,13 @@ export function pathFailure(error: unknown, fallback: string): never {
     throw new CaxriError('IO', fallback);
 }
 
-export async function directoryIdentity(path: string): Promise<RootIdentity> {
+export async function directoryIdentity(
+    path: string,
+    shouldFollowWorkspaceLinks = false,
+): Promise<RootIdentity> {
     try {
+        const workspacePath = resolve(path);
+        if (shouldFollowWorkspaceLinks) path = await realpath(path);
         const before = await lstat(path, { bigint: true });
         if (before.isSymbolicLink() || !before.isDirectory())
             throw new CaxriError('PATH_DENIED', 'Browse location is not a directory');
@@ -58,7 +63,7 @@ export async function directoryIdentity(path: string): Promise<RootIdentity> {
         )
             throw new CaxriError('CONFLICT', 'Browse location changed during authorization');
         return {
-            path: canonicalPath,
+            path: shouldFollowWorkspaceLinks ? workspacePath : canonicalPath,
             device: after.dev.toString(),
             inode: after.ino.toString(),
         };

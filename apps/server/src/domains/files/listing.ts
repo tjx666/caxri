@@ -209,9 +209,13 @@ export class ListingService {
         isCurrent: () => boolean,
     ): Promise<ServerOperationResult<'files.browse'>> {
         const startedAt = performance.now();
-        const { root, path } = await this.resolveSessionPath(sessionId, directory);
+        const {
+            root,
+            path,
+            workspacePath = path,
+        } = await this.resolveSessionPath(sessionId, directory);
         if (!isCurrent()) return { entries: [], truncated: true };
-        this.onDirectoryListed?.(sessionId, path);
+        this.onDirectoryListed?.(sessionId, workspacePath);
         const before = await lstat(path);
         if (!before.isDirectory() || before.isSymbolicLink())
             throw new CaxriError('IO', 'Path is not a directory');
@@ -241,7 +245,9 @@ export class ListingService {
                 }
                 scannedEntries += 1;
                 const entryPath = resolve(path, entry.name);
-                const relativePath = relative(root, entryPath).split(sep).join('/');
+                const relativePath = relative(root, resolve(workspacePath, entry.name))
+                    .split(sep)
+                    .join('/');
                 if (
                     isFileTreeExcludeMatch(relativePath, excludes) ||
                     !entry.name.toLocaleLowerCase().includes(normalizedQuery)
@@ -292,11 +298,9 @@ export class ListingService {
          * gets exactly one type-only follow through this listing's shared `createSymlinkTargetProbe` budget. VS Code's
          * own directory enumeration takes the same follow for the same reason
          * (`competitors/vscode/src/vs/platform/files/node/diskFileSystemProvider.ts:115-138`, "always resolve target
-         * the link points to if any"), and the product invariant is untouched: the probe only asks the target's type.
-         * It never enumerates through the link, never resolves the target against the Project root, never authorizes
-         * that path, and never mutates it — browsing, expanding, and mutating through a symlink stay refused, and
-         * `pathBrowser` still rejects a symlink entry when the user tries to open it. One budget per browse keeps an
-         * unresponsive mount to a single timeout for the whole listing instead of one stalled follow per link.
+         * the link points to if any"). Opening or expanding a trusted workspace link is a separate request; this probe
+         * only asks the target's type. One budget per browse keeps an unresponsive mount to a single timeout for the
+         * whole listing instead of one stalled follow per link.
          *
          * Ordering follows from the same metadata: `compareFileEntries` groups a `directory` link with the real
          * directories, so browse results now sort links the way the Files tree does instead of dropping every link into
@@ -315,13 +319,19 @@ export class ListingService {
             durationMs: performance.now() - startedAt,
             fields: {
                 sessionId,
-                path: relative(root, path) || '.',
+                path: relative(root, workspacePath) || '.',
                 entryCount: entries.length,
                 scannedEntries,
                 truncated: isTruncated,
             },
         });
-        return { entries, truncated: isTruncated };
+        return {
+            entries: entries.map((entry) => ({
+                ...entry,
+                path: resolve(workspacePath, entry.name),
+            })),
+            truncated: isTruncated,
+        };
     }
 
     private async loadList(
@@ -330,8 +340,12 @@ export class ListingService {
         excludes: FileTreeExcludes,
     ): Promise<ServerOperationResult<'files.list'>> {
         const startedAt = performance.now();
-        const { root, path } = await this.resolveSessionPath(sessionId, directory);
-        this.onDirectoryListed?.(sessionId, path);
+        const {
+            root,
+            path,
+            workspacePath = path,
+        } = await this.resolveSessionPath(sessionId, directory);
+        this.onDirectoryListed?.(sessionId, workspacePath);
         const before = await lstat(path);
         if (!before.isDirectory() || before.isSymbolicLink())
             throw new CaxriError('IO', 'Path is not a directory');
@@ -372,7 +386,9 @@ export class ListingService {
         )
             throw new CaxriError('IO', 'Directory changed during listing');
         const visible = entries.filter((entry) => {
-            const relativePath = relative(root, resolve(path, entry.name)).split(sep).join('/');
+            const relativePath = relative(root, resolve(workspacePath, entry.name))
+                .split(sep)
+                .join('/');
             return !isFileTreeExcludeMatch(relativePath, excludes);
         });
         const boundedVisible = visible
@@ -392,7 +408,7 @@ export class ListingService {
             ),
             this.loadGitIgnoredNames(
                 sessionId,
-                path,
+                workspacePath,
                 boundedVisible.map((entry) => entry.name),
             ),
         ]);
@@ -404,7 +420,9 @@ export class ListingService {
                     ? { ...entry, gitIgnored: true as const }
                     : entry,
             );
-        const sorted = result.toSorted(compareFileEntries);
+        const sorted = result
+            .map((entry) => ({ ...entry, path: resolve(workspacePath, entry.name) }))
+            .toSorted(compareFileEntries);
         const bounded = boundFileListEntries(sorted);
         const isTruncated =
             !isReachedEnd ||
@@ -414,13 +432,16 @@ export class ListingService {
             durationMs: performance.now() - startedAt,
             fields: {
                 sessionId,
-                path: relative(root, path) || '.',
+                path: relative(root, workspacePath) || '.',
                 entryCount: bounded.length,
                 scannedEntries,
                 truncated: isTruncated,
             },
         });
-        return { entries: bounded, truncated: isTruncated };
+        return {
+            entries: bounded,
+            truncated: isTruncated,
+        };
     }
 
     /**

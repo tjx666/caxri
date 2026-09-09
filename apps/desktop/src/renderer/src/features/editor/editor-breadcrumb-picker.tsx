@@ -5,6 +5,7 @@ import { ChevronRight } from 'lucide-react';
 
 import { Spinner } from '../../components/ui/spinner';
 import { FileTypeIcon } from '../../icons/files/file-type-icon';
+import { isDirectoryEntry } from '../../lib/file-entry';
 import { cn } from '../../lib/utilities';
 import { describeFailure } from '../../stores/toasts';
 import type { EditorBreadcrumbSegment } from './editor-breadcrumbs-model';
@@ -30,18 +31,15 @@ function EditorBreadcrumbPickerOption({
     onClick: () => void;
     onPointerMove: () => void;
 }) {
-    const isSymlink = entry.kind === 'symlink';
     return (
         <button
-            aria-disabled={isSymlink || undefined}
-            aria-label={isSymlink ? `${entry.name}, symbolic link unavailable` : entry.name}
+            aria-label={entry.name}
             aria-selected={active}
             id={id}
             role="option"
             tabIndex={-1}
             className={cn(
                 'flex h-7 w-full cursor-default items-center gap-2 rounded border-0 bg-transparent px-2 text-left text-[12px] text-foreground outline-none aria-selected:bg-[var(--selection)]',
-                'aria-disabled:text-muted aria-disabled:italic',
                 entry.gitIgnored && 'text-muted italic',
             )}
             data-git-ignored={entry.gitIgnored}
@@ -51,7 +49,7 @@ function EditorBreadcrumbPickerOption({
         >
             <FileTypeIcon entry={entry} />
             <span className="min-w-0 flex-1 truncate">{entry.name}</span>
-            {entry.kind === 'directory' && (
+            {isDirectoryEntry(entry) && (
                 <ChevronRight aria-hidden="true" className="flex-none text-muted" size={12} />
             )}
         </button>

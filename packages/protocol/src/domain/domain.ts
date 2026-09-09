@@ -479,8 +479,8 @@ export const fileEntrySchema = z.object({
      */
     linkKind: z.enum(['file', 'directory', 'broken']).optional(),
     /**
-     * The raw, unresolved `readlink` value of a `symlink` entry, shown in its tooltip. Never resolved against the
-     * Project root: Caxri deliberately refuses to browse through symlinks, so this is display metadata only.
+     * The raw, unresolved `readlink` value shown in the tooltip. Workspace navigation authorizes the entry path and
+     * follows the current target; this display metadata is never used as authority for a later request.
      */
     linkTarget: z.string().optional(),
 });
