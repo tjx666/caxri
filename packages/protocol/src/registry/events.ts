@@ -45,6 +45,7 @@ const fullStateChangeReasonSchema = z.enum([
     'session.create',
     'session.select',
     'session.archive',
+    'session.reorder',
     'session.unarchive',
     'session.detach',
     'session.resume',

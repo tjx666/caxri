@@ -193,7 +193,12 @@ Reduced motion keeps titles static, with the full name available in the detail c
 selected fill, not dimmed neighbors, communicates selection. Project ordering uses the whole
 Project heading as its drag source. While dragging, dim only the source group and show a 2px
 `--accent` insertion line with a circular leading cap between Project groups; Session rows are
-never drop targets. `Option+Up` / `Option+Down` on a focused Project name provides the
+never Project drop targets. Sessions can be dragged within their owning Project, using a 2px
+`--accent` insertion line and dimming only the dragged row. Dragging freezes the visible Session
+sequence until the move settles; status updates continue. A move changes only the explicit sidebar
+position. New Sessions and meaningful activity promote the affected Session to the top without
+resorting its neighbors. Visits and streamed output never promote a Session. `Option+Up` / `Option+Down`
+on a focused Session row moves it within its Project and announces the move. The same keys on a focused Project name provide the
 keyboard-equivalent reorder and announces the resulting position. The PrimarySidebar header
 carries the Session history pair — Back then Forward, ghost icon buttons in `--muted` that lift to
 `--foreground` on hover, placed immediately after the traffic-light clearance because that is
@@ -203,11 +208,10 @@ position stays learnable; the shortcut and command name reach the user through t
 tooltip instead of a bespoke label. Archived Sessions use one stable PrimarySidebar footer entry
 with a global count. Search, filters, Project-grouped results, restore, and delete live in a
 full-width management dialog. Project disclosures contain active Sessions only, so low-frequency
-history never fragments navigation. A disclosure renders its five most recently active Sessions
+history never fragments navigation. A disclosure renders its first five Sessions in sidebar order
 plus a `Show N more` row that reveals ten more per activation and disappears once the list is
 complete, so a busy Project never buries the Projects below it. The selected Session always
-renders even when it sits below that window, because Session order is activity recency rather than
-visit history. The revealed count is per-Renderer-lifetime: a relaunch starts from the short list
+renders even when it sits below that window. The revealed count is per-Renderer-lifetime: a relaunch starts from the short list
 the same way it starts scrolled to the top.
 
 Pull request lifecycle owns the glyph color: open is `--success`, closed is `--danger`, merged

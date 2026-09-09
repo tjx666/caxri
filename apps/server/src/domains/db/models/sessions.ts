@@ -31,6 +31,7 @@ import {
     terminals,
 } from '../schema';
 import { didConsumeAttentionReply, didReleaseAttentionReply } from './attention-replies';
+import { sessionActivityUpdate } from './session-activity';
 import {
     effectiveWorkbenchProjectId,
     mapSession,
@@ -38,10 +39,6 @@ import {
     workbenchProjects,
 } from './session-record';
 import { reconcileOwnedTerminalTabs } from './session-terminal-layout';
-
-function nextSessionActivityAt(now: number) {
-    return sql<number>`MAX(${now}, COALESCE((SELECT MAX(${sessions.lastSessionActivityAt}) + 1 FROM ${sessions}), ${now}))`;
-}
 
 export interface NewSessionInput {
     projectId: string;
@@ -425,7 +422,6 @@ export class SessionsModel {
     insert(input: NewSessionInput): SessionRecord {
         const id = randomUUID();
         const now = Date.now();
-        const lastSessionActivityAt = nextSessionActivityAt(now);
         this.database
             .insert(sessions)
             .values({
@@ -433,8 +429,7 @@ export class SessionsModel {
                 projectId: input.projectId,
                 createdAt: now,
                 lastOpenedAt: now,
-                lastSessionActivityAt,
-                lastSessionActivityReason: 'created',
+                ...sessionActivityUpdate('created', now),
                 primaryAgentTerminalId: null,
                 lastActivityState: 'idle',
                 attentionEpoch: 0,
@@ -450,6 +445,14 @@ export class SessionsModel {
 
     remove(id: string): boolean {
         return this.database.delete(sessions).where(eq(sessions.id, id)).run().changes === 1;
+    }
+
+    /**
+     * The facade validates membership and owns the transaction for the complete move.
+     */
+    reorder(sessionIds: readonly string[]): void {
+        for (const [sidebarOrder, id] of sessionIds.entries())
+            this.database.update(sessions).set({ sidebarOrder }).where(eq(sessions.id, id)).run();
     }
 
     /**
@@ -472,11 +475,10 @@ export class SessionsModel {
      * caller choose an allowlisted, content-free event instead of inferring activity from arbitrary row writes.
      */
     touchActivity(id: string, reason: SessionActivityReason, now = Date.now()): boolean {
-        const lastSessionActivityAt = nextSessionActivityAt(now);
         return (
             this.database
                 .update(sessions)
-                .set({ lastSessionActivityAt, lastSessionActivityReason: reason })
+                .set(sessionActivityUpdate(reason, now))
                 .where(eq(sessions.id, id))
                 .run().changes === 1
         );
@@ -519,7 +521,6 @@ export class SessionsModel {
         activityReason?: SessionActivityReason,
     ): void {
         const now = Date.now();
-        const lastSessionActivityAt = nextSessionActivityAt(now);
         this.database
             .update(sessions)
             .set({
@@ -529,10 +530,7 @@ export class SessionsModel {
                     attentionEpoch: sql`${sessions.attentionEpoch} + 1`,
                     lastAttentionKind: attentionKind,
                 }),
-                ...(activityReason && {
-                    lastSessionActivityAt,
-                    lastSessionActivityReason: activityReason,
-                }),
+                ...(activityReason && sessionActivityUpdate(activityReason, now)),
             })
             .where(eq(sessions.id, id))
             .run();
@@ -561,8 +559,13 @@ export class SessionsModel {
         return didConsumeAttentionReply(this.database, id, terminalId, attentionEpoch);
     }
 
-    releaseAttentionReply(id: string, terminalId: string, attentionEpoch: number): boolean {
-        return didReleaseAttentionReply(this.database, id, terminalId, attentionEpoch);
+    releaseAttentionReply(
+        id: string,
+        terminalId: string,
+        attentionEpoch: number,
+        activityAt: number,
+    ): boolean {
+        return didReleaseAttentionReply(this.database, id, terminalId, attentionEpoch, activityAt);
     }
 
     rename(id: string, displayTitle: string): boolean {
@@ -581,16 +584,12 @@ export class SessionsModel {
         activityReason?: SessionActivityReason,
     ): boolean {
         const now = Date.now();
-        const lastSessionActivityAt = nextSessionActivityAt(now);
         return (
             this.database
                 .update(sessions)
                 .set({
                     lastActivityState,
-                    ...(activityReason && {
-                        lastSessionActivityAt,
-                        lastSessionActivityReason: activityReason,
-                    }),
+                    ...(activityReason && sessionActivityUpdate(activityReason, now)),
                 })
                 .where(eq(sessions.primaryAgentTerminalId, terminalId))
                 .run().changes === 1

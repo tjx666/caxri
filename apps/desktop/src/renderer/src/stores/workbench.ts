@@ -70,8 +70,8 @@ type SessionStateFailureMode = 'retain' | 'rollback';
 const bootstrapRead = { inFlight: undefined as Promise<void> | undefined };
 const queuedRead = { current: undefined as Promise<void> | undefined };
 const recordRefresh = { inFlight: undefined as Promise<void> | undefined };
-const sessionSelectionConvergence = {
-    pending: [] as Array<{ resolve: () => void }>,
+const sessionCommandConvergence = {
+    pending: [] as Array<{ reason: 'session.select' | 'session.reorder'; resolve: () => void }>,
 };
 const pendingSessionRecordIds = new Set<string>();
 const pendingTerminalRecordIds = new Set<string>();
@@ -471,28 +471,35 @@ function applyStateChange(
 }
 
 /**
- * Registers before `session.select` is sent, then resolves after that command's event-driven snapshot finishes. The
- * queue preserves the Runtime's serialized selection order even while Preload is replaying buffered events, and keeps
- * the command path from scheduling a duplicate `app.bootstrap`.
+ * Registers before a Session command is sent, then resolves after that command's event-driven snapshot finishes. The
+ * queue preserves the Runtime's serialized command order even while Preload is replaying buffered events, and keeps the
+ * command path from scheduling a duplicate `app.bootstrap`.
  */
-export function registerSessionSelectionConvergence(): {
+export function registerSessionCommandConvergence(reason: 'session.select' | 'session.reorder'): {
     cancel: () => void;
     promise: Promise<void>;
 } {
     const completion = Promise.withResolvers<void>();
-    const pending = { resolve: completion.resolve };
-    sessionSelectionConvergence.pending.push(pending);
+    const pending = { reason, resolve: completion.resolve };
+    sessionCommandConvergence.pending.push(pending);
     return {
         cancel: () => {
-            const index = sessionSelectionConvergence.pending.indexOf(pending);
-            if (index !== -1) sessionSelectionConvergence.pending.splice(index, 1);
+            const index = sessionCommandConvergence.pending.indexOf(pending);
+            if (index !== -1) sessionCommandConvergence.pending.splice(index, 1);
         },
         promise: completion.promise,
     };
 }
 
-function resolveNextSessionSelectionConvergence(refresh: Promise<void>): void {
-    const pending = sessionSelectionConvergence.pending.shift();
+function resolveNextSessionCommandConvergence(
+    reason: 'session.select' | 'session.reorder',
+    refresh: Promise<void>,
+): void {
+    const index = sessionCommandConvergence.pending.findIndex(
+        (pending) => pending.reason === reason,
+    );
+    if (index === -1) return;
+    const pending = sessionCommandConvergence.pending.splice(index, 1).at(0);
     if (!pending) return;
     // Fire-and-forget: both outcomes release the command; refreshWorkbench reports its own failure to the user.
     // eslint-disable-next-line no-void -- the registered command owns the completion promise, not this continuation
@@ -600,8 +607,12 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
         switch (event.event) {
             case 'state.changed': {
                 const refresh = applyStateChange(event.payload);
-                if (event.payload.kind === 'full' && event.payload.reason === 'session.select') {
-                    resolveNextSessionSelectionConvergence(refresh);
+                if (
+                    event.payload.kind === 'full' &&
+                    (event.payload.reason === 'session.select' ||
+                        event.payload.reason === 'session.reorder')
+                ) {
+                    resolveNextSessionCommandConvergence(event.payload.reason, refresh);
                 }
                 // Fire-and-forget: applyStateChange() catches its own Server request failures.
                 // eslint-disable-next-line no-void -- intentional floating-promise discard, see above

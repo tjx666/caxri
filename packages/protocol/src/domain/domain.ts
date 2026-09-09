@@ -141,6 +141,10 @@ export const sessionRecordSchema = z.object({
      * `lastActivityState`.
      */
     lastSessionActivityAt: z.number(),
+    /**
+     * Ascending sidebar position, changed by dragging or meaningful activity.
+     */
+    sidebarOrder: z.number().int(),
     lastSessionActivityReason: sessionActivityReasonSchema,
     /**
      * Archived Sessions stay durable and keep their Terminals; only active navigation hides them.
@@ -689,6 +693,19 @@ export function compareSessionActivityRecency(left: SessionRecord, right: Sessio
         (left.id < right.id ? -1 : left.id > right.id ? 1 : 0)
     );
 }
+
+/**
+ * Shared by visible navigation and Server fallback selection so both honor a manual move.
+ */
+export function compareSessionSidebarOrder(left: SessionRecord, right: SessionRecord): number {
+    return left.sidebarOrder - right.sidebarOrder || compareSessionActivityRecency(left, right);
+}
+
+export const sessionReorderParametersSchema = z.strictObject({
+    sessionId: identifierSchema,
+    anchorSessionId: identifierSchema,
+    placement: z.enum(['before', 'after']),
+});
 
 export type TerminalRecord = z.infer<typeof terminalRecordSchema>;
 export type TerminalSnapshot = z.infer<typeof terminalSnapshotSchema>;

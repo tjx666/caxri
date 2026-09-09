@@ -9,7 +9,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CURRENT_SCHEMA_VERSION } from '../connection';
 import type { DatabaseTransactionObservation } from '../database-connection';
 import { CaxriDatabaseConnection as CaxriDatabase } from '../index';
-import { migrationManifest, PRESERVED_SCHEMA_VERSION } from '../migrations/manifest';
+import {
+    migrationManifest,
+    PRESERVED_SCHEMA_VERSION,
+    schemaVersionForMigration,
+} from '../migrations/manifest';
 
 const temporaryDirectories: string[] = [];
 
@@ -293,12 +297,15 @@ describe('CaxriDatabaseConnection', () => {
         upgraded.close();
     });
 
-    it('migrates the previous preserved schema without losing metadata or snapshots', async () => {
+    it('migrates the schema before removing automatic naming without losing metadata or snapshots', async () => {
         const directory = await temporaryDirectory('caxri-db-preserved-upgrade-');
         const databasePath = join(directory, 'state.db');
         const previous = new Database(databasePath);
         previous.pragma('foreign_keys = ON');
-        const migrationsWithoutLatest = migrationManifest.slice(0, -1);
+        const migrationsWithoutLatest = migrationManifest.slice(
+            0,
+            migrationManifest.findIndex((migration) => migration.tag === '0022_natural_apocalypse'),
+        );
         for (const migration of migrationsWithoutLatest)
             previous.exec(migration.sql.replaceAll('--> statement-breakpoint', ''));
         const project = { id: 'project-current', rootPath: directory };
@@ -395,7 +402,7 @@ describe('CaxriDatabaseConnection', () => {
                 "UPDATE sessions SET auto_naming_state = 'stopped', last_auto_title = 'Generated' WHERE title_mode = 'manual'",
             )
             .run();
-        previous.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 1}`);
+        previous.pragma(`user_version = ${schemaVersionForMigration('0021_mature_xavin')}`);
         previous.close();
 
         const upgraded = new CaxriDatabase(databasePath);

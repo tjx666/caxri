@@ -12,7 +12,7 @@ import type {
 } from '@caxri/protocol';
 import {
     agentProviderCatalog,
-    compareSessionActivityRecency,
+    compareSessionSidebarOrder,
     DEFAULT_SESSION_TITLE,
     isTopLevelProject,
     normalizeTerminalTitle,
@@ -389,7 +389,7 @@ export function firstActiveSession(
 ): SessionRecord | undefined {
     return records
         .filter((session) => session.archivedAt === undefined && session.id !== excludedSessionId)
-        .toSorted(compareSessionActivityRecency)
+        .toSorted(compareSessionSidebarOrder)
         .at(0);
 }
 

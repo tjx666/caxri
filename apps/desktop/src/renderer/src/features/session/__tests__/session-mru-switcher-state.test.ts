@@ -20,6 +20,7 @@ function session(
         rootPath: '/project',
         createdAt: lastOpenedAt,
         lastOpenedAt,
+        sidebarOrder: 0,
         lastSessionActivityAt: lastOpenedAt,
         lastSessionActivityReason: 'created',
         lastActivityState: 'idle',

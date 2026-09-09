@@ -1,5 +1,5 @@
 import type { ProjectRecord, SessionRecord } from '@caxri/protocol';
-import { compareSessionActivityRecency } from '@caxri/protocol';
+import { compareSessionActivityRecency, compareSessionSidebarOrder } from '@caxri/protocol';
 
 /**
  * Session Activity is a product-owned work clock, not visit history. The deterministic fallbacks matter for upgraded
@@ -11,7 +11,7 @@ export function sessionsByActivity(sessions: readonly SessionRecord[]): SessionR
 
 /**
  * Produces the exact visible Session sequence: Project order remains explicit and stable, while only Sessions inside
- * each Project move with meaningful activity.
+ * each Project follow their durable sidebar positions. Activity promotes one row; dragging does not change recency.
  */
 export function activeSessionsInSidebarOrder(
     projects: readonly ProjectRecord[],
@@ -26,6 +26,8 @@ export function activeSessionsInSidebarOrder(
     }
     const ordered: SessionRecord[] = [];
     for (const project of projects)
-        ordered.push(...sessionsByActivity(activeByProject.get(project.id) ?? []));
+        ordered.push(
+            ...(activeByProject.get(project.id) ?? []).toSorted(compareSessionSidebarOrder),
+        );
     return ordered;
 }

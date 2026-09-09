@@ -1,14 +1,10 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 import type { CaxriDrizzleDatabase } from '../connection';
 import { sessions } from '../schema';
 
-function nextSessionActivityAt(now: number) {
-    return sql<number>`MAX(${now}, COALESCE((SELECT MAX(${sessions.lastSessionActivityAt}) + 1 FROM ${sessions}), ${now}))`;
-}
-
 /**
- * Claims one exact waiting generation before a companion reply reaches the primary Agent PTY.
+ * Claims one exact waiting generation without manufacturing activity before the Agent PTY accepts the reply.
  */
 export function didConsumeAttentionReply(
     database: CaxriDrizzleDatabase,
@@ -16,14 +12,11 @@ export function didConsumeAttentionReply(
     terminalId: string,
     attentionEpoch: number,
 ): boolean {
-    const now = Date.now();
     return (
         database
             .update(sessions)
             .set({
                 lastActivityState: 'running',
-                lastSessionActivityAt: nextSessionActivityAt(now),
-                lastSessionActivityReason: 'user_submission',
             })
             .where(
                 and(
@@ -38,27 +31,27 @@ export function didConsumeAttentionReply(
 }
 
 /**
- * Releases a claim only after the synchronous PTY write rejected it, before another event-loop turn can run.
+ * Releases a failed asynchronous write only while no newer activity or attention generation has superseded its claim.
  */
 export function didReleaseAttentionReply(
     database: CaxriDrizzleDatabase,
     id: string,
     terminalId: string,
     attentionEpoch: number,
+    activityAt: number,
 ): boolean {
     return (
         database
             .update(sessions)
             .set({
                 lastActivityState: 'waiting',
-                lastSessionActivityReason: 'agent_waiting',
             })
             .where(
                 and(
                     eq(sessions.id, id),
                     eq(sessions.primaryAgentTerminalId, terminalId),
                     eq(sessions.lastActivityState, 'running'),
-                    eq(sessions.lastSessionActivityReason, 'user_submission'),
+                    eq(sessions.lastSessionActivityAt, activityAt),
                     eq(sessions.attentionEpoch, attentionEpoch),
                 ),
             )
