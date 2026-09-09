@@ -240,7 +240,8 @@ categories. Switching tabs does not clear failures; switching Sessions changes t
 `--foreground` text, and a 2px `--accent` top border, VS Code style. Inactive: `--surface` +
 `--muted`. Dirty dot replaces the close button until hover/focus (already the pattern — keep).
 Tabs fill the full 44px rail height. Document tabs fit their full labels; Terminal tabs divide the
-remaining width with an 80px minimum. Crowded bars scroll rather than imposing a fixed filename cap.
+remaining width with their full displayed content as the minimum. Crowded bars scroll rather than
+truncating Terminal labels or imposing a fixed filename cap.
 While the whole workbench holds exactly one tab across every
 pane, that tab drops both the accent top border and the New Terminal button: an "active" marker
 distinguishes nothing when there is nothing to distinguish it from, and the pane ring still
