@@ -34,6 +34,7 @@ export const desktopServerOperationIds = [
     'session.workbenchCandidate.authorize',
     'session.workbenchCandidate.cancel',
     'session.workbenchRoot.authorizeSelection',
+    'session.workbenchRoot.selectionDirectory',
     'session.validateWorkbenchRoots',
 ] as const satisfies readonly ServerOperation[];
 
