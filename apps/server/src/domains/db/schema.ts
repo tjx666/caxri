@@ -63,6 +63,10 @@ export const sessions = sqliteTable(
          * migration runner backfills legacy rows from `created_at`, and every new row supplies a real value.
          */
         lastSessionActivityAt: integer('last_session_activity_at').notNull().default(0),
+        /**
+         * Explicit sidebar position; dragging must never manufacture Session activity.
+         */
+        sidebarOrder: integer('sidebar_order').notNull().default(0),
         lastSessionActivityReason: text('last_session_activity_reason')
             .notNull()
             .default('created'),

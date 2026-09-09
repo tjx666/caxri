@@ -13,11 +13,11 @@ import { executeCommand } from '../../commands/execute';
 import { CommandTooltip } from '../../components/command-tooltip';
 import { DisclosureMotion } from '../../components/disclosure-motion';
 import { Button } from '../../components/ui/button';
-import { Input } from '../../components/ui/input';
 import { Tooltip } from '../../components/ui/tooltip';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { cn } from '../../lib/utilities';
-import { archiveSession, didSelectSession } from '../session/session-actions';
+import { archiveSession } from '../session/session-actions';
+import type { SessionOrderController } from './hooks/use-session-order';
 import { useSessionTitleScroll } from './hooks/use-session-title-scroll';
 import { primarySidebarRevealRowId } from './primary-sidebar-tree';
 import { ProjectIcon } from './project-icon';
@@ -25,11 +25,10 @@ import type { ProjectDropTarget } from './project-order';
 import { hasProjectDragType } from './project-order';
 import { SessionActivityCard } from './session-activity-card';
 import { SessionPullRequestIndicator } from './session-pull-request-indicator';
+import { SessionRenameInput } from './session-rename-input';
 import { SessionRowMenu } from './session-row-menu';
+import { SessionRowTrigger } from './session-row-trigger';
 import { SessionStatusIndicator } from './session-status-indicator';
-
-const sessionCardClassName =
-    'session-card flex w-full h-7 items-center gap-2 px-2 border-0 rounded-md bg-transparent text-foreground text-left cursor-pointer hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)]';
 
 function sessionTerminal(
     session: SessionRecord,
@@ -43,6 +42,8 @@ function sessionTerminal(
 }
 
 interface ActiveSessionRowProperties {
+    sessionOrder: SessionOrderController;
+    visibleSessions: readonly SessionRecord[];
     focusRenameInput: (element: HTMLInputElement | null) => void;
     onBeginRename: () => void;
     onBlurRename: () => void;
@@ -70,6 +71,8 @@ interface ActiveSessionRowProperties {
 }
 
 function ActiveSessionRow({
+    sessionOrder,
+    visibleSessions,
     focusRenameInput,
     onBeginRename,
     onBlurRename,
@@ -88,7 +91,6 @@ function ActiveSessionRow({
     terminals,
     worktreeProject,
 }: ActiveSessionRowProperties) {
-    const renameErrorId = `session-rename-error-${session.id}`;
     /**
      * The HoverCard opens on a hover delay and would otherwise pop over an open context menu; closing it while the menu
      * is open keeps one popup on screen at a time.
@@ -99,73 +101,29 @@ function ActiveSessionRow({
         renaming || menuOpen,
     );
     const sessionCard = (
-        <div
-            data-row-id={session.id}
-            data-session-id={session.id}
-            className={cn(
-                sessionCardClassName,
-                'focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none',
-                selected && 'active bg-elevated',
-                renaming && 'cursor-text',
-            )}
-            role={renaming ? undefined : 'button'}
-            tabIndex={renaming ? undefined : roving ? 0 : -1}
-            onFocus={(event) => setFocused(event.currentTarget.matches(':focus-visible'))}
-            onBlur={() => setFocused(false)}
-            onClick={() => {
-                // Fire-and-forget: `didSelectSession` funnels its own failures into a toast.
-                // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-                if (!renaming && !selected) void didSelectSession(session.id);
-            }}
-            onDoubleClick={onBeginRename}
-            onKeyDown={(event) => {
-                if (!renaming && event.key === 'Enter') {
-                    event.preventDefault();
-                    onBeginRename();
-                } else if (!renaming && event.key === ' ') {
-                    event.preventDefault();
-                    // Fire-and-forget: `didSelectSession` funnels its own failures into a toast.
-                    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-                    if (!selected) void didSelectSession(session.id);
-                }
-            }}
+        <SessionRowTrigger
+            session={session}
+            selected={selected}
+            renaming={renaming}
+            roving={roving}
+            sessionOrder={sessionOrder}
+            visibleSessions={visibleSessions}
+            onBeginRename={onBeginRename}
+            onFocusChange={setFocused}
         >
             <AgentIdentityIcon identity={terminal?.kind ?? 'shell'} size={14} />
             {renaming ? (
-                <>
-                    <Input
-                        ref={focusRenameInput}
-                        appearance="workbench"
-                        className="session-rename flex-1 text-foreground"
-                        aria-label={`Rename ${session.displayTitle}`}
-                        aria-invalid={Boolean(renameError)}
-                        aria-describedby={renameError ? renameErrorId : undefined}
-                        value={renameValue}
-                        onBlur={onBlurRename}
-                        onChange={(event) => onRenameValueChange(event.target.value)}
-                        onClick={(event) => event.stopPropagation()}
-                        onDoubleClick={(event) => event.stopPropagation()}
-                        onKeyDown={(event) => {
-                            if (event.key === 'Enter') {
-                                event.preventDefault();
-                                onCommitRename();
-                            } else if (event.key === 'Escape') {
-                                event.preventDefault();
-                                onCancelRename();
-                            }
-                        }}
-                        size="compact"
-                    />
-                    {renameError && (
-                        <span
-                            id={renameErrorId}
-                            role="alert"
-                            className="session-rename-error absolute inset-x-0 top-full z-10 mt-0.5 text-[11px] wrap-break-word text-danger"
-                        >
-                            {renameError}
-                        </span>
-                    )}
-                </>
+                <SessionRenameInput
+                    sessionId={session.id}
+                    title={session.displayTitle}
+                    error={renameError}
+                    value={renameValue}
+                    focusInput={focusRenameInput}
+                    onBlur={onBlurRename}
+                    onChange={onRenameValueChange}
+                    onCommit={onCommitRename}
+                    onCancel={onCancelRename}
+                />
             ) : (
                 <span className="session-copy flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
                     <strong
@@ -216,7 +174,7 @@ function ActiveSessionRow({
                     terminal={terminal}
                 />
             </span>
-        </div>
+        </SessionRowTrigger>
     );
     const row = (
         <div
@@ -225,6 +183,15 @@ function ActiveSessionRow({
             className="session-row group/session-row relative"
             role="treeitem"
         >
+            {sessionOrder.dropTarget?.anchorSessionId === session.id && (
+                <div
+                    aria-hidden="true"
+                    className={cn(
+                        'session-drop-marker pointer-events-none absolute inset-x-0 z-10 h-0.5 bg-accent',
+                        sessionOrder.dropTarget.placement === 'before' ? 'top-0' : 'bottom-0',
+                    )}
+                />
+            )}
             {renaming ? (
                 sessionCard
             ) : (
@@ -232,7 +199,7 @@ function ActiveSessionRow({
                     project={project}
                     pullRequest={pullRequest}
                     session={session}
-                    suppressed={menuOpen}
+                    suppressed={menuOpen || sessionOrder.draggedId !== undefined}
                     terminal={terminal}
                     trigger={sessionCard}
                     worktreeProject={worktreeProject}
@@ -268,6 +235,7 @@ function ActiveSessionRow({
 }
 
 interface ProjectGroupProperties {
+    sessionOrder: SessionOrderController;
     active: boolean;
     animateProject: boolean;
     dragged: boolean;
@@ -310,7 +278,7 @@ interface ProjectGroupProperties {
     selectedSessionId?: string;
     terminals: TerminalRecord[];
     /**
-     * Sessions the window renders, most recently active first.
+     * Sessions the window renders, in durable sidebar order (frozen while dragging).
      */
     visibleSessions: SessionRecord[];
     /**
@@ -321,6 +289,7 @@ interface ProjectGroupProperties {
 }
 
 export function ProjectGroup({
+    sessionOrder,
     active,
     animateProject,
     dragged,
@@ -483,6 +452,8 @@ export function ProjectGroup({
                     >
                         {visibleSessions.map((session) => (
                             <ActiveSessionRow
+                                sessionOrder={sessionOrder}
+                                visibleSessions={visibleSessions}
                                 key={session.id}
                                 focusRenameInput={focusRenameInput}
                                 onBeginRename={() =>

@@ -21,6 +21,7 @@ export const sessionSelection = {
     createdAt: sessions.createdAt,
     lastOpenedAt: sessions.lastOpenedAt,
     lastSessionActivityAt: sessions.lastSessionActivityAt,
+    sidebarOrder: sessions.sidebarOrder,
     lastSessionActivityReason: sessions.lastSessionActivityReason,
     archivedAt: sessions.archivedAt,
     primaryAgentTerminalId: sessions.primaryAgentTerminalId,
@@ -41,6 +42,7 @@ interface SessionJoinRow {
     createdAt: number;
     lastOpenedAt: number;
     lastSessionActivityAt: number;
+    sidebarOrder: number;
     lastSessionActivityReason: string;
     archivedAt: number | null;
     primaryAgentTerminalId: string | null;
@@ -62,6 +64,7 @@ export function mapSession(row: SessionJoinRow): SessionRecord {
         createdAt: row.createdAt,
         lastOpenedAt: row.lastOpenedAt,
         lastSessionActivityAt: row.lastSessionActivityAt,
+        sidebarOrder: row.sidebarOrder,
         lastSessionActivityReason: row.lastSessionActivityReason as SessionActivityReason,
         archivedAt: row.archivedAt ?? undefined,
         primaryAgentTerminalId: row.primaryAgentTerminalId ?? undefined,

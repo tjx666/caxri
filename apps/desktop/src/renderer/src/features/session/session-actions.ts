@@ -15,7 +15,7 @@ import { clearPendingSession, useDialogStore } from '../../stores/dialogs';
 import { getBootstrap, getSelectedSession, selectSelectedProject } from '../../stores/selectors';
 import { useSessionViewStore } from '../../stores/session-view';
 import { pushToast, tryCommand } from '../../stores/toasts';
-import { refreshWorkbench, registerSessionSelectionConvergence } from '../../stores/workbench';
+import { refreshWorkbench, registerSessionCommandConvergence } from '../../stores/workbench';
 import { beginRendererPerformanceRequest } from '../renderer-performance/controller';
 import { activeSessionsInSidebarOrder } from './session-activity-order';
 import type { PendingSessionMruSelection } from './session-mru-switcher-state';
@@ -34,7 +34,7 @@ const mruNavigationState: { pendingSelection?: PendingSessionMruSelection } = {}
  * without queueing a second full `app.bootstrap` behind it.
  */
 async function didRequestSelection(sessionId: string): Promise<boolean> {
-    const convergence = registerSessionSelectionConvergence();
+    const convergence = registerSessionCommandConvergence('session.select');
     const finishPerformanceRequest = beginRendererPerformanceRequest('session.select');
     const selected = await tryCommand('Session selection failed', async () => {
         try {
@@ -157,6 +157,23 @@ export async function didReorderProject(projectId: string, targetIndex: number):
         caxri.request('project.reorder', { projectId, targetIndex }),
     );
     return reordered !== undefined;
+}
+
+export async function didReorderSession(
+    sessionId: string,
+    anchorSessionId: string,
+    placement: 'before' | 'after',
+): Promise<boolean> {
+    const convergence = registerSessionCommandConvergence('session.reorder');
+    const reordered = await tryCommand('Session reordering failed', () =>
+        caxri.request('session.reorder', { sessionId, anchorSessionId, placement }),
+    );
+    if (reordered === undefined) {
+        convergence.cancel();
+        return false;
+    }
+    await convergence.promise;
+    return true;
 }
 
 export function archiveSession(sessionId: string): void {

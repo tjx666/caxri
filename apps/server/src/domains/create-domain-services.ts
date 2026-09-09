@@ -594,6 +594,11 @@ export async function createDomainServices(
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'project.reorder' } });
             return reordered;
         },
+        'session.reorder': ({ sessionId, anchorSessionId, placement }) => {
+            database.reorderSession(sessionId, anchorSessionId, placement);
+            send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.reorder' } });
+            return null;
+        },
         'session.create': async ({ projectId, defaultAgent }) => {
             const project = database.getProject(projectId);
             if (!project) throw new CaxriError('NOT_FOUND', 'Project not found');

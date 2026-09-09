@@ -48,6 +48,7 @@ function session(overrides: Partial<SessionRecord> = {}): SessionRecord {
         rootPath: '/repo',
         createdAt: 0,
         lastOpenedAt: 0,
+        sidebarOrder: 0,
         lastSessionActivityAt: 0,
         lastSessionActivityReason: 'created',
         primaryAgentTerminalId: undefined,

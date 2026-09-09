@@ -23,6 +23,7 @@ function session(patch: Partial<SessionRecord> & Pick<SessionRecord, 'id'>): Ses
         rootPath: '/project',
         createdAt: 1,
         lastOpenedAt: 1,
+        sidebarOrder: 0,
         lastSessionActivityAt: 1_000,
         lastSessionActivityReason: 'created',
         lastActivityState: 'completed',

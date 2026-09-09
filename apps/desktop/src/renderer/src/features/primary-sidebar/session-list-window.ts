@@ -32,9 +32,9 @@ export interface SessionListWindow<TSession> {
  * Resolves the Sessions a Project renders. `revealedCount` is the count the user has revealed so far (`undefined` until
  * they ask for more).
  *
- * The selected Session is always inside the window: Session order is activity recency, not visit history, so selecting
- * an older Session through the MRU switcher or history navigation does not pull it to the top. Without this the sidebar
- * would show no selected row at all, which reads as a lost Session rather than a collapsed list.
+ * The selected Session is always inside the window: sidebar position is independent from visits, so selecting an older
+ * Session through the MRU switcher or history navigation does not pull it to the top. Without this the sidebar would
+ * show no selected row at all, which reads as a lost Session rather than a collapsed list.
  */
 export function sessionListWindow<TSession extends { id: string }>(
     sessions: readonly TSession[],

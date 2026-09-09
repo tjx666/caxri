@@ -44,6 +44,9 @@ function installCurrentSchema(database: Database.Database): void {
 const PROJECT_ORDER_SCHEMA_VERSION = schemaVersionForMigration('0004_wonderful_gladiator');
 const TERMINAL_PTY_TITLE_SCHEMA_VERSION = schemaVersionForMigration('0015_terminal-pty-title');
 const SESSION_ACTIVITY_SCHEMA_VERSION = schemaVersionForMigration('0017_salty_piledriver');
+const SESSION_SIDEBAR_ORDER_SCHEMA_VERSION = schemaVersionForMigration(
+    '0023_session-sidebar-order',
+);
 const AGENT_PROCESS_STATE_SCHEMA_VERSION = schemaVersionForMigration(
     '0018_empty_marten_broadcloak',
 );
@@ -104,6 +107,15 @@ function migratePreservingData(database: Database.Database, version: number): vo
     if (version < TERMINAL_PTY_TITLE_SCHEMA_VERSION) backfillTerminalTitles(database);
     if (version < SESSION_ACTIVITY_SCHEMA_VERSION) backfillSessionActivity(database);
     if (version < AGENT_PROCESS_STATE_SCHEMA_VERSION) backfillAgentProcessState(database);
+    if (version < SESSION_SIDEBAR_ORDER_SCHEMA_VERSION)
+        database.exec(`
+            WITH ranked AS (
+                SELECT id, ROW_NUMBER() OVER (
+                    PARTITION BY project_id ORDER BY last_session_activity_at DESC, created_at DESC, id
+                ) - 1 AS position FROM sessions
+            )
+            UPDATE sessions SET sidebar_order = (SELECT position FROM ranked WHERE ranked.id = sessions.id)
+        `);
 }
 
 function initializeSchema(database: Database.Database): void {

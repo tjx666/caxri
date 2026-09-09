@@ -52,6 +52,7 @@ describe('Agent command handlers', () => {
     });
 
     it('accepts a reply only while the exact waiting attention generation is still current', async () => {
+        const touchSessionActivity = vi.fn(() => true);
         const write = vi.fn(() => true);
         const writeAgent = vi.fn(() => Promise.resolve(true));
         const session = {
@@ -81,6 +82,7 @@ describe('Agent command handlers', () => {
                 })),
                 getSession: vi.fn(() => session),
                 consumeSessionAttentionReply,
+                touchSessionActivity,
                 releaseSessionAttentionReply: vi.fn(() => true),
             } as unknown as CaxriDatabase,
             dispatch: {} as AgentDispatchService,
@@ -114,46 +116,68 @@ describe('Agent command handlers', () => {
         expect(consumeSessionAttentionReply).toHaveBeenCalledOnce();
         expect(write).not.toHaveBeenCalled();
         expect(writeAgent).toHaveBeenCalledOnce();
+        expect(touchSessionActivity).toHaveBeenCalledExactlyOnceWith(
+            'session-1',
+            'user_submission',
+        );
     });
 
-    it('releases the attention claim when the exact Agent input request is rejected', async () => {
-        const releaseSessionAttentionReply = vi.fn(() => true);
-        const handlers = createAgentCommandHandlers({
-            coordinator: { observeInput: vi.fn(() => false) } as unknown as AgentCoordinator,
-            database: {
-                getTerminal: vi.fn(() => ({
-                    id: 'terminal-1',
-                    sessionId: 'session-1',
-                    kind: 'codex',
-                })),
-                getSession: vi.fn(() => ({
-                    id: 'session-1',
-                    primaryAgentTerminalId: 'terminal-1',
-                    lastActivityState: 'waiting',
+    it.each(['false', 'throw'] as const)(
+        'releases the attention claim without promoting a rejected Agent input (%s)',
+        async (failure) => {
+            const releaseSessionAttentionReply = vi.fn(() => true);
+            const touchSessionActivity = vi.fn(() => true);
+            const handlers = createAgentCommandHandlers({
+                coordinator: { observeInput: vi.fn(() => false) } as unknown as AgentCoordinator,
+                database: {
+                    getTerminal: vi.fn(() => ({
+                        id: 'terminal-1',
+                        sessionId: 'session-1',
+                        kind: 'codex',
+                    })),
+                    getSession: vi.fn(() => ({
+                        id: 'session-1',
+                        primaryAgentTerminalId: 'terminal-1',
+                        lastActivityState: 'waiting',
+                        attentionEpoch: 3,
+                        lastSessionActivityAt: 40,
+                    })),
+                    consumeSessionAttentionReply: vi.fn(() => true),
+                    releaseSessionAttentionReply,
+                    touchSessionActivity,
+                } as unknown as CaxriDatabase,
+                dispatch: {} as AgentDispatchService,
+                emit: vi.fn(),
+                mainOwned: () => {
+                    throw new Error('Unexpected public handler call');
+                },
+                terminals: {
+                    processId: vi.fn(() => 4_242),
+                    writeAgent: vi.fn(() =>
+                        failure === 'throw'
+                            ? Promise.reject(new Error('Agent launch ended'))
+                            : Promise.resolve(false),
+                    ),
+                } as unknown as TerminalManager,
+            });
+
+            await expect(
+                handlers['terminal.sendInternal']({
+                    terminalId: 'terminal-1',
+                    text: 'Continue',
+                    enter: true,
                     attentionEpoch: 3,
-                })),
-                consumeSessionAttentionReply: vi.fn(() => true),
-                releaseSessionAttentionReply,
-            } as unknown as CaxriDatabase,
-            dispatch: {} as AgentDispatchService,
-            emit: vi.fn(),
-            mainOwned: () => {
-                throw new Error('Unexpected public handler call');
-            },
-            terminals: {
-                processId: vi.fn(() => 4_242),
-                writeAgent: vi.fn(() => Promise.reject(new Error('Agent launch ended'))),
-            } as unknown as TerminalManager,
-        });
-
-        await expect(
-            handlers['terminal.sendInternal']({
-                terminalId: 'terminal-1',
-                text: 'Continue',
-                enter: true,
-                attentionEpoch: 3,
-            }),
-        ).rejects.toThrow('Agent launch ended');
-        expect(releaseSessionAttentionReply).toHaveBeenCalledWith('session-1', 'terminal-1', 3);
-    });
+                }),
+            ).rejects.toThrow(
+                failure === 'throw' ? 'Agent launch ended' : 'Terminal is no longer running',
+            );
+            expect(releaseSessionAttentionReply).toHaveBeenCalledWith(
+                'session-1',
+                'terminal-1',
+                3,
+                40,
+            );
+            expect(touchSessionActivity).not.toHaveBeenCalled();
+        },
+    );
 });
