@@ -2,6 +2,10 @@ import type { AgentProvider, ServerEvent, SessionRecord } from '@caxri/protocol'
 import { CaxriError, sessionRenameTitleSchema } from '@caxri/protocol';
 
 import type { AgentCoordinator, AgentService } from './agents';
+/**
+ * Server domain boundaries require the owning public root; structure tests reject cross-domain deep imports.
+ */
+// react-doctor-disable-next-line react-doctor/no-barrel-import
 import { agentProviderStateRoot } from './agents';
 import type { CaxriDatabase } from './db';
 
