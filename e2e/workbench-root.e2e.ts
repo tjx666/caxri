@@ -399,6 +399,20 @@ test('Workbench Root selector authorizes a linked worktree when hooks are disabl
                 exact: true,
             }),
         ).toBeVisible();
+        await running.page.keyboard.press('Escape');
+        const bootstrap = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
+        const ownerId = bootstrap.sessions.find((session) => session.id === sessionId)!.projectId;
+        await pageRequest(running.page, 'session.create', {
+            projectId: ownerId,
+            defaultAgent: 'shell',
+        });
+        const next = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
+        const other = next.sessions.find((session) => session.id !== sessionId)!;
+        await running.page.locator(`.session-card[data-session-id="${sessionId}"]`).click();
+        await expect(authorizedSelector).toBeVisible();
+        await running.page.locator(`.session-card[data-session-id="${other.id}"]`).click();
+        await expect(selector).toBeVisible();
+        await expectWorkbenchRoot(running.page, other.id, root, 'main');
     } finally {
         try {
             await running.app.close();
