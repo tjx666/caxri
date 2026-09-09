@@ -58,6 +58,42 @@ describe('removeSessionQueries', () => {
 });
 
 describe('subscribeRuntimeQueryInvalidation', () => {
+    it('invalidates badges only for the emitting view and Workbench scope', () => {
+        const client = new QueryClient();
+        const keys = [
+            ['git.view', 'badge.snapshot', 'session-a:project-a'],
+            ['git.view', 'badge.snapshot', 'session-b:project-b'],
+            ['status.view', 'badge.snapshot', 'session-a:project-a'],
+            ['git.view', 'source.snapshot', 'session-a:project-a'],
+        ].map(([viewId, operation, contextKey]) => [
+            'viewContainers.viewOperation',
+            { viewId, operation, contextKey, arguments: {} },
+        ]);
+        for (const key of keys) client.setQueryData(key, { count: 1 });
+        const unsubscribe = subscribeRuntimeQueryInvalidation(client);
+        mocks.state.handler?.({
+            event: 'viewContainers.viewChanged',
+            payload: {
+                viewId: 'git.view',
+                eventId: 'badge-change',
+                extensionGeneration: 1,
+                context: {
+                    kind: 'session',
+                    sessionId: 'session-a',
+                    workbenchProjectId: 'project-a',
+                },
+                change: { kind: 'badge' },
+            },
+        });
+        expect(keys.map((key) => client.getQueryState(key)?.isInvalidated)).toEqual([
+            true,
+            false,
+            false,
+            false,
+        ]);
+        unsubscribe();
+        client.clear();
+    });
     it('invalidates every cached read after private changefeed recovery uses a snapshot', () => {
         const queryClient = new QueryClient();
         const agentActions = ['agentActions.list', { terminalId: 'terminal-a' }] as const;

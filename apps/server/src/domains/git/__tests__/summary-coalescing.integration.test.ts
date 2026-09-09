@@ -73,6 +73,27 @@ async function statusCommandCount(logger: StructuredLogger): Promise<number> {
 }
 
 describe('GitService summary coalescing', () => {
+    it('refreshes snapshots retained by a sibling Session when a watcher reattaches', async () => {
+        const { database, directory, git, session } =
+            await createStatusFixture('caxri-git-reattach-');
+        const sibling = database.createSession(session.projectId, 'shell').session;
+        await git.summary(session.id);
+        await git.summary(sibling.id);
+        git.evictSessions([session.id]);
+        await writeFile(join(directory, 'while-inactive.txt'), '');
+        const stale = await git.summary(sibling.id);
+        expect(stale.repositories[0].files.map((file) => file.path)).not.toContain(
+            'while-inactive.txt',
+        );
+        await git.observeWatcherAttached(session.id);
+        const updated = await git.summary(session.id);
+        expect(updated.repositories[0].files.map((file) => file.path)).toContain(
+            'while-inactive.txt',
+        );
+        const siblingUpdated = await git.summary(sibling.id);
+        expect(siblingUpdated.repositories[0].generation).toBe(updated.repositories[0].generation);
+    });
+
     /**
      * Regression for #584: the coalescing key used to embed the caller's `refresh` nonce, so the Source Control
      * provider's forced refresh and the Renderer's plain read for the same Session ran as two parallel producers.

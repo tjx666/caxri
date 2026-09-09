@@ -41,7 +41,11 @@ export interface SourceControlClient {
 }
 
 type ViewOperation =
-    'source.action' | 'source.historyDetails' | 'source.historyPage' | 'source.snapshot';
+    | 'badge.snapshot'
+    | 'source.action'
+    | 'source.historyDetails'
+    | 'source.historyPage'
+    | 'source.snapshot';
 
 type ControlledViewQueryOperation = ViewOperation | 'files.list' | 'files.search';
 
@@ -91,7 +95,7 @@ export function isControlledViewOperationQuery(
     );
 }
 
-async function viewOperation<Result>(
+export async function viewOperation<Result>(
     viewId: string,
     context: ExtensionViewEventContext,
     operation: ViewOperation,

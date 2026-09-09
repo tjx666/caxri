@@ -13,6 +13,7 @@ import { CaxriError, methods } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
+import { SingleFlight } from '../../domains/single-flight';
 import type {
     ExtensionHostApiRequest,
     ExtensionHostRegistration,
@@ -31,7 +32,7 @@ import {
     toExtensionViewEventContext,
 } from './service-events';
 import { ExtensionHostSupervisor } from './supervisor';
-import { assertActiveViewContext } from './view-scope';
+import { assertActiveViewContext, extensionForView } from './view-scope';
 import {
     validatedExtensionWorkspaceResult,
     validatedServerWorkspaceResult,
@@ -76,6 +77,7 @@ const readWorkspaceOperations = new Set<ExtensionWorkspaceOperation>([
 ]);
 
 const readViewOperations = new Set<ExtensionViewOperation>([
+    'badge.snapshot',
     'source.snapshot',
     'source.historyPage',
     'source.historyDetails',
@@ -179,6 +181,7 @@ export class ExtensionService extends EventTarget {
     private discovered: DiscoveredExtension[] = [];
     private rejected: DiscoveryResult['rejected'] = [];
     private readonly states = new Map<string, CatalogExtensionState>();
+    private readonly activations = new SingleFlight<string, void>();
     private readonly grants = new Map<string, ExtensionGrant>();
     private revision = 0;
     private supervisor?: ExtensionHostSupervisor;
@@ -424,20 +427,20 @@ export class ExtensionService extends EventTarget {
     }
 
     private extensionForView(viewId: string): DiscoveredExtension {
-        const descriptor = this.catalog().views.find(({ id }) => id === viewId);
-        if (descriptor?.source.kind !== 'extension')
-            throw Object.assign(new Error(`Extension view not found: ${viewId}`), {
-                code: 'PROVIDER_MISSING',
-            });
-        const extensionId = descriptor.source.extensionId;
-        const extension = this.discovered.find(
-            (extension) => extension.extensionId === extensionId,
-        );
-        if (!extension) throw new Error(`Extension not discovered: ${extensionId}`);
-        return extension;
+        return extensionForView(viewId, this.catalog(), this.discovered);
     }
 
-    private async activate(extension: DiscoveredExtension, reason: string): Promise<void> {
+    private activate(extension: DiscoveredExtension, reason: string): Promise<void> {
+        const generation = this.states.get(extension.extensionId)!.generation;
+        /**
+         * Badge and content reads can activate together; a retired child must never own a new generation's work.
+         */
+        return this.activations.run(`${extension.extensionId}:${generation}`, () =>
+            this.activateOnce(extension, reason),
+        );
+    }
+
+    private async activateOnce(extension: DiscoveredExtension, reason: string): Promise<void> {
         const state = this.states.get(extension.extensionId)!;
         if (state.lifecycle === 'active') return;
         this.states.set(extension.extensionId, {
@@ -620,7 +623,11 @@ export class ExtensionService extends EventTarget {
         const extension = this.extensionForView(parameters.viewId);
         const descriptor = this.catalog().views.find(({ id }) => id === parameters.viewId);
         const expectedKind = 'source-control';
-        if (descriptor?.viewKind.kind !== expectedKind)
+        if (
+            parameters.operation === 'badge.snapshot'
+                ? descriptor?.badge !== true
+                : descriptor?.viewKind.kind !== expectedKind
+        )
             throw Object.assign(
                 new Error(`${expectedKind} operation cannot target ${parameters.viewId}`),
                 { code: 'CAPABILITY_DENIED' },

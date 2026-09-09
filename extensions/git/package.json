@@ -44,6 +44,7 @@
                     "id": "caxri.git.sourceControl",
                     "name": "Source Control",
                     "type": "source-control",
+                    "badge": true,
                     "presentation": {
                         "noContextMessage": "Create a Session to inspect Git.",
                         "loadingMessage": "Loading Git status…",
