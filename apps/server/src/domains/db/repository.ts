@@ -251,10 +251,9 @@ export class CaxriDatabase {
             if (sessionId === anchorSessionId) return;
             const ids = this.db.sessions
                 .list(session.projectId)
-                .filter((row) => row.archivedAt === undefined)
+                .filter((row) => row.archivedAt === undefined && row.id !== sessionId)
                 .toSorted(compareSessionSidebarOrder)
-                .map((row) => row.id)
-                .filter((id) => id !== sessionId);
+                .map((row) => row.id);
             ids.splice(
                 ids.indexOf(anchorSessionId) + (placement === 'after' ? 1 : 0),
                 0,

@@ -20,12 +20,14 @@ export function useSessionOrder(sessions: SessionRecord[]) {
         setDropTarget(undefined);
     }, []);
     /**
-     * A removed source cannot deliver React's delegated dragend; never leave the sidebar frozen after its removal.
+     * A removed source cannot deliver React's delegated dragend. Its ref cleanup owns cancellation at the DOM boundary.
      */
-    useEffect(() => {
-        if (draggedId && !pending.current && sessions.every((session) => session.id !== draggedId))
-            clear();
-    }, [clear, draggedId, sessions]);
+    const sourceReference = useCallback(
+        (element: HTMLDivElement | null): void => {
+            if (!element && draggedId && !pending.current) clear();
+        },
+        [clear, draggedId],
+    );
 
     useEffect(() => {
         const end = (): void => {
@@ -65,6 +67,7 @@ export function useSessionOrder(sessions: SessionRecord[]) {
         announcement,
         draggedId,
         dropTarget,
+        sourceReference,
         sessions: frozenSessionOrder(sessions, frozenIds),
         startDrag(event: DragEvent<HTMLElement>, sessionId: string) {
             if (pending.current) {

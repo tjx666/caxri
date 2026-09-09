@@ -83,6 +83,10 @@ test('Session dragging preserves order across restart and yields only to subsequ
                 .locator('.session-card')
                 .evaluateAll((rows) => rows.map((row) => row.dataset.sessionId));
         await expect.poll(order).toEqual([c.id, b.id, a.id]);
+        const alphaRow = running.page.locator(`[data-session-id="${a.id}"]`);
+        await expect(alphaRow).toHaveAttribute('aria-describedby', /\S+/);
+        await alphaRow.hover();
+        await expect(running.page.locator('.session-activity-card')).toBeVisible();
         await running.page.locator(`[data-session-id="${a.id}"]`).click();
         await expect(
             running.page.locator(
@@ -90,6 +94,7 @@ test('Session dragging preserves order across restart and yields only to subsequ
             ),
         ).toBeVisible();
         await dragEvent(running.page, a.id, 'dragstart');
+        await expect(running.page.locator('.session-activity-card')).toBeHidden();
         await dragEvent(running.page, b.id, 'dragover');
         await expect(running.page.locator('.session-drop-marker')).toHaveCount(1);
         // A real Shell submission promotes Alpha on the Server while the drag geometry stays frozen.

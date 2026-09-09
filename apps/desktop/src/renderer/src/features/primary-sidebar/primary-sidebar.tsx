@@ -1,15 +1,12 @@
-import type { CSSProperties, FocusEvent, KeyboardEvent } from 'react';
+import type { FocusEvent, KeyboardEvent } from 'react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
 import type { ProjectRecord } from '@caxri/protocol';
 import { defaultAppSettings } from '@caxri/protocol';
-import { Archive, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 
-import caxriLogoUrl from '../../assets/caxri-logo.png';
 import { executeCommand } from '../../commands/execute';
-import { Button } from '../../components/ui/button';
 import { usePolledQuery } from '../../hooks/use-polled-query';
-import { setArchivedSessionsOpen } from '../../stores/dialogs';
 import {
     useIsFullScreen,
     useProjects,
@@ -28,6 +25,8 @@ import { activeSessionsInSidebarOrder } from '../session/session-activity-order'
 import { useProjectCollapse } from './hooks/use-project-collapse';
 import type { ProjectSessionWindow } from './hooks/use-project-session-windows';
 import { useProjectSessionWindows } from './hooks/use-project-session-windows';
+import { PrimarySidebarFooter } from './primary-sidebar-footer';
+import { PrimarySidebarHeader } from './primary-sidebar-header';
 import type { PrimarySidebarVerticalKey } from './primary-sidebar-tree';
 import {
     flattenPrimarySidebarRows,
@@ -39,7 +38,6 @@ import {
 import { ProjectGroup } from './project-group';
 import { hasProjectDragType } from './project-order';
 import { sessionWorktreeProject, topLevelProjects } from './project-visibility';
-import { SessionHistoryNavigation } from './session-history-navigation';
 import { SESSION_REVEAL_STEP } from './session-list-window';
 
 const PRIMARY_SIDEBAR_VERTICAL_KEYS: readonly PrimarySidebarVerticalKey[] = [
@@ -57,10 +55,6 @@ import { useSessionOrder } from './hooks/use-session-order';
 import { useSessionRename } from './hooks/use-session-rename';
 
 const NO_RECORDS: never[] = [];
-/**
- * Vite serves this repo-only asset in development without bundling it into production.
- */
-const primarySidebarLogoUrl = import.meta.env.DEV ? '/src/assets/caxri-logo-dev.png' : caxriLogoUrl;
 const onAddProject = (): void => executeCommand('project.create');
 
 export function PrimarySidebar() {
@@ -252,25 +246,7 @@ export function PrimarySidebar() {
 
     return (
         <aside className="session-primary-sidebar flex min-w-0 flex-col bg-surface">
-            <div
-                className={`primary-sidebar-title flex h-11 items-center py-0 pr-2 font-semibold ${isFullScreen ? 'pl-3' : 'pl-[84px]'}`}
-                style={{ WebkitAppRegion: 'drag' } as CSSProperties}
-            >
-                {isFullScreen && (
-                    /**
-                     * MacOS hides the traffic lights in fullscreen, leaving the reserved `pl-[84px]` gap empty. Show
-                     * the logo instead so the primarySidebar header keeps a left-side anchor; `data-caxri-logo` also
-                     * lets e2e assert it only exists here.
-                     */
-                    <img
-                        src={primarySidebarLogoUrl}
-                        alt="Caxri"
-                        className="mr-2 h-7 w-7 object-contain"
-                        data-caxri-logo
-                    />
-                )}
-                <SessionHistoryNavigation />
-            </div>
+            <PrimarySidebarHeader isFullScreen={isFullScreen} />
             <div
                 ref={treeReference}
                 aria-label="Primary Side Bar"
@@ -357,20 +333,7 @@ export function PrimarySidebar() {
                     {sessionOrder.announcement}
                 </div>
             </div>
-            <div className="shrink-0 border-t border-border p-2">
-                <Button
-                    className="archived-sessions-entry w-full justify-start text-muted hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
-                    variant="ghost"
-                    aria-label={`Archived Sessions (${archivedCount})`}
-                    onClick={() => setArchivedSessionsOpen(true)}
-                >
-                    <Archive aria-hidden="true" size={14} className="shrink-0" />
-                    <span className="min-w-0 truncate">Archived Sessions</span>
-                    <span aria-hidden="true" className="ml-auto text-[11px] tabular-nums">
-                        {archivedCount}
-                    </span>
-                </Button>
-            </div>
+            <PrimarySidebarFooter archivedCount={archivedCount} />
         </aside>
     );
 }
