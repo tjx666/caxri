@@ -16,6 +16,52 @@ import type { ElectronApplication, Page, TestInfo } from '@playwright/test';
 
 const gateState: { current: E2EErrorGate | undefined } = { current: undefined };
 
+const ERROR_TOAST_BINDING = '__caxriE2EReportErrorToast';
+
+interface ObservedToastDocument extends Document {
+    __caxriE2EErrorToastReports?: Array<Promise<void>>;
+}
+
+/**
+ * Runs inside each document, including after reload. Observe notification lifetimes instead of sampling the final DOM:
+ * Sonner expires errors and updates duplicate notifications in place. Never transport notification text or attributes.
+ */
+function observeErrorToasts(binding: string): void {
+    const target = document as ObservedToastDocument;
+    if (target.__caxriE2EErrorToastReports) return;
+    const reports: Array<Promise<void>> = [];
+    Object.defineProperty(target, '__caxriE2EErrorToastReports', { value: reports });
+    const seen = new WeakSet<Element>();
+    const selector = '[data-sonner-toast][data-type="error"]';
+    const record = (element: Element): void => {
+        if (!element.matches(selector) || seen.has(element)) return;
+        seen.add(element);
+        // Await acknowledgements before Electron closes; fire-and-forget console events can lose this race.
+        reports.push((globalThis as unknown as Record<string, () => Promise<void>>)[binding]());
+    };
+    const scan = (node: Node): void => {
+        if (!(node instanceof Element)) return;
+        record(node);
+        for (const element of node.querySelectorAll(selector)) record(element);
+    };
+    new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+            if (mutation.type === 'attributes') scan(mutation.target);
+            else {
+                for (const node of mutation.addedNodes) scan(node);
+                // Also cover a notification inserted and removed in the same task, before the observer runs.
+                for (const node of mutation.removedNodes) scan(node);
+            }
+        }
+    }).observe(document, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['data-sonner-toast', 'data-type'],
+    });
+    for (const element of document.querySelectorAll(selector)) record(element);
+}
+
 interface E2ELaunch {
     app: ElectronApplication;
     finalizer: E2ELaunchFinalizer;
@@ -25,6 +71,7 @@ interface E2ELaunch {
 class E2EErrorGate {
     private readonly allowances: E2EErrorAllowance[] = [];
     private readonly attachedPages = new WeakSet<Page>();
+    private readonly crashedPages = new WeakSet<Page>();
     private readonly directErrors: E2EErrorEvent[] = [];
     private readonly logSnapshots = new Map<string, E2ELogSnapshot>();
     private readonly launches: E2ELaunch[] = [];
@@ -37,6 +84,7 @@ class E2EErrorGate {
     private attachPage(page: Page): void {
         if (this.attachedPages.has(page)) return;
         this.attachedPages.add(page);
+        page.on('crash', () => this.crashedPages.add(page));
         page.on('pageerror', () => {
             this.directErrors.push({
                 source: 'renderer',
@@ -80,11 +128,11 @@ class E2EErrorGate {
         this.allowances.push(...allowances);
     }
 
-    register(
+    async register(
         app: ElectronApplication,
         userDataDirectory: string,
         cleanup: () => Promise<void>,
-    ): void {
+    ): Promise<void> {
         const finalizer = createE2ELaunchFinalizer(cleanup);
         this.launches.push({ app, finalizer, userDataDirectory });
         for (const page of app.windows()) this.attachPage(page);
@@ -102,6 +150,43 @@ class E2EErrorGate {
                 }
             }
         });
+        const context = app.context();
+        await context.exposeBinding(ERROR_TOAST_BINDING, () => {
+            this.directErrors.push({ source: 'renderer', event: 'toast', code: 'ERROR_TOAST' });
+        });
+        await context.addInitScript(observeErrorToasts, ERROR_TOAST_BINDING);
+        await Promise.all(
+            context.pages().map((page) => page.evaluate(observeErrorToasts, ERROR_TOAST_BINDING)),
+        );
+    }
+
+    /**
+     * Flush the browser-to-runner acknowledgements before the separate Electron connection destroys the windows.
+     */
+    async flushToasts(app: ElectronApplication): Promise<void> {
+        await Promise.all(
+            app
+                .context()
+                .pages()
+                .map(async (page) => {
+                    if (page.isClosed() || this.crashedPages.has(page)) return;
+                    try {
+                        await page.evaluate(async () => {
+                            const reports = (document as ObservedToastDocument)
+                                .__caxriE2EErrorToastReports;
+                            if (!reports)
+                                throw new Error('E2E error-toast observer is unavailable');
+                            await Promise.all(reports);
+                        });
+                    } catch (error) {
+                        if (!page.isClosed() && !this.crashedPages.has(page)) {
+                            // Several specs ignore app.close() errors; the fixture must still reject failed capture.
+                            this.captureFailures.push(error);
+                            throw error;
+                        }
+                    }
+                }),
+        );
     }
 
     async finish(): Promise<void> {
@@ -146,14 +231,18 @@ export async function runWithE2EErrorGate(
     }
 }
 
-export function registerE2ELaunch(
+export async function registerE2ELaunch(
     app: ElectronApplication,
     userDataDirectory: string,
     cleanup: () => Promise<void>,
-): void {
+): Promise<void> {
     const gate = gateState.current;
     if (!gate) throw new Error('launchCaxri must run inside the shared E2E test fixture');
-    gate.register(app, userDataDirectory, cleanup);
+    await gate.register(app, userDataDirectory, cleanup);
+}
+
+export async function flushE2EErrorToasts(app: ElectronApplication): Promise<void> {
+    await gateState.current?.flushToasts(app);
 }
 
 /**

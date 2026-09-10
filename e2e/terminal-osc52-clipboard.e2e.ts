@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test } from './support/fixtures.ts';
+import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import {
     createAdditionalShellSession,
     createShellSession,
@@ -52,6 +52,8 @@ const OSC52_BLOCKED_TOASTS = {
 } as const;
 
 test('OSC 52 clipboard writes honor opt-out and remain bounded, write-only, and lifecycle-safe', async () => {
+    // The opt-out asserted below tells the user once that a Terminal program was denied the clipboard.
+    allowE2EErrors([{ source: 'renderer', event: 'toast', code: 'ERROR_TOAST', count: 1 }]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-osc52-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');

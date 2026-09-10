@@ -120,6 +120,88 @@ test('issue-104-error-gate: observes a page exception while the UI remains usabl
  */
 const UNGRANTED_ROOT_PATH = '/caxri-e2e-error-gate-ungranted-root';
 
+/**
+ * Exercises a real notification without a matching console or backend error.
+ */
+async function observeDismissedErrorToast(shouldReload = false): Promise<void> {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-error-gate-toast-'));
+    const running = await launchCaxri({
+        userDataDir: join(testDirectory, 'user-data'),
+        testRootPath: testDirectory,
+    });
+    try {
+        if (shouldReload) await running.page.reload();
+        await expect(running.page.getByRole('tree', { name: 'Primary Side Bar' })).toBeAttached();
+        await running.app.evaluate(({ BrowserWindow }) => {
+            BrowserWindow.getAllWindows()[0].webContents.send('caxri:event', {
+                event: 'settings.changed',
+                payload: { source: '{}', error: 'CAXRI_EXPECTED_E2E_TOAST' },
+            });
+        });
+        const notification = running.page.locator('[data-sonner-toast][data-type="error"]');
+        await expect(notification).toBeVisible();
+        await notification.getByRole('button', { name: 'Dismiss notification' }).click();
+        await expect(notification).toHaveCount(0);
+    } finally {
+        await running.app.close();
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+}
+
+errorGateSelfTest(
+    'error toast gate rejects an unexpected notification after dismissal',
+    // eslint-disable-next-line no-empty-pattern -- Playwright requires object destructuring
+    async ({}, testInfo) => {
+        await expectGateFailure(
+            testInfo,
+            'Unexpected E2E errors: renderer/toast/ERROR_TOAST x1',
+            () => observeDismissedErrorToast(),
+        );
+    },
+);
+
+test('error toast gate consumes an exact expected notification after dismissal', async () => {
+    allowE2EErrors([{ source: 'renderer', event: 'toast', code: 'ERROR_TOAST', count: 1 }]);
+    await observeDismissedErrorToast();
+});
+
+test('error toast gate observes notifications after a document reload', async () => {
+    allowE2EErrors([{ source: 'renderer', event: 'toast', code: 'ERROR_TOAST', count: 1 }]);
+    await observeDismissedErrorToast(true);
+});
+
+test('error toast gate observes transient errors in future windows and ignores other kinds', async () => {
+    allowE2EErrors([{ source: 'renderer', event: 'toast', code: 'ERROR_TOAST', count: 1 }]);
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-error-gate-window-'));
+    const running = await launchCaxri({
+        userDataDir: join(testDirectory, 'user-data'),
+        testRootPath: testDirectory,
+    });
+    try {
+        const [page] = await Promise.all([
+            running.app.waitForEvent('window'),
+            running.app.evaluate(async ({ BrowserWindow }) => {
+                const window = new BrowserWindow({ show: false });
+                await window.loadURL('about:blank');
+            }),
+        ]);
+        await page.evaluate(() => {
+            // Synchronous removal leaves no final DOM to sample; the observer must retain the mutation records.
+            for (const kind of ['info', 'success', 'error']) {
+                const notification = document.createElement('div');
+                notification.dataset.sonnerToast = '';
+                document.body.append(notification);
+                notification.dataset.type = kind;
+                notification.remove();
+            }
+        });
+        await page.close();
+    } finally {
+        await running.app.close();
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
 errorGateSelfTest(
     'issue-104-error-gate: rejects an unexpected Desktop error after usable UI',
     // eslint-disable-next-line no-empty-pattern -- Playwright requires the first test argument to be an object destructuring pattern
