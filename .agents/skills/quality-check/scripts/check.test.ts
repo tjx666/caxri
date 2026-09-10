@@ -7,6 +7,7 @@ import {
     directImportTestCandidates,
     dirtyLayerReportForFiles,
     eslintArguments,
+    eslintTargets,
     formatCheckSummary,
     hasDirectSourceImport,
     IMPORT_PATH_ALIASES,
@@ -258,6 +259,27 @@ describe('eslintArguments', () => {
             '--no-warn-ignored',
             '--max-warnings=0',
             'tools/oxlint/anti-slop/index.ts',
+        ]);
+    });
+});
+
+describe('eslintTargets', () => {
+    /**
+     * ESLint lints fenced JS/TS blocks in Markdown, so a doc snippet can fail the repository-wide `lint` gate. Skipping
+     * `.md` here let exactly that pass a focused check and fail CI.
+     */
+    it('lints Markdown alongside code, and leaves other formatted files to Prettier', () => {
+        expect(
+            eslintTargets(
+                lintBucketsForFiles([
+                    'apps/desktop/src/main/index.ts',
+                    '.agents/skills/audit-ux/references/render-layer.md',
+                    'package.json',
+                ]),
+            ),
+        ).toEqual([
+            'apps/desktop/src/main/index.ts',
+            '.agents/skills/audit-ux/references/render-layer.md',
         ]);
     });
 });

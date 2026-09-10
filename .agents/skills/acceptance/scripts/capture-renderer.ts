@@ -4,6 +4,8 @@ import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
+import type { CdpConnection } from '../../debug/scripts/cdp-client';
+import { connectToRenderer } from '../../debug/scripts/cdp-client';
 import type { TerminalFixturePreflightReceipt } from './fixture-preflight';
 import {
     createTerminalFixturePreflightReceipt,
@@ -11,12 +13,6 @@ import {
 } from './fixture-preflight';
 import type { RuntimeState } from './runtime-state';
 import { isOwnedRuntime, runtimeStateSchema } from './runtime-state';
-
-interface CdpTarget {
-    type: string;
-    url: string;
-    webSocketDebuggerUrl?: string;
-}
 
 interface FrameOptions {
     command: 'frames';
@@ -50,7 +46,6 @@ const PROJECT_ROOT = resolve(dirname(SCRIPT_PATH), '../../../..');
 const RUNTIME_PATH = join(PROJECT_ROOT, '.records', 'acceptance', 'runtime.json');
 const MAX_FRAME_COUNT = 600;
 const MAX_INTERVAL_MS = 60_000;
-const CDP_TIMEOUT_MS = 10_000;
 const HELP = `Capture the owned isolated Caxri Renderer through CDP.
 
 Usage:
@@ -166,34 +161,6 @@ export async function requireCapturePreflight(path: string): Promise<void> {
     }
 }
 
-export function selectRendererTarget(targets: CdpTarget[], urlContains?: string): CdpTarget {
-    const pages = targets.filter(
-        (target) =>
-            target.type === 'page' &&
-            Boolean(target.webSocketDebuggerUrl) &&
-            !target.url.startsWith('devtools://'),
-    );
-    const mainRendererPages = pages.filter((target) =>
-        /\/out\/renderer\/index\.html(?:[?#]|$)/.test(target.url),
-    );
-    const rendererPages = pages.filter((target) => target.url.includes('/out/renderer/'));
-    const candidates = urlContains
-        ? pages.filter((target) => target.url.includes(urlContains))
-        : mainRendererPages.length > 0
-          ? mainRendererPages
-          : rendererPages.length > 0
-            ? rendererPages
-            : pages;
-    if (candidates.length !== 1) {
-        const urls = pages.map((target) => target.url).join(', ') || 'none';
-        const selector = urlContains ? ` matching "${urlContains}"` : '';
-        throw new Error(
-            `Expected exactly one Caxri Renderer CDP target${selector}; available: ${urls}`,
-        );
-    }
-    return candidates[0];
-}
-
 export function resolveOwnedCapturePort(runtimePort: number, requestedPort?: number): number {
     if (requestedPort !== undefined && requestedPort !== runtimePort) {
         throw new Error(
@@ -209,122 +176,12 @@ export function requiresRuntimeTerminalFixturePreflight(
     return acceptanceCase?.requiresTerminalFixturePreflight !== false;
 }
 
-class CdpClient {
-    static async connect(url: string): Promise<CdpClient> {
-        const socket = new WebSocket(url);
-        await new Promise<void>((resolve, reject) => {
-            const timeout = setTimeout(() => {
-                cleanup();
-                socket.close();
-                reject(new Error(`Timed out connecting to ${url}`));
-            }, CDP_TIMEOUT_MS);
-
-            function cleanup(): void {
-                clearTimeout(timeout);
-                socket.removeEventListener('open', onOpen);
-                socket.removeEventListener('error', onError);
-            }
-
-            function onOpen(): void {
-                cleanup();
-                resolve();
-            }
-
-            function onError(): void {
-                cleanup();
-                reject(new Error(`Unable to connect to ${url}`));
-            }
-
-            socket.addEventListener('open', onOpen, { once: true });
-            socket.addEventListener('error', onError, { once: true });
-        });
-        return new CdpClient(socket);
-    }
-
-    private nextId = 1;
-    private readonly pending = new Map<
-        number,
-        { reject: (error: Error) => void; resolve: (value: unknown) => void }
-    >();
-
-    private constructor(private readonly socket: WebSocket) {
-        socket.addEventListener('message', (event) => {
-            const message = JSON.parse(String(event.data)) as {
-                error?: { message: string };
-                id?: number;
-                result?: unknown;
-            };
-            if (message.id === undefined) return;
-            const request = this.pending.get(message.id);
-            if (!request) return;
-            this.pending.delete(message.id);
-            if (message.error) request.reject(new Error(message.error.message));
-            else request.resolve(message.result);
-        });
-        socket.addEventListener('close', () => {
-            for (const request of this.pending.values()) {
-                request.reject(new Error('CDP connection closed'));
-            }
-            this.pending.clear();
-        });
-    }
-
-    close(): void {
-        this.socket.close();
-    }
-
-    async request<T>(
-        method: string,
-        parameters: Record<string, unknown> = {},
-        timeoutMs = CDP_TIMEOUT_MS,
-    ): Promise<T> {
-        const id = this.nextId++;
-        const result = new Promise<unknown>((resolve, reject) => {
-            const timeout = setTimeout(() => {
-                this.pending.delete(id);
-                reject(new Error(`CDP ${method} timed out after ${timeoutMs}ms`));
-            }, timeoutMs);
-            this.pending.set(id, {
-                reject: (error) => {
-                    clearTimeout(timeout);
-                    reject(error);
-                },
-                resolve: (value) => {
-                    clearTimeout(timeout);
-                    resolve(value);
-                },
-            });
-        });
-        this.socket.send(JSON.stringify({ id, method, params: parameters }));
-        return (await result) as T;
-    }
-}
-
-interface CaptureClient {
-    close(): void;
-    request<T>(
-        method: string,
-        parameters?: Record<string, unknown>,
-        timeoutMs?: number,
-    ): Promise<T>;
-}
-
-type CaptureConnector = (port: number, urlContains?: string) => Promise<CaptureClient>;
-
-async function connect(port: number, urlContains?: string): Promise<CdpClient> {
-    const response = await fetch(`http://127.0.0.1:${port}/json/list`, {
-        signal: AbortSignal.timeout(CDP_TIMEOUT_MS),
-    });
-    if (!response.ok) throw new Error(`CDP target discovery failed with HTTP ${response.status}`);
-    const target = selectRendererTarget((await response.json()) as CdpTarget[], urlContains);
-    if (!target.webSocketDebuggerUrl) throw new Error('Renderer target has no WebSocket URL');
-    return CdpClient.connect(target.webSocketDebuggerUrl);
-}
+type CaptureConnector = (port: number, urlContains?: string) => Promise<CdpConnection>;
 
 export async function captureFrames(
     options: FrameOptions,
     port: number,
-    connectClient: CaptureConnector = connect,
+    connectClient: CaptureConnector = connectToRenderer,
     requiresTerminalFixturePreflight = true,
 ): Promise<void> {
     if (requiresTerminalFixturePreflight && !options.fixturePreflight) {
@@ -381,7 +238,7 @@ export async function captureFrames(
 }
 
 async function captureDom(options: DomOptions, port: number): Promise<void> {
-    const client = await connect(port, options.urlContains);
+    const client = await connectToRenderer(port, options.urlContains);
     try {
         const expression = `(() => {
             const node = document.querySelector(${JSON.stringify(options.selector)});
@@ -406,7 +263,7 @@ async function captureDom(options: DomOptions, port: number): Promise<void> {
 export async function captureScreenshot(
     options: ScreenshotOptions,
     port: number,
-    connectClient: CaptureConnector = connect,
+    connectClient: CaptureConnector = connectToRenderer,
 ): Promise<void> {
     const client = await connectClient(port, options.urlContains);
     try {
@@ -443,7 +300,7 @@ async function main(): Promise<void> {
         const requiresTerminalFixturePreflight = requiresRuntimeTerminalFixturePreflight(
             runtime.acceptanceCase,
         );
-        await captureFrames(options, port, connect, requiresTerminalFixturePreflight);
+        await captureFrames(options, port, connectToRenderer, requiresTerminalFixturePreflight);
     } else if (options.command === 'dom') await captureDom(options, port);
     else await captureScreenshot(options, port);
 }
