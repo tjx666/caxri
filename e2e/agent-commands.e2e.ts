@@ -59,7 +59,23 @@ function runCli(
             process.execPath,
             [cliPath, ...arguments_],
             {
-                env: { ...process.env, ...environment },
+                /**
+                 * Model a synthetic human caller independently of the runner's automation identity.
+                 */
+                env: {
+                    ...process.env,
+                    CI: undefined,
+                    GITHUB_ACTIONS: undefined,
+                    CODEX_THREAD_ID: undefined,
+                    CLAUDECODE: undefined,
+                    CLAUDE_CODE_ENTRYPOINT: undefined,
+                    GROK_SESSION_ID: undefined,
+                    CAXRI_AGENT_ENDPOINT_HOST_ID: undefined,
+                    CAXRI_AGENT_ENDPOINT_ID: undefined,
+                    CAXRI_AGENT_ENDPOINT_GENERATION: undefined,
+                    CAXRI_AGENT_ENDPOINT_TOKEN: undefined,
+                    ...environment,
+                },
                 maxBuffer: 1024 * 1024,
                 timeout: 10_000,
             },
