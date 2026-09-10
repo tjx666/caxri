@@ -1,26 +1,47 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({
-    askAgentForProject: vi.fn(),
-    caxriRequest: vi.fn((): Promise<unknown> => Promise.resolve([])),
-    dropSessions: vi.fn(),
-    getBootstrap: vi.fn(),
-    getQueryData: vi.fn(),
-    getSelectedSession: vi.fn(),
-    openExternalUrl: vi.fn(() => Promise.resolve()),
-    registerSessionCommandConvergence: vi.fn(() => ({
-        cancel: vi.fn(),
-        promise: Promise.resolve(),
-    })),
-    refreshWorkbench: vi.fn(() => Promise.resolve()),
-    removeSessionQueries: vi.fn(),
-    selectSelectedProject: vi.fn(),
-    tryCommand: vi.fn(
-        async (
-            ...[, run]: [string, () => Promise<unknown>, { refresh?: () => Promise<void> }?]
-        ): Promise<unknown> => run(),
-    ),
-}));
+import type { ToastKind, ToastOptions } from '../../../stores/toasts';
+
+const mocks = vi.hoisted(() => {
+    const pushToast = vi.fn<(kind: ToastKind, message: string, options?: ToastOptions) => void>();
+    return {
+        askAgentForProject: vi.fn(),
+        caxriRequest: vi.fn((): Promise<unknown> => Promise.resolve([])),
+        dropSessions: vi.fn(),
+        getBootstrap: vi.fn(),
+        getQueryData: vi.fn(),
+        getSelectedSession: vi.fn(),
+        openExternalUrl: vi.fn(() => Promise.resolve()),
+        pushToast,
+        registerSessionCommandConvergence: vi.fn(() => ({
+            cancel: vi.fn(),
+            promise: Promise.resolve(),
+        })),
+        refreshWorkbench: vi.fn(() => Promise.resolve()),
+        removeSessionQueries: vi.fn(),
+        selectSelectedProject: vi.fn(),
+        /**
+         * Mirrors the real funnel's swallow-and-report contract rather than only forwarding `run`: an action offered
+         * inside a toast must survive its own request failing, which is unobservable when the double re-throws.
+         */
+        tryCommand: vi.fn(
+            async (
+                ...[label, run]: [
+                    string,
+                    () => Promise<unknown>,
+                    { refresh?: () => Promise<void> }?,
+                ]
+            ): Promise<unknown> => {
+                try {
+                    return await run();
+                } catch (error) {
+                    pushToast('error', `${label}: ${(error as Error).message}`);
+                    return undefined;
+                }
+            },
+        ),
+    };
+});
 
 vi.mock('../../../lib/caxri', () => ({ caxri: { request: mocks.caxriRequest } }));
 vi.mock('../../../lib/external-link', () => ({ openExternalUrl: mocks.openExternalUrl }));
@@ -46,7 +67,10 @@ vi.mock('../../../stores/selectors', () => ({
 vi.mock('../../../stores/session-view', () => ({
     useSessionViewStore: { getState: vi.fn(() => ({ dropSessions: mocks.dropSessions })) },
 }));
-vi.mock('../../../stores/toasts', () => ({ pushToast: vi.fn(), tryCommand: mocks.tryCommand }));
+vi.mock('../../../stores/toasts', () => ({
+    pushToast: mocks.pushToast,
+    tryCommand: mocks.tryCommand,
+}));
 vi.mock('../../../stores/workbench', () => ({
     registerSessionCommandConvergence: mocks.registerSessionCommandConvergence,
     refreshWorkbench: mocks.refreshWorkbench,
@@ -54,8 +78,11 @@ vi.mock('../../../stores/workbench', () => ({
 }));
 
 import {
+    archiveSelectedSession,
+    archiveSession,
     deleteSelectedSession,
     deleteSession,
+    describeArchivedSession,
     didReorderProject,
     didReorderSession,
     didSelectSession,
@@ -76,6 +103,7 @@ describe('Session actions', () => {
         mocks.getQueryData.mockReset();
         mocks.getSelectedSession.mockReset();
         mocks.openExternalUrl.mockClear();
+        mocks.pushToast.mockClear();
         mocks.registerSessionCommandConvergence.mockClear();
         mocks.refreshWorkbench.mockClear();
         mocks.removeSessionQueries.mockClear();
@@ -376,6 +404,81 @@ describe('Session actions', () => {
         expect(mocks.tryCommand).not.toHaveBeenCalled();
     });
 
+    it('records an archive as an undoable info notice naming the Session', async () => {
+        mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-1', displayTitle: 'api-fix' });
+
+        archiveSession('session-1');
+        await mocks.tryCommand.mock.results[0]?.value;
+
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('session.archive', {
+            sessionId: 'session-1',
+        });
+        expect(mocks.tryCommand.mock.calls[0]?.[2]).toEqual({ refresh: mocks.refreshWorkbench });
+        expect(mocks.pushToast).toHaveBeenCalledOnce();
+        const [kind, message, options] = mocks.pushToast.mock.calls[0] ?? [];
+        expect(kind).toBe('info');
+        expect(message).toBe('Archived "api-fix"');
+        expect(options?.action?.label).toBe('Undo');
+        // Archiving is reversible, so the notice takes the ordinary four-second expiry.
+        expect(options?.persist).toBeUndefined();
+    });
+
+    it('restores the archived Session when the notice Undo action is used', async () => {
+        mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-1', displayTitle: 'api-fix' });
+        archiveSession('session-1');
+        await mocks.tryCommand.mock.results[0]?.value;
+        mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-1', displayTitle: 'api-fix' });
+
+        mocks.pushToast.mock.calls[0]?.[2]?.action?.onSelect();
+        await mocks.tryCommand.mock.results[1]?.value;
+
+        expect(mocks.caxriRequest).toHaveBeenLastCalledWith('session.unarchive', {
+            sessionId: 'session-1',
+        });
+        expect(mocks.tryCommand.mock.calls[1]?.[2]).toEqual({ refresh: mocks.refreshWorkbench });
+    });
+
+    it('reports a stale Undo as an error instead of throwing out of the notice', async () => {
+        mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-1', displayTitle: 'api-fix' });
+        archiveSession('session-1');
+        await mocks.tryCommand.mock.results[0]?.value;
+        // The Session was deleted, or the window navigated away, while the notice was still on screen.
+        mocks.caxriRequest.mockRejectedValueOnce(new Error('Session not found'));
+
+        expect(() => mocks.pushToast.mock.calls[0]?.[2]?.action?.onSelect()).not.toThrow();
+        await mocks.tryCommand.mock.results[1]?.value;
+
+        expect(mocks.pushToast).toHaveBeenLastCalledWith(
+            'error',
+            'Session restore failed: Session not found',
+        );
+    });
+
+    it('stays silent when the archive request itself fails', async () => {
+        mocks.caxriRequest.mockRejectedValueOnce(new Error('Server is not ready'));
+
+        archiveSession('session-1');
+        await mocks.tryCommand.mock.results[0]?.value;
+
+        expect(mocks.pushToast).toHaveBeenCalledExactlyOnceWith(
+            'error',
+            'Session archive failed: Server is not ready',
+        );
+    });
+
+    it('archives the selected Session through the same notice path', async () => {
+        mocks.getSelectedSession.mockReturnValue({ id: 'session-2' });
+        mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-2', displayTitle: 'docs' });
+
+        archiveSelectedSession();
+        await mocks.tryCommand.mock.results[0]?.value;
+
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('session.archive', {
+            sessionId: 'session-2',
+        });
+        expect(mocks.pushToast).toHaveBeenCalledWith('info', 'Archived "docs"', expect.anything());
+    });
+
     it('does not request a Terminal move when it is the only work tab', () => {
         moveTerminalToNewSession('terminal-1', true);
 
@@ -394,5 +497,42 @@ describe('Session actions', () => {
         expect(mocks.tryCommand.mock.calls[0]?.[2]).toEqual({
             refresh: mocks.refreshWorkbench,
         });
+    });
+});
+
+describe('Archived Session notice copy', () => {
+    it('quotes the Session title', () => {
+        expect(describeArchivedSession('api-fix')).toBe('Archived "api-fix"');
+    });
+
+    it('names the noun instead of quoting an empty or blank title', () => {
+        expect(describeArchivedSession('')).toBe('Archived Session');
+        expect(describeArchivedSession(' '.repeat(3))).toBe('Archived Session');
+        expect(describeArchivedSession(undefined)).toBe('Archived Session');
+    });
+
+    it('trims surrounding whitespace before quoting', () => {
+        expect(describeArchivedSession('  api-fix\n')).toBe('Archived "api-fix"');
+    });
+
+    it('truncates a runaway title so the Undo action keeps its room', () => {
+        const message = describeArchivedSession('a'.repeat(400));
+
+        expect(message).toBe(`Archived "${'a'.repeat(48)}…"`);
+        expect(message.length).toBeLessThan(64);
+    });
+
+    it('does not leave a dangling space before the ellipsis', () => {
+        expect(describeArchivedSession(`${'a'.repeat(47)} tail`)).toBe(
+            `Archived "${'a'.repeat(47)}…"`,
+        );
+    });
+
+    it('never cuts a surrogate pair in half', () => {
+        const message = describeArchivedSession('🚀'.repeat(60));
+
+        expect(message).toBe(`Archived "${'🚀'.repeat(48)}…"`);
+        expect(message).not.toContain('�');
+        expect(message.split('\u{D83D}').length - 1).toBe(48);
     });
 });
