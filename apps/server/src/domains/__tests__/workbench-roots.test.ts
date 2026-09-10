@@ -515,51 +515,75 @@ describe('WorkbenchRootService worktree attribution', () => {
         context.database.close();
     });
 
-    it('attributes an authorized worktree to the owning Project and still lists it as a Root option', async () => {
-        const context = await fixture();
-        await prime(context);
-        await beginWorktreeCreation(context);
-        context.setWorktrees([
-            { branch: 'main', rootPath: context.ownerRoot },
-            { branch: 'feature/attributed', rootPath: context.worktreeRoot },
-        ]);
-        expect(
-            context.service.observeShellToolFinished(
-                shellFinished(context, { worktreeCreateIntent: true }),
-            ),
-        ).toBe('accepted');
-        await vi.waitFor(() =>
+    it.each(['immediate', 'delayed claim', 'delayed authorization', 'delayed dismiss'])(
+        'keeps an available worktree suggestion actionable: %s',
+        async (action) => {
+            const context = await fixture();
+            await prime(context);
+            await beginWorktreeCreation(context);
+            context.setWorktrees([
+                { branch: 'main', rootPath: context.ownerRoot },
+                { branch: 'feature/attributed', rootPath: context.worktreeRoot },
+            ]);
             expect(
-                context.events.filter((event) => event.event === 'workbench.candidate'),
-            ).toHaveLength(1),
-        );
-        const candidate = context.events.find((event) => event.event === 'workbench.candidate');
-        if (candidate?.event !== 'workbench.candidate') throw new Error('Candidate not emitted');
-        expect(candidate.payload.rootPath).toBe(context.worktreeRoot);
-        context.service.claimCandidate(
-            context.sessions[0].session.id,
-            candidate.payload.candidateId,
-        );
-
-        await context.service.authorizeCandidate(
-            context.sessions[0].session.id,
-            candidate.payload.candidateId,
-            context.worktreeRoot,
-        );
-
-        expect(context.database.findProjectByRootPath(context.worktreeRoot)).toMatchObject({
-            ownerProjectId: context.owner.id,
-        });
-        // Hidden from the PrimarySidebar, but the Workbench Root picker must still offer it.
-        await expect(
-            context.service.listOptions(context.sessions[0].session.id),
-        ).resolves.toMatchObject([
-            { owner: true, projectId: context.owner.id },
-            { branch: 'feature/attributed', owner: false },
-        ]);
-        await context.service.close();
-        context.database.close();
-    });
+                context.service.observeShellToolFinished(
+                    shellFinished(context, { worktreeCreateIntent: true }),
+                ),
+            ).toBe('accepted');
+            await vi.waitFor(() =>
+                expect(
+                    context.events.filter((event) => event.event === 'workbench.candidate'),
+                ).toHaveLength(1),
+            );
+            const candidate = context.events.find((event) => event.event === 'workbench.candidate');
+            if (candidate?.event !== 'workbench.candidate')
+                throw new Error('Candidate not emitted');
+            expect(candidate.payload.rootPath).toBe(context.worktreeRoot);
+            const later = Date.now() + 24 * 60 * 60_000;
+            const clock = vi.spyOn(Date, 'now');
+            try {
+                if (action === 'delayed claim' || action === 'delayed dismiss')
+                    clock.mockReturnValue(later);
+                if (action === 'delayed dismiss') {
+                    expect(() =>
+                        context.service.dismissCandidate(
+                            context.sessions[0].session.id,
+                            candidate.payload.candidateId,
+                        ),
+                    ).not.toThrow();
+                    expect(
+                        context.database.getSession(context.sessions[0].session.id)
+                            ?.workbenchProjectId,
+                    ).toBe(context.owner.id);
+                    return;
+                }
+                context.service.claimCandidate(
+                    context.sessions[0].session.id,
+                    candidate.payload.candidateId,
+                );
+                if (action === 'delayed authorization') clock.mockReturnValue(later);
+                await context.service.authorizeCandidate(
+                    context.sessions[0].session.id,
+                    candidate.payload.candidateId,
+                    context.worktreeRoot,
+                );
+                expect(context.database.findProjectByRootPath(context.worktreeRoot)).toMatchObject({
+                    ownerProjectId: context.owner.id,
+                });
+                // Hidden from the PrimarySidebar, but the Workbench Root picker must still offer it.
+                await expect(
+                    context.service.listOptions(context.sessions[0].session.id),
+                ).resolves.toMatchObject([
+                    { owner: true, projectId: context.owner.id },
+                    { branch: 'feature/attributed', owner: false },
+                ]);
+            } finally {
+                clock.mockRestore();
+                await context.service.close();
+                context.database.close();
+            }
+        },
+    );
 
     it('attributes an explicitly selected worktree, but never re-owns a manually added root', async () => {
         const context = await fixture();
