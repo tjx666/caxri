@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import { execFileAsync } from '@caxri/system';
+import { GitPullRequestErrorMessage } from 'caxri';
 
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri } from './support/helpers.ts';
@@ -78,6 +79,24 @@ test('Git Pull Request mode shows committed PR changes instead of the working tr
     );
     await chmod(gh, 0o755);
 
+    /**
+     * The unrelated nested PR must fail offline, without contacting a real GitHub repository.
+     */
+    const realGit = (await execFileAsync('which', ['git'])).stdout.trim();
+    const git = join(bin, 'git');
+    await writeFile(
+        git,
+        `#!/usr/bin/env node
+// 为 Electron 固定测试拦截 fetch，其余 Git 操作交给真实 Git。
+const { spawnSync } = require('node:child_process');
+if (process.argv[2] === 'fetch') process.exit(1);
+const result = spawnSync(${JSON.stringify(realGit)}, process.argv.slice(2), { stdio: 'inherit' });
+process.exit(result.status ?? 1);
+`,
+        'utf8',
+    );
+    await chmod(git, 0o755);
+
     const running = await launchCaxri({
         userDataDir: userData,
         testRootPath: root,
@@ -102,8 +121,14 @@ test('Git Pull Request mode shows committed PR changes instead of the working tr
         await expect(running.page.getByText('PR #42 Changes', { exact: true })).toBeVisible();
         await expect(files.locator('.git-row[title="pr-only.txt"]')).toBeVisible();
         await expect(
-            running.page.getByText('Unable to load pull request changes.', { exact: true }),
+            running.page.getByText(GitPullRequestErrorMessage.missingCommits, { exact: true }),
         ).toBeVisible();
+        await running.page
+            .locator('.git-repository-section')
+            .last()
+            .screenshot({
+                path: test.info().outputPath('pr-missing-commits.png'),
+            });
         await running.page.evaluate(() => {
             const heading = document.querySelector('.git-heading');
             let hasFlickered = false;
@@ -149,7 +174,7 @@ test('Git Pull Request mode shows committed PR changes instead of the working tr
         await expect(files.locator('.git-row[title="tracked.txt"]')).toBeVisible();
         await expect(files.locator('.git-row[title="working-only.txt"]')).toHaveCount(0);
         await expect(
-            running.page.getByText('Unable to load pull request changes.', { exact: true }),
+            running.page.getByText(GitPullRequestErrorMessage.missingCommits, { exact: true }),
         ).toBeVisible();
         await expect(running.page.locator('.toast')).toHaveCount(0);
 
@@ -178,7 +203,7 @@ test('Git Pull Request mode shows committed PR changes instead of the working tr
         await running.page.screenshot({ path: test.info().outputPath('pr-refresh.png') });
         await rm(refreshGate);
         await expect(
-            running.page.getByText('Unable to load pull request changes.', { exact: true }),
+            running.page.getByText(GitPullRequestErrorMessage.missingCommits, { exact: true }),
         ).toBeVisible();
         await expect(files.locator('.git-row[title="pr-only.txt"]')).toBeVisible();
 

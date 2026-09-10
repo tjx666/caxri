@@ -37,6 +37,13 @@ test('Editor tabs paste paths at Terminal edges by default and Option restores s
         await createProjectSession(running.page);
         await running.page.getByRole('treeitem', { name: fileName, exact: true }).dblclick();
         const editorTab = running.page.locator('.work-tab:not([data-terminal-id])');
+        /**
+         * The double-click open resolves asynchronously after the preview clicks; await its pinned document before
+         * switching.
+         */
+        await expect(editorTab).not.toHaveAttribute('data-preview', 'true');
+        await expect(running.page.locator('.monaco-editor')).toBeVisible();
+        await expect(editorTab.getByRole('tab')).toHaveAttribute('aria-selected', 'true');
         const terminalTab = running.page.locator('.work-tab[data-terminal-id]');
         await terminalTab.getByRole('tab').click();
         const terminalInput = running.page.locator('.xterm-helper-textarea');

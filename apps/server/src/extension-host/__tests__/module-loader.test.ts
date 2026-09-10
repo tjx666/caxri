@@ -1,6 +1,7 @@
 import { pathToFileURL } from 'node:url';
 
 import { isGlobMatch } from '@caxri/utils';
+import { GitPullRequestErrorMessage } from 'caxri';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
@@ -12,6 +13,7 @@ import {
 const apiSymbol = Symbol.for('caxri.extension-api');
 
 interface LoadedExtensionApiModule {
+    readonly GitPullRequestErrorMessage: unknown;
     readonly default: unknown;
     readonly ProjectStatusSummaryErrorMessage: unknown;
     readonly TreeItem: unknown;
@@ -59,6 +61,7 @@ describe('extensionApiModuleUrl', () => {
                         EventEmitter: class {},
                         CancellationTokenSource: class {},
                         ProjectStatusSummaryErrorMessage: projectStatusSummaryErrorMessage,
+                        GitPullRequestErrorMessage,
                         ThemeIcon: class {},
                         TreeItem: LoadedTreeItem,
                         TreeItemCollapsibleState: { None: 0, Collapsed: 1, Expanded: 2 },
@@ -75,6 +78,7 @@ describe('extensionApiModuleUrl', () => {
                         EventEmitter: class {},
                         CancellationTokenSource: class {},
                         ProjectStatusSummaryErrorMessage: projectStatusSummaryErrorMessage,
+                        GitPullRequestErrorMessage,
                         ThemeIcon: class {},
                         TreeItem: class {},
                         TreeItemCollapsibleState: { None: 0, Collapsed: 1, Expanded: 2 },
@@ -91,6 +95,7 @@ describe('extensionApiModuleUrl', () => {
                         EventEmitter: class {},
                         CancellationTokenSource: class {},
                         ProjectStatusSummaryErrorMessage: projectStatusSummaryErrorMessage,
+                        GitPullRequestErrorMessage,
                         ThemeIcon: class {},
                         TreeItem: class {},
                         TreeItemCollapsibleState: { None: 0, Collapsed: 1, Expanded: 2 },
@@ -131,6 +136,7 @@ describe('extensionApiModuleUrl', () => {
             'default',
             'Disposable',
             'EventEmitter',
+            'GitPullRequestErrorMessage',
             'isGlobMatch',
             'ProjectStatusSummaryErrorMessage',
             'ThemeIcon',
@@ -139,6 +145,7 @@ describe('extensionApiModuleUrl', () => {
         ]);
         expect(first.default).toBe(firstAgain.default);
         expect(first.ProjectStatusSummaryErrorMessage).toBe(projectStatusSummaryErrorMessage);
+        expect(first.GitPullRequestErrorMessage).toBe(GitPullRequestErrorMessage);
         expect(first.TreeItem).toBe(LoadedTreeItem);
         expect(first.isGlobMatch('src/example.test.ts', { '**/*.test.*': true })).toBe(true);
         expect(first.isGlobMatch('src/example.ts', { '**/*.test.*': true })).toBe(false);
