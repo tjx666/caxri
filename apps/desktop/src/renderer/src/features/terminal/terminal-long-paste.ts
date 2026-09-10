@@ -1,4 +1,18 @@
-import type { TerminalLongPasteResult } from '@caxri/protocol';
+import type { AgentProvider, AppSettings, TerminalLongPasteResult } from '@caxri/protocol';
+import { agentProviderCatalog } from '@caxri/protocol';
+
+/**
+ * User settings cannot enable a summary integration that the provider does not implement.
+ */
+export function isProviderLongPasteEnabled(
+    provider: AgentProvider | undefined,
+    providers: AppSettings['agents.providers'],
+): boolean {
+    return provider
+        ? agentProviderCatalog[provider].capabilities.pasteSummary &&
+              providers[provider].pasteSummary.enabled
+        : false;
+}
 
 export function shouldPrepareLongPaste(options: {
     canAcceptAgentInput: boolean;

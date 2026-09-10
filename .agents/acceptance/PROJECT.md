@@ -41,6 +41,8 @@ Android, and iOS Simulator product surfaces.
   The adapter replaces only the blocked Claude Code and Codex targets with fixed fake executables.
   It rejects arbitrary ids and host executable paths and
   records `assets/<case-id>-agent-fixture.json`; include that receipt in the case evidence.
+  The fixed `grok-build-v1` fixture replaces only Grok and renders a bounded synthetic grid for
+  Session identity, turn outcome, and restart checks; host Grok remains blocked.
 
 - **Native dialogs:** these are manual Acceptance boundaries by default. Keep the deterministic
   test-root environment and stub Main's dialog result for automated coverage. Hand dialog-specific

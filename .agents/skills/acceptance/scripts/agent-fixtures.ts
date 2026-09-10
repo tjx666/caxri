@@ -5,12 +5,14 @@ import process from 'node:process';
 import type { AgentProvider } from '@caxri/protocol';
 import { createE2EAgentEnvironment } from '@caxri/system';
 
-export const acceptanceAgentFixtureIds = ['agent-features-v1'] as const;
+import { grokAcceptanceSource } from './grok-fixture';
+
+export const acceptanceAgentFixtureIds = ['agent-features-v1', 'grok-build-v1'] as const;
 type AcceptanceAgentFixtureId = (typeof acceptanceAgentFixtureIds)[number];
 
-export interface PreparedAcceptanceAgentFixture {
+export interface PreparedAcceptanceAgentFixture<Provider extends AgentProvider = never> {
     environment: NodeJS.ProcessEnv;
-    executables: Record<AgentProvider, string>;
+    executables: Partial<Record<AgentProvider, string>> & Record<Provider, string>;
     fixtureId: AcceptanceAgentFixtureId;
     root: string;
 }
@@ -401,25 +403,45 @@ function assertFixtureId(value: string): asserts value is AcceptanceAgentFixture
  * Creates one repository-owned fake-provider fixture beneath the isolated Acceptance profile. The CLI accepts only a
  * fixed id, so no caller can inject an executable, source body, environment variable, or host provider path.
  */
-export async function prepareAcceptanceAgentFixture(options: {
+interface PrepareAcceptanceAgentFixtureOptions {
     fixtureId: string;
     sourceEnvironment?: NodeJS.ProcessEnv;
     userDataDir: string;
-}): Promise<PreparedAcceptanceAgentFixture> {
+}
+
+export function prepareAcceptanceAgentFixture(
+    options: PrepareAcceptanceAgentFixtureOptions & { fixtureId: 'agent-features-v1' },
+): Promise<PreparedAcceptanceAgentFixture<'claude' | 'codex'>>;
+export function prepareAcceptanceAgentFixture(
+    options: PrepareAcceptanceAgentFixtureOptions & { fixtureId: 'grok-build-v1' },
+): Promise<PreparedAcceptanceAgentFixture<'grok'>>;
+export function prepareAcceptanceAgentFixture(
+    options: PrepareAcceptanceAgentFixtureOptions,
+): Promise<PreparedAcceptanceAgentFixture>;
+export async function prepareAcceptanceAgentFixture(
+    options: PrepareAcceptanceAgentFixtureOptions,
+): Promise<PreparedAcceptanceAgentFixture> {
     assertFixtureId(options.fixtureId);
     const root = join(options.userDataDir, 'acceptance-agents');
     const bin = join(root, 'bin');
     await mkdir(bin, { recursive: true });
     const executables = Object.fromEntries(
         await Promise.all(
-            (['claude', 'codex'] as const).map(async (provider) => {
+            (options.fixtureId === 'grok-build-v1'
+                ? (['grok'] as const)
+                : (['claude', 'codex'] as const)
+            ).map(async (provider) => {
                 const executable = join(bin, provider);
-                await writeFile(executable, sharedSource(provider), 'utf8');
+                await writeFile(
+                    executable,
+                    provider === 'grok' ? grokAcceptanceSource() : sharedSource(provider),
+                    'utf8',
+                );
                 await chmod(executable, 0o700);
                 return [provider, executable] as const;
             }),
         ),
-    ) as Record<AgentProvider, string>;
+    ) as Partial<Record<AgentProvider, string>>;
     const environment = await createE2EAgentEnvironment({
         fixtureRoot: root,
         mode: { mode: 'fake', executables },

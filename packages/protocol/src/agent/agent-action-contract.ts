@@ -12,6 +12,7 @@ import {
     MAX_AGENT_ACTIONS,
 } from './agent-action-settings.js';
 import type { AgentProvider } from './agents.js';
+import { agentProviderCatalog } from './agents.js';
 
 export * from './agent-action-settings.js';
 
@@ -46,6 +47,7 @@ const command = (invocation: string, description: string, argumentHint?: string)
  * beyond these common actions comes from bounded discovery or explicit user settings.
  */
 export const defaultAgentActions: Record<AgentProvider, readonly AgentAction[]> = {
+    grok: [],
     claude: [
         command('/model', 'Choose the active model'),
         command('/compact', 'Summarize the conversation to free context', '[instructions]'),
@@ -78,6 +80,7 @@ export function mergeAgentActions(
     discovered: readonly AgentAction[],
     settings: Pick<AgentActionsSettings, 'items'>,
 ): AgentAction[] {
+    if (!agentProviderCatalog[provider].capabilities.actions) return [];
     const merged = new Map<string, AgentAction>();
     const defaults = defaultAgentActions[provider];
     for (const action of defaults) merged.set(action.invocation, action);

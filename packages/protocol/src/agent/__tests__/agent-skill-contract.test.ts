@@ -4,6 +4,7 @@ import {
     agentSkillHealthSchema,
     bundledAgentSkillMetadataSchema,
 } from '../agent-skill-contract.js';
+import { agentProviderIds } from '../agents';
 
 const baseBundled = {
     bundledVersion: '0.0.6',
@@ -53,7 +54,7 @@ describe('bundledAgentSkillMetadataSchema version and content hash validation', 
 });
 
 describe('agentSkillHealthSchema', () => {
-    it('bounds installations to at most four entries', () => {
+    it('bounds installations to two scopes per provider', () => {
         const installation = {
             action: 'No action is required.',
             bundledVersion: '0.0.6',
@@ -68,13 +69,19 @@ describe('agentSkillHealthSchema', () => {
         expect(
             agentSkillHealthSchema.safeParse({
                 bundled: baseBundled,
-                installations: Array.from({ length: 5 }, () => installation),
+                installations: Array.from(
+                    { length: agentProviderIds.length * 2 + 1 },
+                    () => installation,
+                ),
             }).success,
         ).toBe(false);
         expect(
             agentSkillHealthSchema.safeParse({
                 bundled: baseBundled,
-                installations: Array.from({ length: 4 }, () => installation),
+                installations: Array.from(
+                    { length: agentProviderIds.length * 2 },
+                    () => installation,
+                ),
             }).success,
         ).toBe(true);
     });

@@ -30,6 +30,7 @@ export type E2EAgentEnvironmentMode =
  * that could otherwise expose a developer's real local Agent state to an Electron test or Acceptance run.
  */
 const E2E_AGENT_STATE_POLICIES: Record<AgentProvider, E2EAgentStatePolicy> = {
+    grok: { directoryName: 'grok', environmentKeys: ['GROK_HOME'] },
     claude: { directoryName: 'claude', environmentKeys: ['CLAUDE_CONFIG_DIR'] },
     codex: {
         directoryName: 'codex',

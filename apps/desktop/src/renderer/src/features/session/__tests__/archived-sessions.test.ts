@@ -1,5 +1,4 @@
 import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
-import { agentProviderIds } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -133,7 +132,7 @@ describe('archived Session selector', () => {
         });
 
         expect(view.projectOptions.map((item) => item.id)).toEqual(['alpha', 'beta']);
-        expect(view.agentOptions).toEqual(['shell', ...agentProviderIds]);
+        expect(view.agentOptions).toEqual(['shell', 'claude', 'codex']);
 
         const afterRestore = deriveArchivedSessionView(
             projects,

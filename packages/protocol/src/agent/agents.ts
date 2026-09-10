@@ -6,7 +6,7 @@ import { defaultAgentActionsSettings } from './agent-action-settings.js';
  * the Runtime Agent adapters derive from this catalog instead of hand-syncing provider identifiers across the
  * codebase.
  */
-export const agentProviderIds = ['claude', 'codex'] as const;
+export const agentProviderIds = ['claude', 'codex', 'grok'] as const;
 
 export type AgentProvider = (typeof agentProviderIds)[number];
 
@@ -87,6 +87,16 @@ export interface AgentProviderSettings {
  */
 export interface AgentProviderCatalogEntry {
     /**
+     * Supported integrations; settings cannot manufacture a missing provider implementation.
+     */
+    capabilities: {
+        actions: boolean;
+        automaticSuspension: boolean;
+        messaging: boolean;
+        nativeRename: boolean;
+        pasteSummary: boolean;
+    };
+    /**
      * Human-readable name shown in the Renderer (e.g. Settings, Create Session dialog).
      */
     displayName: string;
@@ -109,16 +119,46 @@ export interface AgentProviderCatalogEntry {
 
 export const agentProviderCatalog = {
     claude: {
+        capabilities: {
+            actions: true,
+            automaticSuspension: true,
+            messaging: true,
+            nativeRename: true,
+            pasteSummary: true,
+        },
         defaultLaunchArgs: ['--dangerously-skip-permissions'],
         displayName: 'Claude Code',
         executableName: 'claude',
         imageInput: undefined,
     },
     codex: {
+        capabilities: {
+            actions: true,
+            automaticSuspension: true,
+            messaging: true,
+            nativeRename: true,
+            pasteSummary: true,
+        },
         defaultLaunchArgs: ['--dangerously-bypass-approvals-and-sandbox'],
         displayName: 'Codex',
         executableName: 'codex',
         imageInput: { kind: 'systemClipboardPaste', terminalInput: '\u{16}' },
+    },
+    grok: {
+        capabilities: {
+            actions: false,
+            automaticSuspension: false,
+            messaging: false,
+            nativeRename: false,
+            pasteSummary: false,
+        },
+        /**
+         * Non-off confinement keeps Grok's work inside the Terminal process lifetime instead of a shared leader.
+         */
+        defaultLaunchArgs: ['--always-approve', '--sandbox', 'workspace'],
+        displayName: 'Grok Build',
+        executableName: 'grok',
+        imageInput: undefined,
     },
 } satisfies Record<AgentProvider, AgentProviderCatalogEntry>;
 
@@ -131,8 +171,8 @@ export const defaultAgentProviderSettings = Object.fromEntries(
         {
             actions: structuredClone(defaultAgentActionsSettings),
             hooks: { enabled: true },
-            messaging: { enabled: true },
-            pasteSummary: { enabled: true },
+            messaging: { enabled: agentProviderCatalog[provider].capabilities.messaging },
+            pasteSummary: { enabled: agentProviderCatalog[provider].capabilities.pasteSummary },
             recovery: { ...defaultAgentOutputRecoverySettings, patterns: [] },
             launch: {
                 executable: agentProviderCatalog[provider].executableName,

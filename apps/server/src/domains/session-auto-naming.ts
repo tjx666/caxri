@@ -1,3 +1,4 @@
+import { agentProviderCatalog } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { AsyncSemaphore, logEventCatalog } from '@caxri/system';
 
@@ -54,7 +55,8 @@ export class SessionAutoNamingService {
             session.titleMode !== 'automatic' ||
             session.archivedAt !== undefined ||
             !terminal.agentSessionId ||
-            (terminal.provider !== 'codex' && terminal.provider !== 'claude')
+            !terminal.provider ||
+            !agentProviderCatalog[terminal.provider].capabilities.nativeRename
         )
             return;
         const state = this.database.automaticSessionNaming(session.id);

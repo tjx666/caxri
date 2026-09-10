@@ -44,6 +44,7 @@ import { getTerminalExitPresentation } from './terminal-exit-presentation';
 import { terminalFontFamily } from './terminal-fonts';
 import { openTerminalLinkPicker } from './terminal-link-actions';
 import { TerminalLinkPicker } from './terminal-link-picker';
+import { isProviderLongPasteEnabled } from './terminal-long-paste';
 import type { TerminalSearchOptions } from './terminal-search';
 import {
     initialTerminalSearchState,
@@ -189,9 +190,7 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
     const imagePasteInput = provider
         ? agentProviderCatalog[provider].imageInput?.terminalInput
         : undefined;
-    const longPasteEnabled = provider
-        ? settings['agents.providers'][provider].pasteSummary.enabled
-        : false;
+    const longPasteEnabled = isProviderLongPasteEnabled(provider, settings['agents.providers']);
     const longPasteThreshold = settings['terminal.longPasteThreshold'];
     const canAcceptAgentInput = isAgentProcessRunning(terminal?.lastAgentProcessState);
     const terminalTheme = theme?.terminal;

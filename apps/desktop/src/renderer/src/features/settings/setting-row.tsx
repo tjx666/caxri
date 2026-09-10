@@ -237,12 +237,17 @@ function rowControl(properties: SettingRowProperties): {
         case 'provider-toggle': {
             const providerName = agentProviderCatalog[binding.provider].displayName;
             const providerSettings = settings['agents.providers'][binding.provider];
-            const isEnabled = providerSettings[binding.field].enabled;
+            const supported =
+                binding.field === 'hooks' ||
+                agentProviderCatalog[binding.provider].capabilities[binding.field];
+            const isEnabled = supported && providerSettings[binding.field].enabled;
             const status =
                 binding.field === 'hooks' ? (
                     <FieldDescription role="status">
                         {hookHealthLabel(isEnabled, agentHookHealth?.[binding.provider])}
                     </FieldDescription>
+                ) : !supported ? (
+                    <FieldDescription>Unavailable for {providerName}.</FieldDescription>
                 ) : undefined;
             const label = `${providerName} ${
                 binding.field === 'hooks'
@@ -259,6 +264,7 @@ function rowControl(properties: SettingRowProperties): {
                         id={controlId}
                         aria-label={label}
                         checked={isEnabled}
+                        disabled={!supported}
                         className="mt-0.5"
                         onCheckedChange={(checked) =>
                             onFieldChange(
@@ -341,7 +347,12 @@ function rowControl(properties: SettingRowProperties): {
         }
         case 'provider-actions':
             return {
-                control: (
+                control: !agentProviderCatalog[binding.provider].capabilities.actions ? (
+                    <FieldDescription>
+                        Actions and skills are unavailable for{' '}
+                        {agentProviderCatalog[binding.provider].displayName}.
+                    </FieldDescription>
+                ) : (
                     <AgentActionSettingsEditor
                         provider={binding.provider}
                         value={settings['agents.providers'][binding.provider].actions}

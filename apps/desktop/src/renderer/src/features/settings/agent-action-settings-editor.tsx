@@ -23,6 +23,7 @@ interface AgentActionSettingsEditorProperties {
 const AGENT_ACTION_INVOCATION_PLACEHOLDERS: Record<AgentProvider, string> = {
     claude: '/deploy',
     codex: '/goal or $commit',
+    grok: 'Unavailable',
 };
 
 export function AgentActionSettingsEditor({

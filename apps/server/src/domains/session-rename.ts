@@ -1,5 +1,5 @@
 import type { AgentProvider, ServerEvent, SessionRecord } from '@caxri/protocol';
-import { CaxriError, sessionRenameTitleSchema } from '@caxri/protocol';
+import { agentProviderCatalog, CaxriError, sessionRenameTitleSchema } from '@caxri/protocol';
 
 import type { AgentCoordinator, AgentService } from './agents';
 /**
@@ -72,6 +72,11 @@ export class SessionRenameService {
         if (!terminal) throw new CaxriError('INTERNAL', 'Primary Agent Terminal is missing');
         if (!terminal.provider)
             throw new CaxriError('INTERNAL', 'Primary Agent Terminal has no provider');
+        if (!agentProviderCatalog[terminal.provider].capabilities.nativeRename)
+            throw new CaxriError(
+                'UNAVAILABLE',
+                `${agentProviderCatalog[terminal.provider].displayName} does not support native Session renaming`,
+            );
         if (!terminal.agentSessionId) {
             await this.coordinator.probeTerminalNow(terminal.id);
             const currentSession = this.database.getSession(sessionId);

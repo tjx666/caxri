@@ -108,6 +108,11 @@ function createCliAdapter(
             },
         }),
         async renameSession(context): Promise<AgentSessionRenameResult> {
+            if (!providerDescriptor.renameSession)
+                throw new CaxriError(
+                    'UNAVAILABLE',
+                    `${agentProviderCatalog[provider].displayName} does not support native Session renaming`,
+                );
             const executable = await discoverExecutable(provider, launchSettings().executable);
             if (!executable)
                 throw new CaxriError(

@@ -6,7 +6,7 @@ import type {
     TerminalFailureReason,
     TerminalRecord,
 } from '@caxri/protocol';
-import { defaultAgentProviderSettings, errorMessage } from '@caxri/protocol';
+import { defaultAgentProviderSettings, errorMessage, isCaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import {
     assertE2EAgentLaunch,
@@ -17,7 +17,7 @@ import {
 
 // Server providers use the public domain barrel by architecture contract.
 // oxlint-disable-next-line react-doctor/no-barrel-import
-import { agentProviders } from '../agents';
+import { agentProviders, defaultAgentEnvironment, readVersion } from '../agents';
 import { serverProcessEnvironment } from '../executables';
 import { assertTerminalWorkingDirectory, resolveTerminalExecutable } from './launch';
 import type {
@@ -32,6 +32,8 @@ export interface ResolvedTerminalLaunch {
     args: string[];
     executable: string;
     agent?: {
+        agentSessionId?: string;
+        resumeAgentSessionId?: string;
         args: string[];
         executable: string;
         launch: AgentLaunchSettings;
@@ -112,7 +114,7 @@ export class TerminalLaunchPlanner {
                     this.options.resolveExecutable,
                 );
                 const agentArguments = [...launch.args];
-                if (start?.resumeAgentSessionId) {
+                if (start?.resumeAgentSessionId && !agentProviders[record.kind].prepareLaunch) {
                     agentArguments.push(
                         ...agentProviders[record.kind].resumeArguments(start.resumeAgentSessionId),
                     );
@@ -123,6 +125,7 @@ export class TerminalLaunchPlanner {
                         args: ['-l'],
                         executable,
                         agent: {
+                            resumeAgentSessionId: start?.resumeAgentSessionId,
                             args: agentArguments,
                             executable: agentExecutable,
                             launch,
@@ -176,11 +179,28 @@ export class TerminalLaunchPlanner {
                 });
             }
             environment = { ...environment, ...this.options.shellEnvironment?.(record) };
+            const providerEnvironment = resolved.agent ? await this.agentEnvironment() : undefined;
+            if (resolved.agent) {
+                const prepareLaunch = agentProviders[resolved.agent.provider].prepareLaunch;
+                if (prepareLaunch) {
+                    const prepared = await prepareLaunch({
+                        args: resolved.agent.args,
+                        cwd: record.cwd,
+                        environment: defaultAgentEnvironment(providerEnvironment),
+                        resumeAgentSessionId: resolved.agent.resumeAgentSessionId,
+                        version: await readVersion(
+                            resolved.agent.provider,
+                            resolved.agent.executable,
+                        ),
+                    });
+                    resolved = { ...resolved, agent: { ...resolved.agent, ...prepared } };
+                }
+            }
             const agent = resolved.agent
                 ? {
                       ...resolved.agent,
                       environment: {
-                          ...(await this.agentEnvironment()),
+                          ...providerEnvironment,
                           TERM: 'xterm-256color',
                           COLORTERM: 'truecolor',
                           ...(await this.options.lifecycleEnvironment?.(
@@ -201,7 +221,14 @@ export class TerminalLaunchPlanner {
                 },
             };
         } catch (error) {
-            return { ok: false, error, failureReason: 'spawn_failed' };
+            return {
+                ok: false,
+                error,
+                failureReason:
+                    isCaxriError(error) && error.details?.reason === 'agent_session_unavailable'
+                        ? 'agent_session_unavailable'
+                        : 'spawn_failed',
+            };
         }
     }
 }
