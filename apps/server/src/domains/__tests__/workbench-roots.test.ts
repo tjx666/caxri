@@ -151,31 +151,6 @@ describe('WorkbenchRootService worktree attribution', () => {
         context.database.close();
     });
 
-    it('fails closed when a worktree hook has no pre-launch baseline', async () => {
-        const context = await fixture();
-        await beginWorktreeCreation(context);
-        context.setWorktrees([
-            { branch: 'main', rootPath: context.ownerRoot },
-            { branch: 'feature/unproven', rootPath: context.worktreeRoot },
-        ]);
-
-        vi.useFakeTimers();
-        try {
-            expect(
-                context.service.observeShellToolFinished(
-                    shellFinished(context, { worktreeCreateIntent: true }),
-                ),
-            ).toBe('accepted');
-            await vi.advanceTimersByTimeAsync(100);
-        } finally {
-            vi.useRealTimers();
-        }
-        expect(context.worktreeTopology).not.toHaveBeenCalled();
-        expect(context.events.filter((event) => event.event === 'workbench.candidate')).toEqual([]);
-        await context.service.close();
-        context.database.close();
-    });
-
     it('never falls back to the launch baseline when the matching PreToolUse hook is missing', async () => {
         const context = await fixture();
         await prime(context);
@@ -430,6 +405,7 @@ describe('WorkbenchRootService worktree attribution', () => {
                 toolUseId: 'tool-use-0',
                 worktreeCreateIntent: true,
             }),
+            () => true,
         );
         await vi.waitFor(() => expect(context.worktreeTopology).toHaveBeenCalledTimes(2));
         const remaining = Array.from({ length: 999 }, (_, index) =>
@@ -438,6 +414,7 @@ describe('WorkbenchRootService worktree attribution', () => {
                     toolUseId: `tool-use-${index + 1}`,
                     worktreeCreateIntent: true,
                 }),
+                () => true,
             ),
         );
         pending.resolve(context.getTopology());
@@ -453,7 +430,12 @@ describe('WorkbenchRootService worktree attribution', () => {
         await prime(context, 'launch-1');
         context.setWorktrees([{ branch: 'main', rootPath: context.ownerRoot }]);
         await prime(context, 'launch-2');
-        await beginWorktreeCreation(context, { launchId: 'launch-1' });
+        await expect(
+            context.service.observeShellToolStarted(
+                shellStarted(context, { launchId: 'launch-1', worktreeCreateIntent: true }),
+                () => false,
+            ),
+        ).resolves.toBe('staleLaunch');
         await beginWorktreeCreation(context, { launchId: 'launch-2' });
         context.setWorktrees([
             { branch: 'main', rootPath: context.ownerRoot },

@@ -75,7 +75,8 @@ export class AgentHookTelemetry {
         const { handlingMs, outcome, ...fields } = diagnostic;
         /**
          * A rejection is rare and security-relevant, so every one is logged. An accepted or ignored signal repeats for
-         * the whole life of an Agent Terminal, so only the first of each shape is.
+         * the whole life of an Agent Terminal, so only the first of each shape is. Keep cwd and creation intent in that
+         * shape: an ordinary shell command must not hide the later worktree-following evidence.
          */
         if (
             outcome !== 'rejected' &&
@@ -83,7 +84,7 @@ export class AgentHookTelemetry {
             fields.phase &&
             !this.claimFirst(
                 fields.terminalId,
-                `${outcome}:${reason ?? ''}:${fields.provider}:${fields.phase}:${fields.hasAgentSessionId}`,
+                `${outcome}:${reason ?? ''}:${fields.provider}:${fields.phase}:${fields.hasAgentSessionId}:${fields.hasAgentCwd}:${fields.worktreeCreateIntent}`,
             )
         )
             return;

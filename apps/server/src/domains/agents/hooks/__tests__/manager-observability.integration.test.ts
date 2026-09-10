@@ -74,13 +74,19 @@ describe('AgentHookManager observability', () => {
             await vi.waitFor(() => expect(signals).toHaveBeenCalledTimes(1));
             await runBridge(bridge, environment, 'shellToolStarted', {
                 cwd: '/tmp/caxri-observability-fixture',
+                tool_input: { command: 'git status' },
+                tool_use_id: 'toolu_ordinary',
+            });
+            await vi.waitFor(() => expect(signals).toHaveBeenCalledTimes(2));
+            await runBridge(bridge, environment, 'shellToolStarted', {
+                cwd: '/tmp/caxri-observability-fixture',
                 tool_input: { command: 'git worktree add ../feature feature' },
                 tool_use_id: 'toolu_observability',
             });
-            await vi.waitFor(() => expect(signals).toHaveBeenCalledTimes(2));
+            await vi.waitFor(() => expect(signals).toHaveBeenCalledTimes(3));
             signals.mockReturnValueOnce('staleLaunch');
             await runBridge(bridge, environment, 'turnFinished');
-            await vi.waitFor(() => expect(signals).toHaveBeenCalledTimes(3));
+            await vi.waitFor(() => expect(signals).toHaveBeenCalledTimes(4));
 
             manager.endTerminalLaunch('terminal-1');
             settings.codex.hooks.enabled = false;
@@ -97,19 +103,18 @@ describe('AgentHookManager observability', () => {
                     Record<string, unknown> | undefined;
 
             /**
-             * The per-signal records are deduplicated, so only this aggregate can prove the real volume: three signals
-             * arrived, two became durable state, and the third names why it did not.
+             * The aggregate preserves volume even when ordinary and worktree signals share the same phase.
              */
             expect(fieldsOf('agent_hooks.launch_summary')).toMatchObject({
-                accepted: 2,
+                accepted: 3,
                 ignored: 1,
                 ignoredStaleLaunch: 1,
-                phaseShellToolStarted: 1,
+                phaseShellToolStarted: 2,
                 phaseTurnFinished: 1,
                 phaseTurnStarted: 1,
                 provider: 'codex',
                 rejected: 0,
-                signals: 3,
+                signals: 4,
                 terminalId: 'terminal-1',
             });
             expect(fieldsOf('agent_hooks.launch_summary')).toHaveProperty('firstSignalMs');
@@ -122,7 +127,9 @@ describe('AgentHookManager observability', () => {
                 (record) =>
                     record.event === 'agent_hooks.signal_accepted' &&
                     (record.fields as Record<string, unknown> | undefined)?.phase ===
-                        'shellToolStarted',
+                        'shellToolStarted' &&
+                    (record.fields as Record<string, unknown> | undefined)?.worktreeCreateIntent ===
+                        true,
             );
             expect(shellToolLog).toMatchObject({
                 fields: { hasAgentCwd: true, worktreeCreateIntent: true },
