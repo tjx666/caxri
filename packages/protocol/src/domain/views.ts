@@ -246,6 +246,7 @@ export const treeItemSchema = z
         accessibilityLabel: z.string().min(1).max(1_024),
         collapsibleState: z.enum(['none', 'collapsed', 'expanded']),
         icon: viewIconSchema.optional(),
+        trailingIcon: viewIconSchema.optional(),
         command: treeItemCommandSchema.optional(),
     })
     .superRefine((item, context) => {

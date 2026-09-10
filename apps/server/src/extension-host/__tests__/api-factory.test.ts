@@ -3,6 +3,7 @@ import {
     EventEmitter,
     GitPullRequestErrorMessage,
     ProjectStatusSummaryErrorMessage,
+    ThemeIcon,
     TreeItem,
     TreeItemCollapsibleState,
 } from 'caxri';
@@ -87,6 +88,7 @@ describe('Extension Host API factory', () => {
                 getTreeItem: (element: { label: string }) => {
                     const item = new TreeItem(element.label);
                     item.id = 'stable-item';
+                    item.trailingIcon = new ThemeIcon('circle-arrow-up');
                     return item;
                 },
             },
@@ -99,6 +101,7 @@ describe('Extension Host API factory', () => {
             requestId: 'stable-first',
         });
         children = [{ label: 'replacement' }];
+        expect(first.items[0].trailingIcon).toEqual({ kind: 'theme', id: 'circle-arrow-up' });
         const replacement = await getTreeChildren({
             extensionId: 'publisher.fixture',
             generation: 1,
