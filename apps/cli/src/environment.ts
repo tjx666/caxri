@@ -20,7 +20,8 @@ export function detectAutomation(environment: NodeJS.ProcessEnv): CliAutomation 
     if (
         isEnabled(environment.CODEX_THREAD_ID) ||
         isEnabled(environment.CLAUDECODE) ||
-        isEnabled(environment.CLAUDE_CODE_ENTRYPOINT)
+        isEnabled(environment.CLAUDE_CODE_ENTRYPOINT) ||
+        isEnabled(environment.GROK_SESSION_ID)
     )
         return 'agent';
     return 'human';
