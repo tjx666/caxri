@@ -31,7 +31,7 @@ import {
     MAX_PATH_BROWSER_ENTRIES,
     pathBrowserContractMethods,
 } from '../desktop/path-browser-contract.js';
-import { bugReportScreenshot, bugReportText } from '../domain/bug-report-contract.js';
+import { bugReportInternalMethods, bugReportMethods } from '../domain/bug-report-contract.js';
 import { businessInternalMethods, businessMethods } from '../domain/business-contract.js';
 import {
     agentHookHealthMapSchema,
@@ -187,6 +187,7 @@ export const methods = {
     ...agentEndpointMethods,
     ...agentInboxMethods,
     ...businessMethods,
+    ...bugReportMethods,
     ...mobileMethods,
     ...workbenchMethods,
     ...pathBrowserContractMethods,
@@ -330,42 +331,6 @@ export const methods = {
         ...desktopWrite,
         params: noParameters,
         result: exportedFile.nullable(),
-    },
-    'bugReport.context': {
-        ...serverRead,
-        params: noParameters,
-        result: z.object({
-            appVersion: z.string().min(1).max(100),
-            architecture: z.string().min(1).max(100),
-            commit: z.string().min(1).max(100),
-            platform: z.string().min(1).max(100),
-            recentErrorIds: z.array(z.string().min(1).max(200)).max(5),
-        }),
-    },
-    'bugReport.captureScreenshot': {
-        ...desktopControl,
-        params: noParameters,
-        result: bugReportScreenshot,
-    },
-    /**
-     * Persists the previewed capture so a report can point an Agent at an image file. It writes to disk like
-     * `diagnostics.export`, so it carries the same `desktop` write policy rather than the capture method's control
-     * policy.
-     */
-    'bugReport.saveScreenshot': {
-        ...desktopWrite,
-        params: z.object({ dataUrl: bugReportScreenshot.shape.dataUrl }),
-        result: z.object({ path: z.string().min(1).max(4_096) }),
-    },
-    'bugReport.send': {
-        ...desktopWrite,
-        params: z.object({
-            report: bugReportText,
-            screenshot: bugReportScreenshot.optional(),
-            sessionId: identifierSchema,
-            terminalId: identifierSchema,
-        }),
-        result: z.null(),
     },
     'updates.getState': { ...desktopRead, params: noParameters, result: updateStateSchema },
     'updates.check': { ...desktopRead, params: noParameters, result: updateStateSchema },
@@ -747,16 +712,7 @@ export const internalMethods = {
         params: persistedWindowStateSchema,
         result: persistedWindowStateSchema,
     },
-    'bugReport.deliver': {
-        ...serverControl,
-        params: z.object({
-            pasteImage: z.boolean(),
-            report: bugReportText,
-            sessionId: identifierSchema,
-            terminalId: identifierSchema,
-        }),
-        result: z.null(),
-    },
+    ...bugReportInternalMethods,
     'config.paths': {
         ...serverRead,
         params: noParameters,
