@@ -129,7 +129,7 @@ export interface SessionStateRepair {
 function parseSessionState(
     row: SessionStateRow,
     fallbackPaneLayout: () => SessionState['paneLayout'],
-): { state: SessionState } | { reason: SessionStateRepair['reason'] } {
+): { state: SessionState; isNewRoot: boolean } | { reason: SessionStateRepair['reason'] } {
     if (row.stateVersion !== CURRENT_SESSION_STATE_VERSION)
         return { reason: 'unsupported_version' };
     let workbenchStatesSource: unknown;
@@ -156,7 +156,9 @@ function parseSessionState(
         paneLayout: rootState?.paneLayout ?? fallbackPaneLayout(),
     };
     const parsed = sessionStateSchema.safeParse(candidate);
-    return parsed.success ? { state: parsed.data } : { reason: 'invalid_shape' };
+    return parsed.success
+        ? { state: parsed.data, isNewRoot: !rootState }
+        : { reason: 'invalid_shape' };
 }
 
 /**
@@ -233,7 +235,8 @@ export class SessionsModel {
                 parsed.state.paneLayout,
                 ownedTerminalIds,
             );
-            if (paneLayout === parsed.state.paneLayout) return parsed.state;
+            // Persist a first visit before another bootstrap can generate different pane/tab IDs.
+            if (paneLayout === parsed.state.paneLayout && !parsed.isNewRoot) return parsed.state;
             const repaired = { ...parsed.state, paneLayout };
             this.updateState(repaired, ownedTerminalIds);
             return repaired;

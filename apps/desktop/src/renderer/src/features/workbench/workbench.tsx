@@ -36,7 +36,7 @@ export function Workbench() {
     const session = useSelectedSession();
     return (
         <section className="workbench flex min-h-0 min-w-0 flex-col bg-background">
-            {session ? <PaneView /> : <Welcome />}
+            {session ? <PaneView key={session.id} /> : <Welcome />}
         </section>
     );
 }

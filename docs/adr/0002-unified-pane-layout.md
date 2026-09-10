@@ -75,10 +75,28 @@ arrangement without restarting anything. Every durable Terminal appears exactly 
 snapshot, which makes Terminal creation, deletion, and Session moves transactional across snapshots
 while an ordinary pane-to-pane move touches only the current one.
 
+## View placement
+
+The split tree owns geometry, while a flat set of pane portals owns mounted views. A visible
+Terminal retains its pane portal by Terminal identity across Workbench Root changes and split-tree
+placement. Other tab transitions retain the existing pane identity. The portal moves its existing
+DOM host into the new layout slot; the entire pane, including its tab bar and event handlers,
+remains inside one React ancestry. This preserves xterm, selection, scrollback, and search without
+replaying the same live PTY just because a container changed.
+
+The tab bar resets its local drag and exit-animation state when the logical pane ID changes;
+Terminal content keeps its lifetime. The entire pane view is keyed by Session ID so local state
+cannot cross Session boundaries even if persisted pane IDs happen to match.
+
+Only the current layout's panes remain mounted. Switching a pane to a different resource still
+unmounts the old content, and closing a pane or leaving a Session releases its views. This is not
+a cache of hidden terminals. First visits to a Workbench Root persist their generated layout before
+another bootstrap read, so pane and tab identities remain stable before the first user layout edit.
+
 ## Attachment lease
 
-Moving a Terminal between panes detaches one view and attaches another, and Host input and resize
-bypass the ordered request queue. A late `detach` or a stale `ResizeObserver` from the old pane can
+Hiding a Terminal tab and showing it again detaches one view and attaches another, and Host input
+and resize bypass the ordered request queue. A late `detach` or a stale `ResizeObserver` from the old pane can
 therefore land after the new pane attaches and either orphan the view or resize the PTY back to the
 old geometry. `attach`, `input`, `resize`, `detach`, and `output` carry an attachment id; Runtime
 keeps one current lease per Terminal, replaces it atomically, and makes every stale-lease message a
