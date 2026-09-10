@@ -443,7 +443,8 @@ export class WorkbenchRootService {
 
     /**
      * Captures the owning repository before the prepared Agent generation can spawn and create a worktree. A failed
-     * structured Git read leaves no baseline, so later hook intent fails closed without blocking the Agent launch.
+     * structured Git read leaves no baseline without blocking launch. A current creation hook may retry within its
+     * bounded PreToolUse budget; attribution still requires that exact command's before-snapshot.
      */
     async primeAgentLaunch(scope: WorktreeProvenanceScope): Promise<boolean> {
         return this.worktreeAttribution.prime(scope);
@@ -480,8 +481,11 @@ export class WorkbenchRootService {
         void this.runQueued(() => this.reconcileAgentCwd(signal, reported)).catch(() => {});
     }
 
-    async observeShellToolStarted(signal: AgentLifecycleSignal): Promise<AgentSignalDecision> {
-        return this.worktreeAttribution.observeStarted(signal);
+    async observeShellToolStarted(
+        signal: AgentLifecycleSignal,
+        isCurrentLaunch: () => boolean,
+    ): Promise<AgentSignalDecision> {
+        return this.worktreeAttribution.observeStarted(signal, isCurrentLaunch);
     }
 
     /**

@@ -9,7 +9,7 @@ import { execFileAsync } from '@caxri/system';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import type { Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
-import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
+import { createProjectSession, launchCaxri, pageRequest, typeTerminal } from './support/helpers.ts';
 
 async function initializeRepo(root: string): Promise<void> {
     await mkdir(root, { recursive: true });
@@ -51,7 +51,8 @@ async function expectWorkbenchRoot(
         });
 }
 
-test('Agent Bash hook attribution prompts, authorizes, and switches one Session', async () => {
+// eslint-disable-next-line no-empty-pattern -- Playwright requires destructuring for its fixture argument.
+test('Agent Bash hook attribution after manual resume prompts, authorizes, and switches one Session', async ({}, testInfo) => {
     const createdDirectory = await mkdtemp(join(tmpdir(), 'caxri-workbench-hook-e2e-'));
     const testDirectory = await realpath(createdDirectory);
     const userData = join(testDirectory, 'user-data');
@@ -85,13 +86,14 @@ function signalShellTool(event, command) {
 }
 let step = 0;
 process.stdin.setRawMode?.(true);
-process.stdin.on('data', () => {
+process.stdin.on('data', (chunk) => {
+  if (chunk.toString() === 'x') process.exit(0);
   step += 1;
   if (step === 1) {
-    signalShellTool('PreToolUse', 'git worktree add -b feature/workbench ../worktree');
+    signalShellTool('PreToolUse', "rtk git -C '/repo with spaces' worktree add -b feature/workbench ../worktree");
     childProcess.execFileSync('git', ['worktree', 'add', '-b', 'feature/workbench', ${JSON.stringify(worktree)}], { cwd: ${JSON.stringify(root)} });
     fs.writeFileSync(path.join(${JSON.stringify(worktree)}, 'worktree-only.txt'), 'worktree context\n');
-    signalShellTool('PostToolUse', 'git worktree add -b feature/workbench ../worktree');
+    signalShellTool('PostToolUse', "rtk git -C '/repo with spaces' worktree add -b feature/workbench ../worktree");
   } else if (step === 2) {
     signalShellTool('PreToolUse', 'git worktree remove --force ../worktree');
     childProcess.execFileSync('git', ['worktree', 'remove', '--force', ${JSON.stringify(worktree)}], { cwd: ${JSON.stringify(root)} });
@@ -133,6 +135,23 @@ process.stdout.write('Workbench Agent ready\r\n');
         });
         const sessionId = await createProjectSession(running.page, 'codex');
         await expect(running.page.locator('.xterm-rows')).toContainText('Workbench Agent ready');
+        // The exited managed child restores Shell hooks; manual resume bypasses managed launch priming.
+        await running.page.locator('.xterm-helper-textarea').press('x');
+        await expect
+            .poll(async () => {
+                const state = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
+                return state.terminals.find((terminal) => terminal.sessionId === sessionId)
+                    ?.lastAgentProcessState;
+            })
+            .toBe('stopped');
+        await typeTerminal(running.page, 'codex resume workbench-e2e-session');
+        await expect
+            .poll(async () => {
+                const state = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
+                return state.terminals.find((terminal) => terminal.sessionId === sessionId)
+                    ?.lastAgentProcessState;
+            })
+            .toBe('running');
         await running.page.getByRole('treeitem', { name: 'owner.ts', exact: true }).click();
         await expect(
             running.page.getByRole('tab', { name: 'owner.ts', exact: true }),
@@ -158,6 +177,7 @@ process.stdout.write('Workbench Agent ready\r\n');
         const prompt = running.page.getByRole('status', { name: 'New Git worktree' });
         await expect(prompt).toContainText('A new Git worktree was created for this Session.');
         await expect(prompt).toContainText(worktree);
+        await prompt.screenshot({ path: testInfo.outputPath('manual-resume-worktree-prompt.png') });
         /**
          * Continue must work without a second picker grant for the already detected directory.
          */

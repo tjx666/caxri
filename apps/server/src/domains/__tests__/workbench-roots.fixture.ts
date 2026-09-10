@@ -154,6 +154,7 @@ export async function beginWorktreeCreation(
     await expect(
         context.service.observeShellToolStarted(
             shellStarted(context, { ...options, worktreeCreateIntent: true }),
+            () => true,
         ),
     ).resolves.toBe('accepted');
 }
