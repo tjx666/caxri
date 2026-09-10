@@ -4,10 +4,33 @@ import {
     detectAutomation,
     resolveAgentEndpointCredential,
     resolveCliProfile,
+    resolveDelegationClientCredential,
     resolvePackagedServerLaunch,
 } from '../environment';
 
 describe('CLI profile resolution', () => {
+    it('requires a complete external delegation credential and an explicit profile', () => {
+        const environment = {
+            CAXRI_DELEGATION_CLIENT_ID: '2db7c655-e217-49db-91fc-dd48286e6601',
+            CAXRI_DELEGATION_GENERATION: '1',
+            CAXRI_DELEGATION_TOKEN: 'ab'.repeat(32),
+            CAXRI_USER_DATA_DIR: '/synthetic/profile',
+        };
+        expect(resolveDelegationClientCredential({})).toBeUndefined();
+        expect(resolveDelegationClientCredential(environment)).toMatchObject({
+            kind: 'delegation-client',
+            generation: 1,
+        });
+        expect(() =>
+            resolveDelegationClientCredential({
+                ...environment,
+                CAXRI_DELEGATION_TOKEN: undefined,
+            }),
+        ).toThrow();
+        expect(() =>
+            resolveDelegationClientCredential({ ...environment, CAXRI_USER_DATA_DIR: undefined }),
+        ).toThrow();
+    });
     it('treats external Grok invocations as automation without granting owner startup', () => {
         expect(detectAutomation({ GROK_SESSION_ID: 'synthetic-native-session' })).toBe('agent');
         expect(detectAutomation({ GROK_SESSION_ID: '' })).toBe('human');
@@ -71,12 +94,18 @@ describe('CLI profile resolution', () => {
         expect(
             resolvePackagedServerLaunch({
                 executable: '/Applications/Caxri.app/Contents/MacOS/Caxri',
+                home: '/Users/test',
+                platform: 'darwin',
                 resourcesPath,
                 runAsNode: '1',
                 scriptPath: `${resourcesPath}/cli/caxri.cjs`,
             }),
         ).toEqual({
             artifactRoot: '/Applications/Caxri.app/Contents/Resources/server',
+            environment: {
+                CAXRI_CLI_PATH: '/Applications/Caxri.app/Contents/Resources/cli/caxri.cjs',
+                CAXRI_AGENT_HOOKS_PATH: '/Users/test/Library/Application Support/caxri/agent-hooks',
+            },
         });
         expect(
             resolvePackagedServerLaunch({

@@ -15,6 +15,7 @@ const appStateValueSchemas = {
         isFullScreen: true,
     }),
     activeThemeId: z.string().min(1),
+    externalDelegationSessions: z.record(z.string(), identifierSchema),
 } as const;
 
 export type AppStateKey = keyof typeof appStateValueSchemas;

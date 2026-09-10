@@ -224,7 +224,8 @@ describe('operatorContext', () => {
          * connection can do.
          */
         expect(context.capabilities).toContain('settings.delegation.write');
-        expect(context.capabilities).toHaveLength(17);
+        expect(context.capabilities).toContain('agents.delegation.access');
+        expect(context.capabilities).toHaveLength(18);
     });
 
     it('derives the principal id from the profile id it is given', () => {

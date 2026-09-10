@@ -361,6 +361,7 @@ export function operatorContext(profileId: string): CommandExecutionContext {
             'agents.control',
             'agents.dispatch',
             'agents.delegate',
+            'agents.delegation.access',
             'agents.grant',
             'events.read',
             'host.read',
@@ -433,6 +434,11 @@ export interface DesktopLeaseWaiter {
 }
 
 export interface ControlServerOptions {
+    authenticateDelegation?(credential: {
+        clientId: string;
+        generation: number;
+        token: string;
+    }): CommandExecutionContext;
     adapters: CommandDispatcherOptions;
     authenticateAgent?(credential: {
         hostId: string;

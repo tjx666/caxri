@@ -19,12 +19,13 @@ import type { FileService } from './files';
 import type { GitService } from './git';
 import { withGitRequestSignal } from './git';
 import type { createIntrospectionServices } from './introspection';
-import { resolveProjectRoot } from './project-root-identity';
+import { resolveOwnerProjectRoot, resolveProjectRoot } from './project-root-identity';
 import type { ProjectStatusService } from './project-status';
 import { SessionPullRequestService } from './session-pull-requests';
 import { resolveTerminalFileLink } from './terminal';
 
 type ServiceHandlerMethods =
+    | 'agent.delegation.access.bootstrap'
     | 'agentActions.list'
     | 'agentActions.recordRecent'
     | 'files.list'
@@ -157,6 +158,19 @@ export function createServiceHandlers(services: {
         },
     );
     return {
+        'agent.delegation.access.bootstrap': async ({
+            rootPath,
+            callerProvider,
+            registerProject,
+        }) => {
+            const result = database.ensureDelegationContext(
+                await resolveOwnerProjectRoot(rootPath),
+                callerProvider,
+                registerProject,
+            );
+            emit({ event: 'state.changed', payload: { kind: 'full', reason: 'project.create' } });
+            return result;
+        },
         'agentActions.list': ({ terminalId }) =>
             listAgentActions(
                 database,

@@ -23,11 +23,16 @@ import {
     findCliCommand,
     parseCliArguments,
 } from './commands';
-import type { AgentEndpointCredential, CliAutomation } from './environment';
+import type {
+    AgentEndpointCredential,
+    CliAutomation,
+    DelegationClientCredential,
+} from './environment';
 import {
     detectAutomation,
     resolveAgentEndpointCredential,
     resolveCliProfile,
+    resolveDelegationClientCredential,
     resolvePackagedServerLaunch,
 } from './environment';
 import type { CliOutputMode } from './output';
@@ -51,7 +56,7 @@ export interface CliServerClient {
 }
 
 export interface CliConnectOptions {
-    credential?: AgentEndpointCredential;
+    credential?: AgentEndpointCredential | DelegationClientCredential;
     profilePath: string;
     signal?: AbortSignal;
     timeoutMs: number;
@@ -501,10 +506,20 @@ export async function runCli(
             home: options.home,
             platform: options.platform,
         });
-        const endpointCredential = resolveAgentEndpointCredential(environment);
+        const managedCredential = resolveAgentEndpointCredential(environment);
+        const externalCredential = resolveDelegationClientCredential(environment);
+        if (managedCredential && externalCredential)
+            throw new CaxriError(
+                'VALIDATION',
+                'Managed and external Agent credentials cannot be combined',
+            );
+        const endpointCredential = managedCredential ?? externalCredential;
         const resourcesPath = (process as unknown as { resourcesPath?: unknown }).resourcesPath;
         const serverLaunch = resolvePackagedServerLaunch({
+            environment,
             executable: process.execPath,
+            home: options.home,
+            platform: options.platform,
             resourcesPath: typeof resourcesPath === 'string' ? resourcesPath : undefined,
             runAsNode: environment.ELECTRON_RUN_AS_NODE,
             scriptPath: process.argv[1],
@@ -561,12 +576,20 @@ export async function runCli(
                         status: 'ready',
                     };
                 } else if (selected.path[0] === 'agent-context') {
-                    if (!client.welcome.commands.includes('agent.context'))
-                        throw new CaxriError(
-                            'CONFLICT',
-                            'The Caxri Host does not support Agent Endpoint context',
-                        );
-                    value = await client.request('agent.context', {});
+                    if (client.welcome.principal.kind === 'delegation-client') {
+                        value = {
+                            principal: client.welcome.principal,
+                            capabilities: client.welcome.capabilities,
+                            commands: client.welcome.commands,
+                        };
+                    } else {
+                        if (!client.welcome.commands.includes('agent.context'))
+                            throw new CaxriError(
+                                'CONFLICT',
+                                'The Caxri Host does not support Agent Endpoint context',
+                            );
+                        value = await client.request('agent.context', {});
+                    }
                 } else {
                     value = {
                         ...(value as Record<string, unknown>),
@@ -596,7 +619,7 @@ export async function runCli(
             command.method === 'agent.delegation.wait'
         )
             parameters = { ...(parameters as object), timeoutMs: parsed.timeoutMs };
-        if (!endpointCredential && command.requiresAgentEndpoint)
+        if (endpointCredential?.kind !== 'agent' && command.requiresAgentEndpoint)
             throw new CaxriError(
                 'FORBIDDEN',
                 'This command requires a directly managed Caxri Agent Endpoint credential',

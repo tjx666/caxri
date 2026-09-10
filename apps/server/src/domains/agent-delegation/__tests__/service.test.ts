@@ -64,6 +64,43 @@ async function fixture() {
 }
 
 describe('AgentDelegationService', () => {
+    it('confines external clients to their bound caller and Session and rejects sibling client access', async () => {
+        const f = await fixture();
+        const authority = {
+            principal: {
+                kind: 'delegation-client' as const,
+                id: 'external-one',
+                clientId: 'client-one',
+                generation: 1,
+                projectIds: [f.input.projectId] as [string],
+                sessionId: f.input.sessionId,
+                callerProvider: 'codex' as const,
+            },
+        };
+        await expect(
+            f.service.create(randomUUID(), authority, { ...f.input, callerProvider: 'grok' }),
+        ).rejects.toThrow('authorized provider');
+        const otherSession = f.database.createSession(f.input.projectId, null).session;
+        await expect(
+            f.service.create(randomUUID(), authority, { ...f.input, sessionId: otherSession.id }),
+        ).rejects.toThrow('authorized external Session');
+        await f.service.create(f.id, authority, f.input);
+        expect(() =>
+            f.service.status(f.id, {
+                principal: { ...authority.principal, id: 'external-two', clientId: 'client-two' },
+            }),
+        ).toThrow('another Agent');
+        const record = f.database.agentDelegations.get(f.id)!;
+        for (let index = 0; index < 3; index += 1)
+            f.database.agentDelegations.insert({
+                ...record,
+                receipt: { ...record.receipt, delegationId: randomUUID() },
+            });
+        await expect(f.service.create(randomUUID(), authority, f.input)).rejects.toThrow(
+            'four active',
+        );
+        expect(f.start).toHaveBeenCalledOnce();
+    });
     it('retains metadata when private-file cleanup fails and permits an explicit retry', async () => {
         const f = await fixture();
         await f.service.create(f.id, owner, f.input);

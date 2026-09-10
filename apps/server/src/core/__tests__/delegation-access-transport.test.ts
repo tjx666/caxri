@@ -1,0 +1,68 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { ServerClient } from '@caxri/client/supervise';
+import { expect, it, onTestFinished, vi } from 'vitest';
+
+import { ControlServer } from '../control-server';
+import { DelegationAccessRegistry } from '../delegation-access-registry';
+import { acquireServerProfile } from '../profile';
+
+it('authenticates a scoped external client and rechecks revocation before cached replies', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-external-transport-'));
+    const lease = await acquireServerProfile({ userDataPath, version: '1.0.0' });
+    const registry = await DelegationAccessRegistry.open(
+        lease.paths.directory,
+        join(lease.paths.directory, 'clients.json'),
+    );
+    const issued = await registry.create(
+        { projectId: 'project', sessionId: 'session', callerProvider: 'codex' },
+        60_000,
+    );
+    const invoke = vi.fn(() => ({
+        delegationId: 'task',
+        projectId: 'project',
+        sessionId: 'session',
+        provider: 'claude',
+        status: 'interrupted',
+        revision: 1,
+        createdAt: 1,
+        updatedAt: 1,
+    }));
+    const server = new ControlServer({
+        identity: lease.identity,
+        desktopCredential: lease.desktopCredential,
+        adapters: { server: { invoke } },
+        authenticateDelegation: (credential) => registry.authenticate(credential),
+        refreshContext: (context) =>
+            context.principal.kind === 'delegation-client'
+                ? registry.refresh(context.principal)
+                : context,
+    });
+    const resources: { client?: ServerClient } = {};
+    onTestFinished(async () => {
+        resources.client?.close();
+        await server.close();
+        await lease.release();
+        await rm(userDataPath, { recursive: true, force: true });
+    });
+    await lease.publish(await server.start());
+    const client = await ServerClient.connect(lease.manifest, 1000, {
+        kind: 'delegation-client',
+        clientId: issued.clientId,
+        generation: issued.generation,
+        token: issued.token,
+    });
+    resources.client = client;
+    expect(client.welcome.capabilities).toEqual(['agents.delegate']);
+    expect(client.welcome.commands).not.toContain('settings.delegation.import');
+    expect(client.welcome.commands).not.toContain('agent.delegation.access.create');
+    expect(client.welcome.commands).not.toContain('terminal.send');
+    await client.requestWithId('same-request', 'agent.delegation.stop', { delegationId: 'task' });
+    await registry.revoke(issued.clientId, issued.generation);
+    await expect(
+        client.requestWithId('same-request', 'agent.delegation.stop', { delegationId: 'task' }),
+    ).rejects.toThrow();
+    expect(invoke).toHaveBeenCalledOnce();
+});

@@ -159,7 +159,64 @@ Install the bundled CLI instructions explicitly with
 `.grok/skills/caxri-cli`; `--global` uses `GROK_HOME/skills/caxri-cli` (default `~/.grok`).
 The existing managed-skill installer preserves foreign files and does not install hooks or change
 provider permissions. Installing the skill does not grant an external Agent a Caxri identity;
-standalone directory authorization remains separate work.
+use the explicit owner authorization below for callers outside managed Terminals.
+
+## External callers and directory authorization
+
+The human profile owner can authorize a caller outside Caxri without borrowing a managed Terminal
+identity or giving the caller the profile-owner credential:
+
+```sh
+caxri agent delegate access create --root /absolute/project --provider codex \
+  --register-project --profile /absolute/profile --yes --json
+```
+
+The root must resolve to an existing directory. `--register-project` explicitly permits creating
+Project metadata if that exact canonical root is not already registered. A parent Project does not
+implicitly authorize a nested root, and an automatically owned worktree Project cannot be used for
+this bootstrap. The Server creates or reuses a dedicated Session for the Project and caller provider
+without changing the Desktop's selection. Project, Session and binding creation share one database
+transaction. This owner CLI operation is separate from the Renderer's native folder grants.
+
+The private response contains `clientId`, `generation`, `token`, `projectId` and `sessionId`.
+Deliver it only to the intended caller through private process configuration; do not paste it into
+prompts, issue comments, logs or shared artifacts. Configure that caller with:
+
+- `CAXRI_USER_DATA_DIR`: the explicit authorized profile.
+- `CAXRI_DELEGATION_CLIENT_ID`: the returned client ID.
+- `CAXRI_DELEGATION_GENERATION`: the returned generation.
+- `CAXRI_DELEGATION_TOKEN`: the returned token.
+
+`caxri agent-context --json` reports the bound Project, Session and caller provider without the token.
+The usual `agent delegate presets|create|status|wait|result|stop` commands then use this identity.
+Pass its Project and Session IDs to `create`; any `--caller` must match its bound provider. A client
+cannot read another client's answers even when both use the same dedicated Session. Reissuing access
+reuses that Session but creates a distinct identity; the owner can still recover earlier results.
+
+The credential grants only `agents.delegate`. It cannot steer arbitrary Terminals, change settings,
+register another root, issue credentials or use managed-Endpoint messaging. Each dedicated Session
+admits at most four active or pending tasks. The private Server registry stores only token digests,
+survives restart and holds at most 128 live authorizations. Authorization lasts 12 hours by default;
+`--ttl-ms` accepts one minute through seven days. Every request rechecks expiry and revocation before
+returning even a cached receipt.
+
+```sh
+caxri agent delegate access list --profile /absolute/profile --json
+caxri agent delegate access revoke --client CLIENT_ID --generation GENERATION \
+  --profile /absolute/profile --yes --json
+```
+
+Listing omits credentials. Revocation invalidates that exact generation, including connections that
+are already open; it does not terminate an already admitted task. Owner authorization can start the
+packaged Server through the existing CLI startup path. A credential-bearing caller only connects to
+an existing Server and never starts one implicitly. The Desktop can attach later to the same profile
+and show the durable Session and child Terminal.
+
+These roles are an application authorization boundary, not isolation between mutually untrusted
+processes sharing one OS user. An external provider's sandbox must also permit the existing local
+Server transport. Supplying credentials does not grant network access, and Caxri does not loosen
+the caller's sandbox. A blocked loopback connection must be resolved through the caller's authorized
+launch policy; it is not a reason to fall back to owner credentials or an invisible child process.
 
 ## Import dianjiang presets
 
