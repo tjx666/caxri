@@ -65,11 +65,14 @@ afterAll(async () => {
 });
 
 describe('Acceptance Agent fixture lifecycle', () => {
-    it('binds the Grok-only fixture to its declared provider and cleanup', async () => {
-        const directory = await reportDirectory('grok-build-v1');
+    it.each([
+        ['grok-build-v1', ['grok']],
+        ['agent-delegation-v1', ['claude', 'codex', 'grok']],
+    ] as const)('binds %s to its declared providers and cleanup', async (fixtureId, providers) => {
+        const directory = await reportDirectory(fixtureId);
         const launchId = await beginAgentFixtureLifecycle(directory, {
             caseId: 'terminal-layout',
-            fixtureId: 'grok-build-v1',
+            fixtureId,
         });
         await completeAgentFixtureLifecycle(directory, {
             caseId: 'terminal-layout',
@@ -81,11 +84,11 @@ describe('Acceptance Agent fixture lifecycle', () => {
         const receipt = JSON.parse(await readFile(join(directory, evidence), 'utf8')) as {
             providers: string[];
         };
-        expect(receipt.providers).toEqual(['grok']);
+        expect(receipt.providers).toEqual(providers);
         await expect(
             validateAgentFixtureEvidence(directory, {
                 caseId: 'terminal-layout',
-                fixtureId: 'grok-build-v1',
+                fixtureId,
                 evidencePaths: [evidence],
             }),
         ).resolves.toBeUndefined();

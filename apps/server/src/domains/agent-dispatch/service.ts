@@ -54,6 +54,8 @@ type DispatchReason = AgentDispatchFailure['reason'];
 
 export interface AgentDispatchStartOptions {
     delegationId?: string;
+    assignedAgentSessionId?: string;
+    initialPrompt?: string;
     launch: AgentLaunchSettings;
     shouldStart?: () => boolean;
     cwd?: string;
@@ -179,7 +181,12 @@ export class AgentDispatchService {
         const ownerProject = this.options.database.getProject(session.projectId);
         if (!ownerProject) throw new CaxriError('NOT_FOUND', 'Project not found');
         const launch = options?.launch ?? this.options.launchSettings(input.provider);
-        const projected = launchProjection(input.provider, launch, 'fresh');
+        const projected = launchProjection(
+            input.provider,
+            launch,
+            'fresh',
+            (options?.assignedAgentSessionId ? 2 : 0) + (options?.initialPrompt ? 2 : 0),
+        );
         const cwd = await this.options.terminalWorkingDirectory(
             options?.cwd ?? ownerProject.rootPath,
         );
@@ -227,8 +234,9 @@ export class AgentDispatchService {
             undefined,
             launch,
             options?.shouldStart,
-            undefined,
+            options?.initialPrompt,
             options?.delegationId,
+            options?.assignedAgentSessionId,
         );
     }
 
@@ -311,6 +319,7 @@ export class AgentDispatchService {
         shouldStart?: () => boolean,
         initialPrompt?: string,
         delegationId?: string,
+        assignedAgentSessionId?: string,
     ): Promise<AgentDispatchReceipt> {
         try {
             if (resumeAgentSessionId) this.intentionalRestarts.set(terminal.id, dispatchId);
@@ -329,6 +338,8 @@ export class AgentDispatchService {
                           launchSettings,
                           shouldStart,
                           delegationId,
+                          initialPrompt,
+                          assignedAgentSessionId,
                       }));
             } finally {
                 if (this.intentionalRestarts.get(terminal.id) === dispatchId)

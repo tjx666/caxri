@@ -244,10 +244,11 @@ export class AgentDelegationService {
             },
             {
                 delegationId: id,
-                launch: delegationAdapter(record.receipt.provider).resumeLaunch(
-                    record.frozenLaunch,
-                    join(this.options.userDataPath, 'delegations', record.rootDelegationId!),
-                ),
+                launch:
+                    delegationAdapter(record.receipt.provider).resumeLaunch?.(
+                        record.frozenLaunch,
+                        join(this.options.userDataPath, 'delegations', record.rootDelegationId!),
+                    ) ?? record.frozenLaunch,
                 initialPrompt: prepared.pointer,
                 replaceLaunchId: expectedLaunchId,
                 shouldStart,
@@ -444,6 +445,8 @@ export class AgentDelegationService {
                     {
                         delegationId: id,
                         launch: prepared.launch,
+                        initialPrompt: prepared.initialPrompt,
+                        assignedAgentSessionId: prepared.assignedAgentSessionId,
                         shouldStart: () => {
                             const current = this.options.database.agentDelegations.get(id);
                             return (
@@ -595,10 +598,10 @@ export class AgentDelegationService {
         environment.CAXRI_HOOK_DIGEST = '1';
     }
 
-    observe(signal: AgentLifecycleSignal): void {
+    observe(signal: AgentLifecycleSignal, source: 'lifecycle' | 'evidence' = 'lifecycle'): void {
         const record = this.activeForTerminal(signal.terminalId);
         if (!record) return;
-        const next = applyDelegationLifecycle(record, signal);
+        const next = applyDelegationLifecycle(record, signal, source);
         if (next) {
             const saved = this.save(next);
             if (saved.turnId || !isDelegationActive(saved.receipt)) {

@@ -30,6 +30,72 @@ async function context() {
 }
 
 describe('Grok Build launch contract', () => {
+    it('renders the trusted identity and pointer exactly once without trusting user flags', async () => {
+        const input = await context();
+        const assignedAgentSessionId = '49cc1001-2b93-4bb3-9ee8-104e8dcdd683';
+        const trusted = { assignedAgentSessionId, initialPrompt: 'Synthetic private-file pointer' };
+        expect(await grokProvider.prepareLaunch!({ ...input, ...trusted })).toEqual({
+            agentSessionId: assignedAgentSessionId,
+            args: [
+                ...input.args,
+                '--session-id',
+                assignedAgentSessionId,
+                '--',
+                trusted.initialPrompt,
+            ],
+        });
+        await Promise.all(
+            ['--session-id', '--resume', '--'].map((flag) =>
+                expect(
+                    grokProvider.prepareLaunch!({
+                        ...input,
+                        ...trusted,
+                        args: [...input.args, flag, 'untrusted'],
+                    }),
+                ).rejects.toThrow('manages Grok'),
+            ),
+        );
+        await expect(
+            grokProvider.prepareLaunch!({
+                ...input,
+                ...trusted,
+                resumeAgentSessionId: '59cc1001-2b93-4bb3-9ee8-104e8dcdd683',
+            }),
+        ).rejects.toThrow('must match');
+    });
+
+    it.each(['special', 'long'] as const)(
+        'resumes the exact %s cwd layout with its pointer',
+        async (kind) => {
+            const input = await context();
+            const cwd = join(input.cwd, kind === 'special' ? "project!'()*" : 'segment'.repeat(30));
+            await mkdir(cwd);
+            const id = '49cc1001-2b93-4bb3-9ee8-104e8dcdd683';
+            const encoded = encodeURIComponent(cwd).replaceAll(
+                /[!'()*]/gu,
+                (value) => `%${value.codePointAt(0)!.toString(16).toUpperCase()}`,
+            );
+            const project = join(
+                input.environment.variables.GROK_HOME,
+                'sessions',
+                kind === 'long' ? 'hashed-project' : encoded,
+            );
+            await mkdir(join(project, id), { recursive: true });
+            if (kind === 'long') await writeFile(join(project, '.cwd'), cwd);
+            await writeFile(join(project, id, 'summary.json'), '{}');
+            expect(
+                (
+                    await grokProvider.prepareLaunch!({
+                        ...input,
+                        cwd,
+                        resumeAgentSessionId: id,
+                        initialPrompt: 'Synthetic follow-up',
+                    })
+                ).args,
+            ).toEqual([...input.args, '--resume', id, '--', 'Synthetic follow-up']);
+        },
+    );
+
     it('allocates different exact identities for simultaneous same-directory launches', async () => {
         const input = await context();
         const [first, second] = await Promise.all([

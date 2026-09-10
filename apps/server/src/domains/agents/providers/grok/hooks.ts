@@ -9,6 +9,7 @@ const bindings = [
     { event: 'UserPromptSubmit', phase: 'turnStarted' },
     { event: 'Stop', phase: 'turnFinished' },
     { event: 'StopFailure', phase: 'turnFailed' },
+    { event: 'StopCancelled', phase: 'turnFailed' },
 ] as const;
 const target = 'hooks';
 
@@ -22,7 +23,7 @@ export function isGrokVersionSupported(version: string | undefined): boolean {
 
 export const grokHookAdapter: AgentHookAdapter = {
     bindings,
-    schemaVersion: 1,
+    schemaVersion: 2,
     configTargets: (environment) => [
         {
             id: target,

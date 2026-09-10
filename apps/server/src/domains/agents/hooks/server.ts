@@ -276,10 +276,22 @@ function parsePacket(
     if (signal.agentContentOverflow !== undefined && signal.agentContentOverflow !== true)
         return { reason: 'invalidAgentDigest' };
     if (
+        signal.agentResponseByteLength !== undefined &&
+        (signal.provider !== 'grok' ||
+            signal.phase !== 'turnFinished' ||
+            signal.agentId !== undefined ||
+            typeof signal.agentResponseByteLength !== 'number' ||
+            !Number.isSafeInteger(signal.agentResponseByteLength) ||
+            signal.agentResponseByteLength < 0 ||
+            signal.agentResponseByteLength > 1_048_576 ||
+            !signal.agentResponseDigest)
+    )
+        return { reason: 'invalidAgentDigest' };
+    if (
         signal.agentFailure !== undefined &&
         (typeof signal.agentFailure !== 'string' ||
-            signal.provider !== 'claude' ||
-            signal.phase !== 'turnFinished' ||
+            !['claude', 'grok'].includes(signal.provider) ||
+            !['turnFinished', 'turnFailed'].includes(signal.phase) ||
             signal.agentId !== undefined ||
             ![
                 'rate_limit',
@@ -288,6 +300,14 @@ function parsePacket(
                 'max_output_tokens',
                 'provider_failed',
             ].includes(signal.agentFailure))
+    )
+        return { reason: 'invalidAgentDigest' };
+    if (
+        signal.agentTurnContinues !== undefined &&
+        (signal.agentTurnContinues !== true ||
+            signal.provider !== 'grok' ||
+            signal.phase !== 'turnFinished' ||
+            signal.agentId !== undefined)
     )
         return { reason: 'invalidAgentDigest' };
     /**

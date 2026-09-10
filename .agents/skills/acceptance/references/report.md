@@ -160,7 +160,7 @@ one exact profile identity across launches. A plan with `fixturePreflight: termi
 include the ready `assets/<case-id>-fixture-preflight.json` receipt.
 
 A plan may declare `agentFixture: "agent-features-v1"` for fake Claude Code or Codex processes,
-`agentFixture: "agent-delegation-v1"` for visible Claude/Codex task delegation with a synthetic caller,
+`agentFixture: "agent-delegation-v1"` for visible Claude/Codex/Grok task delegation with a synthetic caller,
 or `agentFixture: "grok-build-v1"` for fake Grok Build. Launch with the matching `--agent-fixture` value and include
 `assets/<case-id>-agent-fixture.json` in the case evidence. Finalization requires the receipt to
 match the frozen id and every fixture launch to have completed owned-profile cleanup.

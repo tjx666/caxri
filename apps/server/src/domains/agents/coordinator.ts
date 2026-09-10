@@ -620,6 +620,8 @@ export class AgentCoordinator {
             return 'providerMismatch';
         }
         if (!this.grokTurns.accept(signal, terminal.agentSessionId)) return 'staleProviderTurn';
+        // Accepted continuation evidence must not mark the Session idle or complete.
+        if (signal.agentTurnContinues) return 'accepted';
         this.idleProof.invalidate(signal.terminalId);
         const work = this.work.observe(signal);
         if (work.outcome !== undefined) return work.outcome;

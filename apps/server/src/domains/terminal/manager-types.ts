@@ -83,6 +83,10 @@ export interface TerminalStartOptions {
      */
     delegationId?: string;
     /**
+     * Preallocated Server-owned identity; never accepted from a public launch request.
+     */
+    assignedAgentSessionId?: string;
+    /**
      * Frozen Server-owned launch configuration for one admitted delegation.
      */
     launchSettings?: AgentLaunchSettings;

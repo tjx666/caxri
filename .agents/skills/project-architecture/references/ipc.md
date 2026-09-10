@@ -25,6 +25,11 @@ Agent control. Task identity, frozen launch settings and private answers are per
 the managed Terminal side effects. Provider adapters own native launch flags, identity and finality:
 Claude matches a proven Stop digest, while Codex binds an authenticated turn to a native final event.
 Codex result reads advance a bounded private cursor without rescanning unchanged history.
+Grok combines authenticated Stop evidence with durable native finality; its live response boundaries
+are not persisted. Native Stop execution counts guard against stale evidence after continued drafts.
+Grok's shared `prepareLaunch` renders Server-owned `assignedAgentSessionId` and `initialPrompt`
+separately from untrusted launch settings, preserving its identity-override rejection and workspace
+sandbox requirement. Public launch requests cannot populate those internal fields.
 See [visible delegation](../../../../docs/agent-delegation.md) for storage, recovery,
 provider limits and the staged replacement scope.
 

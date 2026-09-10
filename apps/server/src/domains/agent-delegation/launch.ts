@@ -9,7 +9,7 @@ import { CaxriError } from '@caxri/protocol';
  * Provider launch, identity, and finality stay behind the agents domain's public API.
  */
 // react-doctor-disable-next-line react-doctor/no-barrel-import
-import { delegationAdapter } from '../agents';
+import { agentProviders, delegationAdapter } from '../agents';
 
 /**
  * Delegations own native session identity and interactive submission. An ambiguous positional argument or caller-owned
@@ -70,7 +70,12 @@ export async function prepareDelegationLaunch(
     providerSessionId: string | undefined,
     prompt: string,
     frozenLaunch: AgentLaunchSettings,
-): Promise<{ launch: AgentLaunchSettings; promptDigest: string }> {
+): Promise<{
+    launch: AgentLaunchSettings;
+    promptDigest: string;
+    initialPrompt?: string;
+    assignedAgentSessionId?: string;
+}> {
     validateDelegationLaunch(provider, frozenLaunch);
     if (!/^(?:[\da-f-]{36}|dispatch-[\da-f]{64})$/u.test(delegationId))
         throw new CaxriError('VALIDATION', 'Delegation launch requires generated identifiers');
@@ -81,13 +86,18 @@ export async function prepareDelegationLaunch(
     const path = join(directory, 'task.md');
     await writeFile(path, prompt, { encoding: 'utf8', flag: 'wx', mode: 0o600 });
     const pointer = `Read the delegated task from ${JSON.stringify(path)} and carry it out. Delegation ID: ${delegationId}.`;
+    const isProviderOwnsLaunch = agentProviders[provider].prepareLaunch !== undefined;
+    const freshLaunch = delegationAdapter(provider).freshLaunch;
+    if (!isProviderOwnsLaunch && !freshLaunch)
+        throw new CaxriError('UNAVAILABLE', 'Provider has no delegation launch renderer');
     return {
-        launch: delegationAdapter(provider).freshLaunch(
-            frozenLaunch,
-            pointer,
-            directory,
-            providerSessionId,
-        ),
+        launch: isProviderOwnsLaunch
+            ? frozenLaunch
+            : freshLaunch!(frozenLaunch, pointer, directory, providerSessionId),
+        ...(isProviderOwnsLaunch && {
+            initialPrompt: pointer,
+            assignedAgentSessionId: providerSessionId,
+        }),
         promptDigest: createHash('sha256').update(pointer).digest('hex'),
     };
 }

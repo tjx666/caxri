@@ -97,7 +97,15 @@ export interface AgentLifecycleSignal {
      */
     agentPromptDigest?: string;
     agentResponseDigest?: string;
+    /**
+     * Grok's final response may share a persisted text chunk with rejected Stop-hook drafts.
+     */
+    agentResponseByteLength?: number;
     agentContentOverflow?: true;
+    /**
+     * A delegated Grok Stop is evidence only while native background work still continues.
+     */
+    agentTurnContinues?: true;
     /**
      * Closed StopFailure classification; provider error text never crosses the hook boundary.
      */
