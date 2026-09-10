@@ -185,6 +185,10 @@ export class TreeItem {
     description?: string;
     tooltip?: string | TreeItemRichTooltip;
     iconPath?: ThemeIcon;
+    /**
+     * Optional trailing metadata icon; describe its meaning in the tooltip and accessible label.
+     */
+    trailingIcon?: ThemeIcon;
     command?: Command;
     accessibilityInformation?: { label: string };
 

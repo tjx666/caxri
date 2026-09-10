@@ -8,8 +8,10 @@ import {
     ChevronDown,
     ChevronRight,
     Circle,
+    CircleArrowUp,
     CircleCheck,
     CircleDot,
+    CircleSlash,
     CircleX,
     Cloud,
     EyeOff,
@@ -26,6 +28,7 @@ import {
 import { executeCommand } from '../../commands/execute';
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
+import { DeploymentPreviewIcon } from '../../icons/deployment-preview-icon';
 import type { LinearStatusKind } from '../../icons/linear/linear-status-icon';
 import { LinearStatusIcon } from '../../icons/linear/linear-status-icon';
 import { caxri } from '../../lib/caxri';
@@ -66,8 +69,11 @@ const MESSAGE_ROW_HEIGHT = 160;
 const themeIcons = {
     'check': Check,
     'circle-check': CircleCheck,
+    'circle-arrow-up': CircleArrowUp,
     'circle-dot': CircleDot,
     'circle-outline': Circle,
+    'circle-slash': CircleSlash,
+    'deployment-preview': DeploymentPreviewIcon,
     'circle-x': CircleX,
     'cloud': Cloud,
     'error': AlertTriangle,
@@ -108,6 +114,7 @@ const themeIconClassNames: Partial<Record<ThemeIconId, string>> = {
     'circle-check': 'text-success',
     'circle-dot': 'text-muted',
     'circle-outline': 'text-muted',
+    'circle-slash': 'text-muted',
     'circle-x': 'text-danger',
     'error': 'text-danger',
     'linear-backlog': 'text-muted',
@@ -261,6 +268,12 @@ const TreeItemRow = memo(
                 : File;
         const iconClassName =
             themeIconId !== undefined ? themeIconClassNames[themeIconId as ThemeIconId] : undefined;
+        const trailingIconId =
+            row.item.trailingIcon?.kind === 'theme' ? row.item.trailingIcon.id : undefined;
+        const TrailingIcon =
+            trailingIconId && trailingIconId in themeIcons
+                ? themeIcons[trailingIconId as keyof typeof themeIcons]
+                : undefined;
         const rowElement = useRef<HTMLDivElement>(null);
         const tooltip =
             row.item.tooltip ??
@@ -418,6 +431,14 @@ const TreeItemRow = memo(
                             <span className="max-w-[45%] min-w-0 shrink truncate text-[11px] font-normal text-muted">
                                 {row.item.description}
                             </span>
+                        )}
+                        {TrailingIcon && (
+                            <TrailingIcon
+                                aria-hidden="true"
+                                className="shrink-0 text-muted"
+                                data-theme-icon={trailingIconId}
+                                size={14}
+                            />
                         )}
                     </>
                 )}

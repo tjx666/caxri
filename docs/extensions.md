@@ -225,6 +225,19 @@ repositories, regardless of diff mode, exclusions, or payload truncation. The St
 owns failed-check and current-deployment aggregation. Both reuse Server domain caches rather
 than starting a separate native polling loop.
 
+Vercel deployment rows (Production, Preview, and branch deployment children) open the selected
+deployment's Vercel details page, including canceled, pending, and failed attempts. Server Core
+reads bounded deployment lists through `vc api` to retain the stable deployment ID; the site
+hostname is not an inspector identifier. The hover card keeps the site URL as a separate `alias`
+action. Production represents the latest production attempt and Preview the local HEAD's latest
+preview attempt; opening details does not substitute an older successful deployment.
+Canceled deployments retain neutral aggregation semantics but display a muted circle-slash icon
+and explicit `canceled` text in the environment summary and hover-card badge. Branch deployment
+children use a trailing environment icon (circle-arrow-up for production, eye-with-magnifier for preview)
+instead of repeating environment and status text. Hover cards and accessible labels preserve both
+facts. `TreeItem.trailingIcon` carries optional metadata as a validated theme icon across the Host
+boundary; it does not create a separate action or keyboard stop.
+
 ## Tree RPC
 
 Extension element type `T` never leaves the Extension Host. The process boundary carries

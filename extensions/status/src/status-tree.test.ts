@@ -9,6 +9,59 @@ function iconId(node: ReturnType<typeof buildRepoNode>): string | undefined {
 }
 
 describe('Status extension tree', () => {
+    it.each(['neutral', 'failure', 'success', 'pending'] as const)(
+        'opens deployment details from every row for %s deployments',
+        (state) => {
+            const deployment = {
+                environment: 'preview' as const,
+                hostname: 'fixture.vercel.app',
+                state,
+                url: 'https://fixture.vercel.app',
+                inspectorUrl: 'https://vercel.com/team/project/Deployment123',
+            };
+            const root = buildRepoNode({
+                id: 'fixture',
+                kind: 'primary',
+                name: 'project',
+                branch: 'main',
+                linearIssues: [],
+                errors: [],
+                deployments: {
+                    url: 'https://vercel.com/team/project/deployments',
+                    branchDeployments: [deployment],
+                    production: { ...deployment, environment: 'production' },
+                    preview: deployment,
+                },
+            });
+            const rows = (root.children ?? [])
+                .flatMap((node) => node.children ?? [node])
+                .filter((node) =>
+                    ['Production', 'Preview', deployment.hostname].includes(node.item.label),
+                );
+            expect(rows).toHaveLength(3);
+            for (const row of rows) {
+                if (state === 'neutral') {
+                    expect(row.item.iconPath?.id).toBe('circle-slash');
+                    expect(row.item.accessibilityInformation?.label).toContain('canceled');
+                    expect(row.item.tooltip).toMatchObject({
+                        badge: { label: 'canceled', tone: 'neutral' },
+                    });
+                }
+                expect(row.item.command?.arguments).toEqual([deployment.inspectorUrl]);
+                const tooltip = row.item.tooltip as TreeItemRichTooltip;
+                expect(tooltip.rows).toContainEqual({
+                    label: 'alias',
+                    value: deployment.hostname,
+                    url: deployment.url,
+                });
+                expect(tooltip.rows).toContainEqual({
+                    label: 'inspect',
+                    value: 'details',
+                    url: deployment.inspectorUrl,
+                });
+            }
+        },
+    );
     it('preserves the complete pre-extension hierarchy and stable semantic state', () => {
         const repo: ProjectStatusRepository = {
             id: 'repo-1',
@@ -141,8 +194,12 @@ describe('Status extension tree', () => {
             description: '2 on feature/status',
         });
         expect(children[6].children?.map(({ item }) => item.description)).toEqual([
-            'production · success',
-            'preview · pending',
+            undefined,
+            undefined,
+        ]);
+        expect(children[6].children?.map(({ item }) => item.trailingIcon?.id)).toEqual([
+            'circle-arrow-up',
+            'deployment-preview',
         ]);
         expect(children[6].children?.[0].item.tooltip).toEqual({
             kind: 'rich',
@@ -156,7 +213,7 @@ describe('Status extension tree', () => {
                 },
                 {
                     label: 'inspect',
-                    value: 'logs',
+                    value: 'details',
                     url: 'https://vercel.com/tjx666/caxri/production-branch',
                 },
                 expect.objectContaining({ label: 'created' }),
@@ -170,7 +227,7 @@ describe('Status extension tree', () => {
         expect(children[7].item.tooltip).toMatchObject({
             title: 'Production',
             badge: { label: 'success', tone: 'success' },
-            rows: [{ label: 'alias' }, { label: 'inspect', value: 'logs' }],
+            rows: [{ label: 'alias' }, { label: 'inspect', value: 'details' }],
         });
         expect(children[8].item.description).toBe('failure · preview.caxri.app');
         expect(children[9].item.collapsibleState).toBe(TreeItemCollapsibleState.Expanded);
@@ -388,7 +445,7 @@ describe('Status extension tree', () => {
         });
     });
 
-    it('never repeats a row destination the tooltip already publishes', () => {
+    it('keeps the alias explicit without opening it when deployment details are missing', () => {
         const node = buildRepoNode({
             id: 'repo-1',
             kind: 'primary',
@@ -410,7 +467,7 @@ describe('Status extension tree', () => {
         });
         const production = node.children?.at(-1);
 
-        expect(production?.item.command).toMatchObject({ arguments: ['https://caxri.app'] });
+        expect(production?.item.command).toBeUndefined();
         expect(production?.item.tooltip).toEqual({
             kind: 'rich',
             title: 'Production',

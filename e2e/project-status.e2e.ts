@@ -74,9 +74,9 @@ printf '{"body":"Related to https://linear.app/lobehub/issue/LOBE-42/project-sta
         `#!/bin/sh
 case " $* " in
   *" teams ls "*) printf '%s' '{"teams":[{"slug":"tjx666"}]}' ;;
-  *" githubCommitRef="*) printf '%s' '[{"created":1700000000000,"name":"project","readyState":"READY","target":"preview","url":"project-8ykp416o7-tjx666.vercel.app"},{"name":"project","readyState":"BUILDING","target":"preview","url":"project-building-tjx666.vercel.app"},{"name":"project","readyState":"QUEUED","target":"preview","url":"project-queued-tjx666.vercel.app"}]' ;;
-  *" --environment production "*) printf '%s' '[{"created":1700000000000,"name":"project","readyState":"READY","target":"production","url":"project-production-tjx666.vercel.app"}]' ;;
-  *" --environment preview "*) printf '%s' '[{"name":"project","readyState":"ERROR","target":"preview","url":"project-preview-tjx666.vercel.app"}]' ;;
+  *"meta-githubCommitRef="*) printf '%s' '[{"uid":"dpl_Ready123","created":1700000000000,"name":"project","readyState":"READY","target":"preview","url":"project-8ykp416o7-tjx666.vercel.app"},{"uid":"dpl_Building123","name":"project","readyState":"BUILDING","target":"preview","url":"project-building-tjx666.vercel.app"},{"uid":"dpl_Queued123","name":"project","readyState":"QUEUED","target":"production","url":"project-queued-tjx666.vercel.app"}]' ;;
+  *"target=production"*) printf '%s' '[{"uid":"dpl_Production123","created":1700000000000,"name":"project","readyState":"READY","target":"production","url":"project-production-tjx666.vercel.app"}]' ;;
+  *"target=preview"*) printf '%s' '[{"uid":"dpl_Canceled123","name":"project","readyState":"CANCELED","target":"preview","url":"project-preview-tjx666.vercel.app"}]' ;;
   *) printf '%s' '[{"name":"project","readyState":"READY","target":"production","url":"discovery.vercel.app"}]' ;;
 esac
 `,
@@ -337,7 +337,7 @@ esac
         await running.page.keyboard.press('Space');
         await expect(pullRequestA).toHaveAttribute('aria-expanded', 'true');
         const deployments = tree.getByRole('treeitem', {
-            name: 'Deployments, 3 on preview',
+            name: 'Deployments, 3 on feature/status',
             exact: true,
         });
         await expect(deployments).toBeVisible();
@@ -349,7 +349,7 @@ esac
         ).toBeVisible();
         await expect(
             tree.getByRole('treeitem', {
-                name: 'Preview, failure · project-preview-tjx666.vercel.app',
+                name: 'Preview, canceled · project-preview-tjx666.vercel.app',
                 exact: true,
             }),
         ).toBeVisible();
@@ -392,6 +392,20 @@ esac
             name: 'project-8ykp416o7-tjx666.vercel.app, preview · success',
             exact: true,
         });
+        await expect(successfulDeployment).not.toContainText('preview');
+        await expect(
+            successfulDeployment.locator('[data-theme-icon="deployment-preview"]'),
+        ).toBeVisible();
+        await expect(successfulDeployment.locator('[data-theme-icon="eye-off"]')).toHaveCount(0);
+        await expect(
+            tree
+                .getByRole('treeitem', {
+                    name: 'project-queued-tjx666.vercel.app, production · pending',
+                    exact: true,
+                })
+                .locator('[data-theme-icon="circle-arrow-up"]'),
+        ).toBeVisible();
+        await expect(successfulDeployment).not.toContainText('success');
         const originalViewport = running.page.viewportSize();
         await running.page.setViewportSize({ width: 800, height: 720 });
         const successfulDeploymentBounds = await successfulDeployment.boundingBox();
@@ -416,7 +430,7 @@ esac
             }),
         ).toBeVisible();
         await expect(
-            richTooltip.getByRole('button', { name: 'Open inspect: logs', exact: true }),
+            richTooltip.getByRole('button', { name: 'Open inspect: details', exact: true }),
         ).toBeVisible();
         await expect
             .poll(() =>
@@ -473,7 +487,7 @@ esac
             exact: true,
         });
         const logsLink = richTooltip.getByRole('button', {
-            name: 'Open inspect: logs',
+            name: 'Open inspect: details',
             exact: true,
         });
         await running.page.keyboard.press('Tab');
@@ -483,7 +497,7 @@ esac
         await running.page.keyboard.press('Enter');
         await expect
             .poll(async () => (await treeCommandOpenedUrls(running))?.at(-1))
-            .toBe('https://vercel.com/tjx666/project/8ykp416o7');
+            .toBe('https://vercel.com/tjx666/project/Ready123');
         await running.page.keyboard.press('Escape');
         await expect(richTooltip).toHaveCount(0);
         const production = tree.getByRole('treeitem', {
@@ -501,28 +515,52 @@ esac
             }),
         ).toBeVisible();
         await expect(
-            richTooltip.getByRole('button', { name: 'Open inspect: logs', exact: true }),
+            richTooltip.getByRole('button', { name: 'Open inspect: details', exact: true }),
         ).toBeVisible();
         await expect(richTooltip).toContainText('created:');
         await running.page.keyboard.press('Escape');
         await expect(richTooltip).toHaveCount(0);
         const preview = tree.getByRole('treeitem', {
-            name: 'Preview, failure · project-preview-tjx666.vercel.app',
+            name: 'Preview, canceled · project-preview-tjx666.vercel.app',
             exact: true,
         });
         await preview.focus();
         await expect(richTooltip).toBeVisible();
         await expect(richTooltip).toContainText('Preview');
-        await expect(richTooltip).toContainText('failure');
+        await expect(richTooltip).toContainText('canceled');
+        await expect(preview.locator('svg.lucide-circle-slash')).toBeVisible();
+        await richTooltip.screenshot({
+            path: 'test-results/canceled-deployment-tooltip.png',
+            animations: 'disabled',
+        });
         await expect(
             richTooltip.getByRole('button', {
                 name: 'Open alias: project-preview-tjx666.vercel.app',
                 exact: true,
             }),
         ).toBeVisible();
-        await expect(richTooltip.getByText('inspect:', { exact: true })).toHaveCount(0);
+        await expect(richTooltip.getByText('inspect:', { exact: true })).toBeVisible();
         await running.page.keyboard.press('Escape');
         await expect(richTooltip).toHaveCount(0);
+        await preview.click();
+        await expect
+            .poll(async () => (await treeCommandOpenedUrls(running))?.at(-1))
+            .toBe('https://vercel.com/tjx666/project/Canceled123');
+        await production.click();
+        await expect
+            .poll(async () => (await treeCommandOpenedUrls(running))?.at(-1))
+            .toBe('https://vercel.com/tjx666/project/Production123');
+        await successfulDeployment.click();
+        await expect
+            .poll(async () => (await treeCommandOpenedUrls(running))?.at(-1))
+            .toBe('https://vercel.com/tjx666/project/Ready123');
+        await running.page.keyboard.press('Escape');
+        await running.page.mouse.move(0, 0);
+        await expect(richTooltip).toHaveCount(0);
+        await tree.screenshot({
+            path: 'test-results/deployment-details-links.png',
+            animations: 'disabled',
+        });
         await production.focus();
         await expect(production).toHaveAttribute('aria-selected', 'true');
         const beforeStatusBRefresh = await refreshRequestCount();
@@ -603,7 +641,7 @@ esac
             restoredTree.getByRole('treeitem', { name: '#42 Status C', exact: true }),
         ).toBeVisible();
         const restoredDeployments = restoredTree.getByRole('treeitem', {
-            name: 'Deployments, 3 on preview',
+            name: 'Deployments, 3 on feature/status',
             exact: true,
         });
         await expect(restoredDeployments).toHaveAttribute('aria-expanded', 'true');

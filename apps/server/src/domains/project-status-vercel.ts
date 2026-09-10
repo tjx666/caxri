@@ -4,6 +4,7 @@ import type { VercelLink } from './project-status-external';
 import { vercelInspectorUrl } from './project-status-external';
 
 interface VercelDeployment {
+    uid?: string;
     created?: number;
     readyState?: string;
     state?: string;
@@ -34,10 +35,9 @@ export function mapProjectStatusDeployment(
         hostname,
         state,
         url: `https://${hostname}`,
-        inspectorUrl:
-            state === 'success' && link
-                ? vercelInspectorUrl(link.team, link.project, hostname)
-                : undefined,
+        inspectorUrl: link
+            ? vercelInspectorUrl(link.team, link.project, deployment.uid)
+            : undefined,
         createdAt: deployment.created,
     };
 }
