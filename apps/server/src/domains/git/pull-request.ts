@@ -7,6 +7,7 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError, MAX_CONFIGURABLE_FILE_BYTES } from '@caxri/protocol';
 import { rememberBounded } from '@caxri/utils';
+import { GitPullRequestErrorMessage } from 'caxri';
 import { z } from 'zod';
 
 import { SingleFlight } from '../single-flight';
@@ -174,6 +175,36 @@ export class GitPullRequestService {
     }
 
     /**
+     * GitHub can report commits a clone (including an independently cloned submodule) has never fetched. Fetch only
+     * missing, validated OIDs from the same origin used for PR discovery. Empty refmap and disabled FETCH_HEAD, tags,
+     * submodule recursion, and maintenance preserve user refs and avoid unrelated repository work.
+     */
+    private async ensureCommits(rootPath: string, view: GitHubPullRequestView): Promise<void> {
+        const oids = [...new Set([view.baseRefOid, view.headRefOid])];
+        const types = await Promise.all(
+            oids.map((oid) =>
+                this.dependencies.git(rootPath, ['cat-file', '-t', oid], { allowFailure: true }),
+            ),
+        );
+        const missing = oids.filter((_, index) => types[index].trim() !== 'commit');
+        if (missing.length === 0) return;
+        try {
+            await this.dependencies.git(rootPath, [
+                'fetch',
+                '--no-tags',
+                '--no-write-fetch-head',
+                '--no-recurse-submodules',
+                '--no-auto-maintenance',
+                '--refmap=',
+                'origin',
+                ...missing,
+            ]);
+        } catch {
+            throw new CaxriError('GIT', GitPullRequestErrorMessage.missingCommits);
+        }
+    }
+
+    /**
      * Removes file-list cache entries for Sessions whose backing records were deleted.
      */
     evictSessions(sessionIds: readonly string[]): void {
@@ -242,6 +273,7 @@ export class GitPullRequestService {
                     return null;
                 }
                 const view = parsePullRequestView(output);
+                await this.ensureCommits(repo.rootPath, view);
                 const range = `${view.baseRefOid}...${view.headRefOid}`;
                 const [filesOutput, lineStatsOutput] = await Promise.all([
                     this.dependencies.git(repo.rootPath, [

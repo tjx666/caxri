@@ -16,6 +16,21 @@ source lives under `apps/server/src/domains/git/`.
 - Keep the existing correctness guarantees: Project authorization, Session isolation, the
   three-second large-Project gate, and a bounded working-tree `files[]` payload.
 
+## Pull request commit availability
+
+PR metadata comes from the shared GitHub projection, while file lists and editor diffs use local
+Git objects. A remote base or head can be newer than an independently cloned submodule. Before
+computing a PR range, `GitPullRequestService` checks both commit objects and fetches only missing
+OIDs from the repository's `origin`. This does not update refs, tags, `FETCH_HEAD`, the index, or
+working files, and does not recurse into submodules or run automatic maintenance. Repositories
+that already contain the objects require no additional network access.
+
+Fetch failures remain retryable and use a safe, actionable message in Source Control. The repository
+header reports `Unavailable`; the resource count is not a successful PR file count while an error
+is displayed. Use **Refresh Pull Request** after restoring remote access. Arbitrary Git stderr is
+not displayed by the extension. Existing Git command timeouts and concurrency limits also govern
+these bounded object fetches.
+
 ## Topology registry
 
 `apps/server/src/domains/git/topology.ts` — `RepoTopologyRegistry` is the single owner of linked-worktree

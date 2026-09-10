@@ -64,6 +64,7 @@ export function extensionApiModuleUrl(owner: RegisteredExtensionModule): string 
         'export const isGlobMatch = binding.runtime.isGlobMatch;',
         'export const CancellationTokenSource = binding.runtime.CancellationTokenSource;',
         'export const ProjectStatusSummaryErrorMessage = binding.runtime.ProjectStatusSummaryErrorMessage;',
+        'export const GitPullRequestErrorMessage = binding.runtime.GitPullRequestErrorMessage;',
         'export const ThemeIcon = binding.runtime.ThemeIcon;',
         'export const TreeItem = binding.runtime.TreeItem;',
         'export const TreeItemCollapsibleState = binding.runtime.TreeItemCollapsibleState;',

@@ -1,6 +1,7 @@
 import type { CancellationToken, SourceControlProvider } from 'caxri';
 import {
     EventEmitter,
+    GitPullRequestErrorMessage,
     ProjectStatusSummaryErrorMessage,
     TreeItem,
     TreeItemCollapsibleState,
@@ -29,6 +30,7 @@ describe('Extension Host API factory', () => {
         configureExtensions([registration()]);
 
         expect(extensionApiBinding('fixture-token-1').runtime).toMatchObject({
+            GitPullRequestErrorMessage,
             ProjectStatusSummaryErrorMessage,
         });
     });

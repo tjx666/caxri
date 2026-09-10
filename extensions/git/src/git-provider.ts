@@ -11,7 +11,7 @@ import type {
     SourceControlProvider,
     SourceControlViewModel,
 } from 'caxri';
-import caxri, { CancellationTokenSource, EventEmitter } from 'caxri';
+import caxri, { CancellationTokenSource, EventEmitter, GitPullRequestErrorMessage } from 'caxri';
 
 import {
     buildSourceControlHistoryDetails,
@@ -31,6 +31,7 @@ interface RegisteredAction {
 }
 
 interface DetailState<Value> {
+    errorMessage?: string;
     cancellation: CancellationTokenSource;
     identity?: string;
     key: string;
@@ -276,7 +277,12 @@ export class GitProvider implements SourceControlProvider {
                         cancellation.token,
                     );
                     this.setDetailResult(state, state.pullRequests, repo.id, detail, value);
-                } catch {
+                } catch (error) {
+                    if (
+                        error instanceof Error &&
+                        error.message === GitPullRequestErrorMessage.missingCommits
+                    )
+                        detail.errorMessage = GitPullRequestErrorMessage.missingCommits;
                     this.setDetailError(state, state.pullRequests, repo.id, detail);
                 }
             },
@@ -487,7 +493,7 @@ export class GitProvider implements SourceControlProvider {
             : rawSummary;
         const details = new Map<string, GitCommitDetails>();
         const pullRequests = new Map<string, GitPullRequestChanges | null>();
-        const detailErrors = new Map<string, true>();
+        const detailErrors = new Map<string, true | string>();
         const repoIds = new Set(summary.repositories.map(({ id }) => id));
         this.pruneDetails(state, repoIds);
         for (const repo of summary.repositories) {
@@ -499,7 +505,8 @@ export class GitProvider implements SourceControlProvider {
             } else if (state.mode === 'pull-request') {
                 this.loadPullRequest(state, repo);
                 const detail = state.pullRequests.get(repo.id);
-                if (detail?.status === 'error') detailErrors.set(repo.id, true);
+                if (detail?.status === 'error')
+                    detailErrors.set(repo.id, detail.errorMessage ?? true);
                 else if (detail?.value !== undefined) pullRequests.set(repo.id, detail.value);
             }
         }

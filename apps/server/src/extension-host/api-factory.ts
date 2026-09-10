@@ -11,7 +11,6 @@ import {
     MAX_VIEW_TREE_PAYLOAD_BYTES,
     treeItemSchema,
 } from '@caxri/protocol';
-import { isGlobMatch } from '@caxri/utils';
 import type {
     CancellationToken,
     CaxriApi,
@@ -21,16 +20,9 @@ import type {
     TreeDataProvider,
     WorkspaceChangeContext,
 } from 'caxri';
-import {
-    CancellationTokenSource,
-    Disposable,
-    EventEmitter,
-    ProjectStatusSummaryErrorMessage,
-    ThemeIcon,
-    TreeItem,
-    TreeItemCollapsibleState,
-} from 'caxri';
+import { CancellationTokenSource, Disposable, EventEmitter, TreeItemCollapsibleState } from 'caxri';
 
+import { extensionApiRuntime } from './api-runtime';
 import type { HostRequestState } from './extension-error';
 import {
     createProviderRequestScope,
@@ -68,16 +60,7 @@ interface ApiBinding {
     notifyActiveContext(context: ExtensionViewEventScope): void;
     notifyGit(context: ExtensionViewEventScope): void;
     notifyProjectStatus(context: ExtensionViewEventScope): void;
-    runtime: {
-        CancellationTokenSource: typeof CancellationTokenSource;
-        Disposable: typeof Disposable;
-        EventEmitter: typeof EventEmitter;
-        isGlobMatch: typeof isGlobMatch;
-        ProjectStatusSummaryErrorMessage: typeof ProjectStatusSummaryErrorMessage;
-        ThemeIcon: typeof ThemeIcon;
-        TreeItem: typeof TreeItem;
-        TreeItemCollapsibleState: typeof TreeItemCollapsibleState;
-    };
+    runtime: typeof extensionApiRuntime;
 }
 
 interface ProviderRegistration {
@@ -377,16 +360,7 @@ function createBinding(registration: ExtensionHostRegistration): ApiBinding {
             withViewEventContext(context, () =>
                 projectStatus.fire(workspaceChangeContext(context)),
             ),
-        runtime: {
-            CancellationTokenSource,
-            Disposable,
-            EventEmitter,
-            isGlobMatch,
-            ProjectStatusSummaryErrorMessage,
-            ThemeIcon,
-            TreeItem,
-            TreeItemCollapsibleState,
-        },
+        runtime: extensionApiRuntime,
     };
 }
 

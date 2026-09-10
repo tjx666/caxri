@@ -304,6 +304,14 @@ export const ProjectStatusSummaryErrorMessage = Object.freeze({
     missingPrimaryRepository: 'No primary repository found.',
 } as const);
 
+/**
+ * Safe PR detail failures that product extensions may display across the error boundary.
+ */
+export const GitPullRequestErrorMessage = Object.freeze({
+    missingCommits:
+        'Required pull request commits could not be downloaded. Check remote access and refresh.',
+} as const);
+
 export interface ProjectStatusRequestOptions {
     /**
      * A unique, bounded token bypasses the settled Runtime cache exactly once.
