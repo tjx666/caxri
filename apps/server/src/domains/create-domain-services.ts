@@ -1,5 +1,5 @@
 import { constants } from 'node:fs';
-import { access, lstat, realpath, stat } from 'node:fs/promises';
+import { access, realpath, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { isAbsolute, join, relative } from 'node:path';
 import process from 'node:process';
@@ -27,9 +27,9 @@ import { ProjectStatusService } from './project-status';
 import { createRootServices } from './root-services';
 import { createServiceHandlers, mainOwned } from './service-handlers';
 import { SessionSelectionQueue } from './session-selection';
-import type { TerminalWorkingDirectoryIdentity } from './terminal';
 import {
     ShellIntegrationService,
+    terminalDirectoryIdentity,
     TerminalManager,
     TerminalRestoreSupervisor,
     TerminalSuspensionService,
@@ -343,18 +343,6 @@ export async function createDomainServices(
         } catch {
             return database.getTerminal(terminal.id)!;
         }
-    }
-    async function terminalDirectoryIdentity(
-        path: string,
-    ): Promise<TerminalWorkingDirectoryIdentity> {
-        const stats = await lstat(path, { bigint: true });
-        if (stats.isSymbolicLink() || !stats.isDirectory())
-            throw new CaxriError('CONFLICT', 'Terminal working directory changed before launch');
-        return {
-            path,
-            device: stats.dev.toString(),
-            inode: stats.ino.toString(),
-        };
     }
     const restoreInterruptedTerminals = createInterruptedTerminalRestorer({
         coordinator,
