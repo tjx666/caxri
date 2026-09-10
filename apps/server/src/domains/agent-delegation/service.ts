@@ -14,6 +14,10 @@ import { CaxriError } from '@caxri/protocol';
 
 import type { AgentDispatchService } from '../agent-dispatch';
 import type { AgentLifecycleSignal } from '../agents';
+/**
+ * Provider transcript extraction stays behind the agents domain's public API.
+ */
+// react-doctor-disable-next-line react-doctor/no-barrel-import
 import { extractClaudeDelegationAnswer } from '../agents';
 import type { CaxriDatabase, StoredAgentDelegation } from '../db';
 import { SingleFlight } from '../single-flight';
