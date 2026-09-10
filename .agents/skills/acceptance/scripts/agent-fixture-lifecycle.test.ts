@@ -25,7 +25,9 @@ const TEST_ROOT = join(
 );
 const acceptanceRoots: string[] = [];
 
-async function reportDirectory(): Promise<string> {
+async function reportDirectory(
+    fixtureId: 'agent-features-v1' | 'grok-build-v1' = 'agent-features-v1',
+): Promise<string> {
     await mkdir(TEST_ROOT, { recursive: true });
     const root = await mkdtemp(join(TEST_ROOT, 'case-'));
     acceptanceRoots.push(root);
@@ -35,7 +37,7 @@ async function reportDirectory(): Promise<string> {
         entry: '在 Caxri Electron 中打开首个 Session 终端。',
         plan: [
             {
-                agentFixture: 'agent-features-v1',
+                agentFixture: fixtureId,
                 category: '终端布局',
                 expected: '终端视口周围不出现应用背景色条。',
                 id: 'terminal-layout',
@@ -63,6 +65,38 @@ afterAll(async () => {
 });
 
 describe('Acceptance Agent fixture lifecycle', () => {
+    it('binds the Grok-only fixture to its declared provider and cleanup', async () => {
+        const directory = await reportDirectory('grok-build-v1');
+        const launchId = await beginAgentFixtureLifecycle(directory, {
+            caseId: 'terminal-layout',
+            fixtureId: 'grok-build-v1',
+        });
+        await completeAgentFixtureLifecycle(directory, {
+            caseId: 'terminal-layout',
+            launchId,
+            cleanupCompleted: true,
+            sharedProfile: false,
+        });
+        const evidence = 'assets/terminal-layout-agent-fixture.json';
+        const receipt = JSON.parse(await readFile(join(directory, evidence), 'utf8')) as {
+            providers: string[];
+        };
+        expect(receipt.providers).toEqual(['grok']);
+        await expect(
+            validateAgentFixtureEvidence(directory, {
+                caseId: 'terminal-layout',
+                fixtureId: 'grok-build-v1',
+                evidencePaths: [evidence],
+            }),
+        ).resolves.toBeUndefined();
+        await expect(
+            validateAgentFixtureEvidence(directory, {
+                caseId: 'terminal-layout',
+                fixtureId: 'agent-features-v1',
+                evidencePaths: [evidence],
+            }),
+        ).rejects.toThrow();
+    });
     it('covers every earlier launch of a shared restart profile with one deferred cleanup', async () => {
         const directory = await reportDirectory();
         const first = await beginAgentFixtureLifecycle(directory, {

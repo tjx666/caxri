@@ -13,6 +13,14 @@ describe('agentProviderCatalog capabilities', () => {
 });
 
 describe('defaultAgentProviderSettings', () => {
+    it('keeps unsupported Grok capabilities off and confines its managed process', () => {
+        expect(defaultAgentProviderSettings.grok.messaging.enabled).toBe(false);
+        expect(defaultAgentProviderSettings.grok.pasteSummary.enabled).toBe(false);
+        expect(agentProviderCatalog.grok.capabilities.nativeRename).toBe(false);
+        expect(agentProviderCatalog.grok.capabilities.actions).toBe(false);
+        expect(agentProviderCatalog.grok.capabilities.automaticSuspension).toBe(false);
+        expect(defaultAgentProviderSettings.grok.launch.args).toContain('workspace');
+    });
     it('derives one entry per catalogued provider with its own executable name', () => {
         const alphabetical = (a: string, b: string) => a.localeCompare(b);
         expect(Object.keys(defaultAgentProviderSettings).toSorted(alphabetical)).toEqual(
@@ -26,7 +34,9 @@ describe('defaultAgentProviderSettings', () => {
                 agentProviderCatalog[provider].defaultLaunchArgs,
             );
             expect(defaultAgentProviderSettings[provider].hooks.enabled).toBe(true);
-            expect(defaultAgentProviderSettings[provider].messaging.enabled).toBe(true);
+            expect(defaultAgentProviderSettings[provider].messaging.enabled).toBe(
+                agentProviderCatalog[provider].capabilities.messaging,
+            );
             expect(defaultAgentProviderSettings[provider].recovery).toEqual({
                 enabled: false,
                 patterns: [],

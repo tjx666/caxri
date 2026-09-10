@@ -83,6 +83,7 @@ const terminalFailureReasonSchema = z.enum([
     'working_directory_unavailable',
     'executable_not_found',
     'spawn_failed',
+    'agent_session_unavailable',
 ]);
 
 export type AgentActivityState = z.infer<typeof agentActivityStateSchema>;

@@ -22,14 +22,26 @@ const agentFixtureLaunchSchema = z.object({
     startedAt: z.string(),
 });
 
-const agentFixtureReceiptSchema = z.object({
-    caseId: z.string().min(1),
-    fixtureId: z.enum(acceptanceAgentFixtureIds),
-    launches: z.array(agentFixtureLaunchSchema).min(1),
-    mode: z.literal('fake'),
-    providers: z.tuple([z.literal('claude'), z.literal('codex')]),
-    schemaVersion: z.literal(1),
-});
+const fixtureProvidersSchema = z.union([
+    z.tuple([z.literal('claude'), z.literal('codex')]),
+    z.tuple([z.literal('grok')]),
+]);
+const agentFixtureReceiptSchema = z
+    .object({
+        caseId: z.string().min(1),
+        fixtureId: z.enum(acceptanceAgentFixtureIds),
+        launches: z.array(agentFixtureLaunchSchema).min(1),
+        mode: z.literal('fake'),
+        providers: fixtureProvidersSchema,
+        schemaVersion: z.literal(1),
+    })
+    .refine(
+        (receipt) =>
+            receipt.fixtureId === 'grok-build-v1'
+                ? receipt.providers.length === 1
+                : receipt.providers.length === 2,
+        { message: 'Agent fixture providers must match its fixed identity' },
+    );
 
 type AgentFixtureReceipt = z.infer<typeof agentFixtureReceiptSchema>;
 
@@ -69,7 +81,7 @@ export async function beginAgentFixtureLifecycle(
             fixtureId,
             launches: [],
             mode: 'fake',
-            providers: ['claude', 'codex'],
+            providers: fixtureId === 'grok-build-v1' ? ['grok'] : ['claude', 'codex'],
             schemaVersion: 1,
         };
     }

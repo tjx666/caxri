@@ -95,6 +95,20 @@ describe('sessionActivityReasonForAgentState', () => {
 });
 
 describe('decideAgentLifecycleUpdate', () => {
+    it('marks a failed Grok turn as failed rather than completed', () => {
+        const primary = terminal({ id: 'grok-1', provider: 'grok' });
+        expect(
+            decideAgentLifecycleUpdate(
+                primary,
+                session({
+                    lastActivityState: 'running',
+                    primaryAgentTerminalId: primary.id,
+                }),
+                'grok',
+                'turnFailed',
+            ),
+        ).toEqual({ lastActivityState: 'failed', attentionKind: 'failed' });
+    });
     it('resumes only a primary Agent that was waiting after its tool batch finishes', () => {
         const primary = terminal({ id: 'claude-1', provider: 'claude' });
 

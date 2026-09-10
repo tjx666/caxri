@@ -17,6 +17,7 @@ export interface AgentIconDefinition {
 const managedAgentIconAssets: Record<AgentProvider, Pick<AgentIconDefinition, 'kind' | 'src'>> = {
     claude: { kind: 'color-asset', src: claudeCode },
     codex: { kind: 'color-asset', src: codex },
+    grok: { kind: 'mask-asset', src: grok },
 };
 
 const managedAgentIcons = Object.fromEntries(
@@ -32,7 +33,6 @@ const managedAgentIcons = Object.fromEntries(
 
 export const agentIconRegistry = {
     ...managedAgentIcons,
-    grok: { id: 'grok', kind: 'mask-asset', label: 'Grok', src: grok },
     opencode: { id: 'opencode', kind: 'mask-asset', label: 'OpenCode', src: openCode },
     shell: { id: 'shell', kind: 'shell', label: 'Shell' },
     unknown: { id: 'unknown', kind: 'unknown', label: 'Unknown Agent' },

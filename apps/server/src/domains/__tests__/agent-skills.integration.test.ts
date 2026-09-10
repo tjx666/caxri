@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { executeSkillCommand } from '@caxri/agent-skills';
-import { agentProviderIds, agentSkillHealthSchema } from '@caxri/protocol';
+import { agentProviderCatalog, agentProviderIds, agentSkillHealthSchema } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -48,11 +48,13 @@ describe('Runtime Agent skill health', () => {
         try {
             const withoutProject = await runtime.handlers['agentSkills.get']({});
             expect(withoutProject).toMatchObject({
-                installations: agentProviderIds.map((provider) => ({
-                    provider,
-                    scope: 'global',
-                    status: 'missing',
-                })),
+                installations: agentProviderIds
+                    .filter((provider) => agentProviderCatalog[provider].capabilities.actions)
+                    .map((provider) => ({
+                        provider,
+                        scope: 'global',
+                        status: 'missing',
+                    })),
             });
             expect(withoutProject.installations.some(({ scope }) => scope === 'local')).toBe(false);
 

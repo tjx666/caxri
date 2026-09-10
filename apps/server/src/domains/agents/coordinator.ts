@@ -19,6 +19,8 @@ import {
 } from './metadata-activity-baseline';
 import { detectForegroundAgentProvider } from './process-detection';
 import { ProcessIdentityProbe } from './process-identity-probe';
+// oxlint-disable-next-line react-doctor/no-barrel-import -- Provider clusters require a public barrel.
+import { GrokTurnTracker } from './providers/grok';
 import type { AgentService } from './service';
 import type { SessionActivitySource } from './session-activity-log';
 import { hasSessionActivityChanged } from './session-activity-log';
@@ -83,6 +85,7 @@ export class AgentCoordinator {
      * Tracks whether provider metadata is still only the launch baseline; `null` marks a real transition.
      */
     private readonly metadataActivityBaselines = new Map<string, MetadataActivityBaseline | null>();
+    private readonly grokTurns = new GrokTurnTracker();
 
     constructor(
         private readonly database: CaxriDatabase,
@@ -159,6 +162,7 @@ export class AgentCoordinator {
     }
 
     private forgetLifecycleState(terminalId: string): void {
+        this.grokTurns.forget(terminalId);
         this.attention.forget(terminalId);
         this.work.forget(terminalId);
     }
@@ -167,7 +171,7 @@ export class AgentCoordinator {
         event: AgentLifecycleSignal,
         source: SessionActivitySource = 'hook',
     ): void {
-        if (event.phase === 'turnFinished') {
+        if (event.phase === 'turnFinished' || event.phase === 'turnFailed') {
             this.attention.forget(event.terminalId);
             this.lifecycleWatchdogs.stopRunningTurn(event.terminalId);
             this.hookLaunches.markAuthoritative(event.terminalId, event.launchId);
@@ -452,9 +456,6 @@ export class AgentCoordinator {
         if (decision.provider) this.refreshes.schedule(terminalId);
     }
 
-    /**
-     * Returns the current Server-only Agent subphase projected onto a Terminal read model.
-     */
     agentOperation(terminalId: string): AgentOperation | undefined {
         return this.lifecycleWatchdogs.operation(terminalId);
     }
@@ -613,11 +614,16 @@ export class AgentCoordinator {
                 candidate.provider = signal.provider;
                 candidate.origin = 'hook';
                 if (signal.agentSessionId) candidate.agentSessionId = signal.agentSessionId;
-                if (['turnStarted', 'turnFinished', 'attentionRequested'].includes(signal.phase))
+                if (
+                    ['turnStarted', 'turnFinished', 'turnFailed', 'attentionRequested'].includes(
+                        signal.phase,
+                    )
+                )
                     candidate.lifecycleSignal = signal;
             }
             return 'providerMismatch';
         }
+        if (!this.grokTurns.accept(signal, terminal.agentSessionId)) return 'staleProviderTurn';
         const work = this.work.observe(signal);
         if (work.outcome !== undefined) return work.outcome;
         if (signal.phase === 'turnFinished')
@@ -656,9 +662,7 @@ export class AgentCoordinator {
             // No default
         }
         /**
-         * A signal naming a different provider session proves the user resumed inside the running Terminal (a path no
-         * Caxri-managed launch reset ever sees), so identity is rebound here and the scheduled probe republishes the
-         * resumed session's title.
+         * In-terminal session switches rebind identity and invalidate the previous metadata probe.
          */
         let shouldRefreshMetadata =
             signal.phase === 'sessionIdentified' && Boolean(signal.agentSessionId);
@@ -671,10 +675,6 @@ export class AgentCoordinator {
                 signal.agentSessionId,
             )
         ) {
-            /**
-             * Invalidate any in-flight probe for the previous session so its late result cannot write the old identity
-             * and title back over the rebound one.
-             */
             this.probeGenerations.set(
                 signal.terminalId,
                 (this.probeGenerations.get(signal.terminalId) ?? 0) + 1,
