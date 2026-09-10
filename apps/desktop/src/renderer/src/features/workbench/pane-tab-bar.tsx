@@ -2,16 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 
 import type { PaneNode, PaneTab, TerminalRecord } from '@caxri/protocol';
 import {
-    agentTranscriptTabLabel,
-    gitDiffTabLabel,
     isVirtualEditorTabPath,
     parseAgentTranscriptTab,
-    parseExternalEditorTab,
     parseGitDiffTab,
     terminalDisplayTitle,
     terminalTabLabel,
 } from '@caxri/protocol';
-import { pathBasename } from '@caxri/utils';
 import { CircleAlert, Pause, Plus } from 'lucide-react';
 import { AnimatePresence, domAnimation, LazyMotion } from 'motion/react';
 
@@ -32,8 +28,12 @@ import {
 } from '../../stores/selectors';
 import { sessionViewScope, useSessionViewStore } from '../../stores/session-view';
 import { closeDocumentTabs, pinDocumentTab } from '../editor/document-actions';
-import { resolveDocumentTabPath } from '../editor/document-tab-path-actions';
+import {
+    documentTabPathMenuState,
+    resolveDocumentTabPath,
+} from '../editor/document-tab-path-actions';
 import { DocumentTabPathMenu } from '../editor/document-tab-path-menu';
+import { documentTabPresentation } from '../editor/document-tab-presentation';
 import { EditorTabActions } from '../editor/editor-tab-actions';
 import { moveTerminalToNewSession } from '../session/session-actions';
 import { WorkTab } from '../tabs/work-tab';
@@ -183,9 +183,7 @@ function DocumentPaneTab({
      * leaving "Close to the Right" etc. stuck at a stale disabled state.
      */
     const paneLayout = useSessionState()?.paneLayout;
-    const gitDiffTab = parseGitDiffTab(path);
     const transcriptTab = parseAgentTranscriptTab(path);
-    const externalTab = parseExternalEditorTab(path);
     const project = useSelectedWorkbenchProject();
     const overviewQuery = useCaxriQuery(
         'git.overview',
@@ -204,42 +202,22 @@ function DocumentPaneTab({
         repositories: overviewQuery.data?.repositories,
         externalDisplayPath: document?.displayPath,
     });
-    const unavailableReason = overviewQuery.isError
-        ? 'Unable to load repository information'
-        : overviewQuery.isPending
-          ? 'Repository information is still loading'
-          : 'The file path is unavailable';
+    const pathMenu = documentTabPathMenuState(path, overviewQuery);
+    const presentation = documentTabPresentation(path, {
+        displayPath: document?.displayPath,
+        transcriptTitle: transcriptTerminal?.title,
+    });
     return (
         <WorkTab
             active={active}
             fill={false}
             closeLabel="Close Editor"
             dirty={document?.dirty}
-            fileIconName={
-                gitDiffTab?.kind === 'file'
-                    ? pathBasename(gitDiffTab.path)
-                    : gitDiffTab?.kind === 'changes'
-                      ? 'changes.diff'
-                      : transcriptTab
-                        ? 'transcript.jsonl'
-                        : (externalTab?.name ?? pathBasename(path))
-            }
+            fileIconName={presentation.fileIconName}
             icon="file"
-            label={
-                gitDiffTab
-                    ? gitDiffTabLabel(gitDiffTab)
-                    : transcriptTab
-                      ? agentTranscriptTabLabel(transcriptTerminal?.title)
-                      : (externalTab?.name ?? pathBasename(path))
-            }
+            label={presentation.label}
             // Ordinary files expose their full path on hover; virtual resources reuse their descriptive label.
-            labelTooltip={
-                gitDiffTab
-                    ? gitDiffTabLabel(gitDiffTab)
-                    : transcriptTab
-                      ? agentTranscriptTabLabel(transcriptTerminal?.title)
-                      : (document?.displayPath ?? externalTab?.name ?? path)
-            }
+            labelTooltip={presentation.labelTooltip}
             // The full path is a different detail than the filename, not a fuller version of it, so it must not
             // replace the filename a screen reader announces the way a Terminal's untruncated title does.
             keepLabelAsAccessibleName
@@ -271,13 +249,11 @@ function DocumentPaneTab({
                     paneLayout={paneLayout}
                     tabId={tab.id}
                     resourceItems={
-                        (!isVirtualEditorTabPath(path) ||
-                            Boolean(externalTab) ||
-                            (gitDiffTab && gitDiffTab.kind !== 'changes')) && (
+                        pathMenu.showMenu && (
                             <DocumentTabPathMenu
                                 resolution={resolution}
-                                unavailableReason={unavailableReason}
-                                isExternal={Boolean(externalTab)}
+                                unavailableReason={pathMenu.unavailableReason}
+                                isExternal={pathMenu.isExternal}
                             />
                         )
                     }
