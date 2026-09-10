@@ -56,11 +56,27 @@ test('Git repositories lazy-load pageable commits and subtree history', async ()
         });
         await expect(primary.locator('.git-repository-kind')).toHaveCount(0);
         await expect(nestedSection.locator('.git-repository-kind')).toHaveText('nested');
-        await expect(primary.locator('.git-repository-name')).toHaveCSS('flex-shrink', '0');
+        await expect(primary.locator('.git-repository-name')).toHaveCSS(
+            'text-overflow',
+            'ellipsis',
+        );
         await expect(primary.locator('.git-repository-branch')).toHaveCSS(
             'text-overflow',
             'ellipsis',
         );
+        // The counts carry state that appears nowhere else on the row, so a long repository name must ellipsize
+        // rather than push them out of the row's clipped box.
+        const countsFit = await primary
+            .locator('.git-repository-row')
+            .first()
+            .evaluate((row) => {
+                const counts = row.querySelector('.git-repository-counts');
+                if (!counts) return false;
+                return (
+                    counts.getBoundingClientRect().right <= row.getBoundingClientRect().right + 1
+                );
+            });
+        expect(countsFit).toBe(true);
 
         await primary.getByRole('button', { name: /Commits/ }).click();
         await expect(primary.locator('.commit-row')).toHaveCount(5);

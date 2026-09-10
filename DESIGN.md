@@ -435,6 +435,18 @@ when opened; each commit opens that file's read-only diff directly. Terminal, di
 editors omit the disclosure entirely. Repository-scoped `Commits` stays nested under each repository
 and keeps its optional path input and commit-details disclosure.
 
+**Uncommitted work in a non-working mode** — Last Commit and Pull Request replace a repository's
+file list with that commit's or that pull request's files, so a repository holding uncommitted work
+renders identically to a clean one. A mode that answers one question must not silently answer a
+different one, so the repository row states the count it is not showing (`· 3 uncommitted`) and
+carries a diff-mark button back to Working Tree Changes. Both disappear at zero rather than sitting
+there reading `0 uncommitted`. A repository with no pull request keeps the heading
+`Pull Request Changes` in Pull Request mode: leaving it at `Changes` made its zero read as a clean
+working tree instead of an absent pull request. On a repository row the counts outrank the
+repository name: the name ellipsizes when the row runs out of width, because the row's tooltip and
+the Project already carry it while the counts are stated nowhere else. A name that refused to
+shrink collapsed the meta span to zero width and printed the counts on top of the name.
+
 **Git diff exclusions** — `git.diffExclude` hides matching repository-relative paths from Git
 change lists and from `Open Changes`; it ships filtering test files out by default, because a
 review of "what changed" almost never opens with them. A default that hides work is only honest if

@@ -205,7 +205,11 @@ describe('Git source-control view model', () => {
 
         expect(model.providers[0]).toMatchObject({
             description: '0123456 Move Git projection',
-            actions: [],
+            // The repository's own uncommitted work is invisible in this mode, so the row keeps a route back to it.
+            uncommittedNotice: {
+                modeId: 'working',
+                accessibilityLabel: '1 uncommitted change in project',
+            },
             groups: [
                 {
                     label: 'Commit 0123456',
@@ -276,6 +280,46 @@ describe('Git source-control view model', () => {
         expect(empty.providers[0]?.groups[0]?.emptyMessage).toBe(
             'No pull request for this branch.',
         );
+    });
+
+    it('reports uncommitted work the Pull Request view is hiding, and stays quiet when there is none', () => {
+        const dirty = buildSourceControlViewModel({
+            mode: 'pull-request',
+            summary: {
+                ...summary,
+                repositories: [{ ...summary.repositories[0], changedFileCount: 3 }],
+            },
+            pullRequestsByRepository: new Map([['repo-1', null]]),
+        });
+        expect(dirty.providers[0].countLabel).toContain('3 uncommitted');
+        expect(dirty.providers[0].uncommittedNotice).toEqual({
+            modeId: 'working',
+            accessibilityLabel: '3 uncommitted changes in project',
+            tooltip: '3 uncommitted changes in project. Show Working Tree Changes.',
+        });
+        // The notice names a mode the panel actually offers, or the renderer has nothing to switch to.
+        expect(dirty.modes.map((mode) => mode.id)).toContain(
+            dirty.providers[0].uncommittedNotice?.modeId,
+        );
+        // A repository with no pull request must not present its zero as a clean working tree.
+        expect(dirty.providers[0].groups[0].label).toBe('Pull Request Changes');
+
+        const clean = buildSourceControlViewModel({
+            mode: 'pull-request',
+            summary: {
+                ...summary,
+                repositories: [{ ...summary.repositories[0], changedFileCount: 0, files: [] }],
+            },
+            pullRequestsByRepository: new Map([['repo-1', null]]),
+        });
+        expect(clean.providers[0].countLabel).not.toContain('uncommitted');
+        expect(clean.providers[0].uncommittedNotice).toBeUndefined();
+    });
+
+    it('leaves Working Tree mode without an uncommitted-work notice, because it is the notice', () => {
+        const model = buildSourceControlViewModel({ mode: 'working', summary });
+        expect(model.providers[0].countLabel).not.toContain('uncommitted');
+        expect(model.providers[0].uncommittedNotice).toBeUndefined();
     });
 
     it('binds submodule navigation and preserves working-tree truncation metadata', () => {
