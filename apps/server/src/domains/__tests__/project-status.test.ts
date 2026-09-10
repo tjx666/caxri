@@ -377,12 +377,16 @@ describe('ProjectStatusService', () => {
             if (command === 'vc' && arguments_[0] === 'teams') {
                 return Promise.resolve(JSON.stringify({ teams: [{ slug: 'lobehub' }] }));
             }
-            if (command === 'vc' && arguments_.includes('--environment')) {
-                const environment = arguments_.at(arguments_.indexOf('--environment') + 1);
+            if (command === 'vc' && arguments_[1]?.includes('target=')) {
+                const environment = new URL(
+                    arguments_[1],
+                    'https://api.vercel.com',
+                ).searchParams.get('target');
                 return Promise.resolve(
                     JSON.stringify([
                         {
                             created: 1_700_000_000_000,
+                            uid: `dpl_${environment}`,
                             name: 'project',
                             readyState: 'READY',
                             target: environment,

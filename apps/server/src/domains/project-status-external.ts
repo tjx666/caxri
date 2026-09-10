@@ -107,28 +107,40 @@ export function vcListArguments(
     meta: Record<string, string>,
     environment?: ProjectStatusDeployment['environment'],
 ): string[] {
-    const arguments_ = ['ls', '--format', 'json', '--scope', team];
-    for (const [key, value] of Object.entries(meta)) arguments_.push('--meta', `${key}=${value}`);
-    if (environment) arguments_.push('--environment', environment);
-    arguments_.push('--yes');
-    return arguments_;
+    const query = new URLSearchParams({ limit: '20' });
+    for (const [key, value] of Object.entries(meta)) query.set(`meta-${key}`, value);
+    if (environment) query.set('target', environment);
+    return ['api', `/v6/deployments?${query}`, '--scope', team, '--raw'];
 }
 
 /**
- * `vc ls --format json` omits the inspector URL. READY deployment aliases encode the short hash that Vercel accepts in
- * its inspector route; non-matching custom aliases deliberately return no logs link. See
- * https://github.com/tjx666/caxri/issues/413.
+ * Deployment details remain useful when a build is canceled or fails. Prefer Vercel's validated provider URL, then use
+ * the API's stable deployment ID rather than guessing an inspector identifier from the deployed hostname. `vc ls` drops
+ * both fields, so lists use `vc api` instead.
+ *
+ * @see https://github.com/vercel/vercel/blob/c628be7835e03a965b93e9cf9e2bd5ac2acbf5eb/packages/cli/src/util/deploy/get-deployments-by-project-id.ts
  */
 export function vercelInspectorUrl(
     team: string,
     project: string,
-    deploymentUrl: string,
+    deploymentId: string | undefined,
+    providerUrl?: string | null,
 ): string | undefined {
-    const hostname = deploymentUrl.replace(/^https?:\/\//, '').replace(/\.vercel\.app$/, '');
-    const prefix = `${project}-`;
-    const suffix = `-${team}`;
-    if (!hostname.startsWith(prefix) || !hostname.endsWith(suffix)) return undefined;
-    const hash = hostname.slice(prefix.length, hostname.length - suffix.length);
-    if (!hash || hash.includes('.')) return undefined;
-    return `https://vercel.com/${team}/${project}/${hash}`;
+    if (providerUrl) {
+        try {
+            const url = new URL(providerUrl);
+            if (
+                url.protocol === 'https:' &&
+                url.hostname === 'vercel.com' &&
+                !url.port &&
+                !url.username &&
+                !url.password
+            )
+                return url.href;
+        } catch {
+            // Fall through to the stable deployment ID when the provider URL is malformed.
+        }
+    }
+    if (!deploymentId || !/^dpl_[a-zA-Z0-9]+$/.test(deploymentId)) return undefined;
+    return `https://vercel.com/${encodeURIComponent(team)}/${encodeURIComponent(project)}/${deploymentId.slice(4)}`;
 }

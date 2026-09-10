@@ -21,6 +21,14 @@ description: Diagnose Caxri failures across Desktop Main, Server Core, Terminal 
 4. Trace the typed method and event from its owning `packages/protocol` domain through the Server
    dispatcher, Preload, and Renderer consumer. Treat the selected Session root as a security and
    state-lifetime boundary.
+   For external deployment reports, pin the screenshot's deployment ID or hostname and commit
+   before comparing states. A redeploy changes the evidence: query that deployment and bounded
+   history through the provider CLI instead of using the latest PR or deployment state to explain
+   an earlier screenshot. Distinguish row selection, state mapping, and click destination; do not
+   change which deployment a row represents when the reported defect is its destination.
+   When the user supplies a reference icon, inspect its interior shape as well as its outline;
+   a similar glyph with different semantics (such as eye-off versus eye-with-magnifier) is not
+   an equivalent replacement.
 5. Never print terminal output, file contents, credentials, or snapshots. Apply `AGENTS.md`'s
    trusted workspace-link policy when diagnosing file navigation; preserve the boundary against
    arbitrary outside paths instead of rejecting every external link target.

@@ -9,7 +9,6 @@ import {
     MAX_VIEW_TREE_HANDLES,
     MAX_VIEW_TREE_ITEMS,
     MAX_VIEW_TREE_PAYLOAD_BYTES,
-    treeItemSchema,
 } from '@caxri/protocol';
 import type {
     CancellationToken,
@@ -20,7 +19,7 @@ import type {
     TreeDataProvider,
     WorkspaceChangeContext,
 } from 'caxri';
-import { CancellationTokenSource, Disposable, EventEmitter, TreeItemCollapsibleState } from 'caxri';
+import { CancellationTokenSource, Disposable, EventEmitter } from 'caxri';
 
 import { extensionApiRuntime } from './api-runtime';
 import type { HostRequestState } from './extension-error';
@@ -45,6 +44,7 @@ import {
     rejectPendingApiRequests,
     settleApiReply as settleServerApiReply,
 } from './server-api-request';
+import { serializeTreeItem } from './tree-item-dto';
 import type { TreeRefreshBatch } from './tree-refresh-coalescing';
 import { mergeTreeRefresh } from './tree-refresh-coalescing';
 import { currentViewEventContext, withViewEventContext } from './view-event-context';
@@ -486,12 +486,6 @@ export async function activateExtension(extensionId: string, generation: number)
     await runtime.activation;
 }
 
-function collapsibleState(value: number): TreeItemDto['collapsibleState'] {
-    if (value === TreeItemCollapsibleState.Collapsed) return 'collapsed';
-    if (value === TreeItemCollapsibleState.Expanded) return 'expanded';
-    return 'none';
-}
-
 function stableTreeHandle(id: string): string {
     return `id:${id}`;
 }
@@ -668,26 +662,7 @@ export async function getTreeChildren(parameters: {
             stagedHandles.add(handle);
             let dto: TreeItemDto;
             try {
-                dto = treeItemSchema.parse({
-                    handle,
-                    ...(item.id && { id: item.id }),
-                    ...(item.variant && { variant: item.variant }),
-                    label: item.label,
-                    ...(item.description && { description: item.description }),
-                    ...(item.tooltip && { tooltip: item.tooltip }),
-                    accessibilityLabel: item.accessibilityInformation?.label ?? item.label,
-                    collapsibleState: collapsibleState(item.collapsibleState),
-                    ...(item.iconPath && { icon: { kind: 'theme', id: item.iconPath.id } }),
-                    ...(item.command && {
-                        command: {
-                            id: item.command.command,
-                            title: item.command.title,
-                            ...(item.command.arguments && {
-                                arguments: [...item.command.arguments],
-                            }),
-                        },
-                    }),
-                });
+                dto = serializeTreeItem(handle, item);
             } catch (error) {
                 throw providerFailure(error, { ...treeHostState(), scope }, 'Tree provider failed');
             }

@@ -28,6 +28,18 @@ const stateIcons: Record<ProjectStatusState, string> = {
     unknown: 'circle-dot',
 };
 
+/**
+ * Vercel cancellation stays neutral for aggregation but must remain recognizable in deployment rows.
+ */
+const deploymentIcons: Record<ProjectStatusState, string> = {
+    ...stateIcons,
+    neutral: 'circle-slash',
+};
+
+function deploymentStateLabel(deployment: ProjectStatusDeployment): string {
+    return deployment.state === 'neutral' ? 'canceled' : deployment.state;
+}
+
 const linearStateIcons: Partial<
     Record<NonNullable<ProjectStatusRepository['linearIssues'][number]['stateType']>, string>
 > = {
@@ -104,11 +116,13 @@ function item(
     id: string,
     label: string,
     options: {
+        accessibilityLabel?: string;
         children?: readonly StatusNode[];
         collapsibleState?: TreeItemCollapsibleState;
         command?: Command;
         description?: string;
         icon?: string;
+        trailingIcon?: string;
         tooltip?: StatusTooltip;
         url?: string;
         variant?: TreeItemVariant;
@@ -126,9 +140,11 @@ function item(
     treeItem.description = options.description;
     treeItem.tooltip = richTooltip(label, options.tooltip, options.url);
     treeItem.accessibilityInformation = {
-        label: [label, options.description].filter(Boolean).join(', '),
+        label:
+            options.accessibilityLabel ?? [label, options.description].filter(Boolean).join(', '),
     };
     if (options.icon) treeItem.iconPath = new ThemeIcon(options.icon);
+    if (options.trailingIcon) treeItem.trailingIcon = new ThemeIcon(options.trailingIcon);
     if (options.url) {
         treeItem.command = {
             command: 'caxri.openExternal',
@@ -170,11 +186,11 @@ function ignoredChecksLabel(count: number): string {
 function deploymentTooltip(title: string, deployment: ProjectStatusDeployment): StatusTooltip {
     return {
         title,
-        badge: { label: deployment.state, tone: stateTones[deployment.state] },
+        badge: { label: deploymentStateLabel(deployment), tone: stateTones[deployment.state] },
         rows: [
             { label: 'alias', value: deployment.hostname, url: deployment.url },
-            ...(deployment.state === 'success' && deployment.inspectorUrl
-                ? [{ label: 'inspect', value: 'logs', url: deployment.inspectorUrl }]
+            ...(deployment.inspectorUrl
+                ? [{ label: 'inspect', value: 'details', url: deployment.inspectorUrl }]
                 : []),
             ...(deployment.createdAt === undefined
                 ? []
@@ -265,10 +281,14 @@ function buildRepoChildren(repo: ProjectStatusRepository): StatusNode[] {
                 },
                 children: branchDeployments.map((deployment, index) =>
                     item(`${prefix}:branch-deployment:${index}`, deployment.hostname, {
-                        description: `${deployment.environment} · ${deployment.state}`,
-                        icon: stateIcons[deployment.state],
+                        trailingIcon:
+                            deployment.environment === 'production'
+                                ? 'circle-arrow-up'
+                                : 'deployment-preview',
+                        accessibilityLabel: `${deployment.hostname}, ${deployment.environment} · ${deploymentStateLabel(deployment)}`,
+                        icon: deploymentIcons[deployment.state],
                         tooltip: deploymentTooltip(deployment.environment, deployment),
-                        url: deployment.url,
+                        url: deployment.inspectorUrl,
                     }),
                 ),
             }),
@@ -280,10 +300,10 @@ function buildRepoChildren(repo: ProjectStatusRepository): StatusNode[] {
             if (!deployment) continue;
             nodes.push(
                 item(`${prefix}:${deployment.environment}`, label, {
-                    description: `${deployment.state} · ${deployment.hostname}`,
-                    icon: stateIcons[deployment.state],
+                    description: `${deploymentStateLabel(deployment)} · ${deployment.hostname}`,
+                    icon: deploymentIcons[deployment.state],
                     tooltip: deploymentTooltip(label, deployment),
-                    url: deployment.url,
+                    url: deployment.inspectorUrl,
                 }),
             );
         }
