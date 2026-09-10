@@ -115,8 +115,8 @@ export function vcListArguments(
 }
 
 /**
- * `vc ls --format json` omits the inspector URL. READY deployment aliases encode the short hash that Vercel accepts in
- * its inspector route; non-matching custom aliases deliberately return no logs link. See
+ * `vc ls --format json` omits the inspector URL. Generated deployment aliases encode the short hash that Vercel accepts
+ * in its inspector route; non-matching custom aliases deliberately return no logs link. See
  * https://github.com/tjx666/caxri/issues/413.
  */
 export function vercelInspectorUrl(
