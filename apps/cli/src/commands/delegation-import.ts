@@ -108,14 +108,21 @@ async function importParameters(tokens: readonly string[]) {
             // Never include configuration values or private instructions in CLI diagnostics.
             const fields =
                 error instanceof z.ZodError
-                    ? error.issues.map(({ path: field }) =>
-                          field.length > 0 ? field.join('.') : 'preset or caller constraints',
-                      )
+                    ? error.issues.map((issue) => {
+                          const field =
+                              issue.path.length > 0 ? issue.path.join('.') : 'configuration';
+                          // Unknown keys are arbitrary source text; report their location without echoing them.
+                          const reason =
+                              issue.code === 'unrecognized_keys'
+                                  ? 'Unknown fields are not supported'
+                                  : issue.message;
+                          return `${field}: ${reason}`;
+                      })
                     : [];
             throw new CaxriError(
                 'VALIDATION',
                 fields.length > 0
-                    ? `Unsupported configuration fields: ${fields.join(', ')}`
+                    ? `Invalid delegation configuration: ${fields.join('; ')}`
                     : 'Invalid delegation JSONC configuration',
             );
         }

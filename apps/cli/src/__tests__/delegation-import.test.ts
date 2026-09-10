@@ -117,6 +117,20 @@ it('reads only an explicit bounded JSONC file and defaults to a non-mutating pre
         DELEGATION_IMPORT_COMMAND.parseParams(['--from', path, '--apply', '--dry-run']),
     ).rejects.toThrow();
     await expect(DELEGATION_IMPORT_COMMAND.parseParams([])).rejects.toThrow();
+    await writeFile(
+        path,
+        JSON.stringify({ ...config, agents: [{ ...config.agents[0], harness: 'grok' }] }),
+    );
+    await expect(DELEGATION_IMPORT_COMMAND.parseParams(['--from', path])).rejects.toThrow(
+        'Unsupported effort for delegation preset review',
+    );
+    await writeFile(
+        path,
+        JSON.stringify({ ...config, callers: { claude: { exclude: ['unknown'] } } }),
+    );
+    await expect(DELEGATION_IMPORT_COMMAND.parseParams(['--from', path])).rejects.toThrow(
+        'excludes an unknown preset',
+    );
     const link = join(directory, 'link.jsonc');
     await symlink(path, link);
     await expect(DELEGATION_IMPORT_COMMAND.parseParams(['--from', link])).rejects.toThrow();
