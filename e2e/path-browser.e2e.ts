@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
@@ -173,7 +173,11 @@ test('Cmd+P removes the Project anchor and opens an external file without a pick
         ),
     ]);
 
-    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    const running = await launchCaxri({
+        clipboard: true,
+        userDataDir: userData,
+        testRootPath: root,
+    });
     try {
         await createShellSession(running.page);
         const before = await pageRequest<{
@@ -250,6 +254,14 @@ test('Cmd+P removes the Project anchor and opens an external file without a pick
         });
         await expect(externalTab).toBeVisible();
         await expect(externalTab).toHaveAttribute('aria-selected', 'true');
+        await externalTab.click({ button: 'right' });
+        await expect(
+            running.page.getByRole('menuitem', { name: 'Copy Path', exact: true }),
+        ).toBeVisible();
+        await running.page.getByRole('menuitem', { name: 'Copy Path', exact: true }).click();
+        const externalPath = await realpath(join(externalRoot, 'external-only.ts'));
+        await expect.poll(() => running.clipboard.textEquals(externalPath)).toBe(true);
+        await running.clipboard.claimText(externalPath);
         const editor = running.page.locator('.monaco-editor').first();
         await expect(editor).toContainText('external path browser E2E');
         await editor.getByRole('textbox', { name: 'Editor content' }).focus();

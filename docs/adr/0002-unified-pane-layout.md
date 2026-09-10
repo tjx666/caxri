@@ -10,7 +10,8 @@ behind a single global tab strip, so a running Agent and the file it is editing 
 at the same time. Terminals and documents are equally first-class in Caxri, so the two trees merge
 into one pane tree. Every pane owns its own tab bar, and a tab's kind decides what the pane renders
 and, per [Tab sizing](#tab-sizing), how wide its own tab grows; splitting, drag and drop, closing,
-and navigation never branch on it.
+and navigation share one layout model. Editor path drops into Terminal content are an input action,
+as described below.
 
 ## Identity
 
@@ -39,9 +40,17 @@ The one asymmetry that survives is a property of the resource, not of the layout
   several panes at once, each occurrence with its own tab id, cursor, scroll, and reveal state,
   while content and dirty state stay shared.
 
-Dragging always **moves** an occurrence, for every kind. Duplication is a separate, explicit command
+Dragging for pane placement **moves** an occurrence, for every kind. Duplication is a separate, explicit command
 (`Open in New Pane`) offered only by repeatable resources. The generic tree reducer therefore never
 inspects a tab's kind; only the resource capability table does.
+
+An Editor tab with a filesystem path dragged onto a running Terminal's content pastes that path,
+including at its edges. Hold Option to use pane placement instead: the center moves the tab and an
+edge splits it. Terminal tab drags and tab-bar reordering retain their existing placement behavior.
+Path insertion uses the Terminal's launch directory and shell quoting without submitting a command;
+a stopped Terminal rejects it. External read-only documents use their Main-authorized cached path,
+which is also available through the tab's Copy Path menu. Virtual documents with no single file
+retain pane placement because they have no filesystem path to paste.
 
 ## Focus
 
@@ -85,7 +94,8 @@ floor and no fixed ceiling, matching VS Code's default `tabSizing: fit` behavior
 long filenames remain readable while Terminal tabs divide the remaining space, and a crowded rail
 scrolls once Terminal tabs reach their floor. This replaces the former 160px cap, which abbreviated
 filenames even beside a mostly empty Terminal tab. This is the one place a tab's kind reaches into layout;
-everywhere else — splitting, drag and drop, closing, navigation — still never branches on it.
+pane placement, closing, and navigation still share the same tree operations. The Editor-to-Terminal
+path-input gesture does not change that tree.
 
 Each pane bar is its own `tablist` with its own roving tab index and its own `tabpanel`; several
 panes legitimately have a selected tab at once. The macOS traffic-light inset and the window drag
