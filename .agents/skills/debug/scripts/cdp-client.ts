@@ -1,0 +1,160 @@
+/**
+ * Minimal CDP client for inspecting a running Caxri Renderer, shared by the skills that attach over the
+ * `remote-debugging-port` endpoint (`acceptance` capture, `audit-ux` render counting). It intentionally carries no
+ * ownership, lease, or fixture policy: each caller keeps its own authorization rules and passes an already resolved
+ * port.
+ */
+const CDP_TIMEOUT_MS = 10_000;
+
+export interface CdpTarget {
+    type: string;
+    url: string;
+    webSocketDebuggerUrl?: string;
+}
+
+export interface CdpConnection {
+    close(): void;
+    request<T>(
+        method: string,
+        parameters?: Record<string, unknown>,
+        timeoutMs?: number,
+    ): Promise<T>;
+}
+
+/**
+ * Picks the single main-window Renderer target. A packaged or built launch exposes `<app>/out/renderer/index.html` next
+ * to secondary windows such as the Process Explorer; an unpackaged dev launch exposes only the Vite dev-server page,
+ * which the final fallback returns. DevTools windows are never candidates: attaching to one silently inspects the
+ * inspector.
+ */
+export function selectRendererTarget(targets: CdpTarget[], urlContains?: string): CdpTarget {
+    const pages = targets.filter(
+        (target) =>
+            target.type === 'page' &&
+            Boolean(target.webSocketDebuggerUrl) &&
+            !target.url.startsWith('devtools://'),
+    );
+    const mainRendererPages = pages.filter((target) =>
+        /\/out\/renderer\/index\.html(?:[?#]|$)/.test(target.url),
+    );
+    const rendererPages = pages.filter((target) => target.url.includes('/out/renderer/'));
+    const candidates = urlContains
+        ? pages.filter((target) => target.url.includes(urlContains))
+        : mainRendererPages.length > 0
+          ? mainRendererPages
+          : rendererPages.length > 0
+            ? rendererPages
+            : pages;
+    if (candidates.length !== 1) {
+        const urls = pages.map((target) => target.url).join(', ') || 'none';
+        const selector = urlContains ? ` matching "${urlContains}"` : '';
+        throw new Error(
+            `Expected exactly one Caxri Renderer CDP target${selector}; available: ${urls}`,
+        );
+    }
+    return candidates[0];
+}
+
+class CdpClient implements CdpConnection {
+    static async connect(url: string): Promise<CdpClient> {
+        const socket = new WebSocket(url);
+        await new Promise<void>((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                cleanup();
+                socket.close();
+                reject(new Error(`Timed out connecting to ${url}`));
+            }, CDP_TIMEOUT_MS);
+
+            function cleanup(): void {
+                clearTimeout(timeout);
+                socket.removeEventListener('open', onOpen);
+                socket.removeEventListener('error', onError);
+            }
+
+            function onOpen(): void {
+                cleanup();
+                resolve();
+            }
+
+            function onError(): void {
+                cleanup();
+                reject(new Error(`Unable to connect to ${url}`));
+            }
+
+            socket.addEventListener('open', onOpen, { once: true });
+            socket.addEventListener('error', onError, { once: true });
+        });
+        return new CdpClient(socket);
+    }
+
+    private nextId = 1;
+    private readonly pending = new Map<
+        number,
+        { reject: (error: Error) => void; resolve: (value: unknown) => void }
+    >();
+
+    private constructor(private readonly socket: WebSocket) {
+        socket.addEventListener('message', (event) => {
+            const message = JSON.parse(String(event.data)) as {
+                error?: { message: string };
+                id?: number;
+                result?: unknown;
+            };
+            if (message.id === undefined) return;
+            const request = this.pending.get(message.id);
+            if (!request) return;
+            this.pending.delete(message.id);
+            if (message.error) request.reject(new Error(message.error.message));
+            else request.resolve(message.result);
+        });
+        socket.addEventListener('close', () => {
+            for (const request of this.pending.values()) {
+                request.reject(new Error('CDP connection closed'));
+            }
+            this.pending.clear();
+        });
+    }
+
+    close(): void {
+        this.socket.close();
+    }
+
+    async request<T>(
+        method: string,
+        parameters: Record<string, unknown> = {},
+        timeoutMs = CDP_TIMEOUT_MS,
+    ): Promise<T> {
+        const id = this.nextId++;
+        const result = new Promise<unknown>((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                this.pending.delete(id);
+                reject(new Error(`CDP ${method} timed out after ${timeoutMs}ms`));
+            }, timeoutMs);
+            this.pending.set(id, {
+                reject: (error) => {
+                    clearTimeout(timeout);
+                    reject(error);
+                },
+                resolve: (value) => {
+                    clearTimeout(timeout);
+                    resolve(value);
+                },
+            });
+        });
+        this.socket.send(JSON.stringify({ id, method, params: parameters }));
+        return (await result) as T;
+    }
+}
+
+export async function connectToRenderer(
+    port: number,
+    urlContains?: string,
+): Promise<CdpConnection> {
+    const response = await fetch(`http://127.0.0.1:${port}/json/list`, {
+        signal: AbortSignal.timeout(CDP_TIMEOUT_MS),
+    });
+    if (!response.ok) throw new Error(`CDP target discovery failed with HTTP ${response.status}`);
+    const target = selectRendererTarget((await response.json()) as CdpTarget[], urlContains);
+    if (!target.webSocketDebuggerUrl) throw new Error('Renderer target has no WebSocket URL');
+    return CdpClient.connect(target.webSocketDebuggerUrl);
+}
