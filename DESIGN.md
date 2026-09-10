@@ -128,9 +128,14 @@ precedent — a new arbitrary value requires updating this spec first with a sta
 SecondarySidebar top rails share one bottom edge. Workbench tabs fill the full 44px rail, VS Code
 style, so the active tab's `--background` fill reaches the rail's top edge. PrimarySidebar and
 SecondarySidebar rail tabs remain 36px, vertically centered. The logo-free PrimarySidebar header is
-the drag region (`-webkit-app-region: drag`, interactive children `no-drag`). Add Project is hidden
-at rest and revealed by hovering anywhere in the expanded PrimarySidebar or by keyboard focus. The
-collapsed PrimarySidebar preserves the same 44px-tall drag region beneath the traffic lights.
+the drag region (`-webkit-app-region: drag`, interactive children `no-drag`). The Session history
+back/forward pair is the only control that rail carries, and it opts out of the drag region so the
+buttons navigate instead of moving the window. Add Project has no chrome of its own there: its entry
+points are `Cmd+O` (which works from a focused Terminal or editor too), the native Project menu, the
+command palette, and the Welcome view's primary action while no Project exists. A workbench-wide
+action that a shortcut, a menu, and the palette all reach does not also earn a hover-revealed button
+in a 44px rail. The collapsed PrimarySidebar preserves the same 44px-tall drag region beneath the
+traffic lights.
 
 **Welcome** — heading "Project-first development." Body copy uses "folder" to match VS Code's
 Open Folder / Add Folder to Workspace, not "directory" or "local folder". The primary action is
@@ -269,7 +274,13 @@ Terminal, external, transcript, and Git diff tabs. These file actions remain whe
 only Workbench tab; the single-tab rule above still hides only New Terminal and the active accent.
 Single-file Git diff tabs use the same action slot for `Previous Change`, `Next Change`, and
 `Open Current File`. Navigation targets that pane's mounted diff and stays disabled until changes
-are ready. Ordinary file and single-file diff tab menus offer `Copy Path` and `Copy Relative Path`;
+are ready. Every Git diff tab, single-file or multi-file, ends that slot with a `Diff View Options`
+ellipsis popover holding `Inline View`, `Collapse Unchanged Regions`, and
+`Show Leading/Trailing Whitespace Differences`. These are window-lifetime view preferences, not
+persisted settings, and they are deliberately not mirrored into Settings: they are read-and-adjust
+controls that belong beside the diff being read. `Collapse Unchanged Regions` starts at each
+surface's own default — collapsed for a multi-file diff, expanded for a single file — and only
+becomes one shared value once the user sets it. Ordinary file and single-file diff tab menus offer `Copy Path` and `Copy Relative Path`;
 relative paths use the containing repository, falling back to the Workbench Project for non-Git files.
 Internal virtual tab identifiers are never copied as filesystem paths.
 Session bootstrap and switching still mount without structural motion; actual close keeps the exit
@@ -284,8 +295,11 @@ chrome. This does not govern the Session list's right-edge running spinner.
 Its Project-relative path sits on the left and the current file's last-change annotation sits on
 the right; both use dense, muted chrome on `--surface`, separated from the editor by one hairline.
 Only the file segment carries its file-type icon. Clicking any segment opens a flat sibling picker:
-folders navigate one level at a time, files open in the Session's preview Editor, symbolic links are
-visible but unavailable, and no symbol outline or settings are added. The path uses one keyboard tab
+folders navigate one level at a time, files open in the Session's preview Editor, and no symbol
+outline or settings are added. A symbolic link reached through the Project root is an ordinary
+entry, not a dead one: a link to a folder navigates into it and a link to a file opens it, with no
+extra confirmation. Cached link metadata can be stale or missing after a probe timeout, so
+activation asks the Server for the target's current kind instead of trusting what the row displayed. The path uses one keyboard tab
 stop with Left/Right/Home/End navigation; Enter or Space opens the picker. The picker keeps one
 listbox focus, supports arrows, Home/End, typeahead, Enter/Right to activate, Left for the parent,
 and Escape to close. Long paths scroll horizontally without a visible scrollbar and keep the active
@@ -445,14 +459,21 @@ and the matching human failure label. Surface actions, the command palette, and
 `Command+Shift+R` restart the same durable Terminal record.
 
 **Dialogs** — backdrop `--overlay` + `backdrop-filter: blur(2px)`; content radius 8, border
-`--border`, shadow from `--shadow`. Never a close X inside the command palette.
+`--border`, shadow from `--shadow`. Never a close X inside the command palette. Pickers are the one
+exception and use a second, named scrim: fully transparent, no blur, still capturing pointer events
+so an outside click dismisses the picker instead of reaching the control underneath. A picker is
+something the user reads the workbench through while choosing a destination in it, so dimming the
+thing they are aiming at defeats the surface.
 
 **Command palette** — rows show command title left, `kbd` shortcut hint right (render from live
 keybindings, `badge` size, `--elevated` chips). Group headings stay. Width 560px.
 
 **Session switcher** — the hold-to-cycle MRU overlay (`Recently used Sessions`) is a modal moment
-that ends on key release, so it wears the Dialog scrim (`--overlay` + `blur(2px)`) and the
-palette's 560px width, centred. It reads top to bottom as caption / list / hint: a panel-caption
+that ends on key release, so it wears the picker scrim above rather than the Dialog one, and the
+palette's 560px width, centred. Like VS Code's editor switcher, the workbench stays fully readable
+underneath while the chord is held; the scrim still swallows pointer events, and clicking it cancels
+exactly as Escape does — without that, clicking a Session in the PrimarySidebar mid-chord switches
+once and then the switcher commits a second, stale jump on release. It reads top to bottom as caption / list / hint: a panel-caption
 title with the live position on the right, Session rows (Agent identity icon, title over Project,
 relative `Last opened`, then the same right-edge status indicator the PrimarySidebar renders), and
 a footer of live `kbd` chips for cycle, reverse, cancel, and
