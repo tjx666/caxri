@@ -68,11 +68,6 @@ const BRANCH_DISCOVERY_JSON_FIELDS = 'number,state,isDraft';
  */
 const MAX_BRANCH_CANDIDATES = '5';
 
-const githubPullRequestStateSchema = z.object({
-    isDraft: z.boolean().optional(),
-    state: z.string().optional(),
-});
-
 interface GitHubRemote {
     branch: string;
     owner: string;
@@ -129,25 +124,6 @@ function pullRequestKey(reference: PullRequestReference): string {
     return `${reference.owner}/${reference.repo}#${reference.number}`;
 }
 
-/**
- * Maps the GitHub `state`/`isDraft` pair onto the Session projection. GitHub reports `OPEN`, `MERGED`, or `CLOSED`.
- */
-function sessionPullRequestState(
-    state: string | undefined,
-    isDraft: boolean | undefined,
-): SessionPullRequest['state'] | undefined {
-    switch ((state ?? '').toUpperCase()) {
-        case 'MERGED':
-            return 'merged';
-        case 'CLOSED':
-            return 'closed';
-        case 'OPEN':
-            return isDraft ? 'draft' : 'open';
-        default:
-            return undefined;
-    }
-}
-
 function isSettled(value: SessionPullRequest | undefined): boolean {
     return value?.state === 'merged' || value?.state === 'closed';
 }
@@ -166,10 +142,7 @@ function parseSessionPullRequest(
 ): SessionPullRequest | undefined {
     const parsed = parseGitHubPullRequest(output, ignoredChecks).pullRequest;
     if (!parsed) return undefined;
-    const raw = githubPullRequestStateSchema.safeParse(JSON.parse(output));
-    const state = raw.success
-        ? sessionPullRequestState(raw.data.state, raw.data.isDraft)
-        : undefined;
+    const state = parsed.lifecycle;
     if (!state) return undefined;
     return {
         number: parsed.number,

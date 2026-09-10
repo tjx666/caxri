@@ -60,7 +60,7 @@ test('bundled Project Status extension renders and refreshes the current reposit
 sleep "$(cat ${JSON.stringify(statusDelayPath)})"
 printf 'request\n' >> ${JSON.stringify(statusRequestLogPath)}
 status_title=$(cat ${JSON.stringify(statusTitlePath)})
-printf '{"body":"Related to https://linear.app/lobehub/issue/LOBE-42/project-status","number":42,"title":"%s","url":"https://github.com/tjx666/project/pull/42","statusCheckRollup":[{"workflowName":"Test","name":"App","status":"COMPLETED","conclusion":"FAILURE","startedAt":"2026-08-23T00:00:00.000Z","completedAt":"2026-08-23T00:02:05.000Z"},{"workflowName":"Test","name":"Packages","status":"COMPLETED","conclusion":"SUCCESS","startedAt":"2026-08-23T00:00:00.000Z","completedAt":"2026-08-23T00:01:00.000Z","detailsUrl":${JSON.stringify(longCheckUrl)}}]}' "$status_title"
+printf '{"body":"Related to https://linear.app/lobehub/issue/LOBE-42/project-status","state":"MERGED","isDraft":false,"number":42,"title":"%s","url":"https://github.com/tjx666/project/pull/42","statusCheckRollup":[{"workflowName":"Test","name":"App","status":"COMPLETED","conclusion":"FAILURE","startedAt":"2026-08-23T00:00:00.000Z","completedAt":"2026-08-23T00:02:05.000Z"},{"workflowName":"Test","name":"Packages","status":"COMPLETED","conclusion":"SUCCESS","startedAt":"2026-08-23T00:00:00.000Z","completedAt":"2026-08-23T00:01:00.000Z","detailsUrl":${JSON.stringify(longCheckUrl)}}]}' "$status_title"
 `,
         'utf8',
     );
@@ -155,7 +155,10 @@ esac
                 .filter({ hasText: 'Refresh Project Status' }),
         ).toBeVisible();
         await running.page.mouse.move(0, 0);
-        const pullRequestA = tree.getByRole('treeitem', { name: '#42 Status A', exact: true });
+        const pullRequestA = tree.getByRole('treeitem', {
+            name: '#42 Status A, Merged · CI failed',
+            exact: true,
+        });
         /**
          * The first root load intentionally returns local data while its delivery metadata refresh continues in the
          * background. Wait for that refresh before measuring a manual request, otherwise the Server may correctly
@@ -204,8 +207,8 @@ esac
         await expect(refreshButton).not.toHaveAttribute('aria-busy', 'true');
         expect(await refreshRequestCount()).toBe(beforeInitialRefresh + 1);
         await expect(pullRequestA).toHaveAttribute('aria-expanded', 'true');
-        await expect(pullRequestA.locator('[data-theme-icon="circle-x"]')).toHaveClass(
-            /text-danger/,
+        await expect(pullRequestA.locator('[data-theme-icon="git-merge"]')).toHaveClass(
+            /text-merged/,
         );
         const appCheck = tree.getByRole('treeitem', { name: 'Test / App, 2m 5s', exact: true });
         const packagesCheck = tree.getByRole('treeitem', {
@@ -292,7 +295,7 @@ esac
         });
         await expect(pullRequestA).toHaveCSS('cursor', 'pointer');
         const collapsePullRequest = pullRequestA.getByRole('button', {
-            name: 'Collapse #42 Status A',
+            name: 'Collapse #42 Status A, Merged · CI failed',
             exact: true,
         });
         await expect(collapsePullRequest).toHaveAttribute('aria-expanded', 'true');
@@ -307,7 +310,10 @@ esac
         await expect(pullRequestTooltip).toBeVisible();
         await expect(pullRequestTooltip).toHaveAttribute('data-side', hoverSide!);
         await pullRequestA
-            .getByRole('button', { name: 'Expand #42 Status A', exact: true })
+            .getByRole('button', {
+                name: 'Expand #42 Status A, Merged · CI failed',
+                exact: true,
+            })
             .click();
         await expect(pullRequestA).toHaveAttribute('aria-expanded', 'true');
         await expect(pullRequestTooltip).toBeVisible();
@@ -328,7 +334,10 @@ esac
         await expect(pullRequestA).toHaveAttribute('aria-expanded', 'false');
         await expect(pullRequestTooltip).toHaveCount(0);
         await pullRequestA
-            .getByRole('button', { name: 'Expand #42 Status A', exact: true })
+            .getByRole('button', {
+                name: 'Expand #42 Status A, Merged · CI failed',
+                exact: true,
+            })
             .click();
         await running.page.mouse.move(0, 0);
         await expect(pullRequestA).toHaveAttribute('aria-expanded', 'true');
@@ -347,7 +356,10 @@ esac
         ).toHaveCount(0);
         await expect.poll(() => treeCommandOpenedUrls(running)).toHaveLength(1);
         await pullRequestA
-            .getByRole('button', { name: 'Expand #42 Status A', exact: true })
+            .getByRole('button', {
+                name: 'Expand #42 Status A, Merged · CI failed',
+                exact: true,
+            })
             .click();
         await expect(pullRequestA).toHaveAttribute('aria-expanded', 'true');
         await expect.poll(() => treeCommandOpenedUrls(running)).toHaveLength(1);
@@ -628,7 +640,10 @@ esac
         await expect(refreshButton).toHaveAttribute('aria-disabled', 'true');
         await expect(refreshButton).toHaveAttribute('aria-busy', 'true');
         await expect(
-            tree.getByRole('treeitem', { name: '#42 Status B', exact: true }),
+            tree.getByRole('treeitem', {
+                name: '#42 Status B, Merged · CI failed',
+                exact: true,
+            }),
         ).toBeVisible();
         await expect(pullRequestA).toHaveCount(0);
         await expect(deployments).toHaveAttribute('aria-expanded', 'true');
@@ -665,7 +680,10 @@ esac
          * fixture validates refresh persistence instead of racing two provider generations under CI load.
          */
         await expect(
-            restoredTree.getByRole('treeitem', { name: '#42 Status B', exact: true }),
+            restoredTree.getByRole('treeitem', {
+                name: '#42 Status B, Merged · CI failed',
+                exact: true,
+            }),
         ).toBeVisible();
         await writeFile(statusTitlePath, 'Status C');
         /**
@@ -675,7 +693,10 @@ esac
         await running.page.keyboard.press('Meta+Shift+P');
         await running.page.getByText('Refresh Project Status', { exact: true }).click();
         await expect(
-            restoredTree.getByRole('treeitem', { name: '#42 Status C', exact: true }),
+            restoredTree.getByRole('treeitem', {
+                name: '#42 Status C, Merged · CI failed',
+                exact: true,
+            }),
         ).toBeVisible();
         const restoredDeployments = restoredTree.getByRole('treeitem', {
             name: 'Deployments, 3 on feature/status',

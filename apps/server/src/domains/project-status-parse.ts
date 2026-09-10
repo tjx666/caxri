@@ -3,6 +3,7 @@ import type {
     ProjectStatusLinearIssue,
     ProjectStatusRepository as ProjectStatusRepo,
     ProjectStatusState,
+    SessionPullRequestState,
 } from '@caxri/protocol';
 import { CaxriError, isIgnoredCheck } from '@caxri/protocol';
 import { z } from 'zod';
@@ -31,6 +32,8 @@ type GitHubCheck = z.infer<typeof githubCheckSchema>;
 
 export const githubPullRequestSchema = z.object({
     body: z.string().optional(),
+    isDraft: z.boolean().optional(),
+    state: z.string().optional(),
     number: z.number().int().positive().optional(),
     statusCheckRollup: z.array(githubCheckSchema).optional(),
     title: z.string().min(1).optional(),
@@ -161,6 +164,25 @@ function projectCheck(check: GitHubCheck): ProjectStatusCheck {
 const CHECK_ORDER: ProjectStatusState[] = ['failure', 'pending', 'cancelled', 'success', 'neutral'];
 
 /**
+ * Both PR surfaces use the same lifecycle projection; a closed draft is closed, not draft.
+ */
+function pullRequestLifecycle(
+    state: string | undefined,
+    isDraft: boolean | undefined,
+): SessionPullRequestState | undefined {
+    switch (state?.toUpperCase()) {
+        case 'MERGED':
+            return 'merged';
+        case 'CLOSED':
+            return 'closed';
+        case 'OPEN':
+            return isDraft ? 'draft' : 'open';
+        default:
+            return undefined;
+    }
+}
+
+/**
  * Projects one `gh pr view` payload. `ignoredChecks` is applied here rather than at each consumer so the Status panel's
  * rollup, the PrimarySidebar's CI badge, and the delivery-failure alert can never disagree about whether a pull request
  * is failing: they all read this one filtered result.
@@ -186,6 +208,7 @@ export function parseGitHubPullRequest(
             number: raw.number,
             title: raw.title,
             url: raw.url,
+            lifecycle: pullRequestLifecycle(raw.state, raw.isDraft),
             /**
              * An empty rollup means GitHub has not reported a check yet, which is genuinely pending. A rollup that is
              * empty only _after_ filtering means the user ignored every check this pull request has — reporting that as
