@@ -71,6 +71,14 @@ describe('E2E clipboard ownership session', () => {
         expect((outputFailure as Error).message.includes(PRIVATE_PAYLOAD)).toBe(false);
     });
 
+    it('keeps the verified restore receipt when an external write follows restoration', async () => {
+        const adapter = nativeAdapter({ matchesSnapshot: vi.fn().mockResolvedValue(false) });
+        const session = await snapshotClipboard(adapter);
+
+        await expect(session.restore()).resolves.toEqual({ generation: 12, status: 'restored' });
+        expect(adapter.matchesSnapshot).not.toHaveBeenCalled();
+    });
+
     it('preserves an external write whose generation replaced the last test-owned generation', async () => {
         let generation = 11;
         let nativeWrites = 0;

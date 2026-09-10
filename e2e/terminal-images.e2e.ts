@@ -127,20 +127,28 @@ test('inline images render real pixels, enforce budgets, and restore as content-
             .toBeGreaterThan(baselineRedPixels + 1_000);
 
         await typeTerminal(running.page, String.raw`printf '\033c'`);
-        const jpegBaselineRedPixels = await redPixelCount(running.app, surface);
+        /**
+         * Writing the reset command does not mean xterm has painted it. Wait for the previous image to disappear so its
+         * pixels cannot become the next format's baseline on a loaded runner.
+         */
+        await expect
+            .poll(() => redPixelCount(running.app, surface))
+            .toBeLessThanOrEqual(baselineRedPixels);
         await typeTerminal(running.page, `cat '${jpegPath}'`);
         await expect(surface).toHaveAttribute('data-terminal-images-added', '2');
         await expect
             .poll(() => redPixelCount(running.app, surface))
-            .toBeGreaterThan(jpegBaselineRedPixels + 1_000);
+            .toBeGreaterThan(baselineRedPixels + 1_000);
 
         await typeTerminal(running.page, String.raw`printf '\033c'`);
-        const sixelBaselineRedPixels = await redPixelCount(running.app, surface);
+        await expect
+            .poll(() => redPixelCount(running.app, surface))
+            .toBeLessThanOrEqual(baselineRedPixels);
         await typeTerminal(running.page, `cat '${sixelPath}'`);
         await expect(surface).toHaveAttribute('data-terminal-images-added', '3');
         await expect
             .poll(() => redPixelCount(running.app, surface))
-            .toBeGreaterThan(sixelBaselineRedPixels + 1_000);
+            .toBeGreaterThan(baselineRedPixels + 1_000);
 
         await typeTerminal(running.page, `cat '${oversizedPath}'`);
         /**

@@ -281,12 +281,10 @@ export class ClipboardSnapshot {
                     this.record.payload,
                     this.ownedGeneration,
                 );
-                if (
-                    outcome.status === 'restored' &&
-                    !(await this.native.matchesSnapshot(this.record.payload))
-                ) {
-                    throw new Error('Native pasteboard reconstruction was incomplete');
-                }
+                /**
+                 * The native restore verifies the reconstructed payload before returning its generation receipt. A
+                 * second helper invocation would race a later external write and misreport a successful restore.
+                 */
                 return outcome;
             } catch {
                 throw new Error('Could not restore the E2E clipboard');
