@@ -28,7 +28,6 @@ import {
     worktreeIdentityId,
 } from './workbench-root-discovery';
 
-const CANDIDATE_TTL_MS = 10 * 60_000;
 const MAX_CANDIDATES = 256;
 const MAX_OBSERVED_AGENT_CWDS = 256;
 const MAX_PENDING_DELETION_VALIDATIONS = 256;
@@ -37,7 +36,6 @@ const workbenchRootLogEvents = logEventCatalog.workbenchRoot;
 
 interface WorkbenchCandidate {
     candidateId: string;
-    createdAt: number;
     repositoryKey: string;
     rootPath: string;
     sessionId: string;
@@ -190,7 +188,6 @@ export class WorkbenchRootService {
         rootPath: string;
         sessionId: string;
     }): void {
-        this.pruneCandidates();
         for (const [candidateId, candidate] of this.candidates)
             if (candidate.sessionId === input.sessionId) this.candidates.delete(candidateId);
         while (this.candidates.size >= MAX_CANDIDATES) {
@@ -202,7 +199,6 @@ export class WorkbenchRootService {
         this.candidates.set(candidateId, {
             ...input,
             candidateId,
-            createdAt: Date.now(),
             state: 'pending',
         });
         this.options.emit({
@@ -284,17 +280,7 @@ export class WorkbenchRootService {
         const candidate = this.candidates.get(candidateId);
         if (!candidate || candidate.sessionId !== sessionId)
             throw new CaxriError('NOT_FOUND', 'Workbench candidate is no longer available');
-        if (candidate.createdAt + CANDIDATE_TTL_MS <= Date.now()) {
-            this.candidates.delete(candidateId);
-            throw new CaxriError('CONFLICT', 'Workbench candidate expired');
-        }
         return candidate;
-    }
-
-    private pruneCandidates(): void {
-        const cutoff = Date.now() - CANDIDATE_TTL_MS;
-        for (const [candidateId, candidate] of this.candidates)
-            if (candidate.createdAt <= cutoff) this.candidates.delete(candidateId);
     }
 
     private rememberObservedAgentCwd(terminalId: string, agentCwd: string): void {
@@ -556,11 +542,14 @@ export class WorkbenchRootService {
         return this.commitSelection(sessionId, projectId, reason, identity, startedAt);
     }
 
+    /**
+     * A suggestion can remain visible while its Session is in the background. Elapsed time must not invalidate the
+     * user's eventual choice; authorization revalidates the root and current Git topology before selecting it.
+     */
     claimCandidate(
         sessionId: string,
         candidateId: string,
     ): { candidateId: string; rootPath: string; projectId?: string } {
-        this.pruneCandidates();
         const candidate = this.requireCandidate(sessionId, candidateId);
         if (candidate.state !== 'pending')
             throw new CaxriError('CONFLICT', 'Workbench candidate was already handled');
