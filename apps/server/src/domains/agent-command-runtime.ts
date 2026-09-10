@@ -3,6 +3,10 @@ import { coerce, gte } from 'semver';
 
 import { AgentDelegationService, createDelegationHandlers } from './agent-delegation';
 import type { AgentDispatchServiceOptions } from './agent-dispatch';
+/**
+ * Server domain composition uses the public dispatch boundary required by the repository architecture.
+ */
+// react-doctor-disable-next-line react-doctor/no-barrel-import
 import { AgentDispatchService, createAgentCommandHandlers } from './agent-dispatch';
 import type { AgentEnvironment } from './agents';
 import { readAgentTranscript, readVersion } from './agents';
