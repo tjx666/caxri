@@ -327,7 +327,8 @@ function repoHarnessTestCandidates(file: string): string[] {
 /**
  * Splits changed files into the three pipelines this gate runs, so `.md` files match CI's tool ownership split:
  * markdownlint owns Markdown semantics, Prettier owns formatting for every `FORMAT_EXTENSIONS` file (including `.md`),
- * and ESLint + Prettier own `CODE_EXTENSIONS`.
+ * and ESLint + Prettier own `CODE_EXTENSIONS`. ESLint additionally lints the fenced code blocks of the Markdown bucket
+ * — see `eslintTargets`.
  */
 export function lintBucketsForFiles(files: string[]): LintBuckets {
     const codeFiles: string[] = [];
@@ -594,11 +595,23 @@ export function eslintArguments(files: string[]): string[] {
     return ['--fix', '--no-warn-ignored', '--max-warnings=0', ...files];
 }
 
-async function runLint(root: string, files: string[]): Promise<number> {
-    const { codeFiles, markdownFiles, otherFormatFiles } = lintBucketsForFiles(files);
+/**
+ * Markdown belongs to the ESLint pass as well, not only to markdownlint and Prettier: `markdownProcessorConfig` in
+ * `eslint.config.ts` turns fenced JS/TS blocks into virtual files, so a doc whose snippet breaks a lint rule fails the
+ * repository-wide `lint` gate. Leaving `.md` out let a documentation change pass this focused check and then fail CI —
+ * the one outcome the gate exists to prevent.
+ */
+export function eslintTargets({ codeFiles, markdownFiles }: LintBuckets): string[] {
+    return [...codeFiles, ...markdownFiles];
+}
 
+async function runLint(root: string, files: string[]): Promise<number> {
+    const buckets = lintBucketsForFiles(files);
+    const { codeFiles, markdownFiles, otherFormatFiles } = buckets;
+
+    const eslintFiles = eslintTargets(buckets);
+    if (eslintFiles.length > 0) await runTool(root, 'eslint', eslintArguments(eslintFiles));
     if (codeFiles.length > 0) {
-        await runTool(root, 'eslint', eslintArguments(codeFiles));
         // ESLint is syntactic-only in this repository; type-aware rules run through oxlint/tsgolint
         // (see .oxlintrc.json). Run it before Prettier so its autofixes get reformatted.
         const typeAwareFiles = codeFiles.filter((file) =>

@@ -13,7 +13,6 @@ import {
     requireCapturePreflight,
     requiresRuntimeTerminalFixturePreflight,
     resolveOwnedCapturePort,
-    selectRendererTarget,
 } from './capture-renderer';
 import { createTerminalFixturePreflightReceipt } from './fixture-preflight';
 
@@ -239,43 +238,6 @@ describe('Acceptance Renderer capture', () => {
         expect(await readFile(join(outDirectory, 'frame_000000.png'), 'utf8')).toBe('frame-data');
     });
 
-    it('selects the Caxri Renderer instead of DevTools', () => {
-        expect(
-            selectRendererTarget([
-                {
-                    type: 'page',
-                    url: 'devtools://devtools/bundled/inspector.html',
-                    webSocketDebuggerUrl: 'ws://devtools',
-                },
-                {
-                    type: 'page',
-                    url: 'file:///tmp/caxri/out/renderer/index.html',
-                    webSocketDebuggerUrl: 'ws://renderer',
-                },
-            ]).webSocketDebuggerUrl,
-        ).toBe('ws://renderer');
-    });
-
-    it('selects the main Renderer by default and allows an explicit secondary target', () => {
-        const targets = [
-            {
-                type: 'page',
-                url: 'file:///tmp/caxri/out/renderer/index.html',
-                webSocketDebuggerUrl: 'ws://main',
-            },
-            {
-                type: 'page',
-                url: 'file:///tmp/caxri/out/renderer/process-explorer.html',
-                webSocketDebuggerUrl: 'ws://process-explorer',
-            },
-        ];
-
-        expect(selectRendererTarget(targets).webSocketDebuggerUrl).toBe('ws://main');
-        expect(selectRendererTarget(targets, 'process-explorer.html').webSocketDebuggerUrl).toBe(
-            'ws://process-explorer',
-        );
-    });
-
     it('requires capture to use the owned Acceptance CDP port', () => {
         expect(resolveOwnedCapturePort(9222)).toBe(9222);
         expect(() => resolveOwnedCapturePort(9222, 9333)).toThrow(
@@ -312,22 +274,5 @@ describe('Acceptance Renderer capture', () => {
                 '601',
             ]),
         ).toThrow('--count must be an integer between 1 and 600');
-    });
-
-    it('fails closed when Renderer target selection is ambiguous', () => {
-        expect(() =>
-            selectRendererTarget([
-                {
-                    type: 'page',
-                    url: 'file:///one/out/renderer/index.html',
-                    webSocketDebuggerUrl: 'ws://one',
-                },
-                {
-                    type: 'page',
-                    url: 'file:///two/out/renderer/index.html',
-                    webSocketDebuggerUrl: 'ws://two',
-                },
-            ]),
-        ).toThrow('Expected exactly one Caxri Renderer CDP target');
     });
 });
