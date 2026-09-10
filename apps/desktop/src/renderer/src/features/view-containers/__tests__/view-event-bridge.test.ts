@@ -58,6 +58,19 @@ beforeEach(() => {
 });
 
 describe('view event bridge', () => {
+    it('does not queue badge invalidations ahead of a hidden view action', () => {
+        startViewEventBridge();
+        const action = event('refresh');
+        for (const listener of mocks.listeners) listener(action);
+        for (let index = 0; index < 100; index += 1) {
+            const badge = event(`badge-${index}`);
+            badge.payload.change = { kind: 'badge' };
+            for (const listener of mocks.listeners) listener(badge);
+        }
+        const received: ServerEvent[] = [];
+        subscribeViewEvents(scope, (next) => received.push(next));
+        expect(received).toEqual([action]);
+    });
     it('replays a hidden-view action once after the matching scope mounts', () => {
         startViewEventBridge();
         const viewEvent = event('event-1');

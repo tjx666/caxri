@@ -10,13 +10,13 @@ import type {
     TerminalKind,
     TerminalRecord,
 } from '@caxri/protocol';
-import { agentProviderCatalog, CaxriError, errorMessage } from '@caxri/protocol';
+import { agentProviderCatalog, CaxriError } from '@caxri/protocol';
 import { logEventCatalog } from '@caxri/system';
 
 import { AgentDispatchService, createAgentCommandHandlers } from './agent-dispatch';
 import { createAgentRuntime } from './agent-runtime';
 import { LongPasteService } from './agents';
-import { createBackgroundTasks } from './background-tasks';
+import { createBackgroundTasks, refreshWatchSessionInBackground } from './background-tasks';
 import { DiagnosticsService } from './diagnostics';
 import type { DomainDependencies, DomainHandlers, DomainServices } from './domain-services';
 import { createIntrospectionServices } from './introspection';
@@ -60,15 +60,6 @@ export async function createDomainServices(
         workbenchRoots,
     } = await createRootServices(dependencies);
     const selectedSessionId = () => database.getAppState('lastSelectedSessionId') ?? undefined;
-    workbenchRoots.setRootChangedHandler((sessionId) => {
-        if (selectedSessionId() === sessionId)
-            // eslint-disable-next-line unicorn/prefer-await -- synchronous callback cannot await
-            files.refreshWatchSession(sessionId).catch((error: unknown) =>
-                logger.write('error', logEventCatalog.files.refreshWatchSessionFailed, {
-                    fields: { sessionId, error: errorMessage(error, 'unknown') },
-                }),
-            );
-    });
     const suspensionState: { service?: TerminalSuspensionService } = {};
     const agentRuntime = await createAgentRuntime({
         configuration,
@@ -203,6 +194,18 @@ export async function createDomainServices(
         emit: send,
         github: externalStatus.github,
         settings: () => configuration.getSettings().value,
+    });
+    workbenchRoots.setRootChangedHandler((sessionId) => {
+        /**
+         * Root changes end the old projection lifetime before consumers re-read. An inactive root has no file watcher,
+         * so retaining its settled Git snapshot can keep both Source Control and its badge stale when returning.
+         */
+        git.evictSessions([sessionId]);
+        projectStatus.evictSessions([sessionId]);
+        if (selectedSessionId() === sessionId) {
+            projectStatus.setPolledSession(sessionId);
+            refreshWatchSessionInBackground(files, git, logger, sessionId);
+        }
     });
     const diagnostics = new DiagnosticsService(
         database,
@@ -357,7 +360,7 @@ export async function createDomainServices(
             dependencies.terminalRestoreGridWaitMs ?? VISIBLE_TERMINAL_RESTORE_GRID_WAIT_MS,
     });
     const { restoreInterruptedTerminalsInBackground, watchSessionInBackground } =
-        createBackgroundTasks(logger, files, restoreInterruptedTerminals);
+        createBackgroundTasks(logger, files, git, restoreInterruptedTerminals);
     /**
      * The one place that tells background services which Session is now current. Project Status polls only this
      * Session, so every path that changes durable selection must go through here: a missed update either leaves the

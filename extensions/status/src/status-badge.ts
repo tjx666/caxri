@@ -1,12 +1,10 @@
-import type { ProjectStatusSummary } from '@caxri/protocol';
+import type { ProjectStatusSummary, ViewBadge } from 'caxri';
 
 /**
  * Counts actionable leaves, never PR rollups or historical branch deployments. The latest preview/production aliases
  * can refer to the same deployment, so count their destination only once across the visible repositories.
  */
-export function statusBadge(
-    summary: ProjectStatusSummary | undefined,
-): { text: string; description: string } | undefined {
+export function statusBadge(summary: ProjectStatusSummary | undefined): ViewBadge | undefined {
     if (!summary || summary.error) return undefined;
     const checks = new Set<string>();
     const deployments = new Set<string>();
@@ -30,5 +28,5 @@ export function statusBadge(
         parts.push(
             `${deployments.size} failed ${deployments.size === 1 ? 'deployment' : 'deployments'}`,
         );
-    return { text: count > 9 ? '9+' : String(count), description: parts.join(', ') };
+    return { count, description: parts.join(', '), tone: 'danger' };
 }

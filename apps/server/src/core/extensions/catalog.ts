@@ -309,6 +309,7 @@ export async function buildViewCatalog(options: {
                     source: { kind: 'extension', extensionId: extension.extensionId },
                     title: contribution.name,
                     viewKind: { kind: contribution.type },
+                    ...(contribution.badge && { badge: contribution.badge }),
                     ...(contribution.presentation && {
                         presentation: contribution.presentation,
                     }),

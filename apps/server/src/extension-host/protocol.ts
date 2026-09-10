@@ -39,6 +39,7 @@ export const extensionWorkspaceOperations = [
 export type ExtensionWorkspaceOperation = (typeof extensionWorkspaceOperations)[number];
 
 const extensionViewOperations = [
+    'badge.snapshot',
     'source.snapshot',
     'source.historyPage',
     'source.historyDetails',

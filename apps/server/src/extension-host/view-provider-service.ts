@@ -1,6 +1,13 @@
 import { randomUUID } from 'node:crypto';
 
-import type { CaxriApi, DisposableLike, SourceControlChange, SourceControlProvider } from 'caxri';
+import type {
+    CaxriApi,
+    DisposableLike,
+    Event,
+    SourceControlChange,
+    SourceControlProvider,
+    ViewBadgeProvider,
+} from 'caxri';
 import { CancellationTokenSource, Disposable } from 'caxri';
 
 import {
@@ -20,7 +27,7 @@ interface ViewProviderRegistration {
     extensionId: string;
     generation: number;
     subscription?: DisposableLike;
-    provider: SourceControlProvider;
+    provider: SourceControlProvider | ViewBadgeProvider;
     /**
      * Set only by host-driven retirement ({@link retireViewProviders}). The extension owns the registration's
      * Disposable, so map identity alone cannot corroborate a `GENERATION_EXPIRED` the provider throws (issue #606).
@@ -51,17 +58,19 @@ function didConsumeCancelTombstone(requestId: string): boolean {
 function registerProvider(
     viewId: string,
     registration: Omit<ViewProviderRegistration, 'subscription'>,
-    onDidChange: SourceControlProvider['onDidChange'],
+    onDidChange: Event<SourceControlChange | { kind: 'badge' }> | undefined,
     send: (message: ExtensionHostMessage) => void,
+    role: 'source' | 'badge' = 'source',
 ): Disposable {
-    if (providers.has(viewId))
+    const key = `${role}:${viewId}`;
+    if (providers.has(key))
         throw Object.assign(new Error(`View provider already registered: ${viewId}`), {
             code: 'DUPLICATE_ID',
         });
     const current: ViewProviderRegistration = registration;
     if (onDidChange)
-        current.subscription = onDidChange((change: SourceControlChange) => {
-            if (providers.get(viewId) !== current) return;
+        current.subscription = onDidChange((change) => {
+            if (providers.get(key) !== current) return;
             const context = currentViewEventContext();
             if (!context) return;
             send({
@@ -75,10 +84,10 @@ function registerProvider(
                 change,
             });
         });
-    providers.set(viewId, current);
+    providers.set(key, current);
     return new Disposable(() => {
         current.subscription?.dispose();
-        if (providers.get(viewId) === current) providers.delete(viewId);
+        if (providers.get(key) === current) providers.delete(key);
     });
 }
 
@@ -101,10 +110,28 @@ export function createControlledViewRegistrationApi(options: {
     extensionId: string;
     generation: number;
     viewKinds: ReadonlyMap<string, string>;
+    badgeViewIds?: ReadonlySet<string>;
     assertCurrent(): void;
     send(message: ExtensionHostMessage): void;
-}): Pick<CaxriApi['views'], 'registerSourceControlProvider'> {
+}): Pick<CaxriApi['views'], 'registerSourceControlProvider' | 'registerViewBadgeProvider'> {
     return {
+        registerViewBadgeProvider: (viewId, provider) => {
+            options.assertCurrent();
+            if (!options.badgeViewIds?.has(viewId))
+                throw Object.assign(new Error(`View badge is not declared: ${viewId}`), {
+                    code: 'CAPABILITY_DENIED',
+                });
+            const onDidChange = provider.onDidChangeBadge;
+            return registerProvider(
+                viewId,
+                { extensionId: options.extensionId, generation: options.generation, provider },
+                onDidChange
+                    ? (listener) => onDidChange(() => listener({ kind: 'badge' }))
+                    : undefined,
+                (message) => options.send(message),
+                'badge',
+            );
+        },
         registerSourceControlProvider: (viewId, provider) => {
             options.assertCurrent();
             if (options.viewKinds.get(viewId) !== 'source-control')
@@ -130,8 +157,8 @@ function record(value: unknown): Record<string, unknown> {
     return value as Record<string, unknown>;
 }
 
-async function executeSourceControlOperation(
-    provider: SourceControlProvider,
+async function executeProviderOperation(
+    provider: SourceControlProvider | ViewBadgeProvider,
     operation: ExtensionViewOperation,
     arguments_: Record<string, unknown>,
     cancellation: CancellationTokenSource,
@@ -142,6 +169,10 @@ async function executeSourceControlOperation(
         context?.kind === 'session'
             ? `${context.sessionId}:${context.workbenchProjectId}`
             : 'no-session';
+    if (operation === 'badge.snapshot' && 'provideBadge' in provider)
+        return (await provider.provideBadge({ scopeId }, token)) ?? null;
+    if (!('provideView' in provider))
+        throw hostError('CAPABILITY_DENIED', 'View provider does not support this operation');
     const scopedArguments = { ...arguments_, scopeId };
     switch (operation) {
         case 'source.snapshot':
@@ -170,7 +201,8 @@ export async function executeViewOperation(parameters: {
 }): Promise<unknown> {
     if (didConsumeCancelTombstone(parameters.requestId))
         throw hostError('CANCELLED', 'View request was cancelled before registration');
-    const registration = providers.get(parameters.viewId);
+    const key = `${parameters.operation === 'badge.snapshot' ? 'badge' : 'source'}:${parameters.viewId}`;
+    const registration = providers.get(key);
     if (
         !registration ||
         registration.extensionId !== parameters.extensionId ||
@@ -190,7 +222,7 @@ export async function executeViewOperation(parameters: {
         const arguments_ = record(parameters.arguments);
         const invoke = (): Promise<unknown> =>
             withProviderRequestScope(scope, () =>
-                executeSourceControlOperation(
+                executeProviderOperation(
                     registration.provider,
                     parameters.operation,
                     arguments_,
@@ -201,7 +233,7 @@ export async function executeViewOperation(parameters: {
         const result = await (parameters.context
             ? withViewEventContext(parameters.context, invoke)
             : invoke());
-        if (providers.get(parameters.viewId) !== registration)
+        if (providers.get(key) !== registration)
             throw hostError('GENERATION_EXPIRED', 'View provider generation expired');
         /**
          * Reads must not commit a late result after cancellation. An action is different: cancellation is advisory once

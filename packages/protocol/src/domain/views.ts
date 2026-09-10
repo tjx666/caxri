@@ -157,6 +157,7 @@ export const viewDescriptorSchema = z.object({
     source: descriptorSourceSchema,
     title: z.string().min(1).max(200),
     viewKind: viewKindSchema,
+    badge: z.literal(true).optional(),
     presentation: controlledViewPresentationSchema.optional(),
     configurationDependencies: z.array(z.string().min(1).max(200)).max(32).optional(),
     actions: z.array(viewActionDescriptorSchema).max(32).optional(),
@@ -297,6 +298,7 @@ export const sourceControlViewStatesSchema = z
     );
 
 export const extensionViewChangeSchema = z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('badge') }),
     z.object({ kind: z.literal('content') }),
     z.object({ kind: z.literal('refresh') }),
     z.object({
@@ -304,6 +306,14 @@ export const extensionViewChangeSchema = z.discriminatedUnion('kind', [
         selectedModeId: treeItemIdSchema,
     }),
 ]);
+
+export const viewBadgeSchema = z.object({
+    count: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+    description: z.string().min(1).max(2_048),
+    tone: z.enum(['neutral', 'danger']).optional(),
+});
+
+export type ViewBadge = z.infer<typeof viewBadgeSchema>;
 
 export const sourceControlViewIconSchema = z.discriminatedUnion('kind', [
     z.object({ kind: z.literal('theme'), id: z.string().min(1).max(100) }),
@@ -512,6 +522,7 @@ const manifestViewSchema = z.object({
     id: viewIdSchema,
     name: z.string().min(1).max(200),
     type: z.enum(['tree', 'source-control']),
+    badge: z.literal(true).optional(),
     presentation: controlledViewPresentationSchema.optional(),
     configurationDependencies: z.array(z.string().min(1).max(200)).max(32).optional(),
     actions: z

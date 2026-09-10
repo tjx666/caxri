@@ -2,6 +2,7 @@ import type { ExtensionContext } from 'caxri';
 import caxri, { CancellationTokenSource } from 'caxri';
 
 import { GitProvider } from './git-provider';
+import { workingTreeBadge } from './working-tree-badge';
 
 function registerProviderCommand(provider: GitProvider, commandId: string) {
     return caxri.commands.registerCommand(commandId, async (...arguments_: readonly unknown[]) => {
@@ -20,6 +21,11 @@ export function activate(context: ExtensionContext): void {
     context.subscriptions.push(
         provider,
         caxri.views.registerSourceControlProvider('caxri.git.sourceControl', provider),
+        caxri.views.registerViewBadgeProvider('caxri.git.sourceControl', {
+            onDidChangeBadge: (listener) => caxri.workspace.onDidChangeGit(() => listener()),
+            provideBadge: async (_request, token) =>
+                workingTreeBadge(await caxri.workspace.git.summary(0, token)),
+        }),
         caxri.commands.registerCommand('caxri.git.workingTree', () =>
             provider.setMode('working', currentScopeId()),
         ),
