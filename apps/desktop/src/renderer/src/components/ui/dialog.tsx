@@ -1,10 +1,10 @@
 import type { ComponentProps, Ref } from 'react';
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { X } from 'lucide-react';
 
-import { resolvePickerFinalFocus } from '@/lib/picker-final-focus';
+import { restorePickerFocus } from '@/lib/picker-final-focus';
 import { cn } from '@/lib/utilities';
 import { useDialogStore } from '@/stores/dialogs';
 
@@ -146,20 +146,25 @@ export function PickerDialogContent({
  * lives inside the Portal, which mounts it fresh on every open, so a `useState` initializer captures that element
  * exactly once per open — even for pickers whose `Dialog` stays mounted while closed.
  *
- * Passing a function (rather than a boolean) also makes Base UI restore focus unconditionally, skipping its "focus
- * already moved elsewhere, leave it" guard. Every picker closes with focus still inside the popup or on `body`, so the
- * guard never applied to them; a picker that hands focus to another surface before closing must return `false` here.
+ * The shared restorer owns the focus call and preserves an explicit handoff to another surface.
  */
 function PickerPopup({ className, ...properties }: Omit<DialogPopupProperties, 'showCloseButton'>) {
-    const [elementFocusedBeforeOpen] = useState(() => document.activeElement);
+    const popup = useRef<HTMLDivElement>(null);
+    const [elementFocusedBeforeOpen] = useState(() =>
+        document.activeElement instanceof HTMLElement ? document.activeElement : null,
+    );
     return (
         <DialogPopup
+            ref={popup}
             className={cn(
                 'top-[18%] w-[min(560px,calc(100vw-32px))] translate-y-0 overflow-hidden',
                 className,
             )}
             showCloseButton={false}
-            finalFocus={() => resolvePickerFinalFocus(elementFocusedBeforeOpen)}
+            finalFocus={() => {
+                restorePickerFocus(elementFocusedBeforeOpen, popup.current);
+                return false;
+            }}
             {...properties}
         />
     );
