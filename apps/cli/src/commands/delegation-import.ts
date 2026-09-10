@@ -3,8 +3,11 @@ import { constants } from 'node:fs';
 import { open } from 'node:fs/promises';
 
 import { agentDelegationSettingsSchema, CaxriError } from '@caxri/protocol';
-import type { ParseError } from 'jsonc-parser';
-import { parse } from 'jsonc-parser';
+import type { ParseError } from 'jsonc-parser/lib/esm/main.js';
+/**
+ * The UMD entry wraps dynamic require calls that Bun cannot include in the standalone Node bundle.
+ */
+import { parse } from 'jsonc-parser/lib/esm/main.js';
 import { z } from 'zod';
 
 import type { RemoteCommandDefinition } from './types';
