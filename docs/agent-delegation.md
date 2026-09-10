@@ -7,7 +7,8 @@ inspection after its answer is collected.
 
 This implements provider delegation and continuation in
 [issue #686](https://github.com/tjx666/caxri/issues/686). It does not yet replace dianjiang:
-Standalone directory authorization and external caller identity remain subsequent stages of that umbrella issue.
+Standalone directory authorization and external caller identity are implemented below; native
+provider validation and the complete migration checklist remain open in that umbrella issue.
 Real Codex caller transport permissions are a separate validation boundary; target support does not
 claim that every Codex sandbox can connect to a Caxri Server socket.
 
@@ -153,6 +154,14 @@ managed launch and use the owned `hooks/caxri.json` file. The Provider renders t
 identity and private-file pointer through Server-owned fields, keeping user-supplied identity and
 positional overrides rejected. The workspace sandbox remains required. Native session rename is not
 currently supported.
+
+Controlled native validation with Grok 1.0.24 found a startup limitation on macOS: its read-only
+sandbox rejects a symlink at `/var/run/docker.sock` while resolving container-runtime socket
+denies. It exits before SessionStart or task execution with `runtime-socket deny resolution failed`
+and `endpoint is a symlink`. The [provider's socket policy](https://github.com/xai-org/grok-build/blob/37949780/crates/codegen/xai-grok-sandbox/src/runtime_sockets.rs)
+rejects endpoint symlinks. Caxri must not remove the system socket, disable sandboxing, or count
+fixture coverage as native completion. Resolve this through a provider fix or an explicitly
+authorized launch policy before claiming native Grok replacement coverage.
 
 Install the bundled CLI instructions explicitly with
 `caxri skills install caxri-cli --provider grok --local --yes`. Local installation uses
