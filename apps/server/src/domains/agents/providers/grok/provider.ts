@@ -7,7 +7,7 @@ import { CaxriError } from '@caxri/protocol';
 import type { AgentProviderDescriptor } from '../../contract';
 import { grokDelegationAdapter } from './delegation';
 import { grokHookAdapter, isGrokVersionSupported } from './hooks';
-import { grokSessionDirectory, locateGrokTranscript } from './paths';
+import { grokProjectRoot, locateGrokTranscript } from './paths';
 import { readGrokState } from './state';
 
 const sessionIdPattern = /^[a-f\d]{8}(?:-[a-f\d]{4}){3}-[a-f\d]{12}$/i;
@@ -85,13 +85,12 @@ export const grokProvider: AgentProviderDescriptor = {
             /**
              * Exact local existence avoids a remote lookup hanging or silently selecting another conversation.
              */
-            const summary = join(
-                grokSessionDirectory(environment, await realpath(cwd), agentSessionId),
-                'summary.json',
-            );
+            const root = await grokProjectRoot(await realpath(cwd), environment);
             let isExists = false;
             try {
-                isExists = (await stat(summary)).isFile();
+                isExists =
+                    root !== undefined &&
+                    (await stat(join(root, agentSessionId, 'summary.json'))).isFile();
             } catch {
                 // Missing or inaccessible provider state cannot authorize a fresh conversation on restore.
             }

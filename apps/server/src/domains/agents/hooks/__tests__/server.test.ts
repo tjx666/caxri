@@ -15,6 +15,33 @@ import { anyHandlingMs, createTestServer, send, validPayload } from './server.fi
 
 describe('AgentHookServer', () => {
     describe('authorize()', () => {
+        it('accepts empty Stop evidence only for the authenticated main Grok turn', async () => {
+            const { server, socketPath, onSignal } = await createTestServer();
+            try {
+                const token = server.register('terminal-1', 'launch-1');
+                const payload = {
+                    token,
+                    provider: 'grok',
+                    phase: 'turnFinished',
+                    agentResponseStop: true,
+                };
+                expect(await send(socketPath, validPayload(payload))).toBe('{"ok":true}\n');
+                expect(onSignal).toHaveBeenCalledWith(
+                    expect.objectContaining({ agentResponseStop: true }),
+                );
+                const rejected = await Promise.all(
+                    [
+                        { agentResponseStop: false },
+                        { provider: 'claude' },
+                        { phase: 'turnStarted' },
+                        { agentId: 'child' },
+                    ].map((extra) => send(socketPath, validPayload({ ...payload, ...extra }))),
+                );
+                expect(rejected).toEqual(Array.from({ length: 4 }, () => '{"ok":false}\n'));
+            } finally {
+                await server.close();
+            }
+        });
         it.each(['claude', 'codex'] as const)(
             'accepts authenticated %s task digests only on the owning main-agent phase',
             async (provider) => {

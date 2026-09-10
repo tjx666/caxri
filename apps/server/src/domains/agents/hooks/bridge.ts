@@ -193,12 +193,6 @@ function readIdentifiers(callback) {
       const index = source.indexOf(marker);
       if (index >= 0 && index < commonEnd) commonEnd = index;
     }
-    if (provider === 'grok') {
-      for (const marker of ['"prompt"', '"lastAssistantMessage"']) {
-        const index = source.indexOf(marker);
-        if (index >= 0 && index < commonEnd) commonEnd = index;
-      }
-    }
     const common = source.slice(0, commonEnd);
     for (const key of keys) {
       const match = common.match(new RegExp('(?:^|[,{])\\s*"' + key + '"\\s*:\\s*"([a-zA-Z0-9_.-]{1,256})"'));
@@ -270,11 +264,12 @@ function readIdentifiers(callback) {
       // these bounded opaque identifiers remain recoverable without retaining or parsing provider content. The cwd is
       // deliberately not recovered here: its character class overlaps provider content, and every later hook event
       // carries it again, so a truncated payload costs at most one event of latency.
-      agentId = prefixString(provider === 'grok' ? ['subagentId', 'agent_id', 'agentId'] : ['agent_id', 'agentId']);
+      agentId = prefixString(['agent_id', 'agentId']);
       sessionId = prefixString(['session_id', 'sessionId']);
-      turnId = prefixString(provider === 'claude' ? ['prompt_id'] : provider === 'grok' ? ['promptId'] : ['turn_id', 'turnId']);
+      turnId = prefixString(provider === 'claude' ? ['prompt_id'] : ['turn_id', 'turnId']);
     }
-    callback({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateIntent, promptDigest, responseDigest, responseByteLength, turnContinues, failure, overflow: captureDigests && overflow });
+    const responseStop = captureDigests && provider === 'grok' && signal.phase === 'turnFinished';
+    callback({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateIntent, promptDigest, responseDigest, responseByteLength, responseStop, turnContinues, failure, overflow: captureDigests && overflow });
   };
   // Stdin may be an interactive TTY when a human runs the bridge by hand; never wait on it.
   const timer = setTimeout(finish, ${BRIDGE_STDIN_TIMEOUT_MS});
@@ -295,7 +290,7 @@ if (!hasAnyLaunchContext) {
   process.exitCode = exitCodes.launchContextUnavailable;
 } else {
 if (process.env.CAXRI_HOOK_RECEIPTS === '1') reportBridgeStarted();
-readIdentifiers(({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateIntent, promptDigest, responseDigest, responseByteLength, turnContinues, failure, overflow, ignored }) => {
+readIdentifiers(({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateIntent, promptDigest, responseDigest, responseByteLength, responseStop, turnContinues, failure, overflow, ignored }) => {
   if (ignored) { process.stdin.pause(); return; }
   if (agentId) signal.agentId = agentId;
   if (cwd) signal.agentCwd = cwd;
@@ -305,6 +300,7 @@ readIdentifiers(({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateInt
   if (promptDigest) signal.agentPromptDigest = promptDigest;
   if (responseDigest) signal.agentResponseDigest = responseDigest;
   if (responseByteLength !== undefined) signal.agentResponseByteLength = responseByteLength;
+  if (responseStop) signal.agentResponseStop = true;
   if (failure) signal.agentFailure = failure;
   if (overflow) signal.agentContentOverflow = true;
   if (turnContinues) signal.agentTurnContinues = true;
@@ -346,7 +342,7 @@ readIdentifiers(({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateInt
 }
 `;
 
-const BRIDGE_VERSION = 19;
+const BRIDGE_VERSION = 20;
 
 const BRIDGE_WRAPPER = String.raw`#!/bin/sh
 bridge_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)

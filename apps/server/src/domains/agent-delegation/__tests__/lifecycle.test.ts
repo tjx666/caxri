@@ -62,20 +62,18 @@ describe('Delegation continuation correlation', () => {
         expect(
             applyDelegationLifecycle(stopped!, { ...stop, agentId: 'child' }, 'evidence'),
         ).toBeUndefined();
-        for (const extra of [{}, { agentTurnId: undefined }])
-            expect(
-                applyDelegationLifecycle(
-                    stopped!,
-                    {
-                        ...signal,
-                        provider: 'grok',
-                        phase: 'turnFinished',
-                        agentTurnId: 'first',
-                        ...extra,
-                    },
-                    'evidence',
-                ),
-            ).toBeUndefined();
+        expect(
+            applyDelegationLifecycle(
+                stopped!,
+                {
+                    ...signal,
+                    provider: 'grok',
+                    phase: 'turnFinished',
+                    agentTurnId: undefined,
+                },
+                'evidence',
+            ),
+        ).toBeUndefined();
     });
     it('settles exact Grok failures while ignoring native child failures', () => {
         const grok = { ...record, receipt: { ...record.receipt, provider: 'grok' as const } };

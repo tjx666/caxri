@@ -101,6 +101,10 @@ export interface AgentLifecycleSignal {
      * Grok's final response may share a persisted text chunk with rejected Stop-hook drafts.
      */
     agentResponseByteLength?: number;
+    /**
+     * Marks a fully parsed delegated Grok Stop, including batches without answer text.
+     */
+    agentResponseStop?: true;
     agentContentOverflow?: true;
     /**
      * A delegated Grok Stop is evidence only while native background work still continues.

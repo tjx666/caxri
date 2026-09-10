@@ -303,6 +303,14 @@ function parsePacket(
     )
         return { reason: 'invalidAgentDigest' };
     if (
+        signal.agentResponseStop !== undefined &&
+        (signal.agentResponseStop !== true ||
+            signal.provider !== 'grok' ||
+            signal.phase !== 'turnFinished' ||
+            signal.agentId !== undefined)
+    )
+        return { reason: 'invalidAgentDigest' };
+    if (
         signal.agentTurnContinues !== undefined &&
         (signal.agentTurnContinues !== true ||
             signal.provider !== 'grok' ||

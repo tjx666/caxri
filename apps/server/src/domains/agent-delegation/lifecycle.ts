@@ -110,11 +110,11 @@ export function applyDelegationLifecycle(
     }
     // Codex may continue this same turn after another Stop hook blocks; keep it cancelable until native completion.
     if (isNativeCompletion)
-        return record.receipt.provider === 'grok' &&
-            signal.agentResponseDigest &&
-            signal.agentResponseByteLength !== undefined
+        return record.receipt.provider === 'grok'
             ? {
                   ...record,
+                  // Every authenticated Stop has a native batch, even when no answer text exists.
+                  // Clear earlier proof so an empty final Stop cannot authenticate a stale draft.
                   responseDigest: signal.agentResponseDigest,
                   responseByteLength: signal.agentResponseByteLength,
                   responseStopCount: (record.responseStopCount ?? 0) + 1,

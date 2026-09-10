@@ -15,6 +15,12 @@ it('retains repeated delegated Stops until a new turn or failed generation', () 
     };
     tracker.accept(base, 'session');
     const stop = { ...base, phase: 'turnFinished' as const, agentResponseDigest: 'a'.repeat(64) };
+    expect(
+        tracker.accept(
+            { ...stop, agentResponseDigest: undefined, agentResponseStop: true },
+            'session',
+        ),
+    ).toBe(true);
     expect(tracker.accept({ ...stop, agentTurnContinues: true }, 'session')).toBe(true);
     expect(tracker.accept(stop, 'session')).toBe(true);
     expect(tracker.accept(stop, 'session')).toBe(true);
