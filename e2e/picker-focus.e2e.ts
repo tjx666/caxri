@@ -54,7 +54,12 @@ test('Picker cancellation restores focus without reopening Session details', asy
         await expect(firstRow).toBeFocused();
         await expect(details).toHaveCount(1);
         await expect(details).toBeVisible();
+        await page.keyboard.press('Meta+Shift+P');
+        await expect(palette.getByRole('combobox')).toBeFocused();
         await page.keyboard.press('Escape');
+        await expect(palette).toHaveCount(0);
+        await expect(firstRow).toBeFocused();
+        await expect(secondRow).toHaveClass(/active/);
         await expect(details).toHaveCount(0);
         await page.mouse.move(600, 20);
         await firstRow.hover();
