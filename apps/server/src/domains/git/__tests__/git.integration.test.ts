@@ -9,6 +9,7 @@ import { ProjectStatusSummaryErrorMessage } from 'caxri';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CaxriDatabase } from '../../db/repository';
+import { ExternalStatusHub } from '../../external-status';
 import { ProjectRootResolver } from '../../project-roots';
 import { describeGitFailure, GitService } from '..';
 import type { GitMetadataWatcher } from '../metadata-watcher';
@@ -439,10 +440,18 @@ describe('GitService', () => {
         ).session;
         const rootResolver = new ProjectRootResolver(database);
         const gitLogger = new StructuredLogger(join(directory, 'logs'));
-        const git = trackGitService(new GitService(rootResolver, gitLogger));
+        /**
+         * The production runner resolves login-shell executables, so changing PATH cannot isolate this fixture.
+         */
+        const externalStatus = new ExternalStatusHub({
+            pausePath: join(directory, 'quota.json'),
+            runner: async (source, arguments_, cwd) => {
+                expect(source).toBe('gh');
+                return (await execFileAsync(gh, [...arguments_], { cwd })).stdout;
+            },
+        });
+        const git = trackGitService(new GitService(rootResolver, gitLogger, { externalStatus }));
         const repo = (await git.summary(session.id)).repositories[0];
-        const previousPath = process.env.PATH;
-        process.env.PATH = `${bin}:${previousPath ?? ''}`;
         try {
             const pullRequest = await git.pullRequestChanges({
                 sessionId: session.id,
@@ -512,8 +521,6 @@ describe('GitService', () => {
                 }),
             ).resolves.toMatchObject({ headOid: nextHeadOid, number: 43 });
         } finally {
-            if (previousPath === undefined) delete process.env.PATH;
-            else process.env.PATH = previousPath;
             database.close();
         }
     });
