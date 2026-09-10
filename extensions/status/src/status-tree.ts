@@ -167,13 +167,19 @@ function ignoredChecksLabel(count: number): string {
     return `${count} ignored check${count === 1 ? '' : 's'}`;
 }
 
+function deploymentDestination(deployment: ProjectStatusDeployment): string {
+    return deployment.state === 'success'
+        ? deployment.url
+        : (deployment.inspectorUrl ?? deployment.url);
+}
+
 function deploymentTooltip(title: string, deployment: ProjectStatusDeployment): StatusTooltip {
     return {
         title,
         badge: { label: deployment.state, tone: stateTones[deployment.state] },
         rows: [
             { label: 'alias', value: deployment.hostname, url: deployment.url },
-            ...(deployment.state === 'success' && deployment.inspectorUrl
+            ...(deployment.inspectorUrl
                 ? [{ label: 'inspect', value: 'logs', url: deployment.inspectorUrl }]
                 : []),
             ...(deployment.createdAt === undefined
@@ -268,7 +274,7 @@ function buildRepoChildren(repo: ProjectStatusRepository): StatusNode[] {
                         description: `${deployment.environment} · ${deployment.state}`,
                         icon: stateIcons[deployment.state],
                         tooltip: deploymentTooltip(deployment.environment, deployment),
-                        url: deployment.url,
+                        url: deploymentDestination(deployment),
                     }),
                 ),
             }),
@@ -283,7 +289,7 @@ function buildRepoChildren(repo: ProjectStatusRepository): StatusNode[] {
                     description: `${deployment.state} · ${deployment.hostname}`,
                     icon: stateIcons[deployment.state],
                     tooltip: deploymentTooltip(label, deployment),
-                    url: deployment.url,
+                    url: deploymentDestination(deployment),
                 }),
             );
         }

@@ -401,7 +401,7 @@ describe('ProjectStatusService', () => {
                             name: 'project',
                             readyState: 'BUILDING',
                             target: 'preview',
-                            url: 'branch.vercel.app',
+                            url: 'project-building-lobehub.vercel.app',
                         },
                     ]),
                 );
@@ -455,7 +455,10 @@ describe('ProjectStatusService', () => {
             ],
             errors: [],
         });
-        expect(repo.deployments?.branchDeployments[0]).toMatchObject({ state: 'pending' });
+        expect(repo.deployments?.branchDeployments[0]).toMatchObject({
+            state: 'pending',
+            inspectorUrl: 'https://vercel.com/lobehub/project/building',
+        });
         expect(repo.deployments?.production).toMatchObject({
             environment: 'production',
             createdAt: 1_700_000_000_000,

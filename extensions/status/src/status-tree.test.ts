@@ -9,6 +9,52 @@ function iconId(node: ReturnType<typeof buildRepoNode>): string | undefined {
 }
 
 describe('Status extension tree', () => {
+    it.each(['pending', 'failure', 'neutral', 'unknown', 'success'] as const)(
+        'opens the appropriate deployment destination for %s in every deployment row',
+        (state) => {
+            const deployment = {
+                environment: 'preview' as const,
+                hostname: 'project-build-team.vercel.app',
+                url: 'https://project-build-team.vercel.app',
+                inspectorUrl: 'https://vercel.com/team/project/build',
+                state,
+            };
+            const node = buildRepoNode({
+                id: 'repo',
+                kind: 'primary',
+                name: 'project',
+                branch: 'main',
+                linearIssues: [],
+                errors: [],
+                deployments: {
+                    url: 'https://vercel.com/team/project/deployments',
+                    branchDeployments: [deployment],
+                    production: { ...deployment, environment: 'production' },
+                    preview: deployment,
+                },
+            });
+            const rows = node.children!.flatMap((child) =>
+                child.children?.length ? child.children : [child],
+            );
+            const deploymentRows = rows.filter((row) =>
+                row.item.command?.arguments?.some((value) =>
+                    [deployment.url, deployment.inspectorUrl].includes(String(value)),
+                ),
+            );
+            expect(deploymentRows).toHaveLength(3);
+            for (const row of deploymentRows) {
+                expect(row.item.command?.arguments).toEqual([
+                    state === 'success' ? deployment.url : deployment.inspectorUrl,
+                ]);
+                expect((row.item.tooltip as TreeItemRichTooltip).rows).toContainEqual({
+                    label: 'inspect',
+                    value: 'logs',
+                    url: deployment.inspectorUrl,
+                });
+            }
+        },
+    );
+
     it('preserves the complete pre-extension hierarchy and stable semantic state', () => {
         const repo: ProjectStatusRepository = {
             id: 'repo-1',

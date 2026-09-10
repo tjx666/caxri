@@ -225,6 +225,12 @@ repositories, regardless of diff mode, exclusions, or payload truncation. The St
 owns failed-check and current-deployment aggregation. Both reuse Server domain caches rather
 than starting a separate native polling loop.
 
+Status deployment rows open the deployed site after a successful build. Before success,
+they open the Vercel deployment inspector when available, so queued or building deployments
+lead directly to build details. This applies to branch, Production, and Preview rows. Hover
+cards retain the site alias and expose the inspector link in every state; deployments without
+a resolvable inspector fall back to their site URL.
+
 ## Tree RPC
 
 Extension element type `T` never leaves the Extension Host. The process boundary carries

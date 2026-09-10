@@ -34,10 +34,7 @@ export function mapProjectStatusDeployment(
         hostname,
         state,
         url: `https://${hostname}`,
-        inspectorUrl:
-            state === 'success' && link
-                ? vercelInspectorUrl(link.team, link.project, hostname)
-                : undefined,
+        inspectorUrl: link ? vercelInspectorUrl(link.team, link.project, hostname) : undefined,
         createdAt: deployment.created,
     };
 }

@@ -486,6 +486,25 @@ esac
             .toBe('https://vercel.com/tjx666/project/8ykp416o7');
         await running.page.keyboard.press('Escape');
         await expect(richTooltip).toHaveCount(0);
+        await buildingDeployment.click();
+        await expect
+            .poll(async () => (await treeCommandOpenedUrls(running))?.at(-1))
+            .toBe('https://vercel.com/tjx666/project/building');
+        await expect(richTooltip).toContainText('inspect:');
+        await tree.screenshot({ path: 'test-results/vercel-building-link.png' });
+        await running.page.keyboard.press('Escape');
+        await expect(richTooltip).toHaveCount(0);
+        await tree
+            .getByRole('treeitem', {
+                name: 'project-queued-tjx666.vercel.app, preview · pending',
+                exact: true,
+            })
+            .click();
+        await expect
+            .poll(async () => (await treeCommandOpenedUrls(running))?.at(-1))
+            .toBe('https://vercel.com/tjx666/project/queued');
+        await running.page.keyboard.press('Escape');
+        await expect(richTooltip).toHaveCount(0);
         const production = tree.getByRole('treeitem', {
             name: 'Production, success · project-production-tjx666.vercel.app',
             exact: true,
@@ -520,7 +539,13 @@ esac
                 exact: true,
             }),
         ).toBeVisible();
-        await expect(richTooltip.getByText('inspect:', { exact: true })).toHaveCount(0);
+        await expect(
+            richTooltip.getByRole('button', { name: 'Open inspect: logs', exact: true }),
+        ).toBeVisible();
+        await running.page.keyboard.press('Enter');
+        await expect
+            .poll(async () => (await treeCommandOpenedUrls(running))?.at(-1))
+            .toBe('https://vercel.com/tjx666/project/preview');
         await running.page.keyboard.press('Escape');
         await expect(richTooltip).toHaveCount(0);
         await production.focus();
