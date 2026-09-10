@@ -39,8 +39,9 @@ describe('stageAgentHookBridge', () => {
             { size: 16, enabled: true, event: 'Stop', scoped: true },
             { size: 16, enabled: true, event: 'Stop', clipped: true },
             { size: 16, enabled: true, event: 'Stop', continued: true },
+            { size: 16, enabled: true, event: 'Stop', missingAnswer: true },
         ].flatMap((entry) =>
-            (entry.scoped || entry.clipped || entry.continued
+            (entry.scoped || entry.clipped || entry.continued || entry.missingAnswer
                 ? ['grok']
                 : entry.event === 'StopFailure'
                   ? ['claude', 'grok']
@@ -52,7 +53,7 @@ describe('stageAgentHookBridge', () => {
         ),
     )(
         'preserves provider identity and opt-in digests without content: %j',
-        async ({ size, enabled, event, provider, scoped, clipped, continued }) => {
+        async ({ size, enabled, event, provider, scoped, clipped, continued, missingAnswer }) => {
             const answer =
                 'synthetic'.repeat(Math.ceil(size / 9)) + (clipped ? '… [+42 chars]' : '');
             const sharedPath = await sharedDirectory();
@@ -119,7 +120,8 @@ describe('stageAgentHookBridge', () => {
                         ...(continued && { backgroundTasks: [{ status: 'running' }] }),
                         error: 'rate_limit',
                         last_assistant_message: answer,
-                        ...(provider === 'grok' && { lastAssistantMessage: answer }),
+                        ...(provider === 'grok' &&
+                            !missingAnswer && { lastAssistantMessage: answer }),
                         prompt: answer,
                         ...(scoped && { subagentType: 'explorer' }),
                     }),
@@ -141,11 +143,15 @@ describe('stageAgentHookBridge', () => {
                 });
                 expect(packets[0]).not.toHaveProperty('last_assistant_message');
                 expect(JSON.stringify(packets)).not.toContain('synthetic');
-                if (provider === 'grok' && enabled && event === 'Stop')
-                    expect(packets[0]?.agentResponseByteLength).toBe(Buffer.byteLength(answer));
+                if (provider === 'grok' && enabled && event === 'Stop') {
+                    expect(packets[0]?.agentResponseStop).toBe(true);
+                    expect(packets[0]?.agentResponseByteLength).toBe(
+                        missingAnswer ? undefined : Buffer.byteLength(answer),
+                    );
+                } else expect(packets[0]).not.toHaveProperty('agentResponseStop');
                 if (clipped) expect(packets[0]?.agentContentOverflow).toBe(true);
                 if (continued) expect(packets[0]?.agentTurnContinues).toBe(true);
-                if (enabled && event === 'Stop' && size < 1_048_576)
+                if (!missingAnswer && enabled && event === 'Stop' && size < 1_048_576)
                     expect(packets[0]?.agentResponseDigest).toBe(
                         createHash('sha256').update(answer).digest('hex'),
                     );
@@ -178,7 +184,7 @@ describe('stageAgentHookBridge', () => {
         ]);
         expect(wrapperSource).toContain('#!/bin/sh');
         expect(bridgeScript).toContain("require('node:net')");
-        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 19 });
+        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 20 });
         expect(wrapperStats.mode & 0o777).toBe(0o700);
     });
 
@@ -250,7 +256,7 @@ describe('stageAgentHookBridge', () => {
             readFile(bridgePath, 'utf8'),
             readFile(join(binDirectory, 'bridge.cjs'), 'utf8'),
         ]);
-        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 19 });
+        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 20 });
         expect(wrapperSource).toContain('#!/bin/sh');
         expect(scriptSource).toContain("require('node:net')");
     });

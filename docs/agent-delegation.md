@@ -134,7 +134,9 @@ finding the marker incrementally, Caxri makes one bounded 4 MiB transcript read.
 rejected Stop-hook drafts with the final answer; live `response_completed` events are not persisted.
 The last authenticated Stop supplies the final answer's UTF-8 byte length and SHA-256 digest, so
 Caxri selects and verifies that exact suffix from the final ACP text segment. Stop alone never
-proves finality. The count of authenticated Stop receipts must match the native `hook_execution`
+proves finality. An authenticated Stop without answer text still counts and clears the previous
+answer proof; its explicit delegation marker keeps the turn available for later Stop batches.
+The count of authenticated Stop receipts must match the native `hook_execution`
 batches for this prompt, and the final batch must allow stopping. This rejects a stale draft digest
 after failed delivery or Grok's forced Stop-continuation limit. Missing or mismatched evidence fails closed. Grok clips Stop text above 32,768
 Unicode characters; such answers return `payload_overflow` because a prefix digest cannot verify

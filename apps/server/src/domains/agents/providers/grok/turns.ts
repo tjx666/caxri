@@ -29,6 +29,7 @@ export class GrokTurnTracker {
             if (
                 signal.phase === 'turnFailed' ||
                 !(
+                    signal.agentResponseStop ||
                     signal.agentResponseDigest ||
                     signal.agentContentOverflow ||
                     signal.agentTurnContinues
