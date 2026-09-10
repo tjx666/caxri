@@ -46,7 +46,7 @@ diagnosable without leaking user content.
 ## Rule sources
 
 - `.agents/skills/performance/SKILL.md`
-- `.agents/skills/project-architecture/references/architecture.md` performance section
+- `.agents/skills/project-architecture/references/performance.md`
 
 ## Not violations
 

@@ -1,0 +1,45 @@
+# Terminal input, links, layout, and actions
+
+The Client binary-stream writer reserves one validated payload larger than the ordinary burst budget
+separately from that bounded burst. A concurrent resize or small input can queue before or after a large
+paste without consuming its allowance; a second large payload is rejected until the first settles.
+WebSocket callback backpressure and the socket high-water mark still apply to every chunk.
+
+Terminal file-link detection forwards the raw text, owning Terminal ID, and optional editor location
+without giving Renderer filesystem access. Server Core tries exact absolute, current Workbench Project,
+and persisted Terminal-cwd candidates first. When an ordinary relative path is incomplete, a bounded
+directory suffix search may resolve it only inside the current Workbench Project; one complete
+result opens directly, while incomplete or ambiguous results require the Renderer candidate picker.
+An explicit `.../` prefix opts into the same bounded suffix search across every authorized Project.
+Current-user `~/...` links expand only in Server Core, which rejects escape and non-regular targets and
+reuses a canonical Project that already contains the file. For a Project-contained target Main selects
+the unique target Session, creates a no-Terminal Session when none exists, or requires a native choice
+when the target Project has multiple reasonable Sessions; that open uses Server Core's one-use Desktop
+target, whose approved root/file identity becomes an expected identity that Server Core compares with
+its first `files.authorizeOpen` result and revalidates again when Main redeems the target. An explicit
+absolute, `file://`, `./`, `../`, or `~/` target outside every Project (OSC 8 hyperlinks carry the
+absolute URI even when their label reads `~/...`) is reported as `external` without being read. Main
+then reuses the free-path browser's read-only snapshot: it confirms once with Open / Trust Folder and
+Open / Cancel, or skips the prompt when the `security.trustedFolders` setting already contains the
+file's folder, reads one bounded no-follow snapshot, and the Renderer opens it as an ephemeral read-only
+tab in the Terminal's own Session. Trusting a folder persists only that prompt-skip preference; it never
+creates a Project, grants Files, Search, Git, Terminal cwd, or save authority, or makes the tab durable.
+Home expansion and suffix search never create a permanent single-file exception or a Renderer filesystem
+capability.
+
+Terminal groups form a persisted binary split tree with horizontal or vertical direction and a bounded
+ratio. Dragging a tab moves its durable Terminal ID between groups or creates a new split; shared
+reducers collapse empty groups and validate that one Terminal cannot appear twice. Moving a view may
+detach and reattach xterm, but the Terminal Host-owned PTY is neither restarted nor duplicated.
+Keyboard-adjustable separators and group labels preserve accessible focus semantics.
+
+The active Terminal's Status Bar metrics are sampled by Terminal Host. A fixed `ps` argv reads only PID,
+PPID, and RSS for the live PTY process tree every two seconds while that Terminal is visible; Renderer
+receives aggregate memory and descendant count, never commands or environment data. Sampling stops when
+a file tab is active and an exited PTY returns no usage.
+
+Default `Command+K`, `Command+T`, and `Command+W` bindings clear the active xterm view, create a Terminal in the active group, and close the active Terminal through its normal lifecycle. `Command+Shift+Enter` configures Tab followed by LF when a Terminal owns focus; the VS Code-compatible `sendSequence` command normalizes that LF to Return before accepting the active completion and submitting it. Clear is Renderer-local and never sends input or a signal to the PTY. All bindings remain configurable, and app-wide commands are ignored while a modal dialog is open. Command-backed native menu items derive placement, ordering, labels, and accelerators from the shared command catalog and live keybindings; only standard Electron role items stay explicit in Main. Static command descriptors default to Renderer-registry execution and explicitly mark View-catalog execution so tests can prove that every shared command has exactly one route. Released default-keybinding generations remain compatibility fixtures: reviewed migrations must resolve their persisted command IDs to the current executable catalog without rejecting extension or user-defined commands. The Server Core owns the unified ViewContainer/View/Command descriptor catalog. Builtin React surfaces and extension Tree Views use the same selection, command, and persistence path; Renderer only dispatches the descriptor's `viewKind`.
+
+`workbench.action.terminal.sendSequence` is an argument-required keybinding command: `args.text` is decoded by JSONC, normalizes CRLF and LF to Return like VS Code's `sendText`, and sends every other byte unchanged through the existing typed `terminal.input` path to the active PTY. `sendSequence` stays bounded to 65,536 characters, while direct xterm input accepts one bounded 1,048,576-character payload and Server Core splits it into ordered, surrogate-safe private Host requests. The lower-level `terminal.input` contract remains byte-preserving so direct xterm input, Ctrl+J, and multiline paste keep their original meaning. Keybindings may use the `terminalFocus` context so the chord falls through outside xterm. Contextual bindings are dispatched in the Renderer and do not become Electron native-menu accelerators because Main cannot evaluate DOM focus; source order remains authoritative, and the first binding whose context matches wins. Argument-required commands stay out of the Command Palette and cannot be added as an incomplete binding by the structured shortcut editor, but a complete source-authored binding remains visible and its chord remains editable there.
+
+The Agent Actions picker targets one captured, running Agent Terminal. A typed `agentActions.list` read asks Server Core to derive provider-owned discovery roots from the Terminal's durable provider, cwd, and authorized Project; Renderer cannot submit a filesystem root. Server Core traverses only bounded canonical roots, rejects symlink escape, reads bounded scalar frontmatter metadata without returning source bodies or paths, then applies provider defaults, discovered items, and explicit user overrides in that order. The resulting list is capped at 256. Insert and run both reuse the existing structured `terminal.input` method as append-only PTY writes. An exhaustive provider-and-action-kind plan sends inserts, commands, and Claude Code skills in one write; Codex skills use one invocation write, a 150ms paste-burst settle window, then a Tab-plus-Return write to accept the completion and submit the composer. No method reads, clears, or replaces the current draft. See [Agent Actions](../../../../docs/agent-actions.md).

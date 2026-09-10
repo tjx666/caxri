@@ -51,7 +51,10 @@ This dimension is exempt from codebase calibration.
 ## Rule sources
 
 - `AGENTS.md` architecture guardrails
-- `.agents/skills/project-architecture/references/architecture.md` security and diagnostics sections
+- `.agents/skills/project-architecture/references/security.md`
+- `.agents/skills/project-architecture/references/diagnostics.md`
+- `.agents/skills/project-architecture/references/files-and-paths.md` for filesystem authority
+- `.agents/skills/project-architecture/references/agent-messaging.md` for Endpoint authority
 - `.agents/skills/debug/SKILL.md`
 
 ## Not violations
