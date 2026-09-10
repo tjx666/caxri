@@ -161,9 +161,10 @@ Caxri status appears ONLY when degraded (`Reconnecting…` / `Caxri stopped`) as
 `--warning`/`--danger` chip; healthy state shows nothing. The chip is informational — recovery
 lives in the native Relaunch dialog, so the chip never fakes an action it cannot perform. The same
 rule decides when a degraded chip becomes clickable: the Terminal's `DOM` renderer chip is a button
-only while the fallback is the user's own GPU acceleration preference, which it offers to reverse
-through a confirmation; every other fallback reason (WebGL unavailable, context lost, retrying)
-stays a read-only reading because writing that preference again would change nothing.
+when GPU acceleration is disabled or a failure has settled. Confirmation either enables acceleration
+in Settings or retries the current Terminal's GPU renderer without changing settings or restarting
+the Terminal. An explicit retry resets the window's GPU incident budget; subsequent failures still
+use the normal limits. Automatic recovery in progress stays informational to avoid duplicate retries.
 Persistent metrics use concise icon-plus-value labels; explanatory prose belongs in their
 accessible names and hover tooltips.
 

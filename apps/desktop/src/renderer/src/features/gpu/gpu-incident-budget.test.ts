@@ -3,6 +3,28 @@ import { describe, expect, it, vi } from 'vitest';
 import { createGpuIncidentBudget, GPU_INCIDENT_PIN_THRESHOLD } from './gpu-incident-budget';
 
 describe('GPU incident budget', () => {
+    it('records an explicit retry reset and probes WebGL again instead of using a cached success', () => {
+        const probeWebgl2 = vi.fn(() => true);
+        const onTransition = vi.fn();
+        const budget = createGpuIncidentBudget({ probeWebgl2, onTransition, threshold: 1 });
+        budget.applyPreference('auto');
+        budget.recordIncident('first');
+        expect(budget.isWebgl2Available()).toBe(true);
+        probeWebgl2.mockReturnValue(false);
+        budget.resetForManualRetry();
+        expect(budget.isPinnedToDom()).toBe(false);
+        expect(budget.isWebgl2Available()).toBe(false);
+        expect(onTransition).toHaveBeenLastCalledWith(
+            expect.objectContaining({
+                transition: 'reset',
+                cause: 'manual-retry',
+                incidentCount: 1,
+                preference: 'auto',
+            }),
+        );
+        budget.recordIncident('second');
+        expect(budget.isPinnedToDom()).toBe(true);
+    });
     it('pins the session to DOM after the threshold of distinct incidents and survives remounts', () => {
         const budget = createGpuIncidentBudget({ probeWebgl2: () => true });
 

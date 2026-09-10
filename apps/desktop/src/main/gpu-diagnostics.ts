@@ -228,6 +228,7 @@ function rendererDiagnosticFields(diagnostic: TerminalRendererDiagnostic): LogFi
 }
 
 const WEBGL_CREATION_TRIGGERS: ReadonlySet<TerminalRendererDiagnostic['trigger']> = new Set([
+    'manual-retry',
     'webgl-load-failed',
     'webgl-reprobe-succeeded',
     'webgl-retry-attempt',
