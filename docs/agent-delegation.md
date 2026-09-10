@@ -182,8 +182,10 @@ provider efforts, excessive depth or lengths, duplicate presets and invalid call
 Inputs must be regular, non-symlink JSONC files of at most 1 MiB.
 
 The dedicated `settings.delegation.write` capability belongs to the profile owner. Ordinary Agent
-settings grants cannot change delegation instructions. Managed or detected external Agents cannot
-use this owner command, even with `--yes`.
+settings grants cannot change delegation instructions. The CLI rejects managed Endpoint credentials
+and detected Agent or CI environments, including with `--yes`. This distinguishes owner connections
+from scoped Agent connections; it is not a sandbox against another process running as the same OS
+user and able to read the private profile. Clearing environment markers does not create OS isolation.
 
 A background-child continuation belongs to the task only when the coordinator proves its exact
 deferred parent turn and every subsequent prompt digest appears in order in the transcript ancestry.

@@ -12,6 +12,11 @@ not make their authority, origin, retry, or audit semantics interchangeable.
 
 ## Dispatch lifecycle
 
+`agent delegate import --from <file> [--dry-run|--apply]` requires the owner-only
+`settings.delegation.write` capability, not `agent:delegate`. The CLI rejects detected Agent and CI
+environments for this command and `terminal send`. These checks distinguish authenticated connection
+roles; they do not isolate mutually untrusted processes sharing the same OS user.
+
 For task submission and final answers, use [visible delegation](agent-delegation.md). Dispatch
 receipts describe process lifecycle and cannot prove that a particular task has finished.
 
