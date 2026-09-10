@@ -247,11 +247,22 @@ test('editor previews pin and expose the standard close actions', async () => {
         await expect(cTab).toBeVisible();
 
         await expect(cTab).toContainText('●');
+        await expect(running.page.locator('.work-tab[data-terminal-id]')).toHaveCount(1);
         await cTab.click({ button: 'right' });
+        await expect(running.page.getByRole('menuitem', { name: 'Close Others' })).toBeDisabled();
+        await running.page.screenshot({
+            path: test.info().outputPath('editor-close-menu.png'),
+            animations: 'disabled',
+            style: '.monaco-editor .view-lines, .monaco-editor .minimap, .terminal-surface { visibility: hidden !important; }',
+        });
         await running.page.getByRole('menuitem', { name: 'Close All' }).click();
-        // A pane's "Close All" is pane-wide, not kind-scoped: it closes every tab sharing c.js's
-        // pane, including the default Terminal that was never split into a pane of its own.
-        await expect(running.page.locator('.work-tab')).toHaveCount(0);
+        // Editor bulk closes preserve the default Terminal even when it shares the same pane.
+        await expect(running.page.locator('.work-tab:not([data-terminal-id])')).toHaveCount(0);
+        await expect(running.page.locator('.work-tab[data-terminal-id]')).toHaveCount(1);
+        await running.page.screenshot({
+            path: test.info().outputPath('editor-close-all-preserves-terminal.png'),
+            mask: [running.page.locator('.terminal-surface')],
+        });
         // c.js was still dirty (typed a space above, never saved): "Close All" must route it
         // through the native discard confirmation rather than silently dropping unsaved work, so
         // the stubbed `dialog.showMessageBox` must have actually been invoked once.
