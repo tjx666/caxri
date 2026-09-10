@@ -142,23 +142,21 @@ test('Terminal tabs fill the bar, Document tabs size to content, and the bar scr
         expect(
             await scrollRail.evaluate((element) => element.scrollWidth - element.clientWidth),
         ).toBeGreaterThan(1);
-        const minTerminalWidth = await terminalTabs.evaluateAll((elements) =>
-            Math.min(...elements.map((element) => element.getBoundingClientRect().width)),
-        );
-        expect(minTerminalWidth).toBeGreaterThanOrEqual(79);
+        // Each Terminal keeps its displayed title readable even when document names consume the rail.
+        expect(
+            await terminalTabs
+                .locator('.tab-label')
+                .evaluateAll((elements) =>
+                    elements.every((element) => element.scrollWidth <= element.clientWidth),
+                ),
+        ).toBe(true);
         // The "+" action stays reachable outside the scrolling rail no matter how far it has scrolled.
         await expect(running.page.getByRole('button', { name: 'New Terminal' })).toBeVisible();
 
-        // Squeezed this far, every label is clipped — which is exactly when the tooltip has something to add and
-        // must appear. (`primary-sidebar-chrome.e2e.ts` covers the other half: an unclipped label offers none.)
-        const squeezedTab = terminalTabs.first().locator('.tab-select');
-        const isLabelClipped = await squeezedTab
-            .locator('.tab-label')
-            .evaluate((element) => element.scrollWidth > element.clientWidth);
-        expect(isLabelClipped).toBe(true);
-        await squeezedTab.hover();
-        // `[data-open]` because a previously shown tooltip stays mounted through its exit animation.
-        await expect(running.page.locator('.tooltip-popup[data-open]')).toBeVisible();
+        await terminalTabs.first().scrollIntoViewIfNeeded();
+        await expect(terminalTabs.first()).toBeInViewport();
+        await terminalTabs.last().scrollIntoViewIfNeeded();
+        await expect(terminalTabs.last()).toBeInViewport();
     } finally {
         await closeAppQuietly(running.app);
         await removeQuitTestDirectory(testDirectory);

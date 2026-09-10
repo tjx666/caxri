@@ -102,10 +102,10 @@ interface WorkTabProperties {
 const TAB_MAX_WIDTH = 2000;
 
 /**
- * Floor for an evenly divided Terminal tab. Once enough Terminal tabs are open to push past it, flex stops shrinking
- * and the bar's `overflow-x-auto` takes over — even division degrades to scrolling rather than to unreadable slivers.
+ * Floor for an evenly divided Terminal tab. Its displayed title and accessories stay readable as content changes; the
+ * bar's `overflow-x-auto` takes over once every tab reaches its own intrinsic width.
  */
-const TERMINAL_TAB_MIN_WIDTH = 80;
+const TERMINAL_TAB_MIN_WIDTH = 'max-content';
 
 /**
  * Document tabs keep their intrinsic filename width, matching VS Code's default `tabSizing: fit`. Overflow scrolls the
@@ -113,20 +113,141 @@ const TERMINAL_TAB_MIN_WIDTH = 80;
  */
 const DOCUMENT_TAB_MIN_WIDTH = 50;
 
+function useWorkTabMotion(shouldFill: boolean) {
+    const isPresent = useIsPresent();
+    const isReducedMotion = useShouldReduceMotion();
+    // Tokens require a live DOM; capture each tab's durations once instead of reading styles on every render.
+    const [durations] = useState(() => ({
+        enterS: motionDurationMs('--motion-tab-enter') / 1000,
+        exitS: motionDurationMs('--motion-tab-exit') / 1000,
+    }));
+    const enterDuration = isReducedMotion ? 0 : durations.enterS;
+    const exitDuration = isReducedMotion ? 0 : durations.exitS;
+    const targetMinWidth = shouldFill ? TERMINAL_TAB_MIN_WIDTH : DOCUMENT_TAB_MIN_WIDTH;
+    /**
+     * Keep the settled floor outside Motion's managed keys: sibling mounts can make Motion reapply its initial 0 even
+     * after a transitionEnd update. Exiting tabs release the floor immediately so their width can collapse.
+     */
+    const [hasSettled, setHasSettled] = useState(false);
+    useEffect(() => {
+        const timer = setTimeout(() => setHasSettled(true), enterDuration * 1_000);
+        return () => clearTimeout(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once for this tab's own enter animation; enterDuration is fixed for its lifetime
+    }, []);
+    const isSettled = isPresent && hasSettled;
+    return {
+        enterDuration,
+        exitDuration,
+        isPresent,
+        style: {
+            minWidth: isSettled ? targetMinWidth : 0,
+            overflow: isSettled ? 'visible' : 'hidden',
+        },
+    } as const;
+}
+
+function WorkTabSelect({
+    accessory,
+    active,
+    dirty,
+    dirtyDescriptionId,
+    fileIconName,
+    icon,
+    isPresent,
+    keepLabelAsAccessibleName,
+    label,
+    labelTooltip,
+    onKeyDown,
+    onSelect,
+    preview,
+    tabId,
+}: Pick<
+    WorkTabProperties,
+    | 'accessory'
+    | 'active'
+    | 'dirty'
+    | 'fileIconName'
+    | 'icon'
+    | 'keepLabelAsAccessibleName'
+    | 'label'
+    | 'labelTooltip'
+    | 'onKeyDown'
+    | 'onSelect'
+    | 'preview'
+    | 'tabId'
+> & {
+    dirtyDescriptionId: string;
+    isPresent: boolean;
+}) {
+    /**
+     * Path abbreviation is visual only; keep the full title accessible without replacing a Document's filename with its
+     * path. Content sizing preserves the displayed label but does not undo title abbreviation.
+     */
+    const isLabelAbbreviated =
+        Boolean(labelTooltip) && labelTooltip !== label && !keepLabelAsAccessibleName;
+    const labelReference = useRef<HTMLSpanElement>(null);
+    const isLabelClipped = useIsOverflowing(labelReference, label);
+    const isTooltipRedundant = labelTooltip === label && !isLabelClipped;
+    /**
+     * Omit the key while Tooltip owns it: Base UI merges child props last, so even `id={undefined}` would erase its
+     * trigger id and break aria-controls and roving focus. Keep the same ownership during tab exit.
+     */
+    const tabIdProperty = labelTooltip || !isPresent ? {} : { id: tabId };
+    return (
+        <MaybeTooltip
+            content={labelTooltip}
+            disabled={isTooltipRedundant}
+            triggerId={isPresent ? tabId : undefined}
+        >
+            <button
+                {...tabIdProperty}
+                type="button"
+                role="tab"
+                aria-controls={active ? `${tabId}-panel` : undefined}
+                aria-describedby={isPresent && dirty ? dirtyDescriptionId : undefined}
+                aria-selected={active}
+                tabIndex={active ? 0 : -1}
+                className="tab-select flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent px-2 text-left text-[11px] text-inherit focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-2 focus-visible:outline-foreground"
+                onBlur={(event) => delete event.currentTarget.dataset.preserveTerminalFocus}
+                onClick={onSelect}
+                onKeyDown={onKeyDown}
+            >
+                {icon === 'file' ? (
+                    <FileTypeIcon entry={{ kind: 'file', name: fileIconName ?? label }} />
+                ) : (
+                    <AgentIdentityIcon identity={icon} size={13} />
+                )}
+                <span
+                    ref={labelReference}
+                    aria-hidden={isLabelAbbreviated}
+                    className={cn(
+                        'tab-label min-w-0 overflow-hidden text-ellipsis whitespace-nowrap',
+                        preview && 'italic',
+                    )}
+                >
+                    {label}
+                </span>
+                {isLabelAbbreviated && <span className="sr-only">{labelTooltip}</span>}
+                {accessory}
+            </button>
+        </MaybeTooltip>
+    );
+}
+
 export function WorkTab({
     active,
     accessory,
     closeLabel,
-    dirty = false,
+    dirty,
     fileIconName,
     fill,
     icon,
     label,
     labelTooltip,
-    keepLabelAsAccessibleName = false,
+    keepLabelAsAccessibleName,
     motionIdentity,
-    showActiveAccent = true,
-    preview = false,
+    showActiveAccent,
+    preview,
     tabId,
     paneTabId,
     terminalId,
@@ -137,64 +258,14 @@ export function WorkTab({
     onKeyDown,
     onSelect,
 }: WorkTabProperties) {
-    const isPresent = useIsPresent();
-    const isReducedMotion = useShouldReduceMotion();
-    // Token values need a live DOM (`getComputedStyle`), so they can't be read at module scope;
-    // a lazy `useState` initializer reads them once per mount instead of on every render.
-    const [durations] = useState(() => ({
-        enterS: motionDurationMs('--motion-tab-enter') / 1000,
-        exitS: motionDurationMs('--motion-tab-exit') / 1000,
-    }));
-    const enterDuration = isReducedMotion ? 0 : durations.enterS;
-    const exitDuration = isReducedMotion ? 0 : durations.exitS;
+    const { enterDuration, exitDuration, isPresent, style } = useWorkTabMotion(fill);
     // Exiting tabs must never look or behave active: force the non-active visual state and lock
     // out pointer/keyboard interaction while the exit animation plays out.
     const isVisuallyActive = active && isPresent;
     const dirtyDescriptionId = `${tabId}-dirty`;
-    /**
-     * `terminalTabLabel` compresses a PTY title to fit the tab, and CSS truncates whatever still overflows. Both losses
-     * are visual only: the untouched title stays the tab's accessible name (below) and its tooltip, so a keyboard user
-     * reaches it the same way a pointer user does. `keepLabelAsAccessibleName` opts a caller like a Document tab out of
-     * this swap — see the property's own doc comment.
-     */
-    const isLabelAbbreviated =
-        Boolean(labelTooltip) && labelTooltip !== label && !keepLabelAsAccessibleName;
-    const labelReference = useRef<HTMLSpanElement>(null);
-    const isLabelClipped = useIsOverflowing(labelReference, label);
-    /**
-     * A tooltip that reproduces the label verbatim tells the user nothing they cannot already read — the common case
-     * for a Terminal whose title needed no compression. It stays suppressed until the label is actually clipped; a
-     * tooltip carrying _different_ text (a compressed Terminal title, a Document's full path) is always worth
-     * offering.
-     */
-    const isTooltipRedundant = labelTooltip === label && !isLabelClipped;
-    /**
-     * Spread rather than written inline because the key has to be _absent_, not `undefined`, whenever the tooltip owns
-     * it: Base UI merges the rendered element's own props last, so `id={undefined}` erases the trigger id it writes and
-     * leaves the tab with no id for `aria-controls`/roving focus to target. See `Tooltip`'s `triggerId`.
-     */
-    const tabIdProperty = labelTooltip || !isPresent ? {} : { id: tabId };
-    const targetMinWidth = fill ? TERMINAL_TAB_MIN_WIDTH : DOCUMENT_TAB_MIN_WIDTH;
-    // Motion keeps re-applying whatever value it last resolved for a key present in `initial`/`animate`/`exit` on
-    // every re-render of the component, even to a plain DOM mutation made outside Motion — so `minWidth` and
-    // `overflow` cannot be Motion-managed keys landed via `transitionEnd` or an animation-complete callback: when
-    // several tabs mount together (e.g. opening many Terminals back to back), a later sibling's mount re-renders
-    // every already-mounted tab, and Motion stomps an already-landed floor back to its stale `initial` value of 0.
-    // Tracking "has this tab's enter animation finished" as plain React state instead keeps the floor entirely
-    // outside Motion's reach.
-    const [hasSettled, setHasSettled] = useState(false);
-    useEffect(() => {
-        const timer = setTimeout(() => setHasSettled(true), enterDuration * 1_000);
-        return () => clearTimeout(timer);
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once for this tab's own enter animation; enterDuration is fixed for its lifetime
-    }, []);
-    const isSettled = isPresent && hasSettled;
     const tab = (
         <m.div
-            style={{
-                minWidth: isSettled ? targetMinWidth : 0,
-                overflow: isSettled ? 'visible' : 'hidden',
-            }}
+            style={style}
             className={cn(
                 'work-tab group relative flex items-center border-r border-border bg-surface text-muted [-webkit-app-region:no-drag] hover:bg-elevated hover:text-foreground',
                 'min-w-0',
@@ -208,16 +279,16 @@ export function WorkTab({
                 isVisuallyActive &&
                     "active bg-background text-foreground after:absolute after:inset-x-0 after:bottom-[-1px] after:h-px after:bg-background after:content-['']",
                 isVisuallyActive &&
-                    showActiveAccent &&
+                    showActiveAccent !== false &&
                     "before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-accent before:content-['']",
             )}
             data-pane-tab-id={paneTabId}
             data-terminal-id={terminalId}
             data-motion-identity={motionIdentity}
-            data-preview={preview || undefined}
+            data-preview={preview ? true : undefined}
             data-tab-active={isVisuallyActive || undefined}
-            aria-hidden={!isPresent || undefined}
-            inert={!isPresent ? true : undefined}
+            aria-hidden={!isPresent}
+            inert={!isPresent}
             draggable={Boolean(onDragStart)}
             // Motion's HTMLMotionProps redefines `onDragStart` for its own pointer-based drag
             // gesture (a different signature: `(event, info: PanInfo) => void`), which shadows
@@ -249,46 +320,22 @@ export function WorkTab({
                 transition: { duration: exitDuration, ease: 'easeIn' },
             }}
         >
-            <MaybeTooltip
-                content={labelTooltip}
-                disabled={isTooltipRedundant}
-                triggerId={isPresent ? tabId : undefined}
-            >
-                <button
-                    {...tabIdProperty}
-                    type="button"
-                    role="tab"
-                    aria-controls={isVisuallyActive ? `${tabId}-panel` : undefined}
-                    aria-describedby={isPresent && dirty ? dirtyDescriptionId : undefined}
-                    aria-selected={isVisuallyActive}
-                    tabIndex={isVisuallyActive ? 0 : -1}
-                    className="tab-select flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent px-2 text-left text-[11px] text-inherit focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-2 focus-visible:outline-foreground"
-                    onBlur={(event) => delete event.currentTarget.dataset.preserveTerminalFocus}
-                    onClick={onSelect}
-                    onKeyDown={onKeyDown}
-                >
-                    {icon === 'file' ? (
-                        <FileTypeIcon entry={{ kind: 'file', name: fileIconName ?? label }} />
-                    ) : (
-                        <AgentIdentityIcon identity={icon} size={13} />
-                    )}
-                    <span
-                        ref={labelReference}
-                        // Hiding visible text is normally wrong, but here the sr-only sibling carries the
-                        // same string in full, so the accessible name gains the elided part instead of
-                        // losing anything — and the badge in `accessory` still contributes to it.
-                        aria-hidden={isLabelAbbreviated || undefined}
-                        className={cn(
-                            'tab-label min-w-0 overflow-hidden text-ellipsis whitespace-nowrap',
-                            preview && 'italic',
-                        )}
-                    >
-                        {label}
-                    </span>
-                    {isLabelAbbreviated && <span className="sr-only">{labelTooltip}</span>}
-                    {accessory}
-                </button>
-            </MaybeTooltip>
+            <WorkTabSelect
+                accessory={accessory}
+                active={isVisuallyActive}
+                dirty={dirty}
+                dirtyDescriptionId={dirtyDescriptionId}
+                fileIconName={fileIconName}
+                icon={icon}
+                isPresent={isPresent}
+                keepLabelAsAccessibleName={keepLabelAsAccessibleName}
+                label={label}
+                labelTooltip={labelTooltip}
+                onKeyDown={onKeyDown}
+                onSelect={onSelect}
+                preview={preview}
+                tabId={tabId}
+            />
             {isPresent && dirty && (
                 <span id={dirtyDescriptionId} className="sr-only">
                     Unsaved changes.
