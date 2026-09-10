@@ -2,16 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 
 import type { PaneNode, PaneTab, TerminalRecord } from '@caxri/protocol';
 import {
-    agentTranscriptTabLabel,
-    gitDiffTabLabel,
     isVirtualEditorTabPath,
     parseAgentTranscriptTab,
-    parseExternalEditorTab,
     parseGitDiffTab,
     terminalDisplayTitle,
     terminalTabLabel,
 } from '@caxri/protocol';
-import { pathBasename } from '@caxri/utils';
 import { CircleAlert, Pause, Plus } from 'lucide-react';
 import { AnimatePresence, domAnimation, LazyMotion } from 'motion/react';
 
@@ -21,16 +17,23 @@ import { ContextMenuItem } from '../../components/ui/context-menu';
 import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
+import { useCaxriQuery } from '../../queries/client';
 import { useChromeLayoutStore } from '../../stores/chrome-layout';
 import {
     useIsFullScreen,
     useSelectedSession,
+    useSelectedWorkbenchProject,
     useSessionState,
     useTerminal,
 } from '../../stores/selectors';
 import { sessionViewScope, useSessionViewStore } from '../../stores/session-view';
 import { closeDocumentTabs, pinDocumentTab } from '../editor/document-actions';
+import {
+    documentTabPathMenuState,
+    resolveDocumentTabPath,
+} from '../editor/document-tab-path-actions';
 import { DocumentTabPathMenu } from '../editor/document-tab-path-menu';
+import { documentTabPresentation } from '../editor/document-tab-presentation';
 import { EditorTabActions } from '../editor/editor-tab-actions';
 import { moveTerminalToNewSession } from '../session/session-actions';
 import { WorkTab } from '../tabs/work-tab';
@@ -43,7 +46,7 @@ import {
     useTerminalProgress,
 } from '../terminal/terminal-progress';
 import { selectPaneTab } from './pane-actions';
-import { PANE_TAB_DRAG_TYPE } from './pane-drop-zone';
+import { EDITOR_PATH_DRAG_TYPE, PANE_TAB_DRAG_TYPE } from './pane-drop-zone';
 import { PaneTabMenu } from './pane-tab-menu';
 import { useScrollEdges } from './tab-scroll-edges';
 import { usePaneTabDrag } from './use-pane-tab-drag';
@@ -180,9 +183,13 @@ function DocumentPaneTab({
      * leaving "Close to the Right" etc. stuck at a stale disabled state.
      */
     const paneLayout = useSessionState()?.paneLayout;
-    const gitDiffTab = parseGitDiffTab(path);
     const transcriptTab = parseAgentTranscriptTab(path);
-    const externalTab = parseExternalEditorTab(path);
+    const project = useSelectedWorkbenchProject();
+    const overviewQuery = useCaxriQuery(
+        'git.overview',
+        { sessionId: session?.id ?? '' },
+        { enabled: Boolean(session), staleTime: 60_000 },
+    );
     // Tab identity is the terminal ID alone; the label follows its stable semantic title, never a PTY window title.
     const transcriptTerminal = useTerminal(transcriptTab?.terminalId ?? '');
     const document = useSessionViewStore((state) =>
@@ -190,37 +197,27 @@ function DocumentPaneTab({
             ? state.documents[sessionViewScope(session.id, session.workbenchProjectId)]?.[path]
             : undefined,
     );
+    const resolution = resolveDocumentTabPath(path, {
+        projectRoot: project?.rootPath,
+        repositories: overviewQuery.data?.repositories,
+        externalDisplayPath: document?.displayPath,
+    });
+    const pathMenu = documentTabPathMenuState(path, overviewQuery);
+    const presentation = documentTabPresentation(path, {
+        displayPath: document?.displayPath,
+        transcriptTitle: transcriptTerminal?.title,
+    });
     return (
         <WorkTab
             active={active}
             fill={false}
             closeLabel="Close Editor"
             dirty={document?.dirty}
-            fileIconName={
-                gitDiffTab?.kind === 'file'
-                    ? pathBasename(gitDiffTab.path)
-                    : gitDiffTab?.kind === 'changes'
-                      ? 'changes.diff'
-                      : transcriptTab
-                        ? 'transcript.jsonl'
-                        : (externalTab?.name ?? pathBasename(path))
-            }
+            fileIconName={presentation.fileIconName}
             icon="file"
-            label={
-                gitDiffTab
-                    ? gitDiffTabLabel(gitDiffTab)
-                    : transcriptTab
-                      ? agentTranscriptTabLabel(transcriptTerminal?.title)
-                      : (externalTab?.name ?? pathBasename(path))
-            }
+            label={presentation.label}
             // Ordinary files expose their full path on hover; virtual resources reuse their descriptive label.
-            labelTooltip={
-                gitDiffTab
-                    ? gitDiffTabLabel(gitDiffTab)
-                    : transcriptTab
-                      ? agentTranscriptTabLabel(transcriptTerminal?.title)
-                      : (document?.displayPath ?? externalTab?.name ?? path)
-            }
+            labelTooltip={presentation.labelTooltip}
             // The full path is a different detail than the filename, not a fuller version of it, so it must not
             // replace the filename a screen reader announces the way a Terminal's untruncated title does.
             keepLabelAsAccessibleName
@@ -234,9 +231,11 @@ function DocumentPaneTab({
                 void closeDocumentTabs([tab.id]);
             }}
             onDragStart={(event) => {
-                event.dataTransfer.effectAllowed = 'move';
+                event.dataTransfer.effectAllowed = 'copyMove';
                 event.dataTransfer.setData(PANE_TAB_DRAG_TYPE, tab.id);
-                event.dataTransfer.setData('text/plain', path);
+                if (resolution)
+                    event.dataTransfer.setData(EDITOR_PATH_DRAG_TYPE, resolution.absolutePath);
+                event.dataTransfer.setData('text/plain', resolution?.absolutePath ?? path);
             }}
             onKeyDown={(event) => {
                 if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
@@ -250,9 +249,12 @@ function DocumentPaneTab({
                     paneLayout={paneLayout}
                     tabId={tab.id}
                     resourceItems={
-                        (!isVirtualEditorTabPath(path) ||
-                            (gitDiffTab && gitDiffTab.kind !== 'changes')) && (
-                            <DocumentTabPathMenu path={path} />
+                        pathMenu.showMenu && (
+                            <DocumentTabPathMenu
+                                resolution={resolution}
+                                unavailableReason={pathMenu.unavailableReason}
+                                isExternal={pathMenu.isExternal}
+                            />
                         )
                     }
                 />
