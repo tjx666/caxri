@@ -1,4 +1,5 @@
 import type { BootstrapState, SessionState } from '@caxri/protocol';
+import { gitFileDiffTabPath } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -21,6 +22,7 @@ import {
     closeDocumentTabFamily,
     closeDocumentTabs,
     closeOpenEditorsUnderPath,
+    closeResolvedGitDiff,
     openEditorTab,
     openFile,
     openFileForSession,
@@ -181,6 +183,38 @@ afterEach(() => {
 });
 
 describe('session-scoped file mutation completion', () => {
+    it('closes resolved diff occurrences while preserving other documents and Sessions', () => {
+        const diffPath = gitFileDiffTabPath('repo-1', 'tracked.txt');
+        installEmptySession();
+        const bootstrap = useWorkbenchStore.getState().bootstrap!;
+        useWorkbenchStore.setState({
+            bootstrap: {
+                ...bootstrap,
+                sessionStates: [
+                    {
+                        ...bootstrap.sessionStates[0],
+                        paneLayout: paneLayout([diffPath, '/project/tracked.txt', diffPath]),
+                    },
+                    sessionState('session-2', diffPath),
+                ],
+            },
+        });
+
+        closeResolvedGitDiff('session-1', 'project-1', diffPath);
+
+        const states = useWorkbenchStore.getState().bootstrap!.sessionStates;
+        expect(paneTabPaths(states[0])).toEqual(['/project/tracked.txt']);
+        expect(paneTabPaths(states[1])).toEqual([diffPath]);
+    });
+
+    it('ignores a resolved diff from a retired Workbench Root', () => {
+        installEmptySession();
+        const before = useWorkbenchStore.getState().bootstrap;
+        closeResolvedGitDiff('session-1', 'previous-project', gitFileDiffTabPath('repo', 'file'));
+        expect(useWorkbenchStore.getState().bootstrap).toBe(before);
+        expect(mocks.request).not.toHaveBeenCalled();
+    });
+
     it('restores preview cache and focus when tab persistence fails', async () => {
         installEmptySession();
         useWorkbenchStore.setState((state) => ({
