@@ -196,6 +196,35 @@ cannot turn its authoritative completion into a retryable stale-generation error
 propagates to Server Core, but non-expiring mutations keep their API request pending until Server Core distinguishes
 pre-boundary `CANCELLED` from an authoritative post-boundary completion.
 
+## Numeric view badges
+
+A contributed view opts in with `"badge": true` in its manifest and registers a
+`ViewBadgeProvider` through `caxri.views.registerViewBadgeProvider(viewId, provider)`.
+Content and badge registrations are independent, so a tree or Source Control provider can share
+the same view ID with its badge provider.
+
+`provideBadge({ scopeId }, token)` returns a nonnegative integer `count`, a bounded plain-text
+`description`, and an optional `neutral` or `danger` tone. Return `undefined` or `null` when
+unavailable; the Host normalizes that result to wire-safe `null`. Zero is hidden. The Workbench
+aggregates badges from views in each container, prioritizes danger tone, and formats counts as
+`99+` for neutral or `9+` for danger while retaining full accessible descriptions.
+
+The Renderer issues `badge.snapshot` before the view opens, activating declared providers and
+sharing concurrent activation by extension generation. Reads carry the same cancellation and
+Session/Workbench Root fences as content operations. Query keys also include the provider
+generation, and returning to an inactive scope revalidates its cached count. Crashed, disabled,
+and failed extensions contribute no badge.
+
+Emit `onDidChangeBadge` inside a scoped Workspace notification or provider callback. The Host
+forwards a scoped `badge` invalidation, not a cached count; unscoped events are ignored. Badge
+invalidations bypass the hidden-view command replay queue. Disposing an extension retires both
+its content and badge registrations.
+
+The bundled Git provider sums `changedFileCount` across the selected Workbench Root's
+repositories, regardless of diff mode, exclusions, or payload truncation. The Status extension
+owns failed-check and current-deployment aggregation. Both reuse Server domain caches rather
+than starting a separate native polling loop.
+
 ## Tree RPC
 
 Extension element type `T` never leaves the Extension Host. The process boundary carries

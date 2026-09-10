@@ -1,5 +1,23 @@
-import type { ExtensionViewEventContext } from '@caxri/protocol';
+import type { ExtensionViewEventContext, ViewCatalogSnapshot } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
+
+import type { DiscoveredExtension } from './discovery';
+
+export function extensionForView(
+    viewId: string,
+    catalog: ViewCatalogSnapshot,
+    discovered: readonly DiscoveredExtension[],
+): DiscoveredExtension {
+    const descriptor = catalog.views.find(({ id }) => id === viewId);
+    if (descriptor?.source.kind !== 'extension')
+        throw Object.assign(new Error(`Extension view not found: ${viewId}`), {
+            code: 'PROVIDER_MISSING',
+        });
+    const extensionId = descriptor.source.extensionId;
+    const extension = discovered.find((entry) => entry.extensionId === extensionId);
+    if (!extension) throw new Error(`Extension not discovered: ${extensionId}`);
+    return extension;
+}
 
 export function assertActiveViewContext(
     expected: ExtensionViewEventContext,

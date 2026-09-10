@@ -20,6 +20,7 @@ const RESOURCE_EXPLORER_READ_OPERATIONS = new Set([
     'files.operation.list',
 ]);
 const SOURCE_CONTROL_CONTENT_OPERATIONS = new Set(['source.snapshot']);
+const BADGE_OPERATIONS = new Set(['badge.snapshot']);
 
 interface PendingFileChangeBatch {
     changes: Map<string, 'create' | 'update' | 'delete'>;
@@ -357,7 +358,7 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
         }
         if (
             event.event === 'viewContainers.viewChanged' &&
-            event.payload.change.kind === 'content'
+            (event.payload.change.kind === 'content' || event.payload.change.kind === 'badge')
         ) {
             const context =
                 event.payload.context.kind === 'session' ? event.payload.context : undefined;
@@ -365,10 +366,16 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
             // eslint-disable-next-line no-void -- React Query owns the invalidation lifecycle
             void queryClient.invalidateQueries({
                 predicate: (query) =>
-                    isControlledOperationMatch(query.queryKey, SOURCE_CONTROL_CONTENT_OPERATIONS, {
-                        viewId: event.payload.viewId,
-                        context,
-                    }),
+                    isControlledOperationMatch(
+                        query.queryKey,
+                        event.payload.change.kind === 'badge'
+                            ? BADGE_OPERATIONS
+                            : SOURCE_CONTROL_CONTENT_OPERATIONS,
+                        {
+                            viewId: event.payload.viewId,
+                            context,
+                        },
+                    ),
             });
             return;
         }

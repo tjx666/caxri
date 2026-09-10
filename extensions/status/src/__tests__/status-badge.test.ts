@@ -1,14 +1,13 @@
-import type { ProjectStatusRepository, ProjectStatusSummary } from '@caxri/protocol';
+import type { ProjectStatusRepository, ProjectStatusSummary } from 'caxri';
 import { describe, expect, it } from 'vitest';
 
-import { statusBadge } from './status-badge';
+import { statusBadge } from '../status-badge';
 
 function repo_(overrides: Partial<ProjectStatusRepository> = {}): ProjectStatusRepository {
     return {
         id: 'repo',
         name: 'Project',
         kind: 'primary',
-        rootPath: '/fixture',
         branch: 'feature',
         linearIssues: [],
         errors: [],
@@ -56,12 +55,13 @@ describe('Status tab badge', () => {
             },
         });
         expect(statusBadge(summary([repo, { ...repo, id: 'nested', kind: 'submodule' }]))).toEqual({
-            text: '3',
+            count: 3,
+            tone: 'danger',
             description: '2 failed checks, 1 failed deployment',
         });
     });
 
-    it('includes independent submodule failures and caps only the displayed number', () => {
+    it('includes independent submodule failures without capping the provider count', () => {
         const repos = Array.from({ length: 101 }, (_, index) =>
             repo_({
                 id: String(index),
@@ -77,7 +77,8 @@ describe('Status tab badge', () => {
             }),
         );
         expect(statusBadge(summary(repos))).toEqual({
-            text: '9+',
+            count: 101,
+            tone: 'danger',
             description: '101 failed checks',
         });
         const healthy = summary([repo_()]);

@@ -3,7 +3,45 @@ import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
 import type { FileService } from './files';
+import type { GitService } from './git';
 import type { TerminalRestoreOptions } from './terminal-restore';
+
+async function updateWatch(
+    files: FileService,
+    git: GitService,
+    logger: StructuredLogger,
+    sessionId: string | undefined,
+    shouldForce = false,
+): Promise<void> {
+    try {
+        if (shouldForce && sessionId) await files.refreshWatchSession(sessionId);
+        else await files.watchSession(sessionId);
+        if (sessionId) await git.observeWatcherAttached(sessionId);
+    } catch (error) {
+        logger.write(
+            'error',
+            shouldForce
+                ? logEventCatalog.files.refreshWatchSessionFailed
+                : logEventCatalog.files.watchSessionFailed,
+            {
+                fields: { sessionId: sessionId ?? 'none', error: errorMessage(error, 'unknown') },
+            },
+        );
+    }
+}
+
+/**
+ * Rebinds a changed Workbench Root without delaying its synchronous selection event.
+ */
+export function refreshWatchSessionInBackground(
+    files: FileService,
+    git: GitService,
+    logger: StructuredLogger,
+    sessionId: string,
+): void {
+    // eslint-disable-next-line no-void -- root-change notification is synchronous; updateWatch owns error reporting
+    void updateWatch(files, git, logger, sessionId, true);
+}
 
 /**
  * Fire-and-forget wrappers for recoverable background work (file watching, interrupted-Terminal restore) that must
@@ -13,6 +51,7 @@ import type { TerminalRestoreOptions } from './terminal-restore';
 export function createBackgroundTasks(
     logger: StructuredLogger,
     files: FileService,
+    git: GitService,
     restoreInterruptedTerminals: (
         sessionId: string,
         options?: TerminalRestoreOptions,
@@ -29,14 +68,8 @@ export function createBackgroundTasks(
      * setup failures) and must never delay a Server IPC response, so every call site fires this without awaiting it.
      */
     function watchSessionInBackground(sessionId: string | undefined): void {
-        // This helper is intentionally synchronous (`void` return) so sync IPC handlers such as
-        // `project.delete` can call it without becoming `async`; it cannot `await` its own promise.
-        // eslint-disable-next-line unicorn/prefer-await -- fire-and-forget helper, see comment above
-        files.watchSession(sessionId).catch((error: unknown) =>
-            logger.write('error', logEventCatalog.files.watchSessionFailed, {
-                fields: { sessionId: sessionId ?? 'none', error: errorMessage(error, 'unknown') },
-            }),
-        );
+        // eslint-disable-next-line no-void -- selection notification is synchronous; updateWatch owns error reporting
+        void updateWatch(files, git, logger, sessionId);
     }
 
     /**

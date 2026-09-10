@@ -280,6 +280,11 @@ function createBinding(registration: ExtensionHostRegistration): ApiBinding {
         extensionId: registration.extensionId,
         generation: registration.generation,
         viewKinds: allowedViewKinds,
+        badgeViewIds: new Set(
+            Object.values(registration.manifest.contributes.views)
+                .flat()
+                .flatMap((view) => (view.badge ? [view.id] : [])),
+        ),
         assertCurrent: () => {
             assertBindingCurrent(registration);
         },

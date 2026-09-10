@@ -53,6 +53,7 @@ export function projectExtensionHostViewEvent(
         generation !== event.generation ||
         descriptor.source.kind !== 'extension' ||
         descriptor.source.extensionId !== event.extensionId ||
+        (event.event === 'viewChanged' && event.change.kind === 'badge' && !descriptor.badge) ||
         (event.event === 'treeChanged'
             ? descriptor.viewKind.kind !== 'tree'
             : !isExtensionViewChangeCompatible(descriptor.viewKind, event.change))

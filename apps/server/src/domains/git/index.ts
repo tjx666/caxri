@@ -31,7 +31,7 @@ import {
 } from '@caxri/system';
 
 import { ExternalStatusHub } from '../external-status';
-import { assertInsideRoot } from '../path-security';
+import { assertInsideRoot, isOutsideRoot } from '../path-security';
 import type { ProjectRootResolver } from '../project-roots';
 import { SingleFlight } from '../single-flight';
 import { GitBlameService } from './blame';
@@ -452,6 +452,20 @@ export class GitService {
             payload.sessionId,
             payload.changes.map((change) => change.path),
         );
+    }
+
+    /**
+     * A newly watched root may have changed while inactive. Invalidate retained sibling-Session snapshots too;
+     * unreferenced snapshots are already released when their last projection retires.
+     */
+    async observeWatcherAttached(sessionId: string): Promise<void> {
+        const scope = this.paths.getSessionWorkbenchProjectId(sessionId);
+        const { root } = await this.paths.resolveSessionPath(sessionId);
+        if (scope !== this.paths.getSessionWorkbenchProjectId(sessionId)) return;
+        const roots = [...this.changeTracker.referencedRoots()].filter(
+            (candidate) => !isOutsideRoot(relative(root, candidate)),
+        );
+        this.repositoryService.observeMetadataStatus('', roots);
     }
 
     /**

@@ -32,7 +32,7 @@ function eventKey(event: ViewChangedEvent): string {
 }
 
 function isReplayable(change: ViewChangedEvent['payload']['change']): boolean {
-    return change.kind !== 'content';
+    return change.kind === 'refresh' || change.kind === 'selection';
 }
 
 function didRememberEventId(eventId: string): boolean {

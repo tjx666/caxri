@@ -8,6 +8,7 @@ import {
     sourceControlHistoryDetailsSchema,
     sourceControlHistoryPageSchema,
     sourceControlViewModelSchema,
+    viewBadgeSchema,
     viewIdSchema,
 } from '../domain/views.js';
 import type { MethodSpec } from '../transport/method-spec.js';
@@ -20,6 +21,11 @@ const common = {
 };
 
 const extensionViewOperationSchema = z.discriminatedUnion('operation', [
+    z.object({
+        ...common,
+        operation: z.literal('badge.snapshot'),
+        arguments: z.strictObject({}),
+    }),
     z.object({
         ...common,
         operation: z.literal('source.snapshot'),
@@ -63,6 +69,7 @@ const extensionViewOperationSchema = z.discriminatedUnion('operation', [
 ]);
 
 export const extensionViewOperationResultSchemas = {
+    'badge.snapshot': viewBadgeSchema.nullable(),
     'source.snapshot': sourceControlViewModelSchema,
     'source.historyPage': sourceControlHistoryPageSchema,
     'source.historyDetails': sourceControlHistoryDetailsSchema,
@@ -70,6 +77,7 @@ export const extensionViewOperationResultSchemas = {
 } as const satisfies Record<z.infer<typeof extensionViewOperationSchema>['operation'], z.ZodType>;
 
 const extensionViewOperationResultSchema = z.union([
+    extensionViewOperationResultSchemas['badge.snapshot'],
     extensionViewOperationResultSchemas['source.snapshot'],
     extensionViewOperationResultSchemas['source.historyPage'],
     extensionViewOperationResultSchemas['source.historyDetails'],

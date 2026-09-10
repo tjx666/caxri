@@ -236,6 +236,14 @@ historical deployments, pending work, and provider-fetch errors do not inflate t
 unavailable status hides the badge; tooltip and accessible description expose the full count and
 categories. Switching tabs does not clear failures; switching Sessions changes the badge scope.
 
+Numeric badges are an extension view capability: plugins provide the count, plain-text description,
+and neutral or danger tone; the Workbench aggregates them on the owning container. Git counts all
+working-tree changes across the current Workbench Root's repositories, including hidden and
+truncated entries. Its neutral badge uses foreground/background tokens and caps visible text at
+`99+`; danger badges retain `9+`. Both expose the full count in their accessible description.
+Badge reads activate declared providers even before their views open. Zero, no selected Session,
+and unavailable extension states hide the badge; counts never carry across Workbench scopes.
+
 **Tab strip** — active tab: `--background` fill joining it visually to the pane below,
 `--foreground` text, and a 2px `--accent` top border, VS Code style. Inactive: `--surface` +
 `--muted`. Dirty dot replaces the close button until hover/focus (already the pattern — keep).

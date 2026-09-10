@@ -42,6 +42,7 @@
                     "id": "caxri.project-status.overview",
                     "name": "Project Status",
                     "type": "tree",
+                    "badge": true,
                     "actions": [
                         {
                             "command": "caxri.project-status.refresh",

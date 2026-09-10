@@ -31,6 +31,7 @@ import { tryCommand } from '../../stores/toasts';
 import { getBuiltinViewComponent } from './builtin-components';
 import { ControlledViewProvider } from './controlled-view-provider';
 import { ExtensionTreeView } from './extension-tree-view';
+import { useViewBadges } from './hooks/use-view-badges';
 import { resolveViewContainerId } from './resolution';
 import { ResourceExplorerView } from './resource-explorer/resource-explorer-view';
 import { SourceControlView } from './source-control/source-control-view';
@@ -89,14 +90,12 @@ function CatalogIcon({ icon }: { icon: ViewIcon }) {
 
 export function ViewContainerSurface({
     ariaLabel,
-    badges,
     desiredId,
     location,
     onSelect,
     trailing,
 }: {
     ariaLabel: string;
-    badges?: Readonly<Record<string, { text: string; description: string } | undefined>>;
     desiredId?: ViewContainerId;
     location: ViewContainerLocation;
     onSelect: (id: ViewContainerId) => void;
@@ -109,6 +108,7 @@ export function ViewContainerSurface({
         () => new Set(),
     );
     const catalogQuery = useCaxriQuery('viewContainers.catalog', {});
+    const badges = useViewBadges(catalogQuery.data, location);
     if (catalogQuery.isPending)
         return (
             <div className="flex min-h-0 flex-1 items-center justify-center gap-2 text-xs text-muted">
@@ -135,28 +135,27 @@ export function ViewContainerSurface({
     const tabs = containers.map((container) => ({
         value: container.id,
         label: container.title,
-        description: badges?.[container.id]?.description,
+        description: badges[container.id]?.description,
         // SecondarySidebar tabs are icon-only (the title lives in the tooltip); Panel tabs keep their inline label.
-        content:
-            location === 'panel' ? (
-                <>
-                    <CatalogIcon icon={container.icon} />
-                    <span data-slot="chrome-tab-label">{container.title}</span>
-                </>
-            ) : (
+        content: (
+            <>
                 <span className="relative flex size-4 items-center justify-center">
                     <CatalogIcon icon={container.icon} />
-                    {badges?.[container.id] && (
+                    {badges[container.id] && (
                         <span
                             aria-hidden="true"
-                            className="absolute -right-2 -bottom-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-danger px-1 text-[10px] leading-none font-semibold text-danger-foreground ring-2 ring-surface"
+                            className={`absolute -right-2 -bottom-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-1 text-[10px] leading-none font-semibold ring-2 ring-surface ${badges[container.id]?.tone === 'danger' ? 'bg-danger text-danger-foreground' : 'bg-foreground text-background'}`}
                             data-view-container-badge={container.id}
                         >
                             {badges[container.id]?.text}
                         </span>
                     )}
                 </span>
-            ),
+                {location === 'panel' && (
+                    <span data-slot="chrome-tab-label">{container.title}</span>
+                )}
+            </>
+        ),
     }));
     return (
         <>
@@ -185,7 +184,7 @@ export function ViewContainerSurface({
                                       <ContainerTabTooltip
                                           commandId={container.commandId}
                                           title={
-                                              badges?.[container.id]
+                                              badges[container.id]
                                                   ? `${container.title}: ${badges[container.id]?.description}`
                                                   : container.title
                                           }

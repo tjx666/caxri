@@ -7,6 +7,7 @@ export function isExtensionViewChangeCompatible(
     viewKind: ViewDescriptor['viewKind'],
     change: ExtensionViewChange,
 ): boolean {
+    if (change.kind === 'badge') return true;
     if (viewKind.kind === 'source-control')
         return ['content', 'refresh', 'selection'].includes(change.kind);
     return false;

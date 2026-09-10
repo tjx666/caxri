@@ -54,8 +54,8 @@ import {
     treeItemSubtreeHandles,
 } from './extension-tree-state';
 import { ExtensionTreeTooltip } from './extension-tree-tooltip';
-import { ROOT_HANDLE, useExtensionTreeChildren } from './use-extension-tree-children';
-import { useExtensionTreeState } from './use-extension-tree-state';
+import { ROOT_HANDLE, useExtensionTreeChildren } from './hooks/use-extension-tree-children';
+import { useExtensionTreeState } from './hooks/use-extension-tree-state';
 import { dispatchExtensionViewAction } from './view-container-commands';
 
 /**

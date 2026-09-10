@@ -3,10 +3,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ExtensionTreeViewState } from '@caxri/protocol';
 import { MAX_EXTENSION_TREE_VIEW_STATES } from '@caxri/protocol';
 
-import { getBootstrap } from '../../stores/selectors';
-import { patchSessionState } from '../../stores/workbench';
-import type { ExtensionTreeState } from './extension-tree-state';
-import { createExtensionTreeState, serializeExtensionTreeState } from './extension-tree-state';
+import { getBootstrap } from '../../../stores/selectors';
+import { patchSessionState } from '../../../stores/workbench';
+import type { ExtensionTreeState } from '../extension-tree-state';
+import { createExtensionTreeState, serializeExtensionTreeState } from '../extension-tree-state';
 
 interface ExtensionTreeStateScope {
     sessionId: string;
