@@ -29,6 +29,12 @@ description: Diagnose Caxri failures across Desktop Main, Server Core, Terminal 
 7. Call the Skill tool with "quality-check" with the changed source and regression test before any
    broader suite.
 
+Manual refresh, reopening a panel, or restarting a process only proves a recovery path. When it
+clears a reported stale-state failure, continue tracing the missing invalidation through its owner,
+reproduce it with the narrowest fixture, and repair the confirmed cause and directly related paths.
+Do not end at a workaround when the next diagnostic or repair step is known and authorized; stop
+only for an explicit scope limit or a concrete blocker requiring the user's decision or authority.
+
 ## Controlled real-Agent debugging
 
 When a fake Agent cannot reproduce a provider-owned PTY or input-protocol behavior, debugging may
