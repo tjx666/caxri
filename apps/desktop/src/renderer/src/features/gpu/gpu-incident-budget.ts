@@ -5,6 +5,7 @@ import type {
     TerminalWebglSessionPolicy,
 } from '../terminal/terminal-renderer';
 import { isWebgl2Available } from '../terminal/terminal-renderer';
+import { gpuRecoveryNotificationCoordinator } from './gpu-recovery-notifications';
 
 /**
  * Distinct GPU incidents (Main-correlated `gpu.recoveryRequested` events) one Renderer session tolerates before every
@@ -25,6 +26,12 @@ type GpuIncidentBudgetTransition = Omit<GpuIncidentBudgetDiagnostic, 'kind' | 'd
 
 interface GpuIncidentBudgetOptions {
     now?: () => number;
+    /**
+     * Receives only the pinned transition. Pinning is the one moment in this feature the user has to act on — GPU
+     * acceleration is off for the rest of this window — so the notification layer subscribes to it directly instead of
+     * inferring it from a per-pane status, which cannot tell "this pane fell back" from "the session gave up".
+     */
+    onPinned?: (transition: GpuIncidentBudgetTransition) => void;
     /**
      * Receives every session-level transition so the log can count pins and their cause; per-pane statuses cannot.
      */
@@ -75,7 +82,7 @@ export function createGpuIncidentBudget(options: GpuIncidentBudgetOptions): GpuI
         cause: GpuIncidentBudgetTransition['cause'],
         correlationId?: string,
     ): void {
-        options.onTransition?.({
+        const record: GpuIncidentBudgetTransition = {
             transition,
             cause,
             ...(correlationId && { correlationId }),
@@ -83,7 +90,11 @@ export function createGpuIncidentBudget(options: GpuIncidentBudgetOptions): GpuI
             contextLossEpisodeCount,
             threshold,
             preference: appliedPreference ?? null,
-        });
+        };
+        options.onTransition?.(record);
+        // Routing both pin causes through the single emit point is what keeps the user notice tied to the transition
+        // rather than to one of the two ways of reaching it.
+        if (transition === 'pinned') options.onPinned?.(record);
     }
 
     function reset(): void {
@@ -162,7 +173,13 @@ export function createGpuIncidentBudget(options: GpuIncidentBudgetOptions): GpuI
     };
 }
 
+/**
+ * The session budget reports its pin twice on purpose: once to the diagnostic log, which measures how often Caxri gives
+ * up on WebGL, and once to the notification coordinator, which is the only surface that can tell the user it happened.
+ */
 export const gpuIncidentBudget = createGpuIncidentBudget({
+    onPinned: (transition) =>
+        gpuRecoveryNotificationCoordinator.notifyGpuAccelerationPinned(transition.correlationId),
     onTransition: (transition) =>
         globalThis.caxri.reportDiagnostic({
             kind: 'gpu-incident-budget',

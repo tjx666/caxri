@@ -5,6 +5,8 @@ import type { TerminalRendererStatus } from '../terminal/terminal-renderer';
 
 const GPU_PROCESS_RECOVERY_MESSAGE =
     'A GPU process crash interrupted rendering. Caxri switched affected Terminals to software rendering.';
+const GPU_ACCELERATION_PINNED_MESSAGE =
+    'Caxri turned off GPU acceleration for Terminals in this window after repeated graphics failures. Restart Caxri to try again.';
 const TERMINAL_GPU_FALLBACK_MESSAGE =
     'GPU rendering failed in a Terminal. Caxri switched it to software rendering.';
 const GPU_INCIDENT_MERGE_MS = 500;
@@ -26,9 +28,10 @@ interface GpuRecoveryNotificationCoordinatorOptions {
 }
 
 /**
- * Joins the Main-owned GPU incident with per-Terminal WebGL status. Local context loss may arrive shortly before or
- * after Main's correlated event, so the bounded merge window prevents one physical incident from producing both a local
- * fallback notice and a global recovery notice.
+ * Joins the Main-owned GPU incident, the session-wide GPU incident budget, and per-Terminal WebGL status. Local context
+ * loss may arrive shortly before or after Main's correlated event, so the bounded merge window prevents one physical
+ * incident from producing both a local fallback notice and a global recovery notice. Every notice is funnelled through
+ * here for that reason: one physical GPU event is one message, however many panes and processes reported it.
  */
 export function createGpuRecoveryNotificationCoordinator(
     options: GpuRecoveryNotificationCoordinatorOptions,
@@ -42,6 +45,20 @@ export function createGpuRecoveryNotificationCoordinator(
         const handle = pendingLocalFallbacks.get(terminalId);
         if (handle !== undefined) options.clearTimer(handle);
         pendingLocalFallbacks.delete(terminalId);
+    }
+
+    /**
+     * Claims one physical GPU incident for the notice about to be pushed, and answers `true` only for the claim that
+     * won it. Main and every pane that observed the same incident therefore still produce one message between them.
+     */
+    function didClaimGpuIncident(correlationId: string): boolean {
+        if (notifiedCorrelationIds.has(correlationId)) return false;
+        if (notifiedCorrelationIds.size >= MAX_REMEMBERED_GPU_INCIDENTS) {
+            const oldestCorrelationId = notifiedCorrelationIds.values().next().value;
+            if (oldestCorrelationId) notifiedCorrelationIds.delete(oldestCorrelationId);
+        }
+        notifiedCorrelationIds.add(correlationId);
+        return true;
     }
 
     function rememberFailedTerminal(terminalId: string): void {
@@ -60,20 +77,52 @@ export function createGpuRecoveryNotificationCoordinator(
         }
     }
 
-    function notifyGpuProcessRecovery(correlationId: string): void {
-        if (notifiedCorrelationIds.has(correlationId)) return;
-        if (notifiedCorrelationIds.size >= MAX_REMEMBERED_GPU_INCIDENTS) {
-            const oldestCorrelationId = notifiedCorrelationIds.values().next().value;
-            if (oldestCorrelationId) notifiedCorrelationIds.delete(oldestCorrelationId);
-        }
-        notifiedCorrelationIds.add(correlationId);
+    /**
+     * Opens the merge window every per-pane notice defers to, so the panes that observe the same physical incident stay
+     * silent whether they report it just before or just after the session-level notice.
+     */
+    function beginGlobalIncident(): void {
         lastGlobalIncidentAt = options.now();
         coverPendingLocalFallbacks();
+    }
+
+    /**
+     * Both GPU notices offer the same way out, so the action is described once.
+     */
+    function restartInGpuSafeModeAction(): NonNullable<ToastOptions['action']> {
+        return {
+            label: 'Restart in GPU Safe Mode',
+            onSelect: () => options.restartInGpuSafeMode(),
+        };
+    }
+
+    function notifyGpuProcessRecovery(correlationId: string): void {
+        if (!didClaimGpuIncident(correlationId)) return;
+        beginGlobalIncident();
         options.pushToast('info', GPU_PROCESS_RECOVERY_MESSAGE, {
-            action: {
-                label: 'Restart in GPU Safe Mode',
-                onSelect: () => options.restartInGpuSafeMode(),
-            },
+            // Restarting in GPU Safe Mode is reachable from nowhere else: notification history deliberately keeps no
+            // action callbacks, so once this card expires the recovery route is gone even though the crash it reports
+            // has not been undone. A four-second window also assumes the user was watching the moment the GPU died.
+            // The card therefore stays until it is dismissed, which is the choice `persist` exists to express.
+            persist: true,
+            action: restartInGpuSafeModeAction(),
+        });
+    }
+
+    /**
+     * The pinned transition is the only consequential state change in this feature: WebGL is now off for every Terminal
+     * for the rest of this window's lifetime, and only restarting Caxri or changing the Settings preference brings it
+     * back. Without its own notice the user sees a third copy of the same transient crash toast and never learns that
+     * anything became permanent, so this one persists and carries the recovery action with it.
+     */
+    function notifyGpuAccelerationPinned(correlationId?: string): void {
+        // Main records the incident against the budget before it asks for the crash notice, so claiming the correlation
+        // here turns the crash that tripped the budget into this single escalated notice instead of a pair.
+        if (correlationId) didClaimGpuIncident(correlationId);
+        beginGlobalIncident();
+        options.pushToast('info', GPU_ACCELERATION_PINNED_MESSAGE, {
+            persist: true,
+            action: restartInGpuSafeModeAction(),
         });
     }
 
@@ -81,6 +130,7 @@ export function createGpuRecoveryNotificationCoordinator(
         disposeTerminal(terminalId: string): void {
             cancelPendingLocalFallback(terminalId);
         },
+        notifyGpuAccelerationPinned,
         notifyGpuProcessRecovery,
         observeTerminalRendererStatus(input: RendererStatusInput): void {
             if (input.status.mode === 'webgl' && input.status.reason === 'active') {

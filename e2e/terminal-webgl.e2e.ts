@@ -380,7 +380,12 @@ test('WebGL modes hot-switch and every Terminal recovers from one GPU process lo
         );
         /**
          * Main and both mounted Terminals observe the same correlated GPU incident. The coordinator must collapse those
-         * three signals into one transient, actionable notification before the durable renderer state is checked.
+         * three signals into one actionable notification before the durable renderer state is checked.
+         *
+         * The card stays until it is dismissed rather than expiring on its own: `Restart in GPU Safe Mode` is reachable
+         * from nowhere else, because notification history deliberately keeps no action callbacks. Asserting the
+         * dismissal explicitly therefore both pins that decision and clears the overlay before the renderer checks
+         * below.
          */
         const recoveryNotification = running.page.getByText(
             'A GPU process crash interrupted rendering. Caxri switched affected Terminals to software rendering.',
@@ -390,7 +395,9 @@ test('WebGL modes hot-switch and every Terminal recovers from one GPU process lo
         await expect(
             running.page.getByRole('button', { name: 'Restart in GPU Safe Mode' }),
         ).toHaveCount(1);
-        await expect(recoveryNotification).toHaveCount(0, { timeout: 6_000 });
+        await expect(recoveryNotification).toHaveCount(1, { timeout: 6_000 });
+        await running.page.getByRole('button', { name: 'Dismiss notification' }).first().click();
+        await expect(recoveryNotification).toHaveCount(0, { timeout: 8_000 });
         await expect(surfaces.nth(0)).toHaveAttribute('data-terminal-renderer', 'webgl', {
             timeout: 8_000,
         });
