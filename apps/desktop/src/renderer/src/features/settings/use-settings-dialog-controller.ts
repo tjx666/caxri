@@ -11,6 +11,7 @@ import type {
 import { builtinThemes, findMatchingBuiltinTheme } from '@caxri/protocol';
 
 import { caxri } from '../../lib/caxri';
+import type { SettingsView } from '../../stores/dialogs';
 import { setSettingsOpen, useDialogStore } from '../../stores/dialogs';
 import { describeFailure, dismissToastsMatching, pushToast } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
@@ -26,6 +27,16 @@ import { configReducer, initialConfigState, parseConfigSource } from './settings
 import { settingsRows } from './settings-registry';
 import { createSettingsWriteCoordinator } from './settings-write-coordinator';
 import { applyBuiltinTheme, applyThemeColorEdit } from './theme-edit';
+
+/**
+ * Requests that land on the ordinary settings list and are then answered by a `scrollToIndex` effect in
+ * `settings-page.tsx`, rather than by switching to a dedicated tab or view.
+ */
+const scrolledSettingsViews: ReadonlySet<SettingsView> = new Set([
+    'hardware-acceleration',
+    'notifications',
+    'git-exclusions',
+]);
 
 /**
  * A boot flag and the Settings row that owns it share one name: the row backing `argv.jsonc`'s `hardwareAcceleration`
@@ -422,7 +433,7 @@ export function useSettingsDialogController() {
                 setView('ui');
                 return;
             }
-            if (request.view === 'hardware-acceleration' || request.view === 'notifications') {
+            if (scrolledSettingsViews.has(request.view)) {
                 setTab('settings');
                 setView('ui');
                 return;
@@ -597,6 +608,7 @@ export function useSettingsDialogController() {
         argvConfig,
         changeTab,
         commitSource,
+        gitExclusionsFocusRequestId: request.view === 'git-exclusions' ? request.id : undefined,
         hardwareAccelerationFocusRequestId:
             request.view === 'hardware-acceleration' ? request.id : undefined,
         importTheme,

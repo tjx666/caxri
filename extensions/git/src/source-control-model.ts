@@ -403,6 +403,23 @@ export function buildSourceControlViewModel({
     const hasEnabledExclusions = Object.entries(excludePatterns).some(
         ([pattern, enabled]) => enabled && pattern.trim() !== '',
     );
+    /**
+     * Repository-level `hasUnloadedExclusions` (below) decides whether one repository may discard everything; the
+     * header toggle is panel-wide, so it asks the same question across every repository at once. Any truncated
+     * repository can still be hiding excluded files in its unloaded tail even when every loaded path is visible.
+     */
+    const hasAnyUnloadedExclusions =
+        !isShowingExcluded &&
+        hasEnabledExclusions &&
+        summary.repositories.some((repo) => repo.truncated === true);
+    /**
+     * A configured pattern is not by itself something to reveal: matching nothing left `Show excluded files (0)` on the
+     * caption permanently, promising a change it could not make. The toggle appears only when it would actually change
+     * what the panel shows, or when it is the way back out of the shown state.
+     */
+    const hasActionableExclusions =
+        hasEnabledExclusions &&
+        (excludedCount > 0 || isShowingExcluded || hasAnyUnloadedExclusions);
     return {
         revision,
         title: 'Source Control',
@@ -415,7 +432,7 @@ export function buildSourceControlViewModel({
             icon: themeIcon('refresh'),
             label: mode === 'pull-request' ? 'Refresh Pull Request' : 'Refresh Git',
         }),
-        ...(hasEnabledExclusions && {
+        ...(hasActionableExclusions && {
             headerActions: [
                 registerAction({
                     command: { id: 'caxri.git.toggleExcludedFiles' },

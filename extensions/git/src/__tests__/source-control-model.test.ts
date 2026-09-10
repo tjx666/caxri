@@ -406,6 +406,53 @@ describe('Git source-control view model', () => {
         );
     });
 
+    it('offers the excluded-files toggle only when it would change what the panel shows', () => {
+        const excludePatterns = { '**/*.test.*': true };
+
+        const nothingHidden = buildSourceControlViewModel({
+            excludePatterns,
+            mode: 'working',
+            summary,
+        });
+        expect(nothingHidden.headerActions).toBeUndefined();
+
+        const shown = buildSourceControlViewModel({
+            excludePatterns,
+            isShowingExcluded: true,
+            mode: 'working',
+            summary,
+        });
+        expect(shown.headerActions?.[0]).toMatchObject({ label: 'Hide excluded files (0)' });
+
+        const truncated = buildSourceControlViewModel({
+            excludePatterns,
+            mode: 'working',
+            summary: {
+                ...summary,
+                repositories: [
+                    {
+                        ...summary.repositories[0],
+                        changedFileCount: 12,
+                        truncated: true,
+                    },
+                ],
+            },
+        });
+        expect(truncated.headerActions?.[0]).toMatchObject({
+            label: 'Show excluded files (0)',
+        });
+
+        const disabledPatterns = buildSourceControlViewModel({
+            excludePatterns: { '**/*.test.*': false },
+            mode: 'working',
+            summary: {
+                ...summary,
+                repositories: [{ ...summary.repositories[0], truncated: true }],
+            },
+        });
+        expect(disabledPatterns.headerActions).toBeUndefined();
+    });
+
     it('uses the excluded-only empty state for working, commit, and pull-request changes', () => {
         const testFile = {
             path: 'src/feature.spec.ts',

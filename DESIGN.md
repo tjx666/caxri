@@ -421,6 +421,20 @@ when opened; each commit opens that file's read-only diff directly. Terminal, di
 editors omit the disclosure entirely. Repository-scoped `Commits` stays nested under each repository
 and keeps its optional path input and commit-details disclosure.
 
+**Git diff exclusions** — `git.diffExclude` hides matching repository-relative paths from Git
+change lists and from `Open Changes`; it ships filtering test files out by default, because a
+review of "what changed" almost never opens with them. A default that hides work is only honest if
+the surface says so and offers a way back, so hiding is never silent. The Source Control header's
+eye button, which reveals the excluded files in place, appears only when exclusions are actually
+hiding something — a control that toggles nothing but is always on screen teaches the user it is
+decoration. In a multi-file diff tab the hidden count is stated in a `role="status"` notice
+carrying two ghost buttons: `Show them` reopens the same aggregate diff with exclusions revealed
+and retires the occurrence it replaces, so the user is never left with two identically labelled
+`Changes:` tabs, and `Edit exclusions…` opens Settings scrolled to the `Excluded Git diff files`
+row rather than to the top of the list. Both buttons name themselves to a screen reader through the
+notice they sit beside. Showing excluded files lives in the tab's resource path, not in component
+state, so the revealed view is an ordinary diff tab that survives restore.
+
 **Terminal panes** — the focused pane keeps the accent inset ring (with the active tab's top
 border it forms the screen's one accent focus). The xterm viewport and scrollbar are full-bleed at
 the right edge; top/left text padding belongs to xterm's content box so it never creates an outer

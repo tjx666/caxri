@@ -1,9 +1,24 @@
-import type { GitFileStatus } from '@caxri/protocol';
+import type { GitDiffTab, GitFileStatus } from '@caxri/protocol';
+import { gitChangesDiffTabPath, gitPullRequestChangesDiffTabPath } from '@caxri/protocol';
 import { isGlobMatch } from '@caxri/utils';
 
 export interface FilteredGitDiffFiles {
     files: readonly GitFileStatus[];
     hiddenCount: number;
+}
+
+/**
+ * The aggregate diff tab carries its own "show excluded" state in its resource path, so revealing hidden files is a tab
+ * swap rather than a component-local flag: the choice then survives a reload and stays visible in the Session layout.
+ * `commit` has no aggregate document, so only the two aggregate sources resolve to a path.
+ */
+export function gitChangesDiffTabPathFor(
+    tab: Extract<GitDiffTab, { kind: 'changes' }>,
+    isShowingExcluded: boolean,
+): string {
+    return tab.source === 'pull-request'
+        ? gitPullRequestChangesDiffTabPath(tab.repositoryId, tab.repositoryName, isShowingExcluded)
+        : gitChangesDiffTabPath(tab.repositoryId, tab.repositoryName, isShowingExcluded);
 }
 
 export function filterGitDiffFiles(
