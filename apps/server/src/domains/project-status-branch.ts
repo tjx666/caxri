@@ -3,7 +3,7 @@ import { parseGitHubRemote } from '@caxri/utils';
 import { z } from 'zod';
 
 import type { ExternalStatusRunner } from './external-status';
-import { ExternalStatusCliError } from './external-status/command';
+import { ExternalStatusCliError } from './external-status';
 import { projectStatusCliError } from './project-status-external';
 import { parseExternalJson } from './project-status-parse';
 
