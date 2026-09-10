@@ -1,0 +1,104 @@
+import type { ArgvConfig } from '@caxri/protocol';
+import { argvConfigSchema } from '@caxri/protocol';
+import { describe, expect, it } from 'vitest';
+
+import {
+    ARGV_RESTART_NOTICE_PREFIX,
+    argvRestartNotice,
+    settingTitleForArgvKey,
+} from '../use-settings-dialog-controller';
+
+const BOOT_BASELINE: ArgvConfig = { hardwareAcceleration: true, remoteDebugging: true };
+
+describe('settingTitleForArgvKey', () => {
+    it('resolves every boot flag to the Settings row title the user actually reads', () => {
+        for (const key of Object.keys(argvConfigSchema.shape) as Array<keyof ArgvConfig>)
+            expect(settingTitleForArgvKey(key)).toBeTypeOf('string');
+    });
+
+    it('returns the registry title rather than the flag name', () => {
+        expect(settingTitleForArgvKey('hardwareAcceleration')).toBe('Hardware acceleration');
+        expect(settingTitleForArgvKey('remoteDebugging')).toBe('Remote debugging (CDP)');
+    });
+});
+
+describe('argvRestartNotice', () => {
+    it('names the setting the user just changed and what to do about it', () => {
+        expect(
+            argvRestartNotice({
+                applied: { ...BOOT_BASELINE, hardwareAcceleration: false },
+                baseline: BOOT_BASELINE,
+            }),
+        ).toBe('Restart Caxri to apply the new hardware acceleration setting.');
+    });
+
+    it('keeps an acronym in the title capitalized inside the sentence', () => {
+        expect(
+            argvRestartNotice({
+                applied: { ...BOOT_BASELINE, remoteDebugging: false },
+                baseline: BOOT_BASELINE,
+            }),
+        ).toBe('Restart Caxri to apply the new remote debugging (CDP) setting.');
+    });
+
+    it('uses no implementation vocabulary for the file the write lands in', () => {
+        const notice = argvRestartNotice({
+            applied: { ...BOOT_BASELINE, hardwareAcceleration: false },
+            baseline: BOOT_BASELINE,
+        });
+        expect(notice).not.toMatch(/boot|argv|config/i);
+    });
+
+    it('stays silent while the boot baseline is still loading', () => {
+        expect(
+            argvRestartNotice({
+                applied: { ...BOOT_BASELINE, hardwareAcceleration: false },
+                baseline: undefined,
+            }),
+        ).toBeUndefined();
+    });
+
+    it('stays silent when the write returns the flag to what the instance launched with', () => {
+        expect(
+            argvRestartNotice({ applied: BOOT_BASELINE, baseline: BOOT_BASELINE }),
+        ).toBeUndefined();
+    });
+
+    /**
+     * The notice is one replaceable card, so it has to describe every pending flag rather than the latest write. Naming
+     * only the flag just touched would retract a restart the user still owes for an earlier row.
+     */
+    it('names every flag still pending, not only the one the latest write touched', () => {
+        expect(
+            argvRestartNotice({
+                applied: { hardwareAcceleration: false, remoteDebugging: false },
+                baseline: BOOT_BASELINE,
+            }),
+        ).toBe(
+            'Restart Caxri to apply the new hardware acceleration and remote debugging (CDP) settings.',
+        );
+    });
+
+    it('drops a flag back out of the sentence once it returns to its launch value', () => {
+        expect(
+            argvRestartNotice({
+                applied: { hardwareAcceleration: true, remoteDebugging: false },
+                baseline: BOOT_BASELINE,
+            }),
+        ).toBe('Restart Caxri to apply the new remote debugging (CDP) setting.');
+    });
+
+    /**
+     * The dialog retracts its own previous wording by prefix, so every sentence this builds has to carry it.
+     */
+    it('always opens with the prefix the dialog retracts on', () => {
+        for (const applied of [
+            { hardwareAcceleration: false, remoteDebugging: true },
+            { hardwareAcceleration: true, remoteDebugging: false },
+            { hardwareAcceleration: false, remoteDebugging: false },
+        ])
+            expect(argvRestartNotice({ applied, baseline: BOOT_BASELINE })).toMatch(
+                new RegExp(`^${ARGV_RESTART_NOTICE_PREFIX}`),
+            );
+    });
+});

@@ -501,6 +501,11 @@ repeated failures turn GPU acceleration off for the window both carry `Restart i
 which is reachable from nowhere else — history stores no action callbacks — so a four-second expiry
 would remove the recovery route while the condition it reports still holds.
 
+A boot-flag write that only the next launch picks up is held for the same reason: the user is still
+inside the modal Settings dialog, and the notice carries the only statement of what the restart is
+owed for. That one is a status rather than an event, so it names every flag still differing from the
+running instance's launch values, and it is retracted once none remain.
+
 **Confirmations** — destructive commands (Delete Session, Delete Project) require a native confirm
 dialog naming the target ("Delete session 'api-fix'? Files on disk are not touched."). Every other
 "are you sure" moment uses the one in-app confirmation modal behind
