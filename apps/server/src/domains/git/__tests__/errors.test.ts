@@ -21,6 +21,10 @@ describe('describeGitFailure sync mappings', () => {
             'The current branch has no upstream branch to sync with.',
         ],
         [
+            'fatal: The upstream branch of your current branch does not match\nthe name of your current branch. To push to the upstream branch\non the remote, use\n\n    git push origin HEAD:release',
+            'Push failed because the current branch and its upstream have different names. Check the intended remote branch and update the upstream or push target before retrying.',
+        ],
+        [
             'error: Your local changes to the following files would be overwritten by merge:',
             'Local changes block the pull. Commit, stash, or discard them first.',
         ],
@@ -48,5 +52,19 @@ describe('describeGitFailure sync mappings', () => {
         expect(describeGitFailure(failureWithStderr('remote: internal server error'))).toBe(
             'The Git operation failed. See Runtime logs for details.',
         );
+    });
+
+    it('does not expose remote output or suggested push targets in an upstream mismatch', () => {
+        const message = describeGitFailure(
+            failureWithStderr(
+                'fatal: The upstream branch of your current branch does not match\n' +
+                    'the name of your current branch.\n' +
+                    'git push https://example.invalid/private-repository HEAD:private-branch',
+            ),
+        );
+        expect(message).toContain('Push failed');
+        expect(message).not.toContain('example.invalid');
+        expect(message).not.toContain('private-branch');
+        expect(message).not.toContain('git push');
     });
 });
