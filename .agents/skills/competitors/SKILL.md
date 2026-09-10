@@ -47,6 +47,9 @@ editor-adjacent surfaces. Both are shallow-cloned into `competitors/` by `script
 
 ## Working rules
 
+- When the user names a reference product, inspect its implementation before asking them to choose
+  behavior that the reference already defines. Apply the observed interaction within Caxri's
+  contracts; ask only when a concrete incompatibility requires a product decision.
 - Check the license before copying any code. AGPL-3.0 (Warp, Termany, Mux, Paseo), GPL-3.0 (cmux,
   Kero), and Elastic License 2.0 (Superset) products are reference-only.
 - Closed-source products (Otty, Conductor, Trevize) can only be analyzed via their packaged app

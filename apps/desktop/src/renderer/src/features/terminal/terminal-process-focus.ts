@@ -39,7 +39,8 @@ export function shouldAutoFocusTerminal({
 
 /**
  * A PTY can become running after a modal, editable control, or keyboard-operated work tab takes focus. Check those
- * owners inside the scheduled frame so the delayed transition cannot steal newer keyboard intent.
+ * owners inside the scheduled frame so the delayed transition cannot steal newer keyboard intent. The owning effect
+ * must invalidate this frame on cleanup: its captured running/active state may be obsolete before the frame runs.
  */
 export function reconcileTerminalProcessFocus({
     active,
@@ -50,12 +51,14 @@ export function reconcileTerminalProcessFocus({
     isRunning,
     requestFrame,
     terminalId,
-}: TerminalProcessFocusOptions): void {
+}: TerminalProcessFocusOptions): (() => void) | undefined {
     if (!active || !isRunning) {
         blur();
         return;
     }
+    let isInvalidated = false;
     requestFrame(() => {
+        if (isInvalidated) return;
         if (
             shouldAutoFocusTerminal({
                 active,
@@ -67,4 +70,7 @@ export function reconcileTerminalProcessFocus({
         )
             focus();
     });
+    return () => {
+        isInvalidated = true;
+    };
 }

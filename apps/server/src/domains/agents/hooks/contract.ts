@@ -88,6 +88,22 @@ export interface AgentLifecycleSignal {
      */
     agentTurnId?: string;
     /**
+     * Opt-in delegation evidence. Hashes prove that the bound transcript contains the exact submitted prompt and final
+     * response without forwarding either body through the lifecycle channel.
+     */
+    agentPromptDigest?: string;
+    agentResponseDigest?: string;
+    agentContentOverflow?: true;
+    /**
+     * Closed StopFailure classification; provider error text never crosses the hook boundary.
+     */
+    agentFailure?:
+        | 'rate_limit'
+        | 'billing_error'
+        | 'authentication_failed'
+        | 'max_output_tokens'
+        | 'provider_failed';
+    /**
      * Provider-native subagent identifier. The main Agent omits it; matching this scope prevents a nested Agent's
      * completed tool batch from clearing another scope's attention and its completion from settling the parent
      * Session.

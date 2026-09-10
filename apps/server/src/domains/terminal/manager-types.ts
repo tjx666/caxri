@@ -77,6 +77,10 @@ export interface TerminalWorkingDirectoryIdentity {
 }
 
 export interface TerminalStartOptions {
+    /**
+     * Frozen Server-owned launch configuration for one admitted delegation.
+     */
+    launchSettings?: AgentLaunchSettings;
     expectedWorkingDirectory?: TerminalWorkingDirectoryIdentity;
     resumeAgentSessionId?: string;
     /**

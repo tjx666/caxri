@@ -105,6 +105,26 @@ async function seededDispatch() {
 }
 
 describe('AgentDispatchService', () => {
+    it('rolls back a child whose visible layout preparation fails before launch', async () => {
+        const { database, project, service, session } = await seededDispatch();
+        const terminals = database.listTerminals(session.id);
+        const layout = database.getSessionState(session.id).paneLayout;
+        const receipt = await service.start(
+            'layout-failure',
+            PRINCIPAL,
+            { projectId: project.id, sessionId: session.id, provider: 'claude' },
+            {
+                launch: { executable: 'claude', args: [] },
+                prepared: () => {
+                    throw new Error('No visible pane capacity');
+                },
+            },
+        );
+        expect(receipt.status).toBe('failed');
+        expect(database.listTerminals(session.id)).toEqual(terminals);
+        expect(database.getSessionState(session.id).paneLayout).toEqual(layout);
+    });
+
     it('passes the exact bound Provider session into the resume launch path', async () => {
         const database = await openDatabase();
         const project = database.createProject(join(temporaryDirectories.at(-1)!, 'project'));

@@ -5,9 +5,14 @@ import process from 'node:process';
 import type { AgentProvider } from '@caxri/protocol';
 import { createE2EAgentEnvironment } from '@caxri/system';
 
+import { delegationFixtureSource } from '../../../../scripts/agent-delegation-fixture';
 import { grokAcceptanceSource } from './grok-fixture';
 
-export const acceptanceAgentFixtureIds = ['agent-features-v1', 'grok-build-v1'] as const;
+export const acceptanceAgentFixtureIds = [
+    'agent-features-v1',
+    'grok-build-v1',
+    'agent-delegation-v1',
+] as const;
 type AcceptanceAgentFixtureId = (typeof acceptanceAgentFixtureIds)[number];
 
 export interface PreparedAcceptanceAgentFixture<Provider extends AgentProvider = never> {
@@ -410,7 +415,9 @@ interface PrepareAcceptanceAgentFixtureOptions {
 }
 
 export function prepareAcceptanceAgentFixture(
-    options: PrepareAcceptanceAgentFixtureOptions & { fixtureId: 'agent-features-v1' },
+    options: PrepareAcceptanceAgentFixtureOptions & {
+        fixtureId: 'agent-features-v1' | 'agent-delegation-v1';
+    },
 ): Promise<PreparedAcceptanceAgentFixture<'claude' | 'codex'>>;
 export function prepareAcceptanceAgentFixture(
     options: PrepareAcceptanceAgentFixtureOptions & { fixtureId: 'grok-build-v1' },
@@ -434,7 +441,11 @@ export async function prepareAcceptanceAgentFixture(
                 const executable = join(bin, provider);
                 await writeFile(
                     executable,
-                    provider === 'grok' ? grokAcceptanceSource() : sharedSource(provider),
+                    provider === 'grok'
+                        ? grokAcceptanceSource()
+                        : provider === 'claude' && options.fixtureId === 'agent-delegation-v1'
+                          ? delegationFixtureSource()
+                          : sharedSource(provider),
                     'utf8',
                 );
                 await chmod(executable, 0o700);

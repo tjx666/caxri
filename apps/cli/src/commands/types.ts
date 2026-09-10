@@ -27,6 +27,10 @@ export interface LocalCommandDefinition {
 
 export interface RemoteCommandDefinition {
     confirmation?: string;
+    /**
+     * Owner confirmation is separate from the Server's explicit generation-scoped Agent grant.
+     */
+    ownerConfirmation?: string;
     kind: 'remote';
     method: CaxriMethod;
     mutates?(parameters: unknown): boolean;

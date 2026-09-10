@@ -10,6 +10,7 @@ export const AGENT_HOOK_BRIDGE_MAX_DELIVERY_MS = BRIDGE_STDIN_TIMEOUT_MS + BRIDG
 
 const BRIDGE_SCRIPT = String.raw`'use strict';
 const net = require('node:net');
+const { createHash } = require('node:crypto');
 // The shell wrapper maps these private exit codes to fixed diagnostics so runtime paths and arbitrary child stderr
 // never escape the bridge boundary.
 const exitCodes = {
@@ -182,6 +183,9 @@ function hasWorktreeCreateIntent(payload) {
 function readIdentifiers(callback) {
   let source = '';
   let done = false;
+  const captureDigests = provider === 'claude' && process.env.CAXRI_HOOK_DIGEST === '1';
+  const sourceLimit = captureDigests ? 1048576 : 65536;
+  let overflow = false;
   function prefixString(keys) {
     let commonEnd = source.length;
     for (const marker of ['"tool_calls"', '"tool_input"', '"tool_response"', '"permission_suggestions"']) {
@@ -208,6 +212,9 @@ function readIdentifiers(callback) {
     let sessionId;
     let toolUseId;
     let turnId;
+    let promptDigest;
+    let responseDigest;
+    let failure;
     let worktreeCreateIntent = false;
     try {
       const payload = JSON.parse(source);
@@ -225,12 +232,22 @@ function readIdentifiers(callback) {
       if (typeof agentValue === 'string' && agentValue.length > 0 && agentValue.length <= 256) agentId = agentValue;
       const value = payload && (payload.session_id ?? payload.sessionId);
       if (typeof value === 'string' && value.length > 0 && value.length <= 256) sessionId = value;
-      const turnValue = payload && (payload.turn_id ?? payload.turnId ?? (provider === 'grok' ? payload.promptId : undefined));
+      // Claude's documented per-prompt identity spans UserPromptSubmit, Stop, and StopFailure (v2.1.196+).
+      // https://code.claude.com/docs/en/hooks#common-input-fields
+      const turnValue = payload && (provider === 'claude' ? payload.prompt_id : (payload.turn_id ?? payload.turnId ?? (provider === 'grok' ? payload.promptId : undefined)));
       if (typeof turnValue === 'string' && turnValue.length > 0 && turnValue.length <= 256) turnId = turnValue;
       const toolValue = payload && (payload.tool_use_id ?? payload.toolUseId);
       if (typeof toolValue === 'string' && toolValue.length > 0 && toolValue.length <= 256) toolUseId = toolValue;
       worktreeCreateIntent = hasWorktreeCreateIntent(payload);
       cwd = readCwd(payload);
+      if (captureDigests && !agentId && !overflow) {
+        if (signal.phase === 'turnFinished' && payload.hook_event_name === 'StopFailure')
+          failure = ['rate_limit', 'billing_error', 'authentication_failed', 'max_output_tokens'].includes(payload.error) ? payload.error : 'provider_failed';
+        if (signal.phase === 'turnStarted' && typeof payload.prompt === 'string')
+          promptDigest = createHash('sha256').update(payload.prompt).digest('hex');
+        if (signal.phase === 'turnFinished' && !failure && typeof payload.last_assistant_message === 'string')
+          responseDigest = createHash('sha256').update(payload.last_assistant_message).digest('hex');
+      }
     } catch {
       if (provider === 'grok') {
         // Large prompts follow the common header. Recover start identity without reading prompt text;
@@ -247,9 +264,9 @@ function readIdentifiers(callback) {
       // carries it again, so a truncated payload costs at most one event of latency.
       agentId = prefixString(['agent_id', 'agentId']);
       sessionId = prefixString(['session_id', 'sessionId']);
-      turnId = prefixString(['turn_id', 'turnId']);
+      turnId = prefixString(provider === 'claude' ? ['prompt_id'] : ['turn_id', 'turnId']);
     }
-    callback({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateIntent });
+    callback({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateIntent, promptDigest, responseDigest, failure, overflow: captureDigests && overflow });
   };
   // Stdin may be an interactive TTY when a human runs the bridge by hand; never wait on it.
   const timer = setTimeout(finish, ${BRIDGE_STDIN_TIMEOUT_MS});
@@ -257,7 +274,9 @@ function readIdentifiers(callback) {
   process.stdin.setEncoding('utf8');
   process.stdin.on('data', (chunk) => {
     source += chunk;
-    if (source.length > 65536) { source = source.slice(0, 65536); clearTimeout(timer); finish(); }
+    // Ordinary hooks keep their existing UTF-16 budget; UTF-8 accounting is specific to opt-in task digests.
+    const sourceSize = captureDigests ? Buffer.byteLength(source, 'utf8') : source.length;
+    if (sourceSize > sourceLimit) { overflow = true; source = source.slice(0, 65536); clearTimeout(timer); finish(); }
   });
   process.stdin.on('end', () => { clearTimeout(timer); finish(); });
   process.stdin.on('error', () => { clearTimeout(timer); finish(); });
@@ -268,13 +287,17 @@ if (!hasAnyLaunchContext) {
   process.exitCode = exitCodes.launchContextUnavailable;
 } else {
 if (process.env.CAXRI_HOOK_RECEIPTS === '1') reportBridgeStarted();
-readIdentifiers(({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateIntent, ignored }) => {
+readIdentifiers(({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateIntent, promptDigest, responseDigest, failure, overflow, ignored }) => {
   if (ignored) { process.stdin.pause(); return; }
   if (agentId) signal.agentId = agentId;
   if (cwd) signal.agentCwd = cwd;
   if (sessionId) signal.agentSessionId = sessionId;
   if (toolUseId && worktreeCreateIntent) signal.agentToolUseId = toolUseId;
   if (turnId) signal.agentTurnId = turnId;
+  if (promptDigest) signal.agentPromptDigest = promptDigest;
+  if (responseDigest) signal.agentResponseDigest = responseDigest;
+  if (failure) signal.agentFailure = failure;
+  if (overflow) signal.agentContentOverflow = true;
   if (worktreeCreateIntent) signal.worktreeCreateIntent = true;
   const socket = net.createConnection(socketPath);
   let response = '';
@@ -313,7 +336,7 @@ readIdentifiers(({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateInt
 }
 `;
 
-const BRIDGE_VERSION = 15;
+const BRIDGE_VERSION = 17;
 
 const BRIDGE_WRAPPER = String.raw`#!/bin/sh
 bridge_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)

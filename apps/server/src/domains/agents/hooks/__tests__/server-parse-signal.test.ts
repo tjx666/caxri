@@ -23,6 +23,37 @@ function expectedRejectionReason(description: string): AgentHookSignalRejectionR
 
 describe('AgentHookServer parseSignal()', () => {
     it.each([
+        { phase: 'turnFinished', agentResponseDigest: 'a'.repeat(64), accepted: true },
+        { phase: 'turnStarted', agentPromptDigest: 'b'.repeat(64), accepted: true },
+        { phase: 'turnFinished', agentPromptDigest: 'b'.repeat(64), accepted: false },
+        { phase: 'turnFinished', agentResponseDigest: 'invalid', accepted: false },
+        {
+            phase: 'turnFinished',
+            agentResponseDigest: 'a'.repeat(64),
+            agentId: 'subagent',
+            accepted: false,
+        },
+    ])(
+        'validates delegation digests without adding them to diagnostics: %j',
+        async ({ accepted, ...fields }) => {
+            const { server, socketPath, onSignal, onDiagnostic } = await createTestServer();
+            try {
+                const token = server.register('terminal-1', 'launch-1', 'claude');
+                const response = await send(
+                    socketPath,
+                    validPayload({ token, provider: 'claude', ...fields }),
+                );
+                expect(response).toBe(accepted ? '{"ok":true}\n' : '{"ok":false}\n');
+                expect(onSignal).toHaveBeenCalledTimes(accepted ? 1 : 0);
+                expect(JSON.stringify(onDiagnostic.mock.calls)).not.toContain('a'.repeat(64));
+                expect(JSON.stringify(onDiagnostic.mock.calls)).not.toContain('b'.repeat(64));
+            } finally {
+                await server.close();
+            }
+        },
+    );
+
+    it.each([
         ['invalid JSON', 'not-json'],
         ['a JSON array', '[]'],
         ['a JSON primitive', '"hello"'],

@@ -19,6 +19,7 @@ import type {
     TerminalExecutionExit,
     TerminalExecutionPort,
 } from './execution-port';
+import { isTerminalProtocolResponse } from './input-origin';
 import { TerminalLaunchPlanner } from './launch-plan';
 import type { TerminalManagerOptions, TerminalStartOptions } from './manager-types';
 import { TerminalSnapshotPersistence } from './snapshot-persistence';
@@ -57,6 +58,7 @@ export class TerminalManager {
     private readonly snapshots: TerminalSnapshotPersistence;
     private readonly starts = new SingleFlight<string, TerminalRecord>();
     private readonly titleListeners = new Map<string, TerminalTitleListener>();
+    private readonly viewSizes = new Map<string, { cols: number; rows: number }>();
     private readonly onLifecycleStarted?: TerminalManagerOptions['onLifecycleStarted'];
     private readonly onLifecycleRetired?: TerminalManagerOptions['onLifecycleRetired'];
     private readonly onShellRetired?: TerminalManagerOptions['onShellRetired'];
@@ -426,7 +428,7 @@ export class TerminalManager {
     }
 
     write(terminalId: string, data: string): boolean {
-        this.onInput?.(terminalId);
+        if (!isTerminalProtocolResponse(data)) this.onInput?.(terminalId);
         return this.execution.write(terminalId, data);
     }
 
@@ -435,7 +437,7 @@ export class TerminalManager {
         data: string,
         abortSignal?: AbortSignal,
     ): Promise<boolean> {
-        this.onInput?.(terminalId);
+        if (!isTerminalProtocolResponse(data)) this.onInput?.(terminalId);
         return this.execution.writeAcknowledged(terminalId, data, abortSignal);
     }
 
@@ -443,7 +445,7 @@ export class TerminalManager {
      * Checks and accepts a generated Agent input in one synchronous Server Core turn.
      */
     writeAgentExact(terminalId: string, data: string, expectedAgentLaunchId: string): boolean {
-        this.onInput?.(terminalId);
+        if (!isTerminalProtocolResponse(data)) this.onInput?.(terminalId);
         return this.execution.writeAgentExact(terminalId, data, expectedAgentLaunchId);
     }
 
@@ -453,7 +455,7 @@ export class TerminalManager {
      * the current attachment.
      */
     writeAgent(terminalId: string, data: string): Promise<boolean> {
-        this.onInput?.(terminalId);
+        if (!isTerminalProtocolResponse(data)) this.onInput?.(terminalId);
         return this.execution.writeAgent(terminalId, data);
     }
 
@@ -477,7 +479,13 @@ export class TerminalManager {
     }
 
     resize(terminalId: string, cols: number, rows: number): boolean {
-        return this.execution.resize(terminalId, cols, rows);
+        const accepted = this.execution.resize(terminalId, cols, rows);
+        if (accepted) this.viewSizes.set(terminalId, { cols, rows });
+        return accepted;
+    }
+
+    dimensions(terminalId: string): { cols: number; rows: number } | undefined {
+        return this.viewSizes.get(terminalId);
     }
 
     async attach(
@@ -492,6 +500,7 @@ export class TerminalManager {
         )
             return null;
         const attached = await this.execution.attach(terminalId, size);
+        if (size) this.viewSizes.set(terminalId, size);
         const snapshot = attached.snapshot ?? this.snapshots.read(terminalId);
         this.logAttach(
             terminalId,
@@ -618,6 +627,7 @@ export class TerminalManager {
     }
 
     close(terminalId: string): void {
+        this.viewSizes.delete(terminalId);
         if (this.execution.processId(terminalId) !== undefined)
             this.retireAgentLifecycleSoon(terminalId, 'stopped');
         this.execution.close(terminalId);

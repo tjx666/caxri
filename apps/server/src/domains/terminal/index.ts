@@ -5,6 +5,7 @@ export type {
     TerminalExecutionPort,
 } from './execution-port';
 export { resolveTerminalFileLink } from './file-links';
+export { terminalDirectoryIdentity } from './launch';
 export { TerminalManager } from './manager';
 export type { TerminalManagerOptions, TerminalWorkingDirectoryIdentity } from './manager-types';
 export { TerminalRestoreSupervisor } from './restore-supervisor';

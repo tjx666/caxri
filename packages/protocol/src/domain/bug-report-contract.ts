@@ -1,5 +1,9 @@
 import { z } from 'zod';
 
+import type { MethodSpec } from '../transport/method-spec.js';
+import { commandPolicy } from '../transport/method-spec.js';
+import { identifierSchema } from './domain.js';
+
 function hasReportControlCharacter(value: string): boolean {
     for (const character of value) {
         const code = character.codePointAt(0)!;
@@ -29,3 +33,56 @@ export const bugReportScreenshot = z.object({
     height: z.number().int().positive().max(16_384),
     width: z.number().int().positive().max(16_384),
 });
+
+/**
+ * Keeps bug-report methods beside their content schemas rather than growing the central registry.
+ */
+export const bugReportMethods = {
+    'bugReport.context': {
+        ...commandPolicy('server', 'read'),
+        params: z.object({}).default({}),
+        result: z.object({
+            appVersion: z.string().min(1).max(100),
+            architecture: z.string().min(1).max(100),
+            commit: z.string().min(1).max(100),
+            platform: z.string().min(1).max(100),
+            recentErrorIds: z.array(z.string().min(1).max(200)).max(5),
+        }),
+    },
+    'bugReport.captureScreenshot': {
+        ...commandPolicy('desktop', 'control'),
+        params: z.object({}).default({}),
+        result: bugReportScreenshot,
+    },
+    /**
+     * Persists the previewed capture, so its authority is Desktop write rather than capture control.
+     */
+    'bugReport.saveScreenshot': {
+        ...commandPolicy('desktop', 'write'),
+        params: z.object({ dataUrl: bugReportScreenshot.shape.dataUrl }),
+        result: z.object({ path: z.string().min(1).max(4_096) }),
+    },
+    'bugReport.send': {
+        ...commandPolicy('desktop', 'write'),
+        params: z.object({
+            report: bugReportText,
+            screenshot: bugReportScreenshot.optional(),
+            sessionId: identifierSchema,
+            terminalId: identifierSchema,
+        }),
+        result: z.null(),
+    },
+} as const satisfies Record<string, MethodSpec>;
+
+export const bugReportInternalMethods = {
+    'bugReport.deliver': {
+        ...commandPolicy('server', 'control'),
+        params: z.object({
+            pasteImage: z.boolean(),
+            report: bugReportText,
+            sessionId: identifierSchema,
+            terminalId: identifierSchema,
+        }),
+        result: z.null(),
+    },
+} as const satisfies Record<string, MethodSpec>;
