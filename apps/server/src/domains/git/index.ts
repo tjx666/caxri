@@ -327,7 +327,7 @@ export class GitService {
         sessionId: string,
         repoIdValue: string,
         path: string,
-    ): Promise<DiffTarget> {
+    ): Promise<DiffTarget | null> {
         const repo = await this.resolveRepository(sessionId, repoIdValue);
         let candidate = isAbsolute(path) ? path : resolve(repo.rootPath, path);
         try {
@@ -342,7 +342,7 @@ export class GitService {
         assertInsideRoot(relativePath, outsideRepo);
         if (!relativePath) throw new CaxriError('PATH_DENIED', outsideRepo);
         const file = repo.files.find((item) => item.path === relativePath);
-        if (!file) throw new CaxriError('NOT_FOUND', 'Git change no longer exists');
+        if (!file) return null;
         return { candidate, file, relativePath, repository: repo };
     }
 
@@ -751,12 +751,13 @@ export class GitService {
         sessionId: string,
         repoIdValue: string,
         path: string,
-    ): Promise<GitDiffDocument> {
-        const { candidate, file, relativePath, repository } = await this.resolveDiffTarget(
-            sessionId,
-            repoIdValue,
-            path,
-        );
+    ): Promise<GitDiffDocument | null> {
+        const target = await this.resolveDiffTarget(sessionId, repoIdValue, path);
+        /**
+         * A watcher may refresh an open diff after discard or commit removed its change.
+         */
+        if (!target) return null;
+        const { candidate, file, relativePath, repository } = target;
         const workingTreeContent = await this.readWorkingTreeFile(candidate);
         if (workingTreeContent === undefined && file.kind !== 'deleted') {
             const patch = await this.loadPatch(repository.rootPath, file, relativePath, [
