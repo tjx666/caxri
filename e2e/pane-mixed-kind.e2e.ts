@@ -69,6 +69,8 @@ async function beginTabDragOverPane(page: Page, tab: Locator, targetPaneId: stri
             const transfer = new DataTransfer();
             const bounds = dropTarget.getBoundingClientRect();
             const options = {
+                // This fixture tests pane placement; Editor-to-Terminal drops require Option for that action.
+                altKey: true,
                 bubbles: true,
                 cancelable: true,
                 clientX: bounds.left + bounds.width * 0.5,
@@ -228,9 +230,9 @@ test('a pane holding a Terminal and a document treats both tabs the same', async
         await expect.poll(() => activePaneId(running.page)).toBe(documentPaneId);
 
         /**
-         * Dragging a tab across panes previews where it would land; it must not activate the pane it merely passes
-         * over. A held hover that changed the active pane would reorder Terminals under the user mid-drag, which is why
-         * VS Code shows an insertion line and nothing else.
+         * Option-dragging an Editor across panes previews where it would land; it must not activate the pane it merely
+         * passes over. A held hover that changed the active pane would reorder Terminals under the user mid-drag, which
+         * is why VS Code shows an insertion line and nothing else.
          */
         await beginTabDragOverPane(running.page, fileTab, terminalPaneId!);
         await running.page.waitForTimeout(HELD_HOVER_MS);
