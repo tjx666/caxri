@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { CaxriDatabase } from '../db/repository';
+import { resolveOwnerProjectRoot } from '../project-root-identity';
 import { ProjectRootResolver } from '../project-roots';
 
 const temporaryDirectories: string[] = [];
@@ -16,6 +17,13 @@ afterEach(async () => {
 });
 
 describe('ProjectRootResolver', () => {
+    it('classifies a missing owner-authorized root as a denied path', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-owner-root-missing-'));
+        temporaryDirectories.push(directory);
+        await expect(resolveOwnerProjectRoot(join(directory, 'missing'))).rejects.toMatchObject({
+            code: 'PATH_DENIED',
+        });
+    });
     it('rejects an alternate Workbench Root replaced after its inode was authorized', async () => {
         const createdDirectory = await mkdtemp(join(tmpdir(), 'caxri-workbench-root-replaced-'));
         temporaryDirectories.push(createdDirectory);

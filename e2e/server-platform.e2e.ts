@@ -264,6 +264,10 @@ test('authorizes an external caller before Desktop attaches and revokes it acros
             externalEnvironment,
         );
         expect(recovered.code).toBe(0);
+        expect(JSON.parse(recovered.stdout)).toMatchObject({
+            receipt: { status: 'completed' },
+            answer: { text: 'Synthetic delegation complete' },
+        });
         const revoked = await runCli(
             [
                 'agent',

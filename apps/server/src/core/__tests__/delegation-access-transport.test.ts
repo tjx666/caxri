@@ -66,3 +66,71 @@ it('authenticates a scoped external client and rechecks revocation before cached
     ).rejects.toThrow();
     expect(invoke).toHaveBeenCalledOnce();
 });
+
+it('withholds an admitted response when access is revoked while waiting', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-external-wait-'));
+    const lease = await acquireServerProfile({ userDataPath, version: '1.0.0' });
+    const registry = await DelegationAccessRegistry.open(
+        lease.paths.directory,
+        join(lease.paths.directory, 'clients.json'),
+    );
+    const issued = await registry.create(
+        { projectId: 'project', sessionId: 'session', callerProvider: 'codex' },
+        60_000,
+    );
+    const admitted = Promise.withResolvers<void>();
+    const completed = Promise.withResolvers<unknown>();
+    const server = new ControlServer({
+        identity: lease.identity,
+        desktopCredential: lease.desktopCredential,
+        adapters: {
+            server: {
+                invoke: () => {
+                    admitted.resolve();
+                    return completed.promise;
+                },
+            },
+        },
+        authenticateDelegation: (credential) => registry.authenticate(credential),
+        refreshContext: (context) =>
+            context.principal.kind === 'delegation-client'
+                ? registry.refresh(context.principal)
+                : context,
+    });
+    const resources: { client?: ServerClient } = {};
+    onTestFinished(async () => {
+        completed.resolve(null);
+        resources.client?.close();
+        await server.close();
+        await lease.release();
+        await rm(userDataPath, { recursive: true, force: true });
+    });
+    await lease.publish(await server.start());
+    resources.client = await ServerClient.connect(lease.manifest, 1000, {
+        kind: 'delegation-client',
+        clientId: issued.clientId,
+        generation: issued.generation,
+        token: issued.token,
+    });
+    const waiting = resources.client.request('agent.delegation.wait', {
+        delegationId: 'task',
+        timeoutMs: 1000,
+    });
+    const rejected = expect(waiting).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await admitted.promise;
+    await registry.revoke(issued.clientId, issued.generation);
+    completed.resolve({
+        outcome: 'settled',
+        receipt: {
+            delegationId: 'task',
+            projectId: 'project',
+            sessionId: 'session',
+            provider: 'claude',
+            status: 'completed',
+            revision: 1,
+            createdAt: 1,
+            updatedAt: 1,
+        },
+    });
+    await rejected;
+});

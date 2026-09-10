@@ -19,6 +19,11 @@ it('requires explicit new-root authorization and atomically reuses the dedicated
         const other = database.ensureDelegationContext('/synthetic/external', 'grok', false);
         expect(other.sessionId).not.toBe(first.sessionId);
         expect(other.projectId).toBe(first.projectId);
+        database.archiveSession(first.sessionId);
+        const replacement = database.ensureDelegationContext('/synthetic/external', 'codex', false);
+        expect(replacement.sessionId).not.toBe(first.sessionId);
+        expect(database.getSession(replacement.sessionId)?.archivedAt).toBeUndefined();
+        expect(database.getAppState('lastSelectedSessionId')).toBe(selected.id);
     } finally {
         database.close();
     }

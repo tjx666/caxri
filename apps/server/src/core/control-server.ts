@@ -67,6 +67,7 @@ import {
     logControlRequestOutcome,
     observeControlRequest,
     operatorContext,
+    refreshDelegationReply,
     reserveControlRequest,
     shouldSettleOutsideOrderedLane,
     terminateSocket,
@@ -254,7 +255,7 @@ export class ControlServer {
                 : await this.dispatch.admit(request, context);
         const settle = async (): Promise<void> => {
             try {
-                const reply = await admission.reply;
+                const reply = refreshDelegationReply(await admission.reply, context, this.options);
                 logControlRequestOutcome(this.options, request, reply, context, startedAt, timing);
                 this.writeCommandReply(socket, state, request, reply, context, release);
             } catch {
