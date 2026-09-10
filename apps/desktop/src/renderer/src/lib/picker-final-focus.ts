@@ -11,6 +11,7 @@
  */
 const NO_FALLBACK = (): HTMLElement | null => null;
 const fallback = { current: NO_FALLBACK };
+const restoration = { current: null as Element | null };
 
 export function registerPickerFallbackFocus(getElement: () => HTMLElement | null): () => void {
     fallback.current = getElement;
@@ -20,17 +21,50 @@ export function registerPickerFallbackFocus(getElement: () => HTMLElement | null
 }
 
 /**
- * Value for Base UI's `finalFocus`: `true` lets it restore the element that held focus when the picker opened, an
- * element overrides that, and `false` leaves focus where the closing dialog dropped it rather than on a stale element.
+ * Return the exact opening element instead of delegating to Base UI's independently captured focus history.
  */
 export function resolvePickerFinalFocus(
-    elementFocusedBeforeOpen: Element | null,
-): HTMLElement | true | false {
+    elementFocusedBeforeOpen: HTMLElement | null,
+): HTMLElement | false {
     if (
         elementFocusedBeforeOpen?.isConnected &&
         elementFocusedBeforeOpen !== elementFocusedBeforeOpen.ownerDocument.body
     ) {
-        return true;
+        return elementFocusedBeforeOpen;
     }
-    return fallback.current() ?? false;
+    const element = fallback.current();
+    return element?.isConnected ? element : false;
+}
+
+/**
+ * True only during the synchronous focus event caused by picker restoration, never during later navigation.
+ */
+export function isRestoringPickerFocus(element: Element): boolean {
+    return restoration.current === element;
+}
+
+/**
+ * Own the focus call so consumers can distinguish restoration from intentional keyboard navigation. Defer until the
+ * modal's focus trap has been removed, matching Base UI's cleanup ordering, and opt out of its second focus call. A
+ * command that has already handed focus to another surface wins over the old opening element.
+ */
+export function restorePickerFocus(
+    elementFocusedBeforeOpen: HTMLElement | null,
+    popup: HTMLElement | null,
+): void {
+    queueMicrotask(() => {
+        const document_ = popup?.ownerDocument ?? elementFocusedBeforeOpen?.ownerDocument;
+        if (!document_) return;
+        const active = document_.activeElement;
+        if (active && active !== document_.body && !popup?.contains(active)) return;
+        const target = resolvePickerFinalFocus(elementFocusedBeforeOpen);
+        if (!target) return;
+        const previous = restoration.current;
+        restoration.current = target;
+        try {
+            target.focus({ preventScroll: true });
+        } finally {
+            restoration.current = previous;
+        }
+    });
 }

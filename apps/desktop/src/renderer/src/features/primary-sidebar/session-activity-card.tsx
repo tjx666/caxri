@@ -15,7 +15,9 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from '../../components/
 import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { openExternalUrl } from '../../lib/external-link';
+import { isRestoringPickerFocus } from '../../lib/picker-final-focus';
 import { cn } from '../../lib/utilities';
+import { useDialogStore } from '../../stores/dialogs';
 import { pushToast } from '../../stores/toasts';
 import { ProjectIcon } from './project-icon';
 import type { SessionActivityPresentation } from './session-activity';
@@ -110,13 +112,20 @@ export function SessionActivityCard({
          * Xterm consumes Escape before React's popup handler sees it, so capture it at Window.
          */
         const closeOnEscape = (event: KeyboardEvent): void => {
-            if (event.key !== 'Escape') return;
+            if (event.key !== 'Escape' || useDialogStore.getState().isModalOpen()) return;
             event.preventDefault();
             event.stopPropagation();
             setOpen(false);
         };
+        // A modal takes ownership even when making the sidebar inert prevents its usual blur cleanup.
+        const unsubscribe = useDialogStore.subscribe((state) => {
+            if (state.isModalOpen()) setOpen(false);
+        });
         addEventListener('keydown', closeOnEscape, { capture: true });
-        return () => removeEventListener('keydown', closeOnEscape, { capture: true });
+        return () => {
+            unsubscribe();
+            removeEventListener('keydown', closeOnEscape, { capture: true });
+        };
     }, [open]);
 
     return (
@@ -126,9 +135,11 @@ export function SessionActivityCard({
                 closeDelay={80}
                 delay={450}
                 onFocus={(event) => {
-                    if (!event.currentTarget.matches(':focus-visible')) return;
                     event.preventBaseUIHandler();
-                    setOpen(true);
+                    setOpen(
+                        event.currentTarget.matches(':focus-visible') &&
+                            !isRestoringPickerFocus(event.currentTarget),
+                    );
                 }}
                 render={trigger}
             />

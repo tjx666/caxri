@@ -1,18 +1,23 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { registerPickerFallbackFocus, resolvePickerFinalFocus } from './picker-final-focus';
+import {
+    isRestoringPickerFocus,
+    registerPickerFallbackFocus,
+    resolvePickerFinalFocus,
+    restorePickerFocus,
+} from './picker-final-focus';
 
 /**
  * Runs under Vitest's `node` environment, so `Element` is modelled by the three fields the resolver reads:
  * connectivity, identity against the document body, and nothing else.
  */
-function fakeElement(overrides: { isBody?: boolean; isConnected?: boolean } = {}): Element {
+function fakeElement(overrides: { isBody?: boolean; isConnected?: boolean } = {}): HTMLElement {
     const element = {
         isConnected: overrides.isConnected ?? true,
         ownerDocument: { body: undefined as unknown as HTMLElement },
     };
     element.ownerDocument.body = (overrides.isBody ? element : {}) as HTMLElement;
-    return element as unknown as Element;
+    return element as unknown as HTMLElement;
 }
 
 const fallback = { isConnected: true } as HTMLElement;
@@ -24,9 +29,10 @@ afterEach(() => {
 });
 
 describe('resolvePickerFinalFocus', () => {
-    it('lets Base UI restore a connected non-body element that held focus before the picker opened', () => {
+    it('returns the exact connected opening element instead of delegating to focus history', () => {
         registration.unregister = registerPickerFallbackFocus(() => fallback);
-        expect(resolvePickerFinalFocus(fakeElement())).toBe(true);
+        const element = fakeElement();
+        expect(resolvePickerFinalFocus(element)).toBe(element);
     });
 
     it('routes to the workbench fallback when focus sat on the document body', () => {
@@ -48,5 +54,72 @@ describe('resolvePickerFinalFocus', () => {
         registration.unregister = registerPickerFallbackFocus(() => fallback);
         first();
         expect(resolvePickerFinalFocus(null)).toBe(fallback);
+    });
+
+    it('rejects a disconnected workbench fallback', () => {
+        registration.unregister = registerPickerFallbackFocus(() =>
+            fakeElement({ isConnected: false }),
+        );
+        expect(resolvePickerFinalFocus(null)).toBe(false);
+    });
+});
+
+/**
+ * Models native synchronous focus dispatch without rendering React components.
+ */
+function focusFixture() {
+    const body = fakeElement({ isBody: true });
+    const document_ = { body, activeElement: body };
+    const target = Object.assign(fakeElement(), {
+        ownerDocument: document_,
+        focus: vi.fn(() => {
+            document_.activeElement = target;
+            expect(isRestoringPickerFocus(target)).toBe(true);
+        }),
+    });
+    const popup = Object.assign(fakeElement(), {
+        ownerDocument: document_,
+        contains: (element: Node | null) => element === popup,
+    });
+    document_.activeElement = popup;
+    return { doc: document_, popup, target };
+}
+
+describe('restorePickerFocus', () => {
+    it('restores after modal cleanup and marks only the synchronous restoration event', async () => {
+        const { popup, target } = focusFixture();
+        restorePickerFocus(target, popup);
+        expect(target.focus).not.toHaveBeenCalled();
+        await Promise.resolve();
+        expect(target.focus).toHaveBeenCalledWith({ preventScroll: true });
+        expect(isRestoringPickerFocus(target)).toBe(false);
+    });
+
+    it('preserves focus handed to a different surface during closing', async () => {
+        const { doc, popup, target } = focusFixture();
+        restorePickerFocus(target, popup);
+        const destination = fakeElement();
+        doc.activeElement = destination;
+        await Promise.resolve();
+        expect(doc.activeElement).toBe(destination);
+        expect(target.focus).not.toHaveBeenCalled();
+    });
+
+    it('uses the current workbench when the original target disappears before cleanup', async () => {
+        const { doc, popup, target } = focusFixture();
+        registration.unregister = registerPickerFallbackFocus(() => target);
+        const original = fakeElement({ isConnected: false });
+        restorePickerFocus(original, popup);
+        doc.activeElement = doc.body;
+        await Promise.resolve();
+        expect(doc.activeElement).toBe(target);
+    });
+
+    it('restores a body-originated picker through its popup document', async () => {
+        const { doc, popup, target } = focusFixture();
+        registration.unregister = registerPickerFallbackFocus(() => target);
+        restorePickerFocus(null, popup);
+        await Promise.resolve();
+        expect(doc.activeElement).toBe(target);
     });
 });
