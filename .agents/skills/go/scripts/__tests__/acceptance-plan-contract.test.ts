@@ -65,9 +65,11 @@ describe('Go Acceptance planning contract', () => {
         expect(fileIssueSkill).toContain(
             'Do not apply `unit-testing` or `e2e-testing` merely because a product change requires regression',
         );
-        expect(fileIssueSkill).toContain('apply exactly one priority label — `P0`, `P1`, or `P2`');
         expect(fileIssueSkill).toContain(
-            'apply exactly one effort label — `XS`, `S`, `M`, `L`, or `XL`',
+            'Then apply exactly one priority label — `P0`, `P1`, or `P2`',
+        );
+        expect(fileIssueSkill).toContain(
+            'Finally apply exactly one effort label — `XS`, `S`, `M`, `L`, or `XL`',
         );
         expect(fileIssueSkill).toContain('verify the complete label set after creation');
     });
