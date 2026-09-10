@@ -89,7 +89,7 @@ validated content and passes that exact snapshot to GitHub:
 ```bash
 bun run .agents/skills/file-issue/scripts/create-refactor-issue.ts \
   --repo tjx666/caxri --title "$title" --body-file "$body_file" \
-  --label enhancement --label skill --label acceptance
+  --label enhancement --label skill --label acceptance --label P2 --label M
 ```
 
 Use `validate-refactor-acceptance.ts --body-file "$body_file"` only for draft-only checks that do
@@ -146,9 +146,14 @@ Do not apply `unit-testing` or `e2e-testing` merely because a product change req
 coverage. Apply them only when the testing system itself is part of the issue scope. Likewise, omit
 a surface label when that surface is only incidental evidence.
 
-Finally apply exactly one priority label — `P0`, `P1`, or `P2` — chosen by the rules under
+Then apply exactly one priority label — `P0`, `P1`, or `P2` — chosen by the rules under
 [Priority](#priority-assess-never-default). The label is what the owner sees on the issue list, so
 an issue without one is a filing defect; the Project `Priority` field mirrors the same value.
+
+Finally apply exactly one effort label — `XS`, `S`, `M`, `L`, or `XL` — assessed by the rules under
+[Size](#size-agent-native-complexity). It carries the same value as the Project `Size` field, for
+the same reason priority is recorded twice: the owner triages from the issue list, where Project
+fields are not visible. An issue without an effort label is a filing defect.
 
 Use only labels returned by the live query. Creating or changing repository labels requires a
 separate explicit request; do not silently invent one during issue filing. Pass multiple labels
@@ -230,7 +235,9 @@ Tie-breakers:
 
 Estimate in agent-native terms — ambiguity, architectural reach, ownership boundaries crossed,
 validation cost, desktop/CI constraints, expected agent iterations — never manual coding time.
-State the chosen value and its dominant cost driver in the filing report.
+State the chosen value and its dominant cost driver in the filing report. Like priority, the size is
+recorded twice with the same value: the `XS` / `S` / `M` / `L` / `XL` label on the issue and the
+Project `Size` field. Assess it explicitly; filing with an unconsidered default is a process defect.
 
 - `XS` — one obvious local change, trivial validation.
 - `S` — a few files inside one owning surface; standard unit-test validation.
