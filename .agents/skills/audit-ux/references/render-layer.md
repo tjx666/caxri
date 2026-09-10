@@ -42,10 +42,10 @@ alone returns `PATH_DENIED` because a Project root may only arrive through the p
 ```js
 const bootstrap = await caxri.request('app.bootstrap');
 const project = bootstrap.result.projects[0];
-for (let index = 0; index < 4; index++) {
-  await caxri.request('session.create', { projectId: project.id, defaultAgent: null });
-}
+await caxri.request('session.create', { defaultAgent: null, projectId: project.id });
 ```
+
+Repeat that last call once per additional Session; the worked example below used five.
 
 Record the fixture shape (Projects, Sessions, visible tree rows) in the report: counts are only
 comparable against the same shape. The worked example below used 1 Project, 5 Sessions, and 49
@@ -92,7 +92,7 @@ Enumerate the live targets before sampling instead of assuming state:
 JSON.stringify({
   sessions: [...document.querySelectorAll('.session-card')].map((node) => ({
     active: node.classList.contains('active'),
-    id: node.getAttribute('data-session-id'),
+    id: node.dataset.sessionId,
   })),
   tabs: [...document.querySelectorAll('[id^="secondary-sidebar-tab-"]')].map((node) => ({
     id: node.id,
