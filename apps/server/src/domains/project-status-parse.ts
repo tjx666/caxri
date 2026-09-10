@@ -40,11 +40,12 @@ export const githubPullRequestSchema = z.object({
 const vercelDeploymentSchema = z.object({
     uid: z.string().optional(),
     created: z.number().optional(),
+    inspectorUrl: z.string().nullable().optional(),
     name: z.string().optional(),
     readyState: z.string().optional(),
     state: z.string().optional(),
-    target: z.enum(['production', 'preview']).nullable().optional(),
-    url: z.string().optional(),
+    target: z.enum(['production', 'preview', 'staging']).nullable().optional(),
+    url: z.string().nullable().optional(),
 });
 
 export type VercelDeployment = z.infer<typeof vercelDeploymentSchema>;

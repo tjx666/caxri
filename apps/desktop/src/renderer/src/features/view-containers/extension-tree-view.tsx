@@ -1,48 +1,24 @@
+import type { KeyboardEvent, MouseEvent, RefObject } from 'react';
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import type { ExtensionTreeViewState, TreeItemDto, ViewActionDescriptor } from '@caxri/protocol';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import {
-    AlertTriangle,
-    Check,
-    ChevronDown,
-    ChevronRight,
-    Circle,
-    CircleArrowUp,
-    CircleCheck,
-    CircleDot,
-    CircleSlash,
-    CircleX,
-    Cloud,
-    EyeOff,
-    File,
-    GitBranch,
-    GitPullRequest,
-    LoaderCircle,
-    MessageSquareWarning,
-    Monitor,
-    Package,
-    Rocket,
-} from 'lucide-react';
+import { AlertTriangle, LoaderCircle } from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';
 import { Button } from '../../components/ui/button';
-import { Tooltip } from '../../components/ui/tooltip';
-import { DeploymentPreviewIcon } from '../../icons/deployment-preview-icon';
-import type { LinearStatusKind } from '../../icons/linear/linear-status-icon';
-import { LinearStatusIcon } from '../../icons/linear/linear-status-icon';
 import { caxri } from '../../lib/caxri';
 import { openExternalUrl } from '../../lib/external-link';
 import { cn } from '../../lib/utilities';
 import { useSessionState } from '../../stores/selectors';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { ExtensionTreeHeader } from './extension-tree-header';
-import { ExtensionTreeMessage } from './extension-tree-message';
 import type { PendingTreeRefresh } from './extension-tree-refresh-state';
 import {
     isMessageRefreshAction,
     reconcilePendingTreeRefresh,
 } from './extension-tree-refresh-state';
+import { ExtensionTreeRowContent, ExtensionTreeRowTooltip } from './extension-tree-row-content';
 import type { VisibleItemRow, VisibleRow } from './extension-tree-rows';
 import { flattenVisibleRows, visibleRowKey } from './extension-tree-rows';
 import type { TreeRowAction } from './extension-tree-state';
@@ -56,7 +32,6 @@ import {
     toggleTreeItemSubtree,
     treeItemSubtreeHandles,
 } from './extension-tree-state';
-import { ExtensionTreeTooltip } from './extension-tree-tooltip';
 import { ROOT_HANDLE, useExtensionTreeChildren } from './hooks/use-extension-tree-children';
 import { useExtensionTreeState } from './hooks/use-extension-tree-state';
 import { dispatchExtensionViewAction } from './view-container-commands';
@@ -65,69 +40,6 @@ import { dispatchExtensionViewAction } from './view-container-commands';
  * Message guidance may wrap beyond the initial Empty layout, so its virtual row is measured after render.
  */
 const MESSAGE_ROW_HEIGHT = 160;
-
-const themeIcons = {
-    'check': Check,
-    'circle-check': CircleCheck,
-    'circle-arrow-up': CircleArrowUp,
-    'circle-dot': CircleDot,
-    'circle-outline': Circle,
-    'circle-slash': CircleSlash,
-    'deployment-preview': DeploymentPreviewIcon,
-    'circle-x': CircleX,
-    'cloud': Cloud,
-    'error': AlertTriangle,
-    'eye-off': EyeOff,
-    'file': File,
-    'folder': Package,
-    'git-branch': GitBranch,
-    'git-pull-request': GitPullRequest,
-    'issues': MessageSquareWarning,
-    'loading': LoaderCircle,
-    'monitor': Monitor,
-    'package': Package,
-    'pass': Check,
-    'question': Circle,
-    'repo': Package,
-    'rocket': Rocket,
-    'symbol-string': File,
-    'warning': AlertTriangle,
-} as const;
-
-const linearStatusIconKinds = {
-    'linear-backlog': 'backlog',
-    'linear-canceled': 'canceled',
-    'linear-completed': 'completed',
-    'linear-started': 'started',
-    'linear-triage': 'triage',
-    'linear-unstarted': 'unstarted',
-} as const satisfies Record<string, LinearStatusKind>;
-type LinearStatusIconId = keyof typeof linearStatusIconKinds;
-type ThemeIconId = keyof typeof themeIcons | LinearStatusIconId;
-
-function isLinearStatusIconId(iconId: string | undefined): iconId is LinearStatusIconId {
-    return iconId !== undefined && iconId in linearStatusIconKinds;
-}
-
-const themeIconClassNames: Partial<Record<ThemeIconId, string>> = {
-    'check': 'text-success',
-    'circle-check': 'text-success',
-    'circle-dot': 'text-muted',
-    'circle-outline': 'text-muted',
-    'circle-slash': 'text-muted',
-    'circle-x': 'text-danger',
-    'error': 'text-danger',
-    'linear-backlog': 'text-muted',
-    'linear-canceled': 'text-muted',
-    'linear-completed': 'text-success',
-    'linear-started': 'text-warning',
-    'linear-triage': 'text-warning',
-    'linear-unstarted': 'text-muted',
-    'loading': 'animate-spin text-warning',
-    'pass': 'text-success',
-    'question': 'text-muted',
-    'warning': 'text-warning',
-};
 
 function runTreeCommand(item: TreeItemDto): void {
     const command = item.command;
@@ -226,6 +138,108 @@ export function ExtensionTreeView({
     );
 }
 
+function handleTreeItemKeyDown(
+    event: KeyboardEvent<HTMLDivElement>,
+    {
+        dispatchRowAction,
+        index,
+        isCollapsible,
+        isExpanded,
+        onFocusIndex,
+        parentIndex,
+        rowCount,
+        row,
+    }: {
+        dispatchRowAction: (action: TreeRowAction) => void;
+        index: number;
+        isCollapsible: boolean;
+        isExpanded: boolean;
+        onFocusIndex: (index: number) => void;
+        parentIndex: number;
+        row: VisibleItemRow;
+        rowCount: number;
+    },
+): void {
+    if (event.nativeEvent.isComposing) return;
+    switch (event.key) {
+        case 'ArrowDown':
+            onFocusIndex(index + 1);
+            break;
+        case 'ArrowUp':
+            onFocusIndex(index - 1);
+            break;
+        case 'ArrowRight':
+            if (!isCollapsible || isExpanded) return;
+            dispatchRowAction('toggle');
+            break;
+        case 'ArrowLeft':
+            if (isCollapsible && isExpanded) dispatchRowAction('toggle');
+            else if (parentIndex !== -1) onFocusIndex(parentIndex);
+            break;
+        case 'Enter':
+        case ' ':
+            dispatchRowAction(keyboardTreeRowAction(row.item, event.key));
+            break;
+        case 'Home':
+            onFocusIndex(0);
+            break;
+        case 'End':
+            onFocusIndex(rowCount - 1);
+            break;
+        default:
+            return;
+    }
+    event.preventDefault();
+}
+
+function treeItemPresentation(row: VisibleItemRow, isRefreshing: boolean) {
+    const isHeader = row.item.variant === 'header';
+    const isMessage = row.item.variant === 'message';
+    const isRefreshingMessage = isMessage && isRefreshing;
+    return {
+        className: cn(
+            'flex w-full min-w-0 items-center gap-2 border-0 bg-transparent text-left text-foreground focus-visible:bg-elevated focus-visible:outline-none',
+            isHeader ? 'h-8 border-b border-border font-semibold' : isMessage ? 'min-h-40' : 'h-7',
+            !isMessage ? 'pr-2 hover:bg-elevated' : undefined,
+            !isMessage && row.item.command ? 'cursor-pointer' : undefined,
+        ),
+        commandTarget: !isRefreshingMessage && row.item.command ? 'true' : undefined,
+        isCollapsible: row.item.collapsibleState !== 'none',
+        isMessage,
+        isRefreshingMessage,
+        style: isMessage ? undefined : { paddingLeft: `${8 + row.depth * 14}px` },
+        tooltip:
+            row.item.tooltip ??
+            (row.item.description ? `${row.item.label} — ${row.item.description}` : row.item.label),
+    };
+}
+
+function dispatchTreeRowAction({
+    action,
+    isRefreshingMessage,
+    onAction,
+    row,
+}: {
+    action: TreeRowAction;
+    isRefreshingMessage: boolean;
+    onAction: (row: VisibleItemRow, action: TreeRowAction) => void;
+    row: VisibleItemRow;
+}): void {
+    if (isRefreshingMessage && action === 'activate') return;
+    onAction(row, action);
+}
+
+function handleTreeItemClick(
+    event: MouseEvent<HTMLDivElement>,
+    rowElement: RefObject<HTMLDivElement | null>,
+    row: VisibleItemRow,
+    dispatchRowAction: (action: TreeRowAction) => void,
+): void {
+    rowElement.current?.focus();
+    if (row.item.variant === 'message') return;
+    dispatchRowAction(pointerTreeRowAction(row.item, 'body', 'click', event.detail, event.altKey));
+}
+
 /**
  * Keeps one roving treeitem focus target while giving the disclosure its own pointer and accessible hit area. The
  * disclosure stays outside the tab order because Enter activates the row and Space expands it; pointer activation
@@ -254,203 +268,63 @@ const TreeItemRow = memo(
         row: VisibleItemRow;
         rowCount: number;
     }) => {
-        const isCollapsible = row.item.collapsibleState !== 'none';
-        const isHeader = row.item.variant === 'header';
-        const isMessage = row.item.variant === 'message';
         const { isExpanded, positionInSet, setSize } = row;
-        const themeIconId = row.item.icon?.kind === 'theme' ? row.item.icon.id : undefined;
-        const linearStatusKind = isLinearStatusIconId(themeIconId)
-            ? linearStatusIconKinds[themeIconId]
-            : undefined;
-        const Icon =
-            linearStatusKind === undefined && themeIconId !== undefined && themeIconId in themeIcons
-                ? themeIcons[themeIconId as keyof typeof themeIcons]
-                : File;
-        const iconClassName =
-            themeIconId !== undefined ? themeIconClassNames[themeIconId as ThemeIconId] : undefined;
-        const trailingIconId =
-            row.item.trailingIcon?.kind === 'theme' ? row.item.trailingIcon.id : undefined;
-        const TrailingIcon =
-            trailingIconId && trailingIconId in themeIcons
-                ? themeIcons[trailingIconId as keyof typeof themeIcons]
-                : undefined;
         const rowElement = useRef<HTMLDivElement>(null);
-        const tooltip =
-            row.item.tooltip ??
-            (row.item.description ? `${row.item.label} — ${row.item.description}` : row.item.label);
-        const dispatchRowAction = (action: TreeRowAction): void => {
-            if (isMessage && isRefreshing && action === 'activate') return;
-            onAction(row, action);
-        };
+        const presentation = treeItemPresentation(row, isRefreshing);
+        const dispatchRowAction = (action: TreeRowAction): void =>
+            dispatchTreeRowAction({
+                action,
+                isRefreshingMessage: presentation.isRefreshingMessage,
+                onAction,
+                row,
+            });
         const treeItem = (
             <div
-                aria-busy={isMessage && isRefreshing ? true : undefined}
-                aria-disabled={isMessage && isRefreshing ? true : undefined}
-                aria-expanded={isCollapsible ? isExpanded : undefined}
+                aria-busy={presentation.isRefreshingMessage || undefined}
+                aria-disabled={presentation.isRefreshingMessage || undefined}
+                aria-expanded={presentation.isCollapsible ? isExpanded : undefined}
                 aria-label={row.item.accessibilityLabel}
                 aria-level={row.depth + 1}
                 aria-posinset={positionInSet}
                 aria-selected={active}
                 aria-setsize={setSize}
-                className={cn(
-                    'flex w-full min-w-0 items-center gap-2 border-0 bg-transparent text-left text-foreground focus-visible:bg-elevated focus-visible:outline-none',
-                    isHeader
-                        ? 'h-8 border-b border-border font-semibold'
-                        : isMessage
-                          ? 'min-h-40'
-                          : 'h-7',
-                    !isMessage ? 'pr-2' : undefined,
-                    !isMessage ? 'hover:bg-elevated' : undefined,
-                    !isMessage && row.item.command ? 'cursor-pointer' : undefined,
-                )}
-                data-tree-command-target={
-                    row.item.command && !(isMessage && isRefreshing) ? 'true' : undefined
-                }
+                className={presentation.className}
+                data-tree-command-target={presentation.commandTarget}
                 data-tree-index={index}
                 data-tree-item-variant={row.item.variant}
                 ref={rowElement}
                 role="treeitem"
-                style={isMessage ? undefined : { paddingLeft: `${8 + row.depth * 14}px` }}
+                style={presentation.style}
                 tabIndex={active ? 0 : -1}
-                onClick={(event) => {
-                    rowElement.current?.focus();
-                    if (!isMessage)
-                        dispatchRowAction(
-                            pointerTreeRowAction(
-                                row.item,
-                                'body',
-                                'click',
-                                event.detail,
-                                event.altKey,
-                            ),
-                        );
-                }}
+                onClick={(event) => handleTreeItemClick(event, rowElement, row, dispatchRowAction)}
                 onFocus={() => onFocus(row)}
-                onKeyDown={(event) => {
-                    if (event.nativeEvent.isComposing) return;
-                    switch (event.key) {
-                        case 'ArrowDown':
-                            onFocusIndex(index + 1);
-                            break;
-                        case 'ArrowUp':
-                            onFocusIndex(index - 1);
-                            break;
-                        case 'ArrowRight':
-                            if (!isCollapsible || isExpanded) return;
-                            dispatchRowAction('toggle');
-                            break;
-                        case 'ArrowLeft':
-                            if (isCollapsible && isExpanded) dispatchRowAction('toggle');
-                            else if (row.parentIndex !== -1) onFocusIndex(row.parentIndex);
-                            break;
-                        case 'Enter':
-                        case ' ':
-                            dispatchRowAction(keyboardTreeRowAction(row.item, event.key));
-                            break;
-                        case 'Home':
-                            onFocusIndex(0);
-                            break;
-                        case 'End':
-                            onFocusIndex(rowCount - 1);
-                            break;
-                        default:
-                            return;
-                    }
-                    event.preventDefault();
-                }}
+                onKeyDown={(event) =>
+                    handleTreeItemKeyDown(event, {
+                        dispatchRowAction,
+                        index,
+                        isCollapsible: presentation.isCollapsible,
+                        isExpanded,
+                        onFocusIndex,
+                        parentIndex: row.parentIndex,
+                        row,
+                        rowCount,
+                    })
+                }
             >
-                {isMessage ? (
-                    <ExtensionTreeMessage
-                        actionLabel={row.item.command?.title}
-                        description={row.item.description}
-                        disabled={isRefreshing}
-                        icon={
-                            linearStatusKind ? (
-                                <LinearStatusIcon
-                                    kind={linearStatusKind}
-                                    className={cn(iconClassName)}
-                                    data-theme-icon={themeIconId}
-                                    size={24}
-                                />
-                            ) : (
-                                <Icon
-                                    className={cn(iconClassName)}
-                                    data-theme-icon={themeIconId}
-                                    size={24}
-                                />
-                            )
-                        }
-                        title={row.item.label}
-                        onAction={() => dispatchRowAction('activate')}
-                    />
-                ) : isCollapsible ? (
-                    <button
-                        aria-expanded={isExpanded}
-                        aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${row.item.accessibilityLabel}`}
-                        className="-m-1 flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-sm text-muted hover:text-foreground"
-                        data-tree-disclosure="true"
-                        tabIndex={-1}
-                        type="button"
-                        onClick={(event) => {
-                            event.stopPropagation();
-                            rowElement.current?.focus();
-                            dispatchRowAction(
-                                pointerTreeRowAction(
-                                    row.item,
-                                    'disclosure',
-                                    'click',
-                                    event.detail,
-                                    event.altKey,
-                                ),
-                            );
-                        }}
-                    >
-                        {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                    </button>
-                ) : (
-                    <span className="w-[13px] shrink-0" />
-                )}
-                {!isMessage && (
-                    <>
-                        {linearStatusKind ? (
-                            <LinearStatusIcon
-                                kind={linearStatusKind}
-                                className={cn('shrink-0', iconClassName)}
-                                data-theme-icon={themeIconId}
-                                size={14}
-                            />
-                        ) : (
-                            <Icon
-                                className={cn('shrink-0', iconClassName)}
-                                data-theme-icon={themeIconId}
-                                size={14}
-                            />
-                        )}
-                        <span className="min-w-0 flex-1 truncate">{row.item.label}</span>
-                        {row.item.description && (
-                            <span className="max-w-[45%] min-w-0 shrink truncate text-[11px] font-normal text-muted">
-                                {row.item.description}
-                            </span>
-                        )}
-                        {TrailingIcon && (
-                            <TrailingIcon
-                                aria-hidden="true"
-                                className="shrink-0 text-muted"
-                                data-theme-icon={trailingIconId}
-                                size={14}
-                            />
-                        )}
-                    </>
-                )}
+                <ExtensionTreeRowContent
+                    dispatchRowAction={dispatchRowAction}
+                    isRefreshing={isRefreshing}
+                    row={row}
+                    rowElement={rowElement}
+                />
             </div>
         );
-        if (isMessage) return treeItem;
-        return typeof tooltip === 'string' ? (
-            <Tooltip anchorMode="cursor" content={tooltip}>
-                {treeItem}
-            </Tooltip>
-        ) : (
-            <ExtensionTreeTooltip tooltip={tooltip} trigger={treeItem} />
+        return (
+            <ExtensionTreeRowTooltip
+                isMessage={presentation.isMessage}
+                tooltip={presentation.tooltip}
+                trigger={treeItem}
+            />
         );
     },
 );
