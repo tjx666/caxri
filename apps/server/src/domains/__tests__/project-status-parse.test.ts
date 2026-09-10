@@ -1,6 +1,34 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseGitHubPullRequest } from '../project-status-parse';
+import { parseGitHubPullRequest, parseVercelList } from '../project-status-parse';
+import { mapProjectStatusDeployment } from '../project-status-vercel';
+
+describe('Vercel deployment details', () => {
+    it.each(['CANCELED', 'ERROR', 'READY', 'BUILDING'])(
+        'preserves the deployment ID and details link for %s',
+        (state) => {
+            const [deployment] = parseVercelList(
+                JSON.stringify({
+                    deployments: [
+                        {
+                            uid: 'dpl_Deployment123',
+                            name: 'project',
+                            state,
+                            url: 'project-alias-team.vercel.app',
+                            created: 1_700_000_000_000,
+                        },
+                    ],
+                }),
+            );
+            expect(
+                mapProjectStatusDeployment(deployment, 'preview', {
+                    team: 'team',
+                    project: 'project',
+                }),
+            ).toMatchObject({ inspectorUrl: 'https://vercel.com/team/project/Deployment123' });
+        },
+    );
+});
 
 describe('parseGitHubPullRequest', () => {
     it('rejects malformed GitHub pull request JSON as VALIDATION', () => {

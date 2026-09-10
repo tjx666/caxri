@@ -38,6 +38,7 @@ export const githubPullRequestSchema = z.object({
 });
 
 const vercelDeploymentSchema = z.object({
+    uid: z.string().optional(),
     created: z.number().optional(),
     name: z.string().optional(),
     readyState: z.string().optional(),
