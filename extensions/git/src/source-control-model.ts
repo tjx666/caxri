@@ -40,7 +40,7 @@ export type RegisterSourceControlAction = (action: ActionRegistration) => Source
 interface BuildSourceControlViewModelOptions {
     activeResource?: string;
     detailsByRepository?: ReadonlyMap<string, GitCommitDetails>;
-    detailErrorsByRepository?: ReadonlyMap<string, true>;
+    detailErrorsByRepository?: ReadonlyMap<string, true | string>;
     mode: GitSourceControlMode;
     pullRequestsByRepository?: ReadonlyMap<string, GitPullRequestChanges | null>;
     registerAction?: RegisterSourceControlAction;
@@ -327,14 +327,14 @@ function emptyMessageForMode(
     mode: GitSourceControlMode,
     repo: GitRepositorySummary,
     details: GitCommitDetails | undefined,
-    hasDetailError: boolean,
+    detailError: true | string | undefined,
     pullRequest: GitPullRequestChanges | null | undefined,
     selectedCommitSha?: string,
 ): string {
     if (mode === 'working') return 'Working tree clean.';
     if (mode === 'commit') {
         if (!repo.head) return 'No commits yet.';
-        if (hasDetailError)
+        if (detailError)
             return selectedCommitSha
                 ? `Unable to load commit ${selectedCommitSha.slice(0, 7)}.`
                 : 'Unable to load the last commit.';
@@ -344,7 +344,10 @@ function emptyMessageForMode(
                 : `Loading commit ${selectedCommitSha.slice(0, 7)}…`;
         return details ? 'Last commit has no file changes.' : 'Loading last commit…';
     }
-    if (hasDetailError) return 'Unable to load pull request changes.';
+    if (detailError)
+        return typeof detailError === 'string'
+            ? detailError
+            : 'Unable to load pull request changes.';
     return pullRequest === null
         ? 'No pull request for this branch.'
         : pullRequest
@@ -515,7 +518,10 @@ export function buildSourceControlViewModel({
                 description,
                 descriptionAccessibilityLabel,
                 descriptionTooltip,
-                countLabel: `${mode === 'working' ? ` · ↑${repo.ahead} ↓${repo.behind}` : ''} · ${count}`,
+                countLabel:
+                    mode === 'pull-request' && detailErrorsByRepo.has(repo.id)
+                        ? ' · Unavailable'
+                        : `${mode === 'working' ? ` · ↑${repo.ahead} ↓${repo.behind}` : ''} · ${count}`,
                 expandedByDefault: true,
                 actions:
                     mode === 'working'
@@ -547,7 +553,7 @@ export function buildSourceControlViewModel({
                                       mode,
                                       repo,
                                       details,
-                                      detailErrorsByRepo.has(repo.id),
+                                      detailErrorsByRepo.get(repo.id),
                                       pullRequest,
                                       selectedCommitSha,
                                   ),
