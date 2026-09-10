@@ -712,7 +712,7 @@ export function useTerminalPaneRuntime({
         if (!xterm) return;
         const isRunning = processState === 'running';
         xterm.options.disableStdin = !isRunning || longPastePending;
-        reconcileTerminalProcessFocus({
+        const invalidateFocus = reconcileTerminalProcessFocus({
             active,
             blur: () => xterm.blur(),
             focus: () => xterm.focus(),
@@ -722,7 +722,8 @@ export function useTerminalPaneRuntime({
             requestFrame: (callback) => requestAnimationFrame(callback),
             terminalId,
         });
-        if (!replay || !shouldReconcileTerminalRecovery(previousProcessState, processState)) return;
+        if (!replay || !shouldReconcileTerminalRecovery(previousProcessState, processState))
+            return invalidateFocus;
         /**
          * The initial attach can finish before Server spawns a new, restarted, or resumed PTY. Reattach once at the
          * measured grid so Server resizes its parsed screen behind an ordering barrier, then replace any stale
@@ -747,6 +748,7 @@ export function useTerminalPaneRuntime({
         // Effects cannot be async themselves; the failure path above already reports the error.
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void reattach();
+        return invalidateFocus;
     }, [active, longPastePending, processState, terminalId]);
 
     useEffect(() => {

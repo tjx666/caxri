@@ -20,6 +20,35 @@ function editableFocusedElement(): HTMLElement {
 }
 
 describe('reconcileTerminalProcessFocus', () => {
+    it.each([
+        { active: true, isRunning: false, name: 'stopped' },
+        { active: false, isRunning: true, name: 'inactive' },
+    ])('does not refocus a $name Terminal from an earlier running frame', (next) => {
+        let scheduled: FrameRequestCallback | undefined;
+        const focus = vi.fn();
+        const blur = vi.fn();
+        const options = {
+            active: true,
+            blur,
+            focus,
+            getFocusedElement: focusedElement,
+            isModalOpen: () => false,
+            isRunning: true,
+            requestFrame: (callback: FrameRequestCallback) => {
+                scheduled = callback;
+                return 1;
+            },
+            terminalId: 'terminal-1',
+        };
+        const cleanup = reconcileTerminalProcessFocus(options);
+        cleanup?.();
+        reconcileTerminalProcessFocus({ ...options, ...next });
+        scheduled?.(0);
+
+        expect(blur).toHaveBeenCalledOnce();
+        expect(focus).not.toHaveBeenCalled();
+    });
+
     it('does not reclaim focus when a modal opens before the scheduled frame', () => {
         let scheduled: FrameRequestCallback | undefined;
         let isModalOpen = false;
