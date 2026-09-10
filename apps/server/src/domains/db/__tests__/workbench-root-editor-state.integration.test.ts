@@ -209,6 +209,10 @@ describe('CaxriDatabase Workbench Root editor state', () => {
         });
         const freshWorktreeState = database.getSessionState(created.session.id);
         expect(freshWorktreeState.workbenchProjectId).toBe(worktree.id);
+        // A first visit must persist its layout identity before another bootstrap reads it.
+        expect(database.getSessionState(created.session.id).paneLayout).toEqual(
+            freshWorktreeState.paneLayout,
+        );
         expect(filePaths(freshWorktreeState.paneLayout)).toEqual([]);
         // The worktree root has never been arranged, so the Session's own Terminal still shows.
         expect(listPaneTerminalIds(freshWorktreeState.paneLayout)).toEqual([created.terminal!.id]);
