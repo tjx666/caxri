@@ -87,6 +87,19 @@ it('correlates Grok turns and filters shutdown, children, malformed payloads and
         });
         expect(packets[2]).toMatchObject({ agentTurnId: 'turn-b', phase: 'turnFinished' });
         expect(packets[3]).toMatchObject({ agentTurnId: 'turn-c', phase: 'turnFailed' });
+        await invoke('turnFinished', {
+            sessionId: 'session-b',
+            promptId: 'unicode-turn',
+            reason: 'end_turn',
+            lastAssistantMessage: '合成'.repeat(25_000),
+        });
+        expect(packets).toHaveLength(6);
+        expect(packets[5]).toMatchObject({
+            agentSessionId: 'session-b',
+            agentTurnId: 'unicode-turn',
+            phase: 'turnFinished',
+        });
+        expect(JSON.stringify(packets)).not.toContain('合成');
     } finally {
         await new Promise<void>((resolve) => server.close(() => resolve()));
         await rm(directory, { recursive: true, force: true });

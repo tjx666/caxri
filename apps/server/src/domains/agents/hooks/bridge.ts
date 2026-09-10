@@ -274,7 +274,9 @@ function readIdentifiers(callback) {
   process.stdin.setEncoding('utf8');
   process.stdin.on('data', (chunk) => {
     source += chunk;
-    if (Buffer.byteLength(source, 'utf8') > sourceLimit) { overflow = true; source = source.slice(0, 65536); clearTimeout(timer); finish(); }
+    // Ordinary hooks keep their existing UTF-16 budget; UTF-8 accounting is specific to opt-in task digests.
+    const sourceSize = captureDigests ? Buffer.byteLength(source, 'utf8') : source.length;
+    if (sourceSize > sourceLimit) { overflow = true; source = source.slice(0, 65536); clearTimeout(timer); finish(); }
   });
   process.stdin.on('end', () => { clearTimeout(timer); finish(); });
   process.stdin.on('error', () => { clearTimeout(timer); finish(); });
@@ -334,7 +336,7 @@ readIdentifiers(({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateInt
 }
 `;
 
-const BRIDGE_VERSION = 16;
+const BRIDGE_VERSION = 17;
 
 const BRIDGE_WRAPPER = String.raw`#!/bin/sh
 bridge_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)

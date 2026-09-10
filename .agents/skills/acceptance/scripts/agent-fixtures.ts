@@ -415,7 +415,9 @@ interface PrepareAcceptanceAgentFixtureOptions {
 }
 
 export function prepareAcceptanceAgentFixture(
-    options: PrepareAcceptanceAgentFixtureOptions & { fixtureId: 'agent-features-v1' },
+    options: PrepareAcceptanceAgentFixtureOptions & {
+        fixtureId: 'agent-features-v1' | 'agent-delegation-v1';
+    },
 ): Promise<PreparedAcceptanceAgentFixture<'claude' | 'codex'>>;
 export function prepareAcceptanceAgentFixture(
     options: PrepareAcceptanceAgentFixtureOptions & { fixtureId: 'grok-build-v1' },
