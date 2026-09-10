@@ -100,10 +100,19 @@ callbacks. Watched repository groups are bounded to 16 (`MAX_WATCHED_REPOSITORIE
 
 ## Repository-identity invalidation (`git.changed`)
 
+Every projected repository registers its own canonical common Git directory, including submodules
+and nested repositories. Submodule metadata under a parent's `modules/` directory belongs to the
+child's subscription and must not be attributed to the parent. Git can report an absorbed
+submodule's metadata directory as its primary worktree; topology discovery resolves its actual
+checkout through `rev-parse --show-toplevel`. The watcher uses the topology's primary root, never
+the currently selected linked worktree, and shared ref events include all known worktree roots.
+Session projections retain every participating repository key so closing a sibling Session cannot
+detach a child watcher that is still in use.
+
 `apps/server/src/domains/git/change-tracker.ts` — `GitChangeTracker` owns the Session ↔ repository mapping
 behind the `git.changed` Server event (`packages/protocol/src/registry/events.ts`). Each summary
 registers, via `registerSession`, the canonical roots it projected for one Session
-(`GitRepoService.registerProjection`, `apps/server/src/domains/git/repo.ts:571-584`). A generation bump —
+(`registerGitProjection`, `apps/server/src/domains/git/projection.ts`). A generation bump —
 `scheduleStatusChanged(roots)` from a working-tree write or `observeMetadataStatus`, or
 `scheduleTopologyChanged(repoKey)` from `observeMetadataTopology` — adds affected roots to a
 pending set and debounces a flush by 150ms (`CHANGE_EMIT_DELAY_MS`), folding a burst of bumps

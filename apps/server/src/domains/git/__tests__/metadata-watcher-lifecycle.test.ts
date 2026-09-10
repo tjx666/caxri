@@ -7,16 +7,42 @@ import { GitMetadataWatcher } from '../metadata-watcher';
 function createWatcher(subscribe: typeof parcelWatcher.subscribe) {
     const recordMetric = vi.fn<StructuredLogger['recordMetric']>();
     const write = vi.fn<StructuredLogger['write']>();
+    const onStatusChanged = vi.fn();
     const watcher = new GitMetadataWatcher({
         logger: { recordMetric, write } as unknown as StructuredLogger,
-        onStatusChanged: vi.fn(),
+        onStatusChanged,
         onTopologyChanged: vi.fn(),
         subscribe,
     });
-    return { watcher, write };
+    return { watcher, write, onStatusChanged };
 }
 
 describe('GitMetadataWatcher close/subscribe race', () => {
+    it('attributes primary metadata to the primary checkout and shared refs to all registered roots', async () => {
+        let callback: parcelWatcher.SubscribeCallback | undefined;
+        const subscribe: typeof parcelWatcher.subscribe = (_root, listener) => {
+            callback = listener;
+            return Promise.resolve({ unsubscribe: () => Promise.resolve() });
+        };
+        const { watcher, onStatusChanged } = createWatcher(subscribe);
+        try {
+            await watcher.watch('/repo/.git', '/repo', ['/repo', '/linked']);
+            callback?.(null, [{ type: 'update', path: '/repo/.git/index' }]);
+            await vi.waitFor(() =>
+                expect(onStatusChanged).toHaveBeenCalledWith('/repo/.git', ['/repo']),
+            );
+            onStatusChanged.mockClear();
+            callback?.(null, [{ type: 'update', path: '/repo/.git/refs/heads/main' }]);
+            expect(onStatusChanged).toHaveBeenCalledWith('/repo/.git', ['/repo', '/linked']);
+            await watcher.watch('/repo/.git', '/repo', ['/repo', '/replacement']);
+            onStatusChanged.mockClear();
+            callback?.(null, [{ type: 'update', path: '/repo/.git/packed-refs' }]);
+            expect(onStatusChanged).toHaveBeenCalledWith('/repo/.git', ['/repo', '/replacement']);
+        } finally {
+            await watcher.close();
+        }
+    });
+
     it('releases a subscription that resolves after close and stays silent', async () => {
         const unsubscribe = vi.fn(() => Promise.resolve());
         const { promise, resolve } = Promise.withResolvers<parcelWatcher.AsyncSubscription>();

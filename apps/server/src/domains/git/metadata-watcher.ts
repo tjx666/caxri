@@ -24,7 +24,7 @@ const POLLED_METADATA_FILES = ['HEAD', 'index', 'packed-refs', 'MERGE_HEAD'];
  * `.git` content the watcher must never react to: object/pack churn, lock files that flap on every optional-lock
  * command, and fsmonitor/watchman cookies. Reacting to these would turn a plain `git status` into a refresh storm.
  */
-const IGNORED_SEGMENTS = new Set(['objects', 'lfs', 'sockets', 'hooks', 'logs']);
+const IGNORED_SEGMENTS = new Set(['objects', 'lfs', 'sockets', 'hooks', 'logs', 'modules']);
 
 function isIgnoredMetadataPath(relativePath: string, name: string): boolean {
     const [head] = relativePath.split(sep);
@@ -64,6 +64,7 @@ export function classifyGitMetadataPath(relativePath: string): GitMetadataChange
 }
 
 interface WatchedRepo {
+    roots: readonly string[];
     /**
      * `worktrees/<name>` → canonical worktree root resolved from the `gitdir` readback file.
      */
@@ -144,7 +145,7 @@ export class GitMetadataWatcher {
     }
 
     private knownRoots(entry: WatchedRepo): string[] {
-        const roots = new Set<string>([entry.primaryRoot]);
+        const roots = new Set<string>([entry.primaryRoot, ...entry.roots]);
         for (const root of entry.gitDirRoots.values()) if (root) roots.add(root);
         return [...roots];
     }
@@ -215,11 +216,12 @@ export class GitMetadataWatcher {
         const existing = this.repositories.get(repoKey);
         if (existing) {
             existing.primaryRoot = primaryRoot;
+            existing.roots = [...roots];
             this.repositories.delete(repoKey);
             this.repositories.set(repoKey, existing);
             return;
         }
-        const entry: WatchedRepo = { gitDirRoots: new Map(), primaryRoot };
+        const entry: WatchedRepo = { gitDirRoots: new Map(), primaryRoot, roots: [...roots] };
         this.repositories.set(repoKey, entry);
         // `repositories` preserves insertion order, so the least recently used groups are the
         // leading keys; evict them concurrently instead of awaiting `unwatch` one at a time.
@@ -231,7 +233,7 @@ export class GitMetadataWatcher {
         const handle = await this.watchHub.register({
             label: 'git-metadata',
             root: repoKey,
-            ignore: ['objects', 'lfs', 'sockets', 'hooks', 'logs'],
+            ignore: ['objects', 'lfs', 'sockets', 'hooks', 'logs', 'modules'],
             onEvents: (events) => this.handleEvents(repoKey, events),
             /**
              * Native-backend fallback: poll signature files of the commonDir and every registered worktree gitDir so
