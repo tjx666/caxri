@@ -31,6 +31,7 @@ interface WorktreeProvenanceBaseline extends WorktreeProvenanceScope {
 
 interface PendingWorktreeCreation {
     ambiguous: boolean;
+    isCurrentLaunch(): boolean;
     baseline: WorktreeProvenanceBaseline;
     createdAt: number;
     rootPaths?: ReadonlySet<string>;
@@ -170,6 +171,7 @@ export class AgentWorktreeAttribution {
     private readonly creationValidations: BoundedSerialBatcher<string>;
     private readonly pendingCreations = new Map<string, PendingWorktreeCreation>();
     private readonly provenanceBaselines = new Map<string, WorktreeProvenanceBaseline>();
+    private readonly pendingPrimings = new Map<string, Promise<boolean>>();
     private creationOverflowedUntil = 0;
 
     constructor(private readonly options: AgentWorktreeAttributionOptions) {
@@ -220,6 +222,8 @@ export class AgentWorktreeAttribution {
      */
     private reservePendingCreation(
         signal: AgentLifecycleSignal,
+        isCurrentLaunch: () => boolean,
+        createdAt: number,
     ): { key: string; pending: PendingWorktreeCreation } | undefined {
         this.prunePendingCreations();
         const key = creationKey(signal);
@@ -243,8 +247,9 @@ export class AgentWorktreeAttribution {
         }
         const pending: PendingWorktreeCreation = {
             ambiguous: false,
+            isCurrentLaunch,
             baseline,
-            createdAt: now,
+            createdAt,
         };
         for (const candidate of this.pendingCreations.values())
             if (candidate.baseline.repositoryKey === baseline.repositoryKey) {
@@ -256,7 +261,11 @@ export class AgentWorktreeAttribution {
     }
 
     private isCurrentPending(key: string, pending: PendingWorktreeCreation): boolean {
-        return !pending.ambiguous && this.pendingCreations.get(key) === pending;
+        return (
+            !pending.ambiguous &&
+            pending.isCurrentLaunch() &&
+            this.pendingCreations.get(key) === pending
+        );
     }
 
     /**
@@ -343,8 +352,7 @@ export class AgentWorktreeAttribution {
         if (topology.repositoryKey !== repoKey) return;
         const live = entries.filter(
             ({ baseline, key, pending }) =>
-                !pending.ambiguous &&
-                this.pendingCreations.get(key) === pending &&
+                this.isCurrentPending(key, pending) &&
                 this.provenanceBaselines.get(launchKey(baseline)) === baseline,
         );
         if (live.length !== 1) return;
@@ -360,7 +368,7 @@ export class AgentWorktreeAttribution {
                     sessionId: baseline.sessionId,
                 },
                 () =>
-                    !pending.ambiguous &&
+                    this.isCurrentPending(key, pending) &&
                     isSameWorkbenchBinding(
                         initiatingBindings.get(baseline.sessionId),
                         this.options.database.getSessionWorkbenchBinding(baseline.sessionId),
@@ -394,7 +402,7 @@ export class AgentWorktreeAttribution {
                 const { baseline, rootPaths } = pending;
                 if (
                     !rootPaths ||
-                    pending.ambiguous ||
+                    !this.isCurrentPending(key, pending) ||
                     this.provenanceBaselines.get(launchKey(baseline)) !== baseline
                 )
                     continue;
@@ -431,8 +439,18 @@ export class AgentWorktreeAttribution {
         }
     }
 
-    async prime(scope: WorktreeProvenanceScope): Promise<boolean> {
-        return this.options.runQueued(async () => {
+    async prime(
+        scope: WorktreeProvenanceScope,
+        isCurrentLaunch: () => boolean = () => true,
+    ): Promise<boolean> {
+        const key = JSON.stringify([launchKey(scope), scope.provider]);
+        const existing = this.pendingPrimings.get(key);
+        if (existing) return existing;
+        if (this.pendingPrimings.size >= MAX_PROVENANCE_BASELINES) return false;
+        const priming = this.options.runQueued(async () => {
+            if (!isCurrentLaunch()) return false;
+            if (this.provenanceBaselines.get(launchKey(scope))?.provider === scope.provider)
+                return true;
             this.retireTerminal(scope.terminalId);
             const terminal = this.options.database.getTerminal(scope.terminalId);
             const session = this.options.database.getSession(scope.sessionId);
@@ -454,6 +472,7 @@ export class AgentWorktreeAttribution {
                 if (
                     !currentTerminal ||
                     !currentSession ||
+                    !isCurrentLaunch() ||
                     currentTerminal.sessionId !== scope.sessionId ||
                     currentTerminal.provider !== scope.provider ||
                     currentSession.projectId !== scope.projectId
@@ -479,6 +498,12 @@ export class AgentWorktreeAttribution {
                 return false;
             }
         });
+        this.pendingPrimings.set(key, priming);
+        try {
+            return await priming;
+        } finally {
+            if (this.pendingPrimings.get(key) === priming) this.pendingPrimings.delete(key);
+        }
     }
 
     retireTerminal(terminalId: string): void {
@@ -488,11 +513,55 @@ export class AgentWorktreeAttribution {
             if (pending.baseline.terminalId === terminalId) this.pendingCreations.delete(key);
     }
 
-    async observeStarted(signal: AgentLifecycleSignal): Promise<AgentSignalDecision> {
+    async observeStarted(
+        signal: AgentLifecycleSignal,
+        isCurrentLaunch: () => boolean,
+    ): Promise<AgentSignalDecision> {
+        if (!isCurrentLaunch()) return 'staleLaunch';
         const scope = this.terminalScope(signal);
         if (scope !== 'accepted') return scope;
+        const startedAt = Date.now();
         if (signal.worktreeCreateIntent && signal.agentToolUseId) {
-            const reservation = this.reservePendingCreation(signal);
+            /**
+             * A manually resumed Agent inherits Shell hook authority, not the managed Agent's launch callback.
+             * Establish its repository identity while PreToolUse still blocks execution; never infer a creation from
+             * the wider Shell lifetime. The current-launch predicate fences restoration and retirement races.
+             */
+            if (this.provenanceBaselines.get(launchKey(signal))?.provider !== signal.provider) {
+                const terminal = this.options.database.getTerminal(signal.terminalId)!;
+                const session = this.options.database.getSession(terminal.sessionId)!;
+                const deadline = startedAt + PRE_TOOL_TOPOLOGY_TIMEOUT_MS;
+                const primed = await withTimeout(
+                    this.prime(
+                        {
+                            launchId: signal.launchId,
+                            projectId: session.projectId,
+                            provider: signal.provider,
+                            sessionId: session.id,
+                            terminalId: terminal.id,
+                        },
+                        () => isCurrentLaunch() && Date.now() < deadline,
+                    ),
+                    PRE_TOOL_TOPOLOGY_TIMEOUT_MS,
+                );
+                if (!primed) {
+                    const isCurrent = isCurrentLaunch();
+                    this.options.logger.write(
+                        'info',
+                        workbenchRootLogEvents.provenanceUnavailable,
+                        {
+                            durationMs: Date.now() - startedAt,
+                            fields: {
+                                reason: isCurrent ? 'pre_tool_prime_unavailable' : 'stale_launch',
+                                terminalId: signal.terminalId,
+                            },
+                        },
+                    );
+                    return isCurrent ? 'accepted' : 'staleLaunch';
+                }
+            }
+            if (!isCurrentLaunch()) return 'staleLaunch';
+            const reservation = this.reservePendingCreation(signal, isCurrentLaunch, startedAt);
             if (reservation && !reservation.pending.ambiguous)
                 await this.options.runQueued(() =>
                     this.capture(reservation.key, reservation.pending),
@@ -536,7 +605,10 @@ export function handleAgentLifecycleSignal(
      * unchanged directory and never blocks the phase's own handling.
      */
     workbenchRoots.observeAgentCwd(signal);
-    if (signal.phase === 'shellToolStarted') return workbenchRoots.observeShellToolStarted(signal);
+    if (signal.phase === 'shellToolStarted')
+        return workbenchRoots.observeShellToolStarted(signal, () =>
+            coordinator.isCurrentTerminalLaunch(signal.terminalId, signal.launchId),
+        );
     if (signal.phase === 'shellToolFinished')
         return workbenchRoots.observeShellToolFinished(signal);
     if (signal.phase === 'shellToolFailed') return workbenchRoots.observeShellToolFailed(signal);

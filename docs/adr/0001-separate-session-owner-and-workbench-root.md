@@ -18,6 +18,16 @@ timeout, or ambiguous concurrent signal/addition is consumed and fails closed. C
 authorizes the exact Server-owned candidate through a single-use Main grant without a folder picker.
 The prompt displays the destination, but its command submits only the opaque candidate ID. Server
 revalidates the candidate and linked-worktree topology before registering its Project.
+
+A manually resumed Agent can inherit the Terminal's Shell hook generation after its managed child
+exits. Its first classified creation hook establishes repository identity within the same bounded
+PreToolUse budget as the before-snapshot. Every asynchronous step and the final candidate check
+retain a predicate for the current hook generation. This restores detection without treating a
+Shell-lifetime topology change or a retired child's hook as proof of Session ownership.
+
+Hook diagnostics distinguish ordinary commands from worktree-create intent even when they share a
+phase; command text and reported directories never enter the log.
+
 A missing or replaced active root falls back to the owning Project. This deliberately rejects the
 simpler choices of mutating Session ownership, moving Terminal cwd, trusting a path reported by an
 Agent or CLI, or sharing same-path editor state across worktrees.
