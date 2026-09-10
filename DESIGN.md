@@ -476,6 +476,18 @@ clicking either the label or the control toggles it. Provider launch groups use 
 sections headed by the shared Agent identity icon, and every multiline value uses the same themed
 field/focus redline as single-line input.
 
+A consequential choice may not live only inside a free-text field. Every bundled Agent launches
+without per-action approval by default, and until that was only a CLI token inside
+`Initial arguments`, the setting was unreadable to anyone who did not already know the flag —
+principle 3 applied to the one row where it matters most. Each provider now carries a named Switch
+directly above `Initial arguments`, stating in plain words what the two answers mean and that the
+change reaches Terminals started from now on. The Switch is derived over the same argument list the
+user can hand-edit rather than a second stored preference, so a raw edit and the Switch can never
+disagree, and it moves only the approval tokens — a confinement argument such as Grok Build's
+`--sandbox workspace` decides where the Agent may work, not whether it asks first, and survives
+untouched in both directions. Where a plain-language control and a raw field describe the same
+state, the raw field stays authoritative and the control reads from it.
+
 **Toasts** — three variants (`info`/`success`/`error`) with a 3px left bar in the status color and
 matching icon; `info` uses `--muted` for its bar (an accent bar would be a second accent). Sonner
 owns the queue, timers, keyboard access, and swipe dismissal. All three variants auto-dismiss after

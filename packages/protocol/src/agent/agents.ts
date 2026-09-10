@@ -87,6 +87,14 @@ export interface AgentProviderSettings {
  */
 export interface AgentProviderCatalogEntry {
     /**
+     * The exact argv tokens that let this provider act on the Project without asking for per-action approval, matched
+     * and inserted as one contiguous run so a flag and its value are never separated. Settings derives its
+     * plain-language autonomy switch from this list rather than persisting a second copy of the same choice, so it
+     * names the approval bypass and nothing else: a confinement argument such as Grok Build's `--sandbox workspace`
+     * decides where the Agent may work, not whether it asks first, and stays out of this list.
+     */
+    autonomyArgs: readonly [string, ...string[]];
+    /**
      * Supported integrations; settings cannot manufacture a missing provider implementation.
      */
     capabilities: {
@@ -119,6 +127,7 @@ export interface AgentProviderCatalogEntry {
 
 export const agentProviderCatalog = {
     claude: {
+        autonomyArgs: ['--dangerously-skip-permissions'],
         capabilities: {
             actions: true,
             automaticSuspension: true,
@@ -132,6 +141,7 @@ export const agentProviderCatalog = {
         imageInput: undefined,
     },
     codex: {
+        autonomyArgs: ['--dangerously-bypass-approvals-and-sandbox'],
         capabilities: {
             actions: true,
             automaticSuspension: true,
@@ -145,6 +155,7 @@ export const agentProviderCatalog = {
         imageInput: { kind: 'systemClipboardPaste', terminalInput: '\u{16}' },
     },
     grok: {
+        autonomyArgs: ['--always-approve'],
         capabilities: {
             actions: false,
             automaticSuspension: false,

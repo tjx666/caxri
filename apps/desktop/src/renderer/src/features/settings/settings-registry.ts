@@ -19,6 +19,7 @@ export type SettingRowBinding =
           field: 'hooks' | 'messaging' | 'pasteSummary';
       }
     | { type: 'provider-recovery'; provider: AgentProvider }
+    | { type: 'provider-autonomy'; provider: AgentProvider }
     | { type: 'provider-launch'; provider: AgentProvider; field: 'executable' | 'args' }
     | { type: 'provider-actions'; provider: AgentProvider }
     | { type: 'provider-skill-health'; provider: AgentProvider }
@@ -179,6 +180,28 @@ function providerRows(provider: AgentProvider): SettingRowDescriptor[] {
             description: 'Command used to launch this Agent in new Terminals',
             binding: { type: 'provider-launch', provider, field: 'executable' },
             haystack: lower(['executable', 'command', 'launch', 'path', ...providerTerms]),
+        },
+        {
+            ...shared,
+            id: `agents.${provider}.autonomy`,
+            title: 'Let the Agent act without asking each time',
+            description:
+                'On, this Agent edits files and runs commands in its Terminal without stopping ' +
+                'for your approval each time. Off, it asks before each action. Applies to ' +
+                'Terminals started from now on, not ones already running.',
+            binding: { type: 'provider-autonomy', provider },
+            haystack: lower([
+                'act without asking each time',
+                'permission',
+                'permissions',
+                'approval',
+                'approve',
+                'ask',
+                'confirm',
+                'autonomy',
+                'unattended',
+                ...providerTerms,
+            ]),
         },
         {
             ...shared,
