@@ -18,6 +18,9 @@ timeout, or ambiguous concurrent signal/addition is consumed and fails closed. C
 authorizes the exact Server-owned candidate through a single-use Main grant without a folder picker.
 The prompt displays the destination, but its command submits only the opaque candidate ID. Server
 revalidates the candidate and linked-worktree topology before registering its Project.
+Pending suggestions have no time-based expiry: returning to a Session later must still allow
+Continue or Not Now. Elapsed time is not evidence that a worktree disappeared; authorization
+checks its current directory and repository membership when the user chooses Continue.
 
 A manually resumed Agent can inherit the Terminal's Shell hook generation after its managed child
 exits. Its first classified creation hook establishes repository identity within the same bounded
