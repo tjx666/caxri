@@ -366,11 +366,14 @@ picks its region by content shape, not by which region has room left.
 structured card with a multi-line grey string. The card follows the VS Code reference hierarchy:
 the row's subject plus its semantic status in the heading, then prose that explains that heading,
 then compact `label: value` rows. A repository names its branch and remote, a branch carries a
-`default` badge, a deployment keeps `alias`, successful `inspect: logs`, and optional `created`, a
-check carries its duration and `logs`, and a provider failure puts its recovery hint in the prose
-line rather than forcing it into a list row. The row's own destination appears once, as the
-trailing `link` row, and never a second time under a more specific label. A row with nothing
-structured to add renders heading-only rather than falling back to the plain surface. The rich
+`default` badge, and a deployment keeps its `alias`, `inspect: details`, and optional
+`created`; the row itself opens those details for every deployment state. Canceled deployments use
+explicit `canceled` text and a muted circle-slash, while a branch deployment's decorative trailing
+icon identifies production or preview without adding another focus target. A check carries its
+duration and `logs`, and a provider failure puts its recovery hint in the prose line rather than
+forcing it into a list row. The row's own destination appears once, as the trailing `link` row, and
+never a second time under a more specific label. A row with nothing structured to add renders
+heading-only rather than falling back to the plain surface. The rich
 hover uses the shared PreviewCard surface so its HTTP(S) links remain reachable by pointer and
 keyboard; pointer opens capture the initial cursor position, place the card beside the cursor, and
 flip it from right to left when necessary so the cursor's vertical path through adjacent rows

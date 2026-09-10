@@ -28,6 +28,73 @@ describe('Vercel deployment details', () => {
             ).toMatchObject({ inspectorUrl: 'https://vercel.com/team/project/Deployment123' });
         },
     );
+
+    it('keeps supported deployments when the provider returns incomplete and staging entries', () => {
+        const deployments = parseVercelList(
+            JSON.stringify({
+                deployments: [
+                    {
+                        uid: 'dpl_Ready123',
+                        name: 'project',
+                        state: 'READY',
+                        target: 'production',
+                        url: 'project-ready-team.vercel.app',
+                        inspectorUrl: 'https://vercel.com/team/project/provider-details',
+                        created: 3,
+                    },
+                    {
+                        uid: 'dpl_Building123',
+                        name: 'project',
+                        state: 'BUILDING',
+                        target: null,
+                        url: null,
+                        created: 2,
+                    },
+                    {
+                        uid: 'dpl_Staging123',
+                        name: 'project',
+                        state: 'READY',
+                        target: 'staging',
+                        url: 'project-staging-team.vercel.app',
+                        created: 1,
+                    },
+                ],
+            }),
+        );
+        const mapped = deployments.flatMap((deployment) => {
+            const result = mapProjectStatusDeployment(deployment, undefined, {
+                team: 'team',
+                project: 'project',
+            });
+            return result ? [result] : [];
+        });
+
+        expect(mapped).toEqual([
+            expect.objectContaining({
+                environment: 'production',
+                hostname: 'project-ready-team.vercel.app',
+                inspectorUrl: 'https://vercel.com/team/project/provider-details',
+            }),
+        ]);
+        expect(
+            mapProjectStatusDeployment(deployments[2], 'preview', {
+                team: 'team',
+                project: 'project',
+            }),
+        ).toBeUndefined();
+        expect(
+            mapProjectStatusDeployment(
+                {
+                    uid: 'dpl_Fallback123',
+                    state: 'READY',
+                    url: 'project-fallback-team.vercel.app',
+                    inspectorUrl: 'https://example.com/untrusted',
+                },
+                'preview',
+                { team: 'team', project: 'project' },
+            ),
+        ).toMatchObject({ inspectorUrl: 'https://vercel.com/team/project/Fallback123' });
+    });
 });
 
 describe('parseGitHubPullRequest', () => {

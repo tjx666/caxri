@@ -114,14 +114,33 @@ export function vcListArguments(
 }
 
 /**
- * Deployment details remain useful when a build is canceled or fails. Use the API's stable deployment ID rather than
- * guessing an inspector identifier from the deployed hostname. `vc ls` drops this ID, so lists use `vc api` instead.
+ * Deployment details remain useful when a build is canceled or fails. Prefer Vercel's validated provider URL, then use
+ * the API's stable deployment ID rather than guessing an inspector identifier from the deployed hostname. `vc ls` drops
+ * both fields, so lists use `vc api` instead.
+ *
+ * @see https://github.com/vercel/vercel/blob/c628be7835e03a965b93e9cf9e2bd5ac2acbf5eb/packages/cli/src/util/deploy/get-deployments-by-project-id.ts
  */
 export function vercelInspectorUrl(
     team: string,
     project: string,
     deploymentId: string | undefined,
+    providerUrl?: string | null,
 ): string | undefined {
+    if (providerUrl) {
+        try {
+            const url = new URL(providerUrl);
+            if (
+                url.protocol === 'https:' &&
+                url.hostname === 'vercel.com' &&
+                !url.port &&
+                !url.username &&
+                !url.password
+            )
+                return url.href;
+        } catch {
+            // Fall through to the stable deployment ID when the provider URL is malformed.
+        }
+    }
     if (!deploymentId || !/^dpl_[a-zA-Z0-9]+$/.test(deploymentId)) return undefined;
     return `https://vercel.com/${encodeURIComponent(team)}/${encodeURIComponent(project)}/${deploymentId.slice(4)}`;
 }
