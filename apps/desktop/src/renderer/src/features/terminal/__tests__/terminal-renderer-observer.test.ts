@@ -18,6 +18,7 @@ vi.mock('../../gpu/gpu-recovery-notifications', () => ({
 }));
 
 import { createTerminalRendererObserver } from '../terminal-renderer-observer';
+import { getTerminalRendererRetry } from '../terminal-renderer-status';
 
 const CORRELATION_ID = '3fcf11c1-19de-4fdd-8d6c-17ce43c70aae';
 
@@ -69,6 +70,7 @@ function createObserver() {
     } as unknown as HTMLElement;
     return createTerminalRendererObserver({
         container,
+        retry: () => true,
         current: () => ({
             active: true,
             gpuAcceleration: 'on',
@@ -90,6 +92,13 @@ beforeEach(() => {
         hasFocus: () => true,
         visibilityState: 'visible',
     });
+});
+
+it('registers manual recovery for the mounted pane and removes it on disposal', () => {
+    const observer = createObserver();
+    expect(getTerminalRendererRetry('terminal-1')?.()).toBe(true);
+    observer.dispose();
+    expect(getTerminalRendererRetry('terminal-1')).toBeUndefined();
 });
 
 afterEach(() => {

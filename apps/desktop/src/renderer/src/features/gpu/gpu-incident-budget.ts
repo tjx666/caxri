@@ -54,8 +54,8 @@ export interface GpuIncidentBudget extends TerminalWebglSessionPolicy {
  * Session-wide WebGL policy that survives Terminal pane remounts. Each mounted pane owns its own retry sequence and is
  * rebuilt on every tab switch, so a per-pane budget can never converge; this singleton is the only state that outlives
  * the pane. It is deliberately not persisted (VS Code removed its persisted `suggestedRendererType` for the same
- * reason): one bad GPU session must not degrade every later launch. Only an explicit preference change resets it,
- * matching the #501 principle that GPU degradation stays user-controlled.
+ * reason): one bad GPU session must not degrade every later launch. Only an explicit preference change or manual retry
+ * resets it, matching the #501 principle that GPU degradation stays user-controlled.
  *
  * `on` pins only after repeated Main-observed GPU process exits. `auto` additionally pins after repeated context-loss
  * episodes, which also cover contexts Chromium evicts without a GPU process exit; that is the one place where "let
@@ -106,6 +106,10 @@ export function createGpuIncidentBudget(options: GpuIncidentBudgetOptions): GpuI
     }
 
     return {
+        resetForManualRetry(): void {
+            emit('reset', 'manual-retry');
+            reset();
+        },
         /**
          * Every pane applies the preference on mount, so only a change between two applied values counts as the user
          * asking to try WebGL again; the first application of a session never resets anything.

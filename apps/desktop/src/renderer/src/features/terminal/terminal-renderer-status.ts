@@ -4,8 +4,7 @@ import type { TerminalGpuAcceleration, TerminalRendererStatus } from './terminal
 
 export interface TerminalRendererIndicator {
     /**
-     * Offered only while the fallback is a preference the chip can actually reverse; absent means the chip stays a
-     * read-only reading.
+     * Absent while automatic recovery is in progress; settled fallbacks offer an explicit retry.
      */
     action?: TerminalRendererIndicatorAction;
     ariaLabel: string;
@@ -17,17 +16,14 @@ export interface TerminalRendererIndicatorAction {
     confirmLabel: string;
     message: string;
     /**
-     * Written to `terminal.gpuAcceleration` once the user confirms.
+     * Written to `terminal.gpuAcceleration` once confirmed. Absent means retry the mounted renderer instead.
      */
-    preference: TerminalGpuAcceleration;
+    preference?: TerminalGpuAcceleration;
     title: string;
 }
 
 /**
- * Turning GPU acceleration back on is the one renderer fallback the chip can undo by itself, so it is also the only one
- * that earns a click. `unsupported`, `context-loss`, and `load-failed` describe a WebGL context Caxri cannot obtain;
- * writing the same preference again would change nothing, and DESIGN.md's status bar redline forbids a chip that
- * advertises an action it cannot perform.
+ * Preference-driven fallback uses the settings write; failures instead retry the mounted renderer directly.
  */
 const ENABLE_GPU_ACCELERATION: TerminalRendererIndicatorAction = {
     confirmLabel: 'Turn On',
@@ -35,6 +31,13 @@ const ENABLE_GPU_ACCELERATION: TerminalRendererIndicatorAction = {
         'Terminals switch from the DOM renderer to WebGL immediately, without restarting Caxri or the Terminal. You can turn it off again in Settings.',
     preference: 'on',
     title: 'Turn on GPU acceleration?',
+};
+
+const RETRY_GPU_ACCELERATION: TerminalRendererIndicatorAction = {
+    confirmLabel: 'Retry GPU',
+    message:
+        'Retry GPU rendering for this Terminal and reset the GPU failure limit for this window. Your Terminal and Agent keep running, and settings stay unchanged. If the attempt fails, the Terminal keeps using DOM rendering.',
+    title: 'Retry GPU rendering?',
 };
 
 /**
@@ -46,7 +49,13 @@ export function terminalRendererIndicator(
 ): TerminalRendererIndicator | undefined {
     if (status?.mode !== 'dom' || status.reason === 'disposed') return undefined;
     const detail = terminalRendererDetail(status);
-    const action = status.reason === 'disabled' ? ENABLE_GPU_ACCELERATION : undefined;
+    const isRetrying = ['deferred', 'failed', 'scheduled', 'trying'].includes(status.retryState);
+    const action =
+        status.reason === 'disabled'
+            ? ENABLE_GPU_ACCELERATION
+            : !isRetrying || status.reason === 'context-loss-limit'
+              ? RETRY_GPU_ACCELERATION
+              : undefined;
     // An actionable chip leads with what clicking does, matching the `Open Process Explorer — …` chips beside it, so
     // the accessible name and the tooltip promise exactly the same thing.
     const lead = action ? `${action.title} — ` : '';
@@ -62,27 +71,42 @@ function terminalRendererDetail(status: TerminalRendererStatus): string {
     if (status.reason === 'disabled') return 'GPU acceleration is turned off in Settings.';
     if (status.reason === 'unsupported') return 'WebGL2 is unavailable in this window.';
     if (status.reason === 'context-loss-limit')
-        return 'WebGL was lost repeatedly (GPU process exits or context losses); it stays off until GPU acceleration is changed in Settings or Caxri restarts.';
+        return 'WebGL was lost repeatedly. Automatic recovery is paused; click to retry GPU rendering.';
     const cause =
         status.reason === 'context-loss' ? 'The WebGL context was lost.' : 'WebGL failed to load.';
     if (status.retryState === 'exhausted')
-        return `${cause} Retries exhausted; reopen the Terminal tab or restart Caxri to try again.`;
+        return `${cause} Retries exhausted; click to retry GPU rendering.`;
     if (['deferred', 'failed', 'scheduled', 'trying'].includes(status.retryState))
         return `${cause} Retrying WebGL (${status.retryAttemptCount}/${status.retryLimit}).`;
     return cause;
 }
+
+type TerminalRendererRetry = () => boolean;
 
 /**
  * Ephemeral per-Terminal renderer state for UI surfaces outside the pane. Publishing is synchronous because renderer
  * transitions are rare (preference changes, context loss, retries), unlike OSC progress updates.
  */
 export class TerminalRendererStatusRegistry {
+    private readonly retryHandlers = new Map<string, () => boolean>();
     private readonly current = new Map<string, TerminalRendererStatus>();
     private readonly listeners = new Map<string, Set<() => void>>();
 
     private notify(terminalId: string): void {
         const listeners = this.listeners.get(terminalId) ?? [];
         for (const listener of listeners) listener();
+    }
+
+    // eslint-disable-next-line unicorn/consistent-boolean-name -- retry performs recovery and returns its outcome; it is not a predicate
+    registerRetry(terminalId: string, retry: TerminalRendererRetry): () => void {
+        this.retryHandlers.set(terminalId, retry);
+        return () => {
+            if (this.retryHandlers.get(terminalId) === retry) this.retryHandlers.delete(terminalId);
+        };
+    }
+
+    getRetry(terminalId: string): (() => boolean) | undefined {
+        return this.retryHandlers.get(terminalId);
     }
 
     get(terminalId: string): TerminalRendererStatus | undefined {
@@ -114,6 +138,18 @@ export class TerminalRendererStatusRegistry {
 }
 
 const terminalRendererStatusRegistry = new TerminalRendererStatusRegistry();
+
+export function registerTerminalRendererRetry(
+    terminalId: string,
+    // eslint-disable-next-line unicorn/consistent-boolean-name -- retry performs recovery and returns its outcome; it is not a predicate
+    retry: TerminalRendererRetry,
+): () => void {
+    return terminalRendererStatusRegistry.registerRetry(terminalId, retry);
+}
+
+export function getTerminalRendererRetry(terminalId: string): (() => boolean) | undefined {
+    return terminalRendererStatusRegistry.getRetry(terminalId);
+}
 
 export function publishTerminalRendererStatus(
     terminalId: string,

@@ -415,6 +415,7 @@ export function useTerminalPaneRuntime({
         const rendererObserver = createTerminalRendererObserver({
             container,
             current: () => latestReference.current,
+            retry: () => rendererReference.current?.retryFromUser() ?? false,
             terminalId,
         });
         const renderer = new TerminalRendererController(

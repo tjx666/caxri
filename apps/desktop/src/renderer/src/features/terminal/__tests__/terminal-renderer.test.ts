@@ -39,8 +39,50 @@ function createPolicy(
         isPinnedToDom: overrides.isPinnedToDom ?? (() => false),
         isWebgl2Available: overrides.isWebgl2Available ?? (() => overrides.supported ?? true),
         recordContextLoss: overrides.recordContextLoss ?? (() => {}),
+        resetForManualRetry: overrides.resetForManualRetry ?? (() => {}),
     };
 }
+
+describe('manual GPU retry', () => {
+    it('recovers a pinned pane without changing its preference and protects again after new incidents', () => {
+        const policy = createGpuIncidentBudget({ probeWebgl2: () => true });
+        policy.applyPreference('on');
+        for (let index = 0; index < 3; index++) policy.recordIncident(`before-${index}`);
+        const harness = createHarness({ policy });
+        harness.controller.setPreference('on');
+        expect(harness.statuses.at(-1)?.reason).toBe('context-loss-limit');
+
+        expect(harness.controller.retryFromUser()).toBe(true);
+        expect(harness.statuses.at(-1)?.mode).toBe('webgl');
+        expect(policy.isPinnedToDom()).toBe(false);
+        for (let index = 0; index < 3; index++) policy.recordIncident(`after-${index}`);
+        harness.controller.recoverFromGpuProcessLoss();
+        expect(harness.statuses.at(-1)?.reason).toBe('context-loss-limit');
+        harness.controller.dispose();
+    });
+
+    it('makes one attempt on failure and never rearms an automatic retry loop', () => {
+        vi.useFakeTimers();
+        const harness = createHarness({ loadError: new Error('GPU unavailable') });
+        harness.controller.setPreference('on');
+        expect(harness.controller.retryFromUser()).toBe(false);
+        expect(harness.statuses.at(-1)).toMatchObject({ mode: 'dom', retryState: 'exhausted' });
+        const attempts = harness.host.loadAddon.mock.calls.length;
+        vi.runAllTimers();
+        expect(harness.host.loadAddon).toHaveBeenCalledTimes(attempts);
+        harness.controller.dispose();
+        vi.useRealTimers();
+    });
+
+    it('does not revive disposed panes or override a preference switched off during confirmation', () => {
+        const harness = createHarness();
+        harness.controller.setPreference('off');
+        expect(harness.controller.retryFromUser()).toBe(false);
+        harness.controller.dispose();
+        expect(harness.controller.retryFromUser()).toBe(false);
+        expect(harness.host.loadAddon).not.toHaveBeenCalled();
+    });
+});
 
 function createHarness(
     options: {
