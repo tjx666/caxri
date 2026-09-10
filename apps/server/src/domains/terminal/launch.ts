@@ -11,6 +11,18 @@ import { agentProviderCatalog, CaxriError } from '@caxri/protocol';
 import { discoverExecutable } from '../agents';
 import type { TerminalManagerOptions, TerminalWorkingDirectoryIdentity } from './manager-types';
 
+/**
+ * Captures the authorized directory identity for revalidation immediately before spawn.
+ */
+export async function terminalDirectoryIdentity(
+    path: string,
+): Promise<TerminalWorkingDirectoryIdentity> {
+    const stats = await lstat(path, { bigint: true });
+    if (stats.isSymbolicLink() || !stats.isDirectory())
+        throw new CaxriError('CONFLICT', 'Terminal working directory changed before launch');
+    return { path, device: stats.dev.toString(), inode: stats.ino.toString() };
+}
+
 export async function resolveTerminalExecutable(
     kind: TerminalKind,
     launchSettings: AgentLaunchSettings | undefined,
