@@ -601,7 +601,7 @@ export async function runCli(
                 'FORBIDDEN',
                 'This command requires a directly managed Caxri Agent Endpoint credential',
             );
-        if (endpointCredential && command.requiresHumanOwner)
+        if ((endpointCredential || automation !== 'human') && command.requiresHumanOwner)
             throw new CaxriError(
                 'FORBIDDEN',
                 'This command requires the authenticated human profile owner',

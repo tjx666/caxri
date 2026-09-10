@@ -5,6 +5,7 @@ import { basename, dirname, join, relative } from 'node:path';
 
 import type {
     AgentActionRecentSettings,
+    AgentDelegationSettings,
     AgentProvider,
     AppSettings,
     Keybinding,
@@ -15,6 +16,7 @@ import type {
     ThemeTokens,
 } from '@caxri/protocol';
 import {
+    agentDelegationSettingsSchema,
     agentProviderIds,
     appSettingsFileSchema,
     CaxriError,
@@ -655,6 +657,31 @@ export class ConfigService {
                 ? this.settingsInspection(source, value)
                 : this.inspectSettings();
             return { ...inspection, dryRun: isDryRun, changedKeys };
+        });
+    }
+
+    /**
+     * Owner-only import preserves unrelated JSONC; Agent settings patches cannot reach private instructions.
+     */
+    importDelegationSettings(settings: AgentDelegationSettings, isDryRun: boolean) {
+        return this.mutateSettings(async () => {
+            const value = agentDelegationSettingsSchema.parse(settings);
+            const isChanged =
+                JSON.stringify(this.settings['agents.delegation']) !== JSON.stringify(value);
+            const source = applyEdits(
+                this.settingsSource,
+                modify(this.settingsSource, ['agents.delegation'], value, {
+                    formattingOptions: JSONC_FORMATTING_OPTIONS,
+                }),
+            );
+            this.prepare('settings', source);
+            if (!isDryRun && isChanged) await this.update('settings', source);
+            return {
+                dryRun: isDryRun,
+                changed: isChanged,
+                presetNames: value.presets.map(({ name }) => name),
+                maxDepth: value.maxDepth,
+            };
         });
     }
 

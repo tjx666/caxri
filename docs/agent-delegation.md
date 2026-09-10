@@ -7,7 +7,7 @@ inspection after its answer is collected.
 
 This implements provider delegation and continuation in
 [issue #686](https://github.com/tjx666/caxri/issues/686). It does not yet replace dianjiang:
-Standalone directory authorization and configuration/skill migration remain subsequent stages of that umbrella issue.
+Standalone directory authorization and external caller identity remain subsequent stages of that umbrella issue.
 Real Codex caller transport permissions are a separate validation boundary; target support does not
 claim that every Codex sandbox can connect to a Caxri Server socket.
 
@@ -159,7 +159,31 @@ Install the bundled CLI instructions explicitly with
 `.grok/skills/caxri-cli`; `--global` uses `GROK_HOME/skills/caxri-cli` (default `~/.grok`).
 The existing managed-skill installer preserves foreign files and does not install hooks or change
 provider permissions. Installing the skill does not grant an external Agent a Caxri identity;
-standalone directory authorization and dianjiang configuration migration remain separate work.
+standalone directory authorization remains separate work.
+
+## Import dianjiang presets
+
+The human profile owner can preview an explicitly selected JSONC configuration:
+
+```sh
+caxri agent delegate import --profile /path/to/caxri-profile --from /path/to/config.jsonc
+caxri agent delegate import --profile /path/to/caxri-profile --from /path/to/config.jsonc --apply --yes
+```
+
+Preview is the default and writes nothing. Applying replaces only `agents.delegation`, preserving
+other settings and their JSONC comments. The source file is never changed; source comments are not
+copied. The report contains preset names, depth and whether settings would change, without private
+instructions. No global configuration or skill is discovered, installed, removed or rewritten.
+
+`agents` maps to `presets`, `harness` to `provider`, and caller `agents` to caller `presets`.
+Caller model/effort tuples remain whole replacements; exclusions, descriptions, private instructions,
+prepend and append retain their meaning. Import rejects unknown fields, invalid names, unsupported
+provider efforts, excessive depth or lengths, duplicate presets and invalid caller references.
+Inputs must be regular, non-symlink JSONC files of at most 1 MiB.
+
+The dedicated `settings.delegation.write` capability belongs to the profile owner. Ordinary Agent
+settings grants cannot change delegation instructions. Managed or detected external Agents cannot
+use this owner command, even with `--yes`.
 
 A background-child continuation belongs to the task only when the coordinator proves its exact
 deferred parent turn and every subsequent prompt digest appears in order in the transcript ancestry.

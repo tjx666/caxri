@@ -369,6 +369,7 @@ export function operatorContext(profileId: string): CommandExecutionContext {
             'sessions.read',
             'settings.read',
             'settings.write',
+            'settings.delegation.write',
             'terminals.read',
             'terminals.steer',
         ],
