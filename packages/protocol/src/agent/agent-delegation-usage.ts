@@ -3,11 +3,12 @@ import { z } from 'zod';
 const tokens = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 
 /**
- * Native provider counters for the exact main-thread task, without estimated pricing or child-agent billing.
+ * Native provider counters for the exact task. Scope distinguishes main-thread counters from provider totals that
+ * include native subagents; neither scope contains estimated pricing.
  */
 export const agentDelegationUsageSchema = z.strictObject({
     source: z.literal('provider'),
-    scope: z.literal('main-thread'),
+    scope: z.enum(['main-thread', 'provider-task']),
     inputTokens: tokens,
     outputTokens: tokens,
     cacheReadTokens: tokens.optional(),

@@ -120,7 +120,7 @@ describe('Codex delegation launch ownership', () => {
         };
         expect(() => codexDelegationAdapter.validateLaunch(launch)).not.toThrow();
         expect(
-            codexDelegationAdapter.freshLaunch(launch, 'Synthetic pointer', '/private/tasks').args,
+            codexDelegationAdapter.freshLaunch!(launch, 'Synthetic pointer', '/private/tasks').args,
         ).toEqual([...launch.args, '--', 'Synthetic pointer']);
     });
     it('submits the pointer without granting directory write access or inventing native identity', () => {
@@ -131,9 +131,9 @@ describe('Codex delegation launch ownership', () => {
         expect(() => codexDelegationAdapter.validateLaunch(launch)).not.toThrow();
         expect(codexDelegationAdapter.createSessionId()).toBeUndefined();
         expect(
-            codexDelegationAdapter.freshLaunch(launch, 'Synthetic pointer', '/private/tasks'),
+            codexDelegationAdapter.freshLaunch!(launch, 'Synthetic pointer', '/private/tasks'),
         ).toEqual({ ...launch, args: [...launch.args, '--', 'Synthetic pointer'] });
-        expect(codexDelegationAdapter.resumeLaunch(launch, '/private/tasks')).toEqual(launch);
+        expect(codexDelegationAdapter.resumeLaunch!(launch, '/private/tasks')).toEqual(launch);
     });
     it.each([
         ['-c', 'features.hooks=false'],

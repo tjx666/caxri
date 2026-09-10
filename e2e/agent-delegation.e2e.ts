@@ -15,9 +15,13 @@ import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
 
-for (const targetProvider of ['claude', 'codex'] as const) {
-    const callerProvider = targetProvider === 'claude' ? 'codex' : 'claude';
-    test(`visible ${targetProvider} delegation preserves caller focus and returns the exact durable answer`, async () => {
+for (const [callerProvider, targetProvider] of [
+    ['codex', 'claude'],
+    ['claude', 'codex'],
+    ['claude', 'grok'],
+    ['grok', 'claude'],
+] as const) {
+    test(`visible ${targetProvider} delegation from ${callerProvider} preserves caller focus and returns the exact durable answer`, async () => {
         const testInfo = test.info();
         const directory = await mkdtemp(join(tmpdir(), 'caxri-delegation-e2e-'));
         const userData = join(directory, 'profile');
@@ -34,7 +38,7 @@ for (const targetProvider of ['claude', 'codex'] as const) {
 // 合成调用方通过继承的受管凭据运行真实 CLI，仅保存非秘密上下文及断言回执。
 const fs = require('node:fs');
 const { spawnSync } = require('node:child_process');
-if(process.argv.includes('--version')) { console.log(${JSON.stringify(callerProvider === 'codex' ? 'codex-cli 0.153.4' : '2.1.266 (Claude Code)')}); process.exit(0); }
+if(process.argv.includes('--version')) { console.log(${JSON.stringify(callerProvider === 'codex' ? 'codex-cli 0.153.4' : callerProvider === 'grok' ? 'grok 1.0.24' : '2.1.266 (Claude Code)')}); process.exit(0); }
 const cli = args => spawnSync(process.execPath, [${JSON.stringify(cliPath)}, ...args, '--json'], {encoding:'utf8',env:process.env,timeout:25000});
 const contextCall = cli(['agent-context']);
 if(contextCall.status !== 0) process.exit(1);
@@ -66,7 +70,7 @@ process.stdin.on('data', chunk => {
   const resumedReceipt=resumed.status===0?JSON.parse(resumed.stdout):null;
   const resumeWait=resumedReceipt?cli(['agent','delegate','wait',resumedReceipt.delegationId,'--timeout','20000']):null;
   const resumeResult=resumeWait?.status===0?JSON.parse(resumeWait.stdout):null;
-  if(![result,followResult,resumeResult].every(value=>value?.receipt.usage?.inputTokens===10&&value?.receipt.usage?.outputTokens===5)){fs.writeFileSync(${JSON.stringify(resultPath)},JSON.stringify({code:98}));return;}
+  if(![result,followResult,resumeResult].every(value=>value?.receipt.usage?.inputTokens===10&&value?.receipt.usage?.outputTokens===5)){fs.writeFileSync(${JSON.stringify(resultPath)},JSON.stringify({code:98,outcomes:[result,followResult,resumeResult].map(value=>({status:value?.receipt.status,failure:value?.receipt.failure,correlationFailure:value?.receipt.correlationFailure}))}));return;}
   fs.writeFileSync(${JSON.stringify(resultPath)},JSON.stringify({code:waited.status,receipt:result?.receipt,retriedSame:retried.status===0&&JSON.parse(retried.stdout).delegationId===receipt.delegationId,answerMatched:result?.answer?.text==='Synthetic delegation complete',followStatus:followResult?.receipt.status,followAnswerMatched:followResult?.answer?.text==='Synthetic follow-up complete',resumeStatus:resumeResult?.receipt.status,resumeFailure:resumeResult?.receipt.failure,resumeAnswerMatched:resumeResult?.answer?.text==='Synthetic resume complete',sameTerminal:followReceipt?.terminalId===receipt.terminalId&&resumedReceipt?.terminalId===receipt.terminalId}));
   process.stdout.write('Synthetic caller collected delegated answer\r\n');
 });
@@ -108,6 +112,7 @@ process.stdout.write('Synthetic caller ready\r\n');
                     },
                 },
             };
+            settings.value['agents.providers'].grok.hooks.enabled = true;
             await pageRequest(running.page, 'settings.update', {
                 source: JSON.stringify(settings.value),
             });
@@ -200,7 +205,7 @@ process.stdout.write('Synthetic caller ready\r\n');
         }
     });
 
-    test(`stopped ${targetProvider} delegation survives app restart and explicitly resumes its exact native conversation`, async () => {
+    test(`stopped ${callerProvider} to ${targetProvider} delegation survives app restart and explicitly resumes its exact native conversation`, async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-delegation-restart-'));
         const userDataDirectory = join(directory, 'profile');
         const root = join(directory, 'project');
@@ -219,6 +224,14 @@ process.stdout.write('Synthetic caller ready\r\n');
         };
         let running = await launchCaxri(launchOptions);
         try {
+            const settings = await pageRequest<{ value: AppSettings }>(
+                running.page,
+                'settings.get',
+            );
+            settings.value['agents.providers'].grok.hooks.enabled = true;
+            await pageRequest(running.page, 'settings.update', {
+                source: JSON.stringify(settings.value),
+            });
             const sessionId = await createProjectSession(running.page, 'shell');
             const bootstrap = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
             const projectId = bootstrap.sessions.find(

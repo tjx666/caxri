@@ -23,6 +23,57 @@ function expectedRejectionReason(description: string): AgentHookSignalRejectionR
 
 describe('AgentHookServer parseSignal()', () => {
     it.each([
+        { phase: 'turnFailed', accepted: true },
+        { phase: 'turnFinished', accepted: true },
+        { phase: 'turnStarted', accepted: false },
+        { phase: 'turnFailed', agentId: 'child', accepted: false },
+    ])(
+        'validates Grok failure phase and main-agent scope (%#)',
+        async ({ accepted, ...fields }) => {
+            const { server, socketPath } = await createTestServer();
+            try {
+                const token = server.register('terminal-1', 'launch-1', 'grok');
+                const response = await send(
+                    socketPath,
+                    validPayload({
+                        token,
+                        provider: 'grok',
+                        agentFailure: 'rate_limit',
+                        ...fields,
+                    }),
+                );
+                expect(response).toBe(accepted ? '{"ok":true}\n' : '{"ok":false}\n');
+            } finally {
+                await server.close();
+            }
+        },
+    );
+    it.each([
+        { agentResponseByteLength: 16, accepted: true },
+        { agentResponseByteLength: -1, accepted: false },
+        { agentResponseByteLength: 1.5, accepted: false },
+        { agentResponseByteLength: 1_048_577, accepted: false },
+        { agentResponseByteLength: 16, agentId: 'native-child', accepted: false },
+    ])('validates Grok response lengths (%#)', async ({ accepted, ...fields }) => {
+        const { server, socketPath } = await createTestServer();
+        try {
+            const token = server.register('terminal-1', 'launch-1', 'grok');
+            const response = await send(
+                socketPath,
+                validPayload({
+                    token,
+                    provider: 'grok',
+                    phase: 'turnFinished',
+                    agentResponseDigest: 'a'.repeat(64),
+                    ...fields,
+                }),
+            );
+            expect(response).toBe(accepted ? '{"ok":true}\n' : '{"ok":false}\n');
+        } finally {
+            await server.close();
+        }
+    });
+    it.each([
         { phase: 'turnFinished', agentResponseDigest: 'a'.repeat(64), accepted: true },
         { phase: 'turnStarted', agentPromptDigest: 'b'.repeat(64), accepted: true },
         { phase: 'turnFinished', agentPromptDigest: 'b'.repeat(64), accepted: false },

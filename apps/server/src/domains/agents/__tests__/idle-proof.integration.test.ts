@@ -10,10 +10,10 @@ import { CaxriDatabase } from '../../db';
 import { AgentCoordinator } from '../coordinator';
 import type { AgentLifecycleSignal } from '../hooks/contract';
 
-async function fixture() {
+async function fixture(provider: 'claude' | 'grok' = 'claude') {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-idle-proof-'));
     const database = new CaxriDatabase(join(directory, 'state.db'));
-    const { terminal } = database.createSession(database.createProject(directory).id, 'claude');
+    const { terminal } = database.createSession(database.createProject(directory).id, provider);
     const logger = new StructuredLogger(join(directory, 'logs'));
     const applied: AgentLifecycleSignal[] = [];
     const coordinator = new AgentCoordinator(database, createTestAgentService(), () => {}, logger, {
@@ -28,7 +28,7 @@ async function fixture() {
     const base = {
         terminalId: terminal!.id,
         launchId: 'launch',
-        provider: 'claude' as const,
+        provider,
         agentTurnId: 'turn',
     };
     coordinator.beginTerminalLaunch(base.terminalId, base.launchId);
@@ -41,6 +41,27 @@ async function fixture() {
 }
 
 describe('Native Agent idle proof', () => {
+    it('accepts continued Grok Stop evidence without applying completion or idle proof', async () => {
+        const f = await fixture('grok');
+        const identity = { agentSessionId: 'native-session' };
+        expect(f.observe('sessionIdentified', identity)).toBe('accepted');
+        expect(f.observe('turnStarted', identity)).toBe('accepted');
+        const stop = {
+            ...identity,
+            agentResponseDigest: 'a'.repeat(64),
+            agentResponseByteLength: 16,
+        };
+        expect(f.observe('turnFinished', { ...stop, agentTurnContinues: true })).toBe('accepted');
+        expect(f.isIdle()).toBe(false);
+        expect(f.applied.filter(({ phase }) => phase === 'turnFinished')).toHaveLength(0);
+        expect(f.observe('turnFinished', stop)).toBe('accepted');
+        expect(f.isIdle()).toBe(true);
+        expect(f.observe('turnFinished', stop)).toBe('accepted');
+        expect(f.observe('turnStarted', { ...identity, agentTurnId: 'next-turn' })).toBe(
+            'accepted',
+        );
+        expect(f.observe('turnFinished', stop)).toBe('staleProviderTurn');
+    });
     it.each(['attentionRequested', 'compactionStarted', 'turnStarted', 'subagentStarted'] as const)(
         'invalidates completed-turn proof on %s',
         async (phase) => {

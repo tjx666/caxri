@@ -34,6 +34,8 @@ export interface ResolvedTerminalLaunch {
     agent?: {
         agentSessionId?: string;
         resumeAgentSessionId?: string;
+        assignedAgentSessionId?: string;
+        initialPrompt?: string;
         args: string[];
         executable: string;
         launch: AgentLaunchSettings;
@@ -120,7 +122,8 @@ export class TerminalLaunchPlanner {
                         ...agentProviders[record.kind].resumeArguments(start.resumeAgentSessionId),
                     );
                 }
-                if (start?.initialPrompt) agentArguments.push('--', start.initialPrompt);
+                if (start?.initialPrompt && !agentProviders[record.kind].prepareLaunch)
+                    agentArguments.push('--', start.initialPrompt);
                 return {
                     ok: true,
                     value: {
@@ -128,6 +131,8 @@ export class TerminalLaunchPlanner {
                         executable,
                         agent: {
                             resumeAgentSessionId: start?.resumeAgentSessionId,
+                            assignedAgentSessionId: start?.assignedAgentSessionId,
+                            initialPrompt: start?.initialPrompt,
                             args: agentArguments,
                             executable: agentExecutable,
                             launch,
@@ -191,6 +196,8 @@ export class TerminalLaunchPlanner {
                         cwd: record.cwd,
                         environment: defaultAgentEnvironment(providerEnvironment),
                         resumeAgentSessionId: resolved.agent.resumeAgentSessionId,
+                        assignedAgentSessionId: resolved.agent.assignedAgentSessionId,
+                        initialPrompt: resolved.agent.initialPrompt,
                         version: await readVersion(
                             resolved.agent.provider,
                             resolved.agent.executable,
