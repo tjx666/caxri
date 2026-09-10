@@ -91,6 +91,7 @@
                     ".agents/skills/acceptance/scripts/report.ts",
                     ".agents/skills/acceptance/scripts/start-electron.ts",
                     ".agents/skills/acceptance/scripts/stop-electron.ts",
+                    ".agents/skills/audit-ux/scripts/render-count.ts",
                     ".agents/skills/design-prototype/assets/entry.mjs",
                     ".agents/skills/design-prototype/scripts/build-runtime.ts",
                     ".agents/skills/design-prototype/scripts/verify-prototype.ts",
