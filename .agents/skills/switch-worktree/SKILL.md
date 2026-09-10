@@ -15,6 +15,12 @@ Pass `--json` when another tool or agent will consume the result.
 
 ## Default delivery flow
 
+This delivery flow also applies when a repair or implementation uses an isolated worktree because
+`AGENTS.md` requires it; the user does not have to say "worktree" explicitly. Carry the task through
+commit, PR publication, review, and final CI results instead of reporting an uncommitted local fix
+as complete. Merge requires the session's explicit user authorization; once given, retain it through
+merge and remote readback rather than asking again or stopping at a green PR.
+
 An isolated worktree is a self-contained development environment: its branch, dependencies, and
 profile cannot disturb the primary checkout or sibling agent sessions. That isolation is the point
 — when the user asks to switch to a worktree to get work done (e.g. "切 worktree 处理 issue #123"

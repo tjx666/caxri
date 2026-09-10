@@ -5,6 +5,12 @@ description: Diagnose Caxri failures across Desktop Main, Server Core, Terminal 
 
 # Debug Caxri
 
+A reported product failure is a repair task unless the user explicitly requests analysis only.
+Reproduce the failing boundary, fix the verified cause in a task worktree, and validate the repair.
+A plausible explanation or a manual recovery command is not completion; use recovery advice only
+to unblock the user while the authorized repair continues. If evidence requires user input, retain
+the active repair scope when that input arrives.
+
 1. Reproduce with the narrowest real process path. For interactive Electron behavior, agents always
    use `bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts dev` so the checkout owns
    an isolated profile and Desktop lease. Bare `bun run dev` is only a first-clone convenience for a
