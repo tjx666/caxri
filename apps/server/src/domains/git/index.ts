@@ -164,6 +164,7 @@ export class GitService {
         });
         this.metadataWatcher = new GitMetadataWatcher({
             logger: this.logger,
+            referencedRepositoryKeys: () => this.changeTracker.referencedRepositoryKeys(),
             onStatusChanged: (repoKey, roots) =>
                 this.repositoryService.observeMetadataStatus(repoKey, roots),
             onTopologyChanged: (repoKey) => this.repositoryService.observeMetadataTopology(repoKey),
