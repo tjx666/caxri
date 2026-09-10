@@ -40,7 +40,7 @@ import { createTerminalRestartHandler } from './terminal-restart';
 import { createInterruptedTerminalRestorer } from './terminal-restore';
 import * as provenance from './workbench-provenance';
 import { validateWorkbenchRequestContext } from './workbench-request-context';
-import { createWorkbenchRootHandlers } from './workbench-roots';
+import { createWorkbenchRootHandlers } from './workbench-root-handlers';
 
 const DEFAULT_WINDOW_BOUNDS: PersistedWindowState['bounds'] = { width: 1440, height: 900 };
 const VISIBLE_TERMINAL_RESTORE_GRID_WAIT_MS = 5_000;
