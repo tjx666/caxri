@@ -25,6 +25,12 @@ export function describeGitFailure(error: unknown): string {
         return ProjectStatusSummaryErrorMessage.missingGitRepository;
     // Sync (pull/push) failures the user can act on directly; anything else falls through to the
     // generic wording so raw remote stderr never leaks into the UI.
+    if (
+        /the upstream branch of your current branch does not match\s+the name of your current branch/.test(
+            stderr,
+        )
+    )
+        return 'Push failed because the current branch and its upstream have different names. Check the intended remote branch and update the upstream or push target before retrying.';
     if (stderr.includes('no tracking information') || stderr.includes('has no upstream branch'))
         return 'The current branch has no upstream branch to sync with.';
     if (
