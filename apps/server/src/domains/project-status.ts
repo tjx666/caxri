@@ -19,9 +19,9 @@ import { ProjectStatusSummaryErrorMessage as statusError } from 'caxri';
 import type { ExternalStatusRunner, ExternalStatusSource } from './external-status';
 import {
     ExternalStatusCliError,
-    externalStatusCommandOperation,
     GitHubPullRequestStore,
     isNoPullRequest,
+    observeExternalStatusCommand,
     runExternalStatusCommand,
 } from './external-status';
 import type { GitService } from './git';
@@ -162,28 +162,13 @@ export class ProjectStatusService {
         arguments_: readonly string[],
         cwd: string,
     ): Promise<string> {
-        const startedAt = performance.now();
-        const operation = externalStatusCommandOperation(command, arguments_);
-        try {
-            const result = await this.runner(command, arguments_, cwd);
-            this.logger.write('debug', logEventCatalog.projectStatus.cli, {
-                durationMs: performance.now() - startedAt,
-                fields: { command, operation, result: 'success' },
-            });
-            return result;
-        } catch (error) {
-            const failureKind =
-                error instanceof ExternalStatusCliError ? error.kind : ('other' as const);
-            this.logger.write(
-                isNoPullRequest(error) ? 'debug' : 'warn',
-                logEventCatalog.projectStatus.cli,
-                {
-                    durationMs: performance.now() - startedAt,
-                    fields: { command, operation, result: 'failure', failureKind },
-                },
-            );
-            throw error;
-        }
+        return observeExternalStatusCommand({
+            logger: this.logger,
+            event: logEventCatalog.projectStatus.cli,
+            command,
+            arguments: arguments_,
+            run: () => this.runner(command, arguments_, cwd),
+        });
     }
 
     private async loadOverview(sessionId: string): Promise<ProjectStatusOverview> {

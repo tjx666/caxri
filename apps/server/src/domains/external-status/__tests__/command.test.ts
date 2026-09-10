@@ -4,6 +4,14 @@ import type { ExternalStatusCommandDependencies } from '../command';
 import { externalStatusCommandOperation, runExternalStatusCommand } from '../command';
 
 describe('runExternalStatusCommand', () => {
+    it('preserves numeric process exit codes for diagnostics', async () => {
+        await expect(
+            runExternalStatusCommand('git', ['status'], '/fixture', {
+                run: () => Promise.reject(Object.assign(new Error('fixture failure'), { code: 2 })),
+            }),
+        ).rejects.toMatchObject({ command: 'git', kind: 'other', exitCode: 2 });
+    });
+
     it.each(['gh', 'vc', 'linear'] as const)(
         'resolves %s through the shared login-path boundary',
         async (command) => {
@@ -70,6 +78,10 @@ describe('runExternalStatusCommand', () => {
 });
 
 describe('externalStatusCommandOperation', () => {
+    it('does not include arbitrary REST paths or subcommands in operation names', () => {
+        expect(externalStatusCommandOperation('gh', ['api', 'PRIVATE_ENDPOINT'])).toBe('unknown');
+        expect(externalStatusCommandOperation('gh', ['pr', 'PRIVATE_COMMAND'])).toBe('unknown');
+    });
     it('keeps the REST quota probe attributable without logging user content', () => {
         expect(externalStatusCommandOperation('gh', ['api', 'rate_limit'])).toBe('api.rate_limit');
     });

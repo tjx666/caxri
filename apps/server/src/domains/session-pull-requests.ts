@@ -28,10 +28,9 @@ import {
 import type { CaxriDatabase } from './db';
 import type { ExternalStatusRunner } from './external-status';
 import {
-    ExternalStatusCliError,
-    externalStatusCommandOperation,
     GitHubPullRequestStore,
     isNoPullRequest,
+    observeExternalStatusCommand,
     runExternalStatusCommand,
 } from './external-status';
 import type { GitService } from './git';
@@ -562,28 +561,13 @@ export class SessionPullRequestService {
     }
 
     private async runCommand(arguments_: readonly string[], cwd: string): Promise<string> {
-        const startedAt = performance.now();
-        const operation = externalStatusCommandOperation('gh', arguments_);
-        try {
-            const result = await this.runner('gh', arguments_, cwd);
-            this.logger.write('debug', logEventCatalog.sessionPullRequests.cli, {
-                durationMs: performance.now() - startedAt,
-                fields: { operation, result: 'success' },
-            });
-            return result;
-        } catch (error) {
-            const failureKind =
-                error instanceof ExternalStatusCliError ? error.kind : ('other' as const);
-            this.logger.write(
-                isNoPullRequest(error) ? 'debug' : 'warn',
-                logEventCatalog.sessionPullRequests.cli,
-                {
-                    durationMs: performance.now() - startedAt,
-                    fields: { operation, result: 'failure', failureKind },
-                },
-            );
-            throw error;
-        }
+        return observeExternalStatusCommand({
+            logger: this.logger,
+            event: logEventCatalog.sessionPullRequests.cli,
+            command: 'gh',
+            arguments: arguments_,
+            run: () => this.runner('gh', arguments_, cwd),
+        });
     }
 
     /**
