@@ -1,0 +1,48 @@
+import {
+    agentTranscriptTabPath,
+    externalEditorTabPath,
+    gitChangesDiffTabPath,
+    gitFileDiffTabPath,
+} from '@caxri/protocol';
+import { describe, expect, it } from 'vitest';
+
+import { documentTabPresentation } from '../document-tab-presentation';
+
+describe('documentTabPresentation', () => {
+    it('keeps file names accessible while exposing their full path on hover', () => {
+        expect(documentTabPresentation('/project/notes.md', {})).toEqual({
+            fileIconName: 'notes.md',
+            label: 'notes.md',
+            labelTooltip: '/project/notes.md',
+        });
+        expect(
+            documentTabPresentation(externalEditorTabPath('external-1', 'notes.md'), {
+                displayPath: '/outside/notes.md',
+            }),
+        ).toEqual({
+            fileIconName: 'notes.md',
+            label: 'notes.md',
+            labelTooltip: '/outside/notes.md',
+        });
+    });
+    it('does not expose opaque virtual identities as hover paths', () => {
+        for (const path of [
+            gitFileDiffTabPath('repo', 'src/file.ts'),
+            gitChangesDiffTabPath('repo', 'project'),
+            agentTranscriptTabPath('terminal-1'),
+        ]) {
+            const result = documentTabPresentation(path, { transcriptTitle: 'Fixture Agent' });
+            expect(result.labelTooltip).toBe(result.label);
+            expect(result.label).not.toContain('://');
+        }
+        expect(
+            documentTabPresentation(gitChangesDiffTabPath('repo', 'project'), {}).fileIconName,
+        ).toBe('changes.diff');
+        expect(documentTabPresentation(agentTranscriptTabPath('terminal-1'), {}).fileIconName).toBe(
+            'transcript.jsonl',
+        );
+        expect(
+            documentTabPresentation(gitFileDiffTabPath('repo', 'src/file.ts'), {}).fileIconName,
+        ).toBe('file.ts');
+    });
+});

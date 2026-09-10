@@ -7,13 +7,48 @@ import {
 } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { resolveDocumentTabPath } from '../document-tab-path-actions';
+import { documentTabPathMenuState, resolveDocumentTabPath } from '../document-tab-path-actions';
 
 const repositories = [
     { id: 'primary', rootPath: '/project' },
     { id: 'nested', rootPath: '/project/packages/nested' },
     { id: 'submodule', rootPath: '/project/vendor/sub' },
 ] as const;
+
+describe('documentTabPathMenuState', () => {
+    const loaded = { isError: false, isPending: false };
+    it('offers external absolute paths and single-file diffs but not aggregate virtual documents', () => {
+        expect(
+            documentTabPathMenuState(externalEditorTabPath('external-1', 'outside.ts'), loaded),
+        ).toMatchObject({ isExternal: true, showMenu: true });
+        expect(documentTabPathMenuState('/project/file.ts', loaded)).toMatchObject({
+            isExternal: false,
+            showMenu: true,
+        });
+        expect(
+            documentTabPathMenuState(gitFileDiffTabPath('primary', 'file.ts'), loaded).showMenu,
+        ).toBe(true);
+        expect(
+            documentTabPathMenuState(gitChangesDiffTabPath('primary', 'project'), loaded).showMenu,
+        ).toBe(false);
+        expect(
+            documentTabPathMenuState(agentTranscriptTabPath('terminal-1'), loaded).showMenu,
+        ).toBe(false);
+    });
+    it('distinguishes loading, failed, and unavailable repository paths', () => {
+        expect(
+            documentTabPathMenuState('/project/file.ts', { isError: false, isPending: true })
+                .unavailableReason,
+        ).toBe('Repository information is still loading');
+        expect(
+            documentTabPathMenuState('/project/file.ts', { isError: true, isPending: false })
+                .unavailableReason,
+        ).toBe('Unable to load repository information');
+        expect(documentTabPathMenuState('/project/file.ts', loaded).unavailableReason).toBe(
+            'The file path is unavailable',
+        );
+    });
+});
 
 describe('resolveDocumentTabPath', () => {
     it('copies the Main-authorized display path of an external document without a Project root', () => {

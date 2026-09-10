@@ -7,6 +7,27 @@ import { resolveRepositoryFilePath as resolveRepoFilePath } from '../../lib/repo
 
 type RepoRoot = Pick<GitRepositoryOverview, 'id' | 'rootPath'>;
 
+/**
+ * Keeps virtual-resource capabilities and query feedback out of the tab's presentation branches.
+ */
+export function documentTabPathMenuState(
+    path: string,
+    query: { isError: boolean; isPending: boolean },
+): { isExternal: boolean; showMenu: boolean; unavailableReason: string } {
+    const isExternal = Boolean(parseExternalEditorTab(path));
+    const diff = parseGitDiffTab(path);
+    return {
+        isExternal,
+        showMenu:
+            !isVirtualEditorTabPath(path) || isExternal || Boolean(diff && diff.kind !== 'changes'),
+        unavailableReason: query.isError
+            ? 'Unable to load repository information'
+            : query.isPending
+              ? 'Repository information is still loading'
+              : 'The file path is unavailable',
+    };
+}
+
 export interface DocumentTabPathResolution {
     absolutePath: string;
     relativeRoot?: string;
