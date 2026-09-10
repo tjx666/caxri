@@ -2,7 +2,7 @@ import { Buffer } from 'node:buffer';
 import { constants } from 'node:fs';
 import { open } from 'node:fs/promises';
 
-import { agentDelegationCreateSchema, CaxriError } from '@caxri/protocol';
+import { agentDelegationCreateSchema, CaxriError, delegationProviderSchema } from '@caxri/protocol';
 
 import type { RemoteCommandDefinition } from './types';
 
@@ -18,6 +18,8 @@ const createFlags = new Set([
     '--follow-up',
     '--resume',
 ]);
+
+const providerUsage = delegationProviderSchema.options.join('|');
 
 async function createParameters(tokens: readonly string[]) {
     const values = new Map<string, string>();
@@ -80,7 +82,7 @@ export const DELEGATION_COMMANDS: RemoteCommandDefinition[] = [
         path: ['agent', 'delegate', 'presets'],
         method: 'agent.delegation.presets',
         summary: 'List the delegation presets available to this caller.',
-        usage: '--project <id> --session <id> [--caller <claude|codex>]',
+        usage: `--project <id> --session <id> [--caller <${providerUsage}>]`,
         parseParams: (tokens) => {
             const values: Record<string, string> = {};
             const flags: Record<string, string> = {
@@ -123,7 +125,7 @@ export const DELEGATION_COMMANDS: RemoteCommandDefinition[] = [
         path: ['agent', 'delegate', 'create'],
         method: 'agent.delegation.create',
         summary: 'Run a task in a visible Agent Terminal and preserve its exact result.',
-        usage: '--project <id> --session <id> --prompt-file <path> [--preset <name> | --provider <claude|codex> [--model <name>] [--effort <level>]] [--caller <claude|codex>] [--follow-up <id> | --resume <id>]',
+        usage: `--project <id> --session <id> --prompt-file <path> [--preset <name> | --provider <${providerUsage}> [--model <name>] [--effort <level>]] [--caller <${providerUsage}>] [--follow-up <id> | --resume <id>]`,
         ownerConfirmation: 'Create this visible Agent delegation?',
         parseParams: createParameters,
     },

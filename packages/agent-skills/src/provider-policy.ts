@@ -15,7 +15,14 @@ export const agentSkillProviderIntegrations: Record<
     AgentProvider,
     AgentSkillProviderIntegration | null
 > = {
-    grok: null,
+    /**
+     * @see https://github.com/xai-org/grok-build/blob/37949780/crates/codegen/xai-grok-shell/src/extensions/skills.rs
+     */
+    grok: {
+        configEnvironmentVariable: 'GROK_HOME',
+        defaultConfigDirectory: '.grok',
+        localSkillsDirectory: '.grok',
+    },
     claude: {
         configEnvironmentVariable: 'CLAUDE_CONFIG_DIR',
         defaultConfigDirectory: '.claude',

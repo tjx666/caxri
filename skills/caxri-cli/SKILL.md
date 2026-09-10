@@ -98,7 +98,7 @@ state access.
 
 ## Keep dispatch, control, and steer separate
 
-- `agent delegate create` runs a task from `--prompt-file` in a visible Claude or Codex child Terminal.
+- `agent delegate create` runs a task from `--prompt-file` in a visible Claude, Codex or Grok child Terminal.
   Use `agent delegate presets --project <id> --session <id>` to discover caller-specific presets,
   then select `--preset <name>` or explicit `--provider` with optional `--model` and `--effort`.
   The Server enforces preset exclusions and nesting depth. Follow-up and resume keep their saved
@@ -114,6 +114,10 @@ state access.
   does not inherit an older caller's ownership; ask the authenticated owner to recover that task.
   Inspect the receipt status: `completed` with an answer is distinct from blocked, interrupted,
   human intervention or missing result evidence. Never treat dispatch idle as task completion.
+  Grok requires explicitly enabled Caxri lifecycle hooks. If they are unavailable, ask the owner
+  to configure them; never install global hooks or relax a Provider sandbox yourself.
+  Provider usage is optional: omitted counters are unknown. Grok's `provider-task` scope may include
+  native children; Claude and Codex report `main-thread` scope.
 
 - `agent dispatch` starts or resumes an exact Provider conversation and returns a durable receipt.
 - `agent control` interrupts or stops one exact active Endpoint generation.

@@ -70,7 +70,7 @@ installed automatically. The default maximum depth is two; supported values are 
 ```
 
 `agent delegate presets --project <id> --session <id>` returns the caller's available roster.
-`create --preset review` selects that named entry. An owner may add `--caller claude|codex` to use
+`create --preset review` selects that named entry. An owner may add `--caller claude|codex|grok` to use
 that caller's bindings; a managed Agent's identity always comes from its authenticated Terminal.
 Attempting to claim another provider is rejected before roster disclosure or launch.
 
@@ -151,8 +151,15 @@ Long working-directory names use the provider's bounded `.cwd` marker lookup; th
 reader still rejects symlinked or otherwise unsafe transcript paths. Grok hooks are required for
 managed launch and use the owned `hooks/caxri.json` file. The Provider renders the preallocated
 identity and private-file pointer through Server-owned fields, keeping user-supplied identity and
-positional overrides rejected. The workspace sandbox remains required. Native session rename and provider skill installation are not
+positional overrides rejected. The workspace sandbox remains required. Native session rename is not
 currently supported.
+
+Install the bundled CLI instructions explicitly with
+`caxri skills install caxri-cli --provider grok --local --yes`. Local installation uses
+`.grok/skills/caxri-cli`; `--global` uses `GROK_HOME/skills/caxri-cli` (default `~/.grok`).
+The existing managed-skill installer preserves foreign files and does not install hooks or change
+provider permissions. Installing the skill does not grant an external Agent a Caxri identity;
+standalone directory authorization and dianjiang configuration migration remain separate work.
 
 A background-child continuation belongs to the task only when the coordinator proves its exact
 deferred parent turn and every subsequent prompt digest appears in order in the transcript ancestry.
