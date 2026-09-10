@@ -13,6 +13,10 @@ import { agentEndpointMethods } from '../agent/agent-endpoint-contract.js';
 import { agentInboxMethods } from '../agent/agent-inbox-contract.js';
 import { agentSkillHealthSchema } from '../agent/agent-skill-contract.js';
 import {
+    delegationAccessInternalMethods,
+    delegationAccessMethods,
+} from '../agent/delegation-access-contract.js';
+import {
     configurationSourceSchema as configSourceSchema,
     MAX_KEYBINDINGS,
 } from '../configuration/configuration-contract.js';
@@ -184,6 +188,7 @@ export const methods = {
     ...agentActionMethods,
     ...agentDispatchMethods,
     ...agentDelegationMethods,
+    ...delegationAccessMethods,
     ...agentEndpointMethods,
     ...agentInboxMethods,
     ...businessMethods,
@@ -698,6 +703,7 @@ export const methods = {
 export const internalMethods = {
     ...agentDispatchInternalMethods,
     ...agentDelegationInternalMethods,
+    ...delegationAccessInternalMethods,
     ...businessInternalMethods,
     ...gitInternalMethods,
     ...mobileInternalMethods,

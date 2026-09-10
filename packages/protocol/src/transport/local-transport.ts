@@ -104,6 +104,13 @@ const localClientDesktopCredentialSchema = z.object({
     desktopId: identifierSchema,
 });
 
+const localClientDelegationCredentialSchema = z.object({
+    kind: z.literal('delegation-client'),
+    clientId: z.uuid(),
+    generation: z.number().int().positive(),
+    token: serverCredentialTokenSchema,
+});
+
 export const localClientHelloSchema = protocolHelloSchema.extend({
     type: z.literal('hello'),
     profileId: identifierSchema,
@@ -111,6 +118,7 @@ export const localClientHelloSchema = protocolHelloSchema.extend({
     credential: z.discriminatedUnion('kind', [
         localClientOperatorCredentialSchema,
         localClientAgentCredentialSchema,
+        localClientDelegationCredentialSchema,
         localClientDesktopCredentialSchema,
     ]),
 });

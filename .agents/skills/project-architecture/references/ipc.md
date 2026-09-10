@@ -33,6 +33,12 @@ sandbox requirement. Public launch requests cannot populate those internal field
 Preset imports use the owner-only `settings.delegation.write` capability and Server configuration
 serialization. They replace only `agents.delegation`, preserve unrelated JSONC, default to dry run,
 and return no private instructions. This key remains outside ordinary Agent settings patches.
+External callers use the separate `delegation-client` principal: one owner-authorized Project,
+dedicated Session and caller provider, with only `agents.delegate`. Server Core owns its bounded
+private token-digest registry and refreshes expiry/revocation before dispatch receipt lookup.
+Owner CLI bootstrap is separate from Renderer folder grants; domain storage atomically reuses or
+creates its Project/Session binding without changing Desktop selection. The CLI never starts a
+Server implicitly when an external credential is present, and does not change provider sandboxes.
 See [visible delegation](../../../../docs/agent-delegation.md) for storage, recovery,
 provider limits and the staged replacement scope.
 

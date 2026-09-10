@@ -43,32 +43,43 @@ describe('CLI Server connector', () => {
         },
     );
 
-    it('never starts a Server implicitly for an Endpoint credential without automation markers', async () => {
-        const connectExisting = vi.fn(() =>
-            Promise.reject(new CaxriError('NOT_FOUND', 'No Caxri Host is running')),
-        );
-        const startServer = vi.fn(() => Promise.resolve(server()));
-        const connect = createCliServerConnector({
-            automation: 'human',
-            connectExisting,
-            serverLaunch: { artifactRoot: '/Applications/Caxri/server' },
-            startServer,
-        });
+    it.each([
+        {
+            kind: 'agent',
+            hostId: 'a'.repeat(32),
+            endpointId: 'endpoint-1',
+            generation: 1,
+            token: 'ab'.repeat(32),
+        },
+        {
+            kind: 'delegation-client',
+            clientId: 'd1decb80-7644-44fd-b821-a7d6678fb0eb',
+            generation: 1,
+            token: 'ab'.repeat(32),
+        },
+    ] as const)(
+        'never starts a Server implicitly for a $kind credential without automation markers',
+        async (credential) => {
+            const connectExisting = vi.fn(() =>
+                Promise.reject(new CaxriError('NOT_FOUND', 'No Caxri Host is running')),
+            );
+            const startServer = vi.fn(() => Promise.resolve(server()));
+            const connect = createCliServerConnector({
+                automation: 'human',
+                connectExisting,
+                serverLaunch: { artifactRoot: '/Applications/Caxri/server' },
+                startServer,
+            });
 
-        await expect(
-            connect({
-                credential: {
-                    kind: 'agent',
-                    hostId: 'a'.repeat(32),
-                    endpointId: 'endpoint-1',
-                    generation: 1,
-                    token: 'ab'.repeat(32),
-                },
-                profilePath: '/profiles/selected',
-                timeoutMs: 15_000,
-            }),
-        ).rejects.toMatchObject({ code: 'UNAVAILABLE' });
-        expect(connectExisting).toHaveBeenCalledOnce();
-        expect(startServer).not.toHaveBeenCalled();
-    });
+            await expect(
+                connect({
+                    credential,
+                    profilePath: '/profiles/selected',
+                    timeoutMs: 15_000,
+                }),
+            ).rejects.toMatchObject({ code: 'UNAVAILABLE' });
+            expect(connectExisting).toHaveBeenCalledOnce();
+            expect(startServer).not.toHaveBeenCalled();
+        },
+    );
 });

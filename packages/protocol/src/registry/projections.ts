@@ -22,6 +22,10 @@ export const projectListResultSchema = z.discriminatedUnion('view', [
     z.object({ view: z.literal('desktop'), projects: z.array(projectRecordSchema).max(1_024) }),
     z.object({ view: z.literal('human-cli'), projects: z.array(humanProjectSchema).max(1_024) }),
     z.object({ view: z.literal('agent'), projects: z.array(scopedProjectSchema).max(128) }),
+    z.object({
+        view: z.literal('delegation-client'),
+        projects: z.array(scopedProjectSchema).max(128),
+    }),
     z.object({ view: z.literal('extension'), projects: z.array(scopedProjectSchema).max(128) }),
     z.object({
         view: z.literal('paired-device'),
@@ -84,6 +88,7 @@ export const principalProjectionSchemas = {
 function projectScope(principal: Principal): ReadonlySet<string> | undefined {
     switch (principal.kind) {
         case 'agent':
+        case 'delegation-client':
         case 'extension':
         case 'paired-device': {
             return new Set(principal.projectIds);

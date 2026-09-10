@@ -4,6 +4,7 @@ import { CaxriError } from '@caxri/protocol';
 export const projectScope = (context: CommandExecutionContext): string[] | null => {
     switch (context.principal.kind) {
         case 'agent':
+        case 'delegation-client':
         case 'extension':
         case 'paired-device':
             return [...context.principal.projectIds];

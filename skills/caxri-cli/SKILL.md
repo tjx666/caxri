@@ -12,10 +12,15 @@ workflow guidance; treat live introspection as the command and capability author
 
 ## Start with live introspection
 
-Run these commands in order before doing Caxri work:
+Start with context before doing Caxri work:
 
 ```bash
 caxri agent-context --json
+```
+
+For a managed Endpoint, continue with:
+
+```bash
 caxri status --json
 caxri capabilities --json
 ```
@@ -24,6 +29,14 @@ Read the active Endpoint's Project, Session, Terminal, exact generation, grants,
 negotiated commands. Use a command only when both the capability and command are present. If context
 is unavailable, the Host is incompatible, or the capability is absent, stop and report the provided
 action. Never substitute an arbitrary shell command.
+
+If context instead reports `principal.kind: delegation-client`, use its `projectIds[0]`, `sessionId`,
+`callerProvider`, capabilities and negotiated commands. This external identity grants only
+`agents.delegate`; skip the managed-Endpoint status, messaging and Project-query workflows below.
+The human owner must first authorize its exact root with `agent delegate access create` and provide
+the private credential through process configuration. Never issue access yourself, read a profile's
+owner credential, or loosen the provider sandbox. A missing or unreachable Server requires the
+owner's startup or transport action, not an implicit privilege fallback.
 
 ## Respect output and target contracts
 
@@ -103,7 +116,8 @@ state access.
   then select `--preset <name>` or explicit `--provider` with optional `--model` and `--effort`.
   The Server enforces preset exclusions and nesting depth. Follow-up and resume keep their saved
   selection and instructions; do not resend a different model or try to override caller identity.
-  It needs an explicit `agent:delegate` grant and exact `--project`/`--session` selectors.
+  It needs an explicit `agent:delegate` grant or an owner-issued external delegation identity, plus
+  exact `--project`/`--session` selectors.
   Save the returned delegation ID; use `agent delegate wait <id>` and `agent delegate result <id>`
   to retrieve the exact saved answer. A wait timeout never authorizes resubmitting the task.
   Reuse a stable `--request-id` when recovering a disconnected create request.

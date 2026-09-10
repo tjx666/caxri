@@ -1,13 +1,21 @@
 import { execFile } from 'node:child_process';
-import { access, mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
 
 import { connectToServer, ensureServer } from '@caxri/client/supervise';
+import { createE2EAgentEnvironment } from '@caxri/system';
 
+import { delegationFixtureSource } from '../scripts/agent-delegation-fixture.ts';
+import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
-import { createShellSession, launchCaxri, revealSettingsSection } from './support/helpers.ts';
+import {
+    createShellSession,
+    launchCaxri,
+    pageRequest,
+    revealSettingsSection,
+} from './support/helpers.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const cliPath = join(projectRoot, 'apps', 'cli', 'dist', 'caxri.cjs');
@@ -96,6 +104,195 @@ async function stopHost(userDataPath: string): Promise<void> {
         )
         .toEqual({ manifestExists: false, processExists: false });
 }
+
+test('authorizes an external caller before Desktop attaches and revokes it across a Server restart', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-external-platform-e2e-'));
+    const userData = join(directory, 'profile');
+    const root = join(directory, 'project');
+    await mkdir(root);
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: { claude: { executableSource: delegationFixtureSource('claude') } },
+    });
+    const isolatedEnvironment = await createE2EAgentEnvironment({
+        fixtureRoot: join(userData, 'e2e-agents'),
+        mode: agentMode,
+        sourceEnvironment: {},
+    });
+    const hostEnvironment = {
+        ...isolatedEnvironment,
+        CAXRI_E2E: '1',
+        CAXRI_E2E_AGENT_HOOKS: '1',
+        CAXRI_E2E_WINDOW_MODE: 'hidden',
+        CAXRI_CLI_PATH: cliPath,
+        CAXRI_AGENT_HOOKS_PATH: join(userData, 'agent-hooks'),
+        CAXRI_TEST_ROOT_PATH: root,
+        ...(process.env.CAXRI_E2E_WORKER_NAMESPACE && {
+            CAXRI_E2E_WORKER_NAMESPACE: process.env.CAXRI_E2E_WORKER_NAMESPACE,
+        }),
+    };
+    /**
+     * Synthetic owner invocation clears only its child environment, never the developer's configuration.
+     */
+    const ownerEnvironment = {
+        ...hostEnvironment,
+        CAXRI_USER_DATA_DIR: userData,
+        CI: undefined,
+        GITHUB_ACTIONS: undefined,
+        CODEX_THREAD_ID: undefined,
+        CLAUDECODE: undefined,
+        CLAUDE_CODE_ENTRYPOINT: undefined,
+        GROK_SESSION_ID: undefined,
+        CAXRI_AGENT_ENDPOINT_HOST_ID: undefined,
+        CAXRI_AGENT_ENDPOINT_ID: undefined,
+        CAXRI_AGENT_ENDPOINT_GENERATION: undefined,
+        CAXRI_AGENT_ENDPOINT_TOKEN: undefined,
+        CAXRI_DELEGATION_CLIENT_ID: undefined,
+        CAXRI_DELEGATION_GENERATION: undefined,
+        CAXRI_DELEGATION_TOKEN: undefined,
+    };
+    let running: Awaited<ReturnType<typeof launchCaxri>> | undefined;
+    try {
+        const owner = await ensureServer(
+            userData,
+            { artifactRoot: serverArtifactRoot, environment: hostEnvironment },
+            15_000,
+        );
+        try {
+            expect((await owner.request('host.status', {})).desktop.state).toBe('offline');
+        } finally {
+            owner.close();
+        }
+        const authorize = await runCli(
+            [
+                'agent',
+                'delegate',
+                'access',
+                'create',
+                '--root',
+                root,
+                '--provider',
+                'codex',
+                '--register-project',
+                '--profile',
+                userData,
+                '--yes',
+                '--json',
+            ],
+            ownerEnvironment,
+        );
+        expect(authorize.code, authorize.stderr).toBe(0);
+        const issued = JSON.parse(authorize.stdout) as {
+            clientId: string;
+            generation: number;
+            token: string;
+            projectId: string;
+            sessionId: string;
+        };
+        const externalEnvironment = {
+            ...ownerEnvironment,
+            CODEX_THREAD_ID: 'synthetic-external-caller',
+            CAXRI_DELEGATION_CLIENT_ID: issued.clientId,
+            CAXRI_DELEGATION_GENERATION: String(issued.generation),
+            CAXRI_DELEGATION_TOKEN: issued.token,
+        };
+        const context = await runCli(['agent-context', '--json'], externalEnvironment);
+        expect(context.code).toBe(0);
+        expect(JSON.parse(context.stdout)).toMatchObject({
+            principal: {
+                kind: 'delegation-client',
+                projectIds: [issued.projectId],
+                sessionId: issued.sessionId,
+            },
+        });
+        const taskPath = join(directory, 'task.md');
+        await writeFile(taskPath, 'Synthetic external delegation');
+        const created = await runCli(
+            [
+                'agent',
+                'delegate',
+                'create',
+                '--project',
+                issued.projectId,
+                '--session',
+                issued.sessionId,
+                '--provider',
+                'claude',
+                '--model',
+                'opus',
+                '--prompt-file',
+                taskPath,
+                '--request-id',
+                'external-task',
+                '--json',
+            ],
+            externalEnvironment,
+        );
+        expect(created.code).toBe(0);
+        const receipt = JSON.parse(created.stdout) as { delegationId: string; terminalId: string };
+        running = await launchCaxri({
+            agentMode,
+            preserveHostOnClose: true,
+            userDataDir: userData,
+            testRootPath: root,
+            env: { CAXRI_E2E_AGENT_HOOKS: '1' },
+        });
+        await pageRequest(running.page, 'session.select', { sessionId: issued.sessionId });
+        await expect(
+            running.page.locator(`.terminal-pane[data-terminal-id="${receipt.terminalId}"]`),
+        ).toBeVisible();
+        const waited = await runCli(
+            ['agent', 'delegate', 'wait', receipt.delegationId, '--timeout', '10000', '--json'],
+            externalEnvironment,
+        );
+        expect(waited.code).toBe(0);
+        expect(JSON.parse(waited.stdout)).toMatchObject({
+            receipt: { status: 'completed' },
+            answer: { text: 'Synthetic delegation complete' },
+        });
+        await running.app.close();
+        running = undefined;
+        await stopHost(userData);
+        const restarted = await ensureServer(
+            userData,
+            { artifactRoot: serverArtifactRoot, environment: hostEnvironment },
+            15_000,
+        );
+        restarted.close();
+        const recovered = await runCli(
+            ['agent', 'delegate', 'result', receipt.delegationId, '--json'],
+            externalEnvironment,
+        );
+        expect(recovered.code).toBe(0);
+        const revoked = await runCli(
+            [
+                'agent',
+                'delegate',
+                'access',
+                'revoke',
+                '--client',
+                issued.clientId,
+                '--generation',
+                String(issued.generation),
+                '--profile',
+                userData,
+                '--yes',
+                '--json',
+            ],
+            ownerEnvironment,
+        );
+        expect(revoked.code).toBe(0);
+        const denied = await runCli(
+            ['agent', 'delegate', 'result', receipt.delegationId, '--json'],
+            externalEnvironment,
+        );
+        expect(denied.code).not.toBe(0);
+    } finally {
+        await running?.app.close();
+        await stopHost(userData);
+        await rm(directory, { recursive: true, force: true });
+    }
+});
 
 test('shares settings across an app-managed Server and Desktop', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-host-platform-e2e-'));
