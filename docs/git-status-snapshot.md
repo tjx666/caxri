@@ -95,8 +95,10 @@ readback never blocks draining the next native event batch.
 If the native subscription fails to start, `activatePollingFallback` polls `HEAD`, `index`,
 `packed-refs`, `MERGE_HEAD`, and the `worktrees` directory's mtime/size signature every 5 seconds
 (`POLL_FALLBACK_INTERVAL_MS`) and degrades to the same `onStatusChanged` / `onTopologyChanged`
-callbacks. Watched repository groups are bounded to 16 (`MAX_WATCHED_REPOSITORIES`); registering a
-17th group evicts the least-recently-used group's subscription (or poll timer) first.
+callbacks. The 16-group recency limit (`MAX_WATCHED_REPOSITORIES`) evicts only groups no live
+Session references. Active child repositories retain their watches; the shared WatchHub bounds
+native subscriptions and falls back to polling at capacity. Shutdown waits for pending native
+registration and disposal, and late completions compare entry identity before retaining handles.
 
 ## Repository-identity invalidation (`git.changed`)
 
