@@ -322,6 +322,12 @@ test('same-provider relaunch restores Agent Actions until the manual Agent exits
         userDataDir: userData,
         providers: { codex: { executableSource: interruptibleAgentFixture() } },
     });
+    const shellHome = agentMode.environment.HOME;
+    if (!shellHome) throw new Error('Fake Agent HOME was not isolated');
+    /**
+     * A queued exit interrupt must not prevent the following user alias from loading.
+     */
+    await writeFile(join(shellHome, '.zshrc'), 'kill -INT $$\nalias cc=codex\n');
     const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
     try {
         await createProjectSession(running.page, 'codex');
@@ -343,6 +349,12 @@ test('same-provider relaunch restores Agent Actions until the manual Agent exits
         const processId = before.terminals.find(({ id }) => id === terminalId)?.processId;
         expect(typeof processId).toBe('number');
 
+        /**
+         * Exercise the waiting zsh startup process receiving the exit interrupt too; an Agent's raw-mode exit alone
+         * leaves this signal path untested. The PID comes from this isolated Terminal, never host discovery.
+         */
+        if (!processId) throw new Error('Managed Terminal process was not started');
+        process.kill(processId, 'SIGINT');
         await input.focus();
         await input.press('Control+C');
         await expect(rows).toContainText('FAKE_CODEX_EXITED');
@@ -377,7 +389,7 @@ test('same-provider relaunch restores Agent Actions until the manual Agent exits
 
         await typeTerminal(
             running.page,
-            String.raw`alias cc=codex; printf 'SAME_PROVIDER_ALIAS_READY\n'`,
+            String.raw`alias cc >/dev/null && printf 'SAME_PROVIDER_ALIAS_READY\n'`,
         );
         await expect(rows).toContainText('SAME_PROVIDER_ALIAS_READY');
         await typeTerminal(running.page, 'cc');

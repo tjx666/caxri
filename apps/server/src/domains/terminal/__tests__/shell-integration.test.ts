@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import { mkdtemp, readFile, rm, stat, symlink, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -15,6 +16,59 @@ afterEach(async () => {
 });
 
 describe('ShellIntegrationService', () => {
+    it.each([
+        { managed: true, interrupts: 2, userTrap: false },
+        { managed: false, interrupts: 1, userTrap: false },
+        { managed: true, interrupts: 1, userTrap: true },
+    ])(
+        'preserves deliberate startup cancellation and user traps ($managed, $userTrap)',
+        async ({ managed, interrupts, userTrap }) => {
+            const directory = await mkdtemp(join(tmpdir(), 'caxri-shell-startup-cancel-'));
+            temporaryDirectories.push(directory);
+            await writeFile(
+                join(directory, '.zshrc'),
+                [
+                    ...(userTrap ? ['function TRAPINT() { return 0 }'] : []),
+                    ...Array.from({ length: interrupts }, () => 'kill -INT $$'),
+                    'alias cxy=true',
+                ].join('\n'),
+            );
+            const service = await ShellIntegrationService.create(directory);
+            const launch = service.resolve('/bin/zsh', { HOME: directory, PATH: '/usr/bin:/bin' });
+            if (!launch) throw new Error('Missing zsh integration');
+            const result = spawnSync('/bin/zsh', ['-i', ...launch.args], {
+                cwd: directory,
+                env: {
+                    ...launch.environment,
+                    ...(managed && {
+                        CAXRI_AGENT_LAUNCHER_RUNTIME: '/usr/bin/true',
+                        CAXRI_AGENT_LAUNCHER_ENTRY: 'fixture',
+                        CAXRI_AGENT_LAUNCHER_SOCKET: 'fixture',
+                        CAXRI_AGENT_LAUNCHER_ID: 'fixture',
+                        CAXRI_AGENT_LAUNCHER_TOKEN: 'fixture',
+                    }),
+                },
+                encoding: 'utf8',
+                timeout: 5_000,
+                input: [
+                    '[[ $ZDOTDIR == $HOME ]] && print FIXTURE_DIRECTORY_RESTORED',
+                    '[[ -z ${CAXRI_SHELL_INTEGRATION_DIR+x}${CAXRI_USER_ZDOTDIR+x}${__caxri_startup_trap+x} ]] && print FIXTURE_METADATA_CLEAN',
+                    'print FIXTURE_ALIAS:${+aliases[cxy]}:TRAP:${+functions[TRAPINT]}',
+                    'exit 0',
+                    '',
+                ].join('\n'),
+            });
+            expect(result.error).toBeUndefined();
+            expect(result.status).toBe(0);
+            expect(result.stdout).toContain('FIXTURE_DIRECTORY_RESTORED');
+            expect(result.stdout).toContain('FIXTURE_METADATA_CLEAN');
+            expect(result.stdout).toContain(
+                userTrap ? 'FIXTURE_ALIAS:1:TRAP:1' : 'FIXTURE_ALIAS:0:TRAP:0',
+            );
+            expect(result.stdout).toContain('\u{1B}]133;A\u{7}');
+        },
+    );
+
     it('maps zsh and bash to controlled content-free OSC 133 startup scripts', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-shell-integration-'));
         temporaryDirectories.push(directory);
