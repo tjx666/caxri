@@ -123,6 +123,7 @@ export abstract class ClientBinarySocket {
 export class ClientSocketWriter {
     private outbound = Promise.resolve();
     private queuedPayloadBytes = 0;
+    private hasLargePayload = false;
 
     constructor(private readonly socket: WebSocket) {}
 
@@ -172,19 +173,27 @@ export class ClientSocketWriter {
         sequence: number,
         payload: Uint8Array,
     ): Promise<void> {
+        /**
+         * Callers bound individual payloads; reserve one large transfer separately so normal input and resize bursts
+         * can follow it.
+         */
+        const isLargePayload = payload.byteLength > BINARY_STREAM_MAX_BUFFERED_BYTES;
         if (
-            this.queuedPayloadBytes > 0 &&
-            this.queuedPayloadBytes + payload.byteLength > BINARY_STREAM_MAX_BUFFERED_BYTES
+            isLargePayload
+                ? this.hasLargePayload
+                : this.queuedPayloadBytes + payload.byteLength > BINARY_STREAM_MAX_BUFFERED_BYTES
         )
             return Promise.reject(
                 new CaxriError('CAPACITY', 'Binary stream request queue exceeded its byte budget'),
             );
-        this.queuedPayloadBytes += payload.byteLength;
+        if (isLargePayload) this.hasLargePayload = true;
+        else this.queuedPayloadBytes += payload.byteLength;
         const action = async (): Promise<void> => {
             try {
                 await this.sendPayload(kind, sequence, payload);
             } finally {
-                this.queuedPayloadBytes -= payload.byteLength;
+                if (isLargePayload) this.hasLargePayload = false;
+                else this.queuedPayloadBytes -= payload.byteLength;
             }
         };
         // eslint-disable-next-line unicorn/prefer-await -- this promise tail serializes frame groups across callers
