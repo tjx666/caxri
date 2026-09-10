@@ -34,10 +34,9 @@ const splitDisabledReasons = {
 /**
  * The context menu every pane tab gets, whatever it holds.
  *
- * Close and Split act on a tab's placement in the layout, never on the resource behind it — `closeDocumentTabs` already
- * ends a Terminal's process when it removes its tab — so a Terminal tab offering fewer of them than a document tab
- * beside it was a gap in the kind-neutral pane tree, not a deliberate restriction. Resource-specific entries (a
- * Terminal's "Move to New Session") are appended through `resourceItems` instead of branching in here.
+ * Bulk closes are scoped to the tab's resource kind so editor actions cannot terminate Terminals. Split still acts on
+ * placement across resource kinds. Resource-specific entries (a Terminal's "Move to New Session") are appended through
+ * `resourceItems`.
  */
 export function PaneTabMenu({
     paneId,

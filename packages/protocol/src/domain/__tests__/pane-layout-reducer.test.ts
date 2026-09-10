@@ -282,6 +282,30 @@ describe('pane layout reducer', () => {
         expect(findTab(closed, second.id)).toBeDefined();
     });
 
+    it('keeps bulk close families within the anchor resource kind in a mixed pane', () => {
+        const id = ids();
+        let layout = createPaneLayout(terminal('terminal-1'), id);
+        layout = openResource(layout, file('a.ts'), {}, id);
+        layout = openResource(layout, terminal('terminal-2'), {}, id);
+        layout = openResource(layout, file('b.ts'), {}, id);
+        const [firstTerminal, firstFile, secondTerminal, secondFile] = activePane(layout).tabs;
+
+        for (const [anchor, sibling] of [
+            [firstFile, secondFile],
+            [firstTerminal, secondTerminal],
+        ]) {
+            expect(paneTabIdsToClose(layout, anchor.id, 'one')).toEqual([anchor.id]);
+            expect(paneTabIdsToClose(layout, anchor.id, 'others')).toEqual([sibling.id]);
+            expect(paneTabIdsToClose(layout, anchor.id, 'right')).toEqual([sibling.id]);
+            expect(paneTabIdsToClose(layout, sibling.id, 'right')).toEqual([]);
+            expect(paneTabIdsToClose(layout, anchor.id, 'all')).toEqual([anchor.id, sibling.id]);
+        }
+
+        const singleFile = closeTabs(layout, [secondFile.id]);
+        expect(paneTabIdsToClose(singleFile, firstFile.id, 'others')).toEqual([]);
+        expect(paneTabIdsToClose(singleFile, firstFile.id, 'right')).toEqual([]);
+    });
+
     it('drops a closed Terminal wherever it was placed', () => {
         const id = ids();
         let layout = createPaneLayout(terminal('terminal-1'), id);

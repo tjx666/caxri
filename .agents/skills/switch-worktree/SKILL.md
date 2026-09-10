@@ -48,6 +48,11 @@ local checks is not completion while PR creation, CI, merge, issue closeout, or 
 still pending. Continue authorized work; if a concrete blocker prevents progress, report the exact
 unfinished step and blocker instead of declaring the task complete.
 
+When moving an in-progress implementation into a task worktree after a user correction, carry
+the original task and this delivery checklist forward. Migration is an intermediate repair, not
+a completion boundary. A request to adjust contributor instructions during that work does not
+cancel the remaining delivery steps unless the user explicitly says to stop or narrow delivery.
+
 At entry, record which delivery steps are complete and which remain. A generic instruction to
 avoid unrequested remote mutations does not narrow this explicitly activated workflow: the request
 that activates it supplies that authorization. Honor a task-specific restriction instead when the

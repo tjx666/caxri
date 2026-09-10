@@ -389,12 +389,11 @@ async function didConfirmDirtyEditorCloses(
 }
 
 /**
- * Closes a pane-local family of tabs (Close, Close Others, Close to the Right, Close All) regardless of what each tab
- * holds — the family is resolved against the pane, never against one kind. A dirty document is confirmed (Save/Don't
- * Save/Cancel) before anything is evicted, and the layout is re-read after that round trip in case a concurrent
- * operation (rename, Trash) changed it meanwhile. A Terminal among the closed tabs must give up its PTY through the
- * Server lifecycle in the same pass — merely dropping its tab from the layout would leave the process running with
- * nothing left to show or close it.
+ * Closes explicitly selected tabs after the caller resolves the appropriate resource family. A dirty document is
+ * confirmed (Save/Don't Save/Cancel) before anything is evicted, and the layout is re-read after that round trip in
+ * case a concurrent operation (rename, Trash) changed it meanwhile. A Terminal among the closed tabs must give up its
+ * PTY through the Server lifecycle in the same pass — merely dropping its tab from the layout would leave the process
+ * running with nothing left to show or close it.
  */
 export async function closeDocumentTabs(tabIds: readonly string[]): Promise<void> {
     const session = getSelectedSession();
@@ -420,7 +419,7 @@ export async function closeDocumentTabs(tabIds: readonly string[]): Promise<void
 }
 
 /**
- * Pane-local close families (Close, Close Others, Close to the Right, Close All), resolved against the tab's own pane.
+ * Close families resolved against the tab's own pane and resource kind, keeping editor and Terminal closes separate.
  */
 export function closeDocumentTabFamily(tabId: string, mode: PaneTabCloseMode): Promise<void> {
     const layout = getPaneLayout();
