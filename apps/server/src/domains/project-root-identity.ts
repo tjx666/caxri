@@ -67,7 +67,15 @@ export async function resolveOwnerProjectRoot(rootPath: string): Promise<string>
             'PATH_DENIED',
             'Owner directory authorization requires an absolute path',
         );
-    const path = await realpath(rootPath);
+    let path: string;
+    try {
+        path = await realpath(rootPath);
+    } catch {
+        throw new CaxriError(
+            'PATH_DENIED',
+            'Owner directory authorization requires an existing directory',
+        );
+    }
     const info = await selectedRootStats(path);
     if (!info.isDirectory())
         throw new CaxriError('PATH_DENIED', 'Owner directory authorization requires a directory');

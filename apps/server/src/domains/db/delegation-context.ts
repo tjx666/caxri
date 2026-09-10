@@ -29,7 +29,7 @@ export function ensureDelegationContext(
         const bindings = database.appState.get('externalDelegationSessions') ?? {};
         const key = `${project.id}:${provider}`;
         const previous = bindings[key] ? database.sessions.get(bindings[key]) : undefined;
-        if (previous?.projectId === project.id)
+        if (previous?.projectId === project.id && previous.archivedAt === undefined)
             return { projectId: project.id, sessionId: previous.id, callerProvider: provider };
         const selectedProject = database.appState.get('lastSelectedProjectId') ?? null;
         const selectedSession = database.appState.get('lastSelectedSessionId') ?? null;

@@ -381,6 +381,28 @@ export function operatorContext(profileId: string): CommandExecutionContext {
     };
 }
 
+/**
+ * A long poll may outlive its credential; withhold its result after revocation or expiry.
+ */
+export function refreshDelegationReply(
+    reply: CommandReplyEnvelope,
+    context: CommandExecutionContext,
+    options: Pick<ControlServerOptions, 'refreshContext'>,
+): CommandReplyEnvelope {
+    if (context.principal.kind !== 'delegation-client') return reply;
+    try {
+        options.refreshContext?.(context);
+        return reply;
+    } catch (error) {
+        return {
+            protocolVersion: CAXRI_PROTOCOL_VERSION,
+            id: reply.id,
+            ok: false,
+            error: toWireError(error),
+        };
+    }
+}
+
 export async function executeReply(
     id: string,
     action: () => Promise<unknown>,
