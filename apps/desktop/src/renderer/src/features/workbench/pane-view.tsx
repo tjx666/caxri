@@ -24,7 +24,12 @@ import { TerminalPane } from '../terminal/terminal-pane';
 import { retainTerminalProgress } from '../terminal/terminal-progress';
 import { focusPane, movePaneTab, resizePaneSplit, splitPaneTab } from './pane-actions';
 import type { PaneDropZone } from './pane-drop-zone';
-import { hasPaneTabDragType, PANE_TAB_DRAG_TYPE, resolvePaneDropZone } from './pane-drop-zone';
+import {
+    EDITOR_PATH_DRAG_TYPE,
+    PANE_TAB_DRAG_TYPE,
+    resolvePaneDropIntent,
+    resolvePaneDropZone,
+} from './pane-drop-zone';
 import { PaneTabBar } from './pane-tab-bar';
 import { useTabFocusRecovery } from './use-tab-focus-recovery';
 
@@ -156,20 +161,32 @@ function PaneBox({
     // Workbench-wide for the same reason the tab bar's chrome is: a second tab in *any* pane is something to switch to,
     // so a split whose panes each hold one tab still needs the active accent and the "New Terminal" button.
     const hasTabsToSwitch = listPaneTabs(layout).length > 1;
+    const dropIntent = (event: DragEvent<HTMLElement>) =>
+        resolvePaneDropIntent(event.dataTransfer.types, {
+            altKey: event.altKey,
+            isTerminal: Boolean(terminalId),
+            acceptsFileDrop: isAcceptsFileDrop,
+            hasFilePath: hasDraggedPath(event),
+        });
     const canPreviewDrop = (event: DragEvent<HTMLElement>): boolean => {
-        const isTabDrag = hasPaneTabDragType(event.dataTransfer.types);
-        if (!isTabDrag && !(isAcceptsFileDrop && hasDraggedPath(event))) return false;
+        const intent = dropIntent(event);
+        if (!intent) {
+            setActiveDropZone(undefined);
+            return false;
+        }
         event.preventDefault();
-        event.dataTransfer.dropEffect = isTabDrag ? 'move' : 'copy';
-        setActiveDropZone(isTabDrag ? dropZoneFromEvent(event) : undefined);
+        event.dataTransfer.dropEffect = intent === 'place' ? 'move' : 'copy';
+        setActiveDropZone(intent === 'place' ? dropZoneFromEvent(event) : undefined);
         return true;
     };
     const applyDrop = (event: DragEvent<HTMLDivElement>): void => {
         const zone = dropZoneFromEvent(event);
         setActiveDropZone(undefined);
-        const path = dragPath(event);
-        if (path) {
-            if (!terminal || !isAcceptsFileDrop) return;
+        const intent = dropIntent(event);
+        if (!intent) return;
+        if (intent === 'paste') {
+            const path = event.dataTransfer.getData(EDITOR_PATH_DRAG_TYPE) || dragPath(event);
+            if (!path || !terminal) return;
             event.preventDefault();
             // Relative to the PTY's launch cwd: Caxri does not track the shell's later `cd`s, and the launch cwd is
             // where every Agent CLI in that Terminal resolves paths from.
