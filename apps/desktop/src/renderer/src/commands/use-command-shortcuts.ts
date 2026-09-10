@@ -10,6 +10,7 @@ import {
 import {
     buildShortcutMap,
     isEditableEventTarget,
+    isEditorEventTarget,
     isKeybindingRecordingEventTarget,
     isTerminalEventTarget,
     keyboardEventShortcut,
@@ -73,7 +74,7 @@ export function useCommandShortcuts(): void {
         let cachedKeybindings: Keybinding[] | undefined;
         let shortcutMap = new Map<string, Keybinding[]>();
 
-        const onKeyDown = (event: KeyboardEvent): void => {
+        const onKeyDown = (event: KeyboardEvent, isBubbling = false): void => {
             /**
              * An IME composition keystroke (e.g. picking a Pinyin candidate) is not a shortcut.
              */
@@ -90,6 +91,13 @@ export function useCommandShortcuts(): void {
             });
             if (!binding) return;
             const commandId = binding.command;
+            /**
+             * Monaco owns Cmd+K Cmd+J (Unfold All). Let it consume the continuation before Panel Toggle sees Cmd+J; an
+             * unhandled standalone Cmd+J still bubbles here. Keep intentional app overrides in capture phase.
+             */
+            const shouldDeferToEditor =
+                commandId === 'panel.toggle' && isEditorEventTarget(event.target);
+            if (shouldDeferToEditor !== isBubbling) return;
             const definition = getRegisteredCommand(commandId);
             /**
              * A contextual shortcut must fall through untouched so the owning editor can handle the same chord
@@ -133,7 +141,13 @@ export function useCommandShortcuts(): void {
                 void executeViewCatalogShortcut(commandId, binding.args ? [binding.args] : []);
             }
         };
-        addEventListener('keydown', onKeyDown, { capture: true });
-        return () => removeEventListener('keydown', onKeyDown, { capture: true });
+        const onCapture = (event: KeyboardEvent): void => onKeyDown(event);
+        const onBubble = (event: KeyboardEvent): void => onKeyDown(event, true);
+        addEventListener('keydown', onCapture, { capture: true });
+        addEventListener('keydown', onBubble);
+        return () => {
+            removeEventListener('keydown', onCapture, { capture: true });
+            removeEventListener('keydown', onBubble);
+        };
     }, []);
 }
