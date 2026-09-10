@@ -120,6 +120,28 @@ describe('workbench.changed payload', () => {
             }).success,
         ).toBe(false);
     });
+
+    it('carries the destination title of an Agent-driven switch', () => {
+        expect(
+            serverEventPayloads['workbench.changed'].safeParse({
+                sessionId: 'session-1',
+                workbenchProjectId: 'project-1',
+                reason: 'followed',
+                followedProjectTitle: 'feature-entered',
+            }),
+        ).toMatchObject({
+            success: true,
+            data: { reason: 'followed', followedProjectTitle: 'feature-entered' },
+        });
+        expect(
+            serverEventPayloads['workbench.changed'].safeParse({
+                sessionId: 'session-1',
+                workbenchProjectId: 'project-1',
+                reason: 'followed',
+                followedProjectTitle: '',
+            }).success,
+        ).toBe(false);
+    });
 });
 
 describe('state.changed normalization', () => {

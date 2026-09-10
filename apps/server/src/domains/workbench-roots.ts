@@ -222,10 +222,12 @@ export class WorkbenchRootService {
 
     private publishChange(
         session: SessionRecord,
-        reason: 'selected' | 'authorized' | 'fallback',
+        reason: 'selected' | 'authorized' | 'followed' | 'fallback',
         fallbackReason?: string,
     ): void {
         const owner = this.requireProject(session.projectId);
+        const followed =
+            reason === 'followed' && this.options.database.getProject(session.workbenchProjectId);
         this.onRootChanged?.(session.id);
         this.options.emit({
             event: 'state.changed',
@@ -237,6 +239,7 @@ export class WorkbenchRootService {
                 sessionId: session.id,
                 workbenchProjectId: session.workbenchProjectId,
                 reason,
+                ...(followed && { followedProjectTitle: followed.displayTitle }),
                 ...(reason === 'fallback' && { returnedProjectTitle: owner.displayTitle }),
             },
         });
@@ -400,25 +403,30 @@ export class WorkbenchRootService {
             authorized ? 'selected' : 'authorized',
             identity,
             startedAt,
+            'agent',
         );
     }
 
+    /**
+     * `origin` is not a second spelling of `reason`; see `workbench.changed` in `@caxri/protocol` for why.
+     */
     private commitSelection(
         sessionId: string,
         projectId: string,
         reason: 'selected' | 'authorized',
         identity: { device: string; inode: string } | undefined,
         startedAt: number,
+        origin: 'user' | 'agent',
     ): SessionRecord {
         const selected = this.options.database.selectWorkbenchProject(
             sessionId,
             projectId,
             identity,
         );
-        this.publishChange(selected, reason);
+        this.publishChange(selected, origin === 'agent' ? 'followed' : reason);
         this.options.logger.write('info', workbenchRootLogEvents.selected, {
             durationMs: performance.now() - startedAt,
-            fields: { reason, sessionId, projectId, policy: this.options.behavior() },
+            fields: { reason, origin, sessionId, projectId, policy: this.options.behavior() },
         });
         return selected;
     }
@@ -517,6 +525,9 @@ export class WorkbenchRootService {
         return options.toSorted((left, right) => Number(right.owner) - Number(left.owner));
     }
 
+    /**
+     * Every caller is an explicit picker, candidate-prompt, or confirmed Main request, so the origin is the user.
+     */
     async select(
         sessionId: string,
         projectId: string,
@@ -539,7 +550,7 @@ export class WorkbenchRootService {
         }
         if (!isStillAuthorized())
             throw new CaxriError('UNAVAILABLE', 'Workbench selection authority expired');
-        return this.commitSelection(sessionId, projectId, reason, identity, startedAt);
+        return this.commitSelection(sessionId, projectId, reason, identity, startedAt, 'user');
     }
 
     /**
@@ -656,6 +667,7 @@ export class WorkbenchRootService {
             'authorized',
             project.id === owner.id ? undefined : identity,
             startedAt,
+            'user',
         );
     }
 

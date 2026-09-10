@@ -496,6 +496,13 @@ Settings → Notifications restores those preferences and groups the existing na
 controls. Failures and persistent data-loss notices cannot be muted. Worktree fallback is an
 ordinary four-second reminder now that its record remains available in the center.
 
+A workbench change the user did not perform announces itself. An Agent that moves a Session into a
+linked worktree re-roots Files, Source Control, Project Status, and the Editor, so it raises the
+same ordinary four-second reminder as fallback — naming the destination and carrying an inline
+`Undo` back to the previous root, because the only other cue is a folder name changing in the
+status bar. A switch the user performed themselves stays silent; the wire reason (`followed`)
+carries that distinction, since the picker and an Agent otherwise reach the same commit path.
+
 Some notices are held until dismissed rather than expiring. A GPU process crash and the moment
 repeated failures turn GPU acceleration off for the window both carry `Restart in GPU Safe Mode`,
 which is reachable from nowhere else — history stores no action callbacks — so a four-second expiry
