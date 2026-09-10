@@ -188,6 +188,10 @@ Top-level `open|reveal` submit only one bounded path and optional Session ID to 
 revalidates Project containment and replaces that path with a one-use, generation-bound opaque
 target before Desktop Main can open or reveal it. CLI retries use the shared request-ID idempotency
 contract and never call Electron, Finder, or a shell directly.
+Project-level Finder/editor actions use `project.openRoot` with a Project ID and no caller-provided
+path or Session. Server Core resolves the stored root and revalidates Project existence and filesystem
+identity when Main consumes the one-use target. These targets can only reveal a directory or open it
+in the configured editor; document opens and trash operations still require Session authority.
 For a directly managed Agent PTY, Server Core creates a separate Endpoint credential immediately before
 the Terminal Host spawn request. Server Core stores only its digest and fences every command by Server,
 Endpoint, generation, and launch identity; restart, exit, close, deletion, Server Core crash, and

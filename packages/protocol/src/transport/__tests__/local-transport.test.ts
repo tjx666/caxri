@@ -15,6 +15,33 @@ import {
 } from '../local-transport';
 
 describe('WebSocket control endpoint', () => {
+    it('limits Session-free Project targets to directory reveal and editor operations', () => {
+        const target = {
+            targetId: 'target',
+            projectId: 'project',
+            kind: 'directory',
+            path: '/project',
+        };
+        for (const operation of ['reveal', 'openInEditor'])
+            expect(desktopTargetPayloadSchema.safeParse({ ...target, operation }).success).toBe(
+                true,
+            );
+        for (const operation of ['open', 'trash'])
+            expect(desktopTargetPayloadSchema.safeParse({ ...target, operation }).success).toBe(
+                false,
+            );
+        expect(
+            desktopTargetPayloadSchema.safeParse({ ...target, operation: 'reveal', kind: 'file' })
+                .success,
+        ).toBe(false);
+        expect(
+            desktopTargetPayloadSchema.safeParse({
+                ...target,
+                operation: 'reveal',
+                projectId: undefined,
+            }).success,
+        ).toBe(false);
+    });
     it('keeps enough headroom for the largest configurable editor payload', () => {
         const maximumEscapedDiffBytes = 2 * MAX_CONFIGURABLE_FILE_BYTES * 6;
         expect(CONTROL_TRANSPORT_MAX_FRAME_BYTES).toBeGreaterThan(maximumEscapedDiffBytes);

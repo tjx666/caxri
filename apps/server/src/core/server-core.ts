@@ -540,29 +540,29 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                         throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
                     return desktopRouter.focus(request.params.launchIfNeeded);
                 }
-                case 'desktop.openPath': {
-                    if (!desktopRouter)
-                        throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
-                    return desktopRouter.open('open', undefined, request.params);
-                }
-                case 'desktop.openProject': {
-                    if (!desktopRouter)
-                        throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
-                    return desktopRouter.open('open', 'directory', request.params);
-                }
+                case 'desktop.openPath':
+                case 'desktop.openProject':
                 case 'desktop.openFile': {
                     if (!desktopRouter)
                         throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
-                    return desktopRouter.open('open', 'file', request.params);
+                    const kind =
+                        request.method === 'desktop.openPath'
+                            ? undefined
+                            : request.method === 'desktop.openFile'
+                              ? 'file'
+                              : 'directory';
+                    return desktopRouter.open('open', kind, request.params);
                 }
-                case 'files.reveal': {
+                case 'files.reveal':
                     if (!desktopRouter)
                         throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
                     return desktopRouter.open('reveal', undefined, request.params);
-                }
+                case 'project.openRoot':
                 case 'project.openInEditor': {
                     if (!desktopRouter)
                         throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
+                    if (request.method === 'project.openRoot')
+                        return desktopRouter.openProjectRoot(request.params);
                     return desktopRouter.open('openInEditor', 'directory', request.params);
                 }
                 case 'host.stop': {

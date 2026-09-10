@@ -5,6 +5,21 @@ import type { DragEvent } from 'react';
  */
 export const FILE_TREE_DRAG_TYPE = 'application/x-caxri-file-path';
 
+/**
+ * Project roots insert absolute paths without participating in Files move operations.
+ */
+export const PROJECT_PATH_DRAG_TYPE = 'application/x-caxri-project-path';
+
+/**
+ * Project drops retain their absolute identity even inside the destination Terminal's cwd.
+ */
+export function projectTerminalInput(
+    dataTransfer: Pick<DataTransfer, 'getData'>,
+): string | undefined {
+    const path = dataTransfer.getData(PROJECT_PATH_DRAG_TYPE);
+    return path ? terminalInputPath(path) : undefined;
+}
+
 export function dragPath(event: DragEvent): string | undefined {
     return event.dataTransfer.getData(FILE_TREE_DRAG_TYPE) || undefined;
 }

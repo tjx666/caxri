@@ -14,7 +14,12 @@ import { TerminalSquare } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Empty, EmptyMedia, EmptyTitle } from '../../components/ui/empty';
 import { usePointerDragResize } from '../../hooks/use-pointer-drag-resize';
-import { dragPath, hasDraggedPath, terminalInputPath } from '../../lib/file-drag';
+import {
+    dragPath,
+    hasDraggedPath,
+    projectTerminalInput,
+    terminalInputPath,
+} from '../../lib/file-drag';
 import { cn } from '../../lib/utilities';
 import { useSessionState, useTerminal } from '../../stores/selectors';
 import { EditorSurface } from '../editor/editor-surface';
@@ -188,11 +193,17 @@ function PaneBox({
         if (!intent) return;
         if (intent === 'paste') {
             const path = event.dataTransfer.getData(EDITOR_PATH_DRAG_TYPE) || dragPath(event);
-            if (!path || !terminal) return;
+            const projectInput = projectTerminalInput(event.dataTransfer);
+            if (!terminal || (!path && !projectInput)) return;
             event.preventDefault();
             // Relative to the PTY's launch cwd: Caxri does not track the shell's later `cd`s, and the launch cwd is
             // where every Agent CLI in that Terminal resolves paths from.
-            if (didPasteIntoTerminal(terminal.id, terminalInputPath(path, terminal.cwd)))
+            if (
+                didPasteIntoTerminal(
+                    terminal.id,
+                    projectInput ?? terminalInputPath(path!, terminal.cwd),
+                )
+            )
                 focusPane(pane.id);
             return;
         }

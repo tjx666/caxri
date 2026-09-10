@@ -55,6 +55,21 @@ const noParameters = z.object({}).default({});
  * Server-owned commands that route only bounded native-window operations to the current Desktop.
  */
 export const desktopHostMethods = {
+    /**
+     * Opens only the stored Project root, including Projects without a Session.
+     */
+    'project.openRoot': {
+        ...hostDesktopControl,
+        params: z.object({
+            projectId: identifierSchema,
+            application: z.enum(['finder', 'editor']),
+        }),
+        result: z.object({
+            state: z.enum(['opened', 'revealed']),
+            generation: z.number().int().positive(),
+            projectId: identifierSchema,
+        }),
+    },
     'desktop.status': {
         ...hostDesktopRead,
         params: noParameters,
