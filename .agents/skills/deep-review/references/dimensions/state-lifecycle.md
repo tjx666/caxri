@@ -47,7 +47,9 @@ Check ownership over time: creation, attachment, switching, failure, restart, de
 
 ## Rule sources
 
-- `.agents/skills/project-architecture/references/architecture.md`
+- `.agents/skills/project-architecture/references/persistence.md`
+- `.agents/skills/project-architecture/references/terminal-lifecycle.md`
+- `.agents/skills/project-architecture/references/process-model.md`
 - `.agents/skills/debug/SKILL.md`
 - `.agents/skills/unit-testing/SKILL.md` and `.agents/skills/e2e-testing/SKILL.md`
 
