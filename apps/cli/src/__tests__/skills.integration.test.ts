@@ -90,6 +90,56 @@ async function invoke(
 }
 
 describe('bundled Caxri Agent skill', () => {
+    it.each(['local', 'global'] as const)(
+        'installs Grok skills in the explicit %s scope offline',
+        async (scope) => {
+            const root = await isolatedDirectory('grok');
+            const home = join(root, 'home');
+            const grokHome = join(root, 'grok-config');
+            const context = { cwd: root, home, environment: { GROK_HOME: grokHome } };
+            const target = join(
+                scope === 'global' ? grokHome : join(root, '.grok'),
+                'skills',
+                'caxri-cli',
+            );
+            const installed = await invoke(
+                [
+                    'skills',
+                    'install',
+                    'caxri-cli',
+                    '--provider',
+                    'grok',
+                    `--${scope}`,
+                    '--yes',
+                    '--json',
+                ],
+                context,
+            );
+            expect(installed.code, installed.stderr).toBe(0);
+            expect(installed.connect).not.toHaveBeenCalled();
+            expect(await readFile(join(target, 'SKILL.md'), 'utf8')).toContain(
+                'caxri agent-context --json',
+            );
+            expect(await readdirOrEmpty(join(home, '.claude'))).toEqual([]);
+            expect(await readdirOrEmpty(join(home, '.codex'))).toEqual([]);
+            const removed = await invoke(
+                [
+                    'skills',
+                    'uninstall',
+                    'caxri-cli',
+                    '--provider',
+                    'grok',
+                    `--${scope}`,
+                    '--yes',
+                    '--json',
+                ],
+                context,
+            );
+            expect(removed.code, removed.stderr).toBe(0);
+            await expect(lstat(target)).rejects.toMatchObject({ code: 'ENOENT' });
+        },
+    );
+
     it('lists and reads version-matched metadata offline without exposing paths or credentials', async () => {
         const root = await isolatedDirectory('offline');
         const token = 'ab'.repeat(32);
