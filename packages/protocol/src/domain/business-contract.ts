@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { agentDelegationSettingsSchema } from '../agent/agent-delegation-settings.js';
 import { appSettingsSchema } from '../configuration/settings-schema.js';
 import { projectListForPrincipal, projectListResultSchema } from '../registry/projections.js';
 import {
@@ -288,6 +289,19 @@ export const businessMethods = {
         ...commandPolicy('server', 'write', ['settings.write']),
         params: settingsPatchParametersSchema,
         result: settingsPatchResultSchema,
+    },
+    'settings.delegation.import': {
+        ...commandPolicy('server', 'write', ['settings.delegation.write']),
+        params: z.strictObject({
+            settings: agentDelegationSettingsSchema,
+            dryRun: z.boolean().default(true),
+        }),
+        result: z.strictObject({
+            dryRun: z.boolean(),
+            changed: z.boolean(),
+            presetNames: z.array(z.string()),
+            maxDepth: z.number().int(),
+        }),
     },
     'logs.query': {
         ...commandPolicy('server', 'read', ['diagnostics.read']),

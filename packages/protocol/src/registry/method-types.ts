@@ -90,6 +90,7 @@ export const effectfulCommandRecovery = {
     'agent.message.approve': 'durable',
     'agent.message.deny': 'durable',
     'settings.patch': 'memory',
+    'settings.delegation.import': 'memory',
     'session.selectWorkbenchRoot': 'durable',
     'session.authorizeWorkbenchRoot': 'durable',
     'session.dismissWorkbenchCandidate': 'durable',

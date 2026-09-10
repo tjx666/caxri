@@ -21,6 +21,7 @@ export const capabilityIds = [
     'git.control',
     'settings.read',
     'settings.write',
+    'settings.delegation.write',
     'diagnostics.read',
     'agents.read',
     'agents.message',
