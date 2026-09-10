@@ -13,7 +13,7 @@ export type SessionPullRequestTone = SessionActivityPresentation['tone'] | 'merg
 export interface SessionPullRequestPresentation {
     ariaLabel: string;
     checksLabel?: string;
-    checksTone?: 'danger' | 'warning' | 'success';
+    checksTone?: 'danger' | 'warning' | 'success' | 'neutral';
     /**
      * Short status word shown beside the PR number in the hover card.
      */
@@ -49,6 +49,15 @@ export function sessionPullRequestPresentation(
         case 'draft':
             return { ariaLabel: `${base}.`, icon: 'draft', label, tone: 'neutral' };
         case 'open': {
+            if (pullRequest.checks === 'cancelled')
+                return {
+                    ariaLabel: `${base}, checks cancelled.`,
+                    icon: 'open',
+                    label,
+                    tone: 'success',
+                    checksLabel: 'Checks cancelled',
+                    checksTone: 'neutral',
+                };
             if (pullRequest.checks === 'failure')
                 return {
                     ariaLabel: `${base}, checks failing.`,

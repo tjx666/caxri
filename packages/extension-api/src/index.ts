@@ -232,7 +232,8 @@ export interface ExtensionContext {
     readonly subscriptions: DisposableLike[];
 }
 
-export type ProjectStatusState = 'success' | 'failure' | 'pending' | 'neutral' | 'unknown';
+export type ProjectStatusState =
+    'success' | 'failure' | 'cancelled' | 'pending' | 'neutral' | 'unknown';
 
 export interface ProjectStatusCheck {
     name: string;

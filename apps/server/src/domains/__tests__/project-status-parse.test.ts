@@ -98,6 +98,35 @@ describe('Vercel deployment details', () => {
 });
 
 describe('parseGitHubPullRequest', () => {
+    it.each([
+        [undefined, 'cancelled'],
+        ['SUCCESS', 'cancelled'],
+        ['IN_PROGRESS', 'pending'],
+        ['FAILURE', 'failure'],
+    ])('preserves cancellation alongside %s checks', (other, state) => {
+        const result = parseGitHubPullRequest(
+            JSON.stringify({
+                number: 1,
+                title: 'PR',
+                url: 'https://github.com/a/b/pull/1',
+                statusCheckRollup: [
+                    { name: 'cancelled', status: 'COMPLETED', conclusion: 'CANCELLED' },
+                    ...(other
+                        ? [
+                              {
+                                  name: 'other',
+                                  status: other === 'IN_PROGRESS' ? other : 'COMPLETED',
+                                  conclusion: other === 'IN_PROGRESS' ? null : other,
+                              },
+                          ]
+                        : []),
+                ],
+            }),
+        ).pullRequest;
+        expect(result?.state).toBe(state);
+        expect(result?.checks.find((check) => check.name === 'cancelled')?.state).toBe('cancelled');
+    });
+
     it('rejects malformed GitHub pull request JSON as VALIDATION', () => {
         expect(() => parseGitHubPullRequest('{')).toThrow(
             expect.objectContaining({ code: 'VALIDATION' }) as Error,

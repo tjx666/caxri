@@ -23,6 +23,7 @@ export interface StatusNode {
 const stateIcons: Record<ProjectStatusState, string> = {
     success: 'circle-check',
     failure: 'circle-x',
+    cancelled: 'circle-slash',
     pending: 'loading',
     neutral: 'circle-outline',
     unknown: 'circle-dot',
@@ -55,6 +56,7 @@ const linearStateIcons: Partial<
 const stateTones: Record<ProjectStatusState, 'danger' | 'neutral' | 'success' | 'warning'> = {
     success: 'success',
     failure: 'danger',
+    cancelled: 'neutral',
     pending: 'warning',
     neutral: 'neutral',
     unknown: 'neutral',

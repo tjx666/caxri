@@ -102,7 +102,6 @@ const SUCCESS_RESULTS = new Set(['SUCCESS', 'NEUTRAL', 'SKIPPED', 'COMPLETED']);
 const FAILURE_RESULTS = new Set([
     'FAILURE',
     'FAILED',
-    'CANCELLED',
     'TIMED_OUT',
     'ACTION_REQUIRED',
     'STARTUP_FAILURE',
@@ -127,6 +126,7 @@ function checkState(check: GitHubCheck): ProjectStatusState {
     const result = (check.conclusion ?? check.state ?? '').toUpperCase();
     if (PENDING_RESULTS.has(status) || PENDING_RESULTS.has(result)) return 'pending';
     if (FAILURE_RESULTS.has(result)) return 'failure';
+    if (result === 'CANCELLED') return 'cancelled';
     if (SUCCESS_RESULTS.has(result)) return 'success';
     return 'neutral';
 }
@@ -134,6 +134,10 @@ function checkState(check: GitHubCheck): ProjectStatusState {
 function aggregateChecks(checks: ProjectStatusCheck[]): ProjectStatusState {
     if (checks.some((check) => check.state === 'failure')) return 'failure';
     if (checks.length === 0 || checks.some((check) => check.state === 'pending')) return 'pending';
+    /**
+     * A cancelled check did not pass; preserve that outcome without raising a failure alert.
+     */
+    if (checks.some((check) => check.state === 'cancelled')) return 'cancelled';
     return 'success';
 }
 
@@ -154,7 +158,7 @@ function projectCheck(check: GitHubCheck): ProjectStatusCheck {
     };
 }
 
-const CHECK_ORDER: ProjectStatusState[] = ['failure', 'pending', 'success', 'neutral'];
+const CHECK_ORDER: ProjectStatusState[] = ['failure', 'pending', 'cancelled', 'success', 'neutral'];
 
 /**
  * Projects one `gh pr view` payload. `ignoredChecks` is applied here rather than at each consumer so the Status panel's

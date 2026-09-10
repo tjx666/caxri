@@ -125,3 +125,14 @@ tuning either number.
   Only the pause file crosses the process boundary.
 - No settings opt-in for GitHub polling. Caxri queries whenever a `github.com` remote exists; the
   circuit breaker, not a toggle, is what protects the account.
+
+## Cancelled GitHub checks
+
+Project Status preserves GitHub's `CANCELLED` conclusion as `cancelled`, shown with a muted
+slashed-circle icon and a `cancelled` tooltip. Cancelled checks do not count toward failure badges
+or delivery-failure notifications. The Session PR hover card reports `Checks cancelled`.
+
+PR summaries prioritize actual failures, then running checks, then cancellation, then success.
+A cancelled check does not prove that its work passed, even when other checks succeeded. The
+panel retains the records GitHub supplies; it does not infer that similarly named checks replace
+each other or automatically rerun a cancelled job.
