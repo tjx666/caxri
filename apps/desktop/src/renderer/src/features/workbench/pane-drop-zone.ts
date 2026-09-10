@@ -1,11 +1,33 @@
 export type PaneDropZone = 'center' | 'down' | 'left' | 'right' | 'up';
 
 /**
- * Drag payload type shared by every pane tab bar and every pane drop target. One type for every tab kind is what keeps
- * drag and drop from branching on what a tab holds. Declared here, beside the drag-type probe, so the probe stays free
- * of the action module's store imports.
+ * Placement payload shared by every pane tab. Editor path insertion carries a separate type so the drop target can
+ * choose input without changing the common pane placement operations.
  */
 export const PANE_TAB_DRAG_TYPE = 'application/x-caxri-pane-tab';
+
+/**
+ * Separate from Files drags so dragging an Editor cannot accidentally move its file in the explorer.
+ */
+export const EDITOR_PATH_DRAG_TYPE = 'application/x-caxri-editor-path';
+
+/**
+ * Editor paths paste into Terminal surfaces by default; Option opts back into pane placement.
+ */
+export function resolvePaneDropIntent(
+    types: readonly string[],
+    options: {
+        altKey: boolean;
+        isTerminal: boolean;
+        acceptsFileDrop: boolean;
+        hasFilePath: boolean;
+    },
+): 'paste' | 'place' | undefined {
+    if (options.isTerminal && types.includes(EDITOR_PATH_DRAG_TYPE) && !options.altKey)
+        return options.acceptsFileDrop ? 'paste' : undefined;
+    if (hasPaneTabDragType(types)) return 'place';
+    return options.acceptsFileDrop && options.hasFilePath ? 'paste' : undefined;
+}
 
 /**
  * `DataTransfer.getData` is empty during `dragenter`/`dragover` in Chromium's protected drag store; only `types` is

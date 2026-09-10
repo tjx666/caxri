@@ -21,15 +21,18 @@ import { ContextMenuItem } from '../../components/ui/context-menu';
 import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
+import { useCaxriQuery } from '../../queries/client';
 import { useChromeLayoutStore } from '../../stores/chrome-layout';
 import {
     useIsFullScreen,
     useSelectedSession,
+    useSelectedWorkbenchProject,
     useSessionState,
     useTerminal,
 } from '../../stores/selectors';
 import { sessionViewScope, useSessionViewStore } from '../../stores/session-view';
 import { closeDocumentTabs, pinDocumentTab } from '../editor/document-actions';
+import { resolveDocumentTabPath } from '../editor/document-tab-path-actions';
 import { DocumentTabPathMenu } from '../editor/document-tab-path-menu';
 import { EditorTabActions } from '../editor/editor-tab-actions';
 import { moveTerminalToNewSession } from '../session/session-actions';
@@ -43,7 +46,7 @@ import {
     useTerminalProgress,
 } from '../terminal/terminal-progress';
 import { selectPaneTab } from './pane-actions';
-import { PANE_TAB_DRAG_TYPE } from './pane-drop-zone';
+import { EDITOR_PATH_DRAG_TYPE, PANE_TAB_DRAG_TYPE } from './pane-drop-zone';
 import { PaneTabMenu } from './pane-tab-menu';
 import { useScrollEdges } from './tab-scroll-edges';
 import { usePaneTabDrag } from './use-pane-tab-drag';
@@ -183,6 +186,12 @@ function DocumentPaneTab({
     const gitDiffTab = parseGitDiffTab(path);
     const transcriptTab = parseAgentTranscriptTab(path);
     const externalTab = parseExternalEditorTab(path);
+    const project = useSelectedWorkbenchProject();
+    const overviewQuery = useCaxriQuery(
+        'git.overview',
+        { sessionId: session?.id ?? '' },
+        { enabled: Boolean(session), staleTime: 60_000 },
+    );
     // Tab identity is the terminal ID alone; the label follows its stable semantic title, never a PTY window title.
     const transcriptTerminal = useTerminal(transcriptTab?.terminalId ?? '');
     const document = useSessionViewStore((state) =>
@@ -190,6 +199,16 @@ function DocumentPaneTab({
             ? state.documents[sessionViewScope(session.id, session.workbenchProjectId)]?.[path]
             : undefined,
     );
+    const resolution = resolveDocumentTabPath(path, {
+        projectRoot: project?.rootPath,
+        repositories: overviewQuery.data?.repositories,
+        externalDisplayPath: document?.displayPath,
+    });
+    const unavailableReason = overviewQuery.isError
+        ? 'Unable to load repository information'
+        : overviewQuery.isPending
+          ? 'Repository information is still loading'
+          : 'The file path is unavailable';
     return (
         <WorkTab
             active={active}
@@ -234,9 +253,11 @@ function DocumentPaneTab({
                 void closeDocumentTabs([tab.id]);
             }}
             onDragStart={(event) => {
-                event.dataTransfer.effectAllowed = 'move';
+                event.dataTransfer.effectAllowed = 'copyMove';
                 event.dataTransfer.setData(PANE_TAB_DRAG_TYPE, tab.id);
-                event.dataTransfer.setData('text/plain', path);
+                if (resolution)
+                    event.dataTransfer.setData(EDITOR_PATH_DRAG_TYPE, resolution.absolutePath);
+                event.dataTransfer.setData('text/plain', resolution?.absolutePath ?? path);
             }}
             onKeyDown={(event) => {
                 if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
@@ -251,8 +272,13 @@ function DocumentPaneTab({
                     tabId={tab.id}
                     resourceItems={
                         (!isVirtualEditorTabPath(path) ||
+                            Boolean(externalTab) ||
                             (gitDiffTab && gitDiffTab.kind !== 'changes')) && (
-                            <DocumentTabPathMenu path={path} />
+                            <DocumentTabPathMenu
+                                resolution={resolution}
+                                unavailableReason={unavailableReason}
+                                isExternal={Boolean(externalTab)}
+                            />
                         )
                     }
                 />

@@ -16,6 +16,14 @@ const repositories = [
 ] as const;
 
 describe('resolveDocumentTabPath', () => {
+    it('copies the Main-authorized display path of an external document without a Project root', () => {
+        expect(
+            resolveDocumentTabPath(externalEditorTabPath('external-1', 'outside.ts'), {
+                externalDisplayPath: '/outside/outside.ts',
+            }),
+        ).toEqual({ absolutePath: '/outside/outside.ts' });
+    });
+
     it('keeps ordinary files absolute and uses the innermost repository for relative output', () => {
         expect(
             resolveDocumentTabPath('/project/vendor/sub/src/index.ts', {

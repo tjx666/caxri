@@ -1,5 +1,5 @@
 import type { GitRepositoryOverview } from '@caxri/protocol';
-import { isVirtualEditorTabPath, parseGitDiffTab } from '@caxri/protocol';
+import { isVirtualEditorTabPath, parseExternalEditorTab, parseGitDiffTab } from '@caxri/protocol';
 
 import { copyFilePath } from '../../lib/copy-file-path';
 import { isPathAtOrBelow, projectRelativePath } from '../../lib/file-path';
@@ -29,15 +29,21 @@ function repoForPath(path: string, repositories: readonly RepoRoot[]): RepoRoot 
  *
  * Ordinary editor paths are already absolute and must remain inside the authorized Workbench Project. Single-file Git
  * tabs carry repository-relative paths inside their virtual URI, so their absolute path is reconstructed only from the
- * Server-provided repository root. Multi-file changes, transcripts, and external documents have no one file to copy.
+ * Server-provided repository root. External documents use only the Main-authorized cached display path; their opaque
+ * URI is not a filesystem path. Multi-file changes and transcripts have no one file to copy.
  */
 export function resolveDocumentTabPath(
     path: string,
     options: {
+        externalDisplayPath?: string;
         projectRoot?: string;
         repositories?: readonly RepoRoot[];
     },
 ): DocumentTabPathResolution | undefined {
+    if (parseExternalEditorTab(path))
+        return options.externalDisplayPath
+            ? { absolutePath: options.externalDisplayPath }
+            : undefined;
     const diffTab = parseGitDiffTab(path);
     if (diffTab) {
         if (diffTab.kind === 'changes' || !options.repositories) return undefined;

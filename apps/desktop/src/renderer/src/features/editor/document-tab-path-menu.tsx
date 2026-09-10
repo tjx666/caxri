@@ -1,9 +1,6 @@
-import { parseGitDiffTab } from '@caxri/protocol';
-
 import { ContextMenuItem } from '../../components/ui/context-menu';
-import { useCaxriQuery } from '../../queries/client';
-import { useSelectedSession, useSelectedWorkbenchProject } from '../../stores/selectors';
-import { copyDocumentTabPath, resolveDocumentTabPath } from './document-tab-path-actions';
+import type { DocumentTabPathResolution } from './document-tab-path-actions';
+import { copyDocumentTabPath } from './document-tab-path-actions';
 
 function discard(promise: Promise<unknown>): void {
     // eslint-disable-next-line no-void -- intentional floating-promise discard; the action reports its own errors via toast
@@ -11,30 +8,18 @@ function discard(promise: Promise<unknown>): void {
 }
 
 /**
- * Adds path actions to a document tab's pane menu. Virtual resources without one filesystem file return no entries;
- * `git.overview` supplies authorized roots so nested repositories and submodules use their own relative path.
+ * Renders the same path resolution used by Editor drags. External documents have no Project-relative path, while
+ * ordinary files and single-file diffs use the authorized repository root supplied by their caller.
  */
-export function DocumentTabPathMenu({ path }: { path: string }) {
-    const session = useSelectedSession();
-    const project = useSelectedWorkbenchProject();
-    const overviewQuery = useCaxriQuery(
-        'git.overview',
-        { sessionId: session?.id ?? '' },
-        { enabled: Boolean(session), staleTime: 60_000 },
-    );
-    const overview = overviewQuery.data;
-    const resolution = resolveDocumentTabPath(path, {
-        projectRoot: project?.rootPath,
-        repositories: overview?.repositories,
-    });
-    const diffTab = parseGitDiffTab(path);
-    const isSingleFileDiff = diffTab?.kind === 'file' || diffTab?.kind === 'commit-file';
-    if (!resolution && !isSingleFileDiff) return null;
-    const unavailableReason = overviewQuery.isError
-        ? 'Unable to load repository information'
-        : overviewQuery.isPending
-          ? 'Repository information is still loading'
-          : 'The repository path is unavailable';
+export function DocumentTabPathMenu({
+    resolution,
+    unavailableReason,
+    isExternal,
+}: {
+    resolution?: DocumentTabPathResolution;
+    unavailableReason: string;
+    isExternal: boolean;
+}) {
     return (
         <>
             <ContextMenuItem
@@ -46,18 +31,23 @@ export function DocumentTabPathMenu({ path }: { path: string }) {
             >
                 Copy Path
             </ContextMenuItem>
-            <ContextMenuItem
-                disabled={!resolution?.relativeRoot}
-                disabledReason={!resolution?.relativeRoot ? unavailableReason : undefined}
-                onClick={() => {
-                    if (resolution?.relativeRoot)
-                        discard(
-                            copyDocumentTabPath(resolution.absolutePath, resolution.relativeRoot),
-                        );
-                }}
-            >
-                Copy Relative Path
-            </ContextMenuItem>
+            {!isExternal && (
+                <ContextMenuItem
+                    disabled={!resolution?.relativeRoot}
+                    disabledReason={!resolution?.relativeRoot ? unavailableReason : undefined}
+                    onClick={() => {
+                        if (resolution?.relativeRoot)
+                            discard(
+                                copyDocumentTabPath(
+                                    resolution.absolutePath,
+                                    resolution.relativeRoot,
+                                ),
+                            );
+                    }}
+                >
+                    Copy Relative Path
+                </ContextMenuItem>
+            )}
         </>
     );
 }

@@ -1,11 +1,38 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    EDITOR_PATH_DRAG_TYPE,
     hasPaneTabDragType,
     PANE_TAB_DRAG_TYPE,
+    resolvePaneDropIntent,
     resolvePaneDropZone,
     resolveTabDropIndex,
 } from '../pane-drop-zone';
+
+describe('resolvePaneDropIntent', () => {
+    const terminal = { altKey: false, isTerminal: true, acceptsFileDrop: true, hasFilePath: false };
+    const editorTypes = [PANE_TAB_DRAG_TYPE, EDITOR_PATH_DRAG_TYPE];
+    it('pastes an Editor path unless Option requests pane placement', () => {
+        expect(resolvePaneDropIntent(editorTypes, terminal)).toBe('paste');
+        expect(resolvePaneDropIntent(editorTypes, { ...terminal, altKey: true })).toBe('place');
+        expect(resolvePaneDropIntent(editorTypes, { ...terminal, isTerminal: false })).toBe(
+            'place',
+        );
+    });
+    it('does not turn rejected path drops on stopped Terminals into layout changes', () => {
+        expect(
+            resolvePaneDropIntent(editorTypes, { ...terminal, acceptsFileDrop: false }),
+        ).toBeUndefined();
+    });
+    it('preserves Terminal, pathless document, and Files drag behavior', () => {
+        expect(resolvePaneDropIntent([PANE_TAB_DRAG_TYPE], terminal)).toBe('place');
+        expect(resolvePaneDropIntent([PANE_TAB_DRAG_TYPE], { ...terminal, altKey: true })).toBe(
+            'place',
+        );
+        expect(resolvePaneDropIntent([], { ...terminal, hasFilePath: true })).toBe('paste');
+        expect(resolvePaneDropIntent([], terminal)).toBeUndefined();
+    });
+});
 
 const bounds = { width: 200, height: 100 };
 

@@ -22,6 +22,68 @@ async function expectMissing(path: string): Promise<void> {
     await expect(access(path)).rejects.toThrow();
 }
 
+test('Editor tabs paste paths at Terminal edges by default and Option restores splitting', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-editor-terminal-drop-e2e-'));
+    const rootInput = join(testDirectory, 'project');
+    await mkdir(rootInput);
+    const root = await realpath(rootInput);
+    const fileName = "editor with 'quote'.txt";
+    await writeFile(join(root, fileName), 'fixture\n', 'utf8');
+    const running = await launchCaxri({
+        userDataDir: join(testDirectory, 'profile'),
+        testRootPath: root,
+    });
+    try {
+        await createProjectSession(running.page);
+        await running.page.getByRole('treeitem', { name: fileName, exact: true }).dblclick();
+        const editorTab = running.page.locator('.work-tab:not([data-terminal-id])');
+        const terminalTab = running.page.locator('.work-tab[data-terminal-id]');
+        await terminalTab.getByRole('tab').click();
+        const terminalInput = running.page.locator('.xterm-helper-textarea');
+        const surface = running.page.locator('.pane-surface');
+        const verifyDrop = async (xRatio: number): Promise<void> => {
+            const receipt = join(testDirectory, `drop-${xRatio}.txt`);
+            await terminalInput.click();
+            await running.page.keyboard.type("printf '%s' ");
+            const bounds = await surface.boundingBox();
+            if (!bounds) throw new Error('Terminal surface is missing');
+            await editorTab.dragTo(surface, {
+                targetPosition: { x: bounds.width * xRatio, y: bounds.height / 2 },
+            });
+            await expect(running.page.locator('.workbench-pane')).toHaveCount(1);
+            await expect(terminalInput).toBeFocused();
+            await expectMissing(receipt);
+            await running.page.keyboard.type(` > ${quoteShellPath(receipt)}`);
+            await running.page.keyboard.press('Enter');
+            await expect
+                .poll(() => readFileForPoll(() => readFile(receipt, 'utf8')))
+                .toBe(fileName);
+        };
+        await verifyDrop(0.5);
+        await verifyDrop(0.05);
+        const bounds = await surface.boundingBox();
+        if (!bounds) throw new Error('Terminal surface is missing');
+        await running.page.keyboard.down('Alt');
+        try {
+            await editorTab.dragTo(surface, {
+                targetPosition: { x: bounds.width - 5, y: bounds.height / 2 },
+            });
+        } finally {
+            await running.page.keyboard.up('Alt');
+        }
+        await expect(running.page.locator('.workbench-pane')).toHaveCount(2);
+        // Terminal drags still use pane placement without a modifier.
+        const editorSurface = running.page
+            .locator('.workbench-pane')
+            .filter({ has: editorTab })
+            .locator('.pane-surface');
+        await terminalTab.dragTo(editorSurface);
+        await expect(running.page.locator('.workbench-pane')).toHaveCount(1);
+    } finally {
+        await running.app.close();
+    }
+});
+
 test('Files entries dragged to Terminal insert shell-safe cwd-relative paths without opening an Editor', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-file-terminal-drag-e2e-'));
     const userData = join(testDirectory, 'user-data');
