@@ -44,6 +44,11 @@ readback. Do not end again at local validation or PR creation. A status-only que
    In Claude Code, execute the watcher in a background shell.
    In Codex, read and follow [Codex Watch Await](../../references/codex-watch-await.md)
    before starting or collecting the watcher.
+   A single runner `offline` response is an availability snapshot, not proof that the machine
+   is unreachable or requires owner intervention. Correlate it with this run's job history and
+   subsequent runner status before diagnosing infrastructure failure. Keep following queued work
+   through transient disconnects; do not mark the issue Blocked or end delivery solely because
+   one status sample says offline. Inspect completed failed jobs even while the final gate queues.
 7. Merge only when explicitly authorized by the user or an active workflow such as `go`. Verify the
    remote merged state and merge commit before reporting completion.
 8. After the current task's PR is merged, inspect whether the task is running in the primary

@@ -1,13 +1,25 @@
+import { defaultAgentProviderSettings } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
     formatLongPasteReference,
+    isProviderLongPasteEnabled,
     shouldPrepareLongPaste,
     TerminalLongPasteController,
     TerminalLongPasteInputRoute,
 } from '../terminal-long-paste';
 
 describe('long Terminal paste', () => {
+    it('keeps unsupported providers disabled even when their saved setting enables summaries', () => {
+        const providers = structuredClone(defaultAgentProviderSettings);
+        providers.grok.pasteSummary.enabled = true;
+        expect(isProviderLongPasteEnabled('grok', providers)).toBe(false);
+        expect(isProviderLongPasteEnabled(undefined, providers)).toBe(false);
+        expect(isProviderLongPasteEnabled('codex', providers)).toBe(true);
+        providers.codex.pasteSummary.enabled = false;
+        expect(isProviderLongPasteEnabled('codex', providers)).toBe(false);
+    });
+
     it.each(['stopped', 'disposed'] as const)(
         'does not deliver a delayed native paste after the Agent is %s',
         async (state) => {

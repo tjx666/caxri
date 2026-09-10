@@ -19,6 +19,7 @@ import {
 } from './metadata-activity-baseline';
 import { detectForegroundAgentProvider } from './process-detection';
 import { ProcessIdentityProbe } from './process-identity-probe';
+// oxlint-disable-next-line react-doctor/no-barrel-import -- Provider clusters require a public barrel.
 import { GrokTurnTracker } from './providers/grok';
 import type { AgentService } from './service';
 import type { SessionActivitySource } from './session-activity-log';
