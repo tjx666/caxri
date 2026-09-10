@@ -3,6 +3,7 @@ import type { AgentProvider } from '@caxri/protocol';
 import type { AgentProviderDescriptor } from '../contract';
 import { claudeProvider } from './claude';
 import { codexProvider } from './codex';
+// oxlint-disable-next-line react-doctor/no-barrel-import -- Provider clusters require a public barrel.
 import { grokProvider } from './grok';
 
 /**
