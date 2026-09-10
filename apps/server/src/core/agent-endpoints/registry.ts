@@ -40,6 +40,7 @@ const GRANT_CAPABILITIES = {
     'debug:read': ['diagnostics.read', 'events.read', 'settings.read'],
     'business:write': ['settings.write'],
     'agent:control': ['agents.control', 'agents.dispatch'],
+    'agent:delegate': ['agents.delegate', 'agents.read'],
 } as const satisfies Record<AgentGrantPolicy, readonly Capability[]>;
 
 interface StoredEndpoint {

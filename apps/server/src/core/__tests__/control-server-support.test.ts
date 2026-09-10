@@ -206,6 +206,7 @@ describe('operatorContext', () => {
                 'agents.read',
                 'agents.control',
                 'agents.dispatch',
+                'agents.delegate',
                 'agents.grant',
                 'events.read',
                 'host.read',
@@ -222,7 +223,7 @@ describe('operatorContext', () => {
          * Every capability in the list is intentional; an unexpected extra would silently widen what a human-CLI
          * connection can do.
          */
-        expect(context.capabilities).toHaveLength(15);
+        expect(context.capabilities).toHaveLength(16);
     });
 
     it('derives the principal id from the profile id it is given', () => {

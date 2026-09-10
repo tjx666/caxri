@@ -10,6 +10,7 @@ export {
 } from './hooks/contract';
 export { LongPasteService } from './long-paste';
 export { agentProviders } from './providers';
+export { extractClaudeDelegationAnswer } from './providers/claude/delegation';
 export { type AgentAdapter, AgentService, createLocalAgentAdapters } from './service';
 export {
     buildAgentTitlePrompt,

@@ -151,6 +151,13 @@ reject an ID reused with different command content. The Electron adapter additio
 requesting WebContents before invoking that dispatcher. Internal Server methods remain outside the
 public command registry.
 
+Visible task delegation owns a separate `agent-delegation` Server domain. Its explicit
+`agents.delegate` capability and `agent:delegate` grant never widen human Terminal steer or general
+Agent control. Task identity, frozen launch settings and private answers are persisted before/after
+the managed Terminal side effects; only exact coordinator-applied turn evidence can produce a
+result. See [visible delegation](../../../../docs/agent-delegation.md) for storage, recovery,
+provider limits and the staged replacement scope.
+
 `apps/cli` is the command-line adapter for the same registry and authenticated Server transport.
 Source keeps `commands` as its only domain barrel; the package root remains the composition root
 (`application`, `environment`, `output`, `selectors`) and the only public package entrypoint. The

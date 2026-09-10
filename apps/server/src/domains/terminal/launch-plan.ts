@@ -95,6 +95,7 @@ export class TerminalLaunchPlanner {
             if (!shouldLaunchAgent) return { ok: true, value: { args: ['-l'], executable } };
 
             const launch =
+                start?.launchSettings ??
                 this.options.agentLaunchSettings?.(record.kind) ??
                 defaultAgentProviderSettings[record.kind].launch;
             try {

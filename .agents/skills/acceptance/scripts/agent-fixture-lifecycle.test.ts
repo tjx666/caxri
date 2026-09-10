@@ -26,7 +26,7 @@ const TEST_ROOT = join(
 const acceptanceRoots: string[] = [];
 
 async function reportDirectory(
-    fixtureId: 'agent-features-v1' | 'grok-build-v1' = 'agent-features-v1',
+    fixtureId: 'agent-features-v1' | 'grok-build-v1' | 'agent-delegation-v1' = 'agent-features-v1',
 ): Promise<string> {
     await mkdir(TEST_ROOT, { recursive: true });
     const root = await mkdtemp(join(TEST_ROOT, 'case-'));

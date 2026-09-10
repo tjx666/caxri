@@ -1,5 +1,6 @@
 const nonExpiringServerOperations = new Set([
     'agent.dispatch.waitInternal',
+    'agent.delegation.waitInternal',
     'agent.message.wait',
     'files.create',
     'files.copy',

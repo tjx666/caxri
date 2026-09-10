@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { once } from 'node:events';
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
@@ -25,6 +26,82 @@ async function sharedDirectory(): Promise<string> {
 }
 
 describe('stageAgentHookBridge', () => {
+    it.each([
+        { size: 16, enabled: false, event: 'Stop' },
+        { size: 90_000, enabled: false, event: 'Stop' },
+        { size: 16, enabled: true, event: 'Stop' },
+        { size: 90_000, enabled: true, event: 'Stop' },
+        { size: 1_100_000, enabled: true, event: 'Stop' },
+        { size: 16, enabled: true, event: 'StopFailure' },
+    ])(
+        'preserves Claude identity and opt-in digests without content: %j',
+        async ({ size, enabled, event }) => {
+            const answer = 'synthetic'.repeat(Math.ceil(size / 9));
+            const sharedPath = await sharedDirectory();
+            const bridgePath = await stageAgentHookBridge(sharedPath);
+            const socketPath = join(sharedPath, 'prompt.sock');
+            const packets: Array<Record<string, unknown>> = [];
+            const server = createServer((socket) => {
+                socket.setEncoding('utf8');
+                let source = '';
+                socket.on('data', (chunk: string) => {
+                    source += chunk;
+                });
+                socket.on('end', () => {
+                    packets.push(JSON.parse(source) as Record<string, unknown>);
+                    socket.end('{"ok":true}\n');
+                });
+            });
+            server.listen(socketPath);
+            await once(server, 'listening');
+            try {
+                const invocation = execFileAsync(
+                    bridgePath,
+                    ['--provider', 'claude', '--phase', 'turnFinished'],
+                    {
+                        env: {
+                            CAXRI_HOOK_LAUNCH_ID: 'fixture-launch',
+                            CAXRI_HOOK_RUNTIME: process.execPath,
+                            CAXRI_HOOK_SOCKET: socketPath,
+                            CAXRI_HOOK_TERMINAL_ID: 'fixture-terminal',
+                            CAXRI_HOOK_TOKEN: 'fixture-token',
+                            CAXRI_HOOK_DIGEST: enabled ? '1' : undefined,
+                            PATH: process.env.PATH,
+                        },
+                    },
+                );
+                invocation.child.stdin?.end(
+                    JSON.stringify({
+                        session_id: 'fixture-session',
+                        prompt_id: 'fixture-prompt',
+                        hook_event_name: event,
+                        error: 'rate_limit',
+                        last_assistant_message: answer,
+                    }),
+                );
+                await invocation;
+                expect(packets).toHaveLength(1);
+                expect(packets[0]).toMatchObject({
+                    agentSessionId: 'fixture-session',
+                    agentTurnId: 'fixture-prompt',
+                });
+                expect(packets[0]).not.toHaveProperty('last_assistant_message');
+                expect(JSON.stringify(packets)).not.toContain('synthetic');
+                if (enabled && event === 'Stop' && size < 1_048_576)
+                    expect(packets[0]?.agentResponseDigest).toBe(
+                        createHash('sha256').update(answer).digest('hex'),
+                    );
+                else expect(packets[0]).not.toHaveProperty('agentResponseDigest');
+                if (enabled && event === 'StopFailure')
+                    expect(packets[0]?.agentFailure).toBe('rate_limit');
+                if (enabled && size > 1_048_576)
+                    expect(packets[0]?.agentContentOverflow).toBe(true);
+            } finally {
+                await new Promise<void>((resolve) => server.close(() => resolve()));
+            }
+        },
+    );
+
     it('stages an executable bridge wrapper, its script, and a manifest on first run', async () => {
         const sharedPath = await sharedDirectory();
 
@@ -39,7 +116,7 @@ describe('stageAgentHookBridge', () => {
         ]);
         expect(wrapperSource).toContain('#!/bin/sh');
         expect(bridgeScript).toContain("require('node:net')");
-        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 15 });
+        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 17 });
         expect(wrapperStats.mode & 0o777).toBe(0o700);
     });
 
@@ -111,7 +188,7 @@ describe('stageAgentHookBridge', () => {
             readFile(bridgePath, 'utf8'),
             readFile(join(binDirectory, 'bridge.cjs'), 'utf8'),
         ]);
-        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 15 });
+        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 17 });
         expect(wrapperSource).toContain('#!/bin/sh');
         expect(scriptSource).toContain("require('node:net')");
     });

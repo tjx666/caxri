@@ -72,6 +72,7 @@ export type AgentHookSignalRejectionReason =
     | 'invalidAgentSessionId'
     | 'invalidAgentToolUseId'
     | 'invalidAgentTurnId'
+    | 'invalidAgentDigest'
     | 'invalidJson'
     | 'invalidSignal'
     | 'launchMismatch'
@@ -258,6 +259,38 @@ function parsePacket(
     ) {
         return { reason: 'invalidAgentToolUseId' };
     }
+    for (const [field, phase] of [
+        ['agentPromptDigest', 'turnStarted'],
+        ['agentResponseDigest', 'turnFinished'],
+    ] as const) {
+        const digest = signal[field];
+        if (
+            digest !== undefined &&
+            (typeof digest !== 'string' ||
+                !/^[a-f0-9]{64}$/u.test(digest) ||
+                signal.provider !== 'claude' ||
+                signal.phase !== phase ||
+                signal.agentId !== undefined)
+        )
+            return { reason: 'invalidAgentDigest' };
+    }
+    if (signal.agentContentOverflow !== undefined && signal.agentContentOverflow !== true)
+        return { reason: 'invalidAgentDigest' };
+    if (
+        signal.agentFailure !== undefined &&
+        (typeof signal.agentFailure !== 'string' ||
+            signal.provider !== 'claude' ||
+            signal.phase !== 'turnFinished' ||
+            signal.agentId !== undefined ||
+            ![
+                'rate_limit',
+                'billing_error',
+                'authentication_failed',
+                'max_output_tokens',
+                'provider_failed',
+            ].includes(signal.agentFailure))
+    )
+        return { reason: 'invalidAgentDigest' };
     /**
      * Shape-only validation. A path that clears this gate is still an unproven provider claim; it becomes durable state
      * only after `WorkbenchRootService.observeAgentCwd` matches it against real Git worktree topology.

@@ -7,6 +7,26 @@ _Researched 2026-08-06._
 - **Tech stack**: Pure Rust — ratatui/crossterm TUI, tokio, vendored `portable-pty` fork, `interprocess` sockets, vendored `libghostty-vt` for terminal parsing; Windows via windows-sys/wmi. Single binary.
 - **License**: Apache-2.0.
 
+## Visible delegation reference (2026-09-10)
+
+Verified local source at `b9ce96869e89937278d673d70ae4c135dd318469`:
+
+- `skills/herdr/SKILL.md:95` creates a sibling pane in the caller's tab and cwd. Wide panes split
+  right; narrow or tall panes split down. `pane split --no-focus` preserves the caller's focus.
+- `src/app/api/panes.rs:34` passes `params.focus` through the layout operation and only switches
+  the active workspace/tab and records a focus change when it is true.
+- `agent start` uses an existing available shell pane; it does not create layout. The caller uses
+  the returned pane identity to start and then prompt the Agent.
+- `src/app/api/agents.rs:106` rejects blocked or replaced Agents before ordered prompt submission.
+  Submission acknowledgement is separate from observed work and from the settled-state wait.
+- The documented wait observes lifecycle, not a task identity. Reading the recent terminal screen
+  also cannot guarantee a complete answer. Caxri issue #686 therefore adopts the sibling-pane UX
+  while requiring exact task/turn correlation and authorized durable result retrieval separately.
+
+Sources: [coordination workflow](https://github.com/herdrdev/herdr/blob/b9ce96869e89937278d673d70ae4c135dd318469/skills/herdr/SKILL.md#L95),
+[pane split](https://github.com/herdrdev/herdr/blob/b9ce96869e89937278d673d70ae4c135dd318469/src/app/api/panes.rs#L34),
+[prompt admission](https://github.com/herdrdev/herdr/blob/b9ce96869e89937278d673d70ae4c135dd318469/src/app/api/agents.rs#L106).
+
 ## Architecture highlights
 
 - Server/client split: `herdr-server` owns panes and process state persistently; TUI clients attach/detach without killing agents. Their CLAUDE.md enforces a "runtime/client boundary": new features go to server-owned state exposed via a JSON API, never client-only hacks.

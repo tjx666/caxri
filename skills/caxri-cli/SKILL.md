@@ -8,7 +8,7 @@ description: Operate and debug the current Caxri Host through its version-matche
 Use only the bundled `caxri` binary and its authenticated local Host transport. Treat this skill as
 workflow guidance; treat live introspection as the command and capability authority.
 
-<!-- caxri-capabilities: agents.control,agents.dispatch,agents.message,agents.read,diagnostics.read,projects.read,sessions.read,settings.read,settings.write,terminals.steer -->
+<!-- caxri-capabilities: agents.control,agents.delegate,agents.dispatch,agents.message,agents.read,diagnostics.read,projects.read,sessions.read,settings.read,settings.write,terminals.steer -->
 
 ## Start with live introspection
 
@@ -97,6 +97,14 @@ next action or require local skill installation; do not downgrade to arbitrary s
 state access.
 
 ## Keep dispatch, control, and steer separate
+
+- `agent delegate create` runs a task from `--prompt-file` in a visible Claude child Terminal.
+  It needs an explicit `agent:delegate` grant and exact `--project`/`--session` selectors.
+  Save the returned delegation ID; use `agent delegate wait <id>` and `agent delegate result <id>`
+  to retrieve the exact saved answer. A wait timeout never authorizes resubmitting the task.
+  Reuse a stable `--request-id` when recovering a disconnected create request.
+  Inspect the receipt status: `completed` with an answer is distinct from blocked, interrupted,
+  human intervention or missing result evidence. Never treat dispatch idle as task completion.
 
 - `agent dispatch` starts or resumes an exact Provider conversation and returns a durable receipt.
 - `agent control` interrupts or stops one exact active Endpoint generation.
