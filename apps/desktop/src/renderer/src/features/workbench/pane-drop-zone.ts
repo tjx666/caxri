@@ -1,3 +1,5 @@
+import { PROJECT_PATH_DRAG_TYPE } from '../../lib/file-drag';
+
 export type PaneDropZone = 'center' | 'down' | 'left' | 'right' | 'up';
 
 /**
@@ -23,6 +25,8 @@ export function resolvePaneDropIntent(
         hasFilePath: boolean;
     },
 ): 'paste' | 'place' | undefined {
+    if (types.includes(PROJECT_PATH_DRAG_TYPE))
+        return options.isTerminal && options.acceptsFileDrop ? 'paste' : undefined;
     if (options.isTerminal && types.includes(EDITOR_PATH_DRAG_TYPE) && !options.altKey)
         return options.acceptsFileDrop ? 'paste' : undefined;
     if (hasPaneTabDragType(types)) return 'place';

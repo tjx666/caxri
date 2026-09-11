@@ -12,6 +12,7 @@ import type {
 import { CaxriError, isCaxriError } from '@caxri/protocol';
 
 import type { ServerDomainService } from '../core/domain-service';
+import { authorizeProjectRoot } from './project-root-target';
 
 type AuthorizedEntry = ServerOperationResult<'files.authorizeOpen'>;
 type ExpectedIdentity = NonNullable<
@@ -27,7 +28,8 @@ interface StoredTarget {
     id: string;
     operation: 'open' | 'openInEditor' | 'reveal' | 'trash';
     projectId?: string;
-    sessionId: string;
+    sessionId?: string;
+    projectRootId?: string;
     location?: EditorNavigationTarget;
 }
 
@@ -126,7 +128,12 @@ export class ServerDesktopRouter {
     private issueTarget(
         operation: 'open' | 'openInEditor' | 'reveal' | 'trash',
         generation: number,
-        resolved: { entry: AuthorizedEntry; projectId?: string; sessionId: string },
+        resolved: {
+            entry: AuthorizedEntry;
+            projectId?: string;
+            sessionId?: string;
+            projectRootId?: string;
+        },
         location?: EditorNavigationTarget,
     ): StoredTarget {
         this.pruneTargets();
@@ -252,6 +259,13 @@ export class ServerDesktopRouter {
             : await this.options.domainService.request('settings.get', {});
         const command = settings.value['workbench.externalEditor']?.trim();
         return command === '' ? undefined : command;
+    }
+
+    private async resolveProjectRoot(projectId: string): Promise<AuthorizedEntry> {
+        const state = await this.options.domainService.request('app.bootstrap');
+        const project = state.projects.find((candidate) => candidate.id === projectId);
+        if (!project) throw new CaxriError('NOT_FOUND', 'Project not found');
+        return authorizeProjectRoot(project);
     }
 
     async status(): Promise<DesktopStatus> {
@@ -467,6 +481,41 @@ export class ServerDesktopRouter {
         };
     }
 
+    async openProjectRoot(
+        parameters: ServerOperationParameters<'project.openRoot'>,
+    ): Promise<ServerOperationResult<'project.openRoot'>> {
+        const entry = await this.resolveProjectRoot(parameters.projectId);
+        const operation = parameters.application === 'finder' ? 'reveal' : 'openInEditor';
+        const editorCommand =
+            operation === 'openInEditor' ? await this.resolveEditorCommand() : undefined;
+        const lease = await this.requireLease(false);
+        const target = this.issueTarget(operation, lease.generation, {
+            entry,
+            projectId: parameters.projectId,
+            projectRootId: parameters.projectId,
+        });
+        try {
+            await this.options.bridge.invoke(
+                operation === 'reveal'
+                    ? { kind: 'reveal', targetId: target.id }
+                    : {
+                          kind: 'openInEditor',
+                          targetId: target.id,
+                          ...(editorCommand && { editorCommand }),
+                      },
+                lease.generation,
+            );
+        } catch (error) {
+            this.targets.delete(target.id);
+            throw error;
+        }
+        return {
+            state: operation === 'reveal' ? 'revealed' : 'opened',
+            generation: lease.generation,
+            projectId: parameters.projectId,
+        };
+    }
+
     async consumeTarget(targetId: string, generation: number): Promise<DesktopTargetPayload> {
         const target = this.targets.get(targetId);
         if (!target) throw new CaxriError('NOT_FOUND', 'Desktop target is missing or already used');
@@ -475,6 +524,25 @@ export class ServerDesktopRouter {
             throw new CaxriError('NOT_FOUND', 'Desktop target expired');
         if (target.generation !== generation)
             throw new CaxriError('CONFLICT', 'Desktop target belongs to a stale generation');
+        if (target.projectRootId) {
+            const current = await this.resolveProjectRoot(target.projectRootId);
+            if (!isSameIdentity(target.entry, current))
+                throw new CaxriError('CONFLICT', 'Project root changed before use');
+            if (target.operation !== 'reveal' && target.operation !== 'openInEditor')
+                throw new CaxriError(
+                    'PATH_DENIED',
+                    'Project root target cannot perform this operation',
+                );
+            return {
+                targetId,
+                operation: target.operation,
+                kind: 'directory',
+                projectId: target.projectRootId,
+                path: current.path,
+            };
+        }
+        if (!target.sessionId)
+            throw new CaxriError('PATH_DENIED', 'Desktop target has no Session authority');
         const current = await this.options.domainService.request(
             target.operation === 'trash' ? 'files.authorizeTrash' : 'files.authorizeOpen',
             { sessionId: target.sessionId, path: target.entry.path },

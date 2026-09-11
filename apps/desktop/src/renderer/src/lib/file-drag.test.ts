@@ -6,6 +6,8 @@ import {
     dragPath,
     FILE_TREE_DRAG_TYPE,
     hasDraggedPath,
+    PROJECT_PATH_DRAG_TYPE,
+    projectTerminalInput,
     shellRelativePath,
     terminalInputPath,
 } from './file-drag';
@@ -25,6 +27,15 @@ function fakeDragEvent(data: Record<string, string>): DragEvent {
 }
 
 describe('dragPath', () => {
+    it('keeps Project roots absolute and separate from Files move payloads', () => {
+        const event = fakeDragEvent({ [PROJECT_PATH_DRAG_TYPE]: "/repo/a 'quoted' folder" });
+        expect(projectTerminalInput(event.dataTransfer)).toBe(
+            String.raw`'/repo/a '\''quoted'\'' folder'`,
+        );
+        expect(hasDraggedPath(event)).toBe(false);
+        expect(dragPath(event)).toBeUndefined();
+        expect(projectTerminalInput(fakeDragEvent({}).dataTransfer)).toBeUndefined();
+    });
     it('reads back the path stored under the custom MIME type', () => {
         const event = fakeDragEvent({ [FILE_TREE_DRAG_TYPE]: '/repo/src/index.ts' });
 
