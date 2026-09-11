@@ -24,6 +24,12 @@ equally when the request arrives midway through an existing conversation. A run 
 workflow follows `go`'s own orchestration instead. Inspection, listing, and dev-launch-only requests
 do not activate this delivery flow. Run it end to end without pausing for permission between stages:
 
+The same delivery authorization applies when an implementation or bug-fix request causes the agent
+to create the task worktree under the repository's standing orders. The user does not need to say
+"switch worktree", "commit", "open a PR", or "merge" separately. A follow-up correcting an early
+stop continues the original delivery scope. Only an explicit analysis-only, local-only, or no-merge
+restriction narrows that scope; do not invent one because the agent chose the worktree itself.
+
 1. Ensure a GitHub issue tracks the task: when the request references an existing issue, use it;
    otherwise create one first (`gh issue create`, Simplified Chinese title and body, technical
    identifiers in English) capturing the request, scope, and acceptance expectations, then link it

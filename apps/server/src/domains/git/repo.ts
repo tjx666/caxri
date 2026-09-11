@@ -18,6 +18,7 @@ import type { GitChangeTracker } from './change-tracker';
 import { toGitError } from './errors';
 import type { GitMetadataWatcher } from './metadata-watcher';
 import { MissingRepoRootCache } from './missing-root-cache';
+import { registerGitProjection } from './projection';
 import { sharedGitRequest } from './request-signal';
 import type { RepoStatus } from './status';
 import { parseGitLineStats, parseGitStatus, RepoStatusStore } from './status';
@@ -490,6 +491,17 @@ export class GitRepoService {
                     index,
             );
             const childRoots = roots.slice(baseRepositories.length);
+            /**
+             * Each child owns independent metadata, even when its gitDir lives inside the parent's .git.
+             */
+            const childTopologies = await Promise.all(
+                childRoots.map((repo) =>
+                    this.options.topology.topology(repo.rootPath, {
+                        force: options.force,
+                        git: (cwd, arguments_) => this.tracedGit(trace, cwd, arguments_),
+                    }),
+                ),
+            );
             if (options.force) for (const repo of childRoots) this.statuses.bump(repo.rootPath);
             const childSnapshots = await Promise.all(
                 childRoots.map((repo) => this.snapshotStatus(trace, repo.rootPath)),
@@ -534,7 +546,14 @@ export class GitRepoService {
                 };
             });
             if (this.sessionGenerations.get(sessionId) === options.sessionGeneration)
-                this.registerProjection(sessionId, projectRoot, topology.repositoryKey, roots);
+                registerGitProjection(
+                    this.options.tracker,
+                    this.metadataWatcher,
+                    sessionId,
+                    projectRoot,
+                    [topology, ...childTopologies],
+                    roots.map((repo) => repo.rootPath),
+                );
             return { isRepository: true, repositories };
         } catch (error) {
             /**
@@ -545,24 +564,6 @@ export class GitRepoService {
             await this.missingRepositoryRoots.remember(projectRoot, failure);
             return { isRepository: false, repositories: [], error: failure };
         }
-    }
-
-    /**
-     * Records which repositories a Session's summary projected and keeps the metadata watcher attached to the
-     * repository group, so later invalidation reaches every mapped Session.
-     */
-    private registerProjection(
-        sessionId: string,
-        projectRoot: string,
-        repoKey: string,
-        roots: readonly RepoRoot[],
-    ): void {
-        const rootPaths = roots.map((repo) => repo.rootPath);
-        this.options.tracker.registerSession(sessionId, projectRoot, repoKey, rootPaths);
-        // Fire-and-forget: watcher setup must never delay a summary response; subscribe failures
-        // downgrade to the watcher's own polling fallback and are logged there.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-        void this.metadataWatcher?.watch(repoKey, projectRoot, rootPaths);
     }
 
     /**

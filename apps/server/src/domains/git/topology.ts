@@ -93,7 +93,17 @@ export class RepoTopologyRegistry {
             await Promise.all(
                 parseWorktreeEntries(worktreeOutput).map(async (entry, index) => {
                     try {
-                        const rootPath = await realpath(entry.rootPath);
+                        /**
+                         * Absorbed submodules report their gitDir as the primary worktree in `worktree list`. Resolve
+                         * core.worktree through Git so metadata invalidation targets the actual checkout.
+                         */
+                        const listedRoot = await realpath(entry.rootPath);
+                        const rootPath =
+                            listedRoot === repoKey
+                                ? await realpath(
+                                      (await git(repoKey, ['rev-parse', '--show-toplevel'])).trim(),
+                                  )
+                                : listedRoot;
                         const stats = await lstat(rootPath);
                         return stats.isDirectory() && !stats.isSymbolicLink()
                             ? [{ branch: entry.branch, rootPath, isMain: index === 0 }]

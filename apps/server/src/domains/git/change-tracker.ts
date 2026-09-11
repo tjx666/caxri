@@ -9,7 +9,7 @@ import type { ServerEvent } from '@caxri/protocol';
 const CHANGE_EMIT_DELAY_MS = 150;
 
 interface TrackedSession {
-    repositoryKey?: string;
+    repositoryKeys: readonly string[];
     /**
      * Canonical repository roots this Session's latest summary projected, deepest-first.
      */
@@ -72,11 +72,11 @@ export class GitChangeTracker {
     registerSession(
         sessionId: string,
         sessionRoot: string,
-        repoKey: string | undefined,
+        repoKeys: readonly string[],
         roots: readonly string[],
     ): void {
         this.sessions.set(sessionId, {
-            repositoryKey: repoKey,
+            repositoryKeys: [...repoKeys],
             roots: [...roots].toSorted((left, right) => right.length - left.length),
             sessionRoot,
         });
@@ -99,7 +99,7 @@ export class GitChangeTracker {
     referencedRepositoryKeys(): ReadonlySet<string> {
         const keys = new Set<string>();
         for (const session of this.sessions.values())
-            if (session.repositoryKey) keys.add(session.repositoryKey);
+            for (const key of session.repositoryKeys) keys.add(key);
         return keys;
     }
 
@@ -129,7 +129,7 @@ export class GitChangeTracker {
     scheduleTopologyChanged(repoKey: string): void {
         this.pendingScope = 'topology';
         for (const session of this.sessions.values())
-            if (session.repositoryKey === repoKey)
+            if (session.repositoryKeys.includes(repoKey))
                 for (const root of session.roots) this.pendingRoots.add(root);
         this.scheduleFlush();
     }

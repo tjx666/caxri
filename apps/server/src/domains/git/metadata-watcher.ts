@@ -24,7 +24,7 @@ const POLLED_METADATA_FILES = ['HEAD', 'index', 'packed-refs', 'MERGE_HEAD'];
  * `.git` content the watcher must never react to: object/pack churn, lock files that flap on every optional-lock
  * command, and fsmonitor/watchman cookies. Reacting to these would turn a plain `git status` into a refresh storm.
  */
-const IGNORED_SEGMENTS = new Set(['objects', 'lfs', 'sockets', 'hooks', 'logs']);
+const IGNORED_SEGMENTS = new Set(['objects', 'lfs', 'sockets', 'hooks', 'logs', 'modules']);
 
 function isIgnoredMetadataPath(relativePath: string, name: string): boolean {
     const [head] = relativePath.split(sep);
@@ -64,6 +64,7 @@ export function classifyGitMetadataPath(relativePath: string): GitMetadataChange
 }
 
 interface WatchedRepo {
+    roots: readonly string[];
     /**
      * `worktrees/<name>` → canonical worktree root resolved from the `gitdir` readback file.
      */
@@ -75,6 +76,10 @@ interface WatchedRepo {
 
 export interface GitMetadataWatcherOptions {
     logger: StructuredLogger;
+    /**
+     * Live projections must not lose their watcher when a Project contains many child repositories.
+     */
+    referencedRepositoryKeys?: () => ReadonlySet<string>;
     /**
      * Advance topology generation for the repository group and schedule invalidation.
      */
@@ -103,6 +108,7 @@ export interface GitMetadataWatcherOptions {
  */
 export class GitMetadataWatcher {
     private closed = false;
+    private readonly pendingWatches = new Set<Promise<void>>();
     private readonly repositories = new Map<string, WatchedRepo>();
     private readonly watchHub: WatchHub;
     private readonly ownsWatchHub: boolean;
@@ -144,7 +150,7 @@ export class GitMetadataWatcher {
     }
 
     private knownRoots(entry: WatchedRepo): string[] {
-        const roots = new Set<string>([entry.primaryRoot]);
+        const roots = new Set<string>([entry.primaryRoot, ...entry.roots]);
         for (const root of entry.gitDirRoots.values()) if (root) roots.add(root);
         return [...roots];
     }
@@ -210,29 +216,41 @@ export class GitMetadataWatcher {
      * currently known worktree roots for shared-scope attribution; re-registering an already watched group only
      * refreshes recency and the known roots.
      */
-    async watch(repoKey: string, primaryRoot: string, roots: readonly string[]): Promise<void> {
+    private async watchRepository(
+        repoKey: string,
+        primaryRoot: string,
+        roots: readonly string[],
+    ): Promise<void> {
         if (this.closed) return;
         const existing = this.repositories.get(repoKey);
         if (existing) {
             existing.primaryRoot = primaryRoot;
+            existing.roots = [...roots];
             this.repositories.delete(repoKey);
             this.repositories.set(repoKey, existing);
             return;
         }
-        const entry: WatchedRepo = { gitDirRoots: new Map(), primaryRoot };
+        const entry: WatchedRepo = { gitDirRoots: new Map(), primaryRoot, roots: [...roots] };
         this.repositories.set(repoKey, entry);
         // `repositories` preserves insertion order, so the least recently used groups are the
         // leading keys; evict them concurrently instead of awaiting `unwatch` one at a time.
         const overflow = this.repositories.size - MAX_WATCHED_REPOSITORIES;
         if (overflow > 0) {
-            const oldestKeys = this.repositories.keys().toArray().slice(0, overflow);
+            const referenced = this.options.referencedRepositoryKeys?.();
+            const oldestKeys = this.repositories
+                .keys()
+                .filter((key) => !referenced?.has(key))
+                .take(overflow)
+                .toArray();
             await Promise.allSettled(oldestKeys.map((key) => this.unwatch(key)));
         }
         const handle = await this.watchHub.register({
             label: 'git-metadata',
             root: repoKey,
-            ignore: ['objects', 'lfs', 'sockets', 'hooks', 'logs'],
-            onEvents: (events) => this.handleEvents(repoKey, events),
+            ignore: ['objects', 'lfs', 'sockets', 'hooks', 'logs', 'modules'],
+            onEvents: (events) => {
+                if (this.repositories.get(repoKey) === entry) this.handleEvents(repoKey, events);
+            },
             /**
              * Native-backend fallback: poll signature files of the commonDir and every registered worktree gitDir so
              * external branch/index changes still surface, degraded but bounded.
@@ -250,7 +268,7 @@ export class GitMetadataWatcher {
         // watcher or post-shutdown ready-logging races state-directory cleanup (observed as
         // ENOENT/ENOTEMPTY in integration teardown).
         // oxlint-disable-next-line typescript/no-unnecessary-condition -- `closed` can flip while the registration is awaited (concurrent close()); tsgolint keeps the stale pre-await narrowing
-        if (this.closed || !this.repositories.has(repoKey)) {
+        if (this.closed || this.repositories.get(repoKey) !== entry) {
             await handle.dispose();
             return;
         }
@@ -259,6 +277,16 @@ export class GitMetadataWatcher {
             this.options.logger.write('debug', logEventCatalog.git.metadataWatcherReady, {
                 fields: { repositories: this.repositories.size, worktreeRoots: roots.length },
             });
+    }
+
+    async watch(repoKey: string, primaryRoot: string, roots: readonly string[]): Promise<void> {
+        const pending = this.watchRepository(repoKey, primaryRoot, roots);
+        this.pendingWatches.add(pending);
+        try {
+            await pending;
+        } finally {
+            this.pendingWatches.delete(pending);
+        }
     }
 
     async unwatch(repoKey: string): Promise<void> {
@@ -283,6 +311,7 @@ export class GitMetadataWatcher {
         this.closed = true;
         const keys = this.repositories.keys().toArray();
         await Promise.allSettled(keys.map((key) => this.unwatch(key)));
+        await Promise.allSettled(this.pendingWatches);
         if (this.ownsWatchHub) await this.watchHub.close();
     }
 }
