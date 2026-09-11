@@ -50,15 +50,16 @@ export function applyDelegationLifecycle(
     const patch = (
         status: AgentDelegationReceipt['status'],
         failure?: AgentDelegationReceipt['failure'],
+        correlationFailure?: AgentDelegationReceipt['correlationFailure'],
     ) => ({
         ...record,
-        receipt: { ...record.receipt, status, failure },
+        receipt: { ...record.receipt, status, failure, correlationFailure },
     });
     if (signal.agentSessionId && signal.agentSessionId !== record.providerSessionId)
         return patch('interrupted', 'session_changed');
     if (signal.phase === 'turnStarted') {
         if (isNativeCompletion && !record.providerSessionId)
-            return patch('answer_unavailable', 'correlation_missing');
+            return patch('answer_unavailable', 'correlation_missing', 'native_session_missing');
         if (record.turnId && signal.agentTurnId === record.turnId) return;
         if (
             record.turnId &&
@@ -74,9 +75,16 @@ export function applyDelegationLifecycle(
                 continuationPromptDigests: digests,
             };
         }
-        if (record.turnId || signal.agentPromptDigest !== record.promptDigest)
-            return patch('answer_unavailable', 'correlation_missing');
-        if (!signal.agentTurnId) return patch('answer_unavailable', 'correlation_missing');
+        if (record.turnId)
+            return patch('answer_unavailable', 'correlation_missing', 'turn_changed');
+        if (signal.agentPromptDigest !== record.promptDigest)
+            return patch(
+                'answer_unavailable',
+                'correlation_missing',
+                signal.agentPromptDigest ? 'prompt_digest_mismatch' : 'prompt_digest_missing',
+            );
+        if (!signal.agentTurnId)
+            return patch('answer_unavailable', 'correlation_missing', 'turn_missing');
         return { ...patch('running'), turnId: signal.agentTurnId };
     }
     if (!record.turnId || signal.agentTurnId !== record.turnId) return;
@@ -95,6 +103,7 @@ export function applyDelegationLifecycle(
         return patch('failed', failures[signal.agentFailure]);
     }
     if (signal.agentContentOverflow) return patch('answer_unavailable', 'payload_overflow');
-    if (!signal.agentResponseDigest) return patch('answer_unavailable', 'correlation_missing');
+    if (!signal.agentResponseDigest)
+        return patch('answer_unavailable', 'correlation_missing', 'answer_digest_missing');
     return { ...patch('collecting'), responseDigest: signal.agentResponseDigest };
 }

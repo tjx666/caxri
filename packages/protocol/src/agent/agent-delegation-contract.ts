@@ -12,6 +12,7 @@ import {
     delegationRosterSchema,
     delegationSelectionSchema,
 } from './agent-delegation-settings.js';
+import { agentDelegationUsageSchema } from './agent-delegation-usage.js';
 
 export const agentDelegationStatusSchema = z.enum([
     'requested',
@@ -59,11 +60,23 @@ export const agentDelegationReceiptSchema = z.strictObject({
     followUpOf: identifierSchema.optional(),
     resumeFrom: identifierSchema.optional(),
     provider: delegationProviderSchema,
+    usage: agentDelegationUsageSchema.optional(),
     selection: delegationSelectionSchema.optional(),
     depth: z.number().int().min(1).max(8).optional(),
     parentDelegationId: identifierSchema.optional(),
     status: agentDelegationStatusSchema,
     failure: agentDelegationFailureSchema.optional(),
+    correlationFailure: z
+        .enum([
+            'native_session_missing',
+            'prompt_digest_missing',
+            'prompt_digest_mismatch',
+            'turn_changed',
+            'turn_missing',
+            'answer_digest_missing',
+            'completion_ambiguous',
+        ])
+        .optional(),
     revision: z.number().int().positive(),
     createdAt: z.number().int().positive(),
     updatedAt: z.number().int().positive(),

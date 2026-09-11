@@ -3,6 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { AgentTranscript } from '@caxri/protocol';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import type { AgentDispatchService } from '../../agent-dispatch';
@@ -46,13 +47,16 @@ async function fixture() {
             isFinished: state.isFinished,
         }),
     );
+    const readTranscript = vi.fn<() => Promise<AgentTranscript | null>>(() =>
+        Promise.resolve(null),
+    );
     const options = {
         database,
         dispatch: { start, resume },
         userDataPath: directory,
         launchSettings: () => ({ executable: 'codex', args: ['--sandbox', 'read-only'] }),
         verifyLaunch: () => Promise.resolve(),
-        readTranscript: () => Promise.resolve(null),
+        readTranscript,
         readNativeTranscript,
         currentLaunchId: () => state.launch,
         inputEpoch: () => 0,
@@ -109,6 +113,7 @@ async function fixture() {
         state,
         readNativeTranscript,
         pointers,
+        readTranscript,
         resume,
         write,
         id,
@@ -222,4 +227,74 @@ describe('Visible Codex delegation', () => {
         expect(await pending).toMatchObject({ receipt: { status: 'human_intervened' } });
         expect((await f.service.result(f.id, owner)).answer).toBeUndefined();
     });
+    it('preserves a proven answer when optional accounting evidence cannot be read', async () => {
+        const f = await fixture();
+        f.complete(f.id, 'Synthetic completed answer');
+        f.readTranscript.mockRejectedValue(new Error('Synthetic unavailable usage evidence'));
+        const result = await f.service.result(f.id, owner);
+        expect(result).toMatchObject({
+            receipt: { status: 'completed' },
+            answer: { text: 'Synthetic completed answer' },
+        });
+        expect(result.receipt.usage).toBeUndefined();
+    });
+    it('fences human takeover while reading optional accounting after native completion', async () => {
+        const f = await fixture();
+        const pendingRead = Promise.withResolvers<AgentTranscript | null>();
+        f.complete(f.id, 'Synthetic completed answer');
+        f.readTranscript.mockImplementationOnce(() => pendingRead.promise);
+        const pending = f.service.result(f.id, owner);
+        await vi.waitFor(() => expect(f.readTranscript).toHaveBeenCalledOnce());
+        f.service.interruptTerminal(f.terminal.id, true);
+        pendingRead.resolve(null);
+        expect(await pending).toMatchObject({ receipt: { status: 'human_intervened' } });
+        expect((await f.service.result(f.id, owner)).answer).toBeUndefined();
+    });
+    it.each(['completed', 'quota_exhausted', 'payload_overflow'])(
+        'persists exact native usage across restart for %s',
+        async (outcome) => {
+            const f = await fixture();
+            f.complete(
+                f.id,
+                outcome === 'payload_overflow' ? 'a'.repeat(65_537) : 'Synthetic completed answer',
+            );
+            if (outcome === 'quota_exhausted')
+                f.state.content = `${JSON.stringify({ type: 'event_msg', payload: { type: 'task_complete', turn_id: `turn-${f.id}`, error: { codex_error_info: 'usage_limit_exceeded' } } })}\n`;
+            const content = [
+                JSON.stringify({ type: 'session_meta', payload: { id: nativeId } }),
+                JSON.stringify({
+                    type: 'event_msg',
+                    payload: { type: 'task_started', turn_id: `turn-${f.id}` },
+                }),
+                JSON.stringify({
+                    type: 'event_msg',
+                    payload: {
+                        type: 'token_count',
+                        info: { total_token_usage: { input_tokens: 30, output_tokens: 5 } },
+                    },
+                }),
+                f.state.content,
+            ].join('\n');
+            f.readTranscript.mockResolvedValue({
+                path: '/synthetic/transcript',
+                exists: true,
+                truncated: false,
+                content,
+            });
+            const result = await f.service.result(f.id, owner);
+            expect(result.receipt.failure).toBe(outcome === 'completed' ? undefined : outcome);
+            expect(result.receipt.usage).toMatchObject({
+                inputTokens: 30,
+                outputTokens: 5,
+            });
+            f.service.close();
+            const restarted = f.createService();
+            restarted.initialize();
+            expect((await restarted.result(f.id, owner)).receipt.usage).toMatchObject({
+                inputTokens: 30,
+                outputTokens: 5,
+            });
+            expect(f.readTranscript).toHaveBeenCalledOnce();
+        },
+    );
 });
