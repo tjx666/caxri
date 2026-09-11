@@ -6,58 +6,30 @@ import type {
     AgentDelegationAnswer,
     AgentDelegationCreate,
     AgentDelegationReceipt,
-    AgentLaunchSettings,
-    AgentProvider,
-    AgentTranscript,
-    Principal,
 } from '@caxri/protocol';
-import { CaxriError } from '@caxri/protocol';
+import { agentDelegationSettingsSchema, CaxriError } from '@caxri/protocol';
 
-import type { AgentDispatchService } from '../agent-dispatch';
-import type { AgentLifecycleSignal, DelegationTranscriptBatch } from '../agents';
+import type { AgentLifecycleSignal } from '../agents';
 /**
  * Provider transcript extraction stays behind the agents domain's public API.
  */
 // react-doctor-disable-next-line react-doctor/no-barrel-import
 import { delegationAdapter } from '../agents';
-import type { CaxriDatabase, StoredAgentDelegation } from '../db';
+import type { StoredAgentDelegation } from '../db';
 import { SingleFlight } from '../single-flight';
+import type { DelegationAuthority } from './admission';
 import {
-    prepareDelegationFollowUp,
-    prepareDelegationLaunch,
-    validateDelegationLaunch,
-} from './launch';
+    authorizeDelegationSession,
+    delegationCaller,
+    delegationRoster,
+    resolveDelegationAdmission,
+} from './admission';
+import { prepareDelegationFollowUp, prepareDelegationLaunch } from './launch';
 import { assertDelegationLayout, delegationLayout } from './layout';
 import { applyDelegationLifecycle, isDelegationActive } from './lifecycle';
 import { applyDelegationCompletion, shouldCollectDelegation } from './result';
+import type { AgentDelegationServiceOptions } from './service-options';
 import { removeDelegationFiles } from './storage';
-
-interface DelegationAuthority {
-    principal: Principal;
-    callerTerminalId?: string;
-}
-
-interface AgentDelegationServiceOptions {
-    database: CaxriDatabase;
-    dispatch: Pick<AgentDispatchService, 'start'> & Partial<Pick<AgentDispatchService, 'resume'>>;
-    userDataPath: string;
-    launchSettings(provider: AgentProvider): AgentLaunchSettings;
-    verifyLaunch(launch: AgentLaunchSettings, provider: AgentProvider): Promise<void>;
-    readTranscript(terminalId: string): Promise<AgentTranscript | null>;
-    readNativeTranscript?(
-        terminalId: string,
-        sessionId: string,
-        offset: number | undefined,
-        turnId: string | undefined,
-    ): Promise<DelegationTranscriptBatch>;
-    dimensions?(terminalId: string): { cols: number; rows: number } | undefined;
-    inputEpoch?(terminalId: string): number;
-    currentLaunchId?(terminalId: string): string | undefined;
-    isIdle?(terminalId: string, launchId: string, turnId: string): boolean;
-    write?(terminalId: string, launchId: string, data: string): boolean;
-    submissionTimeoutMs?: number;
-    now?: () => number;
-}
 
 /**
  * Owns durable task identity and private answers, separate from Terminal lifecycle receipts.
@@ -115,24 +87,13 @@ export class AgentDelegationService {
         return undefined;
     }
 
-    private authorize(authority: DelegationAuthority, input: AgentDelegationCreate): void {
+    private authorize(
+        authority: DelegationAuthority,
+        input: Pick<AgentDelegationCreate, 'projectId' | 'sessionId'>,
+    ): void {
         if (this.deletingSessions.has(input.sessionId))
             throw new CaxriError('CONFLICT', 'Delegation Session is being deleted');
-        const session = this.options.database.getSession(input.sessionId);
-        if (!session || session.projectId !== input.projectId)
-            throw new CaxriError('NOT_FOUND', 'Delegation Session is unavailable');
-        if (authority.principal.kind === 'human-cli' || authority.principal.kind === 'desktop')
-            return;
-        if (
-            authority.principal.kind !== 'agent' ||
-            !authority.principal.projectIds.includes(input.projectId)
-        )
-            throw new CaxriError('FORBIDDEN', 'Delegation requires an authorized Agent or owner');
-        const caller =
-            authority.callerTerminalId &&
-            this.options.database.getTerminal(authority.callerTerminalId);
-        if (!caller || caller.sessionId !== input.sessionId)
-            throw new CaxriError('FORBIDDEN', 'Delegation must remain in the caller Session');
+        authorizeDelegationSession(this.options.database, authority, input);
     }
 
     private owned(id: string, authority: DelegationAuthority): StoredAgentDelegation {
@@ -248,7 +209,7 @@ export class AgentDelegationService {
             this.options.userDataPath,
             record.rootDelegationId!,
             id,
-            record.input.prompt,
+            [record.frozenInstructions, record.input.prompt].filter(Boolean).join('\n\n'),
         );
         const parent = this.owned(previous.receipt.delegationId, authority);
         const reject = (failure: AgentDelegationReceipt['failure']) => {
@@ -339,7 +300,7 @@ export class AgentDelegationService {
             this.options.userDataPath,
             record.rootDelegationId!,
             id,
-            record.input.prompt,
+            [record.frozenInstructions, record.input.prompt].filter(Boolean).join('\n\n'),
         );
         const current = this.owned(id, authority);
         if (!isDelegationActive(current.receipt)) return current.receipt;
@@ -399,6 +360,17 @@ export class AgentDelegationService {
         return this.owned(id, authority).receipt;
     }
 
+    presets(
+        authority: DelegationAuthority,
+        input: Pick<AgentDelegationCreate, 'projectId' | 'sessionId' | 'callerProvider'>,
+    ) {
+        this.authorize(authority, input);
+        return delegationRoster(
+            this.options.delegationSettings?.() ?? agentDelegationSettingsSchema.parse({}),
+            delegationCaller(this.options.database, authority, input.callerProvider),
+        );
+    }
+
     async create(
         id: string,
         authority: DelegationAuthority,
@@ -421,19 +393,19 @@ export class AgentDelegationService {
             }
             const previousId = input.followUpOf ?? input.resumeFrom;
             const previous = previousId ? this.owned(previousId, authority) : undefined;
-            if (
-                previous &&
-                (previous.input.projectId !== input.projectId ||
-                    previous.input.sessionId !== input.sessionId ||
-                    previous.input.provider !== input.provider)
-            )
-                throw new CaxriError('FORBIDDEN', 'Follow-up must remain in its original Session');
-            const frozenLaunch = structuredClone(
-                previous?.frozenLaunch ?? this.options.launchSettings(input.provider),
-            );
-            validateDelegationLaunch(input.provider, frozenLaunch);
+            const config = resolveDelegationAdmission({
+                ...this.options,
+                authority,
+                input,
+                previous,
+                settings:
+                    this.options.delegationSettings?.() ?? agentDelegationSettingsSchema.parse({}),
+            });
+            const { frozenLaunch, selection, frozenInstructions, depth, parentDelegationId } =
+                config;
+            const provider = selection.provider;
             if (!previous || input.resumeFrom)
-                await this.options.verifyLaunch(frozenLaunch, input.provider);
+                await this.options.verifyLaunch(frozenLaunch, provider);
             const now = this.now();
             let record = this.options.database.agentDelegations.insert({
                 receipt: {
@@ -443,7 +415,10 @@ export class AgentDelegationService {
                     callerTerminalId: authority.callerTerminalId,
                     followUpOf: input.followUpOf,
                     resumeFrom: input.resumeFrom,
-                    provider: input.provider,
+                    provider,
+                    selection,
+                    depth,
+                    parentDelegationId,
                     status: 'requested',
                     revision: 1,
                     createdAt: now,
@@ -453,9 +428,9 @@ export class AgentDelegationService {
                 input,
                 fingerprint,
                 frozenLaunch,
+                frozenInstructions,
                 providerSessionId:
-                    previous?.providerSessionId ??
-                    delegationAdapter(input.provider).createSessionId(),
+                    previous?.providerSessionId ?? delegationAdapter(provider).createSessionId(),
                 transcriptOffset: previous?.transcriptOffset,
                 rootDelegationId:
                     previous?.rootDelegationId ?? previous?.receipt.delegationId ?? id,
@@ -469,9 +444,9 @@ export class AgentDelegationService {
                 const prepared = await prepareDelegationLaunch(
                     this.options.userDataPath,
                     id,
-                    input.provider,
+                    provider,
                     record.providerSessionId,
-                    input.prompt,
+                    [frozenInstructions, input.prompt].filter(Boolean).join('\n\n'),
                     frozenLaunch,
                 );
                 record = this.owned(id, authority);
@@ -487,7 +462,7 @@ export class AgentDelegationService {
                     {
                         projectId: input.projectId,
                         sessionId: input.sessionId,
-                        provider: input.provider,
+                        provider,
                     },
                     {
                         delegationId: id,

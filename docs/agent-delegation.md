@@ -7,7 +7,7 @@ inspection after its answer is collected.
 
 This implements Claude delegation and continuation, plus Codex target delegation, in
 [issue #686](https://github.com/tjx666/caxri/issues/686). It does not yet replace dianjiang:
-Grok delegation, presets, caller policies, usage accounting, and standalone directory
+Grok delegation, usage accounting, and standalone directory
 authorization remain subsequent stages of that umbrella issue.
 Real Codex caller transport permissions are a separate validation boundary; target support does not
 claim that every Codex sandbox can connect to a Caxri Server socket.
@@ -40,6 +40,58 @@ The request ID is scoped to the authenticated principal and generation. Reusing 
 input returns the existing task; different input conflicts. Wait timeout reports the current receipt
 without interrupting, restarting, or resubmitting the task. A disconnected caller can later fetch
 the saved answer using the same authorized identity.
+
+## Presets and caller policy
+
+Configure `agents.delegation` in the profile's Settings JSON. No preset or model preference is
+installed automatically. The default maximum depth is two; supported values are one through eight.
+
+```json
+{
+  "agents.delegation": {
+    "maxDepth": 2,
+    "presets": [
+      {
+        "name": "review",
+        "provider": "claude",
+        "model": "opus",
+        "effort": "high",
+        "useWhen": "Review a proposed implementation",
+        "dontUseWhen": "The task requires editing files",
+        "instructions": "Inspect the relevant evidence and report findings without editing."
+      }
+    ],
+    "callers": {
+      "claude": {
+        "presets": { "review": { "provider": "codex" } }
+      }
+    }
+  }
+}
+```
+
+`agent delegate presets --project <id> --session <id>` returns the caller's available roster.
+`create --preset review` selects that named entry. An owner may add `--caller claude|codex` to use
+that caller's bindings; a managed Agent's identity always comes from its authenticated Terminal.
+Attempting to claim another provider is rejected before roster disclosure or launch.
+
+A caller binding replaces the entire provider/model/effort tuple. Omitted model and effort use the
+native provider defaults, rather than inheriting another provider's base preset or configured launch
+arguments. Descriptions fall back individually. `exclude` hides and rejects named presets for that
+caller; it does not prohibit explicit provider selection. Optional caller `prepend` and `append`
+text accompany the roster as caller guidance. Base preset instructions remain private task content
+and are never included in command arguments or roster output.
+
+Explicit `--provider` supports `--model` and `--effort`; specifying either replaces both configured
+model/effort arguments. A preset cannot be combined with these flags. Receipts expose the requested
+selection, not a claim that a native provider or organization applied it unchanged.
+
+The Server derives nesting from the caller Terminal's current launch and durable parent task.
+Root tasks have depth one. Follow-up and exact resume preserve depth, launch selection and task
+instructions, even if a preset is edited or removed; different explicit selection is rejected.
+The current depth limit still applies to a new continuation. An idempotent retry returns its original
+receipt before consulting updated settings. A human's later independent launch has no delegation
+ancestry. No environment variable can supply or reset the depth.
 
 ## Correlation and persistence
 

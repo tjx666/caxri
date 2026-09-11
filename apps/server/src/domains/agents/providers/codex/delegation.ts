@@ -6,9 +6,9 @@ import type {
     DelegationCompletion,
     DelegationEvidence,
 } from '../../delegation-contract';
-import { validateDelegationArguments } from '../../delegation-contract';
+import { replaceDelegationArguments, validateDelegationArguments } from '../../delegation-contract';
 
-const valueFlags = new Set(['--model', '--sandbox', '--ask-for-approval']);
+const valueFlags = new Set(['--model', '--sandbox', '--ask-for-approval', '-c', '--config']);
 const booleanFlags = new Set([
     '--search',
     '--no-alt-screen',
@@ -86,7 +86,33 @@ export function extractCodexDelegationCompletion(
 export const codexDelegationAdapter: AgentDelegationAdapter = {
     completion: 'native-completion',
     createSessionId: () => {},
-    validateLaunch: (launch) => validateDelegationArguments(launch, valueFlags, booleanFlags),
+    validateLaunch: (launch) => {
+        validateDelegationArguments(launch, valueFlags, booleanFlags);
+        for (let index = 0; index < launch.args.length; index++) {
+            const argument = launch.args[index];
+            const flag = argument.split('=', 1)[0];
+            if (flag !== '-c' && flag !== '--config') continue;
+            const value = argument.includes('=')
+                ? argument.slice(flag.length + 1)
+                : launch.args[++index];
+            if (
+                !/^model_reasoning_effort=(?:low|medium|high|xhigh|max|ultra|"(?:low|medium|high|xhigh|max|ultra)")$/u.test(
+                    value,
+                )
+            )
+                throw new CaxriError(
+                    'CONFLICT',
+                    'Only model reasoning effort may be configured for delegation',
+                );
+        }
+    },
+    selectLaunch: (launch, selection) =>
+        replaceDelegationArguments(launch, new Set(['--model', '-c', '--config']), [
+            ...(selection.model ? ['--model', selection.model] : []),
+            ...(selection.effort
+                ? ['-c', `model_reasoning_effort=${JSON.stringify(selection.effort)}`]
+                : []),
+        ]),
     verifyVersion: (source) => {
         const version = coerce(source ?? '');
         if (version?.major !== 0 || !gte(version, '0.153.4'))

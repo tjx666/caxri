@@ -383,6 +383,7 @@ export async function createDomainServices(
         return restored;
     };
     const agentCommands = createAgentCommandRuntime({
+        delegationSettings: () => configuration.getSettings().value['agents.delegation'],
         database,
         coordinator,
         emit: send,

@@ -12,6 +12,7 @@ type AgentCommandRequest = Extract<
     ServerRequest,
     {
         method:
+            | 'agent.delegation.presets'
             | 'agent.delegation.create'
             | 'agent.delegation.stop'
             | 'agent.delegation.status'
@@ -64,6 +65,13 @@ export function agentCommandRequest(
                 delegationId: dispatchIdFor(context, requestId),
                 input: request.params,
             },
+        };
+    }
+    if (request.method === 'agent.delegation.presets') {
+        assertProjectScope(context, request.params.projectId);
+        return {
+            method: 'agent.delegation.presetsInternal',
+            params: { ...authority, ...request.params },
         };
     }
     if (request.method === 'agent.delegation.stop')
