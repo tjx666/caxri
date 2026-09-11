@@ -16,11 +16,16 @@ boundary: workflow code can access anything that user can access, including Home
 material. Temporary profiles, blocked Agent discovery, owner-scoped cleanup, and a clean checkout
 prevent accidental inheritance; they do not contain malicious workflow code.
 
-Only a same-repository PR authored, triggered, and retriggered by `tjx666`, a trusted `main` push,
-or an explicit owner-run validation can execute repository source on this machine. Untrusted PRs
-run only the fixed final gate from the trusted base workflow: it performs no checkout and fails
-closed. Every trusted source push to `main` runs the optimized E2E pools; exact trusted
-`release: v<package-version>` commits run the one-worker control E2E suite and Release instead.
+Only a same-repository PR authored, triggered, and retriggered by `tjx666`, a trusted
+`release: v<package-version>` push to `main`, or an explicit owner-run validation can execute
+repository source on this machine. Untrusted PRs run only the fixed final gate from the trusted base
+workflow: it performs no checkout and fails closed. A trusted release push runs the one-worker
+control E2E suite and Release.
+
+An ordinary merge to `main` skips every job, including the final gate. The one runner is strictly
+serial, and the merged head has already passed the same gate on its PR, so re-running it would only
+delay the next PR without adding evidence. The `push` trigger stays because Release starts from a
+successful CI run on `main`.
 
 The downstream Release job runs only after the same release commit passes self-hosted checks and
 the full Electron E2E suite. That job receives a short-lived `GITHUB_TOKEN` with `contents: write`
