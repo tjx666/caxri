@@ -29,6 +29,22 @@ This table is a historical npm baseline. The pnpm 12 and Node 24 migration chang
 install, and cache semantics, so it must not be used as a same-environment comparison for current
 CI; record a new exact-head self-hosted baseline before making further install-time claims.
 
+### Single-runner concurrent-window baseline
+
+[Run 34601568589](https://github.com/tjx666/caxri/actions/runs/34601568589) is a full optimized
+ready-PR run on `m2-24`. Its `e2e` job took 15m43s end to end, and the concurrent validation window
+(`ci-concurrent-validation.ts run`) accounted for 14m51s of that. The `CAXRI_CI_METRIC` lines split
+that window into two branches:
+
+- Exact-head E2E, 889s: build 22s, native modules 2s, interruption recovery 8s, `parallel-safe`
+  274s, `desktop-exclusive` 582s.
+- Synthetic-merge platform gates, 664s: ESLint 276s, oxlint 17s, Vitest 336s, bundle budget 29s.
+
+E2E is therefore the critical path, and the platform gates finish 2m41s earlier. Their one-worker
+Vitest and serial ESLint are deliberate: making them faster cannot shorten the run while E2E is
+longer, and would take CPU away from the three Electron workers. Reduce the one-worker
+`desktop-exclusive` pool before revisiting either.
+
 ## Adopted optimization evidence
 
 The historical optimized workflow rebuilt only `better-sqlite3` and `node-pty`;
@@ -138,7 +154,10 @@ changing workflow wiring.
   performance spec is protected retry configuration and therefore requires a full validation path.
 - Individually audited tests may move into a dedicated spec in the `parallelSafeSpecs` allowlist.
   Every unclassified spec remains desktop-exclusive, so each logical pool needs only one
-  Playwright invocation.
+  Playwright invocation. `e2e/support/pools.ts` owns the admission conditions, and
+  `scripts/__tests__/e2e-pools.test.ts` pins the specs that stay desktop-exclusive regardless of how
+  their launch options later read. Adding a spec to that guard list is the way to record an audit
+  that rejected it; removing one requires its own evidence.
 - The Playwright invocation itself writes each pool receipt. Receipts distinguish planned,
   started, finished, passed, skipped, and failed tests; their verified union supplies the manifest
   hash without a separate `playwright --list` collection. CI logs the verified union as
