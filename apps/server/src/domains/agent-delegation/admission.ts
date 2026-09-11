@@ -9,6 +9,10 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError, delegationProviderSchema, isDelegationEffortSupported } from '@caxri/protocol';
 
+/**
+ * Provider launch selection stays behind the agents domain's public API.
+ */
+// react-doctor-disable-next-line react-doctor/no-barrel-import
 import { delegationAdapter } from '../agents';
 import type { CaxriDatabase, StoredAgentDelegation } from '../db';
 import { validateDelegationLaunch } from './launch';
@@ -66,27 +70,29 @@ export function delegationRoster(
     caller?: DelegationSelection['provider'],
 ): DelegationRoster {
     const binding = caller ? settings.callers[caller] : undefined;
+    const excluded = new Set(binding?.exclude);
     return {
         maxDepth: settings.maxDepth,
         prepend: binding?.prepend,
         append: binding?.append,
-        presets: settings.presets
-            .filter((preset) => !binding?.exclude?.includes(preset.name))
-            .map((preset) => {
-                const overrides = binding?.presets;
-                const override =
-                    overrides && Object.hasOwn(overrides, preset.name)
-                        ? overrides[preset.name]
-                        : undefined;
-                return {
+        presets: settings.presets.flatMap((preset) => {
+            if (excluded.has(preset.name)) return [];
+            const overrides = binding?.presets;
+            const override =
+                overrides && Object.hasOwn(overrides, preset.name)
+                    ? overrides[preset.name]
+                    : undefined;
+            return [
+                {
                     name: preset.name,
                     provider: override?.provider ?? preset.provider,
                     model: override ? override.model : preset.model,
                     effort: override ? override.effort : preset.effort,
                     useWhen: override?.useWhen ?? preset.useWhen,
                     dontUseWhen: override?.dontUseWhen ?? preset.dontUseWhen,
-                };
-            }),
+                },
+            ];
+        }),
     };
 }
 
