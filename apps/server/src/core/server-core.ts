@@ -26,9 +26,15 @@ import { createServerDomainService } from '../core/create-domain-service';
 import { agentCommandRequest } from './agent-command-request';
 import { createAgentEndpointControl } from './agent-endpoints/control';
 import { AgentEndpointRegistry } from './agent-endpoints/registry';
-import { AgentInboxRegistry } from './agent-inbox/registry';
+import { retireEndpointsForOperation } from './agent-endpoints/retire-for-operation';
 import { ControlServer } from './control-server';
 import type { CoreForwardedMethod } from './core-methods';
+import { createAgentMessaging } from './create-agent-messaging';
+import {
+    invokeDelegationAccess,
+    isDelegationAccessRequest,
+    openDelegationAccess,
+} from './delegation-access';
 import { ServerDesktopRouter } from './desktop-router';
 import { createExtensionService } from './extensions/create-service';
 import { readActiveExtensionContext, routeExtensionDomainEvent } from './extensions/domain-events';
@@ -37,7 +43,6 @@ import { isMobileControlRequest, openMobileAccessController } from './mobile';
 import { MutationAdmission } from './mutation-admission';
 import { assertProjectScope, projectScope } from './principal-project-scope';
 import { acquireServerProfile } from './profile';
-import { ProviderMessagingAdapterRegistry } from './provider-messaging/registry';
 import { createServerRecoveryJournal } from './recovery-journal';
 import {
     logDurableReceipt,
@@ -76,21 +81,13 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         },
     });
     logger.updateBaseContext({ bootId: lease.identity.processIdentity, buildId: options.buildId });
+    const delegationAccess = await openDelegationAccess(lease.paths.directory, async () => {
+        stopEventLoopMonitor();
+        await lease.release();
+    });
     const agentEndpoints = new AgentEndpointRegistry(lease.identity.processIdentity);
-    const providerMessaging = new ProviderMessagingAdapterRegistry(agentEndpoints);
     let server: ControlServer | undefined;
-    agentEndpoints.onMessagingChanged((endpoint) => {
-        const event = { event: 'agent.messaging.changed', payload: endpoint } as const;
-        server?.broadcastAgent(endpoint.ref, event);
-        server?.broadcastDesktop(event);
-    });
-    const agentInbox = new AgentInboxRegistry(agentEndpoints, {
-        emitHeld: (payload) => server?.broadcastDesktop({ event: 'agent.message.held', payload }),
-        emitReceipt: (endpoint, payload) => {
-            server?.broadcastAgent(endpoint, { event: 'agent.message.receipt', payload });
-            server?.broadcastDesktop({ event: 'agent.message.receipt', payload });
-        },
-    });
+    const { providerMessaging, agentInbox } = createAgentMessaging(agentEndpoints, () => server);
     const endpointControl = createAgentEndpointControl(agentEndpoints);
     const terminalExecution = createTerminalExecution({
         appVersion: options.version,
@@ -131,32 +128,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         if (spec.effect === 'read')
             return domainService.forward(request.method, request.params, undefined, signal);
         return mutationAdmission.run(async () => {
-            switch (request.method) {
-                case 'terminal.close':
-                    agentEndpoints.forgetTerminal(request.params.terminalId);
-                    break;
-                // Restart keeps the Terminal identity alive, so only the endpoint retires and the
-                // generation record stays for the next monotonic `begin()`.
-                case 'terminal.restart':
-                    agentEndpoints.retireTerminal(request.params.terminalId);
-                    break;
-                case 'session.delete':
-                    agentEndpoints.forgetSession(request.params.sessionId);
-                    break;
-                case 'session.deleteMany':
-                    for (const sessionId of request.params.sessionIds)
-                        agentEndpoints.forgetSession(sessionId);
-                    break;
-                case 'project.delete':
-                    agentEndpoints.forgetProject(request.params.projectId);
-                    break;
-                case 'terminal.terminateAll':
-                    agentEndpoints.clear();
-                    break;
-                default:
-                    // Most mutations need no Agent Endpoint bookkeeping before forwarding.
-                    break;
-            }
+            retireEndpointsForOperation(agentEndpoints, request);
             return domainService.forward(request.method, request.params, undefined, signal);
         });
     };
@@ -249,6 +221,13 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                 );
             if (isMobileControlRequest(request))
                 return mobileAccess.invokeControl(request, context, domainService);
+            if (isDelegationAccessRequest(request))
+                return invokeDelegationAccess(
+                    request,
+                    context,
+                    delegationAccess,
+                    forwardDomainOperation,
+                );
             if (
                 context.principal.kind === 'paired-device' &&
                 (request.method === 'terminal.preview' || request.method === 'session.markRead')
@@ -690,6 +669,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                 server: serverAdapter,
             },
             authenticateAgent: (credential) => agentEndpoints.authenticate(credential),
+            authenticateDelegation: (credential) => delegationAccess.authenticate(credential),
             consumeDesktopTarget: (targetId, generation) => {
                 if (!desktopRouter)
                     throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
@@ -765,7 +745,10 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                     }),
                 );
             },
-            refreshContext: (context) => agentEndpoints.refresh(context),
+            refreshContext: (context) =>
+                context.principal.kind === 'delegation-client'
+                    ? delegationAccess.refresh(context.principal)
+                    : agentEndpoints.refresh(context),
         });
         desktopRouter = new ServerDesktopRouter({
             bridge: {

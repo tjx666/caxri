@@ -5,12 +5,12 @@ import process from 'node:process';
 
 import type { ServerEvent } from '@caxri/protocol';
 import { execFileAsync, StructuredLogger } from '@caxri/system';
-import { ProjectStatusSummaryErrorMessage } from 'caxri';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CaxriDatabase } from '../../db/repository';
+import { ExternalStatusHub } from '../../external-status';
 import { ProjectRootResolver } from '../../project-roots';
-import { describeGitFailure, GitService } from '..';
+import { GitService } from '..';
 import type { GitMetadataWatcher } from '../metadata-watcher';
 import { computeRepoId } from '../repo';
 
@@ -439,10 +439,18 @@ describe('GitService', () => {
         ).session;
         const rootResolver = new ProjectRootResolver(database);
         const gitLogger = new StructuredLogger(join(directory, 'logs'));
-        const git = trackGitService(new GitService(rootResolver, gitLogger));
+        /**
+         * The production runner resolves login-shell executables, so changing PATH cannot isolate this fixture.
+         */
+        const externalStatus = new ExternalStatusHub({
+            pausePath: join(directory, 'quota.json'),
+            runner: async (source, arguments_, cwd) => {
+                expect(source).toBe('gh');
+                return (await execFileAsync(gh, [...arguments_], { cwd })).stdout;
+            },
+        });
+        const git = trackGitService(new GitService(rootResolver, gitLogger, { externalStatus }));
         const repo = (await git.summary(session.id)).repositories[0];
-        const previousPath = process.env.PATH;
-        process.env.PATH = `${bin}:${previousPath ?? ''}`;
         try {
             const pullRequest = await git.pullRequestChanges({
                 sessionId: session.id,
@@ -512,8 +520,6 @@ describe('GitService', () => {
                 }),
             ).resolves.toMatchObject({ headOid: nextHeadOid, number: 43 });
         } finally {
-            if (previousPath === undefined) delete process.env.PATH;
-            else process.env.PATH = previousPath;
             database.close();
         }
     });
@@ -779,22 +785,5 @@ describe('GitService', () => {
         expect(events).not.toContain('git.command');
         expect(events).toContain('git.command_failed');
         database.close();
-    });
-});
-
-describe('describeGitFailure', () => {
-    it('distinguishes missing Git and timeout failures from non-repositories', () => {
-        const missingGitError = Object.assign(new Error('spawn git ENOENT'), { code: 'ENOENT' });
-        expect(describeGitFailure(missingGitError)).toBe(
-            'Git is not installed or is unavailable on PATH.',
-        );
-        const timedOutError = Object.assign(new Error('timed out'), { killed: true });
-        expect(describeGitFailure(timedOutError)).toBe('The Git operation timed out.');
-        const notARepoError = Object.assign(new Error('exit 128'), {
-            stderr: 'fatal: not a git repository',
-        });
-        expect(describeGitFailure(notARepoError)).toBe(
-            ProjectStatusSummaryErrorMessage.missingGitRepository,
-        );
     });
 });

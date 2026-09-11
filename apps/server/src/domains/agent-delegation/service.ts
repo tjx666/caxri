@@ -102,7 +102,8 @@ export class AgentDelegationService {
         if (!record) throw new CaxriError('NOT_FOUND', 'Delegation is unavailable');
         this.authorize(authority, record.input);
         if (
-            authority.principal.kind === 'agent' &&
+            (authority.principal.kind === 'agent' ||
+                authority.principal.kind === 'delegation-client') &&
             (JSON.stringify(authority.principal) !== JSON.stringify(record.principal) ||
                 authority.callerTerminalId !== record.receipt.callerTerminalId)
         )
@@ -370,6 +371,16 @@ export class AgentDelegationService {
                 return existing.receipt;
             }
             const previousId = input.followUpOf ?? input.resumeFrom;
+            if (authority.principal.kind === 'delegation-client') {
+                const active = this.options.database.agentDelegations
+                    .active()
+                    .filter((record) => record.input.sessionId === input.sessionId).length;
+                if (active + (this.pendingCreations.get(input.sessionId)?.size ?? 0) >= 4)
+                    throw new CaxriError(
+                        'CAPACITY',
+                        'External delegation Session already has four active or pending tasks',
+                    );
+            }
             const previous = previousId ? this.owned(previousId, authority) : undefined;
             const config = resolveDelegationAdmission({
                 ...this.options,

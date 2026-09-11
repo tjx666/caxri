@@ -361,6 +361,7 @@ export function operatorContext(profileId: string): CommandExecutionContext {
             'agents.control',
             'agents.dispatch',
             'agents.delegate',
+            'agents.delegation.access',
             'agents.grant',
             'events.read',
             'host.read',
@@ -378,6 +379,28 @@ export function operatorContext(profileId: string): CommandExecutionContext {
          */
         principal: { kind: 'human-cli', id: `human-cli:${profileId}` },
     };
+}
+
+/**
+ * A long poll may outlive its credential; withhold its result after revocation or expiry.
+ */
+export function refreshDelegationReply(
+    reply: CommandReplyEnvelope,
+    context: CommandExecutionContext,
+    options: Pick<ControlServerOptions, 'refreshContext'>,
+): CommandReplyEnvelope {
+    if (context.principal.kind !== 'delegation-client') return reply;
+    try {
+        options.refreshContext?.(context);
+        return reply;
+    } catch (error) {
+        return {
+            protocolVersion: CAXRI_PROTOCOL_VERSION,
+            id: reply.id,
+            ok: false,
+            error: toWireError(error),
+        };
+    }
 }
 
 export async function executeReply(
@@ -433,6 +456,11 @@ export interface DesktopLeaseWaiter {
 }
 
 export interface ControlServerOptions {
+    authenticateDelegation?(credential: {
+        clientId: string;
+        generation: number;
+        token: string;
+    }): CommandExecutionContext;
     adapters: CommandDispatcherOptions;
     authenticateAgent?(credential: {
         hostId: string;

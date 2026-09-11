@@ -50,6 +50,11 @@ retried.
 the selected profile's delegation configuration. It requires owner capability
 `settings.delegation.write`, never an Agent grant. See [preset import](agent-delegation.md#import-dianjiang-presets).
 
+`agent delegate access create|list|revoke` manages owner-authorized external callers with
+`agents.delegation.access`. The resulting `delegation-client` credential is limited to one Project,
+Session and caller provider; it grants only delegation and does not start a Server implicitly.
+See [external callers](agent-delegation.md#external-callers-and-directory-authorization).
+
 Agent automation deliberately separates Peer Messages (`agent message`), durable Agent lifecycle
 operations (`agent dispatch` and `agent control`), and owner-only simulated input
 (`terminal send`). They do not alias or fall back to one another. See

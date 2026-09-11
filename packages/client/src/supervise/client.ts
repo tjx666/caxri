@@ -72,6 +72,7 @@ interface PendingRequest {
 
 export type ServerClientCredential =
     | { kind: 'operator' }
+    | { kind: 'delegation-client'; clientId: string; generation: number; token: string }
     | {
           kind: 'agent';
           hostId: string;
@@ -115,7 +116,9 @@ export class ServerClient {
                 ? `operator:${manifest.profileId}`
                 : resolvedCredential.kind === 'agent'
                   ? `agent:${resolvedCredential.hostId}:${resolvedCredential.endpointId}`
-                  : resolvedCredential.desktopId;
+                  : resolvedCredential.kind === 'delegation-client'
+                    ? `delegation-client:${resolvedCredential.clientId}`
+                    : resolvedCredential.desktopId;
         const socket = new WebSocket(serverEndpointUrl(manifest.endpoint), {
             maxPayload: CONTROL_TRANSPORT_MAX_FRAME_BYTES,
         });
@@ -201,7 +204,8 @@ export class ServerClient {
                         credential:
                             resolvedCredential.kind === 'operator'
                                 ? { kind: 'operator', token: manifest.operatorToken }
-                                : resolvedCredential.kind === 'agent'
+                                : resolvedCredential.kind === 'agent' ||
+                                    resolvedCredential.kind === 'delegation-client'
                                   ? resolvedCredential
                                   : {
                                         kind: 'desktop',
@@ -686,7 +690,10 @@ export class ServerClient {
 export async function connectToServer(
     userDataPath: string,
     timeoutMs = DEFAULT_TIMEOUT_MS,
-    credential?: Extract<ServerClientCredential, { kind: 'operator' | 'agent' }>,
+    credential?: Extract<
+        ServerClientCredential,
+        { kind: 'operator' | 'agent' | 'delegation-client' }
+    >,
 ): Promise<ServerClient> {
     return ServerClient.connect(
         await discoverServerManifest(userDataPath),

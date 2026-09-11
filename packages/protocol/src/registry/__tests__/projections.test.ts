@@ -26,6 +26,22 @@ const projects = [
 const value = { view: 'desktop', projects } as const;
 
 describe('projectListForPrincipal', () => {
+    it('keeps an external delegation identity restricted to its one Project without root paths', () => {
+        expect(
+            projectListForPrincipal(value, {
+                kind: 'delegation-client',
+                id: 'delegation-client:client',
+                clientId: 'client',
+                generation: 1,
+                projectIds: ['project-2'],
+                sessionId: 'session',
+                callerProvider: 'codex',
+            }),
+        ).toEqual({
+            view: 'delegation-client',
+            projects: [{ id: 'project-2', displayTitle: 'Project Two' }],
+        });
+    });
     it('returns the full record for a desktop principal', () => {
         const desktop: Principal = { kind: 'desktop', id: 'desktop-1', generation: 1 };
         expect(projectListForPrincipal(value, desktop)).toEqual({ view: 'desktop', projects });

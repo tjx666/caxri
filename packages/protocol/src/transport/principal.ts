@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { delegationProviderSchema } from '../agent/agent-delegation-settings.js';
 import type { ProtocolConnectionIdentity } from './identity.js';
 
 export const capabilityIds = [
@@ -27,6 +28,7 @@ export const capabilityIds = [
     'agents.message',
     'agents.dispatch',
     'agents.delegate',
+    'agents.delegation.access',
     'agents.control',
     'agents.grant',
     'desktop.window',
@@ -45,6 +47,15 @@ export const principalSchema = z.discriminatedUnion('kind', [
         generation: z.number().int().positive(),
     }),
     z.object({ kind: z.literal('human-cli'), id: principalIdSchema }),
+    z.object({
+        kind: z.literal('delegation-client'),
+        id: principalIdSchema,
+        clientId: principalIdSchema,
+        generation: z.number().int().positive(),
+        projectIds: z.tuple([principalIdSchema]),
+        sessionId: principalIdSchema,
+        callerProvider: delegationProviderSchema,
+    }),
     z.object({
         kind: z.literal('extension'),
         id: principalIdSchema,

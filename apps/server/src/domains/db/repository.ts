@@ -36,6 +36,7 @@ import {
 import { AgentIdentity } from './agent-identity';
 import type { CaxriDatabaseConnectionOptions as CaxriDatabaseOptions } from './database-connection';
 import { CaxriDatabaseConnection as CaxriDatabase_ } from './database-connection';
+import { ensureDelegationContext } from './delegation-context';
 import type {
     AgentDispatchReceiptPatch,
     NewAgentDispatchReceipt,
@@ -117,6 +118,16 @@ export class CaxriDatabase {
 
     findProjectByRootPath(rootPath: string): ProjectRecord | undefined {
         return this.db.projects.findByRootPath(rootPath);
+    }
+
+    ensureDelegationContext(rootPath: string, provider: AgentProvider, isRegisterProject: boolean) {
+        return ensureDelegationContext(
+            this.db,
+            rootPath,
+            provider,
+            isRegisterProject,
+            (projectId) => this.createSession(projectId, null).session,
+        );
     }
 
     /**

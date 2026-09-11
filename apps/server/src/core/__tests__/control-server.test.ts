@@ -177,6 +177,7 @@ describe('local Host transport', () => {
             'agents.control',
             'agents.dispatch',
             'agents.delegate',
+            'agents.delegation.access',
             'agents.grant',
             'events.read',
             'host.read',
