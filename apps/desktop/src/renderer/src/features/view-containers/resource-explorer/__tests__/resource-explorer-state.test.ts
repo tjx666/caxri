@@ -5,6 +5,7 @@ import type { PendingFileOperation } from '../file-operation-state';
 import {
     fileOperationsForProject,
     fileTreeRootCaption,
+    fileTreeRowDescription,
     fileTreeRowTooltip,
     knownDirectoryChildrenFromQueries,
     scopedValue,
@@ -213,6 +214,34 @@ describe('Resource Explorer state', () => {
                 path: '/project/out',
             }),
         ).toBe('/project/out (Git ignored)');
+    });
+
+    it('names a child repository in the tooltip, alongside any other qualifier', () => {
+        expect(
+            fileTreeRowTooltip({ kind: 'directory', path: '/project/lobehub' }, 'submodule'),
+        ).toBe('/project/lobehub (Git submodule)');
+        expect(fileTreeRowTooltip({ kind: 'directory', path: '/project/vendor' }, 'nested')).toBe(
+            '/project/vendor (nested Git repository)',
+        );
+        expect(
+            fileTreeRowTooltip(
+                { gitIgnored: true, kind: 'directory', path: '/project/vendor' },
+                'nested',
+            ),
+        ).toBe('/project/vendor (nested Git repository, Git ignored)');
+    });
+
+    it('speaks only what the row name cannot say, and stays empty for a plain row', () => {
+        expect(fileTreeRowDescription({ kind: 'file' }, undefined, undefined)).toBe('');
+        expect(
+            fileTreeRowDescription({ kind: 'directory' }, 'submodule', {
+                kind: 'modified',
+                letter: 'M',
+            }),
+        ).toBe('Git submodule. Git: modified.');
+        expect(
+            fileTreeRowDescription({ kind: 'symlink', linkKind: 'directory' }, 'nested', undefined),
+        ).toBe('Symlink. Nested Git repository.');
     });
 
     it('keeps filesystem-root captions blank on POSIX and Windows paths', () => {

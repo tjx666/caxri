@@ -4,6 +4,7 @@ import type {
     MouseEvent as ReactMouseEvent,
     ReactElement,
     ReactNode,
+    RefObject,
 } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
@@ -14,11 +15,14 @@ import * as m from 'motion/react-m';
 import { useIsOverflowing } from '@/hooks/use-is-overflowing';
 import { useShouldReduceMotion } from '@/hooks/use-should-reduce-motion';
 
+import { GitFileStatusLetter } from '../../components/git-file-status-letter';
 import { ContextMenu, ContextMenuTrigger } from '../../components/ui/context-menu';
 import { Tooltip } from '../../components/ui/tooltip';
 import type { AgentIconIdentity } from '../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { FileTypeIcon } from '../../icons/files/file-type-icon';
+import type { GitDecoration } from '../../lib/git-decorations';
+import { gitDecorationClassName, gitDecorationDescription } from '../../lib/git-decorations';
 import { motionDurationMs } from '../../lib/motion';
 import { cn } from '../../lib/utilities';
 
@@ -60,6 +64,12 @@ interface WorkTabProperties {
      * Whether this tab grows to fill the remaining pane bar (a Terminal) or sizes to its label (a document).
      */
     fill: boolean;
+    /**
+     * Working-tree state of the file this tab holds, when it holds one. Mirrors VS Code, which paints the same
+     * `gitDecoration.*` color and status letter on a tab as on its file tree row, so a modified file is recognizable
+     * whichever of the two the user is looking at. Terminal tabs never set it.
+     */
+    gitDecoration?: GitDecoration;
     icon: 'file' | AgentIconIdentity;
     label: string;
     /**
@@ -146,12 +156,117 @@ function useWorkTabMotion(shouldFill: boolean) {
     } as const;
 }
 
+/**
+ * What the tab shows to identify its content: the type or Agent icon, the label, and the Git state VS Code paints over
+ * that label. Split out of {@link WorkTabSelect}, which is left owning the button's tooltip and aria wiring.
+ */
+function WorkTabLabel({
+    fileIconName,
+    gitDecoration,
+    icon,
+    isLabelAbbreviated,
+    label,
+    labelReference,
+    labelTooltip,
+    preview,
+}: Pick<
+    WorkTabProperties,
+    'fileIconName' | 'gitDecoration' | 'icon' | 'label' | 'labelTooltip' | 'preview'
+> & {
+    /**
+     * Whether `labelTooltip` holds information the displayed `label` dropped, and so must be spoken in its place.
+     */
+    isLabelAbbreviated: boolean;
+    /**
+     * Measured by the caller's `useIsOverflowing` to decide whether the tooltip would be redundant.
+     */
+    labelReference: RefObject<HTMLSpanElement | null>;
+}) {
+    return (
+        <>
+            {icon === 'file' ? (
+                <FileTypeIcon entry={{ kind: 'file', name: fileIconName ?? label }} />
+            ) : (
+                <AgentIdentityIcon identity={icon} size={13} />
+            )}
+            <span
+                ref={labelReference}
+                aria-hidden={isLabelAbbreviated}
+                className={cn(
+                    'tab-label min-w-0 overflow-hidden text-ellipsis whitespace-nowrap',
+                    preview && 'italic',
+                    /*
+                     * Overrides the tab's own muted/foreground color, including on the inactive tabs — the point of
+                     * the decoration is to be readable across the whole rail without selecting each tab.
+                     */
+                    gitDecoration && gitDecorationClassName(gitDecoration.kind),
+                )}
+            >
+                {label}
+            </span>
+            {isLabelAbbreviated && <span className="sr-only">{labelTooltip}</span>}
+            {gitDecoration && (
+                <GitFileStatusLetter className="text-[10px]" decoration={gitDecoration} />
+            )}
+        </>
+    );
+}
+
+/**
+ * The tab's trailing affordance: the unsaved-changes dot, and the close button that takes its place under the pointer
+ * or keyboard focus.
+ */
+function WorkTabTail({
+    closeLabel,
+    dirty,
+    isVisuallyActive,
+    onClose,
+}: Pick<WorkTabProperties, 'closeLabel' | 'dirty' | 'onClose'> & { isVisuallyActive: boolean }) {
+    return (
+        <span className="tab-tail relative h-6 w-6 flex-none">
+            {dirty && (
+                <b
+                    aria-hidden="true"
+                    className="dirty-dot absolute inset-0 m-auto grid h-fit place-items-center text-[10px] text-warning group-focus-within:opacity-0 group-hover:opacity-0"
+                >
+                    ●
+                </b>
+            )}
+            <Tooltip content={closeLabel}>
+                <button
+                    type="button"
+                    className={cn(
+                        'tab-close absolute inset-0 m-auto grid h-5 w-5 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 hover:bg-[var(--selection)] hover:text-foreground',
+                        /*
+                         * VS Code's rule: the active tab always offers its close button, and an inactive tab reveals a
+                         * dimmer one only under the pointer or keyboard focus. Hunting for a control that is always
+                         * there on the tab you are actually working in is the friction this removes; keeping the
+                         * inactive ones muted is what stops a crowded rail from reading as a row of X's.
+                         */
+                        'pointer-events-none text-muted opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100',
+                        // A dirty tab still shows its dot instead, and swaps to the button on hover/focus above.
+                        isVisuallyActive &&
+                            !dirty &&
+                            'pointer-events-auto text-inherit opacity-100',
+                    )}
+                    aria-label={closeLabel}
+                    tabIndex={-1}
+                    onClick={onClose}
+                >
+                    <X size={12} />
+                </button>
+            </Tooltip>
+        </span>
+    );
+}
+
 function WorkTabSelect({
     accessory,
     active,
-    dirty,
-    dirtyDescriptionId,
+    description,
+    tabDescriptionId,
     fileIconName,
+    gitDecoration,
     icon,
     isPresent,
     keepLabelAsAccessibleName,
@@ -165,8 +280,8 @@ function WorkTabSelect({
     WorkTabProperties,
     | 'accessory'
     | 'active'
-    | 'dirty'
     | 'fileIconName'
+    | 'gitDecoration'
     | 'icon'
     | 'keepLabelAsAccessibleName'
     | 'label'
@@ -176,7 +291,11 @@ function WorkTabSelect({
     | 'preview'
     | 'tabId'
 > & {
-    dirtyDescriptionId: string;
+    /**
+     * Everything the tab shows but its name cannot say — its unsaved state and its Git state. Empty when neither.
+     */
+    description: string;
+    tabDescriptionId: string;
     isPresent: boolean;
 }) {
     /**
@@ -204,7 +323,7 @@ function WorkTabSelect({
                 type="button"
                 role="tab"
                 aria-controls={active ? `${tabId}-panel` : undefined}
-                aria-describedby={isPresent && dirty ? dirtyDescriptionId : undefined}
+                aria-describedby={isPresent && description ? tabDescriptionId : undefined}
                 aria-selected={active}
                 tabIndex={active ? 0 : -1}
                 className="tab-select flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent px-2 text-left text-[11px] text-inherit focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-2 focus-visible:outline-foreground"
@@ -212,22 +331,16 @@ function WorkTabSelect({
                 onClick={onSelect}
                 onKeyDown={onKeyDown}
             >
-                {icon === 'file' ? (
-                    <FileTypeIcon entry={{ kind: 'file', name: fileIconName ?? label }} />
-                ) : (
-                    <AgentIdentityIcon identity={icon} size={13} />
-                )}
-                <span
-                    ref={labelReference}
-                    aria-hidden={isLabelAbbreviated}
-                    className={cn(
-                        'tab-label min-w-0 overflow-hidden text-ellipsis whitespace-nowrap',
-                        preview && 'italic',
-                    )}
-                >
-                    {label}
-                </span>
-                {isLabelAbbreviated && <span className="sr-only">{labelTooltip}</span>}
+                <WorkTabLabel
+                    fileIconName={fileIconName}
+                    gitDecoration={gitDecoration}
+                    icon={icon}
+                    isLabelAbbreviated={isLabelAbbreviated}
+                    label={label}
+                    labelReference={labelReference}
+                    labelTooltip={labelTooltip}
+                    preview={preview}
+                />
                 {accessory}
             </button>
         </MaybeTooltip>
@@ -241,6 +354,7 @@ export function WorkTab({
     dirty,
     fileIconName,
     fill,
+    gitDecoration,
     icon,
     label,
     labelTooltip,
@@ -262,7 +376,19 @@ export function WorkTab({
     // Exiting tabs must never look or behave active: force the non-active visual state and lock
     // out pointer/keyboard interaction while the exit animation plays out.
     const isVisuallyActive = active && isPresent;
-    const dirtyDescriptionId = `${tabId}-dirty`;
+    const tabDescriptionId = `${tabId}-description`;
+    /*
+     * Rendered outside the `role="tab"` button below, so the tab's accessible name stays the bare filename and only the
+     * description carries these. "Unsaved changes" and the Git state are genuinely different facts — a file can be
+     * committed-clean with an unsaved buffer, or modified on disk with nothing pending — so both are spoken when both
+     * hold.
+     */
+    const description = [
+        gitDecoration ? gitDecorationDescription(gitDecoration.kind) : undefined,
+        dirty ? 'Unsaved changes.' : undefined,
+    ]
+        .filter(Boolean)
+        .join(' ');
     const tab = (
         <m.div
             style={style}
@@ -323,9 +449,10 @@ export function WorkTab({
             <WorkTabSelect
                 accessory={accessory}
                 active={isVisuallyActive}
-                dirty={dirty}
-                dirtyDescriptionId={dirtyDescriptionId}
+                description={description}
+                tabDescriptionId={tabDescriptionId}
                 fileIconName={fileIconName}
+                gitDecoration={gitDecoration}
                 icon={icon}
                 isPresent={isPresent}
                 keepLabelAsAccessibleName={keepLabelAsAccessibleName}
@@ -336,32 +463,17 @@ export function WorkTab({
                 preview={preview}
                 tabId={tabId}
             />
-            {isPresent && dirty && (
-                <span id={dirtyDescriptionId} className="sr-only">
-                    Unsaved changes.
+            {isPresent && description && (
+                <span id={tabDescriptionId} className="sr-only">
+                    {description}
                 </span>
             )}
-            <span className="tab-tail relative h-6 w-6 flex-none">
-                {dirty && (
-                    <b
-                        aria-hidden="true"
-                        className="dirty-dot absolute inset-0 m-auto grid h-fit place-items-center text-[10px] text-warning group-focus-within:opacity-0 group-hover:opacity-0"
-                    >
-                        ●
-                    </b>
-                )}
-                <Tooltip content={closeLabel}>
-                    <button
-                        type="button"
-                        className="tab-close pointer-events-none absolute inset-0 m-auto grid h-5 w-5 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 text-inherit opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 hover:bg-[var(--selection)]"
-                        aria-label={closeLabel}
-                        tabIndex={-1}
-                        onClick={onClose}
-                    >
-                        <X size={12} />
-                    </button>
-                </Tooltip>
-            </span>
+            <WorkTabTail
+                closeLabel={closeLabel}
+                dirty={dirty}
+                isVisuallyActive={isVisuallyActive}
+                onClose={onClose}
+            />
         </m.div>
     );
     if (!contextMenu) return tab;

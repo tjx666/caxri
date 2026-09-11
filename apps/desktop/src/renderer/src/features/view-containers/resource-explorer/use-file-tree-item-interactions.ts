@@ -72,11 +72,15 @@ export interface UseFileTreeItemInteractionsResult {
     pasteDisabled: boolean;
     pasteDisabledReason: string | undefined;
     pasteIntoEntry: () => Promise<void>;
+    /**
+     * Target of the row's `aria-describedby`, carrying whatever the row's own name cannot say: a symlink's reason for
+     * being followable, and the Git state the decoration color and status letter show only visually.
+     */
+    rowDescriptionId: string;
     rowRef: RefObject<HTMLButtonElement | null>;
     setIsDropTarget: Dispatch<SetStateAction<boolean>>;
     startCreate: (itemKind: 'file' | 'directory') => void;
     startRename: () => void;
-    symlinkReasonId: string;
 }
 
 /**
@@ -109,7 +113,7 @@ export function useFileTreeItemInteractions({
         },
         [],
     );
-    const symlinkReasonId = useId();
+    const rowDescriptionId = useId();
     const clipboard = useFileClipboardStore((state) => state.entry);
     const isRenaming = editing?.kind === 'rename' && editing.entry.path === entry.path;
     const isEditable = entry.kind !== 'symlink';
@@ -323,10 +327,10 @@ export function useFileTreeItemInteractions({
         pasteDisabled: isPasteDisabled,
         pasteDisabledReason,
         pasteIntoEntry,
+        rowDescriptionId,
         rowRef: rowReference,
         setIsDropTarget,
         startCreate,
         startRename,
-        symlinkReasonId,
     };
 }

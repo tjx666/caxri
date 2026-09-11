@@ -220,7 +220,6 @@ export function StatusBar() {
              * Terminal progress) don't fit.
              */}
             <div className="statusbar-actions flex min-w-0 shrink items-center gap-2 overflow-x-auto">
-                <NotificationCenter />
                 {degraded && (
                     <Tooltip content={degraded.detail}>
                         <span className={cn(statusStateClassName, degraded.className)}>
@@ -233,6 +232,16 @@ export function StatusBar() {
                     showChildProcessCount={chipVisibility.childProcessCount}
                     showMemory={chipVisibility.memory}
                 />
+            </div>
+            {/*
+             * Outside `statusbar-actions`, pinned to the far corner the way VS Code's bell is. Every chip beside it
+             * follows the active tab and comes and goes as the user moves around, so an anchor placed among them
+             * would slide sideways; and inside that scrolling rail the last child is exactly what an overflow would
+             * push out of sight. `flex-none` is safe for one 20px control — the clipping this footer guards against
+             * came from the whole actions block refusing to shrink.
+             */}
+            <div className="statusbar-notifications flex flex-none items-center">
+                <NotificationCenter />
             </div>
         </footer>
     );

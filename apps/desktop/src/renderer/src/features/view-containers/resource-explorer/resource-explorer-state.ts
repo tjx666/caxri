@@ -2,6 +2,8 @@ import type { FileEntry } from '@caxri/protocol';
 import { collectTreeSubtree, pathBasename } from '@caxri/utils';
 
 import { isDirectoryEntry } from '../../../lib/file-entry';
+import type { GitChildRepoKind, GitDecoration } from '../../../lib/git-decorations';
+import { gitChildRepoDescription, gitDecorationDescription } from '../../../lib/git-decorations';
 import type { PendingFileOperation } from './file-operation-state';
 
 interface FileListQuerySnapshot {
@@ -118,13 +120,26 @@ export function fileOperationsForProject(
 
 /**
  * A symlink row states where it points and why it is inert, because its icon can otherwise be mistaken for the real
- * folder or file it mirrors. Every other row shows its path plus the Git-ignored qualifier.
+ * folder or file it mirrors. Every other row shows its path plus whichever qualifiers apply.
+ *
+ * `nested` and `submodule` are worth telling apart here: only the submodule is recorded by the parent, so only it will
+ * show up as a change there when its commit moves.
+ *
+ * @param entry The row the tooltip describes.
+ * @param childRepo Set when the directory is a repository of its own, which the icon shows but does not name.
  */
 export function fileTreeRowTooltip(
     entry: Pick<FileEntry, 'gitIgnored' | 'kind' | 'linkKind' | 'linkTarget' | 'path'>,
+    childRepo?: GitChildRepoKind,
 ): string {
-    if (entry.kind !== 'symlink')
-        return entry.gitIgnored ? `${entry.path} (Git ignored)` : entry.path;
+    if (entry.kind !== 'symlink') {
+        const qualifiers = [
+            childRepo === 'submodule' ? 'Git submodule' : undefined,
+            childRepo === 'nested' ? 'nested Git repository' : undefined,
+            entry.gitIgnored ? 'Git ignored' : undefined,
+        ].filter(Boolean);
+        return qualifiers.length === 0 ? entry.path : `${entry.path} (${qualifiers.join(', ')})`;
+    }
     const target = entry.linkTarget === undefined ? '' : ` → ${entry.linkTarget}`;
     const linkKind = entry.linkKind === 'broken' ? 'broken symlink' : 'symlink';
     return `${entry.path}${target} (${linkKind})`;
@@ -138,6 +153,30 @@ export function symlinkRowDescription(entry: Pick<FileEntry, 'linkKind' | 'linkT
     const target = entry.linkTarget === undefined ? '' : ` to ${entry.linkTarget}`;
     const unresolved = entry.linkKind === 'broken' ? ', which does not resolve' : '';
     return `Symlink${target}${unresolved}.`;
+}
+
+/**
+ * Everything the row shows that its own name cannot carry, joined into one `aria-describedby` string. The name stays
+ * the bare file name — it is what the user typed to find the row and what every role query matches — so the
+ * followable-symlink reason, the child-repository kind, and the Git change ride along here instead. Empty when the row
+ * shows none of them, which is the common case.
+ *
+ * @param entry The row being described.
+ * @param childRepo Set when the directory is a repository of its own, which only the folder icon shows.
+ * @param decoration Set when Git reports the path as changed, which only the row's color and status letter show.
+ */
+export function fileTreeRowDescription(
+    entry: Pick<FileEntry, 'kind' | 'linkKind' | 'linkTarget'>,
+    childRepo: GitChildRepoKind | undefined,
+    decoration: GitDecoration | undefined,
+): string {
+    return [
+        entry.kind === 'symlink' ? symlinkRowDescription(entry) : undefined,
+        childRepo ? gitChildRepoDescription(childRepo) : undefined,
+        decoration ? gitDecorationDescription(decoration.kind) : undefined,
+    ]
+        .filter(Boolean)
+        .join(' ');
 }
 
 /**

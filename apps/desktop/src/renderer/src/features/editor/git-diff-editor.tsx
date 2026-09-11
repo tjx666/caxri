@@ -15,6 +15,7 @@ import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
 import { FileTypeIcon } from '../../icons/files/file-type-icon';
 import { applyEditorTheme } from '../../lib/editor-theme';
+import { gitDecorationForFile } from '../../lib/git-decorations';
 import { monaco } from '../../lib/monaco';
 import { useCaxriQuery, useToastOnQueryError } from '../../queries/client';
 import { useSelectedSession, useTheme } from '../../stores/selectors';
@@ -599,7 +600,10 @@ function GitChangesDiffItem({
                         </Button>
                     </Tooltip>
                 )}
-                <GitFileStatusLetter className="text-[11px]" file={file} />
+                <GitFileStatusLetter
+                    className="text-[11px]"
+                    decoration={gitDecorationForFile(file)}
+                />
             </div>
             {expanded &&
                 (active ? (
