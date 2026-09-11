@@ -76,12 +76,23 @@ it (`apps/desktop/src/main/desktop-profile.ts`).
 Stop every dev instance you started before reporting a request complete, and verify it actually
 died. One launch leaves five separate processes: the `electron-vite dev` launcher, the Electron
 window process (whose `ps` command is `Caxri Dev`, not an Electron binary path), and the detached
-`<worktree>/apps/server/dist/server/bundles/server-core.js` and `extension-host.js`.
-`pkill -f "Electron.app/Contents/MacOS/Electron"` silently misses the window process, and the
-launcher can outlive the signal. Never trust `pkill`'s exit code. Confirm with
-`ps -axo pid,command` plus a CDP probe of `127.0.0.1:9223`, then kill the surviving PIDs
-directly. Match on the absolute `<worktree>/apps/server/dist/server/` path so a sibling
-worktree's session and the installed `/Applications/Caxri.app` are never hit.
+`<worktree>/apps/server/dist/server/bundles/server-core.js` and `extension-host.js`. Stop all of
+them with
+
+```bash
+bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts stop
+```
+
+which resolves ownership from this worktree's absolute path and the launcher's process record, then
+escalates SIGTERM to SIGKILL and exits non-zero on survivors.
+
+Never terminate by name or bundle pattern. `pkill -f "Electron.app/Contents/MacOS/Electron"`
+silently misses the window process and the launcher can outlive the signal; `pkill -f "Caxri.app"`
+matches the installed `/Applications/Caxri.app` and has already killed it mid-session while an agent
+was cleaning up an interrupted local E2E pool. Never trust `pkill`'s exit code. Confirm with
+`ps -axo pid,command` plus a CDP probe of `127.0.0.1:9223`. Kill a PID directly only after matching
+it against the absolute `<worktree>/` path, so a sibling worktree's session and the installed
+application are never hit.
 
 The dev Server Core and Extension Host are long-lived background processes that survive window
 restarts. The Desktop replaces a Server whose build fingerprint differs from its own on connect,
