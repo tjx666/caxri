@@ -1,6 +1,10 @@
 import { Buffer } from 'node:buffer';
 
 import type { DelegationCompletion } from '../agents';
+/**
+ * Provider launch, identity, and finality stay behind the agents domain's public API.
+ */
+// react-doctor-disable-next-line react-doctor/no-barrel-import
 import { delegationAdapter } from '../agents';
 import type { StoredAgentDelegation } from '../db';
 import { isDelegationActive } from './lifecycle';

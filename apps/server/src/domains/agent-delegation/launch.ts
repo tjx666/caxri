@@ -5,6 +5,10 @@ import { join } from 'node:path';
 import type { AgentLaunchSettings, AgentProvider } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
+/**
+ * Provider launch, identity, and finality stay behind the agents domain's public API.
+ */
+// react-doctor-disable-next-line react-doctor/no-barrel-import
 import { delegationAdapter } from '../agents';
 
 /**
