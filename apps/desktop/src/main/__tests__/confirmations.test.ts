@@ -32,9 +32,44 @@ describe('external link prompt', () => {
         ]);
     });
 
-    it('makes Cancel both the default and the Escape target in either shape', () => {
-        for (const isAllowTrust of [true, false]) {
-            const options = externalLinkPrompt(new URL('https://example.com/'), isAllowTrust);
+    it('adds the wildcard button and names the exact host once both trust choices are shown', () => {
+        const options = externalLinkPrompt(
+            new URL('https://api.venice.ai/api/v1'),
+            true,
+            'venice.ai',
+        );
+        expect(options.buttons).toEqual([
+            'Open Once',
+            'Trust api.venice.ai and Open',
+            'Trust *.venice.ai and Open',
+            'Cancel',
+        ]);
+    });
+
+    it('says how much wider the wildcard rule is instead of leaving the user to infer it', () => {
+        const options = externalLinkPrompt(
+            new URL('https://api.venice.ai/api/v1'),
+            true,
+            'venice.ai',
+        );
+        expect(options.detail).toContain('covers that host alone');
+        expect(options.detail).toContain('every subdomain of venice.ai');
+        expect(options.detail).toContain('sites other people control');
+    });
+
+    it('keeps the wildcard button out of a prompt that may not persist trust at all', () => {
+        expect(
+            externalLinkPrompt(new URL('https://api.venice.ai/'), false, 'venice.ai').buttons,
+        ).toEqual(['Open Once', 'Cancel']);
+    });
+
+    it('makes Cancel both the default and the Escape target in every shape', () => {
+        const shapes = [
+            externalLinkPrompt(new URL('https://example.com/'), true),
+            externalLinkPrompt(new URL('https://example.com/'), false),
+            externalLinkPrompt(new URL('https://api.venice.ai/'), true, 'venice.ai'),
+        ];
+        for (const options of shapes) {
             const cancelIndex = options.buttons!.indexOf('Cancel');
             expect(options.defaultId).toBe(cancelIndex);
             expect(options.cancelId).toBe(cancelIndex);
@@ -50,6 +85,17 @@ describe('external link prompt', () => {
          * Without trust, index 1 is Cancel — it must never be read as an implicit trust.
          */
         expect(externalLinkChoice(1, false)).toBe('cancel');
+    });
+
+    it('reads index 2 as the wildcard choice only when that button was rendered', () => {
+        expect(externalLinkChoice(2, true, true)).toBe('trust_parent');
+        expect(externalLinkChoice(1, true, true)).toBe('trust');
+        expect(externalLinkChoice(3, true, true)).toBe('cancel');
+        /**
+         * In the three-button shape index 2 is Cancel. Reading it as `trust_parent` would persist a wildcard rule the
+         * user never saw offered.
+         */
+        expect(externalLinkChoice(2, true, false)).toBe('cancel');
     });
 });
 

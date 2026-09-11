@@ -1,12 +1,17 @@
 import type { MethodResult } from '@caxri/protocol';
-import { externalUrlOrigin, isExternalUrlTrusted, parseExternalHttpUrl } from '@caxri/protocol';
+import {
+    externalUrlOrigin,
+    isExternalUrlTrusted,
+    parseExternalHttpUrl,
+    trustableParentHostname,
+} from '@caxri/protocol';
 
-export type ExternalOpenDecision = 'open_once' | 'trust' | 'cancel';
+export type ExternalOpenDecision = 'open_once' | 'trust' | 'trust_parent' | 'cancel';
 
 export interface ExternalUrlDependencies {
     getTrustedDomains(): Promise<readonly string[]>;
     open(url: string): Promise<void>;
-    prompt(url: URL): Promise<ExternalOpenDecision>;
+    prompt(url: URL, parentHostname?: string): Promise<ExternalOpenDecision>;
     trust(domain: string): Promise<void>;
 }
 
@@ -27,11 +32,22 @@ export async function openExternalUrl(
     const { url } = parsed;
     const rules = await dependencies.getTrustedDomains();
     if (!isExternalUrlTrusted(url, rules)) {
-        const decision = await dependencies.prompt(url);
+        const parentHostname = options.allowTrust ? trustableParentHostname(url) : undefined;
+        const decision = await dependencies.prompt(url, parentHostname);
         if (decision === 'cancel') return { status: 'canceled' };
-        if (decision === 'trust') {
+        if (decision === 'trust' || decision === 'trust_parent') {
             if (!options.allowTrust) return { status: 'canceled' };
-            await dependencies.trust(externalUrlOrigin(url));
+            /**
+             * The wildcard rule is written only when this call is the one that offered it. A `trust_parent` arriving
+             * without a candidate means the dialog and the decision disagree, and the wider rule is exactly the thing
+             * that must not be persisted on a disagreement.
+             */
+            if (decision === 'trust_parent' && !parentHostname) return { status: 'canceled' };
+            await dependencies.trust(
+                parentHostname && decision === 'trust_parent'
+                    ? `${url.protocol}//*.${parentHostname}`
+                    : externalUrlOrigin(url),
+            );
         }
     }
     await dependencies.open(url.toString());

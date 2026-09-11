@@ -7,6 +7,7 @@ import {
     MAX_TRUSTED_DOMAINS,
     normalizeTrustedDomainRule,
     parseExternalHttpUrl,
+    trustableParentHostname,
 } from '../trusted-domains';
 
 describe('parseExternalHttpUrl', () => {
@@ -146,5 +147,49 @@ describe('isExternalUrlTrusted', () => {
             isExternalUrlTrusted(new URL('https://trusted-but-out-of-bounds.example.com'), rules),
         ).toBe(false);
         expect(isExternalUrlTrusted(new URL('https://host-0.example.com'), rules)).toBe(true);
+    });
+});
+
+describe('trustableParentHostname', () => {
+    it('offers the registered domain of a three-label host', () => {
+        expect(trustableParentHostname(new URL('https://api.venice.ai/api/v1'))).toBe('venice.ai');
+        expect(trustableParentHostname(new URL('https://www.example.com'))).toBe('example.com');
+    });
+
+    it('offers nothing for a host that is already the shortest rule worth writing', () => {
+        expect(trustableParentHostname(new URL('https://venice.ai'))).toBeUndefined();
+        expect(trustableParentHostname(new URL('https://localhost'))).toBeUndefined();
+    });
+
+    it('offers nothing beyond three labels, where the parent would be wider than the host shown', () => {
+        /**
+         * `bucket.s3.amazonaws.com` would yield `s3.amazonaws.com` — every S3 bucket on the account's region — which is
+         * nothing like the single host the dialog is asking about.
+         */
+        expect(trustableParentHostname(new URL('https://bucket.s3.amazonaws.com'))).toBeUndefined();
+        expect(trustableParentHostname(new URL('https://a.b.c.example.com'))).toBeUndefined();
+    });
+
+    it('offers nothing for an address, a loopback host, or an origin carrying a port', () => {
+        expect(trustableParentHostname(new URL('https://93.184.216.34'))).toBeUndefined();
+        expect(trustableParentHostname(new URL('http://127.0.0.1:5173'))).toBeUndefined();
+        expect(trustableParentHostname(new URL('http://[::1]'))).toBeUndefined();
+        expect(trustableParentHostname(new URL('https://api.venice.ai:8443'))).toBeUndefined();
+    });
+
+    it('ignores a trailing root dot rather than reading it as a fourth label', () => {
+        expect(trustableParentHostname(new URL('https://api.venice.ai./v1'))).toBe('venice.ai');
+    });
+
+    it('offers a hosting domain too, which is the accepted cost of not shipping a suffix list', () => {
+        /**
+         * `github.io` and `vercel.app` are three-label hosts whose parent is shared by unrelated publishers, so this
+         * button can grant more than the user is looking at. The dialog states that scope; the check does not encode
+         * it. Asserting the behaviour here keeps the trade-off from being mistaken for a bug later.
+         *
+         * @see https://github.com/tjx666/caxri/issues/801
+         */
+        expect(trustableParentHostname(new URL('https://tjx666.github.io'))).toBe('github.io');
+        expect(trustableParentHostname(new URL('https://myapp.vercel.app'))).toBe('vercel.app');
     });
 });
