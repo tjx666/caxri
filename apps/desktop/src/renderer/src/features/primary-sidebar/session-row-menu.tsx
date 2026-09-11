@@ -18,6 +18,8 @@ import {
 import { useCommandShortcut } from '../../lib/keybindings';
 import {
     archiveSession,
+    copyAgentSessionId,
+    copyAgentTranscriptPath,
     deleteSession,
     detachSession,
     hasDetachedAgentTerminal,
@@ -54,11 +56,18 @@ export function SessionRowMenu({
     const openPullRequestShortcut = useCommandShortcut('session.openPullRequest');
     const detached = hasDetachedAgentTerminal(session.id, terminals);
     const canDetach = hasLiveAgentTerminal(session.id, terminals);
-    const primaryProvider = terminals.find(
+    const primaryTerminal = terminals.find(
         (terminal) => terminal.id === session.primaryAgentTerminalId,
-    )?.provider;
+    );
+    const primaryProvider = primaryTerminal?.provider;
     const canRename =
         !primaryProvider || agentProviderCatalog[primaryProvider].capabilities.nativeRename;
+    /**
+     * Both copy entries read the Agent's durable identity, which only exists once the provider has created a
+     * conversation — a Session whose Agent has not been bound yet has nothing to put on the clipboard.
+     */
+    const boundAgentSessionId = primaryTerminal?.agentSessionId;
+    const unboundReason = 'This Session has no bound Agent conversation yet';
     return (
         <ContextMenu onOpenChange={onOpenChange}>
             <ContextMenuTrigger render={children} />
@@ -108,6 +117,26 @@ export function SessionRowMenu({
                         Open Pull Request #{pullRequest.number}
                     </ContextMenuItem>
                 )}
+                <ContextMenuSeparator />
+                <ContextMenuItem
+                    disabled={!boundAgentSessionId}
+                    disabledReason={boundAgentSessionId ? undefined : unboundReason}
+                    onClick={() => {
+                        if (boundAgentSessionId) copyAgentSessionId(boundAgentSessionId);
+                    }}
+                >
+                    Copy Agent Session ID
+                </ContextMenuItem>
+                <ContextMenuItem
+                    disabled={!boundAgentSessionId}
+                    disabledReason={boundAgentSessionId ? undefined : unboundReason}
+                    onClick={() => {
+                        if (primaryTerminal && boundAgentSessionId)
+                            copyAgentTranscriptPath(primaryTerminal.id);
+                    }}
+                >
+                    Copy Transcript Path
+                </ContextMenuItem>
                 <ContextMenuSeparator />
                 <ContextMenuItem hint={deleteShortcut} onClick={() => deleteSession(session.id)}>
                     Delete Session…
