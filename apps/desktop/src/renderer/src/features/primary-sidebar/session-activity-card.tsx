@@ -15,6 +15,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from '../../components/
 import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { openExternalUrl } from '../../lib/external-link';
+import { isRestoringPickerFocus } from '../../lib/picker-final-focus';
 import { cn } from '../../lib/utilities';
 import { pushToast } from '../../stores/toasts';
 import { ProjectIcon } from './project-icon';
@@ -25,6 +26,7 @@ import {
     sessionToneCalloutClassName,
     sessionUnreadTone,
 } from './session-activity';
+import { sessionActivityCardDismissal } from './session-activity-card-dismissal';
 import { sessionPullRequestPresentation } from './session-pull-request';
 import { SessionPullRequestIndicator } from './session-pull-request-indicator';
 
@@ -52,6 +54,46 @@ const detachedActivityPresentation = {
     label: 'Detached',
     tone: 'neutral',
 } satisfies ReturnType<typeof sessionActivityPresentation>;
+
+function SessionPullRequestDetails({ pullRequest }: { pullRequest: SessionPullRequest }) {
+    const presentation = sessionPullRequestPresentation(pullRequest);
+    return (
+        <a
+            className="mt-2 flex min-w-0 items-center gap-1.5 rounded-md border border-border bg-surface px-2 py-1.5 text-[11px] text-foreground no-underline hover:bg-elevated"
+            href={pullRequest.url}
+            rel="noreferrer"
+            aria-label={`Open pull request #${pullRequest.number}: ${pullRequest.title}`}
+            onClick={(event) => {
+                // Main denies window.open navigation; use the structured external.open boundary.
+                event.preventDefault();
+                event.stopPropagation();
+                // eslint-disable-next-line no-void -- intentional floating-promise discard, openExternalUrl reports its own failure
+                void openExternalUrl(pullRequest.url, (message) => pushToast('error', message));
+            }}
+        >
+            <SessionPullRequestIndicator pullRequest={pullRequest} />
+            <span className="flex-none font-medium">#{pullRequest.number}</span>
+            <span className="flex-none text-muted">{presentation.label}</span>
+            <span className="min-w-0 flex-1 text-muted">
+                <span className="block truncate">{pullRequest.title}</span>
+                {presentation.checksLabel && (
+                    <span
+                        className={cn(
+                            'block',
+                            presentation.checksTone === 'danger'
+                                ? 'text-danger'
+                                : presentation.checksTone === 'warning'
+                                  ? 'text-warning'
+                                  : 'text-muted',
+                        )}
+                    >
+                        {presentation.checksLabel}
+                    </span>
+                )}
+            </span>
+        </a>
+    );
+}
 
 export function SessionActivityCard({
     project,
@@ -106,17 +148,7 @@ export function SessionActivityCard({
 
     useEffect(() => {
         if (!open) return;
-        /**
-         * Xterm consumes Escape before React's popup handler sees it, so capture it at Window.
-         */
-        const closeOnEscape = (event: KeyboardEvent): void => {
-            if (event.key !== 'Escape') return;
-            event.preventDefault();
-            event.stopPropagation();
-            setOpen(false);
-        };
-        addEventListener('keydown', closeOnEscape, { capture: true });
-        return () => removeEventListener('keydown', closeOnEscape, { capture: true });
+        return sessionActivityCardDismissal(() => setOpen(false));
     }, [open]);
 
     return (
@@ -126,9 +158,11 @@ export function SessionActivityCard({
                 closeDelay={80}
                 delay={450}
                 onFocus={(event) => {
-                    if (!event.currentTarget.matches(':focus-visible')) return;
                     event.preventBaseUIHandler();
-                    setOpen(true);
+                    setOpen(
+                        event.currentTarget.matches(':focus-visible') &&
+                            !isRestoringPickerFocus(event.currentTarget),
+                    );
                 }}
                 render={trigger}
             />
@@ -174,47 +208,7 @@ export function SessionActivityCard({
                         {activity.description}
                     </p>
                 </div>
-                {pullRequest && pullRequestPresentation && (
-                    <a
-                        className="mt-2 flex min-w-0 items-center gap-1.5 rounded-md border border-border bg-surface px-2 py-1.5 text-[11px] text-foreground no-underline hover:bg-elevated"
-                        href={pullRequest.url}
-                        rel="noreferrer"
-                        aria-label={`Open pull request #${pullRequest.number}: ${pullRequest.title}`}
-                        onClick={(event) => {
-                            // Main denies every `window.open`/target=_blank navigation, so this anchor
-                            // is semantic only — the actual navigation goes through `external.open`.
-                            event.preventDefault();
-                            event.stopPropagation();
-                            // eslint-disable-next-line no-void -- intentional floating-promise discard, openExternalUrl reports its own failure
-                            void openExternalUrl(pullRequest.url, (message) =>
-                                pushToast('error', message),
-                            );
-                        }}
-                    >
-                        <SessionPullRequestIndicator pullRequest={pullRequest} />
-                        <span className="flex-none font-medium">#{pullRequest.number}</span>
-                        <span className="flex-none text-muted">
-                            {pullRequestPresentation.label}
-                        </span>
-                        <span className="min-w-0 flex-1 text-muted">
-                            <span className="block truncate">{pullRequest.title}</span>
-                            {pullRequestPresentation.checksLabel && (
-                                <span
-                                    className={cn(
-                                        'block',
-                                        pullRequestPresentation.checksTone === 'danger'
-                                            ? 'text-danger'
-                                            : pullRequestPresentation.checksTone === 'warning'
-                                              ? 'text-warning'
-                                              : 'text-muted',
-                                    )}
-                                >
-                                    {pullRequestPresentation.checksLabel}
-                                </span>
-                            )}
-                        </span>
-                    </a>
-                )}
+                {pullRequest && <SessionPullRequestDetails pullRequest={pullRequest} />}
                 {worktreeProject && (
                     <div className="session-card-worktree mt-2 flex items-center justify-between gap-3 text-[10px] text-muted">
                         <span className="flex-none">Worktree</span>

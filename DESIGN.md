@@ -190,10 +190,14 @@ weight, and the accessible label plus the Session hover/focus card preserve exac
 attention details. On pointer hover, the Archive action replaces the track's trailing glyph in the
 same position; keyboard focus keeps the track visible because Delete already owns the keyboard
 action. The Portal
-card opens to the PrimarySidebar's right after a short hover delay (or immediately on keyboard focus),
+card opens to the PrimarySidebar's right after a short hover delay (or immediately on intentional keyboard focus),
 collision-shifts within the viewport, and shows only the full title, Project, primary Agent,
 activity explanation, the pull request when one exists, the `Worktree` the Session works in when
-that is not its own Project root, `Last opened`, and unread-attention metadata. All non-archived Project and
+that is not its own Project root, `Last opened`, and unread-attention metadata. Opening a modal closes
+the card and gives the modal ownership of Escape. Canceling a picker restores the exact opening
+control without reopening its detail card; a command's explicit focus handoff takes precedence.
+If the opening control disappeared, restore the current workbench Terminal when available.
+All non-archived Project and
 Session names and navigation icons use `--foreground`, including inactive rows. Clipped Session
 names reveal their tail after a 600ms title hover or keyboard-focus pause, moving at a steady
 reading speed and holding at the end. Leaving restores truncation; short names remain still.
