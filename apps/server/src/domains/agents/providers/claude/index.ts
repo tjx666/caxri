@@ -112,7 +112,7 @@ export async function renameClaudeSession(
             ],
             {
                 cwd: context.cwd,
-                env: agentCommandEnvironment(context.environment),
+                env: await agentCommandEnvironment(context.environment),
                 maxBuffer: CLAUDE_RENAME_OUTPUT_BYTES,
                 signal: context.signal,
                 timeout: CLAUDE_RENAME_TIMEOUT_MS,

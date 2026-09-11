@@ -76,17 +76,24 @@ async function terminateCodexAppServer(child: ChildProcessWithoutNullStreams): P
     await exited;
 }
 
-function callCodexAppServer(
+/**
+ * Every failure this bridge authors itself is thrown as a `CaxriError`, so `throwAgentRenameError` passes it through
+ * instead of flattening it into "Codex could not rename the Agent session". The distinction is deliberate: these
+ * strings are Caxri constants and safe to log and show, whereas a raw `spawn`/`stdin` error can carry provider output
+ * and must stay behind the generic message.
+ */
+async function callCodexAppServer(
     context: AgentProviderSessionRenameContext,
     method: string,
     parameters: Record<string, unknown>,
 ): Promise<unknown> {
     if (context.signal?.aborted)
-        return Promise.reject(new CaxriError('CANCELLED', 'Codex Session rename was cancelled'));
+        throw new CaxriError('CANCELLED', 'Codex Session rename was cancelled');
+    const environment = await agentCommandEnvironment(context.environment);
     return new Promise((resolve, reject) => {
         const child = spawn(context.executable, ['app-server', '--stdio'], {
             cwd: context.cwd,
-            env: agentCommandEnvironment(context.environment),
+            env: environment,
             stdio: ['pipe', 'pipe', 'pipe'],
         });
         let buffer = '';
@@ -113,7 +120,7 @@ function callCodexAppServer(
                 reject(
                     terminationError instanceof Error
                         ? terminationError
-                        : new Error('Codex app-server termination failed'),
+                        : new CaxriError('UNAVAILABLE', 'Codex app-server termination failed'),
                 );
             }
         }
@@ -132,7 +139,9 @@ function callCodexAppServer(
                 child.stdin.write(`${JSON.stringify(message)}\n`);
             } catch (error) {
                 settle(
-                    error instanceof Error ? error : new Error('Codex app-server input failed'),
+                    error instanceof Error
+                        ? error
+                        : new CaxriError('UNAVAILABLE', 'Codex app-server input failed'),
                     undefined,
                 );
             }
@@ -144,12 +153,18 @@ function callCodexAppServer(
             try {
                 response = JSON.parse(line) as CodexAppServerResponse;
             } catch {
-                settle(new Error('Codex app-server returned invalid JSON'), undefined);
+                settle(
+                    new CaxriError('UNAVAILABLE', 'Codex app-server returned invalid JSON'),
+                    undefined,
+                );
                 return;
             }
             if (response.id === 1) {
                 if (response.error !== undefined || response.result === undefined) {
-                    settle(new Error('Codex app-server initialization failed'), undefined);
+                    settle(
+                        new CaxriError('UNAVAILABLE', 'Codex app-server initialization failed'),
+                        undefined,
+                    );
                     return;
                 }
                 write({ method: 'initialized' });
@@ -158,7 +173,10 @@ function callCodexAppServer(
             }
             if (response.id !== 2) return;
             if (response.error !== undefined || response.result === undefined) {
-                settle(new Error('Codex app-server rejected the Session rename'), undefined);
+                settle(
+                    new CaxriError('UNAVAILABLE', 'Codex app-server rejected the Session rename'),
+                    undefined,
+                );
                 return;
             }
             settle(undefined, response.result);
@@ -167,7 +185,13 @@ function callCodexAppServer(
         child.stdout.on('data', (chunk: Buffer) => {
             outputBytes += chunk.byteLength;
             if (outputBytes > CODEX_APP_SERVER_MAXIMUM_OUTPUT_BYTES) {
-                settle(new Error('Codex app-server output exceeded its safety limit'), undefined);
+                settle(
+                    new CaxriError(
+                        'UNAVAILABLE',
+                        'Codex app-server output exceeded its safety limit',
+                    ),
+                    undefined,
+                );
                 return;
             }
             buffer += chunk.toString('utf8');
@@ -182,13 +206,23 @@ function callCodexAppServer(
         child.stderr.on('data', (chunk: Buffer) => {
             outputBytes += chunk.byteLength;
             if (outputBytes > CODEX_APP_SERVER_MAXIMUM_OUTPUT_BYTES)
-                settle(new Error('Codex app-server output exceeded its safety limit'), undefined);
+                settle(
+                    new CaxriError(
+                        'UNAVAILABLE',
+                        'Codex app-server output exceeded its safety limit',
+                    ),
+                    undefined,
+                );
         });
         child.once('error', (error) => settle(error, undefined));
         child.stdin.once('error', (error) => settle(error, undefined));
         child.once('exit', () => {
             if (buffer.trim()) handleLine(buffer);
-            if (!isSettled) settle(new Error('Codex app-server exited before replying'), undefined);
+            if (!isSettled)
+                settle(
+                    new CaxriError('UNAVAILABLE', 'Codex app-server exited before replying'),
+                    undefined,
+                );
         });
 
         write({

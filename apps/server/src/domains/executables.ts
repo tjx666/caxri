@@ -136,11 +136,18 @@ export class ExecutableResolver {
         return discovered ? this.cache(requested, discovered) : undefined;
     }
 
-    async environment(): Promise<NodeJS.ProcessEnv> {
-        const source = this.sourceEnvironment();
+    /**
+     * A caller launching a child on behalf of an Agent passes that Agent's own variables; everything else takes the
+     * Server's. Either way the login-shell PATH wins, because the Server's own PATH is whatever launchd gave the GUI.
+     *
+     * @param variables Environment to sanitize and PATH-correct.
+     */
+    async environment(
+        variables: NodeJS.ProcessEnv = this.sourceEnvironment(),
+    ): Promise<NodeJS.ProcessEnv> {
         const loginPath = await this.loginPath();
         return {
-            ...safeProcessEnvironment(source),
+            ...safeProcessEnvironment(variables),
             ...(loginPath && { PATH: loginPath }),
         };
     }
@@ -156,8 +163,10 @@ export function resolveServerExecutable(name: string): Promise<string | undefine
     return serverExecutableResolver.resolve(name);
 }
 
-export function serverProcessEnvironment(): Promise<NodeJS.ProcessEnv> {
-    return serverExecutableResolver.environment();
+export function serverProcessEnvironment(
+    variables?: NodeJS.ProcessEnv,
+): Promise<NodeJS.ProcessEnv> {
+    return serverExecutableResolver.environment(variables);
 }
 
 export interface ExternalCommandOptions {

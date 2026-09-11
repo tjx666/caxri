@@ -166,14 +166,23 @@ describe('Sonner notification adapter', () => {
         expect(getToasts()[0].id).not.toBe(previousId);
     });
 
-    it('describes a CaxriError UNAVAILABLE code with actionable copy', () => {
-        expect(describeFailure(new CaxriError('UNAVAILABLE', 'raw message'), 'Save file')).toBe(
-            'Save file: Caxri is not ready yet.',
-        );
+    it('keeps the Server reason for UNAVAILABLE and TIMEOUT, labelled by the failed action', () => {
+        expect(
+            describeFailure(
+                new CaxriError('UNAVAILABLE', 'Codex could not rename the Agent session'),
+                'Session rename failed',
+            ),
+        ).toBe('Session rename failed: Codex could not rename the Agent session');
+        expect(
+            describeFailure(new CaxriError('TIMEOUT', 'Codex Session rename timed out'), 'Rename'),
+        ).toBe('Rename: Codex Session rename timed out');
     });
 
-    it('describes a CaxriError TIMEOUT code with actionable copy', () => {
-        expect(describeFailure(new CaxriError('TIMEOUT', 'raw message'), 'Save file')).toBe(
+    it('falls back to generic copy only when the classified error carries no message', () => {
+        expect(describeFailure(new CaxriError('UNAVAILABLE', ''), 'Save file')).toBe(
+            'Save file: Caxri is not ready yet.',
+        );
+        expect(describeFailure(new CaxriError('TIMEOUT', ''), 'Save file')).toBe(
             'Save file: Caxri did not respond in time.',
         );
     });
