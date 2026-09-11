@@ -107,6 +107,13 @@ export function isTerminalEventTarget(target: EventTarget | null): boolean {
 }
 
 /**
+ * Monaco consumes its chord continuations before the window's bubbling shortcut listener.
+ */
+export function isEditorEventTarget(target: EventTarget | null): boolean {
+    return eventTargetClosest(target, '.monaco-editor') != null;
+}
+
+/**
  * Keybinding recording intentionally receives a chord already assigned to an app command. The global capture listener
  * normally consumes such chords before a target handler can see them, so the active recorder carries a narrow marker
  * that lets only that control bypass app-wide dispatch while modal safety remains intact everywhere else.

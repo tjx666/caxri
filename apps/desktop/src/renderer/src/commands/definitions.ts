@@ -123,6 +123,10 @@ export const commandDefinitions: CommandDefinition[] = [
     }),
     fromCatalog('terminal.clear', (context) => context.terminal.clearActive(), {
         allowInEditable: true,
+        /**
+         * Let Monaco receive `Cmd+K`, the prefix of folding and other editor chords.
+         */
+        when: (context) => context.terminal.hasActive(),
     }),
     /**
      * `Cmd+C` is gated on a live Terminal selection rather than merely on an active Terminal: with no selection the

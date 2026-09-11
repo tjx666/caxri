@@ -263,15 +263,18 @@ describe('executeCommand', () => {
         });
     });
 
-    it('keeps Terminal Find contextual so Monaco can own the same shortcut in an editor', () => {
-        const { calls, context } = recordingContext();
-        context.terminal.hasActive = () => false;
+    it.each(['terminal.clear', 'terminal.find'] as const)(
+        'keeps %s contextual so Monaco can own the same shortcut in an editor',
+        (command) => {
+            const { calls, context } = recordingContext();
+            context.terminal.hasActive = () => false;
 
-        expect(isCommandAvailable('terminal.find', context)).toBe(false);
-        executeCommand('terminal.find', undefined, context);
+            expect(isCommandAvailable(command, context)).toBe(false);
+            executeCommand(command, undefined, context);
 
-        expect(calls).toEqual([]);
-    });
+            expect(calls).toEqual([]);
+        },
+    );
 
     /**
      * `terminal.copy` binds `Cmd+C`. Without a Terminal selection the command must decline so the chord falls through
