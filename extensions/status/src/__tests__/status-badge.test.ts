@@ -45,6 +45,7 @@ describe('Status tab badge', () => {
                     { name: 'Types', state: 'failure', url: 'https://checks.example.com/run/1' },
                     { name: 'Test', state: 'success' },
                     { name: 'Lint', state: 'pending' },
+                    { name: 'Superseded', state: 'cancelled' },
                 ],
             },
             deployments: {
