@@ -501,6 +501,17 @@ async function chooseDefaultTerminal(page: Page, name: string): Promise<void> {
 }
 
 /**
+ * The Project row's New Session button anchors a menu rather than opening the centered dialog. Activation goes through
+ * the same keyboard contract as {@link chooseDefaultTerminal} and for the same reason: committing the choice
+ * synchronously closes the menu, so a pointer click can observe its target detaching mid-click.
+ */
+export async function chooseTerminalFromCreateMenu(page: Page, name: string): Promise<void> {
+    const choice = page.getByRole('menu').getByRole('menuitem', { exact: true, name });
+    await expect(choice).toBeVisible();
+    await choice.press('Enter');
+}
+
+/**
  * Opens the "Add Project" dialog, picks the requested default Terminal, and returns only after the new Session
  * satisfies {@link waitForCreatedSession}. Specs that also need a writable Shell surface should use
  * {@link createShellSession} instead.
@@ -547,8 +558,7 @@ export async function createAdditionalShellSession(page: Page): Promise<void> {
         .filter({ has: page.getByRole('button', { name: /^New Session in / }) })
         .hover();
     await page.getByRole('button', { name: /^New Session in / }).click();
-    await expect(page.getByRole('heading', { name: 'Choose the default Terminal' })).toBeVisible();
-    await chooseDefaultTerminal(page, 'Shell');
+    await chooseTerminalFromCreateMenu(page, 'Shell');
     /**
      * Opening the action requires hovering the Project heading. Park the pointer in the Workbench after activation so
      * the trigger's delayed tooltip cannot cover a caller's next click or leave the Project in a synthetic hover

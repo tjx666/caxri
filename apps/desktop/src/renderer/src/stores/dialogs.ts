@@ -31,6 +31,13 @@ interface DialogState {
      */
     pendingProjectId?: string;
     /**
+     * Project whose Session-creation menu is open. The menu is anchored to that Project row's New Session button, so
+     * the id — not a boolean — is what identifies the one row allowed to render it. Kept in the store rather than in
+     * the row so the `session.create` command can open the same menu the pointer does, instead of falling back to a
+     * second, centered picker.
+     */
+    createSessionMenuProjectId?: string;
+    /**
      * IDs of currently mounted-and-open modals, registered by `useModalRegistration` (see `components/ui/dialog.tsx`)
      * from every consumer of the shared `Dialog` primitive. `isModalOpen` used to be a hand-maintained OR of one
      * boolean per dialog (settingsOpen, paletteOpen, pathBrowserOpen, pendingRoot, pendingProjectId); a future modal
@@ -54,6 +61,8 @@ interface DialogState {
     askAgentForRoot(rootPath: string): void;
     askAgentForProject(projectId: string): void;
     clearPending(): void;
+    openCreateSessionMenu(projectId: string): void;
+    closeCreateSessionMenu(): void;
     /**
      * Registers an open modal's id; called by `useModalRegistration` on open/mount.
      */
@@ -81,6 +90,7 @@ export const useDialogStore = create<DialogState>((set, get) => ({
     projectIconProjectId: undefined,
     pendingRoot: undefined,
     pendingProjectId: undefined,
+    createSessionMenuProjectId: undefined,
     openModalIds: new Set(),
     setArchivedSessionsOpen: (archivedSessionsOpen) => set({ archivedSessionsOpen }),
     openSettings: (view = 'ui', provider) =>
@@ -105,6 +115,8 @@ export const useDialogStore = create<DialogState>((set, get) => ({
     askAgentForRoot: (rootPath) => set({ pendingRoot: rootPath, pendingProjectId: undefined }),
     askAgentForProject: (projectId) => set({ pendingProjectId: projectId, pendingRoot: undefined }),
     clearPending: () => set({ pendingRoot: undefined, pendingProjectId: undefined }),
+    openCreateSessionMenu: (createSessionMenuProjectId) => set({ createSessionMenuProjectId }),
+    closeCreateSessionMenu: () => set({ createSessionMenuProjectId: undefined }),
     registerModal: (id) =>
         set((state) => {
             if (state.openModalIds.has(id)) return state;
@@ -140,3 +152,5 @@ export const setBugReportOpen = (isOpen: boolean): void =>
     useDialogStore.getState().setBugReportOpen(isOpen);
 export const closeProjectIconDialog = (): void => useDialogStore.getState().closeProjectIcon();
 export const clearPendingSession = (): void => useDialogStore.getState().clearPending();
+export const closeCreateSessionMenu = (): void =>
+    useDialogStore.getState().closeCreateSessionMenu();
