@@ -68,7 +68,7 @@ export async function generateClaudeLowCostText(
                 '1',
             ],
             cwd: isolatedDirectory,
-            environment: agentCommandEnvironment(context.environment),
+            environment: await agentCommandEnvironment(context.environment),
             executable: MACOS_SANDBOX_EXECUTABLE,
             input: context.prompt,
             limits: timeoutMs === undefined ? undefined : { timeoutMs },

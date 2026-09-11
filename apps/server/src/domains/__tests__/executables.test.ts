@@ -52,6 +52,31 @@ describe('ExecutableResolver', () => {
         expect(run).toHaveBeenCalledOnce();
     });
 
+    it('gives a caller-supplied environment the same login PATH the Server itself uses', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-executable-caller-env-'));
+        temporaryDirectories.push(directory);
+        const loginBin = join(directory, 'login-bin');
+        await mkdir(loginBin);
+        const run = vi.fn(() =>
+            Promise.resolve({ stdout: `__CAXRI_LOGIN_PATH__${loginBin}\n`, stderr: '' }),
+        );
+        const resolver = new ExecutableResolver(
+            () => ({ HOME: directory, PATH: '/usr/bin:/bin', SHELL: '/bin/zsh' }),
+            run,
+        );
+
+        // A GUI-launched Server Core only sees macOS's launchd PATH, which has no Homebrew, pnpm, or mise directory.
+        // An Agent CLI installed as a `/bin/sh` shim that `exec node` cannot start under it.
+        const agentEnvironment = await resolver.environment({
+            HOME: '/agent-home',
+            PATH: '/usr/bin:/bin:/usr/sbin:/sbin',
+            GITHUB_TOKEN: 'must-not-leak',
+        });
+
+        expect(agentEnvironment).toMatchObject({ HOME: '/agent-home', PATH: loginBin });
+        expect(agentEnvironment).not.toHaveProperty('GITHUB_TOKEN');
+    });
+
     it('rejects relative paths and revalidates a stale cached executable', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-executable-stale-'));
         temporaryDirectories.push(directory);
