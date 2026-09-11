@@ -69,7 +69,8 @@ jobs:
         github.event_name == 'push' &&
         github.ref == 'refs/heads/main' &&
         github.actor == 'tjx666' &&
-        github.triggering_actor == 'tjx666'
+        github.triggering_actor == 'tjx666' &&
+        startsWith(github.event.head_commit.message, 'release: v')
       )
     runs-on: [self-hosted, macOS, ARM64, caxri-ci]
     env:
@@ -491,7 +492,14 @@ jobs:
 
   ci:
     name: CI gate
-    if: always()
+    # Skipped alongside `retry-policy` on an ordinary merge to main, so those pushes leave no run to
+    # report on at all. The gate asserts `retry-policy` succeeded, so leaving it at a bare `always()`
+    # would turn every merge red instead of quiet.
+    if: >-
+      always() && (
+        github.event_name != 'push' ||
+        startsWith(github.event.head_commit.message, 'release: v')
+      )
     needs: [retry-policy, checks, e2e]
     runs-on: [self-hosted, macOS, ARM64, caxri-ci]
     steps:
@@ -523,7 +531,8 @@ jobs:
               github.event_name == 'push' &&
               github.ref == 'refs/heads/main' &&
               github.actor == 'tjx666' &&
-              github.triggering_actor == 'tjx666'
+              github.triggering_actor == 'tjx666' &&
+              startsWith(github.event.head_commit.message, 'release: v')
             ) }}
         run: |
           test "$TRUSTED_EVENT" = true

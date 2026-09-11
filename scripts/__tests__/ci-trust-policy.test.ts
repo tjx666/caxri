@@ -114,7 +114,8 @@ function ciTrustExpression(candidatePolicy: TrustPolicy = policy): string {
           github.event_name == '${candidatePolicy.ci.pushEvent}' &&
           github.ref == '${candidatePolicy.ci.pushRef}' &&
           github.actor == ${actor} &&
-          github.triggering_actor == ${actor}
+          github.triggering_actor == ${actor} &&
+          startsWith(github.event.head_commit.message, '${candidatePolicy.release.titlePrefix}')
         )
     `;
 }
