@@ -105,5 +105,5 @@ For a future behavior change, keep grouping, bounds, suppression, and write-fail
 at the store/command boundary. Use focused Electron workflows for the bell, reminder menu,
 restore setting, and virtualized settings navigation, then visually verify UI changes under the
 repository's desktop workflow. See [DESIGN.md](../DESIGN.md) for presentation rules and the
-[architecture reference](../.agents/skills/project-architecture/references/architecture.md) for
+[product model](../.agents/skills/project-architecture/references/product-model.md) for
 the surrounding process contracts.

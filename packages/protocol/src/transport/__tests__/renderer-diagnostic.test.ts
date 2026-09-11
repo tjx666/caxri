@@ -153,6 +153,10 @@ const validPerformanceScenarioDiagnostic = {
 describe('Renderer diagnostic contract', () => {
     it('accepts bounded content-free terminal renderer state', () => {
         expect(rendererDiagnosticSchema.parse(validDiagnostic)).toEqual(validDiagnostic);
+        expect(
+            rendererDiagnosticSchema.safeParse({ ...validDiagnostic, trigger: 'manual-retry' })
+                .success,
+        ).toBe(true);
     });
 
     it('accepts a session GPU incident budget transition and rejects open-ended fields', () => {
@@ -168,6 +172,13 @@ describe('Renderer diagnostic contract', () => {
             preference: 'on',
         };
         expect(rendererDiagnosticSchema.parse(validTransition)).toEqual(validTransition);
+        expect(
+            rendererDiagnosticSchema.safeParse({
+                ...validTransition,
+                transition: 'reset',
+                cause: 'manual-retry',
+            }).success,
+        ).toBe(true);
         const contextLossTransition = {
             kind: 'gpu-incident-budget',
             diagnosticId: validTransition.diagnosticId,

@@ -10,6 +10,66 @@ import { createProjectSession, launchCaxri } from './support/helpers.ts';
 const trackedCommitted = 'alpha\nbeta\ngamma\ndelta\n';
 const trackedWorking = 'alpha\nbeta-changed\ngamma\ndelta\n';
 
+test('Discard All Changes closes the working diff without an error notification', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-discard-diff-e2e-'));
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', root]);
+    await execFileAsync('git', ['init', '-b', 'main'], { cwd: root });
+    await execFileAsync('git', ['config', 'user.email', 'caxri@example.com'], { cwd: root });
+    await execFileAsync('git', ['config', 'user.name', 'Caxri E2E'], { cwd: root });
+    await writeFile(join(root, 'tracked.txt'), trackedCommitted);
+    await execFileAsync('git', ['add', '.'], { cwd: root });
+    await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: root });
+    await writeFile(join(root, 'tracked.txt'), trackedWorking);
+    const running = await launchCaxri({
+        userDataDir: join(testDirectory, 'user-data'),
+        testRootPath: root,
+    });
+    try {
+        const { page } = running;
+        await createProjectSession(page);
+        await page.getByRole('tab', { name: 'Git', exact: true }).click();
+        const repo = page.locator('.git-repository-section');
+        await repo.getByRole('button', { name: 'tracked.txt', exact: true }).click();
+        await expect(page.locator('.git-file-diff')).toBeVisible();
+        await running.app.evaluate(({ dialog }) => {
+            dialog.showMessageBox = () => Promise.resolve({ response: 1, checkboxChecked: false });
+        });
+        await repo.getByRole('button', { name: 'Discard All Changes', exact: true }).click();
+        await expect(page.locator('.git-file-diff')).toBeVisible();
+        await running.app.evaluate(({ dialog }) => {
+            dialog.showMessageBox = () => Promise.resolve({ response: 0, checkboxChecked: false });
+        });
+        await repo.getByRole('button', { name: 'Discard All Changes', exact: true }).click();
+        await expect(repo.getByText('Working tree clean.', { exact: true })).toBeVisible();
+        await expect(
+            page.locator('[data-pane-tab-id]').filter({ hasText: 'tracked.txt' }),
+        ).toHaveCount(0);
+        await expect(page.locator('.git-file-diff')).toHaveCount(0);
+        await expect(page.getByText('Git change no longer exists', { exact: true })).toHaveCount(0);
+        await expect(page.locator('[data-sonner-toast][data-type="error"]')).toHaveCount(0);
+        await page.screenshot({
+            path: test.info().outputPath('discard-closed-diff.png'),
+            mask: [page.locator('.xterm')],
+        });
+
+        await writeFile(join(root, 'tracked.txt'), trackedWorking);
+        await repo.getByRole('button', { name: 'tracked.txt', exact: true }).click();
+        await expect(page.locator('.git-file-diff')).toBeVisible();
+        await repo
+            .getByRole('button', { name: 'Discard changes in tracked.txt', exact: true })
+            .click();
+        await expect(repo.getByText('Working tree clean.', { exact: true })).toBeVisible();
+        await expect(
+            page.locator('[data-pane-tab-id]').filter({ hasText: 'tracked.txt' }),
+        ).toHaveCount(0);
+        await expect(page.locator('[data-sonner-toast][data-type="error"]')).toHaveCount(0);
+    } finally {
+        await running.app.close();
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
 test('Diff view options control layout, unchanged regions, and whitespace across tabs', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-diff-options-e2e-'));
     const root = join(testDirectory, 'project');

@@ -215,6 +215,13 @@ describe('GitService', () => {
             original: '',
             modified: 'new\n',
         });
+        await execFileAsync('git', ['restore', '--staged', '--worktree', 'tracked.txt'], {
+            cwd: directory,
+        });
+        await git.summary(session.id, 1);
+        await expect(
+            git.diffDocument(session.id, summary.repositories[0].id, 'tracked.txt'),
+        ).resolves.toBeNull();
         database.close();
     });
 
@@ -602,8 +609,8 @@ describe('GitService', () => {
             git.diffDocument(session.id, repo.id, 'generated/new.txt'),
         ).resolves.toMatchObject({ original: '', modified: 'new\n' });
         const submoduleDocument = await git.diffDocument(session.id, repo.id, 'vendor/sub');
-        expect(submoduleDocument.format).toBe('patch');
-        expect(submoduleDocument.modified).toContain('Subproject commit');
+        expect(submoduleDocument?.format).toBe('patch');
+        expect(submoduleDocument?.modified).toContain('Subproject commit');
         database.close();
     });
 

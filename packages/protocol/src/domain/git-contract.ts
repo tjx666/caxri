@@ -129,7 +129,10 @@ export const gitMethods = {
             repositoryId: identifierSchema,
             path: pathSchema,
         }),
-        result: gitDiffDocumentSchema,
+        /**
+         * A discarded or committed working change has no remaining diff.
+         */
+        result: gitDiffDocumentSchema.nullable(),
     },
     'git.pullRequestChanges': {
         ...serverRead,

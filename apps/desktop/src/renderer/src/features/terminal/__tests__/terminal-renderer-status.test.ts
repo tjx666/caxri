@@ -77,7 +77,7 @@ describe('terminalRendererIndicator', () => {
         expect(
             terminalRendererIndicator(status({ mode: 'dom', reason: 'context-loss-limit' }))?.title,
         ).toBe(
-            'Terminal is using the DOM renderer. WebGL was lost repeatedly (GPU process exits or context losses); it stays off until GPU acceleration is changed in Settings or Caxri restarts.',
+            'Retry GPU rendering? — Terminal is using the DOM renderer. WebGL was lost repeatedly. Automatic recovery is paused; click to retry GPU rendering.',
         );
         // A pane whose own retries ran out before the session pinned must not keep promising that a reopened tab
         // retries WebGL; the pin's closed reason wins over the exhausted retry state.
@@ -90,10 +90,10 @@ describe('terminalRendererIndicator', () => {
             }),
         );
         expect(pinnedAfterExhaustion?.title).not.toContain('reopen the Terminal tab');
-        expect(pinnedAfterExhaustion?.title).toContain('changed in Settings');
+        expect(pinnedAfterExhaustion?.title).toContain('click to retry');
     });
 
-    it('offers the switch only for the preference-driven fallback the chip can reverse', () => {
+    it('offers enabling for disabled GPU and a direct retry for settled failures', () => {
         expect(
             terminalRendererIndicator(status({ mode: 'dom', reason: 'disabled' }))?.action
                 ?.preference,
@@ -105,16 +105,35 @@ describe('terminalRendererIndicator', () => {
             'load-failed',
         ] as const) {
             const indicator = terminalRendererIndicator(status({ mode: 'dom', reason }));
-            expect(indicator?.action).toBeUndefined();
-            // A read-only chip must not promise an action in its accessible name or tooltip.
-            expect(indicator?.ariaLabel).toBe(
-                `Terminal renderer: DOM. ${indicator?.title.replace('Terminal is using the DOM renderer. ', '')}`,
-            );
+            expect(indicator?.action?.confirmLabel).toBe('Retry GPU');
+            expect(indicator?.action?.preference).toBeUndefined();
+            expect(indicator?.ariaLabel).toContain('Retry GPU rendering?');
+        }
+    });
+
+    it('does not offer duplicate attempts during automatic recovery', () => {
+        for (const retryState of ['scheduled', 'trying', 'deferred', 'failed'] as const) {
+            expect(
+                terminalRendererIndicator(
+                    status({ mode: 'dom', reason: 'context-loss', retryState }),
+                )?.action,
+            ).toBeUndefined();
         }
     });
 });
 
 describe('TerminalRendererStatusRegistry', () => {
+    it('unregisters retry handlers without removing a replacement mount', () => {
+        const registry = new TerminalRendererStatusRegistry();
+        const oldRetry = vi.fn(() => true);
+        const newRetry = vi.fn(() => true);
+        const removeOld = registry.registerRetry('t1', oldRetry);
+        const removeNew = registry.registerRetry('t1', newRetry);
+        removeOld();
+        expect(registry.getRetry('t1')).toBe(newRetry);
+        removeNew();
+        expect(registry.getRetry('t1')).toBeUndefined();
+    });
     it('publishes per Terminal and clears on dispose', () => {
         const registry = new TerminalRendererStatusRegistry();
         const listener = vi.fn();
