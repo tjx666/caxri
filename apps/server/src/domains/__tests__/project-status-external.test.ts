@@ -19,4 +19,14 @@ describe('projectStatusCliError', () => {
     it('routes generic CLI failure details to Logs', () => {
         expect(projectStatusCliError('linear', 'other')).toHaveProperty('detailsView', 'logs');
     });
+
+    it('names the failing subject instead of promising log details that are never recorded', () => {
+        const error = projectStatusCliError('linear', 'other', 'LOBE-14029');
+        expect(error.message).toBe('linear: LOBE-14029 failed');
+        expect(error.hint).toContain('LOBE-14029');
+        expect(error.hint).not.toContain('See Runtime logs for details');
+        expect(projectStatusCliError('linear', 'other').hint).not.toContain(
+            'See Runtime logs for details',
+        );
+    });
 });
