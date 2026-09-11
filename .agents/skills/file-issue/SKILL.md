@@ -120,33 +120,79 @@ Fetch the live repository labels before drafting instead of assuming the catalog
 gh label list --repo tjx666/caxri --limit 200 --json name,description,color
 ```
 
-Apply exactly one type label:
+Labels are read as five independent axes: type, surface, area, priority, effort. An issue is fully
+labeled when it carries one type, at least one area, one priority, one effort, and a surface
+whenever the work belongs to a single app.
+
+### Type — exactly one
 
 - `bug` — existing behavior is incorrect.
 - `enhancement` — new or improved behavior.
 - `documentation` — documentation is the primary deliverable.
 - `question` — a decision or investigation is the primary deliverable.
 
-Then apply every directly relevant scope label, normally one to three:
+### Surface — which app, zero or one
+
+This repository ships four deliverables under `apps/`. The surface label answers “which app do I
+have to build and run to see this?” — the first thing triage needs, and the one thing an area label
+never tells you, because `session`, `diagnostics`, or `agent` each span more than one app.
+
+| Label     | Owning code                                                                            |
+| --------- | -------------------------------------------------------------------------------------- |
+| `desktop` | `apps/desktop` — main process, preload, renderer shell, windows, menus, OS integration |
+| `server`  | `apps/server` — domain services and the Core process every client talks to             |
+| `mobile`  | `apps/mobile` + `packages/mobile-transport` — mobile client, pairing, gateway          |
+| `cli`     | `apps/cli` — `caxri` commands                                                          |
+
+Apply one when the issue lives inside a single app. Omit it when the work is genuinely shared — a
+`packages/*` change, a protocol contract, repository tooling — rather than guessing, since a wrong
+surface sends triage to the wrong build. Needing two surfaces usually means the issue crosses a
+process boundary: say so in 方案, and consider whether it should be split before filing.
+
+### Area — what it changes, one to three
 
 | Label            | Use when the issue primarily changes                                             |
 | ---------------- | -------------------------------------------------------------------------------- |
-| `skill`          | Repository skills, agent workflows, harnesses, or their automation               |
-| `unit-testing`   | Vitest unit/integration infrastructure or test-suite architecture                |
-| `e2e-testing`    | Playwright Electron E2E infrastructure, fixtures, reliability, or suite workflow |
 | `terminal`       | Terminal UI, xterm behavior, PTY lifecycle, or Terminal process integration      |
 | `editor`         | Editor tabs, Monaco behavior, editing, save, diff, or in-file search             |
-| `files-explorer` | Files inspector, tree navigation, file search, or file operations                |
+| `files-explorer` | Files inspector, file tree navigation, file search, or file operations           |
+| `tree-view`      | Extension-contributed tree views and the view container tree runtime             |
+| `session`        | Session lifecycle: creation, switching, restore, auto-naming, or persistence     |
 | `git`            | Repository discovery, worktrees, status, history, diff, or Git operations        |
-| `agent`          | Agent provider discovery, launch, lifecycle, identity, state, or integration     |
+| `settings`       | Settings UI and configuration read, write, watch, or validation                  |
+| `theme`          | Theming, semantic color tokens, or theme import/export                           |
+| `a11y`           | Keyboard navigation, focus order, or screen reader support                       |
+| `agent`          | Agent work spanning or sitting outside the three specific agent areas below      |
+| `agent-provider` | Claude / Codex / Grok discovery, launch, identity, or metadata                   |
+| `agent-hook`     | Lifecycle hook installation, authorization, phases, or hook receipts             |
+| `agent-dispatch` | Dispatch and delegation: routing, presets, depth, or dispatch receipts           |
+| `protocol`       | Wire protocol and IPC contracts between desktop, server, and mobile              |
+| `extension-api`  | Extension API surface, declared capabilities, or Extension Host behavior         |
+| `db`             | SQLite schema, drizzle migrations, or persistence integrity                      |
+| `diagnostics`    | Structured logging, diagnostics export, observability, or log query              |
+| `performance`    | Render counts, re-render budgets, latency, or resource usage                     |
+| `skill`          | Repository skills, agent workflows, harnesses, or their automation               |
 | `acceptance`     | Acceptance planning, evidence, fixtures, publication, or decision workflow       |
 | `ci`             | GitHub Actions, CI gates, caching, runner behavior, duration, or cost            |
+| `unit-testing`   | Vitest unit/integration infrastructure or test-suite architecture                |
+| `e2e-testing`    | Playwright Electron E2E infrastructure, fixtures, reliability, or suite workflow |
+| `deps`           | Dependency versions, pins, overrides, or patches                                 |
+
+Prefer the specific agent area over bare `agent`; reach for `agent` alone only when the issue truly
+spans provider, hook, and dispatch, or belongs to none of them.
+
+`files-explorer` owns the Files inspector; `tree-view` owns the generic tree runtime an extension
+contributes to under `view-containers`. How the Files tree renders its rows is `files-explorer`;
+what an extension can put in a tree is `tree-view`.
 
 Do not apply `unit-testing` or `e2e-testing` merely because a product change requires regression
 coverage. Apply them only when the testing system itself is part of the issue scope. Likewise, omit
-a surface label when that surface is only incidental evidence.
+an area when it is only incidental evidence — `performance` belongs on an issue whose deliverable is
+the speedup, not on every issue that happens to mention a render count.
 
-Then apply exactly one priority label — `P0`, `P1`, or `P2` — chosen by the rules under
+### Priority and effort
+
+Apply exactly one priority label — `P0`, `P1`, or `P2` — chosen by the rules under
 [Priority](#priority-assess-never-default). The label is what the owner sees on the issue list, so
 an issue without one is a filing defect; the Project `Priority` field mirrors the same value.
 
