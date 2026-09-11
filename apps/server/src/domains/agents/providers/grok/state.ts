@@ -1,0 +1,70 @@
+import { Buffer } from 'node:buffer';
+import { open } from 'node:fs/promises';
+import { join } from 'node:path';
+
+import { sessionRenameTitleSchema } from '@caxri/protocol';
+
+import type { AgentEnvironment, AgentSnapshotContext, LocalAgentState } from '../../contract';
+import { canonicalPath, isOpaqueAgentSessionId } from '../../contract';
+import { grokSessionDirectory } from './paths';
+
+/**
+ * `summary.json` is a compact per-conversation record — about 1 KB in practice. A larger file is provider schema drift
+ * rather than a title, so the probe stays bounded instead of parsing whatever grew there.
+ */
+const MAX_GROK_SUMMARY_BYTES = 64 * 1024;
+
+interface GrokSessionSummary {
+    generated_title?: unknown;
+}
+
+async function readGrokSummary(path: string): Promise<GrokSessionSummary | undefined> {
+    try {
+        const handle = await open(path, 'r');
+        try {
+            const buffer = Buffer.allocUnsafe(MAX_GROK_SUMMARY_BYTES + 1);
+            const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
+            if (bytesRead > MAX_GROK_SUMMARY_BYTES) return undefined;
+            const content = buffer.subarray(0, bytesRead).toString('utf8');
+            const parsed: unknown = JSON.parse(content);
+            return typeof parsed === 'object' && parsed !== null ? parsed : undefined;
+        } finally {
+            await handle.close();
+        }
+    } catch {
+        /**
+         * A conversation Grok Build has not flushed yet, an inaccessible home, and a half-written or malformed record
+         * all mean the same thing to the probe: no title to publish.
+         */
+        return undefined;
+    }
+}
+
+/**
+ * Reads only the conversation title Grok Build generated for itself, and only for the exact Agent session a validated
+ * lifecycle hook already bound to this Terminal.
+ *
+ * Identity and activity stay hook-owned: directory recency cannot tell two simultaneous same-directory conversations
+ * apart, so an unbound Terminal deliberately reads nothing, and a bound one reports no `sessionId` or `status` that
+ * could overwrite the authenticated hook signal.
+ *
+ * `generated_title` is the output of Grok's own title generator, refreshed after later turns. Unlike Codex, Grok writes
+ * no provisional raw-first-prompt placeholder into that field, so there is nothing to suppress here; see the title
+ * rationale in `../codex/index.ts`.
+ */
+export async function readGrokState(
+    context: AgentSnapshotContext,
+    environment: AgentEnvironment,
+): Promise<LocalAgentState | undefined> {
+    const { agentSessionId } = context;
+    if (!agentSessionId || !isOpaqueAgentSessionId(agentSessionId)) return undefined;
+    const rootPath = await canonicalPath(context.rootPath);
+    const directory = grokSessionDirectory(environment, rootPath, agentSessionId);
+    const summary = await readGrokSummary(join(directory, 'summary.json'));
+    /**
+     * Provider metadata is untrusted model-written text that reaches the Session list, the Terminal tab, and native
+     * notifications, so it must satisfy the same single-line, bounded contract as a user-entered Session name.
+     */
+    const title = sessionRenameTitleSchema.safeParse(summary?.generated_title);
+    return title.success ? { title: title.data, titleSource: 'automatic' } : undefined;
+}
