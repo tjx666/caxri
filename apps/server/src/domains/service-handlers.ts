@@ -74,6 +74,7 @@ type ServiceHandlerMethods =
     | 'settings.get'
     | 'settings.inspect'
     | 'settings.patch'
+    | 'settings.delegation.import'
     | 'agentHooks.get'
     | 'agentSkills.get'
     | 'settings.update'
@@ -257,6 +258,8 @@ export function createServiceHandlers(services: {
         'settings.get': () => configuration.getSettings(),
         'settings.inspect': () => configuration.inspectSettings(),
         'settings.patch': ({ changes, dryRun }) => configuration.patchSettings(changes, dryRun),
+        'settings.delegation.import': ({ settings, dryRun }) =>
+            configuration.importDelegationSettings(settings, dryRun),
         'agentHooks.get': () => agentHooks.getHealth(),
         'agentSkills.get': agentSkillHealthReader(database, agentEnvironment, userDataPath),
         'settings.update': async ({ source }) => {

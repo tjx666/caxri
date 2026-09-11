@@ -1,12 +1,20 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    detectAutomation,
     resolveAgentEndpointCredential,
     resolveCliProfile,
     resolvePackagedServerLaunch,
 } from '../environment';
 
 describe('CLI profile resolution', () => {
+    it('treats external Grok invocations as automation without granting owner startup', () => {
+        expect(detectAutomation({ GROK_SESSION_ID: 'synthetic-native-session' })).toBe('agent');
+        expect(detectAutomation({ GROK_SESSION_ID: '' })).toBe('human');
+        expect(detectAutomation({ GROK_SESSION_ID: 'synthetic-native-session', CI: '1' })).toBe(
+            'ci',
+        );
+    });
     it('requires one complete Agent Endpoint generation credential', () => {
         expect(
             resolveAgentEndpointCredential({

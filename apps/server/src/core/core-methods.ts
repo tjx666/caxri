@@ -70,6 +70,7 @@ export const coreForwardedMethods = [
     'settings.get',
     'settings.inspect',
     'settings.patch',
+    'settings.delegation.import',
     'settings.update',
     'terminal.agentTranscript',
     'terminal.attach',

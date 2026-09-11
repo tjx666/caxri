@@ -21,6 +21,9 @@ describe('standalone CLI bundle verification', () => {
         expect(() => verifyBundleSource(`${validBundle}\nrequire("external-package");`)).toThrow(
             'external imports: external-package',
         );
+        expect(() => verifyBundleSource(`${validBundle}\nrequire2("./impl/format");`)).toThrow(
+            'external imports: ./impl/format',
+        );
     });
 
     it.each(['better-sqlite3', 'electron', 'node-pty'])(
