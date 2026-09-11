@@ -297,6 +297,43 @@ esac
         });
         await expect(collapsePullRequest).toHaveAttribute('aria-expanded', 'true');
 
+        await pullRequestA.evaluate((element) => (element as HTMLElement).blur());
+        await collapsePullRequest.hover();
+        await expect(pullRequestTooltip).toBeVisible();
+        const hoverSide = await pullRequestTooltip.getAttribute('data-side');
+        expect(['left', 'right']).toContain(hoverSide);
+        await collapsePullRequest.click();
+        await expect(pullRequestA).toHaveAttribute('aria-expanded', 'false');
+        await expect(pullRequestTooltip).toBeVisible();
+        await expect(pullRequestTooltip).toHaveAttribute('data-side', hoverSide!);
+        await pullRequestA
+            .getByRole('button', { name: 'Expand #42 Status A', exact: true })
+            .click();
+        await expect(pullRequestA).toHaveAttribute('aria-expanded', 'true');
+        await expect(pullRequestTooltip).toBeVisible();
+        await expect(pullRequestTooltip).toHaveAttribute('data-side', hoverSide!);
+        const tooltipScreenshot = test.info().outputPath('pointer-expanded-status-tooltip.png');
+        await tree.screenshot({ path: tooltipScreenshot });
+        await test.info().attach('pointer-expanded-status-tooltip', {
+            path: tooltipScreenshot,
+            contentType: 'image/png',
+        });
+        await running.page.mouse.move(0, 0);
+        await expect(pullRequestTooltip).toHaveCount(0);
+
+        // A click before the hover delay must not open a focus card that survives pointer departure.
+        await pullRequestA.evaluate((element) => (element as HTMLElement).blur());
+        await collapsePullRequest.click();
+        await running.page.mouse.move(0, 0);
+        await expect(pullRequestA).toHaveAttribute('aria-expanded', 'false');
+        await expect(pullRequestTooltip).toHaveCount(0);
+        await pullRequestA
+            .getByRole('button', { name: 'Expand #42 Status A', exact: true })
+            .click();
+        await running.page.mouse.move(0, 0);
+        await expect(pullRequestA).toHaveAttribute('aria-expanded', 'true');
+        await expect(pullRequestTooltip).toHaveCount(0);
+
         await pullRequestA.click();
         await expect
             .poll(() => treeCommandOpenedUrls(running))
