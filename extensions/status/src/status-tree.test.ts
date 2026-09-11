@@ -63,6 +63,52 @@ describe('Status extension tree', () => {
         },
     );
 
+    it.each(['primary', 'submodule'] as const)(
+        'keeps merged %s PRs distinct from every CI result',
+        (kind) => {
+            for (const [state, checkLabel] of [
+                ['success', 'CI passed'],
+                ['failure', 'CI failed'],
+                ['pending', 'CI pending'],
+                ['neutral', 'CI neutral'],
+                ['unknown', 'CI unknown'],
+            ] as const) {
+                const root = buildRepoNode({
+                    id: 'fixture',
+                    name: 'fixture',
+                    branch: 'feature/status',
+                    kind,
+                    linearIssues: [],
+                    errors: [],
+                    pullRequest: {
+                        number: 42,
+                        title: 'Lifecycle fixture',
+                        url: 'https://github.com/a/b/pull/42',
+                        lifecycle: 'merged',
+                        state,
+                        hiddenCheckCount: 0,
+                        checks: [{ name: 'Build', state }],
+                    },
+                });
+                const pr = root.children!.find((node) => node.item.id?.endsWith(':pr'))!;
+                expect(iconId(pr)).toBe('git-merge');
+                expect(pr.item.description).toBe(`Merged · ${checkLabel}`);
+                expect(pr.item.accessibilityInformation?.label).toContain('Merged');
+                expect(pr.item.tooltip).toMatchObject({ badge: { label: 'Merged' } });
+                expect((pr.item.tooltip as TreeItemRichTooltip).rows).toContainEqual({
+                    label: 'checks',
+                    value: state,
+                });
+                expect(pr.children?.[0].item.tooltip).toMatchObject({ badge: { label: state } });
+                expect(pr.item.collapsibleState).toBe(
+                    state === 'failure'
+                        ? TreeItemCollapsibleState.Expanded
+                        : TreeItemCollapsibleState.Collapsed,
+                );
+            }
+        },
+    );
+
     it('renders cancellation with a neutral slash icon and explicit tooltip', () => {
         const node = buildRepoNode({
             id: 'repo',
@@ -75,17 +121,59 @@ describe('Status extension tree', () => {
                 number: 1,
                 title: 'Cancelled',
                 url: 'https://github.com/a/b/pull/1',
+                lifecycle: 'open',
                 state: 'cancelled',
                 hiddenCheckCount: 0,
                 checks: [{ name: 'Build', state: 'cancelled' }],
             },
         });
         const pr = node.children?.find((child) => child.item.id === 'status:repo:repo:pr');
-        for (const item of [pr?.item, pr?.children?.[0]?.item]) {
-            expect(item?.iconPath?.id).toBe('circle-slash');
-            expect(item?.tooltip).toMatchObject({ badge: { label: 'cancelled', tone: 'neutral' } });
-        }
+        /**
+         * The PR row's icon and badge now carry the lifecycle, so a cancellation surfaces there through the description
+         * and the `checks` row instead; only the check row still renders the cancelled state directly. Both stay
+         * neutral — a check cancelled by concurrency is not a closed PR and not a failure.
+         */
+        expect(pr?.item.iconPath?.id).toBe('git-pull-request-open');
+        expect(pr?.item.description).toBe('Open · CI cancelled');
+        expect((pr?.item.tooltip as TreeItemRichTooltip).rows).toContainEqual({
+            label: 'checks',
+            value: 'cancelled',
+        });
+        const check = pr?.children?.[0]?.item;
+        expect(check?.iconPath?.id).toBe('circle-slash');
+        expect(check?.tooltip).toMatchObject({ badge: { label: 'cancelled', tone: 'neutral' } });
     });
+
+    it.each([
+        ['open', 'git-pull-request-open', 'Open'],
+        ['draft', 'git-pull-request-draft', 'Draft'],
+        ['closed', 'git-pull-request-closed', 'Closed'],
+        [undefined, 'circle-dot', 'Unknown'],
+    ] as const)(
+        'shows %s lifecycle without treating CI success as an open PR',
+        (lifecycle, icon, label) => {
+            const root = buildRepoNode({
+                id: 'fixture',
+                name: 'fixture',
+                branch: 'feature/status',
+                kind: 'primary',
+                linearIssues: [],
+                errors: [],
+                pullRequest: {
+                    number: 42,
+                    title: 'Lifecycle fixture',
+                    url: 'https://github.com/a/b/pull/42',
+                    lifecycle,
+                    state: 'success',
+                    hiddenCheckCount: 0,
+                    checks: [],
+                },
+            });
+            const pr = root.children!.find((node) => node.item.id?.endsWith(':pr'))!;
+            expect(iconId(pr)).toBe(icon);
+            expect(pr.item.description).toBe(`${label} · CI passed`);
+        },
+    );
 
     it('preserves the complete pre-extension hierarchy and stable semantic state', () => {
         const repo: ProjectStatusRepository = {
@@ -432,8 +520,9 @@ describe('Status extension tree', () => {
         expect(pullRequest.item.tooltip).toEqual({
             kind: 'rich',
             title: '#307 Restore Project Status',
-            badge: { label: 'failure', tone: 'danger' },
+            badge: { label: 'Unknown', tone: 'neutral' },
             rows: [
+                { label: 'checks', value: 'failure' },
                 { label: 'hidden', value: '1 ignored check' },
                 {
                     label: 'link',

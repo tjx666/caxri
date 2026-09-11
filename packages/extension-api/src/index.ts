@@ -283,6 +283,10 @@ export interface ProjectStatusRepository {
         state: ProjectStatusState;
         checks: ProjectStatusCheck[];
         hiddenCheckCount: number;
+        /**
+         * PR lifecycle, independent of the CI rollup; absent if the provider omits it.
+         */
+        lifecycle?: 'draft' | 'open' | 'merged' | 'closed';
     };
     linearIssues: ProjectStatusLinearIssue[];
     deployments?: {

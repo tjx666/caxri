@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { projectStatusStateSchema } from './project-status-state.js';
+import { sessionPullRequestStateSchema } from './session-pull-request.js';
 
 /**
  * Project Status wire shapes: the per-repository rollup the Status panel renders and the compact overview the Session
@@ -53,6 +54,10 @@ const projectStatusRepoSchema = z.object({
             number: z.number().int().positive(),
             title: z.string(),
             url: z.url(),
+            /**
+             * PR lifecycle is independent of the CI rollup; absent when the provider omits it.
+             */
+            lifecycle: sessionPullRequestStateSchema.optional(),
             state: projectStatusStateSchema,
             checks: z.array(projectStatusCheckSchema),
             hiddenCheckCount: z.number().int().nonnegative(),
