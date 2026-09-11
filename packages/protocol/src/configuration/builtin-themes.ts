@@ -20,20 +20,32 @@ export const draculaTheme: ThemeTokens = {
          */
         muted: '#9aa5c4',
         /**
-         * The original current-line color is too prominent as a hairline around every Caxri region. This quieter border
-         * keeps the same hue without turning the workbench into a visible grid.
+         * Dracula's `tab.border` / darkest UI variant, which is what separates regions in VS Code. Its `panel.border`
+         * is the palette's purple and would draw a saturated grid around every Caxri region, so it is not the source.
          */
-        border: '#2f313c',
+        border: '#191a21',
         selection: '#44475a',
-        accent: '#bd93f9',
+        /**
+         * Dracula paints every "this is the active one" edge pink — `tab.activeBorderTop`, `activityBar.activeBorder`,
+         * and `progressBar.background` are all `#ff79c6` — which is exactly the set `accent` covers here. Its
+         * `focusBorder` (`#6272a4`) is the comment blue and far too quiet to carry a focus ring, so it is deliberately
+         * not the source.
+         */
+        accent: '#ff79c6',
         success: '#50fa7b',
         warning: '#f1fa8c',
         danger: '#ff5555',
         /**
-         * Dracula's lighter purple rather than `#bd93f9`: that value is already this theme's `accent`, and reusing it
-         * would make the Settings palette show two identical swatches for roles DESIGN.md keeps deliberately separate.
+         * Dracula's canonical purple. It was previously `#d6acff` only because `accent` held `#bd93f9`; with `accent`
+         * on the theme's real active-edge pink the palette's own violet is free for the landed-work role.
          */
-        merged: '#d6acff',
+        merged: '#bd93f9',
+        badge: '#ff79c6',
+        gitAdded: '#81b88b',
+        gitModified: '#8be9fd',
+        gitDeleted: '#ff5555',
+        gitUntracked: '#50fa7b',
+        gitConflicting: '#ffb86c',
     },
     terminal: {
         background: '#282a36',
@@ -91,6 +103,16 @@ export const monokaiTheme: ThemeTokens = {
         warning: '#e6db74',
         danger: '#f92672',
         merged: '#ae81ff',
+        /**
+         * Monokai sets no `activityBarBadge.background`, so VS Code paints its registry default. Its own
+         * `badge.background` (`#75715e`) styles search-result chips, a different control.
+         */
+        badge: '#007acc',
+        gitAdded: '#81b88b',
+        gitModified: '#e2c08d',
+        gitDeleted: '#c74e39',
+        gitUntracked: '#73c991',
+        gitConflicting: '#e4676b',
     },
     terminal: {
         background: '#272822',
@@ -148,6 +170,12 @@ export const oneDarkProTheme: ThemeTokens = {
         warning: '#e5c07b',
         danger: '#e06c75',
         merged: '#c678dd',
+        badge: '#4d78cc',
+        gitAdded: '#81b88b',
+        gitModified: '#e2c08d',
+        gitDeleted: '#c74e39',
+        gitUntracked: '#73c991',
+        gitConflicting: '#e4676b',
     },
     terminal: {
         background: '#282c34',
@@ -233,6 +261,12 @@ export const solarizedDarkTheme: ThemeTokens = {
          * Solarized violet lifted off `#6c71c4` so the glyph clears 3:1 against both dark chrome surfaces.
          */
         merged: '#8f8fd4',
+        badge: '#007acc',
+        gitAdded: '#81b88b',
+        gitModified: '#e2c08d',
+        gitDeleted: '#c74e39',
+        gitUntracked: '#73c991',
+        gitConflicting: '#e4676b',
     },
     terminal: {
         background: '#002b36',
@@ -281,6 +315,16 @@ export const solarizedLightTheme: ThemeTokens = {
          * Solarized violet darkened off `#6c71c4` so the glyph clears 3:1 against this light theme's raised surfaces.
          */
         merged: '#5c5fb0',
+        badge: '#b58900',
+        /**
+         * The Git extension's light-variant defaults; this is the one built-in whose decorations must read on a light
+         * canvas.
+         */
+        gitAdded: '#587c0c',
+        gitModified: '#895503',
+        gitDeleted: '#ad0707',
+        gitUntracked: '#007100',
+        gitConflicting: '#ad0707',
     },
     terminal: {
         background: '#fdf6e3',
@@ -337,6 +381,16 @@ export const tokyoNightTheme: ThemeTokens = {
         warning: '#e0af68',
         danger: '#f7768e',
         merged: '#bb9af7',
+        badge: '#3d59a1',
+        gitAdded: '#449dab',
+        gitModified: '#6183bb',
+        gitDeleted: '#914c54',
+        gitUntracked: '#449dab',
+        /**
+         * Tokyo Night ships `#e0af68cc`; the alpha is dropped because Caxri theme colors are opaque hex and the
+         * decoration is already the quietest text on the row.
+         */
+        gitConflicting: '#e0af68',
     },
     terminal: {
         background: '#16161e',
@@ -402,6 +456,16 @@ export const oscuraMidnightTheme: ThemeTokens = {
          * keeping the palette's low-saturation character.
          */
         merged: '#a89ec9',
+        badge: '#e6e7a3',
+        gitAdded: '#81b88b',
+        /**
+         * Oscura deliberately decorates a changed file with plain white instead of a status hue, so these two sit a
+         * shade above `foreground`. The row's status letter, not the color, is what still identifies the change here.
+         */
+        gitModified: '#ffffff',
+        gitUntracked: '#ffffff',
+        gitDeleted: '#ff5c5c',
+        gitConflicting: '#ff5c5c',
     },
     terminal: {
         background: '#0b0b0f',
@@ -460,6 +524,12 @@ export const vscodeDarkPlusTheme: ThemeTokens = {
         warning: '#cca700',
         danger: '#f48771',
         merged: '#c586c0',
+        badge: '#007acc',
+        gitAdded: '#81b88b',
+        gitModified: '#e2c08d',
+        gitDeleted: '#c74e39',
+        gitUntracked: '#73c991',
+        gitConflicting: '#e4676b',
     },
     terminal: {
         background: '#1e1e1e',
@@ -559,6 +629,46 @@ export const builtinThemeSources = {
 } as const satisfies Record<BuiltinThemeId, { license: 'MIT'; url: string }>;
 
 /**
+ * CSS custom property for a theme color role. Roles are camelCase in the persisted contract and kebab-case in the
+ * stylesheet, so `gitAdded` reaches the Renderer as `--git-added`. Shared rather than inlined because `applyCssTheme`
+ * writes these names at runtime and `styles/theme.css` hardcodes the same ones as its pre-Runtime fallback; the two are
+ * asserted equal, and a private copy of the rule on either side would let them drift into a first-frame flash.
+ */
+export function themeColorCssVariable(role: string): string {
+    return `--${role.replaceAll(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`;
+}
+
+/**
+ * Every color role added after the first release, newest group last. A saved theme file missing any of these predates
+ * the release that introduced it.
+ */
+const UPGRADABLE_COLOR_ROLES = [
+    'merged',
+    'badge',
+    'gitAdded',
+    'gitModified',
+    'gitDeleted',
+    'gitUntracked',
+    'gitConflicting',
+] as const satisfies ReadonlyArray<keyof ThemeTokens['colors']>;
+
+/**
+ * Where a custom theme — which has no catalog entry to recover from — borrows each late role. Every source is a role
+ * the file already carries, so the recovered value is readable on that theme's own surfaces by construction. Falling
+ * back to `accent` for all of them was tried first and is wrong for the decorations: it paints added, deleted, and
+ * conflicting files the same color, which is exactly the distinction the roles exist to make.
+ */
+const CUSTOM_THEME_ROLE_SOURCE = {
+    merged: 'accent',
+    badge: 'accent',
+    gitAdded: 'success',
+    gitModified: 'warning',
+    gitDeleted: 'danger',
+    gitUntracked: 'success',
+    gitConflicting: 'danger',
+} as const satisfies Record<(typeof UPGRADABLE_COLOR_ROLES)[number], keyof ThemeTokens['colors']>;
+
+/**
  * Fills in color roles that did not exist when a theme file was written, ahead of schema validation.
  *
  * A fixed default hex cannot do this job. `findMatchingBuiltinTheme` compares the whole parsed snapshot, so filling
@@ -566,21 +676,34 @@ export const builtinThemeSources = {
  * `normalizeBuiltinTheme` would then rewrite it to `custom-*` and `ConfigService` would persist that downgrade. A
  * single default is also wrong on contrast grounds — no one violet clears 3:1 on both a dark and a light preset's
  * chrome. Recovering the preset's own value keeps identity and contrast intact. A genuinely custom theme has no catalog
- * entry to recover from and falls back to its own `accent`, which is by construction readable on its surfaces.
+ * entry to recover from and borrows the nearest role it already carries (see {@link CUSTOM_THEME_ROLE_SOURCE}).
+ *
+ * A built-in snapshot missing any of these roles gets its whole `colors` block replaced by the catalog's, not just the
+ * absent keys. Such a file was written by an older build, so a value that now differs is drift from that build rather
+ * than a deliberate edit — and backfilling only the new keys would leave the preset failing `findMatchingBuiltinTheme`,
+ * silently downgrading the user to `custom-*` and pinning them to the old colors. The escape hatch closes on its own:
+ * once rewritten, the snapshot carries every role and takes the branch below.
  *
  * Anything that is not a theme-shaped object passes through untouched so the schema still owns rejection.
  */
 export function upgradeThemeColors(value: unknown): unknown {
     if (typeof value !== 'object' || value === null) return value;
-    const theme = value as { colors?: unknown; id?: unknown };
+    const theme = value as { colors?: unknown; id?: unknown; source?: unknown };
     const colors = theme.colors;
-    if (typeof colors !== 'object' || colors === null || 'merged' in colors) return value;
-    const accent = (colors as { accent?: unknown }).accent;
-    const merged =
-        builtinThemes.find((candidate) => candidate.id === theme.id)?.colors.merged ??
-        (typeof accent === 'string' ? accent : undefined);
-    if (merged === undefined) return value;
-    return { ...theme, colors: { ...colors, merged } };
+    if (typeof colors !== 'object' || colors === null) return value;
+    const missing = UPGRADABLE_COLOR_ROLES.filter((role) => !(role in colors));
+    if (missing.length === 0) return value;
+    const preset = builtinThemes.find((candidate) => candidate.id === theme.id);
+    if (preset && theme.source === 'builtin')
+        return { ...theme, colors: structuredClone(preset.colors) };
+    const existing = colors as Record<string, unknown>;
+    const recovered: Record<string, unknown> = { ...existing };
+    for (const role of missing) {
+        const value_ = preset?.colors[role] ?? existing[CUSTOM_THEME_ROLE_SOURCE[role]];
+        if (typeof value_ !== 'string') return value;
+        recovered[role] = value_;
+    }
+    return { ...theme, colors: recovered };
 }
 
 /**

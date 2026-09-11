@@ -1,4 +1,5 @@
 import type { ThemeTokens } from '@caxri/protocol';
+import { themeColorCssVariable } from '@caxri/protocol';
 import { contrastRatio } from '@caxri/utils';
 
 const MIN_TEXT_CONTRAST = 4.5;
@@ -19,7 +20,8 @@ function readableForeground(fill: string, theme: ThemeTokens): string {
 export function applyCssTheme(theme: ThemeTokens): void {
     const root = document.documentElement;
     for (const [key, value] of Object.entries(theme.colors))
-        root.style.setProperty(`--${key}`, value);
+        root.style.setProperty(themeColorCssVariable(key), value);
     root.style.setProperty('--accent-foreground', readableForeground(theme.colors.accent, theme));
     root.style.setProperty('--danger-foreground', readableForeground(theme.colors.danger, theme));
+    root.style.setProperty('--badge-foreground', readableForeground(theme.colors.badge, theme));
 }

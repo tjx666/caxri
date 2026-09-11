@@ -41,6 +41,7 @@ import { WorkbenchRootPrompt } from './features/workbench/workbench-root-prompt'
 import { registerPickerFallbackFocus } from './lib/picker-final-focus';
 import { applyCssTheme } from './lib/theme-css';
 import { cn } from './lib/utilities';
+import { useGitDecorationSync } from './queries/git-decoration-sync';
 import { useRuntimeQueryInvalidation } from './queries/invalidation';
 import {
     PRIMARY_SIDEBAR_DEFAULT_WIDTH,
@@ -114,6 +115,7 @@ export function App() {
     useCommandShortcuts();
     useSessionAttentionAcknowledgement();
     useExternalDocumentSync();
+    useGitDecorationSync();
     useChromeViewportClamp();
     useEffect(() => {
         if (theme) applyCssTheme(theme);

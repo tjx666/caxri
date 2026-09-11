@@ -14,11 +14,14 @@ import * as m from 'motion/react-m';
 import { useIsOverflowing } from '@/hooks/use-is-overflowing';
 import { useShouldReduceMotion } from '@/hooks/use-should-reduce-motion';
 
+import { GitFileStatusLetter } from '../../components/git-file-status-letter';
 import { ContextMenu, ContextMenuTrigger } from '../../components/ui/context-menu';
 import { Tooltip } from '../../components/ui/tooltip';
 import type { AgentIconIdentity } from '../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { FileTypeIcon } from '../../icons/files/file-type-icon';
+import type { GitDecoration } from '../../lib/git-decorations';
+import { gitDecorationClassName } from '../../lib/git-decorations';
 import { motionDurationMs } from '../../lib/motion';
 import { cn } from '../../lib/utilities';
 
@@ -60,6 +63,12 @@ interface WorkTabProperties {
      * Whether this tab grows to fill the remaining pane bar (a Terminal) or sizes to its label (a document).
      */
     fill: boolean;
+    /**
+     * Working-tree state of the file this tab holds, when it holds one. Mirrors VS Code, which paints the same
+     * `gitDecoration.*` color and status letter on a tab as on its file tree row, so a modified file is recognizable
+     * whichever of the two the user is looking at. Terminal tabs never set it.
+     */
+    gitDecoration?: GitDecoration;
     icon: 'file' | AgentIconIdentity;
     label: string;
     /**
@@ -152,6 +161,7 @@ function WorkTabSelect({
     dirty,
     dirtyDescriptionId,
     fileIconName,
+    gitDecoration,
     icon,
     isPresent,
     keepLabelAsAccessibleName,
@@ -167,6 +177,7 @@ function WorkTabSelect({
     | 'active'
     | 'dirty'
     | 'fileIconName'
+    | 'gitDecoration'
     | 'icon'
     | 'keepLabelAsAccessibleName'
     | 'label'
@@ -223,11 +234,19 @@ function WorkTabSelect({
                     className={cn(
                         'tab-label min-w-0 overflow-hidden text-ellipsis whitespace-nowrap',
                         preview && 'italic',
+                        /*
+                         * Overrides the tab's own muted/foreground color, including on the inactive tabs — the point
+                         * of the decoration is to be readable across the whole rail without selecting each tab.
+                         */
+                        gitDecoration && gitDecorationClassName(gitDecoration.kind),
                     )}
                 >
                     {label}
                 </span>
                 {isLabelAbbreviated && <span className="sr-only">{labelTooltip}</span>}
+                {gitDecoration && (
+                    <GitFileStatusLetter className="text-[10px]" decoration={gitDecoration} />
+                )}
                 {accessory}
             </button>
         </MaybeTooltip>
@@ -241,6 +260,7 @@ export function WorkTab({
     dirty,
     fileIconName,
     fill,
+    gitDecoration,
     icon,
     label,
     labelTooltip,
@@ -326,6 +346,7 @@ export function WorkTab({
                 dirty={dirty}
                 dirtyDescriptionId={dirtyDescriptionId}
                 fileIconName={fileIconName}
+                gitDecoration={gitDecoration}
                 icon={icon}
                 isPresent={isPresent}
                 keepLabelAsAccessibleName={keepLabelAsAccessibleName}
@@ -353,7 +374,21 @@ export function WorkTab({
                 <Tooltip content={closeLabel}>
                     <button
                         type="button"
-                        className="tab-close pointer-events-none absolute inset-0 m-auto grid h-5 w-5 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 text-inherit opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 hover:bg-[var(--selection)]"
+                        className={cn(
+                            'tab-close absolute inset-0 m-auto grid h-5 w-5 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 hover:bg-[var(--selection)] hover:text-foreground',
+                            /*
+                             * VS Code's rule: the active tab always offers its close button, and an inactive tab
+                             * reveals a dimmer one only under the pointer or keyboard focus. Hunting for a control
+                             * that is always there on the tab you are actually working in is the friction this
+                             * removes; keeping the inactive ones muted is what stops a crowded rail from reading as
+                             * a row of X's.
+                             */
+                            'pointer-events-none text-muted opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100',
+                            // A dirty tab still shows its dot instead, and swaps to the button on hover/focus above.
+                            isVisuallyActive &&
+                                !dirty &&
+                                'pointer-events-auto text-inherit opacity-100',
+                        )}
                         aria-label={closeLabel}
                         tabIndex={-1}
                         onClick={onClose}

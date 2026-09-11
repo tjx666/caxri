@@ -7,7 +7,7 @@ import type {
     SessionRecord,
     TerminalRecord,
 } from '@caxri/protocol';
-import { Archive, ChevronDown, FolderGit2, Paintbrush, SquarePen } from 'lucide-react';
+import { Archive, ChevronDown, FolderSymlink, Paintbrush, SquarePen } from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';
 import { CommandTooltip } from '../../components/command-tooltip';
@@ -69,6 +69,12 @@ interface ActiveSessionRowProperties {
      * the ordinary case, which renders no marker.
      */
     worktreeProject?: ProjectRecord;
+    /**
+     * True when a sibling Session in this Project group carries a worktree marker, so this row holds the empty column
+     * that keeps every marker on one vertical line. Reserved per group rather than globally: a Project with no worktree
+     * Session would otherwise pay the indent for a column that is always blank.
+     */
+    reserveWorktreeSlot?: boolean;
 }
 
 function ActiveSessionRow({
@@ -85,6 +91,7 @@ function ActiveSessionRow({
     renameError,
     renameValue,
     renaming,
+    reserveWorktreeSlot,
     roving,
     selected,
     session,
@@ -112,6 +119,29 @@ function ActiveSessionRow({
             onBeginRename={onBeginRename}
             onFocusChange={setFocused}
         >
+            {reserveWorktreeSlot && (
+                /*
+                 * A leading fixed-width column, so every worktree marker in this Project group lands on one vertical
+                 * line instead of trailing whichever title happened to be shortest. It sits outside the
+                 * `.session-indicators` track at the row's other end, which is sized for exactly one status glyph.
+                 *
+                 * `FolderSymlink` rather than the `FolderGit2` this used to render: that glyph already means
+                 * "Workbench Root" in the root picker and "repository" in Source Control, and at 12px it read as a
+                 * third Git mark next to the violet pull request glyph 14px away. What this marker actually says is
+                 * that the Session's files live in a folder other than its Project root, which is the arrow-on-folder
+                 * idiom the file tree already uses for a link.
+                 *
+                 * Decorative on purpose: the row already opens the Session hover card, which names the worktree, and
+                 * its accessible description carries the same sentence. A second hover popup on one row would compete
+                 * with that card.
+                 */
+                <span
+                    className="session-worktree flex size-3.5 flex-none items-center justify-center text-muted"
+                    data-session-worktree={worktreeProject?.displayTitle}
+                >
+                    {worktreeProject && <FolderSymlink aria-hidden="true" size={12} />}
+                </span>
+            )}
             <AgentIdentityIcon identity={terminal?.kind ?? 'shell'} size={14} />
             {renaming ? (
                 <SessionRenameInput
@@ -137,23 +167,6 @@ function ActiveSessionRow({
                             {session.displayTitle}
                         </span>
                     </strong>
-                    {worktreeProject && (
-                        /*
-                         * Deliberately outside the fixed-width `.session-indicators` track, which is sized for exactly
-                         * one status glyph. This marker is what replaces the worktree's hidden
-                         * top-level sidebar entry, so it belongs with the title it qualifies.
-                         *
-                         * Decorative on purpose: the row already opens the Session hover card, which names the
-                         * worktree, and its accessible description carries the same sentence. A second hover popup on
-                         * one row would compete with that card.
-                         */
-                        <span
-                            className="session-worktree flex size-3.5 flex-none items-center justify-center text-muted"
-                            data-session-worktree={worktreeProject.displayTitle}
-                        >
-                            <FolderGit2 aria-hidden="true" size={12} />
-                        </span>
-                    )}
                 </span>
             )}
             {/*
@@ -325,6 +338,14 @@ export function ProjectGroup({
 }: ProjectGroupProperties) {
     const projectDisclosureId = `project-sessions-${project.id}`;
     const revealRowId = primarySidebarRevealRowId(project.id);
+    /**
+     * The worktree marker's column is reserved for the whole group at once, so markers align and titles do not shift
+     * sideways as Sessions come and go. Scoped to the group because a Project without one should not be indented for a
+     * column that stays empty.
+     */
+    const hasWorktreeSession = visibleSessions.some((session) =>
+        Boolean(worktreeProjects?.[session.id]),
+    );
     return (
         <section
             data-project-id={project.id}
@@ -473,6 +494,7 @@ export function ProjectGroup({
                                 renameError={renameError}
                                 renameValue={renameValue}
                                 renaming={session.id === renamingSessionId}
+                                reserveWorktreeSlot={hasWorktreeSession}
                                 roving={session.id === rovingRowId}
                                 selected={session.id === selectedSessionId}
                                 session={session}

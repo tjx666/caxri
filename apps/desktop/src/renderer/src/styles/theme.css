@@ -30,6 +30,13 @@
     --color-danger: var(--danger);
     --color-danger-foreground: var(--danger-foreground);
     --color-merged: var(--merged);
+    --color-badge: var(--badge);
+    --color-badge-foreground: var(--badge-foreground);
+    --color-git-added: var(--git-added);
+    --color-git-modified: var(--git-modified);
+    --color-git-deleted: var(--git-deleted);
+    --color-git-untracked: var(--git-untracked);
+    --color-git-conflicting: var(--git-conflicting);
     --color-overlay: var(--overlay);
     --color-shadow: var(--shadow);
     --color-indicator: var(--indicator);
@@ -42,17 +49,24 @@
     --foreground: #f8f8f2;
     /* Mirrors `draculaTheme.colors.muted`; see the contrast rationale in `runtime/theme.ts`. */
     --muted: #9aa5c4;
-    --border: #2f313c;
+    --border: #191a21;
     --selection: #44475a;
-    --accent: #bd93f9;
+    --accent: #ff79c6;
     --success: #50fa7b;
     --warning: #f1fa8c;
     --danger: #ff5555;
-    --merged: #d6acff;
+    --merged: #bd93f9;
+    --badge: #ff79c6;
+    --git-added: #81b88b;
+    --git-modified: #8be9fd;
+    --git-deleted: #ff5555;
+    --git-untracked: #50fa7b;
+    --git-conflicting: #ffb86c;
 
     /* `applyCssTheme` replaces these fallbacks with contrast-checked values for the active theme. */
     --accent-foreground: #282a36;
     --danger-foreground: #000000;
+    --badge-foreground: #282a36;
     --overlay: color-mix(in srgb, var(--background) 60%, transparent);
     --shadow: rgb(0 0 0 / 0.45);
     --indicator: color-mix(in srgb, var(--foreground) 45%, transparent);

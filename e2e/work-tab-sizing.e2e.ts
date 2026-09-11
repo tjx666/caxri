@@ -583,7 +583,7 @@ test('the bar hides "+" with no tabs at all and reserves its drag corner only wi
         // Closing the last Terminal used to bring "+" back, because the rule keyed off "exactly one tab" and an empty
         // Workbench is not one tab. The empty pane offers its own New Terminal button, so the bar stays bare.
         const onlyTab = running.page.locator('.work-tabs .work-tab').first();
-        // The close affordance only materializes on hover (`tab-close` is `opacity-0 pointer-events-none` until then).
+        // The active tab already shows `tab-close`; hovering keeps this robust for the inactive case too.
         await onlyTab.hover();
         await onlyTab.getByRole('button', { name: 'Close Terminal' }).click();
         await expect(running.page.getByText('No Terminal in this Session.')).toBeVisible();
