@@ -124,6 +124,12 @@ The Server Core owns access, authentication, connections, public command dispatc
 Projects, Sessions, files, Git, settings, Agent orchestration, authoritative state, the changefeed, and
 durable command receipts. It dispatches domain work directly without a second generic process hop.
 
+[Visible Agent delegation](agent-delegation.md) adds private task/result ownership and exact native
+turn evidence above process dispatch. Server Core owns continuation admission, human-input fences,
+and explicit resume on a frozen provider conversation. Terminal Host receives the structured launch
+or exact-generation input operation. Session selection restores delegated outer Shells without
+automatically resuming unknown task execution.
+
 ### Terminal Host
 
 The Terminal Host owns PTY masters, Shell and Agent processes, bounded output buffers, screen state,

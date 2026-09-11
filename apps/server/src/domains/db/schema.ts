@@ -283,7 +283,11 @@ export const agentDelegations = sqliteTable(
             .notNull()
             .references(() => sessions.id, { onDelete: 'cascade' }),
         status: text('status').notNull(),
+        terminalId: text('terminal_id'),
         recordJson: text('record_json').notNull(),
     },
-    (table) => [index('agent_delegations_status').on(table.status)],
+    (table) => [
+        index('agent_delegations_status').on(table.status),
+        index('agent_delegations_terminal').on(table.terminalId),
+    ],
 );

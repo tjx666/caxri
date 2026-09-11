@@ -77,6 +77,7 @@ export const effectfulCommandRecovery = {
     'agentActions.recordRecent': 'none',
     'agent.dispatch.start': 'durable',
     'agent.delegation.create': 'durable',
+    'agent.delegation.stop': 'durable',
     'agent.dispatch.resume': 'durable',
     'agent.control.interrupt': 'durable',
     'agent.control.stop': 'durable',

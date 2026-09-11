@@ -37,6 +37,9 @@ export const agentDelegationFailureSchema = z.enum([
     'launch_failed',
     'correlation_missing',
     'quota_exhausted',
+    'caller_stopped',
+    'target_not_ready',
+    'target_busy',
 ]);
 
 export const agentDelegationReceiptSchema = z.strictObject({
@@ -45,6 +48,8 @@ export const agentDelegationReceiptSchema = z.strictObject({
     sessionId: identifierSchema,
     callerTerminalId: identifierSchema.optional(),
     terminalId: identifierSchema.optional(),
+    followUpOf: identifierSchema.optional(),
+    resumeFrom: identifierSchema.optional(),
     provider: z.literal('claude'),
     status: agentDelegationStatusSchema,
     failure: agentDelegationFailureSchema.optional(),
@@ -68,12 +73,16 @@ const promptSchema = z
         'Task must be at most 16 KiB and cannot contain terminal control characters',
     );
 
-export const agentDelegationCreateSchema = z.strictObject({
-    projectId: identifierSchema,
-    sessionId: identifierSchema,
-    provider: z.literal('claude'),
-    prompt: promptSchema,
-});
+export const agentDelegationCreateSchema = z
+    .strictObject({
+        projectId: identifierSchema,
+        sessionId: identifierSchema,
+        provider: z.literal('claude'),
+        prompt: promptSchema,
+        followUpOf: identifierSchema.optional(),
+        resumeFrom: identifierSchema.optional(),
+    })
+    .refine((value) => !(value.followUpOf && value.resumeFrom), 'Choose follow-up or exact resume');
 
 export const agentDelegationAnswerSchema = z.strictObject({
     text: z.string().max(65_536),
@@ -93,6 +102,11 @@ const resultSchema = z.strictObject({
 });
 
 export const agentDelegationMethods = {
+    'agent.delegation.stop': {
+        ...commandPolicy('server', 'control', ['agents.delegate']),
+        params: identitySchema,
+        result: agentDelegationReceiptSchema,
+    },
     'agent.delegation.create': {
         ...commandPolicy('server', 'control', ['agents.delegate']),
         params: agentDelegationCreateSchema,
@@ -121,6 +135,11 @@ const authoritySchema = z.strictObject({
 });
 
 export const agentDelegationInternalMethods = {
+    'agent.delegation.stopInternal': {
+        ...commandPolicy('server', 'control'),
+        params: authoritySchema.extend(identitySchema.shape),
+        result: agentDelegationReceiptSchema,
+    },
     'agent.delegation.waitInternal': {
         ...commandPolicy('server', 'read'),
         params: authoritySchema.extend(waitParameters.shape),

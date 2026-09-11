@@ -10,7 +10,8 @@ describe('Agent-exact Terminal input', () => {
                 expectedLaunchId === 'launch-1',
         );
         const execution = { writeAgentExact };
-        const manager = { execution } as unknown as TerminalManager;
+        const observeUserInput = vi.fn();
+        const manager = { execution, observeUserInput } as unknown as TerminalManager;
 
         expect(
             TerminalManager.prototype.writeAgentExact.call(
@@ -29,6 +30,21 @@ describe('Agent-exact Terminal input', () => {
             ),
         ).toBe(true);
         expect(writeAgentExact).toHaveBeenLastCalledWith('terminal-1', 'safe', 'launch-1');
+        expect(observeUserInput).toHaveBeenCalledTimes(2);
+        expect(observeUserInput).toHaveBeenLastCalledWith('terminal-1', 'safe');
+
+        observeUserInput.mockClear();
+        expect(
+            TerminalManager.prototype.writeAgentExact.call(
+                manager,
+                'terminal-1',
+                'delegated',
+                'launch-1',
+                'delegation',
+            ),
+        ).toBe(true);
+        expect(observeUserInput).not.toHaveBeenCalled();
+        expect(writeAgentExact).toHaveBeenLastCalledWith('terminal-1', 'delegated', 'launch-1');
     });
 
     it('rejects the request when the target Agent generation changed', () => {

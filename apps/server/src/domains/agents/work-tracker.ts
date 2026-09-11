@@ -23,6 +23,7 @@ export type AgentWorkOutcome = Extract<
 
 export interface AgentWorkObservation {
     deferCompletion: boolean;
+    continuedTurnId?: string;
     outcome?: AgentWorkOutcome;
 }
 
@@ -200,7 +201,12 @@ export class AgentWorkTracker {
             this.touchSubagent(signal);
             if (signal.phase === 'turnStarted')
                 return { deferCompletion: false, outcome: 'accepted' };
-        } else if (signal.phase === 'turnStarted') this.parentStarted(signal.terminalId);
+        } else if (signal.phase === 'turnStarted') {
+            const continuedTurnId = this.workByTerminal.get(signal.terminalId)?.deferredParentFinish
+                ?.agentTurnId;
+            this.parentStarted(signal.terminalId);
+            return { deferCompletion: false, continuedTurnId };
+        }
         return {
             deferCompletion: signal.phase === 'turnFinished' && this.deferParentFinish(signal),
         };

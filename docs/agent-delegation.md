@@ -5,10 +5,10 @@ Session. Wide caller panes split right; narrow or tall panes split down. The exi
 and tab remain selected. The child uses the caller's working directory and remains available for
 inspection after its answer is collected.
 
-This is the first delivery stage of [issue #686](https://github.com/tjx666/caxri/issues/686).
-It does not yet replace dianjiang: same-Terminal follow-up, explicit recovery/resume, Codex and
-Grok delegation, presets, caller policies, usage accounting, and standalone directory authorization
-remain subsequent stages of that umbrella issue.
+This implements the Claude delegation and continuation stages of
+[issue #686](https://github.com/tjx666/caxri/issues/686). It does not yet replace dianjiang:
+Codex and Grok delegation, presets, caller policies, usage accounting, and standalone directory
+authorization remain subsequent stages of that umbrella issue.
 
 ## Commands and authority
 
@@ -20,6 +20,11 @@ caxri agent delegate create --project <project-id> --session <session-id> \
 caxri agent delegate status <delegation-id> --json
 caxri agent delegate wait <delegation-id> --timeout 30000 --json
 caxri agent delegate result <delegation-id> --json
+caxri agent delegate stop <delegation-id> --json
+caxri agent delegate create --project <project-id> --session <session-id> \
+  --provider claude --prompt-file ./next-task.md --follow-up <delegation-id> --json
+caxri agent delegate create --project <project-id> --session <session-id> \
+  --provider claude --prompt-file ./next-task.md --resume <delegation-id> --json
 ```
 
 Human mutations additionally require an explicit `--profile <path>` and confirmation (`--yes`
@@ -52,10 +57,11 @@ one native message identity are followed. Child completion, an old turn, termina
 EOF cannot complete a delegation. Background collection retries bounded reads because native
 transcript writes can lag Stop.
 
-The first stage fails closed with `correlation_missing` if Claude introduces another prompt during
-the task, including an unproven automatic continuation. It does not label an unproven continuation
-as human input. Core-observed input in the child Terminal marks `human_intervened`; a retired launch
-marks unfinished work `interrupted`.
+A background-child continuation belongs to the task only when the coordinator proves its exact
+deferred parent turn and every subsequent prompt digest appears in order in the transcript ancestry.
+An unproven new prompt fails closed with `correlation_missing`; it is not labeled human input.
+Core-observed input in the child Terminal marks `human_intervened`; a retired launch marks unfinished
+work `interrupted`. Terminal protocol responses do not count as human input.
 
 Saved answers include the exact source record identity, source `transcript`, byte length and
 truncation flag. An answer larger than 64 KiB is rejected as `payload_overflow`, never silently
@@ -63,10 +69,32 @@ shortened. Missing bounded transcript evidence becomes `result_missing`. `StopFa
 rate-limit, billing/quota, authentication, output-limit or generic provider failure; its error text
 is never returned as a task answer.
 
-Server startup marks unfinished tasks `interrupted/host_reset` and never replays them automatically.
-Completed answers survive restart. Deleting a Session removes its task metadata through the existing
-metadata cascade; it never removes Project files. Private task files are not automatically removed.
+Server startup marks unfinished execution `interrupted/host_reset` and never replays it automatically.
+Tasks already collecting a proven Stop can finish reading their exact saved evidence; completed
+answers survive restart. Deleting a Session or Project drains pending task creation and removes its
+private task files before the metadata cascade. Cleanup failure retains ownership records for retry.
+Project folders and user files are never removed.
 Admission stops at 1,024 saved task records rather than evicting unclaimed answers.
+
+## Follow-up, stop, and recovery
+
+`--follow-up` submits one fresh task in the existing Terminal and native conversation. It requires
+the exact launch and a directly applied parent Stop with no later lifecycle activity or human input,
+including an unsubmitted draft. Submission uses one bracketed paste and Enter. A bounded missing
+submission confirmation fails without replaying the task. Each settled task admits only one child;
+use the same request ID to recover a disconnected request.
+
+`stop` interrupts only the owned active task and preserves its visible Terminal. Late completion
+cannot replace the interrupted receipt. `--resume` explicitly starts a fresh task on the exact saved
+native conversation with the original frozen settings, replacing only the proven owned generation.
+It can also recover a stopped Terminal. It never resubmits the previous task: the caller must supply
+new instructions that account for uncertain prior effects. Human takeover or another launch fences
+both continuation operations. Each task retains its own answer and correlation evidence.
+
+After Server restart, selecting a delegated Session restores the outer Shell only. Native Agent
+resume requires the explicit operation above. The authenticated profile owner can recover saved
+tasks; managed caller authority remains generation-scoped, so a newly launched caller does not
+inherit the previous caller's delegation ownership.
 
 ## Current launch boundary
 

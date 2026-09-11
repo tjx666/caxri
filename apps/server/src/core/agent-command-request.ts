@@ -13,6 +13,7 @@ type AgentCommandRequest = Extract<
     {
         method:
             | 'agent.delegation.create'
+            | 'agent.delegation.stop'
             | 'agent.delegation.status'
             | 'agent.delegation.result'
             | 'agent.delegation.wait'
@@ -65,6 +66,11 @@ export function agentCommandRequest(
             },
         };
     }
+    if (request.method === 'agent.delegation.stop')
+        return {
+            method: 'agent.delegation.stopInternal',
+            params: { ...authority, ...request.params },
+        };
     if (request.method === 'agent.delegation.wait')
         return {
             method: 'agent.delegation.waitInternal',

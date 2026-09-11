@@ -7,9 +7,11 @@ import { CoalescedScheduler } from '../coalesced-scheduler';
 import type { CaxriDatabase } from '../db';
 import { SingleFlight } from '../single-flight';
 import { AgentAttentionTracker } from './attention-tracker';
+import type { AgentCoordinatorOptions } from './contract';
 import { agentProviderStateRoot } from './contract';
 import { HookLaunchTracker } from './hook-launch-tracker';
 import type { AgentLifecycleSignal, AgentSignalDecision } from './hooks/contract';
+import { AgentIdleProof } from './idle-proof';
 import { AgentLifecycleWatchdogs, isStandaloneEscape } from './lifecycle-watchdogs';
 import type { MetadataActivityBaseline } from './metadata-activity-baseline';
 import {
@@ -40,23 +42,7 @@ const MAX_SHELL_PROMOTION_PROBES = 3;
 const BRACKETED_PASTE_START = '\u{1B}[200~';
 const BRACKETED_PASTE_END = '\u{1B}[201~';
 
-export interface AgentCoordinatorOptions {
-    onLifecycleApplied?: (signal: AgentLifecycleSignal) => void;
-    /**
-     * Trailing delay before Agent Terminal output refreshes durable Agent metadata.
-     */
-    refreshDelayMs?: number;
-    /**
-     * Safety bound for a lost `PostCompact` signal. Production uses five minutes; tests may shorten it.
-     */
-    compactionTimeoutMs?: number;
-    runningWatchdogIntervalMs?: number;
-    detectForegroundAgent?: (shellPid: number) => Promise<AgentProvider | undefined>;
-    /**
-     * Delay between bounded foreground-process retries. Production uses one second; tests may shorten it.
-     */
-    shellProcessProbeIntervalMs?: number;
-}
+export type { AgentCoordinatorOptions } from './contract';
 
 /**
  * Single owner of Agent metadata probing. It decides which Terminals are Agent Terminals, schedules the trailing
@@ -78,6 +64,7 @@ export class AgentCoordinator {
     private readonly launchIdsByTerminal = new Map<string, string>();
     private readonly hookLaunches = new HookLaunchTracker();
     private readonly attention = new AgentAttentionTracker();
+    private readonly idleProof = new AgentIdleProof();
     private readonly work = new AgentWorkTracker((signal) =>
         this.applyLifecycle(signal, 'deferredHook'),
     );
@@ -163,6 +150,7 @@ export class AgentCoordinator {
 
     private forgetLifecycleState(terminalId: string): void {
         this.grokTurns.forget(terminalId);
+        this.idleProof.invalidate(terminalId);
         this.attention.forget(terminalId);
         this.work.forget(terminalId);
     }
@@ -171,6 +159,7 @@ export class AgentCoordinator {
         event: AgentLifecycleSignal,
         source: SessionActivitySource = 'hook',
     ): void {
+        this.idleProof.apply(event, source === 'hook');
         if (event.phase === 'turnFinished' || event.phase === 'turnFailed') {
             this.attention.forget(event.terminalId);
             this.lifecycleWatchdogs.stopRunningTurn(event.terminalId);
@@ -558,6 +547,13 @@ export class AgentCoordinator {
         return this.launchIdsByTerminal.get(terminalId) === launchId;
     }
 
+    hasIdleProof(terminalId: string, launchId: string, turnId: string): boolean {
+        return (
+            this.isCurrentTerminalLaunch(terminalId, launchId) &&
+            this.idleProof.matches(terminalId, launchId, turnId)
+        );
+    }
+
     /**
      * Retires lifecycle and in-flight probe authority so a late lookup cannot bind a thread after its PTY exits.
      */
@@ -624,6 +620,7 @@ export class AgentCoordinator {
             return 'providerMismatch';
         }
         if (!this.grokTurns.accept(signal, terminal.agentSessionId)) return 'staleProviderTurn';
+        this.idleProof.invalidate(signal.terminalId);
         const work = this.work.observe(signal);
         if (work.outcome !== undefined) return work.outcome;
         if (signal.phase === 'turnFinished')
@@ -683,7 +680,7 @@ export class AgentCoordinator {
         }
         if (shouldRefreshMetadata) this.refreshes.schedule(signal.terminalId);
         if (!work.deferCompletion && (!isToolBatchFinished || didResolveAttention))
-            this.applyLifecycle(signal);
+            this.applyLifecycle({ ...signal, agentContinuedTurnId: work.continuedTurnId });
         return 'accepted';
     }
 
@@ -792,6 +789,7 @@ export class AgentCoordinator {
         this.probeGenerations.clear();
         this.launchIdsByTerminal.clear();
         this.hookLaunches.clear();
+        this.idleProof.clear();
         this.attention.clear();
         this.work.clear();
         this.metadataActivityBaselines.clear();

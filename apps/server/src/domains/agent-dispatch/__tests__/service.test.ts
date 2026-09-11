@@ -48,6 +48,7 @@ function fakeTerminals(database: CaxriDatabase) {
         return database.getTerminal(terminalId)!;
     };
     return {
+        agentLaunchId: () => 'synthetic-launch',
         agentProcessId: (terminalId: string) => agentProcessIds.get(terminalId),
         processId: (terminalId: string) => processIds.get(terminalId),
         start: (terminal: TerminalRecord) => {
@@ -141,6 +142,7 @@ describe('AgentDispatchService', () => {
             return Promise.resolve(database.getTerminal(terminalId)!);
         });
         const terminals = {
+            agentLaunchId: () => 'synthetic-launch',
             agentProcessId: () => agentProcessId,
             processId: () => 4_243,
             restart,
@@ -179,6 +181,7 @@ describe('AgentDispatchService', () => {
             return Promise.resolve(database.getTerminal(terminalId)!);
         });
         const terminals = {
+            agentLaunchId: () => 'synthetic-launch',
             agentProcessId: () => agentProcessId,
             processId: () => 4_243,
             restart,
@@ -208,6 +211,7 @@ describe('AgentDispatchService', () => {
         database.updateTerminalState(terminal!.id, 'running');
         database.updateAgentProcessState(terminal!.id, 'stopped');
         const terminals = {
+            agentLaunchId: () => 'synthetic-launch',
             agentProcessId: () => 5_243,
             processId: () => 4_243,
         } as unknown as TerminalManager;
