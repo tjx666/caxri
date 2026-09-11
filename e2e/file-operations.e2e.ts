@@ -55,6 +55,9 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
     allowE2EErrors([
         { source: 'desktop', event: 'ipc.request_failed', code: 'CONFLICT', count: 4 },
         { source: 'server-core', event: 'ipc.request_failed', code: 'CONFLICT', count: 4 },
+        // Only the rename-onto-existing-name case notifies the user; the other three conflicts open
+        // the dialog instead, which replaces the notification with Replace/Keep Both/Cancel.
+        { source: 'renderer', event: 'toast', code: 'ERROR_TOAST', count: 1 },
     ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-file-operations-e2e-'));
     const userData = join(testDirectory, 'user-data');

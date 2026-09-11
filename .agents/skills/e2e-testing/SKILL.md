@@ -44,7 +44,8 @@ extracted below the boundary and tested there; if yes, extract it instead.
    ```
 
 3. Every spec imports `test` and `expect` from `e2e/support/fixtures.ts`. The automatic error gate
-   observes current and future Renderer pages, structured Main/Runtime errors, and attaches
+   observes current and future Renderer pages, error notifications throughout each document's lifetime,
+   structured Main/Runtime errors, and attaches
    content-free logs before temporary profiles disappear.
 4. Focused launches use hidden windows. Use `windowMode: 'visible'` only for native focus or
    pointer behavior. Every launch acquires the repository-wide desktop lease through
@@ -57,6 +58,12 @@ extracted below the boundary and tested there; if yes, extract it instead.
    discovery. Only the manual Codex-only real smoke below invokes the installed Codex CLI.
 6. A deliberate error must consume one exact `allowE2EErrors(...)` tuple. Wildcards, message
    matching, duplicate allowances, or unused allowances fail the spec.
+   Error notifications use `{ source: 'renderer', event: 'toast', code: 'ERROR_TOAST', count: N }`.
+   Count mounted error notifications: a deduplicated update of the same notification counts once,
+   while a new notification after dismissal counts again. The gate retains observations after
+   auto-dismissal, navigation, and window closure without recording notification text. Declare
+   this allowance alongside any separately expected console or backend errors; an end-of-test
+   zero-toast assertion cannot replace the continuous gate.
 7. Make visual regressions observable rather than asserting only that an element exists. For
    Terminal inset or background coverage, use contrasting application and Terminal theme colors so
    uncovered pixels cannot pass unnoticed.

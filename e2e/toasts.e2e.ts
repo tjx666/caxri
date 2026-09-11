@@ -6,7 +6,7 @@ import type { ServerEvent } from '@caxri/protocol';
 
 import type { E2EApp } from './support/electron-app.ts';
 import type { Page } from './support/fixtures.ts';
-import { expect, test } from './support/fixtures.ts';
+import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import { launchCaxri, pageRequest } from './support/helpers.ts';
 
 const ERROR_TITLE = 'File not found';
@@ -63,6 +63,8 @@ function settingsError(error: string): ServerEvent {
 }
 
 test('Sonner notifications expire, dedupe, run actions, and stay keyboard-dismissible', async () => {
+    // The repeated error updates its mounted notification; only two error notifications are created.
+    allowE2EErrors([{ source: 'renderer', event: 'toast', code: 'ERROR_TOAST', count: 2 }]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-toasts-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -153,6 +155,7 @@ test('Sonner notifications expire, dedupe, run actions, and stay keyboard-dismis
 });
 
 test('Notification center mutes a type, persists preferences, and restores reminders', async () => {
+    allowE2EErrors([{ source: 'renderer', event: 'toast', code: 'ERROR_TOAST', count: 1 }]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-notifications-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');

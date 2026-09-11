@@ -375,6 +375,8 @@ test('keeps one focused Desktop and one process profile for a repeated same-prof
 });
 
 test('stops reconnecting when another Desktop takes over the same profile', async () => {
+    // The takeover asserted below is announced to the replaced window as one notification.
+    allowE2EErrors([{ source: 'renderer', event: 'toast', code: 'ERROR_TOAST', count: 1 }]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-desktop-replaced-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
