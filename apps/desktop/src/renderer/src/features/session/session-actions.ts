@@ -8,6 +8,7 @@ import type {
 
 import type { SessionMruShortcutInvocation } from '../../commands/registry';
 import { caxri } from '../../lib/caxri';
+import { copyFilePath } from '../../lib/copy-file-path';
 import { openExternalUrl } from '../../lib/external-link';
 import { caxriQueryKey, queryClient } from '../../queries/client';
 import { removeSessionQueries } from '../../queries/invalidation';
@@ -300,6 +301,38 @@ export function openSelectedSessionPullRequest(): void {
     const session = getSelectedSession();
     const pullRequest = session && cachedSessionPullRequest(session.id);
     if (pullRequest) openSessionPullRequest(pullRequest);
+}
+
+/**
+ * The Agent's own conversation identifier — a Codex thread id, a Claude Code session id — which is not Caxri's Session
+ * row id. Provider CLIs and their on-disk state are keyed by this value, so it is what lines a Session up against
+ * `codex resume`, a rollout file, or a `~/.claude/projects` transcript when an Agent binding has to be inspected.
+ */
+export function copyAgentSessionId(agentSessionId: string): void {
+    // Fire-and-forget: `tryCommand` funnels the failure into a toast internally.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+    void tryCommand('Unable to copy the Agent Session ID', async () => {
+        await navigator.clipboard.writeText(agentSessionId);
+        pushToast('success', 'Agent Session ID copied');
+    });
+}
+
+/**
+ * Resolves the transcript path on click rather than subscribing every Session row to a transcript query: Codex names
+ * its rollout files by wall-clock time, so the Server answers by scanning its sessions directory, and the sidebar
+ * renders one menu per row. `withContent: false` keeps that lookup off the file's contents.
+ */
+export function copyAgentTranscriptPath(terminalId: string): void {
+    // Fire-and-forget: `tryCommand` funnels the failure into a toast internally, and `copyFilePath` reports its own.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+    void tryCommand('Unable to copy the transcript path', async () => {
+        const transcript = await caxri.request('terminal.agentTranscript', {
+            terminalId,
+            withContent: false,
+        });
+        if (!transcript) throw new Error('This Agent keeps no on-disk transcript');
+        await copyFilePath(transcript.path);
+    });
 }
 
 /**

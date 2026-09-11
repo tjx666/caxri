@@ -11,6 +11,7 @@ import {
     installWorktreeDependencies,
     listWorktreeStatus,
     removeWorktree,
+    stopWorktree,
     switchWorktree,
 } from './worktree';
 
@@ -22,6 +23,7 @@ Commands:
   list                                 Inspect every associated checkout
   doctor [branch|path]                 Diagnose one checkout (default: current)
   dev                                  Start Caxri with this checkout's isolated profile
+  stop                                 Stop only the processes this checkout started
   remove <branch|path> [--clean-profile]
                                        Safely remove a checkout and preserve its branch
   desktop --label <name> -- <command>  Hold the repository-wide desktop lease
@@ -207,6 +209,25 @@ export async function runCli(argv: string[]): Promise<void> {
             });
             if (exitCode !== 0)
                 throw new CommandError(`Development launcher exited with ${exitCode}`, exitCode);
+            return;
+        }
+        case 'stop': {
+            if (arguments_.operands.length > 0)
+                throw new CommandError('stop does not accept a target', 2);
+            const result = await stopWorktree(process.cwd());
+            print(
+                arguments_.json
+                    ? result
+                    : result.stopped.length === 0
+                      ? 'No processes owned by this checkout are running'
+                      : `Stopped ${result.stopped.length} process(es) owned by this checkout`,
+                arguments_.json,
+            );
+            if (result.survivors.length > 0) {
+                throw new CommandError(
+                    `Still running after SIGKILL: PIDs ${result.survivors.map(({ pid }) => pid).join(', ')}`,
+                );
+            }
             return;
         }
         case 'remove': {

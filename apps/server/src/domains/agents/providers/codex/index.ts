@@ -309,11 +309,18 @@ export function codexSessionIdFromOpenFiles(
     return sessionIds.size === 1 ? [...sessionIds][0] : undefined;
 }
 
+/**
+ * Resolves identity from the rollout files the Codex process itself holds open.
+ *
+ * The three outcomes are distinct and the caller must not collapse them: a state means the process was identified,
+ * `undefined` means the probe could not decide and heuristic discovery may still run, and `null` means the probe proved
+ * this process owns no claimable thread — heuristic discovery must then stay out.
+ */
 async function readCodexStateFromProcess(
     context: AgentSnapshotContext,
     environment: Parameters<typeof resolveCodexHome>[0],
     stateDirectories: string[],
-): Promise<LocalAgentState | undefined> {
+): Promise<LocalAgentState | null | undefined> {
     if (
         context.agentSessionId ||
         context.shellPid === undefined ||
@@ -332,7 +339,19 @@ async function readCodexStateFromProcess(
         (file) =>
             isWritableOpenFile(file.access) && CODEX_ROLLOUT_NAME_PATTERN.test(basename(file.path)),
     );
-    if (candidateOpenFiles.length === 0) return undefined;
+    /**
+     * The probe listed this process's files and found no rollout among them. Codex only creates a thread once it
+     * receives a first message, so this is proof of a thread-less Agent rather than a failed probe — `openFiles` is
+     * empty when the probe itself is unusable, and that case returned above.
+     *
+     * Falling through to cwd discovery here is what let an idle Terminal adopt the next thread a sibling Session
+     * started in the same directory: that query bounds candidates only by "created after this Terminal started", so a
+     * Terminal waiting at an empty prompt claimed a thread created minutes later, and its automatic title then followed
+     * the stolen binding.
+     *
+     * @see https://github.com/tjx666/caxri/issues/795
+     */
+    if (candidateOpenFiles.length === 0) return null;
     const canonicalFiles = (
         await Promise.all(
             candidateOpenFiles.map(async (file) => {
@@ -346,7 +365,11 @@ async function readCodexStateFromProcess(
     ).filter((file): file is ProcessOpenFile => file !== undefined);
     const sessionId = codexSessionIdFromOpenFiles(canonicalFiles, sessionsRoot);
     if (!sessionId) return undefined;
-    if (context.excludedAgentSessionIds?.includes(sessionId)) return undefined;
+    /**
+     * The thread this process holds open is already bound to another Terminal. Heuristic discovery would then hand this
+     * Terminal a different Session's thread, which is worse than reporting no identity at all.
+     */
+    if (context.excludedAgentSessionIds?.includes(sessionId)) return null;
     return readCodexState({ ...context, agentSessionId: sessionId }, stateDirectories);
 }
 
@@ -561,7 +584,8 @@ export const codexProvider: AgentProviderDescriptor = {
             environment,
             stateDirectories,
         );
-        return processState ?? readCodexState(context, stateDirectories);
+        if (processState !== undefined) return processState ?? undefined;
+        return readCodexState(context, stateDirectories);
     },
     renameSession: renameCodexSession,
     locateTranscript: (context, environment) => locateCodexTranscript(context, environment),

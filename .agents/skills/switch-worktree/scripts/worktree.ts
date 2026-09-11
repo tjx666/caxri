@@ -27,6 +27,12 @@ import {
     worktreeIdentity,
     writeJsonAtomic,
 } from './repo';
+import type { StopOperations } from './worktree-processes';
+import {
+    defaultStopOperations,
+    stopProcesses,
+    worktreeProcessesToStop,
+} from './worktree-processes';
 
 const SEMANTIC_BRANCH = /^(?:feat|fix|refactor|perf|docs|test|chore)\/[a-z0-9][a-z0-9._/-]*$/;
 
@@ -69,6 +75,12 @@ export interface RemoveOptions {
     cleanProfile: boolean;
     cwd: string;
     target: string;
+}
+
+export interface StopResult {
+    path: string;
+    stopped: Array<{ command: string; pid: number }>;
+    survivors: Array<{ command: string; pid: number }>;
 }
 
 export interface DevelopmentLaunchOptions {
@@ -340,6 +352,45 @@ async function readDevelopmentProcess(
             `Invalid dev process record for worktree ${identity}; inspect it before continuing`,
         );
     }
+}
+
+/**
+ * Stops everything this worktree started — the recorded development launcher with its whole subtree, the detached
+ * Server Core and Extension Host, and any Electron left behind by an interrupted E2E run — and nothing else.
+ *
+ * This command exists because the alternative agents reach for is a name match. `pkill -f "Caxri.app"` reads as "this
+ * checkout's app" and is in fact "every Caxri on the machine": on 2026-09-11 it terminated the installed
+ * `/Applications/Caxri.app` mid-session while cleaning up an interrupted local E2E pool, losing window state and
+ * Session persistence. Ownership here is decided by the worktree's own absolute path and by `dev`'s process record.
+ *
+ * @see https://github.com/tjx666/caxri/issues/802
+ */
+export async function stopWorktree(
+    cwd: string,
+    operations: StopOperations = defaultStopOperations,
+): Promise<StopResult> {
+    const context = await repoContext(cwd);
+    const identity = await worktreeIdentity(context.root, false);
+    const record = await readDevelopmentProcess(context, identity);
+    const launcher =
+        record?.worktreePath === context.root &&
+        (await isProcessIdentityAlive(record.pid, record.identity))
+            ? record
+            : undefined;
+    const targets = worktreeProcessesToStop({
+        entries: await operations.list(),
+        ...(launcher && { launcherPid: launcher.pid }),
+        selfPid: process.pid,
+        worktreePath: context.root,
+    });
+    const { stopped, survivors } = await stopProcesses(targets, operations);
+    if (record && identity && survivors.every((entry) => entry.pid !== record.pid))
+        await unlinkIfExists(developmentProcessPath(context, identity));
+    return {
+        path: context.root,
+        stopped: stopped.map(({ command, pid }) => ({ command, pid })),
+        survivors: survivors.map(({ command, pid }) => ({ command, pid })),
+    };
 }
 
 async function inspectOne(
