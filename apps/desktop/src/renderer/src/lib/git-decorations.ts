@@ -22,6 +22,20 @@ export type GitDecorationIndex = ReadonlyMap<string, GitDecoration>;
 export const EMPTY_GIT_DECORATION_INDEX: GitDecorationIndex = new Map();
 
 /**
+ * A repository that lives inside the Project's own: a `.gitmodules`-declared submodule, or a directory someone cloned
+ * in on their own. Linked worktrees and the Project's own repository are deliberately absent — a worktree is a peer
+ * checkout rather than something nested in this tree, and the Project root is not a folder the tree draws.
+ */
+export type GitChildRepoKind = 'submodule' | 'nested';
+
+/**
+ * Absolute path of every child repository root to what kind of child it is.
+ */
+export type GitChildRepoIndex = ReadonlyMap<string, GitChildRepoKind>;
+
+export const EMPTY_GIT_CHILD_REPO_INDEX: GitChildRepoIndex = new Map();
+
+/**
  * Which change wins when a directory contains several. A conflict is the one a user must act on before anything else,
  * and a deletion is structurally louder than an edit; untracked loses to everything because an unopened folder full of
  * new files should not outrank a real edit beside it.
@@ -61,6 +75,19 @@ export function gitDecorationClassName(kind: GitDecorationKind): string {
  */
 export function gitDecorationDescription(kind: GitDecorationKind): string {
     return `Git: ${kind}.`;
+}
+
+const CHILD_REPO_DESCRIPTION: Record<GitChildRepoKind, string> = {
+    nested: 'Nested Git repository.',
+    submodule: 'Git submodule.',
+};
+
+/**
+ * What the folder's repository icon means, for a screen reader and for the row's hover tooltip. Both read it, so the
+ * wording a user sees on hover is the wording a user hears.
+ */
+export function gitChildRepoDescription(kind: GitChildRepoKind): string {
+    return CHILD_REPO_DESCRIPTION[kind];
 }
 
 /**
@@ -144,4 +171,32 @@ export function buildGitDecorationIndex(
     const index = new Map<string, GitDecoration>();
     for (const repo of summary.repositories) recordRepo(index, repo);
     return withPreservedIdentity(previous, index);
+}
+
+function isSameChildRepoIndex(previous: GitChildRepoIndex, next: GitChildRepoIndex): boolean {
+    if (previous.size !== next.size) return false;
+    for (const [path, kind] of next) if (previous.get(path) !== kind) return false;
+    return true;
+}
+
+/**
+ * Which directories in the tree are repositories of their own.
+ *
+ * Returns `previous` whenever the set is unchanged, which is almost always: a submodule appears when someone adds one,
+ * while the summary this reads from is rebuilt on every file an Agent writes. Holding the same object keeps the store
+ * from waking every row's selector for a fact that did not move.
+ *
+ * @param summary The selected Session's Git status, or `undefined` before it has loaded.
+ * @param previous The index this one replaces.
+ */
+export function buildGitChildRepoIndex(
+    summary: GitSummary | undefined,
+    previous: GitChildRepoIndex = EMPTY_GIT_CHILD_REPO_INDEX,
+): GitChildRepoIndex {
+    const index = new Map<string, GitChildRepoKind>();
+    if (summary?.isRepository)
+        for (const repo of summary.repositories)
+            if (repo.kind === 'submodule' || repo.kind === 'nested')
+                index.set(repo.rootPath, repo.kind);
+    return isSameChildRepoIndex(previous, index) ? previous : index;
 }

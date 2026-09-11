@@ -1,7 +1,12 @@
 import type { GitFileStatus, GitSummary } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { buildGitDecorationIndex, gitDecorationClassName } from './git-decorations';
+import {
+    buildGitChildRepoIndex,
+    buildGitDecorationIndex,
+    gitChildRepoDescription,
+    gitDecorationClassName,
+} from './git-decorations';
 
 function file(overrides: Partial<GitFileStatus> & Pick<GitFileStatus, 'path'>): GitFileStatus {
     return { index: ' ', kind: 'modified', workingTree: 'M', ...overrides };
@@ -130,6 +135,77 @@ describe('buildGitDecorationIndex', () => {
 
         expect(next.get('/repo/src/app.ts')).toEqual({ kind: 'deleted', letter: 'D' });
         expect(next.get('/repo/src/app.ts')).not.toBe(previous.get('/repo/src/app.ts'));
+    });
+});
+
+describe('buildGitChildRepoIndex', () => {
+    function repositories(
+        kinds: ReadonlyArray<GitSummary['repositories'][number]['kind']>,
+    ): GitSummary['repositories'] {
+        return kinds.map((kind, order) => ({
+            ...summary([]).repositories[0],
+            id: `repo-${order}`,
+            kind,
+            rootPath: `/repo/child-${order}`,
+        }));
+    }
+
+    it('indexes submodules and nested clones, and nothing else', () => {
+        const index = buildGitChildRepoIndex({
+            isRepository: true,
+            repositories: repositories(['primary', 'submodule', 'nested', 'worktree']),
+        });
+
+        expect([...index]).toEqual([
+            ['/repo/child-1', 'submodule'],
+            ['/repo/child-2', 'nested'],
+        ]);
+    });
+
+    it('returns the same index when the set of child repositories has not moved', () => {
+        const previous = buildGitChildRepoIndex({
+            isRepository: true,
+            repositories: repositories(['primary', 'submodule']),
+        });
+        const next = buildGitChildRepoIndex(
+            { isRepository: true, repositories: repositories(['primary', 'submodule']) },
+            previous,
+        );
+
+        expect(next).toBe(previous);
+    });
+
+    it('replaces the index when a directory changes from nested clone to submodule', () => {
+        const previous = buildGitChildRepoIndex({
+            isRepository: true,
+            repositories: repositories(['primary', 'nested']),
+        });
+        const next = buildGitChildRepoIndex(
+            { isRepository: true, repositories: repositories(['primary', 'submodule']) },
+            previous,
+        );
+
+        expect(next).not.toBe(previous);
+        expect(next.get('/repo/child-1')).toBe('submodule');
+    });
+
+    it('empties out for a Project that is not a repository', () => {
+        const previous = buildGitChildRepoIndex({
+            isRepository: true,
+            repositories: repositories(['submodule']),
+        });
+
+        expect(buildGitChildRepoIndex(undefined, previous).size).toBe(0);
+        expect(
+            buildGitChildRepoIndex({ isRepository: false, repositories: [] }, previous).size,
+        ).toBe(0);
+    });
+});
+
+describe('gitChildRepoDescription', () => {
+    it('names each kind the way the row tooltip does', () => {
+        expect(gitChildRepoDescription('submodule')).toBe('Git submodule.');
+        expect(gitChildRepoDescription('nested')).toBe('Nested Git repository.');
     });
 });
 

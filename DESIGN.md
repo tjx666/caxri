@@ -338,6 +338,14 @@ tree takes the color of the most severe change anywhere beneath it (conflicted >
 > filename, and the status reaches assistive technology as an accessible description
 > (`Git: modified.`) rather than being folded into that name.
 
+**Child repositories** — a directory that is a repository of its own takes the Git repository
+folder icon instead of the one its name would earn, so a submodule is never mistaken for an
+ordinary folder. This covers both a `.gitmodules`-declared submodule and a directory someone cloned
+in independently; the row's tooltip and its accessible description name which of the two it is,
+since only the submodule shows up as a change in the parent when its recorded commit moves. A
+linked worktree takes no mark: it is a peer checkout, not something nested in this tree. The mark
+is independent of the change decoration above — a submodule root can wear both at once.
+
 **Editor breadcrumbs** — an ordinary Project file gets one 24px metadata row below the tab strip.
 Its Project-relative path sits on the left and the current file's last-change annotation sits on
 the right; both use dense, muted chrome on `--surface`, separated from the editor by one hairline.
