@@ -18,6 +18,13 @@ function pullRequest(overrides: Partial<SessionPullRequest> = {}): SessionPullRe
 }
 
 describe('Session pull request presentation', () => {
+    it('describes cancelled checks with a neutral tone', () => {
+        expect(sessionPullRequestPresentation(pullRequest({ checks: 'cancelled' }))).toMatchObject({
+            ariaLabel: 'Pull request #42 open, checks cancelled.',
+            checksLabel: 'Checks cancelled',
+            checksTone: 'neutral',
+        });
+    });
     it('encodes merged and closed in the glyph with merged and danger tones', () => {
         expect(sessionPullRequestPresentation(pullRequest({ state: 'merged' }))).toEqual({
             ariaLabel: 'Pull request #42 merged.',

@@ -7,6 +7,7 @@ import { z } from 'zod';
 export const projectStatusStateSchema = z.enum([
     'success',
     'failure',
+    'cancelled',
     'pending',
     'neutral',
     'unknown',

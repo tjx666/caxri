@@ -18,6 +18,11 @@ folder or user files.
 
 ## Process model
 
+Delivery check states are shared by the protocol and public Extension API. GitHub cancellation
+remains `cancelled` through Server parsing, Extension tree projection, and Session PR summaries;
+it is neither a passing check nor a delivery failure. See
+[delivery-status semantics](../../../../docs/external-status-quota.md#cancelled-github-checks).
+
 Desktop notification history is a bounded Renderer-memory projection, separate from Sonner's
 live toast queue. Only typed reminder preferences persist in `settings.jsonc`, through the
 existing Server-owned scalar settings patch path. History never stores action closures or writes

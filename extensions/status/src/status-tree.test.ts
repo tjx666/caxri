@@ -62,6 +62,31 @@ describe('Status extension tree', () => {
             }
         },
     );
+
+    it('renders cancellation with a neutral slash icon and explicit tooltip', () => {
+        const node = buildRepoNode({
+            id: 'repo',
+            kind: 'primary',
+            name: 'Project',
+            branch: 'feature',
+            linearIssues: [],
+            errors: [],
+            pullRequest: {
+                number: 1,
+                title: 'Cancelled',
+                url: 'https://github.com/a/b/pull/1',
+                state: 'cancelled',
+                hiddenCheckCount: 0,
+                checks: [{ name: 'Build', state: 'cancelled' }],
+            },
+        });
+        const pr = node.children?.find((child) => child.item.id === 'status:repo:repo:pr');
+        for (const item of [pr?.item, pr?.children?.[0]?.item]) {
+            expect(item?.iconPath?.id).toBe('circle-slash');
+            expect(item?.tooltip).toMatchObject({ badge: { label: 'cancelled', tone: 'neutral' } });
+        }
+    });
+
     it('preserves the complete pre-extension hierarchy and stable semantic state', () => {
         const repo: ProjectStatusRepository = {
             id: 'repo-1',

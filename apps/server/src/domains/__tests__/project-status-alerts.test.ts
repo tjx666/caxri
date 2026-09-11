@@ -67,6 +67,11 @@ function previewSnapshot(
 }
 
 describe('ProjectStatusAlertTracker', () => {
+    it('does not alert when a running check is cancelled', () => {
+        const tracker = new ProjectStatusAlertTracker();
+        tracker.observe(checksSnapshot({ name: 'build', state: 'pending' }));
+        expect(tracker.observe(checksSnapshot({ name: 'build', state: 'cancelled' }))).toEqual([]);
+    });
     it('stays silent on the first observation, even when the check is already failing', () => {
         const tracker = new ProjectStatusAlertTracker();
         expect(tracker.observe(checksSnapshot({ name: 'build', state: 'failure' }))).toEqual([]);
