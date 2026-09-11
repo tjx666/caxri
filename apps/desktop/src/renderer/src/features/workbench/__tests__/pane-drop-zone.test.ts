@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { PROJECT_PATH_DRAG_TYPE } from '../../../lib/file-drag';
 import {
     EDITOR_PATH_DRAG_TYPE,
     hasPaneTabDragType,
@@ -12,6 +13,21 @@ import {
 describe('resolvePaneDropIntent', () => {
     const terminal = { altKey: false, isTerminal: true, acceptsFileDrop: true, hasFilePath: false };
     const editorTypes = [PANE_TAB_DRAG_TYPE, EDITOR_PATH_DRAG_TYPE];
+    it('accepts Project roots only in live Terminal inputs, including with Option held', () => {
+        expect(resolvePaneDropIntent([PROJECT_PATH_DRAG_TYPE], terminal)).toBe('paste');
+        expect(resolvePaneDropIntent([PROJECT_PATH_DRAG_TYPE], { ...terminal, altKey: true })).toBe(
+            'paste',
+        );
+        expect(
+            resolvePaneDropIntent([PROJECT_PATH_DRAG_TYPE], { ...terminal, isTerminal: false }),
+        ).toBeUndefined();
+        expect(
+            resolvePaneDropIntent([PROJECT_PATH_DRAG_TYPE], {
+                ...terminal,
+                acceptsFileDrop: false,
+            }),
+        ).toBeUndefined();
+    });
     it('pastes an Editor path unless Option requests pane placement', () => {
         expect(resolvePaneDropIntent(editorTypes, terminal)).toBe('paste');
         expect(resolvePaneDropIntent(editorTypes, { ...terminal, altKey: true })).toBe('place');

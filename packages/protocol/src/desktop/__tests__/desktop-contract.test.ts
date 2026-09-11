@@ -71,6 +71,16 @@ describe('desktopOpenParametersSchema', () => {
 });
 
 describe('desktopHostMethods policy', () => {
+    it('resolves Project native operations from an ID rather than accepting caller paths', () => {
+        const schema = desktopHostMethods['project.openRoot'].params;
+        expect(
+            schema.parse({ projectId: 'project', application: 'finder', path: '/outside' }),
+        ).toEqual({ projectId: 'project', application: 'finder' });
+        expect(schema.safeParse({ path: '/outside', application: 'finder' }).success).toBe(false);
+        expect(schema.safeParse({ projectId: 'project', application: 'shell' }).success).toBe(
+            false,
+        );
+    });
     it('routes every entry through the host and gates it behind the desktop.window capability', () => {
         for (const [name, spec] of Object.entries(desktopHostMethods)) {
             expect(spec.owner, name).toBe('server');

@@ -389,7 +389,7 @@ export function openSelectedProjectInExternalEditor(): void {
 }
 
 export function openProjectInExternalEditor(
-    project: Pick<ProjectRecord, 'rootPath'>,
+    project: Pick<ProjectRecord, 'id' | 'rootPath'>,
     sessionId?: string,
 ): void {
     /**
@@ -408,10 +408,12 @@ export function openProjectInExternalEditor(
     // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void tryCommand('Opening the Project in the external editor failed', () =>
-        caxri.request('project.openInEditor', {
-            path: targetProject.rootPath,
-            ...(sessionId !== undefined && { sessionId }),
-        }),
+        sessionId === undefined
+            ? caxri.request('project.openRoot', { projectId: project.id, application: 'editor' })
+            : caxri.request('project.openInEditor', {
+                  path: targetProject.rootPath,
+                  sessionId,
+              }),
     );
 }
 

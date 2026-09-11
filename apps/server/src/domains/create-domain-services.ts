@@ -548,6 +548,7 @@ export async function createDomainServices(
         },
         'files.reveal': () => mainOwned('files.reveal'),
         'project.openInEditor': () => mainOwned('project.openInEditor'),
+        'project.openRoot': () => mainOwned('project.openRoot'),
         'files.trash': () => mainOwned('files.trash'),
         'updates.getState': () => mainOwned('updates.getState'),
         'updates.check': () => mainOwned('updates.check'),

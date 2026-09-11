@@ -9,6 +9,16 @@ and Agent Endpoint authority, while an independently persisted Workbench Root se
 Project used by Files, Editor, Search, and Git. This separation lets an Agent-created linked worktree
 become the visible work surface without moving or restarting the Agent process that created it.
 
+Sidebar Project path actions retain the owning Project identity: Copy Path and dragging into a
+Terminal use its absolute root, while Reveal in Finder and Open Project in Editor work even without
+Sessions. Project drags insert a shell-quoted argument without executing it or participating in Files
+move operations. Session editor actions instead resolve the clicked Session's current Workbench Root.
+
+The `project.openRoot` request accepts only a Project ID and a Finder/editor choice. Server Core reads
+the stored root, rejects symbolic-link replacements, and issues the same bounded, generation-bound,
+single-use Desktop target used for Session paths. Consumption checks that the Project still exists and
+the root identity is unchanged. It neither creates a Session nor changes selection.
+
 Workbench state and dirty document identity are scoped by `(sessionId, workbenchProjectId)`. The
 provider hook bridge classifies a bounded Bash command locally and reports only authenticated
 worktree-create intent plus an opaque tool identifier, never its command, path, or output. Runtime

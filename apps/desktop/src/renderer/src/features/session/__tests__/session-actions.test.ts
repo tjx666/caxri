@@ -126,12 +126,24 @@ describe('Session actions', () => {
             settings: {},
         });
 
-        openProjectInExternalEditor({ rootPath: '/workspace/repository' }, 'session-1');
+        openProjectInExternalEditor(
+            { id: 'project-owner', rootPath: '/workspace/repository' },
+            'session-1',
+        );
         await mocks.tryCommand.mock.results[0]?.value;
 
         expect(mocks.caxriRequest).toHaveBeenCalledWith('project.openInEditor', {
             path: '/workspace/repository-worktree',
             sessionId: 'session-1',
+        });
+    });
+
+    it('opens a Project with no Session using only its stored identity', async () => {
+        openProjectInExternalEditor({ id: 'project-owner', rootPath: '/workspace/repository' });
+        await mocks.tryCommand.mock.results[0]?.value;
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('project.openRoot', {
+            projectId: 'project-owner',
+            application: 'editor',
         });
     });
 

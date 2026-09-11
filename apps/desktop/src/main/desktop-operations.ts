@@ -13,7 +13,7 @@ export interface DesktopOperationHandlers {
             { kind: 'all'; fileCount: number } | { kind: 'file'; path: string; untracked: boolean };
     }): Promise<boolean>;
     focus(): Promise<void>;
-    open(target: DesktopTargetPayload): void;
+    open(target: DesktopTargetPayload & { sessionId: string }): void;
     openInEditor(path: string, editorCommand: string | undefined): Promise<void>;
     reveal(path: string): void;
     status(): 'background' | 'window';
@@ -41,8 +41,9 @@ async function handleDesktopOperation(
         }
         case 'open': {
             const target = await consumeTarget();
+            if (!target.sessionId) throw new Error('Opening a document requires a Session target');
             await handlers.focus();
-            handlers.open(target);
+            handlers.open({ ...target, sessionId: target.sessionId });
             return null;
         }
         case 'openInEditor': {

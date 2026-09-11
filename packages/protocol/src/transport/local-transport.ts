@@ -249,7 +249,7 @@ export const localClientDesktopTargetConsumeSchema = z.object({
     targetId: identifierSchema,
 });
 
-export const desktopTargetPayloadSchema = z.object({
+const sessionDesktopTargetPayloadSchema = z.object({
     targetId: identifierSchema,
     operation: z.enum(['open', 'reveal', 'openInEditor', 'trash']),
     kind: z.enum(['file', 'directory']),
@@ -257,6 +257,16 @@ export const desktopTargetPayloadSchema = z.object({
     path: pathSchema,
     location: editorNavigationTargetSchema.optional(),
 });
+
+export const desktopTargetPayloadSchema = z.union([
+    sessionDesktopTargetPayloadSchema,
+    sessionDesktopTargetPayloadSchema.omit({ sessionId: true }).extend({
+        operation: z.enum(['reveal', 'openInEditor']),
+        kind: z.literal('directory'),
+        projectId: identifierSchema,
+        sessionId: z.undefined().optional(),
+    }),
+]);
 
 export type DesktopTargetPayload = z.infer<typeof desktopTargetPayloadSchema>;
 

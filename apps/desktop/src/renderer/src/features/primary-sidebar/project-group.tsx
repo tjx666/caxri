@@ -23,6 +23,7 @@ import { primarySidebarRevealRowId } from './primary-sidebar-tree';
 import { ProjectIcon } from './project-icon';
 import type { ProjectDropTarget } from './project-order';
 import { hasProjectDragType } from './project-order';
+import { ProjectRowMenu } from './project-row-menu';
 import { SessionActivityCard } from './session-activity-card';
 import { SessionPullRequestIndicator } from './session-pull-request-indicator';
 import { SessionRenameInput } from './session-rename-input';
@@ -344,89 +345,93 @@ export function ProjectGroup({
                     <span className="absolute top-1/2 -left-0.5 size-1.5 -translate-y-1/2 rounded-full bg-accent" />
                 </div>
             )}
-            <div
-                aria-expanded={expanded}
-                aria-level={1}
-                aria-selected={active}
-                className="project-heading group/project-heading flex min-h-7 cursor-grab items-center gap-1 rounded-md text-foreground hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] active:cursor-grabbing"
-                data-project-id={project.id}
-                role="treeitem"
-                // Programmatically focusable only to satisfy the treeitem-with-drag-handlers
-                // a11y contract (react-doctor/interactive-supports-focus); the roving Tab stop
-                // stays on the inner `.project-select` button below, not on this wrapper.
-                tabIndex={-1}
-                draggable
-                onDragOver={(event) => {
-                    if (!hasProjectDragType(event.dataTransfer.types)) return;
-                    onDragOver(event);
-                }}
-                onDrop={(event) => {
-                    if (!hasProjectDragType(event.dataTransfer.types)) return;
-                    onDrop(event);
-                }}
-                onDragStart={onDragStart}
-                onDragEnd={onDragEnd}
-            >
-                <Tooltip content={`${expanded ? 'Collapse' : 'Expand'} ${project.displayTitle}`}>
+            <ProjectRowMenu project={project}>
+                <div
+                    aria-expanded={expanded}
+                    aria-level={1}
+                    aria-selected={active}
+                    className="project-heading group/project-heading flex min-h-7 cursor-grab items-center gap-1 rounded-md text-foreground hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] active:cursor-grabbing"
+                    data-project-id={project.id}
+                    role="treeitem"
+                    // Programmatically focusable only to satisfy the treeitem-with-drag-handlers
+                    // a11y contract (react-doctor/interactive-supports-focus); the roving Tab stop
+                    // stays on the inner `.project-select` button below, not on this wrapper.
+                    tabIndex={-1}
+                    draggable
+                    onDragOver={(event) => {
+                        if (!hasProjectDragType(event.dataTransfer.types)) return;
+                        onDragOver(event);
+                    }}
+                    onDrop={(event) => {
+                        if (!hasProjectDragType(event.dataTransfer.types)) return;
+                        onDrop(event);
+                    }}
+                    onDragStart={onDragStart}
+                    onDragEnd={onDragEnd}
+                >
+                    <Tooltip
+                        content={`${expanded ? 'Collapse' : 'Expand'} ${project.displayTitle}`}
+                    >
+                        <button
+                            className="project-disclosure grid h-7 w-6 flex-none cursor-pointer place-items-center border-0 bg-transparent p-0 text-inherit"
+                            aria-controls={projectDisclosureId}
+                            aria-expanded={expanded}
+                            aria-label={`${expanded ? 'Collapse' : 'Expand'} ${project.displayTitle}`}
+                            tabIndex={-1}
+                            onClick={onToggle}
+                        >
+                            <ProjectIcon expanded={expanded} icon={project.icon} />
+                        </button>
+                    </Tooltip>
                     <button
-                        className="project-disclosure grid h-7 w-6 flex-none cursor-pointer place-items-center border-0 bg-transparent p-0 text-inherit"
+                        className="project-select flex min-h-7 min-w-0 flex-1 cursor-pointer items-center border-0 bg-transparent px-1 text-left text-inherit"
                         aria-controls={projectDisclosureId}
                         aria-expanded={expanded}
-                        aria-label={`${expanded ? 'Collapse' : 'Expand'} ${project.displayTitle}`}
-                        tabIndex={-1}
+                        aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+                        data-row-id={project.id}
+                        tabIndex={project.id === rovingRowId ? 0 : -1}
                         onClick={onToggle}
+                        onKeyDown={(event) => {
+                            if (!event.altKey) return;
+                            if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+                                event.preventDefault();
+                                onMove(event.key === 'ArrowUp' ? -1 : 1);
+                            }
+                        }}
+                        title={project.rootPath}
                     >
-                        <ProjectIcon expanded={expanded} icon={project.icon} />
+                        <strong className="min-w-0 flex-1 overflow-hidden text-sm font-semibold text-ellipsis whitespace-nowrap">
+                            {project.displayTitle}
+                        </strong>
                     </button>
-                </Tooltip>
-                <button
-                    className="project-select flex min-h-7 min-w-0 flex-1 cursor-pointer items-center border-0 bg-transparent px-1 text-left text-inherit"
-                    aria-controls={projectDisclosureId}
-                    aria-expanded={expanded}
-                    aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
-                    data-row-id={project.id}
-                    tabIndex={project.id === rovingRowId ? 0 : -1}
-                    onClick={onToggle}
-                    onKeyDown={(event) => {
-                        if (!event.altKey) return;
-                        if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
-                            event.preventDefault();
-                            onMove(event.key === 'ArrowUp' ? -1 : 1);
-                        }
-                    }}
-                    title={project.rootPath}
-                >
-                    <strong className="min-w-0 flex-1 overflow-hidden text-sm font-semibold text-ellipsis whitespace-nowrap">
-                        {project.displayTitle}
-                    </strong>
-                </button>
-                <CommandTooltip commandId="project.customizeIcon">
-                    <Button
-                        className="pointer-events-none opacity-0 transition-opacity group-focus-within/project-heading:pointer-events-auto group-focus-within/project-heading:opacity-100 group-hover/project-heading:pointer-events-auto group-hover/project-heading:opacity-100"
-                        size="icon"
-                        variant="ghost"
-                        aria-label={`Customize Project Icon for ${project.displayTitle}`}
-                        tabIndex={-1}
-                        onClick={() =>
-                            executeCommand('project.customizeIcon', { projectId: project.id })
-                        }
-                    >
-                        <Paintbrush size={13} />
-                    </Button>
-                </CommandTooltip>
-                <CommandTooltip commandId="session.create">
-                    <Button
-                        className="pointer-events-none opacity-0 transition-opacity group-focus-within/project-heading:pointer-events-auto group-focus-within/project-heading:opacity-100 group-hover/project-heading:pointer-events-auto group-hover/project-heading:opacity-100"
-                        size="icon"
-                        variant="ghost"
-                        aria-label={`New Session in ${project.displayTitle}`}
-                        tabIndex={-1}
-                        onClick={onCreateSession}
-                    >
-                        <SquarePen size={13} />
-                    </Button>
-                </CommandTooltip>
-            </div>
+                    <CommandTooltip commandId="project.customizeIcon">
+                        <Button
+                            className="pointer-events-none opacity-0 transition-opacity group-focus-within/project-heading:pointer-events-auto group-focus-within/project-heading:opacity-100 group-hover/project-heading:pointer-events-auto group-hover/project-heading:opacity-100"
+                            size="icon"
+                            variant="ghost"
+                            aria-label={`Customize Project Icon for ${project.displayTitle}`}
+                            tabIndex={-1}
+                            onClick={() =>
+                                executeCommand('project.customizeIcon', { projectId: project.id })
+                            }
+                        >
+                            <Paintbrush size={13} />
+                        </Button>
+                    </CommandTooltip>
+                    <CommandTooltip commandId="session.create">
+                        <Button
+                            className="pointer-events-none opacity-0 transition-opacity group-focus-within/project-heading:pointer-events-auto group-focus-within/project-heading:opacity-100 group-hover/project-heading:pointer-events-auto group-hover/project-heading:opacity-100"
+                            size="icon"
+                            variant="ghost"
+                            aria-label={`New Session in ${project.displayTitle}`}
+                            tabIndex={-1}
+                            onClick={onCreateSession}
+                        >
+                            <SquarePen size={13} />
+                        </Button>
+                    </CommandTooltip>
+                </div>
+            </ProjectRowMenu>
             <div
                 aria-hidden="true"
                 className="project-drag-preview pointer-events-none fixed -top-[1000px] left-0 flex h-7 items-center gap-2 rounded-md bg-elevated px-2 text-foreground shadow-[0_8px_24px_var(--shadow)]"

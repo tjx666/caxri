@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import type { ProjectRecord } from '@caxri/protocol';
 
+import { PROJECT_PATH_DRAG_TYPE } from '../../../lib/file-drag';
 import { didReorderProject } from '../../session/session-actions';
 import type { ProjectDropTarget } from '../project-order';
 import {
@@ -117,9 +118,12 @@ export function useProjectOrder(projects: ProjectRecord[]): ProjectOrderControll
         projectDropTarget,
         projectOrderAnnouncement,
         startDrag(event, projectId) {
-            event.dataTransfer.effectAllowed = 'move';
+            const project = projects.find((candidate) => candidate.id === projectId);
+            if (!project) return;
+            event.dataTransfer.effectAllowed = 'copyMove';
             event.dataTransfer.setData(PROJECT_DRAG_TYPE, projectId);
-            event.dataTransfer.setData('text/plain', projectId);
+            event.dataTransfer.setData(PROJECT_PATH_DRAG_TYPE, project.rootPath);
+            event.dataTransfer.setData('text/plain', project.rootPath);
             const preview =
                 event.currentTarget.parentElement?.querySelector('.project-drag-preview');
             if (preview instanceof HTMLElement) event.dataTransfer.setDragImage(preview, 14, 14);
