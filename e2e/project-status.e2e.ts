@@ -413,7 +413,7 @@ esac
             }),
         ).toBeVisible();
 
-        const linearError = tree.getByRole('treeitem', { name: /linear: error/i });
+        const linearError = tree.getByRole('treeitem', { name: /linear: LOBE-42 failed/i });
         await expect(linearError).toBeVisible();
         /**
          * The keyboard steps above left focus on the pull request row, and a focus-opened card stays open by design so
@@ -426,10 +426,17 @@ esac
         // A provider failure keeps its recovery hint as prose under the heading instead of a labeled list row.
         const linearErrorTooltip = running.page
             .locator('.tree-item-rich-tooltip:visible')
-            .filter({ hasText: 'linear: error' });
+            .filter({ hasText: 'linear: LOBE-42 failed' });
         await expect(linearErrorTooltip).toBeVisible();
         await expect(linearErrorTooltip).toContainText('linear');
-        await expect(linearErrorTooltip).toContainText('See Runtime logs for details.');
+        /**
+         * The hint names what the Runtime logs actually hold. Promising "details" there was a lie: `diagnostics.ts`
+         * deliberately drops CLI output, so the only recorded fields are the failure kind, the exit code, and the
+         * subject.
+         */
+        await expect(linearErrorTooltip).toContainText(
+            'Runtime logs record the failure kind and exit code for LOBE-42. CLI output is never logged.',
+        );
         await expect(linearErrorTooltip.locator('ul')).toHaveCount(0);
         await running.page.mouse.move(0, 0);
         await expect(running.page.getByRole('region', { name: 'Panel' })).toHaveCount(0);
