@@ -49,12 +49,27 @@ roles below.
 | `--accent-foreground`                  | text/icons on accent fills (derived, not hardcoded)                            |
 | `--success` / `--warning` / `--danger` | status dots, exit banners, destructive buttons                                 |
 | `--merged`                             | landed work: the merged pull request glyph                                     |
+| `--badge`                              | neutral view-container count badge fill                                        |
+| `--badge-foreground`                   | text on `--badge` (derived, not hardcoded)                                     |
+| `--git-added` … `--git-conflicting`    | working-tree decorations: added, modified, deleted, untracked, conflicting     |
 | `--overlay`                            | dialog backdrop: `color-mix(in srgb, var(--background) 60%, transparent)`      |
 | `--shadow`                             | elevation shadows: translucent black derived once                              |
 | `--indicator`                          | neutral (non-accent) selected-tab underline for secondarySidebar/settings tabs |
 
-Derive `--accent-foreground`, `--overlay`, and `--shadow` in one place from theme colors. The
-status bar uses `--surface` plus a top hairline — never an accent fill.
+Derive `--accent-foreground`, `--danger-foreground`, `--badge-foreground`, `--overlay`, and
+`--shadow` in one place from theme colors. The status bar uses `--surface` plus a top hairline —
+never an accent fill.
+
+`--badge` and the five `--git-*` roles exist so the theme, not the component, decides these colors.
+Both mirror a VS Code key a theme author already writes — `activityBarBadge.background` and the Git
+extension's `gitDecoration.*ResourceForeground` — so a built-in preset carries the exact value VS
+Code would paint, and a VS Code theme import reads them straight across. Before them the count badge
+was hardcoded `--foreground` on `--background` (white in every dark theme, where VS Code shows the
+theme's own badge color) and the status letters borrowed `--success`/`--warning`/`--danger`, which
+collapses added and untracked onto one color and paints a modified file the same amber as a warning
+chip. `renamed` deliberately has no role of its own: VS Code's two defaults resolve to the same
+green, so it shares `--git-untracked`; ignored entries stay on `--muted`. A theme file saved before
+these roles existed is repaired by `upgradeThemeColors` the same way `--merged` is.
 
 `--merged` is a role rather than a reuse of `--success` because `--success` also identifies an open
 pull request; sharing it left a landed PR and an open PR distinguishable
@@ -166,7 +181,10 @@ in Settings or retries the current Terminal's GPU renderer without changing sett
 the Terminal. An explicit retry resets the window's GPU incident budget; subsequent failures still
 use the normal limits. Automatic recovery in progress stays informational to avoid duplicate retries.
 Persistent metrics use concise icon-plus-value labels; explanatory prose belongs in their
-accessible names and hover tooltips.
+accessible names and hover tooltips. The notification bell is pinned to the far bottom-right corner,
+outside the right-hand chip rail, VS Code style: every chip beside it follows the active tab and
+comes and goes as the user moves around, so an anchor placed among them would slide sideways, and
+the rail's last child is the first thing an overflow hides.
 
 The Workbench Root picker shows branch labels on one line, with directory hints only for detached
 or duplicate branch labels and complete paths in shared tooltips. Its compact list pins the current
@@ -232,6 +250,14 @@ complete, so a busy Project never buries the Projects below it. The selected Ses
 renders even when it sits below that window. The revealed count is per-Renderer-lifetime: a relaunch starts from the short list
 the same way it starts scrolled to the top.
 
+A Session working in a Git worktree rather than its Project root is marked by a `FolderSymlink`
+glyph in a leading fixed-width 14px column, reserved for the whole Project group at once so every
+marker in a group lands on one vertical line and titles never shift sideways as Sessions come and
+go. A Project with no such Session reserves nothing. The glyph is deliberately not `FolderGit2`,
+which already means "Workbench Root" in the root picker and "repository" in Source Control: at 12px
+beside the trailing pull request glyph it read as a third Git mark on the same row. The full
+worktree name stays in the Session hover card.
+
 Pull request lifecycle owns the glyph color: open is `--success`, closed is `--danger`, merged
 is `--merged`, and draft is `--muted`. Checks appear as text in the hover card, with failures in
 `--danger`; never overlay a badge on the small PR glyph or recolor it for CI. The existing animated
@@ -249,14 +275,18 @@ categories. Switching tabs does not clear failures; switching Sessions changes t
 Numeric badges are an extension view capability: plugins provide the count, plain-text description,
 and neutral or danger tone; the Workbench aggregates them on the owning container. Git counts all
 working-tree changes across the current Workbench Root's repositories, including hidden and
-truncated entries. Its neutral badge uses foreground/background tokens and caps visible text at
+truncated entries. Its neutral badge uses `--badge`/`--badge-foreground` and caps visible text at
 `99+`; danger badges retain `9+`. Both expose the full count in their accessible description.
 Badge reads activate declared providers even before their views open. Zero, no selected Session,
 and unavailable extension states hide the badge; counts never carry across Workbench scopes.
 
 **Tab strip** — active tab: `--background` fill joining it visually to the pane below,
 `--foreground` text, and a 2px `--accent` top border, VS Code style. Inactive: `--surface` +
-`--muted`. Dirty dot replaces the close button until hover/focus (already the pattern — keep).
+`--muted`. The active tab always shows its close button; an inactive tab reveals a `--muted` one
+only under the pointer or keyboard focus, VS Code style — hunting for a control that is always
+there on the tab you are working in is the friction this removes, and keeping the inactive ones
+muted is what stops a crowded rail from reading as a row of X's. A dirty tab shows its dot in that
+slot instead and swaps to the close button on hover/focus, active or not.
 Tabs fill the full 44px rail height. Document tabs fit their full labels; Terminal tabs divide the
 remaining width with their full displayed content as the minimum. Crowded bars scroll rather than
 truncating Terminal labels or imposing a fixed filename cap.
@@ -291,6 +321,30 @@ exception: it uses `--foreground` and a slow opacity pulse so long-running conte
 remains noticeable without animating the Agent icon or Session title. Work tabs carry no separate
 process-state dot; process liveness remains available through diagnostics rather than duplicate
 chrome. This does not govern the Session list's right-edge running spinner.
+
+**Git decorations** — a file with working-tree changes reads the same wherever its name appears.
+The name takes the `--git-*` color of its change, and a single status letter (`M`, `A`, `D`, `U`…)
+sits at the trailing edge of the row or tab in the same color — the Files tree, the tab strip, and
+the diff headers all render that letter from one component. Source Control still paints its own
+from the Extension API's generic `tone`. The staged column
+wins when both are set, so a file staged as added and then edited reads `A` everywhere. The file
+type icon keeps its own color: it identifies the language, not the change. A directory in the Files
+tree takes the color of the most severe change anywhere beneath it (conflicted > deleted > modified
+
+> renamed > added > untracked) but no letter, which would claim the folder itself changed; the
+> repository root is never decorated. Inactive tabs keep their decoration color — the point is to be
+> readable across the whole rail without selecting each tab. Ignored entries stay muted and italic
+> and take no decoration. The decoration is visual only: a row or tab is still named by its bare
+> filename, and the status reaches assistive technology as an accessible description
+> (`Git: modified.`) rather than being folded into that name.
+
+**Child repositories** — a directory that is a repository of its own takes the Git repository
+folder icon instead of the one its name would earn, so a submodule is never mistaken for an
+ordinary folder. This covers both a `.gitmodules`-declared submodule and a directory someone cloned
+in independently; the row's tooltip and its accessible description name which of the two it is,
+since only the submodule shows up as a change in the parent when its recorded commit moves. A
+linked worktree takes no mark: it is a peer checkout, not something nested in this tree. The mark
+is independent of the change decoration above — a submodule root can wear both at once.
 
 **Editor breadcrumbs** — an ordinary Project file gets one 24px metadata row below the tab strip.
 Its Project-relative path sits on the left and the current file's last-change annotation sits on

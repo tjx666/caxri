@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { CaxriError } from '@caxri/protocol';
-import { builtinThemes, solarizedLightTheme } from '@caxri/protocol';
+import { builtinThemes, solarizedLightTheme, themeColorCssVariable } from '@caxri/protocol';
 import { execFileAsync } from '@caxri/system';
 import { contrastRatio } from '@caxri/utils';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -110,7 +110,7 @@ describe('theme import mapping', () => {
         expect(theme.colors.background).toBe(solarizedLightTheme.colors.background);
     });
 
-    it('rejects a VS Code theme when mapped app surfaces make the fallback muted color miss AA', async () => {
+    it('rejects a VS Code theme whose own secondary text misses AA on a mapped surface', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-contrast-'));
         temporaryDirectories.push(directory);
         const path = join(directory, 'light.json');
@@ -118,10 +118,12 @@ describe('theme import mapping', () => {
             path,
             JSON.stringify({
                 name: 'Light',
+                type: 'light',
                 colors: {
-                    'activityBar.background': '#ffffff',
                     'editor.background': '#ffffff',
                     'sideBar.background': '#ffffff',
+                    'editorWidget.background': '#ffffff',
+                    'descriptionForeground': '#c8c8c8',
                 },
             }),
             'utf8',
@@ -131,6 +133,86 @@ describe('theme import mapping', () => {
             code: 'VALIDATION',
             message: expect.stringContaining('editor background') as string,
         } satisfies Partial<CaxriError>);
+    });
+
+    /**
+     * Regression: `background` and `surface` were swapped, so an import painted the editor in the theme's sidebar color
+     * and the sidebar in its activity-bar color. A plain light theme also inherited Dracula's dark `elevated`, `muted`,
+     * and `selection`, which then failed the AA gate and rejected the file outright.
+     */
+    it('maps a VS Code theme onto the matching Caxri surfaces instead of mixing in the active palette', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-surfaces-'));
+        temporaryDirectories.push(directory);
+        const path = join(directory, 'light.json');
+        await writeFile(
+            path,
+            JSON.stringify({
+                name: 'Light',
+                type: 'light',
+                colors: {
+                    'editor.background': '#ffffff',
+                    'sideBar.background': '#f0f0f0',
+                    'activityBar.background': '#dddddd',
+                },
+            }),
+            'utf8',
+        );
+
+        const theme = await importTheme(path, draculaTheme);
+        expect(theme.colors.background).toBe('#ffffff');
+        expect(theme.colors.surface).toBe('#f0f0f0');
+        for (const role of ['elevated', 'muted', 'selection'] as const)
+            expect(theme.colors[role], role).not.toBe(draculaTheme.colors[role]);
+    });
+
+    it('reads badge and Git decoration colors from their VS Code keys', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-decorations-'));
+        temporaryDirectories.push(directory);
+        const path = join(directory, 'dark.json');
+        await writeFile(
+            path,
+            JSON.stringify({
+                name: 'Dark',
+                type: 'dark',
+                colors: {
+                    'editor.background': '#101010',
+                    'activityBarBadge.background': '#ff79c6',
+                    'gitDecoration.modifiedResourceForeground': '#8be9fd',
+                    // Shorthand hex is legal in a VS Code theme and must not be dropped.
+                    'gitDecoration.deletedResourceForeground': '#f55',
+                },
+            }),
+            'utf8',
+        );
+
+        const theme = await importTheme(path, draculaTheme);
+        expect(theme.colors.badge).toBe('#ff79c6');
+        expect(theme.colors.gitModified).toBe('#8be9fd');
+        expect(theme.colors.gitDeleted).toBe('#ff5555');
+        // Unset decorations fall back to what VS Code's built-in Git extension would paint, not to the active theme.
+        expect(theme.colors.gitUntracked).toBe('#73c991');
+    });
+
+    it('takes the accent from the theme active-tab edge rather than its focus border', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-accent-'));
+        temporaryDirectories.push(directory);
+        const path = join(directory, 'dark.json');
+        await writeFile(
+            path,
+            JSON.stringify({
+                name: 'Dark',
+                type: 'dark',
+                colors: {
+                    'editor.background': '#101010',
+                    // Dracula's real values: a near-invisible focus border beside a saturated active edge.
+                    'focusBorder': '#6272a4',
+                    'tab.activeBorderTop': '#ff79c6cc',
+                },
+            }),
+            'utf8',
+        );
+
+        expect((await importTheme(path, draculaTheme)).colors.accent).toBe('#ff79c6');
     });
 
     it('uses the active app and editor tokens for a terminal-only Warp theme', async () => {
@@ -406,7 +488,7 @@ describe('built-in theme contrast', () => {
         );
         for (const [token, value] of Object.entries(draculaTheme.colors)) {
             if (token === 'selection') continue;
-            expect(stylesheet).toContain(`--${token}: ${value};`);
+            expect(stylesheet).toContain(`${themeColorCssVariable(token)}: ${value};`);
         }
     });
 });

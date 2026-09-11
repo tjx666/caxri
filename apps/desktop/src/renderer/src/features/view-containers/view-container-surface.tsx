@@ -144,7 +144,7 @@ export function ViewContainerSurface({
                     {badges[container.id] && (
                         <span
                             aria-hidden="true"
-                            className={`absolute -right-2 -bottom-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-1 text-[10px] leading-none font-semibold ring-2 ring-surface ${badges[container.id]?.tone === 'danger' ? 'bg-danger text-danger-foreground' : 'bg-foreground text-background'}`}
+                            className={`absolute -right-2 -bottom-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-1 text-[10px] leading-none font-semibold ring-2 ring-surface ${badges[container.id]?.tone === 'danger' ? 'bg-danger text-danger-foreground' : 'bg-badge text-badge-foreground'}`}
                             data-view-container-badge={container.id}
                         >
                             {badges[container.id]?.text}
