@@ -46,6 +46,20 @@ not sufficient evidence that the main turn is waiting for a human. Native rename
 Agent messaging, paste summaries, and bundled skills/actions are unavailable in
 this integration. Rename fails explicitly instead of saving a Caxri-only alias.
 
+## Conversation title
+
+The metadata probe reads `generated_title` from the bound conversation's
+`summary.json` and publishes it as the Session and Terminal title. Grok owns that
+value: it writes only its own generated title there — never a provisional copy of
+the first prompt, as Codex does — and refreshes it after later turns, so Caxri
+adopts each refresh on the next probe. The read requires the exact session
+identity a hook already confirmed; an unbound Terminal reads no title, because
+directory recency cannot separate simultaneous same-directory conversations. The
+probe reports no identity or activity of its own, and a missing, empty, oversized,
+multi-line, or unparseable value leaves the current title untouched. Caxri's own
+automatic Session naming stays off for Grok, which has no native rename to
+synchronize a generated name back into the provider.
+
 ## Verification boundaries
 
 Automated Electron tests use a repository-owned fake CLI and isolated provider

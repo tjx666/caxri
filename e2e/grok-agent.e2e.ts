@@ -10,6 +10,8 @@ import { expect, test } from './support/fixtures';
 import { createProjectSession, launchCaxri, pageRequest, typeTerminal } from './support/helpers';
 
 const switchedSessionId = '49cc1001-2b93-4bb3-9ee8-104e8dcdd699';
+const initialTitle = 'Fixture Grok conversation';
+const refreshedTitle = 'Fixture Grok conversation refreshed';
 
 for (const entry of ['managed', 'shell'] as const) {
     // eslint-disable-next-line no-empty-pattern -- Playwright requires fixture destructuring
@@ -39,9 +41,14 @@ function hook(event, extra = {}) {
     cp.execFileSync('/bin/sh', ['-c', entry.command], { input: JSON.stringify({ sessionId, promptId, cwd: process.cwd(), ...extra }),
       env: { ...process.env, GROK_SESSION_ID: sessionId }, stdio: ['pipe', 'ignore', 'inherit'] });
 }
-function identify(source) {
+let title = ${JSON.stringify(initialTitle)};
+function summarize() {
   const folder = path.join(process.env.GROK_HOME, 'sessions', encodeURIComponent(fs.realpathSync(process.cwd())), sessionId);
-  fs.mkdirSync(folder, { recursive: true }); fs.writeFileSync(path.join(folder, 'summary.json'), '{}');
+  fs.mkdirSync(folder, { recursive: true });
+  fs.writeFileSync(path.join(folder, 'summary.json'), JSON.stringify({ generated_title: title, session_summary: title }));
+}
+function identify(source) {
+  summarize();
   hook('SessionStart', { source });
 }
 identify(resume >= 0 ? 'load' : 'new');
@@ -55,6 +62,7 @@ process.stdin.on('data', chunk => {
     if (command === 'work') hook('UserPromptSubmit');
     if (command === 'finish') hook('Stop', { reason: 'end_turn' });
     if (command === 'fail') hook('StopFailure', { reason: 'api_error' });
+    if (command === 'retitle') { title = ${JSON.stringify(refreshedTitle)}; summarize(); }
     if (command === 'old') hook('Stop', { sessionId: initialId, reason: 'end_turn' });
     if (command === 'shutdown') hook('Stop', { reason: 'shutdown', promptId: undefined });
     process.stdout.write('Fixture input handled\r\n');
@@ -99,6 +107,15 @@ process.stdout.write('Fake Grok ready\r\n');
             await expect
                 .poll(async () => (await state()).terminals[0]?.agentSessionId)
                 .toBe(switchedSessionId);
+            await expect
+                .poll(async () => (await state()).sessions[0]?.displayTitle)
+                .toBe(initialTitle);
+            await expect(running.page.getByText(initialTitle).first()).toBeVisible();
+            await typeTerminal(running.page, 'retitle');
+            await expect
+                .poll(async () => (await state()).sessions[0]?.displayTitle)
+                .toBe(refreshedTitle);
+            await running.page.screenshot({ path: testInfo.outputPath('grok-title.png') });
             await typeTerminal(running.page, 'work');
             await expect
                 .poll(async () => (await state()).sessions[0]?.lastActivityState)
