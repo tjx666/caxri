@@ -46,7 +46,13 @@ test('Editor tabs paste paths at Terminal edges by default and Option restores s
         await expect(editorTab.getByRole('tab')).toHaveAttribute('aria-selected', 'true');
         const terminalTab = running.page.locator('.work-tab[data-terminal-id]');
         await terminalTab.getByRole('tab').click();
+        /**
+         * A late Editor activation can still unmount the Terminal textarea after the click, so await the Terminal
+         * owning the pane before dropping onto it.
+         */
+        await expect(terminalTab.getByRole('tab')).toHaveAttribute('aria-selected', 'true');
         const terminalInput = running.page.locator('.xterm-helper-textarea');
+        await expect(terminalInput).toBeVisible();
         const surface = running.page.locator('.pane-surface');
         const verifyDrop = async (xRatio: number): Promise<void> => {
             const receipt = join(testDirectory, `drop-${xRatio}.txt`);
