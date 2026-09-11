@@ -126,6 +126,7 @@
                     "scripts/fixtures/eslint/class-members-spaced-methods-fixture.ts",
                     "scripts/fixtures/eslint/feature-structure/**/*.ts",
                     "scripts/fixtures/eslint/architecture/**/*.ts",
+                    "scripts/fixtures/eslint/view-container-reads/**/*.ts",
                     "scripts/run-e2e-failure-isolation.ts",
                     "scripts/run-e2e-pools.ts"
                 ],

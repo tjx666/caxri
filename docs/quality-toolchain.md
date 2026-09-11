@@ -54,9 +54,10 @@ Server `structure`, and Renderer `design-contract` tests already used.
 
 ### After stage 5
 
-| Convention                                                                                          | Enforcement                                                                                            |
-| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Class methods have a blank line on either side; consecutive fields and overload signatures may pack | `eslint.config.ts` `@stylistic/lines-between-class-members` (Prettier never inserts these blank lines) |
+| Convention                                                                                                                            | Enforcement                                                                                                                                                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Class methods have a blank line on either side; consecutive fields and overload signatures may pack                                   | `eslint.config.ts` `@stylistic/lines-between-class-members` (Prettier never inserts these blank lines)                                                                             |
+| View Container server reads go through React Query, a `*-client.ts`, or a `*-commands.ts` module, never straight into component state | Local `caxri/server-reads-through-query` ESLint rule (`scripts/eslint-rules/server-reads-through-query.ts`), scoped to `apps/desktop/src/renderer/src/features/view-containers/**` |
 
 Flat ESLint config objects replace, rather than merge, a later matching object's same-named rule
 for a given file. The two `no-restricted-imports` blocks above stay on non-overlapping `files`
@@ -96,6 +97,11 @@ and will fail CI on an unused file. Every new rule in this stage has a paired po
 - `class-members-packed-methods-fixture.ts` / `class-members-spaced-methods-fixture.ts` — fire or
   stay silent for `@stylistic/lines-between-class-members` depending on whether adjacent methods
   have a blank line (packed consecutive fields and overload signatures stay allowed).
+- `view-container-reads/component-state-read-fixture.ts` (both `caxri.request` and the abortable
+  `caxri.requestWithSignal`) vs. `view-container-reads/query-function-read-fixture.ts` and
+  `view-container-reads/tree-branch-client.ts` — fire or stay silent for
+  `caxri/server-reads-through-query`, asserted by
+  `scripts/__tests__/server-reads-through-query.test.ts` rather than the shared contract test.
 
 The Renderer-only alias ban is asserted through `ESLint#calculateConfigForFile`
 (`effectiveConfigFor` in the same test file) instead of a fixture, mirroring how the pre-existing

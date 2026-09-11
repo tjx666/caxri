@@ -265,11 +265,20 @@ export function removeSessionQueries(
         predicate: (query) => {
             const [, parameters] = query.queryKey as [
                 CaxriMethod,
-                { sessionId?: string } | undefined,
+                { contextKey?: string; sessionId?: string } | undefined,
             ];
-            return (
-                parameters?.sessionId !== undefined && removedSessionIds.has(parameters.sessionId)
-            );
+            if (parameters?.sessionId !== undefined)
+                return removedSessionIds.has(parameters.sessionId);
+            /**
+             * Controlled views and Extension Trees identify their Session through the `${sessionId}:...` context key
+             * rather than a `sessionId` parameter, so the sweep has to recognize both shapes — otherwise a deleted
+             * Session's cached views survive until garbage collection, which the Extension Tree deliberately delays.
+             */
+            const contextKey = parameters?.contextKey;
+            if (contextKey === undefined) return false;
+            return removedSessionIds
+                .values()
+                .some((sessionId) => contextKey.startsWith(`${sessionId}:`));
         },
     });
 }
@@ -302,9 +311,15 @@ function invalidateControlledViewQueries(queryClient: QueryClient): void {
     // lets active observers resolve the new generation instead of reusing an old provider result.
     // eslint-disable-next-line no-void -- invalidation is intentionally fire-and-forget
     void queryClient.invalidateQueries({
-        predicate: (query) =>
-            query.queryKey[0] === 'viewContainers.viewOperation' ||
-            query.queryKey[0] === 'viewContainers.treeChildren',
+        predicate: (query) => query.queryKey[0] === 'viewContainers.viewOperation',
+    });
+    /**
+     * Extension Tree branches are dropped rather than invalidated: their cached items are addressed by opaque provider
+     * handles, and a retired registration invalidates the handles themselves, so restoring them into the next mount
+     * would replay tokens the provider can no longer resolve.
+     */
+    queryClient.removeQueries({
+        predicate: (query) => query.queryKey[0] === 'viewContainers.treeChildren',
     });
 }
 
@@ -340,22 +355,11 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
             invalidateControlledViewQueries(queryClient);
             return;
         }
-        if (event.event === 'viewContainers.treeChanged') {
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, React Query owns invalidation errors
-            void queryClient.invalidateQueries({
-                predicate: (query) => {
-                    const [method, parameters] = query.queryKey as [
-                        CaxriMethod,
-                        { viewId?: string } | undefined,
-                    ];
-                    return (
-                        method === 'viewContainers.treeChildren' &&
-                        parameters?.viewId === event.payload.viewId
-                    );
-                },
-            });
-            return;
-        }
+        /**
+         * `viewContainers.treeChanged` is deliberately absent here: a mounted Extension Tree replays the changed
+         * branches itself (see `useExtensionTreeChildren`) and writes the result back into the cache, and an unmounted
+         * one revalidates its root on the next mount. Invalidating from here would only race that owner.
+         */
         if (
             event.event === 'viewContainers.viewChanged' &&
             (event.payload.change.kind === 'content' || event.payload.change.kind === 'badge')

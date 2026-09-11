@@ -24,7 +24,6 @@ import {
 import { ChromeTabPanel, ChromeTabs } from '../../components/chrome-tabs';
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
-import { caxri } from '../../lib/caxri';
 import { useCommandShortcut } from '../../lib/keybindings';
 import { useCaxriQuery } from '../../queries/client';
 import { tryCommand } from '../../stores/toasts';
@@ -35,6 +34,7 @@ import { useViewBadges } from './hooks/use-view-badges';
 import { resolveViewContainerId } from './resolution';
 import { ResourceExplorerView } from './resource-explorer/resource-explorer-view';
 import { SourceControlView } from './source-control/source-control-view';
+import { retryExtension } from './view-container-commands';
 
 const builtinIcons = {
     'files': Files,
@@ -243,25 +243,9 @@ export function ViewContainerSurface({
                                                               'Unable to retry extension',
                                                               async () => {
                                                                   try {
-                                                                      const result =
-                                                                          await caxri.request(
-                                                                              'extensions.retry',
-                                                                              { extensionId },
-                                                                          );
-                                                                      if (
-                                                                          !result.accepted &&
-                                                                          result.error
-                                                                      )
-                                                                          throw Object.assign(
-                                                                              new Error(
-                                                                                  result.error
-                                                                                      .message,
-                                                                              ),
-                                                                              {
-                                                                                  code: result.error
-                                                                                      .code,
-                                                                              },
-                                                                          );
+                                                                      await retryExtension(
+                                                                          extensionId,
+                                                                      );
                                                                   } finally {
                                                                       setRetryingExtensionIds(
                                                                           (current) => {
