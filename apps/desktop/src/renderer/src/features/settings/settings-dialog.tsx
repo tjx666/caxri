@@ -117,6 +117,7 @@ function SettingsDialogView(controller: SettingsDialogController) {
                                 agentHookHealth={controller.agentHookHealth}
                                 agentSkillHealth={controller.agentSkillHealth}
                                 argvConfig={controller.argvConfig}
+                                gitExclusionsFocusRequestId={controller.gitExclusionsFocusRequestId}
                                 hardwareAccelerationFocusRequestId={
                                     controller.hardwareAccelerationFocusRequestId
                                 }

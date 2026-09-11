@@ -136,6 +136,16 @@ export interface SourceControlProviderModel {
     descriptionAccessibilityLabel: string;
     descriptionTooltip: string;
     countLabel: string;
+    /**
+     * Uncommitted work the selected mode is not showing, plus the mode that does show it. Deliberately not a
+     * `SourceControlAction`: changing the panel's mode is the mode switch's job, and routing it through the action
+     * registry instead would give the same state change two dispatch paths.
+     */
+    uncommittedNotice?: {
+        modeId: string;
+        accessibilityLabel: string;
+        tooltip: string;
+    };
     expandedByDefault: boolean;
     actions: SourceControlAction[];
     groups: SourceControlGroup[];

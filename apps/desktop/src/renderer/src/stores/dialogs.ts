@@ -8,7 +8,8 @@ export type SettingsView =
     | 'trusted-domains'
     | 'agent-actions'
     | 'hardware-acceleration'
-    | 'notifications';
+    | 'notifications'
+    | 'git-exclusions';
 
 interface DialogState {
     archivedSessionsOpen: boolean;

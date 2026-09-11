@@ -2,6 +2,11 @@ import type { AppSettings, ArgvConfig, ArgvConfigChanges } from '@caxri/protocol
 import { defaultAgentProviderSettings, defaultAppSettings } from '@caxri/protocol';
 import { isEqual } from 'es-toolkit';
 
+import {
+    hasDefaultProviderAutonomy,
+    hasProviderAutonomy,
+    withProviderAutonomy,
+} from './provider-autonomy';
 import type { SettingRowBinding } from './settings-registry';
 
 /**
@@ -26,6 +31,15 @@ export function isRowModified(binding: SettingRowBinding, context: SettingsValue
             return (
                 settings['agents.providers'][binding.provider][binding.field].enabled !==
                 defaultAgentProviderSettings[binding.provider][binding.field].enabled
+            );
+        case 'provider-autonomy':
+            // Derived from the launch arguments, so only the autonomy tokens count as modified: adding an unrelated
+            // argument by hand marks the arguments row, never this one.
+            return (
+                hasProviderAutonomy(
+                    settings['agents.providers'][binding.provider].launch.args,
+                    binding.provider,
+                ) !== hasDefaultProviderAutonomy(binding.provider)
             );
         case 'provider-launch':
             return !isEqual(
@@ -96,6 +110,23 @@ export function rowResetAction(
                     [binding.field]: {
                         enabled:
                             defaultAgentProviderSettings[binding.provider][binding.field].enabled,
+                    },
+                }),
+            };
+        case 'provider-autonomy':
+            // Restores only the default answer to "does it ask first"; every other launch argument the user added
+            // survives the reset.
+            return {
+                kind: 'field',
+                key: 'agents.providers',
+                value: withProviderField(settings, binding.provider, {
+                    launch: {
+                        ...settings['agents.providers'][binding.provider].launch,
+                        args: withProviderAutonomy(
+                            settings['agents.providers'][binding.provider].launch.args,
+                            binding.provider,
+                            hasDefaultProviderAutonomy(binding.provider),
+                        ),
                     },
                 }),
             };

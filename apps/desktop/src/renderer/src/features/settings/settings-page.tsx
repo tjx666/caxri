@@ -29,6 +29,7 @@ export interface SettingsPageProperties {
     agentHookHealth?: AgentHookHealthMap;
     agentSkillHealth?: AgentSkillHealth;
     agentActionsFocusRequest?: { id: number; provider: AgentProvider };
+    gitExclusionsFocusRequestId?: number;
     hardwareAccelerationFocusRequestId?: number;
     trustedDomainsFocusRequestId?: number;
     notificationsFocusRequestId?: number;
@@ -164,6 +165,7 @@ export function SettingsPage(properties: SettingsPageProperties) {
     const scrollParentReference = useRef<HTMLDivElement>(null);
     const handledFocusRequest = useRef(0);
     const handledAgentActionsFocusRequest = useRef(0);
+    const handledGitExclusionsFocusRequest = useRef(0);
     const handledHardwareAccelerationFocusRequest = useRef(0);
     const handledNotificationsFocusRequest = useRef(0);
 
@@ -222,6 +224,26 @@ export function SettingsPage(properties: SettingsPageProperties) {
         );
         if (index !== -1) virtualizer.scrollToIndex(index, { align: 'start' });
     }, [list, properties.agentActionsFocusRequest, virtualizer]);
+
+    useEffect(() => {
+        const requestId = properties.gitExclusionsFocusRequestId;
+        if (
+            !requestId ||
+            handledGitExclusionsFocusRequest.current === requestId ||
+            virtualItems.length === 0
+        )
+            return;
+        const index = list.findIndex(
+            (item) => item.kind === 'row' && item.row.id === 'git.diffExclude',
+        );
+        if (index === -1) return;
+        /**
+         * Wait for measured items: opening the dialog on this request mounts an unmeasured list, and scrolling it
+         * before the virtualizer has a range silently does nothing.
+         */
+        handledGitExclusionsFocusRequest.current = requestId;
+        virtualizer.scrollToIndex(index, { align: 'start' });
+    }, [list, properties.gitExclusionsFocusRequestId, virtualizer, virtualItems.length]);
 
     useEffect(() => {
         const requestId = properties.hardwareAccelerationFocusRequestId;

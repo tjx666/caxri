@@ -606,8 +606,8 @@ function ChangesDiffList({
     repositoryId,
     repositoryRootPath,
     sessionId,
-    showExcluded,
-    source,
+    tab,
+    tabPath,
     truncated = false,
 }: {
     changedFileCount?: number;
@@ -616,8 +616,8 @@ function ChangesDiffList({
     repositoryId: string;
     repositoryRootPath?: string;
     sessionId: string;
-    showExcluded: boolean;
-    source: GitDiffTab['source'];
+    tab: Extract<GitDiffTab, { kind: 'changes' }>;
+    tabPath: string;
     truncated?: boolean;
 }) {
     return (
@@ -625,8 +625,8 @@ function ChangesDiffList({
             changedFileCount={changedFileCount}
             emptyLabel={emptyLabel}
             files={files}
-            showExcluded={showExcluded}
-            source={source}
+            tab={tab}
+            tabPath={tabPath}
             truncated={truncated}
             renderFile={(file) => (
                 <GitChangesDiffItem
@@ -635,14 +635,20 @@ function ChangesDiffList({
                     repositoryId={repositoryId}
                     repositoryRootPath={repositoryRootPath}
                     sessionId={sessionId}
-                    source={source}
+                    source={tab.source}
                 />
             )}
         />
     );
 }
 
-function WorkingChangesDiffEditor({ tab }: { tab: Extract<GitDiffTab, { kind: 'changes' }> }) {
+function WorkingChangesDiffEditor({
+    tab,
+    tabPath,
+}: {
+    tab: Extract<GitDiffTab, { kind: 'changes' }>;
+    tabPath: string;
+}) {
     const sessionId = useSelectedSession()?.id;
     const {
         data: summary,
@@ -675,14 +681,20 @@ function WorkingChangesDiffEditor({ tab }: { tab: Extract<GitDiffTab, { kind: 'c
             repositoryId={repo.id}
             repositoryRootPath={repo.rootPath}
             sessionId={sessionId}
-            showExcluded={tab.showExcluded === true}
-            source="working"
+            tab={tab}
+            tabPath={tabPath}
             truncated={repo.truncated}
         />
     );
 }
 
-function PullRequestChangesDiffEditor({ tab }: { tab: Extract<GitDiffTab, { kind: 'changes' }> }) {
+function PullRequestChangesDiffEditor({
+    tab,
+    tabPath,
+}: {
+    tab: Extract<GitDiffTab, { kind: 'changes' }>;
+    tabPath: string;
+}) {
     const sessionId = useSelectedSession()?.id;
     const {
         data: pullRequest,
@@ -721,8 +733,8 @@ function PullRequestChangesDiffEditor({ tab }: { tab: Extract<GitDiffTab, { kind
             repositoryId={pullRequest.repositoryId}
             repositoryRootPath={repoRootPath}
             sessionId={sessionId}
-            showExcluded={tab.showExcluded === true}
-            source="pull-request"
+            tab={tab}
+            tabPath={tabPath}
         />
     );
 }
@@ -749,8 +761,8 @@ export function GitDiffEditor({
             <WorkingFileDiffEditor editorInstanceId={paneId} navigationKey={tabPath} tab={tab} />
         );
     return tab.source === 'pull-request' ? (
-        <PullRequestChangesDiffEditor tab={tab} />
+        <PullRequestChangesDiffEditor tab={tab} tabPath={tabPath} />
     ) : (
-        <WorkingChangesDiffEditor tab={tab} />
+        <WorkingChangesDiffEditor tab={tab} tabPath={tabPath} />
     );
 }

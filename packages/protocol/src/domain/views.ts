@@ -422,6 +422,18 @@ const sourceControlProviderModelSchema = z.object({
     descriptionAccessibilityLabel: z.string().min(1).max(4_096),
     descriptionTooltip: z.string().min(1).max(4_096),
     countLabel: z.string().min(1).max(1_024),
+    /**
+     * Uncommitted work the selected mode is not showing, plus the mode that does show it. This is deliberately not a
+     * `sourceControlAction`: changing the panel's mode is the mode switch's job, and routing it through the action
+     * registry instead would give the same state change two dispatch paths.
+     */
+    uncommittedNotice: z
+        .object({
+            modeId: treeItemIdSchema,
+            accessibilityLabel: z.string().min(1).max(1_024),
+            tooltip: z.string().min(1).max(1_024),
+        })
+        .optional(),
     expandedByDefault: z.boolean(),
     actions: z.array(sourceControlActionSchema).max(32),
     groups: z.array(sourceControlGroupSchema).max(64),

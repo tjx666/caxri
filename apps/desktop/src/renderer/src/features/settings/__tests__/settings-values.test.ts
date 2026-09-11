@@ -68,6 +68,36 @@ describe('isRowModified', () => {
         expect(isRowModified(launch, { settings: current })).toBe(true);
     });
 
+    it('tracks provider autonomy only when the bypass itself changes', () => {
+        const current = settings();
+        const binding = { type: 'provider-autonomy', provider: 'grok' } as const;
+        expect(isRowModified(binding, { settings: current })).toBe(false);
+        // An unrelated hand-edited argument belongs to the arguments row, not to this one.
+        current['agents.providers'] = withProviderField(current, 'grok', {
+            launch: {
+                ...current['agents.providers'].grok.launch,
+                args: [...current['agents.providers'].grok.launch.args, '--verbose'],
+            },
+        });
+        expect(isRowModified(binding, { settings: current })).toBe(false);
+        current['agents.providers'] = withProviderField(current, 'grok', {
+            launch: {
+                ...current['agents.providers'].grok.launch,
+                args: ['--sandbox', 'workspace', '--verbose'],
+            },
+        });
+        expect(isRowModified(binding, { settings: current })).toBe(true);
+
+        const action = rowResetAction(binding, current);
+        if (action?.kind !== 'field') throw new Error('expected a field reset');
+        expect((action.value as AppSettings['agents.providers']).grok.launch.args).toEqual([
+            '--always-approve',
+            '--sandbox',
+            'workspace',
+            '--verbose',
+        ]);
+    });
+
     it('tracks and resets provider output recovery as one setting', () => {
         const current = settings();
         const binding = { type: 'provider-recovery', provider: 'codex' } as const;

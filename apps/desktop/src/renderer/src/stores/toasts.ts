@@ -75,6 +75,22 @@ export function getToasts(): ToastT[] {
 }
 
 /**
+ * Retracts live notifications whose statement has stopped being true.
+ *
+ * A `persist` notice holds the screen until the user dismisses it, which is only honest while what it says still
+ * describes reality. A notice that reports a condition the user can themselves undo — "restart to apply this setting",
+ * where returning the setting to its launch value cancels the restart — would otherwise keep asserting a stale
+ * instruction with no way for the surface that raised it to take it back. The history record deliberately stays: the
+ * event did happen, and the center is a log rather than a live status.
+ *
+ * Matching on the message keeps callers free of Sonner ids, at the cost of requiring the caller to own a stable prefix.
+ */
+export function dismissToastsMatching(shouldDismiss: (message: string) => boolean): void {
+    for (const entry of getToasts())
+        if (typeof entry.title === 'string' && shouldDismiss(entry.title)) toast.dismiss(entry.id);
+}
+
+/**
  * Keeps command callers independent of rendering. Consecutive identical events update the live notification through
  * Sonner's id API; Sonner owns expiration, interaction pauses, and removal.
  */

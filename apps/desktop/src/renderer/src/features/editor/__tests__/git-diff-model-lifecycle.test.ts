@@ -1,4 +1,4 @@
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 
 import { disposeGitDiffModels } from '../git-diff-model-lifecycle';
 
@@ -24,4 +24,31 @@ it('keeps text models alive until Monaco cancels the detached diff computation',
         'original disposed',
         'modified disposed',
     ]);
+});
+
+it('releases both text models when Monaco throws out of widget teardown', () => {
+    const reported = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const events: string[] = [];
+    const editor = {
+        setModel: () => {},
+        dispose: () => {
+            throw new AggregateError(
+                [new Error('InstantiationService has been disposed')],
+                'Encountered errors while disposing of store',
+            );
+        },
+    };
+    expect(() =>
+        disposeGitDiffModels(
+            editor,
+            { dispose: () => {} },
+            {
+                original: { dispose: () => events.push('original disposed') },
+                modified: { dispose: () => events.push('modified disposed') },
+            },
+        ),
+    ).not.toThrow();
+    expect(events).toEqual(['original disposed', 'modified disposed']);
+    expect(reported).toHaveBeenCalledOnce();
+    reported.mockRestore();
 });

@@ -128,9 +128,14 @@ precedent — a new arbitrary value requires updating this spec first with a sta
 SecondarySidebar top rails share one bottom edge. Workbench tabs fill the full 44px rail, VS Code
 style, so the active tab's `--background` fill reaches the rail's top edge. PrimarySidebar and
 SecondarySidebar rail tabs remain 36px, vertically centered. The logo-free PrimarySidebar header is
-the drag region (`-webkit-app-region: drag`, interactive children `no-drag`). Add Project is hidden
-at rest and revealed by hovering anywhere in the expanded PrimarySidebar or by keyboard focus. The
-collapsed PrimarySidebar preserves the same 44px-tall drag region beneath the traffic lights.
+the drag region (`-webkit-app-region: drag`, interactive children `no-drag`). The Session history
+back/forward pair is the only control that rail carries, and it opts out of the drag region so the
+buttons navigate instead of moving the window. Add Project has no chrome of its own there: its entry
+points are `Cmd+O` (which works from a focused Terminal or editor too), the native Project menu, the
+command palette, and the Welcome view's primary action while no Project exists. A workbench-wide
+action that a shortcut, a menu, and the palette all reach does not also earn a hover-revealed button
+in a 44px rail. The collapsed PrimarySidebar preserves the same 44px-tall drag region beneath the
+traffic lights.
 
 **Welcome** — heading "Project-first development." Body copy uses "folder" to match VS Code's
 Open Folder / Add Folder to Workspace, not "directory" or "local folder". The primary action is
@@ -269,7 +274,13 @@ Terminal, external, transcript, and Git diff tabs. These file actions remain whe
 only Workbench tab; the single-tab rule above still hides only New Terminal and the active accent.
 Single-file Git diff tabs use the same action slot for `Previous Change`, `Next Change`, and
 `Open Current File`. Navigation targets that pane's mounted diff and stays disabled until changes
-are ready. Ordinary file and single-file diff tab menus offer `Copy Path` and `Copy Relative Path`;
+are ready. Every Git diff tab, single-file or multi-file, ends that slot with a `Diff View Options`
+ellipsis popover holding `Inline View`, `Collapse Unchanged Regions`, and
+`Show Leading/Trailing Whitespace Differences`. These are window-lifetime view preferences, not
+persisted settings, and they are deliberately not mirrored into Settings: they are read-and-adjust
+controls that belong beside the diff being read. `Collapse Unchanged Regions` starts at each
+surface's own default — collapsed for a multi-file diff, expanded for a single file — and only
+becomes one shared value once the user sets it. Ordinary file and single-file diff tab menus offer `Copy Path` and `Copy Relative Path`;
 relative paths use the containing repository, falling back to the Workbench Project for non-Git files.
 Internal virtual tab identifiers are never copied as filesystem paths.
 Session bootstrap and switching still mount without structural motion; actual close keeps the exit
@@ -284,8 +295,11 @@ chrome. This does not govern the Session list's right-edge running spinner.
 Its Project-relative path sits on the left and the current file's last-change annotation sits on
 the right; both use dense, muted chrome on `--surface`, separated from the editor by one hairline.
 Only the file segment carries its file-type icon. Clicking any segment opens a flat sibling picker:
-folders navigate one level at a time, files open in the Session's preview Editor, symbolic links are
-visible but unavailable, and no symbol outline or settings are added. The path uses one keyboard tab
+folders navigate one level at a time, files open in the Session's preview Editor, and no symbol
+outline or settings are added. A symbolic link reached through the Project root is an ordinary
+entry, not a dead one: a link to a folder navigates into it and a link to a file opens it, with no
+extra confirmation. Cached link metadata can be stale or missing after a probe timeout, so
+activation asks the Server for the target's current kind instead of trusting what the row displayed. The path uses one keyboard tab
 stop with Left/Right/Home/End navigation; Enter or Space opens the picker. The picker keeps one
 listbox focus, supports arrows, Home/End, typeahead, Enter/Right to activate, Left for the parent,
 and Escape to close. Long paths scroll horizontally without a visible scrollbar and keep the active
@@ -421,6 +435,32 @@ when opened; each commit opens that file's read-only diff directly. Terminal, di
 editors omit the disclosure entirely. Repository-scoped `Commits` stays nested under each repository
 and keeps its optional path input and commit-details disclosure.
 
+**Uncommitted work in a non-working mode** — Last Commit and Pull Request replace a repository's
+file list with that commit's or that pull request's files, so a repository holding uncommitted work
+renders identically to a clean one. A mode that answers one question must not silently answer a
+different one, so the repository row states the count it is not showing (`· 3 uncommitted`) and
+carries a diff-mark button back to Working Tree Changes. Both disappear at zero rather than sitting
+there reading `0 uncommitted`. A repository with no pull request keeps the heading
+`Pull Request Changes` in Pull Request mode: leaving it at `Changes` made its zero read as a clean
+working tree instead of an absent pull request. On a repository row the counts outrank the
+repository name: the name ellipsizes when the row runs out of width, because the row's tooltip and
+the Project already carry it while the counts are stated nowhere else. A name that refused to
+shrink collapsed the meta span to zero width and printed the counts on top of the name.
+
+**Git diff exclusions** — `git.diffExclude` hides matching repository-relative paths from Git
+change lists and from `Open Changes`; it ships filtering test files out by default, because a
+review of "what changed" almost never opens with them. A default that hides work is only honest if
+the surface says so and offers a way back, so hiding is never silent. The Source Control header's
+eye button, which reveals the excluded files in place, appears only when exclusions are actually
+hiding something — a control that toggles nothing but is always on screen teaches the user it is
+decoration. In a multi-file diff tab the hidden count is stated in a `role="status"` notice
+carrying two ghost buttons: `Show them` reopens the same aggregate diff with exclusions revealed
+and retires the occurrence it replaces, so the user is never left with two identically labelled
+`Changes:` tabs, and `Edit exclusions…` opens Settings scrolled to the `Excluded Git diff files`
+row rather than to the top of the list. Both buttons name themselves to a screen reader through the
+notice they sit beside. Showing excluded files lives in the tab's resource path, not in component
+state, so the revealed view is an ordinary diff tab that survives restore.
+
 **Terminal panes** — the focused pane keeps the accent inset ring (with the active tab's top
 border it forms the screen's one accent focus). The xterm viewport and scrollbar are full-bleed at
 the right edge; top/left text padding belongs to xterm's content box so it never creates an outer
@@ -431,14 +471,21 @@ and the matching human failure label. Surface actions, the command palette, and
 `Command+Shift+R` restart the same durable Terminal record.
 
 **Dialogs** — backdrop `--overlay` + `backdrop-filter: blur(2px)`; content radius 8, border
-`--border`, shadow from `--shadow`. Never a close X inside the command palette.
+`--border`, shadow from `--shadow`. Never a close X inside the command palette. Pickers are the one
+exception and use a second, named scrim: fully transparent, no blur, still capturing pointer events
+so an outside click dismisses the picker instead of reaching the control underneath. A picker is
+something the user reads the workbench through while choosing a destination in it, so dimming the
+thing they are aiming at defeats the surface.
 
 **Command palette** — rows show command title left, `kbd` shortcut hint right (render from live
 keybindings, `badge` size, `--elevated` chips). Group headings stay. Width 560px.
 
 **Session switcher** — the hold-to-cycle MRU overlay (`Recently used Sessions`) is a modal moment
-that ends on key release, so it wears the Dialog scrim (`--overlay` + `blur(2px)`) and the
-palette's 560px width, centred. It reads top to bottom as caption / list / hint: a panel-caption
+that ends on key release, so it wears the picker scrim above rather than the Dialog one, and the
+palette's 560px width, centred. Like VS Code's editor switcher, the workbench stays fully readable
+underneath while the chord is held; the scrim still swallows pointer events, and clicking it cancels
+exactly as Escape does — without that, clicking a Session in the PrimarySidebar mid-chord switches
+once and then the switcher commits a second, stale jump on release. It reads top to bottom as caption / list / hint: a panel-caption
 title with the live position on the right, Session rows (Agent identity icon, title over Project,
 relative `Last opened`, then the same right-edge status indicator the PrimarySidebar renders), and
 a footer of live `kbd` chips for cycle, reverse, cancel, and
@@ -476,6 +523,18 @@ clicking either the label or the control toggles it. Provider launch groups use 
 sections headed by the shared Agent identity icon, and every multiline value uses the same themed
 field/focus redline as single-line input.
 
+A consequential choice may not live only inside a free-text field. Every bundled Agent launches
+without per-action approval by default, and until that was only a CLI token inside
+`Initial arguments`, the setting was unreadable to anyone who did not already know the flag —
+principle 3 applied to the one row where it matters most. Each provider now carries a named Switch
+directly above `Initial arguments`, stating in plain words what the two answers mean and that the
+change reaches Terminals started from now on. The Switch is derived over the same argument list the
+user can hand-edit rather than a second stored preference, so a raw edit and the Switch can never
+disagree, and it moves only the approval tokens — a confinement argument such as Grok Build's
+`--sandbox workspace` decides where the Agent may work, not whether it asks first, and survives
+untouched in both directions. Where a plain-language control and a raw field describe the same
+state, the raw field stays authoritative and the control reads from it.
+
 **Toasts** — three variants (`info`/`success`/`error`) with a 3px left bar in the status color and
 matching icon; `info` uses `--muted` for its bar (an accent bar would be a second accent). Sonner
 owns the queue, timers, keyboard access, and swipe dismissal. All three variants auto-dismiss after
@@ -495,6 +554,23 @@ that event type across all Projects; muted events remain in history without an u
 Settings → Notifications restores those preferences and groups the existing native notification
 controls. Failures and persistent data-loss notices cannot be muted. Worktree fallback is an
 ordinary four-second reminder now that its record remains available in the center.
+
+A workbench change the user did not perform announces itself. An Agent that moves a Session into a
+linked worktree re-roots Files, Source Control, Project Status, and the Editor, so it raises the
+same ordinary four-second reminder as fallback — naming the destination and carrying an inline
+`Undo` back to the previous root, because the only other cue is a folder name changing in the
+status bar. A switch the user performed themselves stays silent; the wire reason (`followed`)
+carries that distinction, since the picker and an Agent otherwise reach the same commit path.
+
+Some notices are held until dismissed rather than expiring. A GPU process crash and the moment
+repeated failures turn GPU acceleration off for the window both carry `Restart in GPU Safe Mode`,
+which is reachable from nowhere else — history stores no action callbacks — so a four-second expiry
+would remove the recovery route while the condition it reports still holds.
+
+A boot-flag write that only the next launch picks up is held for the same reason: the user is still
+inside the modal Settings dialog, and the notice carries the only statement of what the restart is
+owed for. That one is a status rather than an event, so it names every flag still differing from the
+running instance's launch values, and it is retracted once none remain.
 
 **Confirmations** — destructive commands (Delete Session, Delete Project) require a native confirm
 dialog naming the target ("Delete session 'api-fix'? Files on disk are not touched."). Every other
