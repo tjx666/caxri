@@ -110,15 +110,26 @@ readback never blocks draining the next native event batch.
 If the native subscription fails to start, `activatePollingFallback` polls `HEAD`, `index`,
 `packed-refs`, `MERGE_HEAD`, and the `worktrees` directory's mtime/size signature every 5 seconds
 (`POLL_FALLBACK_INTERVAL_MS`) and degrades to the same `onStatusChanged` / `onTopologyChanged`
-callbacks. Watched repository groups are bounded to 16 (`MAX_WATCHED_REPOSITORIES`); registering a
-17th group evicts the least-recently-used group's subscription (or poll timer) first.
+callbacks. The 16-group recency limit (`MAX_WATCHED_REPOSITORIES`) evicts only groups no live
+Session references. Active child repositories retain their watches; the shared WatchHub bounds
+native subscriptions and falls back to polling at capacity. Shutdown waits for pending native
+registration and disposal, and late completions compare entry identity before retaining handles.
 
 ## Repository-identity invalidation (`git.changed`)
+
+Every projected repository registers its own canonical common Git directory, including submodules
+and nested repositories. Submodule metadata under a parent's `modules/` directory belongs to the
+child's subscription and must not be attributed to the parent. Git can report an absorbed
+submodule's metadata directory as its primary worktree; topology discovery resolves its actual
+checkout through `rev-parse --show-toplevel`. The watcher uses the topology's primary root, never
+the currently selected linked worktree, and shared ref events include all known worktree roots.
+Session projections retain every participating repository key so closing a sibling Session cannot
+detach a child watcher that is still in use.
 
 `apps/server/src/domains/git/change-tracker.ts` — `GitChangeTracker` owns the Session ↔ repository mapping
 behind the `git.changed` Server event (`packages/protocol/src/registry/events.ts`). Each summary
 registers, via `registerSession`, the canonical roots it projected for one Session
-(`GitRepoService.registerProjection`, `apps/server/src/domains/git/repo.ts:571-584`). A generation bump —
+(`registerGitProjection`, `apps/server/src/domains/git/projection.ts`). A generation bump —
 `scheduleStatusChanged(roots)` from a working-tree write or `observeMetadataStatus`, or
 `scheduleTopologyChanged(repoKey)` from `observeMetadataTopology` — adds affected roots to a
 pending set and debounces a flush by 150ms (`CHANGE_EMIT_DELAY_MS`), folding a burst of bumps

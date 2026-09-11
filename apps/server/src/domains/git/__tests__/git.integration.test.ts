@@ -18,6 +18,7 @@ const temporaryDirectories: string[] = [];
 const gitServices: GitService[] = [];
 
 interface GitServiceInternals {
+    logger: StructuredLogger;
     metadataWatcher: GitMetadataWatcher;
     repositoryService: {
         childCache: Map<string, unknown>;
@@ -40,6 +41,12 @@ afterEach(async () => {
     const servicesToClose = [...gitServices];
     gitServices.length = 0;
     await Promise.allSettled(servicesToClose.map((git) => git.close()));
+    /**
+     * Closing services queues final metrics; drain their logs before removing the fixture directories.
+     */
+    await Promise.all(
+        servicesToClose.map((git) => (git as unknown as GitServiceInternals).logger.flush()),
+    );
     const directoriesToRemove = [...temporaryDirectories];
     temporaryDirectories.length = 0;
     await Promise.all(

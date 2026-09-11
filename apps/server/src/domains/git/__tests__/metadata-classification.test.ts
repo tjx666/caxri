@@ -69,5 +69,9 @@ describe('classifyGitMetadataPath', () => {
         expect(classifyGitMetadataPath('')).toBeUndefined();
         expect(classifyGitMetadataPath('ORIG_HEAD.lock')).toBeUndefined();
         expect(classifyGitMetadataPath('COMMIT_EDITMSG')).toBeUndefined();
+        expect(classifyGitMetadataPath(path('modules', 'child', 'index'))).toBeUndefined();
+        expect(
+            classifyGitMetadataPath(path('worktrees', 'linked', 'modules', 'child', 'HEAD')),
+        ).toBeUndefined();
     });
 });
