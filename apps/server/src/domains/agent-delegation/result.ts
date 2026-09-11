@@ -1,0 +1,72 @@
+import { Buffer } from 'node:buffer';
+
+import type { DelegationCompletion } from '../agents';
+/**
+ * Provider launch, identity, and finality stay behind the agents domain's public API.
+ */
+// react-doctor-disable-next-line react-doctor/no-barrel-import
+import { delegationAdapter } from '../agents';
+import type { StoredAgentDelegation } from '../db';
+import { isDelegationActive } from './lifecycle';
+
+export function shouldCollectDelegation(record: StoredAgentDelegation): boolean {
+    return (
+        record.receipt.status === 'collecting' ||
+        Boolean(
+            record.turnId &&
+            isDelegationActive(record.receipt) &&
+            delegationAdapter(record.receipt.provider).completion === 'native-completion',
+        )
+    );
+}
+
+/**
+ * Applies only proven provider completion; an active native turn has no elapsed-time missing-answer deadline.
+ */
+export function applyDelegationCompletion(
+    record: StoredAgentDelegation,
+    completion: DelegationCompletion | undefined,
+    now: number,
+    isNativeFinished = false,
+): StoredAgentDelegation | undefined {
+    if (completion?.kind === 'failed') {
+        const status = ['payload_overflow', 'result_missing', 'correlation_missing'].includes(
+            completion.failure,
+        )
+            ? 'answer_unavailable'
+            : 'failed';
+        return { ...record, receipt: { ...record.receipt, status, failure: completion.failure } };
+    }
+    if (completion?.kind === 'answer') {
+        const byteLength = Buffer.byteLength(completion.text);
+        if (byteLength > 65_536)
+            return {
+                ...record,
+                receipt: {
+                    ...record.receipt,
+                    status: 'answer_unavailable',
+                    failure: 'payload_overflow',
+                },
+            };
+        return {
+            ...record,
+            receipt: { ...record.receipt, status: 'completed', failure: undefined },
+            answer: {
+                text: completion.text,
+                messageId: completion.messageId,
+                byteLength,
+                source: 'transcript',
+                truncated: false,
+            },
+        };
+    }
+    // A persisted terminal state proves finality even when the bounded transcript locator cannot find the result.
+    if (isNativeFinished && record.receipt.status !== 'collecting')
+        return { ...record, receipt: { ...record.receipt, status: 'collecting', updatedAt: now } };
+    if (record.receipt.status === 'collecting' && now - record.receipt.updatedAt > 15_000)
+        return {
+            ...record,
+            receipt: { ...record.receipt, status: 'answer_unavailable', failure: 'result_missing' },
+        };
+    return;
+}

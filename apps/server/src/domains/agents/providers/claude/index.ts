@@ -20,6 +20,7 @@ import {
 import { AGENT_TITLE_SYSTEM_INSTRUCTIONS } from '../../title-generation';
 import type { TranscriptScanCursor } from '../../transcript-scan';
 import { scanTranscriptLines } from '../../transcript-scan';
+import { claudeDelegationAdapter } from './delegation';
 import { claudeHookAdapter } from './hooks';
 import { generateClaudeLowCostText } from './low-cost-generation';
 import type { ClaudeSessionMetadata } from './metadata-cache';
@@ -334,6 +335,7 @@ async function readClaudeState(
 }
 
 export const claudeProvider: AgentProviderDescriptor = {
+    delegation: claudeDelegationAdapter,
     generateTitle: (context) =>
         generateClaudeLowCostText(
             context,

@@ -443,8 +443,8 @@ export async function prepareAcceptanceAgentFixture(
                     executable,
                     provider === 'grok'
                         ? grokAcceptanceSource()
-                        : provider === 'claude' && options.fixtureId === 'agent-delegation-v1'
-                          ? delegationFixtureSource()
+                        : options.fixtureId === 'agent-delegation-v1'
+                          ? delegationFixtureSource(provider)
                           : sharedSource(provider),
                     'utf8',
                 );

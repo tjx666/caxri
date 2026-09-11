@@ -64,6 +64,10 @@ ordinary E2E, CI, or Acceptance to discover or invoke a host provider.
   provider turn state, structured status events, and exit status.
 - Stop every process started by the probe, interrupt any submitted turn, and remove exact diagnostic
   sessions or temporary state without touching unrelated user sessions.
+- Submit each mutating CDP operation once, then observe it through short read-only calls. Keep a native
+  delegation ID across waits: a bounded `agent.delegation.wait` may return an active receipt rather
+  than an error. Continue reading that task until terminal status; never replay a long browser
+  evaluation containing creation or continuation merely because its transport timed out.
 - Treat the result as debugging evidence. Automated coverage still uses deterministic fake fixtures;
   Acceptance still proves the product surface without invoking a host provider.
 

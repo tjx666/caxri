@@ -33,10 +33,11 @@ async function createParameters(tokens: readonly string[]) {
     const projectId = values.get('--project');
     const sessionId = values.get('--session');
     const path = values.get('--prompt-file');
-    if (!projectId || !sessionId || !path || values.get('--provider') !== 'claude')
+    const provider = values.get('--provider');
+    if (!projectId || !sessionId || !path || (provider !== 'claude' && provider !== 'codex'))
         throw new CaxriError(
             'VALIDATION',
-            'Delegation requires --project, --session, --provider claude and --prompt-file',
+            'Delegation requires --project, --session, --provider claude|codex and --prompt-file',
         );
     const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
     try {
@@ -53,7 +54,7 @@ async function createParameters(tokens: readonly string[]) {
         return {
             projectId,
             sessionId,
-            provider: 'claude',
+            provider,
             prompt: buffer.subarray(0, bytesRead).toString('utf8'),
             ...(values.has('--follow-up') && { followUpOf: values.get('--follow-up') }),
             ...(values.has('--resume') && { resumeFrom: values.get('--resume') }),
@@ -91,8 +92,8 @@ export const DELEGATION_COMMANDS: RemoteCommandDefinition[] = [
         kind: 'remote',
         path: ['agent', 'delegate', 'create'],
         method: 'agent.delegation.create',
-        summary: 'Run a task in a visible Claude Terminal and preserve its exact result.',
-        usage: '--project <id> --session <id> --provider claude --prompt-file <path> [--follow-up <id> | --resume <id>]',
+        summary: 'Run a task in a visible Agent Terminal and preserve its exact result.',
+        usage: '--project <id> --session <id> --provider <claude|codex> --prompt-file <path> [--follow-up <id> | --resume <id>]',
         ownerConfirmation: 'Create this visible Agent delegation?',
         parseParams: createParameters,
     },
