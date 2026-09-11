@@ -142,7 +142,14 @@ export class ShellProcessProbe {
     observe(terminalId: string, shellPid: number, candidate: ShellPromotionCandidate): void {
         if (this.inFlight.get(terminalId) === candidate) return;
         const now = Date.now();
-        if (now < candidate.nextProcessProbeAt) return;
+        if (now < candidate.nextProcessProbeAt) {
+            /**
+             * Timer delivery and wall-clock deadlines can differ slightly. Keep the retry armed when an early callback
+             * has already removed its timer, otherwise a quiet Agent is never detected.
+             */
+            this.schedule(terminalId, shellPid, candidate);
+            return;
+        }
         if (candidate.processProbes >= MAX_PROCESS_PROBES) {
             this.options.onExhausted(terminalId, candidate);
             return;

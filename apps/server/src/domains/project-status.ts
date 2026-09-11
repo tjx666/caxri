@@ -26,6 +26,8 @@ import {
 } from './external-status';
 import type { GitService } from './git';
 import { ProjectStatusAlertTracker } from './project-status-alerts';
+import type { BranchPublicationContext } from './project-status-branch';
+import { prepareStatusRepo, readBranchPublication } from './project-status-branch';
 import type { VercelLink } from './project-status-external';
 import {
     extractLinearReferences,
@@ -73,13 +75,7 @@ const SUMMARY_FAILURE_CACHE_TTL_MS = 5 * 60_000;
 const POLL_MIN_DELAY_MS = 15_000;
 const POLL_MAX_DELAY_MS = 5 * 60_000;
 
-interface RepoContext {
-    branch: string;
-    defaultBranch?: string;
-    head?: string;
-    owner?: string;
-    repo?: string;
-}
+type RepoContext = BranchPublicationContext;
 
 interface PreparedRepo {
     context: RepoContext;
@@ -242,7 +238,9 @@ export class ProjectStatusService {
         for (const repo of gitSummary.repositories)
             if (repo.kind !== 'worktree') visibleRepositories.push(repo);
         const repositories = await Promise.all(
-            visibleRepositories.map((repo) => this.prepareRepository(repo)),
+            visibleRepositories.map((repo) =>
+                prepareStatusRepo(repo, (cwd, arguments_) => this.optionalGit(cwd, arguments_)),
+            ),
         );
         const summary = {
             repositories: repositories.map(({ repository }) => repository),
@@ -264,6 +262,9 @@ export class ProjectStatusService {
                 context.head,
                 context.owner,
                 context.repo,
+                context.hasOrigin,
+                context.detached,
+                context.trackingHead,
             ]),
         ]);
         this.logger.write('debug', logEventCatalog.projectStatus.local, {
@@ -281,62 +282,36 @@ export class ProjectStatusService {
         }
     }
 
-    private async prepareRepository(repo: GitRepoSummary): Promise<PreparedRepo> {
-        const [remote, defaultBranch, head] = await Promise.all([
-            this.optionalGit(repo.rootPath, ['remote', 'get-url', 'origin']),
-            this.optionalGit(repo.rootPath, [
-                'symbolic-ref',
-                '--short',
-                'refs/remotes/origin/HEAD',
-            ]),
-            this.optionalGit(repo.rootPath, ['rev-parse', 'HEAD']),
-        ]);
-        const github = parseGitHubRemote(remote);
-        const context: RepoContext = {
-            branch: repo.branch,
-            defaultBranch: defaultBranch.replace(/^origin\//, '') || undefined,
-            head: head || undefined,
-            owner: github?.owner,
-            repo: github?.repo,
-        };
-        const name = context.repo ?? repo.name;
-        const githubUrl =
-            context.owner && context.repo
-                ? `https://github.com/${context.owner}/${context.repo}`
-                : undefined;
-        return {
-            context,
-            repository: {
-                id: repo.id,
-                kind: repo.kind,
-                name,
-                rootPath: repo.rootPath,
-                branch: repo.branch,
-                defaultBranch: context.defaultBranch,
-                githubUrl,
-                branchUrl: githubUrl
-                    ? `${githubUrl}/tree/${encodeURIComponent(repo.branch)}`
-                    : undefined,
-                linearIssues: [],
-                errors: [],
-            },
-        };
-    }
-
     private async refreshRepository(
         prepared: PreparedRepo,
         isForced: boolean,
     ): Promise<ProjectStatusRepo> {
-        const [githubState, vercelState] = await Promise.all([
+        const [githubState, vercelState, branchState] = await Promise.all([
             this.loadGitHub(prepared.repository.rootPath, prepared.context, isForced),
             this.loadVercel(prepared.context),
+            readBranchPublication(
+                prepared.context,
+                (source, arguments_, cwd) => this.runCommand(source, arguments_, cwd),
+                prepared.repository.rootPath,
+                () => this.now(),
+                prepared.repository.githubUrl,
+            ),
         ]);
         return {
             ...prepared.repository,
+            publication: branchState.publication,
+            branchUrl: branchState.branchUrl,
             pullRequest: githubState.pullRequest,
             linearIssues: githubState.linearIssues,
             deployments: vercelState.deployments,
-            errors: [...githubState.errors, ...vercelState.errors],
+            errors: [
+                ...githubState.errors,
+                ...vercelState.errors,
+                ...(branchState.error &&
+                githubState.errors.every((error) => error.source !== 'github')
+                    ? [branchState.error]
+                    : []),
+            ],
         };
     }
 
@@ -662,6 +637,17 @@ export class ProjectStatusService {
                             repositories: repositories.length,
                             result: hasFailures ? 'failure' : 'success',
                             ttlMs: ttl,
+                            publicationConfirmed: repositories.filter((repo) =>
+                                ['published', 'synced', 'ahead', 'behind', 'diverged'].includes(
+                                    repo.publication?.state ?? '',
+                                ),
+                            ).length,
+                            publicationAbsent: repositories.filter(
+                                (repo) => repo.publication?.state === 'unpublished',
+                            ).length,
+                            publicationUnknown: repositories.filter(
+                                (repo) => repo.publication?.state === 'unknown',
+                            ).length,
                         },
                     },
                 );
