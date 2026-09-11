@@ -6,28 +6,25 @@ import { agentDelegationCreateSchema, CaxriError } from '@caxri/protocol';
 
 import type { RemoteCommandDefinition } from './types';
 
+const createFlags = new Set([
+    '--project',
+    '--session',
+    '--provider',
+    '--preset',
+    '--model',
+    '--effort',
+    '--caller',
+    '--prompt-file',
+    '--follow-up',
+    '--resume',
+]);
+
 async function createParameters(tokens: readonly string[]) {
     const values = new Map<string, string>();
     for (let index = 0; index < tokens.length; index += 2) {
         const flag = tokens[index];
         const value = tokens[index + 1];
-        if (
-            !value ||
-            ![
-                '--project',
-                '--session',
-                '--provider',
-                '--preset',
-                '--model',
-                '--effort',
-                '--caller',
-                '--prompt-file',
-                '--follow-up',
-                '--resume',
-            ].includes(flag) ||
-            value.startsWith('--') ||
-            values.has(flag)
-        )
+        if (!value || !createFlags.has(flag) || value.startsWith('--') || values.has(flag))
             throw new CaxriError(
                 'VALIDATION',
                 'Delegation requires unique project, session, provider and prompt-file options',
