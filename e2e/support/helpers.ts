@@ -28,7 +28,7 @@ import {
 } from './clipboard.ts';
 import { closeE2EApp } from './desktop-lease-lifecycle.ts';
 import type { E2EApp } from './electron-app.ts';
-import { registerE2ELaunch } from './error-gate.ts';
+import { flushE2EErrorToasts, registerE2ELaunch } from './error-gate.ts';
 import { stageDevelopmentTestExtension } from './test-extension.ts';
 import { resolveE2EClipboardPolicy, resolveE2EWorkerIsolation } from './worker-isolation.ts';
 
@@ -329,6 +329,7 @@ export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<Runni
                 }
             })());
         try {
+            await registerE2ELaunch(app, userDataDir, cleanup);
             if (clipboardPolicy.protectClipboard) {
                 if (clipboardFixture) {
                     clipboardBaseline = await snapshotClipboard();
@@ -371,7 +372,10 @@ export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<Runni
                     cleanup,
                     close,
                     handBackLease,
-                    prepareBeforeClose: () => stubAppQuitDecision(app, closeDecision),
+                    prepareBeforeClose: async () => {
+                        await flushE2EErrorToasts(app);
+                        await stubAppQuitDecision(app, closeDecision);
+                    },
                     ...(activeClipboardSnapshot && {
                         restoreBeforeClose: async () => {
                             try {
@@ -389,7 +393,6 @@ export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<Runni
                     }),
                 }),
         });
-        registerE2ELaunch(app, userDataDir, cleanup);
         const electronPid = electronProcess.pid;
         if (!electronPid) throw new Error('Could not establish the Electron process identity');
         lease = await transferDesktopLease(lease, electronPid);

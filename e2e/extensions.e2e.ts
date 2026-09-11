@@ -306,6 +306,8 @@ test('Extension Host crash preserves Terminal state and desired ViewContainer ac
             count: 1,
         },
         { source: 'desktop', event: 'ipc.request_failed', code: 'INTERNAL', count: 1 },
+        // The crash below also reaches the user as one Extension Host exit notification.
+        { source: 'renderer', event: 'toast', code: 'ERROR_TOAST', count: 1 },
     ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-extension-crash-e2e-'));
     const userData = join(testDirectory, 'user-data');

@@ -80,6 +80,8 @@ test('Files Core persists while Git and Status recover after Extension Host rest
             count: 1,
         },
         { source: 'desktop', event: 'ipc.request_failed', code: 'INTERNAL', count: 1 },
+        // The restart below also reaches the user as one Extension Host exit notification.
+        { source: 'renderer', event: 'toast', code: 'ERROR_TOAST', count: 1 },
     ]);
 
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-product-extension-recovery-e2e-'));

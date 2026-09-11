@@ -347,6 +347,8 @@ test('Git secondarySidebar shows child repositories, submodule state, and change
     allowE2EErrors([
         { source: 'desktop', event: 'ipc.request_failed', code: 'GIT', count: 1 },
         { source: 'server-core', event: 'ipc.request_failed', code: 'GIT', count: 1 },
+        // The rejected binary diff below is reported to the user as well as logged.
+        { source: 'renderer', event: 'toast', code: 'ERROR_TOAST', count: 1 },
     ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-git-repositories-e2e-'));
     const userData = join(testDirectory, 'user-data');
