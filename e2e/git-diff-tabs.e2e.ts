@@ -220,6 +220,17 @@ test('Switching between two working diff tabs keeps each diff pointed at its own
         await expect(freshTab).toBeVisible();
         await expectFreshDiff();
 
+        /**
+         * VS Code parity: the change the Git view lists also paints the tab that holds the file. Both tabs above are
+         * still located by their bare filename, which is the other half of the contract — the status letter is
+         * `aria-hidden` so a decorated tab is never renamed to "tracked.ts M".
+         */
+        await expect(trackedTab.locator('.tab-label')).toHaveClass(/text-git-modified/);
+        await expect(trackedTab.locator('.status-modified')).toHaveText('M');
+        await expect(trackedTab).toHaveAccessibleDescription('Git: modified.');
+        await expect(freshTab.locator('.tab-label')).toHaveClass(/text-git-untracked/);
+        await expect(freshTab.locator('.status-untracked')).toHaveText('?');
+
         await trackedTab.click();
         await expectTrackedDiff();
 

@@ -21,7 +21,7 @@ import type { AgentIconIdentity } from '../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { FileTypeIcon } from '../../icons/files/file-type-icon';
 import type { GitDecoration } from '../../lib/git-decorations';
-import { gitDecorationClassName } from '../../lib/git-decorations';
+import { gitDecorationClassName, gitDecorationDescription } from '../../lib/git-decorations';
 import { motionDurationMs } from '../../lib/motion';
 import { cn } from '../../lib/utilities';
 
@@ -158,8 +158,8 @@ function useWorkTabMotion(shouldFill: boolean) {
 function WorkTabSelect({
     accessory,
     active,
-    dirty,
-    dirtyDescriptionId,
+    description,
+    tabDescriptionId,
     fileIconName,
     gitDecoration,
     icon,
@@ -175,7 +175,6 @@ function WorkTabSelect({
     WorkTabProperties,
     | 'accessory'
     | 'active'
-    | 'dirty'
     | 'fileIconName'
     | 'gitDecoration'
     | 'icon'
@@ -187,7 +186,11 @@ function WorkTabSelect({
     | 'preview'
     | 'tabId'
 > & {
-    dirtyDescriptionId: string;
+    /**
+     * Everything the tab shows but its name cannot say — its unsaved state and its Git state. Empty when neither.
+     */
+    description: string;
+    tabDescriptionId: string;
     isPresent: boolean;
 }) {
     /**
@@ -215,7 +218,7 @@ function WorkTabSelect({
                 type="button"
                 role="tab"
                 aria-controls={active ? `${tabId}-panel` : undefined}
-                aria-describedby={isPresent && dirty ? dirtyDescriptionId : undefined}
+                aria-describedby={isPresent && description ? tabDescriptionId : undefined}
                 aria-selected={active}
                 tabIndex={active ? 0 : -1}
                 className="tab-select flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent px-2 text-left text-[11px] text-inherit focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-2 focus-visible:outline-foreground"
@@ -282,7 +285,19 @@ export function WorkTab({
     // Exiting tabs must never look or behave active: force the non-active visual state and lock
     // out pointer/keyboard interaction while the exit animation plays out.
     const isVisuallyActive = active && isPresent;
-    const dirtyDescriptionId = `${tabId}-dirty`;
+    const tabDescriptionId = `${tabId}-description`;
+    /*
+     * Rendered outside the `role="tab"` button below, so the tab's accessible name stays the bare filename and only the
+     * description carries these. "Unsaved changes" and the Git state are genuinely different facts — a file can be
+     * committed-clean with an unsaved buffer, or modified on disk with nothing pending — so both are spoken when both
+     * hold.
+     */
+    const description = [
+        gitDecoration ? gitDecorationDescription(gitDecoration.kind) : undefined,
+        dirty ? 'Unsaved changes.' : undefined,
+    ]
+        .filter(Boolean)
+        .join(' ');
     const tab = (
         <m.div
             style={style}
@@ -343,8 +358,8 @@ export function WorkTab({
             <WorkTabSelect
                 accessory={accessory}
                 active={isVisuallyActive}
-                dirty={dirty}
-                dirtyDescriptionId={dirtyDescriptionId}
+                description={description}
+                tabDescriptionId={tabDescriptionId}
                 fileIconName={fileIconName}
                 gitDecoration={gitDecoration}
                 icon={icon}
@@ -357,9 +372,9 @@ export function WorkTab({
                 preview={preview}
                 tabId={tabId}
             />
-            {isPresent && dirty && (
-                <span id={dirtyDescriptionId} className="sr-only">
-                    Unsaved changes.
+            {isPresent && description && (
+                <span id={tabDescriptionId} className="sr-only">
+                    {description}
                 </span>
             )}
             <span className="tab-tail relative h-6 w-6 flex-none">

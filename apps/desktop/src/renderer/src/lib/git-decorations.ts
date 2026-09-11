@@ -53,6 +53,17 @@ export function gitDecorationClassName(kind: GitDecorationKind): string {
 }
 
 /**
+ * What a screen reader hears in place of the color and the status letter, which are both invisible to it.
+ *
+ * Prefixed with `Git:` because a tab already describes an unsaved buffer as "Unsaved changes"; without the prefix a
+ * modified-and-unsaved tab would announce two unqualified change states and leave the listener to guess which is
+ * which.
+ */
+export function gitDecorationDescription(kind: GitDecorationKind): string {
+    return `Git: ${kind}.`;
+}
+
+/**
  * The decoration one changed file wears. `git status --porcelain=v2` reports two columns; the staged one wins when it
  * is set, so a file staged as added and then edited reads `A` here exactly as it does in Source Control.
  */
