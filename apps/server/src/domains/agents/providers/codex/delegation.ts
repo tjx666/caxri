@@ -7,6 +7,7 @@ import type {
     DelegationEvidence,
 } from '../../delegation-contract';
 import { replaceDelegationArguments, validateDelegationArguments } from '../../delegation-contract';
+import { extractCodexDelegationUsage } from './delegation-usage';
 
 const valueFlags = new Set(['--model', '--sandbox', '--ask-for-approval', '-c', '--config']);
 const booleanFlags = new Set([
@@ -84,6 +85,7 @@ export function extractCodexDelegationCompletion(
 }
 
 export const codexDelegationAdapter: AgentDelegationAdapter = {
+    extractUsage: extractCodexDelegationUsage,
     completion: 'native-completion',
     createSessionId: () => {},
     validateLaunch: (launch) => {

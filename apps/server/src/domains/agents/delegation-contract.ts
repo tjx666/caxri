@@ -1,5 +1,6 @@
 import type {
     AgentDelegationReceipt,
+    AgentDelegationUsage,
     AgentLaunchSettings,
     DelegationSelection,
 } from '@caxri/protocol';
@@ -14,8 +15,12 @@ export interface DelegationEvidence {
 }
 
 export type DelegationCompletion =
-    | { kind: 'answer'; text: string; messageId: string }
-    | { kind: 'failed'; failure: NonNullable<AgentDelegationReceipt['failure']> };
+    | { kind: 'answer'; text: string; messageId: string; usage?: AgentDelegationUsage }
+    | {
+          kind: 'failed';
+          failure: NonNullable<AgentDelegationReceipt['failure']>;
+          usage?: AgentDelegationUsage;
+      };
 
 /**
  * Native identity, argv and completion formats belong to the provider. The delegation service retains task files, exact
@@ -38,6 +43,7 @@ export interface AgentDelegationAdapter {
         content: string,
         evidence: DelegationEvidence,
     ): DelegationCompletion | undefined;
+    extractUsage?(content: string, evidence: DelegationEvidence): AgentDelegationUsage | undefined;
 }
 
 /**
