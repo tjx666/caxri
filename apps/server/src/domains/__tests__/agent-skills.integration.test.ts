@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { executeSkillCommand } from '@caxri/agent-skills';
-import { agentProviderCatalog, agentProviderIds, agentSkillHealthSchema } from '@caxri/protocol';
+import { agentSkillHealthSchema } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -28,12 +28,14 @@ describe('Runtime Agent skill health', () => {
         const environment = {
             CLAUDE_CONFIG_DIR: join(directory, 'claude'),
             CODEX_HOME: join(directory, 'codex'),
+            GROK_HOME: join(directory, 'grok'),
         };
         await Promise.all([
             mkdir(projectRoot),
             mkdir(home),
             mkdir(environment.CLAUDE_CONFIG_DIR),
             mkdir(environment.CODEX_HOME),
+            mkdir(environment.GROK_HOME),
         ]);
         const runtime = await createTestDomainServices({
             agentEnvironment: { homeDirectory: home, variables: environment },
@@ -48,13 +50,11 @@ describe('Runtime Agent skill health', () => {
         try {
             const withoutProject = await runtime.handlers['agentSkills.get']({});
             expect(withoutProject).toMatchObject({
-                installations: agentProviderIds
-                    .filter((provider) => agentProviderCatalog[provider].capabilities.actions)
-                    .map((provider) => ({
-                        provider,
-                        scope: 'global',
-                        status: 'missing',
-                    })),
+                installations: ['claude', 'codex', 'grok'].map((provider) => ({
+                    provider,
+                    scope: 'global',
+                    status: 'missing',
+                })),
             });
             expect(withoutProject.installations.some(({ scope }) => scope === 'local')).toBe(false);
 
