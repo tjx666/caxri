@@ -31,6 +31,7 @@ import * as HoverCard from '@/components/ui/hover-card';
 import * as Input from '@/components/ui/input';
 import * as Kbd from '@/components/ui/kbd';
 import * as Label from '@/components/ui/label';
+import * as Menu from '@/components/ui/menu';
 import * as Popover from '@/components/ui/popover';
 import * as Progress from '@/components/ui/progress';
 import * as Select from '@/components/ui/select';
@@ -49,6 +50,7 @@ import * as useEditorFontFamily from '@/hooks/use-editor-font-family';
 import * as useFocusOnRevision from '@/hooks/use-focus-on-revision';
 import * as useIsOverflowing from '@/hooks/use-is-overflowing';
 import * as useLatestReference from '@/hooks/use-latest-reference';
+import * as useModalRegistration from '@/hooks/use-modal-registration';
 import * as useNow from '@/hooks/use-now';
 import * as useOnVisible from '@/hooks/use-on-visible';
 import * as usePointerDragResize from '@/hooks/use-pointer-drag-resize';
@@ -83,6 +85,7 @@ export default {
     '@/components/ui/input': Input,
     '@/components/ui/kbd': Kbd,
     '@/components/ui/label': Label,
+    '@/components/ui/menu': Menu,
     '@/components/ui/popover': Popover,
     '@/components/ui/progress': Progress,
     '@/components/ui/select': Select,
@@ -101,6 +104,7 @@ export default {
     '@/hooks/use-focus-on-revision': useFocusOnRevision,
     '@/hooks/use-is-overflowing': useIsOverflowing,
     '@/hooks/use-latest-reference': useLatestReference,
+    '@/hooks/use-modal-registration': useModalRegistration,
     '@/hooks/use-now': useNow,
     '@/hooks/use-on-visible': useOnVisible,
     '@/hooks/use-pointer-drag-resize': usePointerDragResize,

@@ -117,14 +117,18 @@ async function vendor(url: string, cacheFileName: string, outFileName: string): 
     await copyFile(cached, target);
 }
 
-const rootPackage = JSON.parse(await readFile(path.join(repoRoot, 'package.json'), 'utf8')) as {
-    devDependencies: Record<string, string>;
-};
-const tailwindVersion = rootPackage.devDependencies.tailwindcss;
-// @tailwindcss/browser versions track tailwindcss releases; the unpkg URL needs an exact pin.
+/**
+ * `@tailwindcss/browser` versions track tailwindcss releases, so the unpkg URL needs an exact version. Read it from the
+ * installed package rather than the manifest range: ordinary dependencies here carry a `^` range (AGENTS.md), which
+ * names no single version to download and would leave the prototype runtime unbuildable.
+ */
+const installedTailwind = JSON.parse(
+    await readFile(path.join(repoRoot, 'node_modules/tailwindcss/package.json'), 'utf8'),
+) as { version: string };
+const tailwindVersion = installedTailwind.version;
 if (!/^\d+\.\d+\.\d+$/.test(tailwindVersion)) {
     throw new Error(
-        `tailwindcss must be pinned to an exact version for the @tailwindcss/browser download, got: ${tailwindVersion}`,
+        `node_modules/tailwindcss reports an unusable version for the @tailwindcss/browser download: ${tailwindVersion}`,
     );
 }
 
