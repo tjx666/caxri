@@ -7,12 +7,16 @@ import { execFileAsync } from '@caxri/system';
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri } from './support/helpers.ts';
 
-test('editor Find controls remain stable and close on the first click', async () => {
+test('editor folding chords and Find controls remain available', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-editor-find-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
     await execFileAsync('mkdir', ['-p', root]);
-    await writeFile(join(root, 'searchable.ts'), 'const needle = true;\n', 'utf8');
+    await writeFile(
+        join(root, 'searchable.ts'),
+        'function sample() {\n    const needle = true;\n    return needle;\n}\n',
+        'utf8',
+    );
 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
@@ -22,11 +26,39 @@ test('editor Find controls remain stable and close on the first click', async ()
         await expect(editor).toBeVisible();
 
         await editor.click({ position: { x: 120, y: 24 } });
+        const folded = editor.locator('.inline-folded');
+        await expect(editor.locator('.codicon-folding-expanded')).toHaveCount(1);
+        await running.page.keyboard.press('Meta+k');
+        await running.page.keyboard.press('Meta+0');
+        await expect(folded).toHaveCount(1);
+        await running.page.keyboard.press('Meta+k');
+        await running.page.keyboard.press('Meta+j');
+        await expect(folded).toHaveCount(0);
+        const panel = running.page.locator('section.panel');
+        await expect(panel).not.toBeVisible();
+        await running.page.keyboard.press('Meta+j');
+        await expect(panel).toBeVisible();
+        await editor.click({ position: { x: 120, y: 24 } });
+        await running.page.keyboard.press('Meta+j');
+        await expect(panel).not.toBeVisible();
+
+        /**
+         * CDP key dispatch alone does not prove native macOS menu accelerators released these keys.
+         */
+        expect(
+            await running.app.evaluate(({ Menu }) =>
+                ['terminal.clear', 'terminal.find', 'panel.toggle'].map(
+                    (command) =>
+                        Menu.getApplicationMenu()?.getMenuItemById(`command.${command}`)
+                            ?.accelerator,
+                ),
+            ),
+        ).toEqual([null, null, null]);
         await running.page.keyboard.press('Meta+f');
         const findWidget = editor.locator('.find-widget');
         await expect(findWidget).toBeVisible();
         await findWidget.getByRole('textbox', { name: 'Find' }).fill('needle');
-        await expect(findWidget).toContainText('1 of 1');
+        await expect(findWidget).toContainText('1 of 2');
 
         const matchCase = findWidget.getByRole('checkbox', { name: /Match Case/ });
         await matchCase.click();

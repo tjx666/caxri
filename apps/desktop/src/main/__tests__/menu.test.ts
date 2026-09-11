@@ -77,6 +77,22 @@ describe('application menu', () => {
         expect(item?.accelerator).toBeUndefined();
     });
 
+    it.each(['terminal.clear', 'terminal.find'] as const)(
+        'leaves %s shortcuts to the focused Renderer surface',
+        (command) => {
+            const template = buildAppMenuTemplate({
+                keybindings: defaultKeybindings,
+                dispatchCommand: vi.fn(),
+                openProcessExplorer: vi.fn(),
+            });
+            const item = submenu(template, 'Terminal').find(
+                (candidate) => candidate.id === `command.${command}`,
+            );
+            expect(item).toBeDefined();
+            expect(item?.accelerator).toBeUndefined();
+        },
+    );
+
     it('leaves contextual Terminal copy to the focused Renderer surface', () => {
         const dispatchCommand = vi.fn();
         const template = buildAppMenuTemplate({
