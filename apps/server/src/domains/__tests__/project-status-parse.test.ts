@@ -127,6 +127,30 @@ describe('parseGitHubPullRequest', () => {
         expect(result?.checks.find((check) => check.name === 'cancelled')?.state).toBe('cancelled');
     });
 
+    it.each([
+        ['MERGED', false, 'merged'],
+        ['CLOSED', true, 'closed'],
+        ['OPEN', true, 'draft'],
+        ['OPEN', false, 'open'],
+        [undefined, false, undefined],
+    ])(
+        'preserves PR lifecycle %s independently of successful checks',
+        (state, isDraft, lifecycle) => {
+            expect(
+                parseGitHubPullRequest(
+                    JSON.stringify({
+                        number: 42,
+                        title: 'Lifecycle fixture',
+                        url: 'https://github.com/a/b/pull/42',
+                        state,
+                        isDraft,
+                        statusCheckRollup: [{ name: 'Build', conclusion: 'SUCCESS' }],
+                    }),
+                ).pullRequest,
+            ).toMatchObject({ lifecycle, state: 'success' });
+        },
+    );
+
     it('rejects malformed GitHub pull request JSON as VALIDATION', () => {
         expect(() => parseGitHubPullRequest('{')).toThrow(
             expect.objectContaining({ code: 'VALIDATION' }) as Error,

@@ -62,6 +62,22 @@ const stateTones: Record<ProjectStatusState, 'danger' | 'neutral' | 'success' | 
     unknown: 'neutral',
 };
 
+const pullRequestPresentation = {
+    open: { icon: 'git-pull-request-open', label: 'Open', tone: 'success' },
+    draft: { icon: 'git-pull-request-draft', label: 'Draft', tone: 'neutral' },
+    merged: { icon: 'git-merge', label: 'Merged', tone: 'neutral' },
+    closed: { icon: 'git-pull-request-closed', label: 'Closed', tone: 'danger' },
+} as const;
+
+const checkLabels: Record<ProjectStatusState, string> = {
+    success: 'CI passed',
+    failure: 'CI failed',
+    cancelled: 'CI cancelled',
+    pending: 'CI pending',
+    neutral: 'CI neutral',
+    unknown: 'CI unknown',
+};
+
 const repoPresentation: Record<
     ProjectStatusRepository['kind'],
     { description?: string; icon: string }
@@ -312,6 +328,9 @@ function buildRepoChildren(repo: ProjectStatusRepository): StatusNode[] {
     }
     if (repo.pullRequest) {
         const pullRequest = repo.pullRequest;
+        const presentation = pullRequest.lifecycle
+            ? pullRequestPresentation[pullRequest.lifecycle]
+            : { icon: 'circle-dot', label: 'Unknown', tone: 'neutral' as const };
         const children = pullRequest.checks.map((check, index) => {
             const duration = durationLabel(check.durationMs);
             return item(`${prefix}:check:${index}`, check.name, {
@@ -340,19 +359,22 @@ function buildRepoChildren(repo: ProjectStatusRepository): StatusNode[] {
         }
         nodes.push(
             item(`${prefix}:pr`, `#${pullRequest.number} ${pullRequest.title}`, {
-                icon: stateIcons[pullRequest.state],
+                icon: presentation.icon,
+                description: `${presentation.label} · ${checkLabels[pullRequest.state]}`,
                 url: pullRequest.url,
                 tooltip: {
-                    badge: { label: pullRequest.state, tone: stateTones[pullRequest.state] },
-                    rows:
-                        pullRequest.hiddenCheckCount > 0
+                    badge: { label: presentation.label, tone: presentation.tone },
+                    rows: [
+                        { label: 'checks', value: pullRequest.state },
+                        ...(pullRequest.hiddenCheckCount > 0
                             ? [
                                   {
                                       label: 'hidden',
                                       value: ignoredChecksLabel(pullRequest.hiddenCheckCount),
                                   },
                               ]
-                            : [],
+                            : []),
+                    ],
                 },
                 children,
                 collapsibleState:
