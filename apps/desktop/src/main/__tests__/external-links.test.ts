@@ -53,7 +53,7 @@ describe('openExternalUrl', () => {
         ).resolves.toEqual({
             status: 'opened',
         });
-        expect(target.prompt).toHaveBeenCalledWith(new URL('https://example.com/a%20b'));
+        expect(target.prompt).toHaveBeenCalledWith(new URL('https://example.com/a%20b'), undefined);
         expect(target.trust).not.toHaveBeenCalled();
         expect(target.open).toHaveBeenCalledOnce();
         expect(target.open).toHaveBeenCalledWith('https://example.com/a%20b');
@@ -85,6 +85,31 @@ describe('openExternalUrl', () => {
             target.open.mock.invocationCallOrder[0],
         );
         expect(target.open).toHaveBeenCalledWith('https://example.com/path?q=1');
+    });
+
+    it('offers the parent domain to the prompt and persists it as a wildcard rule', async () => {
+        const target = dependencies('trust_parent');
+
+        await expect(
+            openExternalUrl('https://api.venice.ai/api/v1', target, ALLOW_TRUST),
+        ).resolves.toEqual({ status: 'opened' });
+        expect(target.prompt).toHaveBeenCalledWith(
+            new URL('https://api.venice.ai/api/v1'),
+            'venice.ai',
+        );
+        expect(target.trust).toHaveBeenCalledWith('https://*.venice.ai');
+        expect(target.open).toHaveBeenCalledWith('https://api.venice.ai/api/v1');
+    });
+
+    it('refuses a wildcard decision for a host that was never offered one', async () => {
+        const target = dependencies('trust_parent');
+
+        await expect(
+            openExternalUrl('https://example.com/page', target, ALLOW_TRUST),
+        ).resolves.toEqual({ status: 'canceled' });
+        expect(target.prompt).toHaveBeenCalledWith(new URL('https://example.com/page'), undefined);
+        expect(target.trust).not.toHaveBeenCalled();
+        expect(target.open).not.toHaveBeenCalled();
     });
 
     it('does not persist trust when the caller allows only a one-time open', async () => {

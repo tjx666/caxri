@@ -95,6 +95,32 @@ function isLoopback(hostname: string): boolean {
 }
 
 /**
+ * The hostname a "trust every subdomain" rule would cover, or `undefined` when the dialog must not offer one.
+ *
+ * The shape is deliberately narrow: only a hostname of exactly three labels qualifies, and the candidate is its last
+ * two. That keeps the offer to the case it was asked for — `api.venice.ai` yields `venice.ai` — and away from both
+ * ends, where a parent is either meaningless (`venice.ai` would yield the bare TLD) or far wider than the host the user
+ * is actually looking at (`bucket.s3.amazonaws.com` would yield `s3.amazonaws.com`).
+ *
+ * This does not consult the Public Suffix List, so a host on a shared platform — `tjx666.github.io`, `myapp.vercel.app`
+ * — does yield `github.io` / `vercel.app`, and trusting it would cover sites other people control. That is a decided
+ * trade-off rather than an oversight: the button is an explicit user action, the dialog states the scope it grants, and
+ * the alternatives (a PSL dependency, a hardcoded hosting-domain list) were both rejected as more machinery than the
+ * case is worth.
+ *
+ * @see https://github.com/tjx666/caxri/issues/801
+ */
+export function trustableParentHostname(url: URL): string | undefined {
+    const canonical = canonicalizeUrl(url);
+    if (!canonical || canonical.port) return;
+    const { hostname } = canonical;
+    if (isIpHostname(hostname) || isLoopback(hostname)) return;
+    const labels = hostname.split('.');
+    if (labels.length !== 3 || labels.some((label) => !label)) return;
+    return labels.slice(1).join('.');
+}
+
+/**
  * Matches Main-validated URLs against bounded, independently normalized persisted rules.
  */
 export function isExternalUrlTrusted(url: URL, rules: readonly string[]): boolean {
