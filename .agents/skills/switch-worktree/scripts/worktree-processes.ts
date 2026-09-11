@@ -64,7 +64,7 @@ export function isWorktreeOwnedCommand(command: string, worktreePath: string): b
  * Walks the parent chain so the stop command can never signal the shell, the agent session, or the `bun` process that
  * invoked it — all of which run inside the worktree and would otherwise look owned.
  */
-export function ancestorProcessIds(entries: readonly ProcessEntry[], pid: number): Set<number> {
+function ancestorProcessIds(entries: readonly ProcessEntry[], pid: number): Set<number> {
     const parents = new Map(entries.map((entry) => [entry.pid, entry.parentPid]));
     const ancestors = new Set<number>();
     let current = parents.get(pid);
@@ -80,7 +80,7 @@ export function ancestorProcessIds(entries: readonly ProcessEntry[], pid: number
  * path matching. It is reachable as a descendant of the recorded launcher, which is why the roots come from
  * `switch-worktree dev`'s own process record instead of from a search.
  */
-export function descendantProcessIds(
+function descendantProcessIds(
     entries: readonly ProcessEntry[],
     roots: Iterable<number>,
 ): Set<number> {
