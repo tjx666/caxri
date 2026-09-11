@@ -7,11 +7,11 @@ import { AlertTriangle, LoaderCircle } from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';
 import { Button } from '../../components/ui/button';
-import { caxri } from '../../lib/caxri';
 import { openExternalUrl } from '../../lib/external-link';
 import { cn } from '../../lib/utilities';
 import { useSessionState } from '../../stores/selectors';
 import { pushToast, tryCommand } from '../../stores/toasts';
+import { cancelTreeChildrenRequest, ROOT_HANDLE } from './extension-tree-client';
 import { ExtensionTreeHeader } from './extension-tree-header';
 import type { PendingTreeRefresh } from './extension-tree-refresh-state';
 import {
@@ -32,7 +32,7 @@ import {
     toggleTreeItemSubtree,
     treeItemSubtreeHandles,
 } from './extension-tree-state';
-import { ROOT_HANDLE, useExtensionTreeChildren } from './hooks/use-extension-tree-children';
+import { useExtensionTreeChildren } from './hooks/use-extension-tree-children';
 import { useExtensionTreeState } from './hooks/use-extension-tree-state';
 import { dispatchExtensionViewAction } from './view-container-commands';
 
@@ -44,24 +44,22 @@ const MESSAGE_ROW_HEIGHT = 160;
 function runTreeCommand(item: TreeItemDto): void {
     const command = item.command;
     if (!command) return;
-    // Fire-and-forget: tryCommand() reports command failures through the shared toast path.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-    void tryCommand(`Unable to run ${command.title}`, async () => {
-        if (command.id === 'caxri.openExternal') {
+    if (command.id === 'caxri.showLogs') {
+        executeCommand('panel.showLogs');
+        return;
+    }
+    if (command.id === 'caxri.openExternal') {
+        // Fire-and-forget: tryCommand() reports command failures through the shared toast path.
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        void tryCommand(`Unable to run ${command.title}`, async () => {
             const [url] = command.arguments ?? [];
             if (typeof url !== 'string') throw new Error('External command requires a URL');
             await openExternalUrl(url, (message) => pushToast('error', message));
-            return;
-        }
-        if (command.id === 'caxri.showLogs') {
-            executeCommand('panel.showLogs');
-            return;
-        }
-        await caxri.request('viewContainers.executeCommand', {
-            commandId: command.id,
-            arguments: command.arguments ? [...command.arguments] : [],
         });
-    });
+        return;
+    }
+    // eslint-disable-next-line no-void -- the shared dispatcher reports failures through the same toast path
+    void dispatchExtensionViewAction(command.id, command.title, command.arguments ?? []);
 }
 
 function unloadedExpandedHandles(
@@ -496,10 +494,7 @@ function ExtensionTreeViewContent({
                 : [row.item.handle];
             for (const handle of handles) {
                 const requestId = requests.current.get(handle);
-                if (requestId) {
-                    // eslint-disable-next-line no-void -- cancellation is best-effort when collapsing a branch
-                    void caxri.request('viewContainers.cancelRequest', { requestId });
-                }
+                if (requestId) cancelTreeChildrenRequest(requestId);
             }
         }
     };

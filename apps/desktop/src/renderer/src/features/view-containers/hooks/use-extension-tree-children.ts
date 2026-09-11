@@ -2,8 +2,19 @@ import type { RefObject } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { TreeItemDto } from '@caxri/protocol';
+import { useQueryClient } from '@tanstack/react-query';
 
 import { caxri } from '../../../lib/caxri';
+import type { ExtensionTreeScope } from '../extension-tree-client';
+import {
+    cacheTreeChildren,
+    cancelTreeChildrenRequest,
+    clearCachedTreeChildren,
+    readCachedTreeChildren,
+    removeCachedTreeChildren,
+    requestTreeChildren,
+    ROOT_HANDLE,
+} from '../extension-tree-client';
 import type { RootLoadProgress } from '../extension-tree-refresh-state';
 import type { ExtensionTreeState } from '../extension-tree-state';
 import {
@@ -14,11 +25,17 @@ import {
     treeSnapshotLoading,
 } from '../extension-tree-state';
 
-export const ROOT_HANDLE = '__caxri_tree_root__';
-
 type UpdateExtensionTreeState = (
     update: (current: ExtensionTreeState) => ExtensionTreeState,
 ) => void;
+
+/**
+ * The last tree that was complete enough to show: every expanded branch loaded, nothing mid-refresh.
+ */
+interface TreeSnapshot {
+    children: ReadonlyMap<string, readonly TreeItemDto[]>;
+    errors: ReadonlyMap<string, string>;
+}
 
 /**
  * Owns the lazily loaded children/error/loading state for one Extension Tree View: fetches a branch's children on
@@ -27,12 +44,7 @@ type UpdateExtensionTreeState = (
  * stays focused on rendering and keyboard handling.
  */
 export function useExtensionTreeChildren(
-    scope: {
-        viewId: string;
-        sessionId: string;
-        workbenchProjectId: string;
-        extensionGeneration: number;
-    },
+    scope: ExtensionTreeScope,
     updateTreeState: UpdateExtensionTreeState,
     treeState: ExtensionTreeState,
 ): {
@@ -46,27 +58,39 @@ export function useExtensionTreeChildren(
     visibleErrors: ReadonlyMap<string, string>;
     visibleLoading: ReadonlySet<string>;
 } {
+    const queryClient = useQueryClient();
     const requests = useRef(new Map<string, string>());
     const rootLoadRevision = useRef(0);
-    const childrenReference = useRef<ReadonlyMap<string, readonly TreeItemDto[]>>(new Map());
-    const [children, setChildren] = useState<ReadonlyMap<string, readonly TreeItemDto[]>>(
-        () => childrenReference.current,
-    );
+    /**
+     * A remount re-enters the view with whatever this scope last loaded: the component is keyed by Session, so
+     * switching Sessions and back would otherwise rebuild the tree from an empty state even though the cache still
+     * holds the branches. The root reload below runs either way, so a restored branch is only ever on screen while its
+     * replacement is in flight.
+     */
+    const [restoredChildren] = useState(() => readCachedTreeChildren(queryClient, scope));
+    const childrenReference = useRef<ReadonlyMap<string, readonly TreeItemDto[]>>(restoredChildren);
+    const [children, setChildren] =
+        useState<ReadonlyMap<string, readonly TreeItemDto[]>>(restoredChildren);
     const [rootLoads, setRootLoads] = useState<RootLoadProgress>({ completed: 0, started: 0 });
     const [errors, setErrors] = useState<ReadonlyMap<string, string>>(() => new Map());
     const [loading, setLoading] = useState<ReadonlySet<string>>(() => new Set([ROOT_HANDLE]));
-    const [snapshot, setSnapshot] = useState<{
-        children: ReadonlyMap<string, readonly TreeItemDto[]>;
-        errors: ReadonlyMap<string, string>;
-    }>();
+    const [snapshot, setSnapshot] = useState<TreeSnapshot | undefined>(() =>
+        restoredChildren.size > 0
+            ? { children: restoredChildren, errors: new Map<string, string>() }
+            : undefined,
+    );
     const snapshotReady = isTreeSnapshotReady(ROOT_HANDLE, children, errors, loading, treeState);
     /**
      * Keep the last complete tree on screen while opaque handles and expanded descendants are rebuilt. The working tree
      * remains separate so lazy loading never uses retired display handles.
+     *
+     * Adjusted during render rather than from an effect
+     * (https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes). React restarts
+     * this render before painting, so the snapshot agrees with the tree in the same frame. From an effect the user
+     * would instead see one frame where the refresh has finished but the screen still shows the pre-refresh tree.
      */
-    useEffect(() => {
-        if (snapshotReady) setSnapshot({ children, errors });
-    }, [children, errors, snapshotReady]);
+    if (snapshotReady && (snapshot?.children !== children || snapshot.errors !== errors))
+        setSnapshot({ children, errors });
     const visibleLoading = useMemo(
         () =>
             snapshot ? treeSnapshotLoading(loading, snapshot.children, snapshot.errors) : loading,
@@ -78,14 +102,15 @@ export function useExtensionTreeChildren(
             const replacement = replaceTreeChildren(childrenReference.current, parentHandle, items);
             childrenReference.current = replacement.children;
             setChildren(replacement.children);
+            cacheTreeChildren(queryClient, scope, parentHandle, items);
             if (replacement.retiredHandles.size === 0) return;
 
+            removeCachedTreeChildren(queryClient, scope, replacement.retiredHandles);
             for (const handle of replacement.retiredHandles) {
                 const requestId = requests.current.get(handle);
                 if (!requestId) continue;
                 requests.current.delete(handle);
-                // eslint-disable-next-line no-void -- refreshed descendants invalidate their in-flight requests
-                void caxri.request('viewContainers.cancelRequest', { requestId });
+                cancelTreeChildrenRequest(requestId);
             }
             setErrors((current) => {
                 const next = new Map(current);
@@ -98,21 +123,19 @@ export function useExtensionTreeChildren(
                 return next;
             });
         },
-        [],
+        [queryClient, scope],
     );
 
     const resetLoadedChildren = useCallback((): void => {
-        for (const requestId of requests.current.values()) {
-            // eslint-disable-next-line no-void -- a root refresh invalidates every in-flight branch request
-            void caxri.request('viewContainers.cancelRequest', { requestId });
-        }
+        for (const requestId of requests.current.values()) cancelTreeChildrenRequest(requestId);
         requests.current.clear();
         const empty = new Map<string, readonly TreeItemDto[]>();
         childrenReference.current = empty;
         setChildren(empty);
         setErrors(new Map());
         setLoading(new Set());
-    }, []);
+        clearCachedTreeChildren(queryClient, scope);
+    }, [queryClient, scope]);
 
     const loadChildren = useCallback(
         async (parentHandle: string): Promise<void> => {
@@ -128,12 +151,7 @@ export function useExtensionTreeChildren(
             if (currentRootLoad !== undefined)
                 setRootLoads((current) => ({ ...current, started: currentRootLoad }));
             const previousRequestId = requests.current.get(parentHandle);
-            if (previousRequestId) {
-                // eslint-disable-next-line no-void -- cancellation is best-effort and the next request owns loading state
-                void caxri.request('viewContainers.cancelRequest', {
-                    requestId: previousRequestId,
-                });
-            }
+            if (previousRequestId) cancelTreeChildrenRequest(previousRequestId);
             const requestId = crypto.randomUUID();
             requests.current.set(parentHandle, requestId);
             setLoading((current) => new Set(current).add(parentHandle));
@@ -143,11 +161,7 @@ export function useExtensionTreeChildren(
                 return next;
             });
             try {
-                const result = await caxri.request('viewContainers.treeChildren', {
-                    viewId: scope.viewId,
-                    requestId,
-                    ...(parentHandle !== ROOT_HANDLE && { parentHandle }),
-                });
+                const result = await requestTreeChildren(scope.viewId, parentHandle, requestId);
                 if (requests.current.get(parentHandle) !== requestId) return;
                 if (result.reset) resetLoadedChildren();
                 const resultParentHandle = result.reset ? ROOT_HANDLE : parentHandle;
@@ -213,10 +227,7 @@ export function useExtensionTreeChildren(
         const activeRequests = requests.current;
         return () => {
             unsubscribe();
-            for (const requestId of activeRequests.values()) {
-                // eslint-disable-next-line no-void -- cancellation is best-effort during unmount
-                void caxri.request('viewContainers.cancelRequest', { requestId });
-            }
+            for (const requestId of activeRequests.values()) cancelTreeChildrenRequest(requestId);
             activeRequests.clear();
         };
     }, [loadChildren, resetLoadedChildren, scope]);

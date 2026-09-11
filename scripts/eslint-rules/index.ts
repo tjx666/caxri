@@ -3,6 +3,7 @@ import type { ESLint } from 'eslint';
 import architectureBoundaries from './architecture-boundaries';
 import featureDirectoryStructure from './feature-directory-structure';
 import filenameExportMapping from './filename-export-mapping';
+import serverReadsThroughQuery from './server-reads-through-query';
 
 /**
  * Caxri-local flat-config ESLint plugin. Wired into `eslint.config.ts` as `caxri/*` rules; see
@@ -13,6 +14,7 @@ const caxriEslintPlugin: ESLint.Plugin = {
         'architecture-boundaries': architectureBoundaries,
         'feature-directory-structure': featureDirectoryStructure,
         'filename-export-mapping': filenameExportMapping,
+        'server-reads-through-query': serverReadsThroughQuery,
     },
 };
 
