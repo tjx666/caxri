@@ -1,14 +1,13 @@
 # Visible Agent delegation
 
-Visible delegation runs a task in a managed Claude or Codex Terminal, in a sibling pane of the caller's
+Visible delegation runs a task in a managed Claude, Codex or Grok Terminal, in a sibling pane of the caller's
 Session. Wide caller panes split right; narrow or tall panes split down. The existing active pane
 and tab remain selected. The child uses the caller's working directory and remains available for
 inspection after its answer is collected.
 
-This implements Claude delegation and continuation, plus Codex target delegation, in
+This implements provider delegation and continuation in
 [issue #686](https://github.com/tjx666/caxri/issues/686). It does not yet replace dianjiang:
-Grok delegation and standalone directory
-authorization remain subsequent stages of that umbrella issue.
+Standalone directory authorization and configuration/skill migration remain subsequent stages of that umbrella issue.
 Real Codex caller transport permissions are a separate validation boundary; target support does not
 claim that every Codex sandbox can connect to a Caxri Server socket.
 
@@ -127,6 +126,34 @@ Codex's persisted state proves the exact thread and turn have ended, collection 
 find the final event before returning `result_missing`; a missing file cannot reserve the Terminal
 forever. This state proves finality only and never substitutes for the answer event.
 
+Grok Build requires version 1.0.24 or newer within major 1. Caxri preallocates its native session ID,
+binds the authenticated `UserPromptSubmit` to the private pointer digest and exact `promptId`, and
+reads only that session's durable `turn_completed` notification for the same prompt. This marker
+proves finality; its `agent_result` is error detail and never supplies a successful answer. After
+finding the marker incrementally, Caxri makes one bounded 4 MiB transcript read. Grok can merge
+rejected Stop-hook drafts with the final answer; live `response_completed` events are not persisted.
+The last authenticated Stop supplies the final answer's UTF-8 byte length and SHA-256 digest, so
+Caxri selects and verifies that exact suffix from the final ACP text segment. Stop alone never
+proves finality. An authenticated Stop without answer text still counts and clears the previous
+answer proof; its explicit delegation marker keeps the turn available for later Stop batches.
+The count of authenticated Stop receipts must match the native `hook_execution`
+batches for this prompt, and the final batch must allow stopping. This rejects a stale draft digest
+after failed delivery or Grok's forced Stop-continuation limit. Missing or mismatched evidence fails closed. Grok clips Stop text above 32,768
+Unicode characters; such answers return `payload_overflow` because a prefix digest cannot verify
+the omitted text.
+The shared Grok Provider binds SessionStart identity before accepting prompt events. Child-scoped
+prompt and Stop events cannot advance the parent task. Truncated Grok hook
+payloads are rejected with `payload_scope_unavailable`, because their missing suffix may contain
+the native-child scope.
+
+Grok transcripts live under `GROK_HOME/sessions/<encoded-cwd>/<session-id>/updates.jsonl`.
+Long working-directory names use the provider's bounded `.cwd` marker lookup; the shared safe
+reader still rejects symlinked or otherwise unsafe transcript paths. Grok hooks are required for
+managed launch and use the owned `hooks/caxri.json` file. The Provider renders the preallocated
+identity and private-file pointer through Server-owned fields, keeping user-supplied identity and
+positional overrides rejected. The workspace sandbox remains required. Native session rename and provider skill installation are not
+currently supported.
+
 A background-child continuation belongs to the task only when the coordinator proves its exact
 deferred parent turn and every subsequent prompt digest appears in order in the transcript ancestry.
 An unproven new prompt fails closed with `correlation_missing`; it is not labeled human input.
@@ -173,10 +200,11 @@ inherit the previous caller's delegation ownership.
 
 ## Provider-reported usage
 
-Completed receipts optionally include `usage` with `source: "provider"` and `scope: "main-thread"`.
+Completed receipts optionally include `usage` with `source: "provider"`. Claude and Codex use
+`scope: "main-thread"`; Grok uses `scope: "provider-task"` because its native totals can include child Agents.
 These are native input/output counters for this task; available cache, reasoning and total counters
 remain separate. Counter meanings retain the provider's semantics and must not be added blindly
-across cache or reasoning categories. Child-agent billing and estimated prices are not included.
+across cache or reasoning categories. Separate child-agent billing and estimated prices are not included.
 An omitted usage object or counter means unknown, never zero.
 
 Claude aggregates API message usage only within the exact prompt ancestry, including proven native
@@ -191,6 +219,10 @@ final counter. The task receives the delta, not the conversation total. A zero b
 evidence of the first task in a fresh native session. Counter resets, interleaved turns, missing
 baselines or incomplete evidence leave usage unknown. Native failure completions can retain proven
 usage too. A failed optional accounting read cannot turn a completed answer into a failure.
+
+Grok reads counters from the exact final notification and omits them when `usageIsIncomplete` is true
+or any supplied counter is invalid. It preserves the provider's task scope rather than presenting
+inclusive counters as parent-only accounting.
 
 The task's revision is checked after all asynchronous evidence reads, so human takeover, stop or
 relaunch invalidates accounting and answer collection together. Saved usage survives Server restart
@@ -208,6 +240,10 @@ an already configured approval/sandbox bypass. It does not add a bypass to a rea
 Its private task pointer does not add `--add-dir`, which would grant write access. Config/profile
 overrides and hook-trust bypass fail closed. Startup trust/login interfaces receive no synthesized
 input; an unconfirmed startup settles as `startup_not_ready` after 15 seconds.
+
+Grok supports explicit model, reasoning effort, sandbox, permission mode and tool restrictions.
+Session selectors, headless modes and unknown overrides fail before launch. An already configured
+`--always-approve` is preserved; Caxri never adds it.
 
 Ordinary automated coverage uses isolated fake providers. Real-provider checks use only the guarded
 debug procedure, a fixed synthetic task, and content-free evidence.

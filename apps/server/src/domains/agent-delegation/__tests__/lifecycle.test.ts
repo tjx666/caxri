@@ -37,6 +37,59 @@ const signal = {
 };
 
 describe('Delegation continuation correlation', () => {
+    it('retains exact Grok Stop evidence without claiming native completion', () => {
+        const grok: StoredAgentDelegation = {
+            ...record,
+            receipt: { ...record.receipt, provider: 'grok' },
+        };
+        const stop = {
+            ...signal,
+            provider: 'grok' as const,
+            phase: 'turnFinished' as const,
+            agentTurnId: 'first',
+            agentResponseDigest: 'c'.repeat(64),
+            agentResponseByteLength: 12,
+        };
+        const stopped = applyDelegationLifecycle(grok, stop, 'evidence');
+        expect(stopped).toMatchObject({
+            receipt: { status: 'running' },
+            responseDigest: 'c'.repeat(64),
+            responseByteLength: 12,
+            responseStopCount: 1,
+        });
+        expect(applyDelegationLifecycle(stopped!, stop)).toBeUndefined();
+        expect(applyDelegationLifecycle(stopped!, stop, 'evidence')?.responseStopCount).toBe(2);
+        expect(
+            applyDelegationLifecycle(stopped!, { ...stop, agentId: 'child' }, 'evidence'),
+        ).toBeUndefined();
+        expect(
+            applyDelegationLifecycle(
+                stopped!,
+                {
+                    ...signal,
+                    provider: 'grok',
+                    phase: 'turnFinished',
+                    agentTurnId: undefined,
+                },
+                'evidence',
+            ),
+        ).toBeUndefined();
+    });
+    it('settles exact Grok failures while ignoring native child failures', () => {
+        const grok = { ...record, receipt: { ...record.receipt, provider: 'grok' as const } };
+        const failure = {
+            ...signal,
+            provider: 'grok' as const,
+            phase: 'turnFailed' as const,
+            agentTurnId: 'first',
+            agentFailure: 'rate_limit' as const,
+        };
+        expect(applyDelegationLifecycle(grok, failure)?.receipt).toMatchObject({
+            status: 'failed',
+            failure: 'rate_limited',
+        });
+        expect(applyDelegationLifecycle(grok, { ...failure, agentId: 'child' })).toBeUndefined();
+    });
     it.each([
         [undefined, 'new-turn', 'prompt_digest_missing'],
         ['b'.repeat(64), 'new-turn', 'prompt_digest_mismatch'],

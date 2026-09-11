@@ -70,7 +70,10 @@ export async function createDomainServices(
         database,
         dependencies,
         logger,
-        onLifecycleSignal: (signal) => suspensionState.service?.observeLifecycle(signal),
+        onLifecycleSignal: (signal) => {
+            if (!signal.agentTurnContinues) suspensionState.service?.observeLifecycle(signal);
+            delegationState.service?.observe(signal, 'evidence');
+        },
         onLifecycleApplied: (signal) => delegationState.service?.observe(signal),
         send,
         userDataPath,

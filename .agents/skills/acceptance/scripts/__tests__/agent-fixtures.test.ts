@@ -90,7 +90,11 @@ describe('Acceptance Agent fixtures', () => {
                 expect((await stat(executable)).mode & 0o111).not.toBe(0);
                 const result = await execFileAsync(executable, ['--version']);
                 expect(String(result.stdout)).toBe(
-                    provider === 'claude' ? '2.1.251 (Claude Code)\n' : 'codex-cli 0.151.0\n',
+                    provider === 'claude'
+                        ? '2.1.251 (Claude Code)\n'
+                        : provider === 'grok'
+                          ? 'grok 1.0.24\n'
+                          : 'codex-cli 0.151.0\n',
                 );
             }),
         );
@@ -169,18 +173,22 @@ describe('Acceptance Agent fixtures', () => {
         });
         child.stderr.resume();
 
-        await expect.poll(() => stdout).toContain('Fake claude Acceptance fixture ready');
-        child.stdin.write('fixture:exit\n');
-        await expect(
-            new Promise<number | null>((resolve, reject) => {
-                child.once('error', reject);
-                child.once('close', resolve);
-            }),
-        ).resolves.toBe(0);
-        expect(stdout).toContain('Fixture Agent exiting');
-        await expect(readReceipts(fixture.environment.CLAUDE_CONFIG_DIR!)).resolves.toContainEqual(
-            expect.objectContaining({ kind: 'fixtureExit' }),
-        );
+        const exited = new Promise<number | null>((resolve) => child.once('close', resolve));
+        try {
+            // Match the neighboring process-readiness budget when suites contend for the host.
+            await expect
+                .poll(() => stdout, { timeout: 3_000 })
+                .toContain('Fake claude Acceptance fixture ready');
+            child.stdin.write('fixture:exit\n');
+            await expect(exited).resolves.toBe(0);
+            expect(stdout).toContain('Fixture Agent exiting');
+            await expect(
+                readReceipts(fixture.environment.CLAUDE_CONFIG_DIR!),
+            ).resolves.toContainEqual(expect.objectContaining({ kind: 'fixtureExit' }));
+        } finally {
+            if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM');
+            await exited;
+        }
     });
 
     it('can expose unsent Terminal input through an explicit fixture receipt and echo', async () => {

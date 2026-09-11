@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
 import { once } from 'node:events';
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
@@ -35,16 +36,26 @@ describe('stageAgentHookBridge', () => {
             { size: 1_100_000, enabled: true, event: 'Stop' },
             { size: 16, enabled: true, event: 'StopFailure' },
             { size: 16, enabled: true, event: 'UserPromptSubmit' },
+            { size: 16, enabled: true, event: 'Stop', scoped: true },
+            { size: 16, enabled: true, event: 'Stop', clipped: true },
+            { size: 16, enabled: true, event: 'Stop', continued: true },
+            { size: 16, enabled: true, event: 'Stop', missingAnswer: true },
         ].flatMap((entry) =>
-            (entry.event === 'StopFailure' ? ['claude'] : ['claude', 'codex']).map((provider) => ({
+            (entry.scoped || entry.clipped || entry.continued || entry.missingAnswer
+                ? ['grok']
+                : entry.event === 'StopFailure'
+                  ? ['claude', 'grok']
+                  : ['claude', 'codex', 'grok']
+            ).map((provider) => ({
                 ...entry,
                 provider,
             })),
         ),
     )(
         'preserves provider identity and opt-in digests without content: %j',
-        async ({ size, enabled, event, provider }) => {
-            const answer = 'synthetic'.repeat(Math.ceil(size / 9));
+        async ({ size, enabled, event, provider, scoped, clipped, continued, missingAnswer }) => {
+            const answer =
+                'synthetic'.repeat(Math.ceil(size / 9)) + (clipped ? '… [+42 chars]' : '');
             const sharedPath = await sharedDirectory();
             const bridgePath = await stageAgentHookBridge(sharedPath);
             const socketPath = join(sharedPath, 'prompt.sock');
@@ -69,7 +80,11 @@ describe('stageAgentHookBridge', () => {
                         '--provider',
                         provider,
                         '--phase',
-                        event === 'UserPromptSubmit' ? 'turnStarted' : 'turnFinished',
+                        event === 'UserPromptSubmit'
+                            ? 'turnStarted'
+                            : provider === 'grok' && event === 'StopFailure'
+                              ? 'turnFailed'
+                              : 'turnFinished',
                     ],
                     {
                         env: {
@@ -96,15 +111,31 @@ describe('stageAgentHookBridge', () => {
                 invocation.child.stdin?.end(
                     JSON.stringify({
                         session_id: 'fixture-session',
+                        sessionId: 'fixture-session',
                         prompt_id: 'fixture-prompt',
                         turn_id: 'fixture-prompt',
+                        promptId: 'fixture-prompt',
                         hook_event_name: event,
+                        reason: 'end_turn',
+                        ...(continued && { backgroundTasks: [{ status: 'running' }] }),
                         error: 'rate_limit',
                         last_assistant_message: answer,
+                        ...(provider === 'grok' &&
+                            !missingAnswer && { lastAssistantMessage: answer }),
                         prompt: answer,
+                        ...(scoped && { subagentType: 'explorer' }),
                     }),
                 );
+                if (provider === 'grok' && (size > 1_048_576 || (!enabled && size > 65_536))) {
+                    expect((await invocation).stderr).toContain('payload_scope_unavailable');
+                    expect(packets).toHaveLength(0);
+                    return;
+                }
                 await invocation;
+                if (scoped) {
+                    expect(packets).toHaveLength(0);
+                    return;
+                }
                 expect(packets).toHaveLength(1);
                 expect(packets[0]).toMatchObject({
                     agentSessionId: 'fixture-session',
@@ -112,7 +143,15 @@ describe('stageAgentHookBridge', () => {
                 });
                 expect(packets[0]).not.toHaveProperty('last_assistant_message');
                 expect(JSON.stringify(packets)).not.toContain('synthetic');
-                if (enabled && event === 'Stop' && size < 1_048_576)
+                if (provider === 'grok' && enabled && event === 'Stop') {
+                    expect(packets[0]?.agentResponseStop).toBe(true);
+                    expect(packets[0]?.agentResponseByteLength).toBe(
+                        missingAnswer ? undefined : Buffer.byteLength(answer),
+                    );
+                } else expect(packets[0]).not.toHaveProperty('agentResponseStop');
+                if (clipped) expect(packets[0]?.agentContentOverflow).toBe(true);
+                if (continued) expect(packets[0]?.agentTurnContinues).toBe(true);
+                if (!missingAnswer && enabled && event === 'Stop' && size < 1_048_576)
                     expect(packets[0]?.agentResponseDigest).toBe(
                         createHash('sha256').update(answer).digest('hex'),
                     );
@@ -145,7 +184,7 @@ describe('stageAgentHookBridge', () => {
         ]);
         expect(wrapperSource).toContain('#!/bin/sh');
         expect(bridgeScript).toContain("require('node:net')");
-        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 18 });
+        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 20 });
         expect(wrapperStats.mode & 0o777).toBe(0o700);
     });
 
@@ -217,7 +256,7 @@ describe('stageAgentHookBridge', () => {
             readFile(bridgePath, 'utf8'),
             readFile(join(binDirectory, 'bridge.cjs'), 'utf8'),
         ]);
-        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 18 });
+        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 20 });
         expect(wrapperSource).toContain('#!/bin/sh');
         expect(scriptSource).toContain("require('node:net')");
     });

@@ -160,6 +160,11 @@ export interface AgentProviderDescriptor {
         this: void,
         context: {
             args: string[];
+            /**
+             * Server-owned identity and pointer; only args contains untrusted user arguments.
+             */
+            assignedAgentSessionId?: string;
+            initialPrompt?: string;
             cwd: string;
             environment: AgentEnvironment;
             resumeAgentSessionId?: string;

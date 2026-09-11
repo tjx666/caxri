@@ -3,7 +3,7 @@ import process from 'node:process';
 /**
  * Synthetic provider shared by desktop regression and Acceptance; writes only isolated task data.
  */
-export function delegationFixtureSource(provider: 'claude' | 'codex' = 'claude'): string {
+export function delegationFixtureSource(provider: 'claude' | 'codex' | 'grok' = 'claude'): string {
     return String.raw`#!${process.execPath}
 // 合成可见委派夹具，仅写隔离的 provider 会话记录。
 const fs = require('node:fs');
@@ -11,12 +11,12 @@ const path = require('node:path');
 const net = require('node:net');
 const { createHash, randomUUID } = require('node:crypto');
 const provider = ${JSON.stringify(provider)};
-if (process.argv.includes('--version')) { console.log(provider === 'claude' ? '2.1.266 (Claude Code)' : 'codex-cli 0.153.4'); process.exit(0); }
+if (process.argv.includes('--version')) { console.log(provider === 'claude' ? '2.1.266 (Claude Code)' : provider === 'grok' ? 'grok 1.0.24' : 'codex-cli 0.153.4'); process.exit(0); }
 process.stdin.setRawMode?.(true);
 process.stdin.resume();
-const isResume = process.argv.includes(provider === 'claude' ? '--resume' : 'resume');
-const index = process.argv.indexOf(isResume ? (provider === 'claude' ? '--resume' : 'resume') : '--session-id');
-if (provider === 'claude' ? index < 0 : process.env.CAXRI_HOOK_DIGEST !== '1') { process.stdout.write('Synthetic caller ready\r\n'); }
+const isResume = process.argv.includes(provider !== 'codex' ? '--resume' : 'resume');
+const index = process.argv.indexOf(isResume ? (provider !== 'codex' ? '--resume' : 'resume') : '--session-id');
+if (provider !== 'codex' ? index < 0 : process.env.CAXRI_HOOK_DIGEST !== '1') { process.stdout.write('Synthetic caller ready\r\n'); }
 else {
   // Native Claude queries terminal attributes before submitting its first task.
   process.stdout.write('\u001b[c');
@@ -46,6 +46,7 @@ else {
       const turnId = randomUUID();
       const answer = isResume ? 'Synthetic resume complete' : sequence++ === 0 ? 'Synthetic delegation complete' : 'Synthetic follow-up complete';
       if (process.env.CAXRI_HOOK_DIGEST !== '1') throw new Error('Missing delegation evidence mode');
+      if (provider === 'grok') await signal(undefined, 'sessionIdentified', {});
       await signal(turnId, 'turnStarted', { agentPromptDigest: hash(prompt) });
       process.stdout.write('Synthetic delegated task running\r\n');
       if (provider === 'codex') await signal(turnId, 'turnFinished', { agentResponseDigest: hash('Synthetic intermediate answer') });
@@ -53,20 +54,27 @@ else {
       if (epoch !== cancellation) return;
       const date = new Date(Number.parseInt(sessionId.slice(0,8) + sessionId.slice(9,13),16));
       const day = [String(date.getFullYear()), String(date.getMonth()+1).padStart(2,'0'), String(date.getDate()).padStart(2,'0')];
-      const transcriptRoot = provider === 'claude' ? path.join(process.env.CLAUDE_CONFIG_DIR, 'projects', process.cwd().replace(/[^a-z0-9]/gi, '-')) : path.join(process.env.CODEX_HOME, 'sessions', ...day);
+      const grokCwd = encodeURIComponent(process.cwd()).replace(/[!'()*]/g, value=>'%'+value.codePointAt(0).toString(16).toUpperCase());
+      const transcriptRoot = provider === 'claude' ? path.join(process.env.CLAUDE_CONFIG_DIR, 'projects', process.cwd().replace(/[^a-z0-9]/gi, '-')) : provider === 'grok' ? path.join(process.env.GROK_HOME,'sessions',grokCwd,sessionId) : path.join(process.env.CODEX_HOME, 'sessions', ...day);
       fs.mkdirSync(transcriptRoot, { recursive: true });
+      if (provider === 'grok') fs.writeFileSync(path.join(transcriptRoot, 'summary.json'), JSON.stringify({sessionId}));
       const records = [
         { type: 'user', uuid: turnId, parentUuid: null, message: { content: prompt } },
         { type: 'attachment', uuid: turnId + '-attachment', parentUuid: turnId },
         { type: 'assistant', uuid: turnId + '-answer', parentUuid: turnId + '-attachment', message: { id: turnId + '-api-message', content: answer, usage: { input_tokens: 10, output_tokens: 5 } } },
       ];
-      if (provider === 'codex') await signal(turnId, 'turnFinished', { agentResponseDigest: hash(answer) });
-      const fileName = provider === 'claude' ? sessionId + '.jsonl' : 'rollout-' + day.join('-') + 'T12-00-00-' + sessionId + '.jsonl';
+      if (provider === 'codex' || provider === 'grok') await signal(turnId, 'turnFinished', { agentResponseDigest: hash(answer), ...(provider === 'grok' && { agentResponseByteLength: Buffer.byteLength(answer) }) });
+      const fileName = provider === 'claude' ? sessionId + '.jsonl' : provider === 'grok' ? 'updates.jsonl' : 'rollout-' + day.join('-') + 'T12-00-00-' + sessionId + '.jsonl';
       const transcriptPath = path.join(transcriptRoot, fileName);
       const previousRows = provider === 'codex' && fs.existsSync(transcriptPath) ? fs.readFileSync(transcriptPath,'utf8').trim().split('\n').map(line=>JSON.parse(line)) : [];
       const previousUsage = previousRows.findLast(row=>row.payload?.type==='token_count')?.payload.info.total_token_usage;
       const totalUsage = {input_tokens:(previousUsage?.input_tokens??0)+10,output_tokens:(previousUsage?.output_tokens??0)+5};
-      const rows = provider === 'claude' ? records.map(record => ({ ...record, sessionId })) : [
+      const rows = provider === 'claude' ? records.map(record => ({ ...record, sessionId })) : provider === 'grok' ? [
+        {method:'session/update',params:{sessionId,update:{sessionUpdate:'user_message_chunk',content:{type:'text',text:prompt}}}},
+        {method:'session/update',params:{sessionId,update:{sessionUpdate:'agent_message_chunk',content:{type:'text',text:answer}}}},
+        {method:'_x.ai/session/update',params:{sessionId,update:{sessionUpdate:'hook_execution',event_name:'stop',prompt_id:turnId,runs:[{name:'Synthetic hook',status:{status:'success',elapsed_ms:1}}]}}},
+        {method:'_x.ai/session/update',params:{sessionId,update:{sessionUpdate:'turn_completed',prompt_id:turnId,stop_reason:'end_turn',usage:{inputTokens:10,outputTokens:5}}}},
+      ] : [
         ...(previousRows.length===0?[{type:'session_meta',payload:{id:sessionId}}]:[]),
         {type:'event_msg',payload:{type:'task_started',turn_id:turnId}},
         {type:'event_msg',payload:{type:'token_count',info:{total_token_usage:totalUsage}}},

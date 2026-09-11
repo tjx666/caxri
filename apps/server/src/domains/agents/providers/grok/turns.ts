@@ -23,7 +23,19 @@ export class GrokTurnTracker {
         if (signal.phase === 'turnFinished' || signal.phase === 'turnFailed') {
             if (!signal.agentTurnId || this.turns.get(signal.terminalId) !== signal.agentTurnId)
                 return false;
-            this.forget(signal.terminalId);
+            /**
+             * Delegation collects every Stop batch until native finality, including continued drafts.
+             */
+            if (
+                signal.phase === 'turnFailed' ||
+                !(
+                    signal.agentResponseStop ||
+                    signal.agentResponseDigest ||
+                    signal.agentContentOverflow ||
+                    signal.agentTurnContinues
+                )
+            )
+                this.forget(signal.terminalId);
         }
         return true;
     }

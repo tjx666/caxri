@@ -22,12 +22,16 @@ export function isDelegationActive(receipt: AgentDelegationReceipt): boolean {
 
 /**
  * Only coordinator-applied, main-agent signals may close a turn. A deferred parent Stop remains in the coordinator
- * until all child work is settled.
+ * until all child work is settled. Grok Stop evidence uses the separate authenticated-hook source, so native continued
+ * drafts are counted without treating them as completed lifecycle events or counting deferred replays twice.
  */
 export function applyDelegationLifecycle(
     record: StoredAgentDelegation,
     signal: AgentLifecycleSignal,
+    source: 'lifecycle' | 'evidence' = 'lifecycle',
 ): StoredAgentDelegation | undefined {
+    const isGrokStop = signal.provider === 'grok' && signal.phase === 'turnFinished';
+    if (isGrokStop !== (source === 'evidence')) return;
     if (
         !isDelegationActive(record.receipt) ||
         signal.agentId ||
@@ -73,6 +77,10 @@ export function applyDelegationLifecycle(
                 ...patch('running'),
                 turnId: signal.agentTurnId,
                 continuationPromptDigests: digests,
+                responseStopCount: undefined,
+                responseDigest: undefined,
+                responseByteLength: undefined,
+                responseOverflow: undefined,
             };
         }
         if (record.turnId)
@@ -89,10 +97,8 @@ export function applyDelegationLifecycle(
     }
     if (!record.turnId || signal.agentTurnId !== record.turnId) return;
     if (signal.phase === 'attentionRequested') return patch('blocked', 'permission_required');
-    if (signal.phase !== 'turnFinished') return;
-    // Codex may continue this same turn after another Stop hook blocks; keep it cancelable until native completion.
-    if (isNativeCompletion) return;
-    if (signal.agentFailure) {
+    if (signal.phase !== 'turnFinished' && signal.phase !== 'turnFailed') return;
+    if (signal.agentFailure || signal.phase === 'turnFailed') {
         const failures = {
             rate_limit: 'rate_limited',
             billing_error: 'quota_exhausted',
@@ -100,8 +106,21 @@ export function applyDelegationLifecycle(
             max_output_tokens: 'output_limit',
             provider_failed: 'provider_failed',
         } as const;
-        return patch('failed', failures[signal.agentFailure]);
+        return patch('failed', failures[signal.agentFailure ?? 'provider_failed']);
     }
+    // Codex may continue this same turn after another Stop hook blocks; keep it cancelable until native completion.
+    if (isNativeCompletion)
+        return record.receipt.provider === 'grok'
+            ? {
+                  ...record,
+                  // Every authenticated Stop has a native batch, even when no answer text exists.
+                  // Clear earlier proof so an empty final Stop cannot authenticate a stale draft.
+                  responseDigest: signal.agentResponseDigest,
+                  responseByteLength: signal.agentResponseByteLength,
+                  responseStopCount: (record.responseStopCount ?? 0) + 1,
+                  responseOverflow: signal.agentContentOverflow,
+              }
+            : undefined;
     if (signal.agentContentOverflow) return patch('answer_unavailable', 'payload_overflow');
     if (!signal.agentResponseDigest)
         return patch('answer_unavailable', 'correlation_missing', 'answer_digest_missing');

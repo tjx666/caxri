@@ -32,6 +32,9 @@ export async function readDelegationCompletion(
         sessionId,
         promptDigest: record.promptDigest,
         answerDigest: record.responseDigest,
+        answerByteLength: record.responseByteLength,
+        answerStopCount: record.responseStopCount,
+        answerOverflow: record.responseOverflow,
         turnId: record.turnId,
         continuationPromptDigests: record.continuationPromptDigests,
     };
@@ -51,6 +54,10 @@ export async function readDelegationCompletion(
         : content
           ? adapter.extractCompletion(content, evidence)
           : undefined;
+    if (completion && !batch?.failure && adapter.completionRequiresTranscript) {
+        const full = await reader.readTranscript(terminalId);
+        completion = full?.content ? adapter.extractCompletion(full.content, evidence) : completion;
+    }
     if (
         completion &&
         adapter.extractUsage &&

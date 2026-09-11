@@ -5,14 +5,17 @@ import { join } from 'node:path';
 import { CaxriError } from '@caxri/protocol';
 
 import type { AgentProviderDescriptor } from '../../contract';
+import { grokDelegationAdapter } from './delegation';
 import { grokHookAdapter, isGrokVersionSupported } from './hooks';
-import { grokSessionDirectory } from './paths';
+import { grokProjectRoot, locateGrokTranscript } from './paths';
 import { readGrokState } from './state';
 
 const sessionIdPattern = /^[a-f\d]{8}(?:-[a-f\d]{4}){3}-[a-f\d]{12}$/i;
 
 export const grokProvider: AgentProviderDescriptor = {
     id: 'grok',
+    delegation: grokDelegationAdapter,
+    locateTranscript: locateGrokTranscript,
     requiresLifecycleHooks: true,
     hooks: grokHookAdapter,
     /**
@@ -21,7 +24,15 @@ export const grokProvider: AgentProviderDescriptor = {
      */
     readState: readGrokState,
     resumeArguments: (sessionId) => ['--resume', sessionId],
-    prepareLaunch: async ({ args, cwd, environment, resumeAgentSessionId, version }) => {
+    prepareLaunch: async ({
+        args,
+        assignedAgentSessionId,
+        initialPrompt,
+        cwd,
+        environment,
+        resumeAgentSessionId,
+        version,
+    }) => {
         if (!isGrokVersionSupported(version))
             throw new CaxriError(
                 'UNAVAILABLE',
@@ -61,20 +72,25 @@ export const grokProvider: AgentProviderDescriptor = {
                 'VALIDATION',
                 'Grok Build requires the workspace sandbox to keep Agent processes inside the Terminal lifetime',
             );
-        const agentSessionId = resumeAgentSessionId ?? randomUUID();
+        if (
+            resumeAgentSessionId &&
+            assignedAgentSessionId &&
+            resumeAgentSessionId !== assignedAgentSessionId
+        )
+            throw new CaxriError('VALIDATION', 'Assigned and resumed Grok identities must match');
+        const agentSessionId = resumeAgentSessionId ?? assignedAgentSessionId ?? randomUUID();
         if (!sessionIdPattern.test(agentSessionId))
             throw new CaxriError('VALIDATION', 'Grok Build Session identity must be a UUID');
         if (resumeAgentSessionId) {
             /**
              * Exact local existence avoids a remote lookup hanging or silently selecting another conversation.
              */
-            const summary = join(
-                grokSessionDirectory(environment, await realpath(cwd), agentSessionId),
-                'summary.json',
-            );
+            const root = await grokProjectRoot(await realpath(cwd), environment);
             let isExists = false;
             try {
-                isExists = (await stat(summary)).isFile();
+                isExists =
+                    root !== undefined &&
+                    (await stat(join(root, agentSessionId, 'summary.json'))).isFile();
             } catch {
                 // Missing or inaccessible provider state cannot authorize a fresh conversation on restore.
             }
@@ -87,7 +103,12 @@ export const grokProvider: AgentProviderDescriptor = {
         }
         return {
             agentSessionId,
-            args: [...args, resumeAgentSessionId ? '--resume' : '--session-id', agentSessionId],
+            args: [
+                ...args,
+                resumeAgentSessionId ? '--resume' : '--session-id',
+                agentSessionId,
+                ...(initialPrompt ? ['--', initialPrompt] : []),
+            ],
         };
     },
 };

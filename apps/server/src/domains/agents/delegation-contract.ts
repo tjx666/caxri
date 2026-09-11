@@ -10,6 +10,9 @@ export interface DelegationEvidence {
     sessionId: string;
     promptDigest: string;
     answerDigest?: string;
+    answerByteLength?: number;
+    answerStopCount?: number;
+    answerOverflow?: boolean;
     turnId?: string;
     continuationPromptDigests?: readonly string[];
 }
@@ -28,17 +31,22 @@ export type DelegationCompletion =
  */
 export interface AgentDelegationAdapter {
     completion: 'stop-digest' | 'native-completion';
+    /**
+     * Native finality is incremental, but this provider stores answer chunks in earlier records.
+     */
+    completionRequiresTranscript?: boolean;
     createSessionId(): string | undefined;
     validateLaunch(launch: AgentLaunchSettings): void;
     selectLaunch(launch: AgentLaunchSettings, selection: DelegationSelection): AgentLaunchSettings;
     verifyVersion(version: string | undefined): void;
-    freshLaunch(
+    freshLaunch?(
+        this: void,
         launch: AgentLaunchSettings,
         pointer: string,
         directory: string,
         sessionId?: string,
     ): AgentLaunchSettings;
-    resumeLaunch(launch: AgentLaunchSettings, directory: string): AgentLaunchSettings;
+    resumeLaunch?(this: void, launch: AgentLaunchSettings, directory: string): AgentLaunchSettings;
     extractCompletion(
         content: string,
         evidence: DelegationEvidence,
