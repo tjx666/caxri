@@ -31,6 +31,17 @@ export const clipboardCapabilitySpecs = [
  * remains `@desktop-exclusive` by default, especially native focus, clipboard, Process Explorer, Screencast,
  * performance, updater, real-Agent coverage, and lifecycle-refresh assertions that are timing-sensitive while the
  * complete platform suite is saturating the same runner.
+ *
+ * Admitting a spec here is an individual audit, not a default. It must hold every condition below, because a
+ * three-worker pool gives it neither an idle machine nor a private desktop:
+ *
+ * - No machine-global state: only the launch's own `userDataDir`, Project root, logs, and PTYs.
+ * - No `clipboard` capability, `windowMode: 'visible'`, `gpuMode: 'enabled'`, `agentMode: { mode: 'real' }`, or packaged
+ *   `executablePath`.
+ * - No wall-clock assertion: a fixed delay window under test, a self-dismissing transient overlay, or a subprocess whose
+ *   timeout has little headroom all lose their margin once three Electron workers share the runner. Virtual time
+ *   through `page.clock` does not count as one.
+ * - No machine-level process enumeration, native application menu, or system capture surface.
  */
 export const parallelSafeSpecs = [
     'e2e/agent-actions.e2e.ts',
@@ -46,6 +57,8 @@ export const parallelSafeSpecs = [
     'e2e/agent-transcript-follow.e2e.ts',
     'e2e/caxri.e2e.ts',
     'e2e/chrome-tabs.e2e.ts',
+    'e2e/codex-manual-resume.e2e.ts',
+    'e2e/editor-breadcrumbs.e2e.ts',
     'e2e/editor-colors.e2e.ts',
     'e2e/editor-dotfiles.e2e.ts',
     'e2e/editor-find.e2e.ts',
@@ -55,22 +68,36 @@ export const parallelSafeSpecs = [
     'e2e/file-icons.e2e.ts',
     'e2e/file-terminal-drag.e2e.ts',
     'e2e/file-tree-git-ignore.e2e.ts',
+    'e2e/file-tree-sticky.e2e.ts',
     'e2e/git-commits.e2e.ts',
+    'e2e/git-diff-excludes.e2e.ts',
     'e2e/git-diff-tabs.e2e.ts',
     'e2e/git-pr.e2e.ts',
+    'e2e/git-submodule-refresh.e2e.ts',
+    'e2e/grok-agent.e2e.ts',
     'e2e/motion.e2e.ts',
     'e2e/pane-mixed-kind.e2e.ts',
+    'e2e/picker-focus.e2e.ts',
     'e2e/primary-sidebar-chrome.e2e.ts',
     'e2e/project-collapse.e2e.ts',
     'e2e/project-icons.e2e.ts',
     'e2e/project-order.e2e.ts',
     'e2e/project-search.e2e.ts',
-    'e2e/settings-parallel-safe.e2e.ts',
+    'e2e/session-auto-naming.e2e.ts',
+    'e2e/session-external-editor.e2e.ts',
+    'e2e/session-list-window.e2e.ts',
     'e2e/session-mru-switcher.e2e.ts',
     'e2e/session-navigation.e2e.ts',
+    'e2e/session-order.e2e.ts',
+    'e2e/session-pull-request.e2e.ts',
     'e2e/session-title.e2e.ts',
+    'e2e/settings-parallel-safe.e2e.ts',
     'e2e/smoke.e2e.ts',
+    'e2e/source-control-disclosure.e2e.ts',
+    'e2e/status-shortcut.e2e.ts',
+    'e2e/statusbar-width-parity.e2e.ts',
     'e2e/statusbar.e2e.ts',
+    'e2e/terminal-codex-hard-wrap.e2e.ts',
     'e2e/terminal-color-query.e2e.ts',
     'e2e/terminal-commands.e2e.ts',
     'e2e/terminal-images.e2e.ts',
@@ -81,8 +108,11 @@ export const parallelSafeSpecs = [
     'e2e/terminal-recovery.e2e.ts',
     'e2e/terminal-session-switch.e2e.ts',
     'e2e/terminal-title.e2e.ts',
+    'e2e/theme-presets.e2e.ts',
     'e2e/trusted-domains.e2e.ts',
+    'e2e/view-badges.e2e.ts',
     'e2e/work-tab-sizing.e2e.ts',
+    'e2e/workbench-terminal-lifetime.e2e.ts',
 ] as const;
 
 export function createE2EPoolPlan(
