@@ -116,15 +116,20 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
             {
                 getTrustedDomains: async () =>
                     (await supervisor.request('settings.get')).value['security.trustedDomains'],
-                prompt: async (parsed) => {
+                prompt: async (parsed, parentHostname) => {
                     const messageBoxOptions = externalLinkPrompt(
                         parsed,
                         externalOptions.allowTrust,
+                        parentHostname,
                     );
                     const result = externalOptions.window
                         ? await dialog.showMessageBox(externalOptions.window, messageBoxOptions)
                         : await dialog.showMessageBox(messageBoxOptions);
-                    return externalLinkChoice(result.response, externalOptions.allowTrust);
+                    return externalLinkChoice(
+                        result.response,
+                        externalOptions.allowTrust,
+                        Boolean(parentHostname),
+                    );
                 },
                 trust: async (domain) => {
                     await supervisor.request('settings.trustDomain', { domain });
