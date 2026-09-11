@@ -91,6 +91,28 @@ describe('Codex delegation completion', () => {
 });
 
 describe('Codex delegation launch ownership', () => {
+    it.each(['-c', '--config'])(
+        'accepts only the bounded model effort configuration through %s',
+        (flag) => {
+            expect(() =>
+                codexDelegationAdapter.validateLaunch({
+                    executable: 'codex',
+                    args: [flag, 'model_reasoning_effort="xhigh"'],
+                }),
+            ).not.toThrow();
+            for (const value of [
+                'hooks.enabled=false',
+                'model_reasoning_effort="high"\nhooks.enabled=false',
+                'model_reasoning_effort=unexpected',
+            ])
+                expect(() =>
+                    codexDelegationAdapter.validateLaunch({
+                        executable: 'codex',
+                        args: [flag, value],
+                    }),
+                ).toThrow();
+        },
+    );
     it('preserves the existing explicitly configured bypass without adding one', () => {
         const launch = {
             executable: 'codex',
@@ -124,7 +146,7 @@ describe('Codex delegation launch ownership', () => {
     ])('rejects an argument that changes authority or evidence: %j', (...arguments_) => {
         expect(() =>
             codexDelegationAdapter.validateLaunch({ executable: 'codex', args: arguments_ }),
-        ).toThrow(/unsupported/u);
+        ).toThrow(/unsupported|Only model reasoning effort/u);
     });
     it('requires the verified native CLI line', () => {
         expect(() => codexDelegationAdapter.verifyVersion('codex-cli 0.153.4')).not.toThrow();

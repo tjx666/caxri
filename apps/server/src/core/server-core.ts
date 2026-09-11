@@ -333,6 +333,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                 case 'agent.dispatch.start':
                 case 'agent.dispatch.resume':
                 case 'agent.delegation.create':
+                case 'agent.delegation.presets':
                 case 'agent.delegation.stop':
                 case 'agent.delegation.status':
                 case 'agent.delegation.result':

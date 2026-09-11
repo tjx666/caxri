@@ -6,6 +6,7 @@ import process from 'node:process';
 import type {
     AgentDelegationAnswer,
     AgentDelegationReceipt,
+    AppSettings,
     BootstrapState,
 } from '@caxri/protocol';
 
@@ -46,7 +47,9 @@ process.stdin.on('data', chunk => {
   launched = true;
   const taskPath = ${JSON.stringify(join(directory, 'task.md'))};
   fs.writeFileSync(taskPath,'Synthetic task');
-  const args=['agent','delegate','create','--project',context.endpoint.projectId,'--session',context.endpoint.sessionId,'--provider',${JSON.stringify(targetProvider)},'--prompt-file',taskPath,'--request-id','synthetic-delegation'];
+  const roster=cli(['agent','delegate','presets','--project',context.endpoint.projectId,'--session',context.endpoint.sessionId]);
+  if(roster.status!==0||JSON.parse(roster.stdout).presets[0]?.provider!==${JSON.stringify(targetProvider)}){fs.writeFileSync(${JSON.stringify(resultPath)},JSON.stringify({code:99}));return;}
+  const args=['agent','delegate','create','--project',context.endpoint.projectId,'--session',context.endpoint.sessionId,'--preset','synthetic-review','--prompt-file',taskPath,'--request-id','synthetic-delegation'];
   const created=cli(args);
   if(created.status!==0){fs.writeFileSync(${JSON.stringify(resultPath)},JSON.stringify({code:created.status}));return;}
   const receipt=JSON.parse(created.stdout);
@@ -83,6 +86,30 @@ process.stdout.write('Synthetic caller ready\r\n');
             env: { CAXRI_E2E_AGENT_HOOKS: '1' },
         });
         try {
+            const settings = await pageRequest<{ value: AppSettings }>(
+                running.page,
+                'settings.get',
+            );
+            settings.value['agents.delegation'] = {
+                maxDepth: 2,
+                presets: [
+                    {
+                        name: 'synthetic-review',
+                        provider: callerProvider,
+                        model: 'base-model',
+                        effort: 'high',
+                        useWhen: 'Review a synthetic task',
+                    },
+                ],
+                callers: {
+                    [callerProvider]: {
+                        presets: { 'synthetic-review': { provider: targetProvider } },
+                    },
+                },
+            };
+            await pageRequest(running.page, 'settings.update', {
+                source: JSON.stringify(settings.value),
+            });
             const sessionId = await createProjectSession(running.page, callerProvider);
             await expect(running.page.locator('.xterm-rows')).toContainText(
                 'Synthetic caller ready',
@@ -124,7 +151,12 @@ process.stdout.write('Synthetic caller ready\r\n');
                     resumeStatus: 'completed',
                     resumeAnswerMatched: true,
                     sameTerminal: true,
-                    receipt: { status: 'completed', callerTerminalId: context.endpoint.terminalId },
+                    receipt: {
+                        status: 'completed',
+                        callerTerminalId: context.endpoint.terminalId,
+                        depth: 1,
+                        selection: { provider: targetProvider, preset: 'synthetic-review' },
+                    },
                 });
             const receipt = (
                 JSON.parse(await readFile(resultPath, 'utf8')) as {
