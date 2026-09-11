@@ -14,6 +14,12 @@ const cacheManagedFunctionKeys = new Set(['queryFn', 'mutationFn']);
  */
 const dataAccessFilePattern = /(?:^|\/)[\w.-]*-(?:client|commands)\.ts$/u;
 
+/**
+ * Both ways the bridge issues a request. `requestWithSignal` is the abortable form (`resource-explorer-client.ts` uses
+ * it for search), and it loses state on a remount exactly like `request` does.
+ */
+const requestMethodNames = new Set(['request', 'requestWithSignal']);
+
 function isCaxriRequestCall(node: CallExpression): boolean {
     const callee = node.callee;
     return (
@@ -22,7 +28,7 @@ function isCaxriRequestCall(node: CallExpression): boolean {
         callee.object.type === 'Identifier' &&
         callee.object.name === 'caxri' &&
         callee.property.type === 'Identifier' &&
-        callee.property.name === 'request'
+        requestMethodNames.has(callee.property.name)
     );
 }
 
@@ -73,7 +79,7 @@ const serverReadsThroughQuery: Rule.RuleModule = {
         schema: [],
         messages: {
             requestOutsideDataLayer:
-                "Call '{{method}}' from a queryFn, a *-client.ts module, or a *-commands.ts module. Server state resolved into component state is lost whenever the view remounts — see .agents/skills/react/SKILL.md section 4.",
+                "Call '{{method}}' from a queryFn, a mutationFn, a *-client.ts module, or a *-commands.ts module. Server state resolved into component state is lost whenever the view remounts — see .agents/skills/react/SKILL.md section 4.",
         },
     },
     create(context) {

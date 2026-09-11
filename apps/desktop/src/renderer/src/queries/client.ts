@@ -9,16 +9,6 @@ import { caxri } from '../lib/caxri';
 import { describeFailure, pushToast } from '../stores/toasts';
 
 /**
- * Module-scoped singleton so non-component code (e.g. `features/session/session-actions.ts`) can reach the same cache
- * `QueryClientProvider` renders with in `main.tsx`, instead of only being reachable through the `useQueryClient` hook
- * inside a component.
- *
- * Server-state defaults tuned for a local-IPC app rather than a network API: there is no other client to race with over
- * `window.caxri`, so a background window-focus refetch only doubles Server work, and an IPC rejection is a real failure
- * (a bad path, a closed Session) rather than a transient network blip worth retrying. Individual queries override
- * `staleTime` where a shorter or longer window makes sense (see the `useCaxriQuery` call sites below).
- */
-/**
  * Extension Tree branches outlive React Query's five-minute default because the view that reads them is remounted by
  * Session identity: returning to a Session is a minutes-scale action, so the default window would drop the tree exactly
  * when the user expects to find it still there. The payload is bounded by the protocol's tree-item ceiling, and an
@@ -26,6 +16,12 @@ import { describeFailure, pushToast } from '../stores/toasts';
  */
 export const EXTENSION_TREE_GC_TIME_MS = 30 * 60_000;
 
+/**
+ * Server-state defaults tuned for a local-IPC app rather than a network API: there is no other client to race with over
+ * `window.caxri`, so a background window-focus refetch only doubles Server work, and an IPC rejection is a real failure
+ * (a bad path, a closed Session) rather than a transient network blip worth retrying. Individual queries override
+ * `staleTime` where a shorter or longer window makes sense (see the `useCaxriQuery` call sites below).
+ */
 export function createCaxriQueryClient(): QueryClient {
     const client = new QueryClient({
         defaultOptions: {
@@ -45,6 +41,11 @@ export function createCaxriQueryClient(): QueryClient {
     return client;
 }
 
+/**
+ * Module-scoped singleton so non-component code (e.g. `features/session/session-actions.ts`) can reach the same cache
+ * `QueryClientProvider` renders with in `main.tsx`, instead of only being reachable through the `useQueryClient` hook
+ * inside a component.
+ */
 export const queryClient = createCaxriQueryClient();
 
 /**

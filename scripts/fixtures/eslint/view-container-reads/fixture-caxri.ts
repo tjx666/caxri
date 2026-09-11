@@ -5,4 +5,9 @@
 export const caxri = {
     request: (method: string, parameters?: Record<string, unknown>): Promise<unknown> =>
         Promise.resolve({ method, parameters }),
+    requestWithSignal: (
+        method: string,
+        signal: AbortSignal,
+        parameters?: Record<string, unknown>,
+    ): Promise<unknown> => Promise.resolve({ method, parameters, aborted: signal.aborted }),
 };

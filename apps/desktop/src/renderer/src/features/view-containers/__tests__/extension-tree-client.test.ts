@@ -22,7 +22,7 @@ const scope: ExtensionTreeScope = {
 };
 
 function item(handle: string): TreeItemDto {
-    return { handle, label: handle, collapsibleState: 'collapsed' };
+    return { accessibilityLabel: handle, handle, label: handle, collapsibleState: 'collapsed' };
 }
 
 describe('extension tree branch cache', () => {

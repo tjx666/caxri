@@ -504,7 +504,8 @@ export default defineConfig(
      * Server-state contract (`.agents/skills/react/SKILL.md` section 4): a read that resolves into component state is
      * lost on every remount. Scoped to the View Container runtime, where views are keyed by Session and a contributed
      * view inherits whatever the shared tree and controlled-view implementations do; the Settings, Bug Report, and Path
-     * Browser dialogs still read outside the cache and are tracked separately.
+     * Browser dialogs still read outside the cache and widening the scope to cover them is tracked in
+     * https://github.com/tjx666/caxri/issues/797.
      */
     {
         files: [

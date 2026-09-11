@@ -18,12 +18,16 @@ async function lint(path: string) {
 }
 
 describe('caxri/server-reads-through-query', () => {
-    it('reports a read resolved into component state', async () => {
-        expect(
-            await lint(
-                'scripts/fixtures/eslint/view-container-reads/component-state-read-fixture.ts',
-            ),
-        ).toContain(ruleId);
+    /**
+     * Both bridge methods count: the fixture holds one `caxri.request` read and one `caxri.requestWithSignal` read, and
+     * cancelling on unmount does not save the state the abortable one already resolved into.
+     */
+    it('reports every read resolved into component state', async () => {
+        const reported = await lint(
+            'scripts/fixtures/eslint/view-container-reads/component-state-read-fixture.ts',
+        );
+
+        expect(reported.filter((id) => id === ruleId)).toHaveLength(2);
     });
 
     it('stays silent for a read issued from a queryFn', async () => {

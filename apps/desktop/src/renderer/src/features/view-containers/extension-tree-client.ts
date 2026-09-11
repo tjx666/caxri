@@ -35,7 +35,11 @@ function extensionTreeContextKey(scope: ExtensionTreeScope): string {
     return `${scope.sessionId}:${scope.workbenchProjectId}:${scope.extensionGeneration}`;
 }
 
-export function extensionTreeChildrenQueryKey(
+/**
+ * The one place a branch's cache key is built. Keeping it module-private is the point of this file: every read, write,
+ * and removal below goes through it, so no call site can invent a key shape that a later sweep fails to match.
+ */
+function extensionTreeChildrenQueryKey(
     scope: ExtensionTreeScope,
     parentHandle: string,
 ): readonly [string, ExtensionTreeChildrenQueryParameters] {

@@ -70,8 +70,9 @@ builder); genuinely generic code should not.
   `useToastOnQueryError`, not ad-hoc toasts.
 - A read resolved into component state dies with the component, so a view that is keyed by Session
   loses everything it loaded when the user switches away and back. Inside
-  `features/view-containers/`, `caxri/server-reads-through-query` enforces this: the RPC belongs in
-  a `queryFn`, a `*-client.ts` module, or a `*-commands.ts` module. A runtime that owns fetching
+  `features/view-containers/`, `caxri/server-reads-through-query` enforces this for both
+  `caxri.request` and `caxri.requestWithSignal`: the RPC belongs in a `queryFn`, a `mutationFn`, a
+  `*-client.ts` module, or a `*-commands.ts` module. A runtime that owns fetching
   itself (opaque handles, provider-driven resets, per-request cancellation) still writes its result
   into the shared cache with `setQueryData`, so the data keeps Session-scoped keys, one
   garbage-collection policy, and one invalidation sweep — see

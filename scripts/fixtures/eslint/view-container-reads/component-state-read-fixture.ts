@@ -12,3 +12,16 @@ export async function loadTreeChildrenIntoState(
     const result = await caxri.request('viewContainers.treeChildren', { viewId, requestId });
     setItems(result);
 }
+
+/**
+ * Violation fixture: the abortable form of the same mistake. Cancelling on unmount stops the request but does nothing
+ * to preserve what already resolved, so `requestWithSignal` has to be matched too.
+ */
+export async function searchIntoState(
+    query: string,
+    signal: AbortSignal,
+    setResults: (results: unknown) => void,
+): Promise<void> {
+    const result = await caxri.requestWithSignal('files.search', signal, { query });
+    setResults(result);
+}
