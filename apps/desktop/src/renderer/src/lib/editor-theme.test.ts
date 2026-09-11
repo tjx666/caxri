@@ -46,6 +46,12 @@ function themeFixture(): ThemeTokens {
             warning: '#a00000',
             danger: '#ff0000',
             merged: '#c000c0',
+            badge: '#d000d0',
+            gitAdded: '#e000e0',
+            gitModified: '#f000f0',
+            gitDeleted: '#010001',
+            gitUntracked: '#020002',
+            gitConflicting: '#030003',
         },
         terminal: {
             background: '#010101',

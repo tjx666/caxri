@@ -1,5 +1,5 @@
 import type { ThemeTokens } from '@caxri/protocol';
-import { builtinThemes, solarizedLightTheme } from '@caxri/protocol';
+import { builtinThemes, solarizedLightTheme, themeColorCssVariable } from '@caxri/protocol';
 import { contrastRatio } from '@caxri/utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -40,6 +40,12 @@ function themeFixture(): ThemeTokens {
             warning: '#a00000',
             danger: '#b00000',
             merged: '#c00000',
+            badge: '#d00000',
+            gitAdded: '#e00000',
+            gitModified: '#f00000',
+            gitDeleted: '#010000',
+            gitUntracked: '#020000',
+            gitConflicting: '#030000',
         },
         terminal: {
             background: '#010101',
@@ -78,18 +84,19 @@ function themeFixture(): ThemeTokens {
 }
 
 describe('applyCssTheme', () => {
-    it('writes every theme.colors entry to documentElement.style as a --<key> custom property', () => {
+    it('writes every theme.colors entry to documentElement.style as a kebab-case custom property', () => {
         const theme = themeFixture();
         applyCssTheme(theme);
 
-        // Derived from the fixture, plus the two foregrounds `applyCssTheme` computes, so a new color role
+        // Derived from the fixture, plus the foregrounds `applyCssTheme` computes, so a new color role
         // is covered here automatically instead of failing on a stale literal.
-        const derivedForegrounds = 2;
+        const derivedForegrounds = 3;
         expect(setProperty).toHaveBeenCalledTimes(
             Object.keys(theme.colors).length + derivedForegrounds,
         );
         for (const [token, value] of Object.entries(theme.colors))
-            expect(setProperty).toHaveBeenCalledWith(`--${token}`, value);
+            expect(setProperty).toHaveBeenCalledWith(themeColorCssVariable(token), value);
+        expect(setProperty).toHaveBeenCalledWith('--git-added', theme.colors.gitAdded);
     });
 
     it('derives accessible foregrounds for semantic fill colors in every built-in theme', () => {
@@ -109,6 +116,10 @@ describe('applyCssTheme', () => {
             expect(
                 contrastRatio(properties.get('--danger-foreground')!, theme.colors.danger),
                 `${theme.id} danger foreground`,
+            ).toBeGreaterThanOrEqual(4.5);
+            expect(
+                contrastRatio(properties.get('--badge-foreground')!, theme.colors.badge),
+                `${theme.id} badge foreground`,
             ).toBeGreaterThanOrEqual(4.5);
         }
 

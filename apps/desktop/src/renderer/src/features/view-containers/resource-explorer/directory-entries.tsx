@@ -5,11 +5,15 @@ import type { FileEntry } from '@caxri/protocol';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 
+import { GitFileStatusLetter } from '../../../components/git-file-status-letter';
 import { ContextMenu, ContextMenuTrigger } from '../../../components/ui/context-menu';
 import { Input } from '../../../components/ui/input';
 import { FileTypeIcon } from '../../../icons/files/file-type-icon';
 import { FILE_TREE_DRAG_TYPE, hasDraggedPath } from '../../../lib/file-drag';
+import { gitDecorationClassName } from '../../../lib/git-decorations';
+import { cn } from '../../../lib/utilities';
 import { useToastOnQueryError } from '../../../queries/client';
+import { useGitDecoration } from '../../../stores/git-decorations';
 import { describeFailure } from '../../../stores/toasts';
 import { useResourceExplorerClient } from '../controlled-view-context';
 import { controlledViewQueryKey } from '../view-operation-client';
@@ -243,6 +247,7 @@ function FileTreeItem({
     setEditing,
 }: Omit<TreeProperties, 'directory'> & { entry: FileEntry; index: number }) {
     const client = useResourceExplorerClient();
+    const decoration = useGitDecoration(entry.path);
     const expanded = useIsPathExpanded(scopeId, entry.path);
     const selected = useIsPathSelected(scopeId, entry.path);
     const hasSelection = useHasScopeSelection(scopeId);
@@ -383,11 +388,22 @@ function FileTreeItem({
         >
             {isDirectory && (expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />)}
             <FileTypeIcon entry={entry} expanded={expanded} />
-            <span className="truncate">{entry.name}</span>
+            {/*
+             * VS Code's Git decoration: the name takes the change's color, and only a file adds the status letter at
+             * the row's trailing edge. A folder is colored by the strongest change anywhere beneath it but stays
+             * letterless, because the letter would claim the folder itself changed. The file type icon keeps its own
+             * color on purpose — it identifies the language, not the change.
+             */}
+            <span className={cn('truncate', decoration && gitDecorationClassName(decoration.kind))}>
+                {entry.name}
+            </span>
             {entry.kind === 'symlink' && (
                 <span id={symlinkReasonId} className="sr-only">
                     {symlinkRowDescription(entry)}
                 </span>
+            )}
+            {decoration && (
+                <GitFileStatusLetter className="ml-auto text-[11px]" decoration={decoration} />
             )}
         </button>
     );

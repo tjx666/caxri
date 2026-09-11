@@ -432,6 +432,22 @@ export const themeTokensSchema = z.object({
         warning: hex,
         danger: hex,
         merged: hex, // landed work; DESIGN.md owns the role, `upgradeThemeColors` backfills older files
+        /**
+         * Numeric view-container badge fill, mirroring VS Code's `activityBarBadge.background`. Its text color is
+         * derived for contrast rather than persisted, like `accent` and `danger`.
+         */
+        badge: hex,
+        /**
+         * Working-tree decoration colors, mirroring VS Code's `gitDecoration.*` resource foregrounds. A theme that
+         * leaves one unset inherits the built-in Git extension's default, so every built-in below carries the exact
+         * color VS Code would paint. `renamed` shares `gitUntracked` (VS Code's two defaults are the same green) and
+         * `ignored` stays on `muted`, so neither needs a role of its own.
+         */
+        gitAdded: hex,
+        gitModified: hex,
+        gitDeleted: hex,
+        gitUntracked: hex,
+        gitConflicting: hex,
     }),
     terminal: z.object({
         background: hex,

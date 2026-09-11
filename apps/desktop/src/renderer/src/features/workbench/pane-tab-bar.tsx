@@ -19,6 +19,7 @@ import { Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
 import { useChromeLayoutStore } from '../../stores/chrome-layout';
+import { useGitDecoration } from '../../stores/git-decorations';
 import {
     useIsFullScreen,
     useSelectedSession,
@@ -202,6 +203,11 @@ function DocumentPaneTab({
         repositories: overviewQuery.data?.repositories,
         externalDisplayPath: document?.displayPath,
     });
+    /**
+     * Keyed on the resolved filesystem path, not the tab's own `path`: a single-file Git diff tab carries a virtual URI
+     * whose repository-relative path only `resolveDocumentTabPath` can turn into the absolute path Git reports.
+     */
+    const gitDecoration = useGitDecoration(resolution?.absolutePath);
     const pathMenu = documentTabPathMenuState(path, overviewQuery);
     const presentation = documentTabPresentation(path, {
         displayPath: document?.displayPath,
@@ -214,6 +220,7 @@ function DocumentPaneTab({
             closeLabel="Close Editor"
             dirty={document?.dirty}
             fileIconName={presentation.fileIconName}
+            gitDecoration={gitDecoration}
             icon="file"
             label={presentation.label}
             // Ordinary files expose their full path on hover; virtual resources reuse their descriptive label.
