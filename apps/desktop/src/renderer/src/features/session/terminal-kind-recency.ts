@@ -20,11 +20,14 @@ const CATALOG_TERMINAL_KINDS: readonly TerminalKind[] = [...agentProviderIds, 's
  */
 export function orderTerminalKindsByRecency(candidate: readonly unknown[]): TerminalKind[] {
     const ranked: TerminalKind[] = [];
+    const seen = new Set<TerminalKind>();
     for (const entry of candidate) {
         const parsed = terminalKindSchema.safeParse(entry);
-        if (parsed.success && !ranked.includes(parsed.data)) ranked.push(parsed.data);
+        if (!parsed.success || seen.has(parsed.data)) continue;
+        seen.add(parsed.data);
+        ranked.push(parsed.data);
     }
-    return [...ranked, ...CATALOG_TERMINAL_KINDS.filter((kind) => !ranked.includes(kind))];
+    return [...ranked, ...CATALOG_TERMINAL_KINDS.filter((kind) => !seen.has(kind))];
 }
 
 /**
