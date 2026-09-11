@@ -244,17 +244,72 @@ function linearIcon(
 function buildRepoChildren(repo: ProjectStatusRepository): StatusNode[] {
     const prefix = `status:repo:${repo.id}`;
     const isDefaultBranch = repo.defaultBranch === repo.branch;
+    const publication = repo.publication;
+    const publicationLabels = {
+        'checking': 'Checking origin…',
+        'unpublished': 'Not on origin',
+        'published': 'On origin',
+        'synced': 'Synced',
+        'ahead': `↑${publication?.ahead ?? 0}`,
+        'behind': `↓${publication?.behind ?? 0}`,
+        'diverged': `↑${publication?.ahead ?? 0} ↓${publication?.behind ?? 0}`,
+        'unknown': 'Unknown',
+        'no-origin': 'No origin',
+        'unsupported': 'Unknown',
+        'detached': 'Detached HEAD',
+        'unborn': 'No commits',
+    };
+    const publicationLabel = publication ? publicationLabels[publication.state] : undefined;
+    const branchDescription = [isDefaultBranch ? 'default' : undefined, publicationLabel]
+        .filter(Boolean)
+        .join(' · ');
+    const publicationDescriptions: Partial<
+        Record<NonNullable<typeof publication>['state'], string>
+    > = {
+        'unpublished':
+            'No same-named branch exists on origin. It may exist on another remote or under another name.',
+        'published':
+            'The branch exists on origin, but local history is insufficient to compare commits. This does not confirm that every local commit has been pushed.',
+        'synced': 'Local and origin branch tips match at the checked time.',
+        'ahead': 'Local commits not on the compared origin branch at the checked time.',
+        'behind': 'Origin commits not on the local branch at the checked time.',
+        'diverged': 'Both branches have commits absent from the other at the checked time.',
+        'unknown': 'Could not verify the branch on origin. Refresh Project Status to retry.',
+        'unsupported': 'Remote verification currently supports GitHub origins only.',
+        'no-origin': 'This repository has no origin remote.',
+        'detached': 'HEAD is not attached to a local branch.',
+        'unborn': 'This branch has no commits yet.',
+        'checking': 'Checking the same-named branch on origin.',
+    };
     const nodes: StatusNode[] = [
         item(`${prefix}:branch`, repo.branch, {
-            description: isDefaultBranch ? 'default' : undefined,
+            description: branchDescription.length > 0 ? branchDescription : undefined,
             icon: 'git-branch',
             url: repo.branchUrl,
             tooltip: {
-                ...(isDefaultBranch && { badge: { label: 'default', tone: 'neutral' } }),
-                rows:
+                ...((publicationLabel !== undefined || isDefaultBranch) && {
+                    badge: { label: publicationLabel ?? 'default', tone: 'neutral' },
+                }),
+                description: publication ? publicationDescriptions[publication.state] : undefined,
+                rows: [
+                    ...(publication?.remoteBranch
+                        ? [{ label: 'compared branch', value: publication.remoteBranch }]
+                        : []),
+                    ...(publication?.checkedAt === undefined
+                        ? []
+                        : [
+                              {
+                                  label: 'checked',
+                                  value: new Date(publication.checkedAt).toLocaleString(),
+                              },
+                          ]),
+                    ...(isDefaultBranch && publication
+                        ? [{ label: 'default', value: repo.branch }]
+                        : []),
                     !isDefaultBranch && repo.defaultBranch
-                        ? [{ label: 'default', value: repo.defaultBranch }]
-                        : [],
+                        ? { label: 'default', value: repo.defaultBranch }
+                        : undefined,
+                ].filter((row): row is TreeItemTooltipRow => row !== undefined),
             },
         }),
     ];

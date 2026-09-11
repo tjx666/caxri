@@ -30,6 +30,7 @@ test('bundled Project Status extension renders and refreshes the current reposit
     const statusDelayPath = join(testDirectory, 'status-delay.txt');
     const statusRequestLogPath = join(testDirectory, 'status-requests.txt');
     const statusTitlePath = join(testDirectory, 'status-title.txt');
+    const branchResponsePath = join(testDirectory, 'branch-response.json');
     const longCheckUrl = `https://github.com/tjx666/project/actions/runs/42/job/${'a'.repeat(180)}`;
     await execFileAsync('mkdir', ['-p', root, bin]);
     await execFileAsync('git', ['init', '-b', 'feature/status'], { cwd: root });
@@ -38,6 +39,11 @@ test('bundled Project Status extension renders and refreshes the current reposit
     await writeFile(join(root, 'README.md'), 'Project Status fixture\n');
     await execFileAsync('git', ['add', 'README.md'], { cwd: root });
     await execFileAsync('git', ['commit', '-m', 'Initial fixture'], { cwd: root });
+    const { stdout: branchHead } = await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: root });
+    await writeFile(
+        branchResponsePath,
+        JSON.stringify({ data: { repository: { ref: { target: { oid: branchHead.trim() } } } } }),
+    );
     await execFileAsync(
         'git',
         ['remote', 'add', 'origin', 'https://github.com/tjx666/project.git'],
@@ -57,6 +63,10 @@ test('bundled Project Status extension renders and refreshes the current reposit
     await writeFile(
         join(bin, 'gh'),
         `#!/bin/sh
+if [ "$1" = "api" ]; then
+  cat ${JSON.stringify(branchResponsePath)}
+  exit 0
+fi
 sleep "$(cat ${JSON.stringify(statusDelayPath)})"
 printf 'request\n' >> ${JSON.stringify(statusRequestLogPath)}
 status_title=$(cat ${JSON.stringify(statusTitlePath)})
@@ -142,7 +152,7 @@ esac
                 iconFlexShrink: '0',
             });
         const branchRow = tree.getByRole('treeitem', {
-            name: 'feature/status, default',
+            name: 'feature/status, default · Synced',
             exact: true,
         });
         await expect(branchRow).toBeVisible();
@@ -709,6 +719,40 @@ esac
                 exact: true,
             }),
         ).toHaveAttribute('aria-selected', 'true');
+        await writeFile(
+            branchResponsePath,
+            JSON.stringify({ data: { repository: { ref: null } } }),
+        );
+        // A push/prune changes tracking refs without changing HEAD; the Git event must refresh publication automatically.
+        await execFileAsync('git', ['update-ref', '-d', 'refs/remotes/origin/feature/status'], {
+            cwd: root,
+        });
+        const unpublishedBranch = restoredTree.getByRole('treeitem', {
+            name: 'feature/status, default · Not on origin',
+            exact: true,
+        });
+        await expect(unpublishedBranch).toBeVisible();
+        await unpublishedBranch.hover();
+        const publicationTooltip = running.page
+            .locator('.tree-item-rich-tooltip:visible')
+            .filter({ hasText: 'feature/status' });
+        await expect(publicationTooltip).toContainText('origin/feature/status');
+        await expect(publicationTooltip).toContainText('checked');
+        await expect(publicationTooltip.getByRole('button', { name: /Open link/ })).toHaveCount(0);
+        await running.page.mouse.move(0, 0);
+        await writeFile(
+            branchResponsePath,
+            JSON.stringify({ data: { repository: null }, errors: [{ message: 'unavailable' }] }),
+        );
+        await running.page
+            .getByRole('button', { name: 'Refresh Project Status', exact: true })
+            .click();
+        await expect(
+            restoredTree.getByRole('treeitem', {
+                name: 'feature/status, default · Unknown',
+                exact: true,
+            }),
+        ).toBeVisible();
     } finally {
         try {
             await running.app.close();

@@ -23,6 +23,13 @@ remains `cancelled` through Server parsing, Extension tree projection, and Sessi
 it is neither a passing check nor a delivery failure. See
 [delivery-status semantics](../../../../docs/external-status-quota.md#cancelled-github-checks).
 
+Project Status branch publication is Server-owned evidence, carried by the typed Project Status
+contract and rendered by the bundled Status extension. It compares a captured local commit with
+the same-named GitHub branch on origin through the existing external-status quota hub. Local
+tracking refs invalidate cached evidence but never establish publication. See
+[external status governance](../../../../docs/external-status-quota.md#branch-publication-in-project-status)
+for freshness, unsupported origins, and incomplete-history behavior.
+
 Desktop notification history is a bounded Renderer-memory projection, separate from Sonner's
 live toast queue. Only typed reminder preferences persist in `settings.jsonc`, through the
 existing Server-owned scalar settings patch path. History never stores action closures or writes

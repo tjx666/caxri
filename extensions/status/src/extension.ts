@@ -85,6 +85,10 @@ export function activate(context: ExtensionContext): void {
             provider.refresh(true),
         ),
         caxri.workspace.onDidChangeActiveContext(() => provider.refresh()),
+        caxri.workspace.onDidChangeGit(({ scopeId }) => {
+            if (scopeId === caxri.workspace.getCurrentContext()?.scopeId)
+                provider.projectStatusChanged();
+        }),
         caxri.workspace.onDidChangeProjectStatus(() => provider.projectStatusChanged()),
     );
 }

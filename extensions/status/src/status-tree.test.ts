@@ -175,6 +175,46 @@ describe('Status extension tree', () => {
         },
     );
 
+    it.each([
+        ['unpublished', 'Not on origin'],
+        ['synced', 'Synced'],
+        ['ahead', '↑2'],
+        ['behind', '↓1'],
+        ['diverged', '↑2 ↓1'],
+        ['published', 'On origin'],
+        ['unknown', 'Unknown'],
+    ] as const)(
+        'makes %s publication visible and explains its comparison target',
+        (state, label) => {
+            const repo: ProjectStatusRepository = {
+                id: 'repo',
+                kind: 'submodule',
+                name: 'project',
+                branch: 'feature/status',
+                defaultBranch: 'feature/status',
+                linearIssues: [],
+                errors: [],
+                publication: {
+                    state,
+                    ahead: 2,
+                    behind: 1,
+                    remoteBranch: 'origin/feature/status',
+                    checkedAt: 123,
+                },
+            };
+            const branch = buildRepoNode(repo).children?.[0].item;
+            expect(branch?.description).toBe(`default · ${label}`);
+            expect(branch?.accessibilityInformation?.label).toContain(label);
+            const tooltip = branch?.tooltip as TreeItemRichTooltip;
+            expect(tooltip.rows).toContainEqual({
+                label: 'compared branch',
+                value: 'origin/feature/status',
+            });
+            expect(tooltip.rows?.some((row) => row.label === 'checked')).toBe(true);
+            expect(branch?.command).toBeUndefined();
+        },
+    );
+
     it('preserves the complete pre-extension hierarchy and stable semantic state', () => {
         const repo: ProjectStatusRepository = {
             id: 'repo-1',
