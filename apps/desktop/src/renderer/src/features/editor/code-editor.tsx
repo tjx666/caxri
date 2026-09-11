@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 
 import type { ThemeTokens } from '@caxri/protocol';
 import type { OnMount } from '@monaco-editor/react';
@@ -12,6 +12,7 @@ import { resolveEditorLanguage } from './editor-language';
 import { markEditorBeforeMount, markEditorMounted } from './editor-performance';
 import { registerEditorRevealTarget } from './editor-reveal';
 import { useEditorStatusStore } from './editor-status';
+import { rememberEditorViewState, restoreEditorViewState } from './editor-view-state';
 
 export interface CodeEditorProperties {
     /**
@@ -66,6 +67,29 @@ export function CodeEditor({
     const language = resolveEditorLanguage(path);
     const fontFamily = useEditorFontFamily();
     useEffect(() => applyEditorTheme(theme), [theme]);
+    /**
+     * Scroll position and cursor outlive the widget that showed them. The two halves run in different effect phases on
+     * purpose:
+     *
+     * - The layout cleanup records the outgoing model while Monaco is still alive — React runs it before
+     *   `@monaco-editor/react`'s passive cleanup disposes the editor on unmount (a Session switch remounts the whole
+     *   pane tree), and before its passive `path` effect swaps in another model;
+     * - The passive body restores afterwards, once that swap has happened. It runs before the reveal registration below
+     *   so an explicit navigation (a search hit, a breadcrumb jump) still wins over the remembered position, and it
+     *   cannot cover the first mount, where the wrapper creates the editor asynchronously and reports it through
+     *   `onMount` instead.
+     */
+    useLayoutEffect(
+        () => () => {
+            const editor = editorReference.current;
+            if (editor) rememberEditorViewState(editor, editorInstanceId);
+        },
+        [editorInstanceId, path],
+    );
+    useEffect(() => {
+        const editor = editorReference.current;
+        if (editor) restoreEditorViewState(editor, editorInstanceId);
+    }, [editorInstanceId, path]);
     useEffect(() => {
         const editor = editorReference.current;
         if (!editor) return;
@@ -122,6 +146,7 @@ export function CodeEditor({
                 cursorSubscriptionReference.current = editor.onDidChangeCursorSelection(() =>
                     publishEditorStatus(editor, statusKeyReference.current),
                 );
+                restoreEditorViewState(editor, editorInstanceId);
                 registrationReference.current?.();
                 registrationReference.current = registerEditorRevealTarget(
                     path,
