@@ -115,6 +115,10 @@ evidence rather than automated test or Acceptance evidence.
 - CI keeps `maxFailures` for fast containment, then reruns only suppressed tests one at a time.
   The final pool receipt must classify every planned spec as `pass`, `fail`, or `timeout`, retain
   per-test artifacts, and group repeated failures by stable error identity before repair begins.
+- An interrupted local pool leaves Electron and Playwright processes behind. Clear them with
+  `bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts stop`, never with a name match:
+  `pkill -f "Caxri.app"` also matches the installed `/Applications/Caxri.app` and has already
+  terminated it mid-session during exactly this cleanup.
 
 ## CI-only parity
 
