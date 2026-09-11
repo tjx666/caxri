@@ -122,10 +122,11 @@ export function fileOperationsForProject(
  * A symlink row states where it points and why it is inert, because its icon can otherwise be mistaken for the real
  * folder or file it mirrors. Every other row shows its path plus whichever qualifiers apply.
  *
+ * `nested` and `submodule` are worth telling apart here: only the submodule is recorded by the parent, so only it will
+ * show up as a change there when its commit moves.
+ *
  * @param entry The row the tooltip describes.
- * @param childRepo Set when the directory is a repository of its own, which the Git folder icon shows but does not
- *   name. `nested` and `submodule` are worth telling apart here: only the submodule is recorded by the parent, so only
- *   it will show up as a change there when its commit moves.
+ * @param childRepo Set when the directory is a repository of its own, which the icon shows but does not name.
  */
 export function fileTreeRowTooltip(
     entry: Pick<FileEntry, 'gitIgnored' | 'kind' | 'linkKind' | 'linkTarget' | 'path'>,
