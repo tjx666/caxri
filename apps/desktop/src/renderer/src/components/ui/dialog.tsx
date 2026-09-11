@@ -1,28 +1,12 @@
 import type { ComponentProps, Ref } from 'react';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { X } from 'lucide-react';
 
+import { useModalRegistration } from '@/hooks/use-modal-registration';
 import { restorePickerFocus } from '@/lib/picker-final-focus';
 import { cn } from '@/lib/utilities';
-import { useDialogStore } from '@/stores/dialogs';
-
-/**
- * Registers this Dialog instance with the shared modal-open registry while `open` is true, and unregisters on close or
- * unmount. Every consumer of the shared `Dialog` primitive gets this for free, so `useDialogStore.isModalOpen()` (which
- * gates app-wide shortcuts in `commands/execute.ts`) stays correct as new dialogs are added without anyone having to
- * remember to OR in another boolean field. A `Set` of `useId()`-derived ids keeps React StrictMode's double-invoked
- * effects idempotent.
- */
-function useModalRegistration(open: boolean | undefined): void {
-    const id = useId();
-    useEffect(() => {
-        if (!open) return;
-        useDialogStore.getState().registerModal(id);
-        return () => useDialogStore.getState().unregisterModal(id);
-    }, [open, id]);
-}
 
 export function Dialog({ open, ...properties }: DialogPrimitive.Root.Props) {
     useModalRegistration(open);

@@ -160,12 +160,14 @@ test('Command+K/T/W affect only the active Terminal and pause behind modals', as
 
         await running.page.locator('.project-heading').hover();
         await running.page.getByRole('button', { name: /^New Session in / }).click();
-        const dialog = running.page.getByRole('dialog');
-        await expect(dialog).toBeVisible();
+        // The Terminal choice is an anchored menu, which registers as a modal for the same reason a dialog does: it
+        // traps focus, so app-wide Terminal shortcuts must stand down while it owns the keyboard.
+        const createMenu = running.page.getByRole('menu');
+        await expect(createMenu).toBeVisible();
         await running.page.keyboard.press('Meta+K');
         await running.page.keyboard.press('Meta+T');
         await running.page.keyboard.press('Meta+W');
-        await expect(dialog).toBeVisible();
+        await expect(createMenu).toBeVisible();
         await expect(running.page.locator('.work-tab[data-terminal-id]')).toHaveCount(2);
         await running.page.keyboard.press('Escape');
         await expect(

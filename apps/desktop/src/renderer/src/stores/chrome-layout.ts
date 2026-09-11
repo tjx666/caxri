@@ -5,6 +5,8 @@ import { viewContainerIdSchema } from '@caxri/protocol';
 import { clamp } from 'es-toolkit';
 import { create } from 'zustand';
 
+import { readLocalStorageJson, writeLocalStorageJson } from '../lib/local-storage';
+
 /**
  * Renderer-local chrome layout: PrimarySidebar/SecondarySidebar widths, Panel height, their visibility, and the Panel's
  * active view. Unlike Session state (`workbench.ts`), this is device-specific presentation, never written through to
@@ -137,68 +139,55 @@ export function clampPanelHeight(height: number, viewportHeight: number): number
 }
 
 function isBrowser(): boolean {
-    // DOM lib types declare `localStorage` as always present, but this module also runs under Vitest's Node
-    // environment, where the global is genuinely absent.
+    // DOM lib types declare `window` as always present, but this module also runs under Vitest's Node environment,
+    // where the global is genuinely absent.
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- see comment above
-    return typeof window !== 'undefined' && globalThis.localStorage !== undefined;
+    return typeof window !== 'undefined';
 }
 
 /**
  * Falls back to defaults for a missing/corrupt entry instead of throwing during module load.
  */
 function readPersistedLayout(): ChromeLayout {
-    if (!isBrowser()) return DEFAULT_CHROME_LAYOUT;
-    try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return DEFAULT_CHROME_LAYOUT;
-        const parsed = JSON.parse(raw) as Partial<ChromeLayout>;
-        return {
-            primarySidebarWidth: clampWidth(
-                typeof parsed.primarySidebarWidth === 'number'
-                    ? parsed.primarySidebarWidth
-                    : PRIMARY_SIDEBAR_DEFAULT_WIDTH,
-                PRIMARY_SIDEBAR_MIN_WIDTH,
-                PRIMARY_SIDEBAR_MAX_WIDTH,
-            ),
-            secondarySidebarWidth: clampWidth(
-                typeof parsed.secondarySidebarWidth === 'number'
-                    ? parsed.secondarySidebarWidth
-                    : SECONDARY_SIDEBAR_DEFAULT_WIDTH,
-                SECONDARY_SIDEBAR_MIN_WIDTH,
-                SECONDARY_SIDEBAR_MAX_WIDTH,
-            ),
-            panelHeight: clampWidth(
-                typeof parsed.panelHeight === 'number' ? parsed.panelHeight : PANEL_DEFAULT_HEIGHT,
-                PANEL_MIN_HEIGHT,
-                PANEL_MAX_HEIGHT,
-            ),
-            primarySidebarVisible:
-                typeof parsed.primarySidebarVisible === 'boolean'
-                    ? parsed.primarySidebarVisible
-                    : true,
-            secondarySidebarVisible:
-                typeof parsed.secondarySidebarVisible === 'boolean'
-                    ? parsed.secondarySidebarVisible
-                    : true,
-            panelVisible: typeof parsed.panelVisible === 'boolean' ? parsed.panelVisible : false,
-            desiredPanelViewContainerId: viewContainerIdSchema.safeParse(
-                parsed.desiredPanelViewContainerId,
-            ).success
-                ? (parsed.desiredPanelViewContainerId as ViewContainerId)
-                : DEFAULT_CHROME_LAYOUT.desiredPanelViewContainerId,
-        };
-    } catch {
-        return DEFAULT_CHROME_LAYOUT;
-    }
+    const parsed = readLocalStorageJson(STORAGE_KEY) as Partial<ChromeLayout> | undefined;
+    if (!parsed || typeof parsed !== 'object') return DEFAULT_CHROME_LAYOUT;
+    return {
+        primarySidebarWidth: clampWidth(
+            typeof parsed.primarySidebarWidth === 'number'
+                ? parsed.primarySidebarWidth
+                : PRIMARY_SIDEBAR_DEFAULT_WIDTH,
+            PRIMARY_SIDEBAR_MIN_WIDTH,
+            PRIMARY_SIDEBAR_MAX_WIDTH,
+        ),
+        secondarySidebarWidth: clampWidth(
+            typeof parsed.secondarySidebarWidth === 'number'
+                ? parsed.secondarySidebarWidth
+                : SECONDARY_SIDEBAR_DEFAULT_WIDTH,
+            SECONDARY_SIDEBAR_MIN_WIDTH,
+            SECONDARY_SIDEBAR_MAX_WIDTH,
+        ),
+        panelHeight: clampWidth(
+            typeof parsed.panelHeight === 'number' ? parsed.panelHeight : PANEL_DEFAULT_HEIGHT,
+            PANEL_MIN_HEIGHT,
+            PANEL_MAX_HEIGHT,
+        ),
+        primarySidebarVisible:
+            typeof parsed.primarySidebarVisible === 'boolean' ? parsed.primarySidebarVisible : true,
+        secondarySidebarVisible:
+            typeof parsed.secondarySidebarVisible === 'boolean'
+                ? parsed.secondarySidebarVisible
+                : true,
+        panelVisible: typeof parsed.panelVisible === 'boolean' ? parsed.panelVisible : false,
+        desiredPanelViewContainerId: viewContainerIdSchema.safeParse(
+            parsed.desiredPanelViewContainerId,
+        ).success
+            ? (parsed.desiredPanelViewContainerId as ViewContainerId)
+            : DEFAULT_CHROME_LAYOUT.desiredPanelViewContainerId,
+    };
 }
 
 function writePersistedLayout(layout: ChromeLayout): void {
-    if (!isBrowser()) return;
-    try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(layout));
-    } catch {
-        // Storage full or disabled (private mode); the layout still works for this session.
-    }
+    writeLocalStorageJson(STORAGE_KEY, layout);
 }
 
 /**

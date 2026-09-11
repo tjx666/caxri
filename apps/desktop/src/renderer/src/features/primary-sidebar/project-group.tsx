@@ -16,6 +16,7 @@ import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { cn } from '../../lib/utilities';
+import { CreateSessionMenu } from '../session/create-session-menu';
 import { archiveSession } from '../session/session-actions';
 import type { SessionOrderController } from './hooks/use-session-order';
 import { useSessionTitleScroll } from './hooks/use-session-title-scroll';
@@ -439,18 +440,7 @@ export function ProjectGroup({
                             <Paintbrush size={13} />
                         </Button>
                     </CommandTooltip>
-                    <CommandTooltip commandId="session.create">
-                        <Button
-                            className="pointer-events-none opacity-0 transition-opacity group-focus-within/project-heading:pointer-events-auto group-focus-within/project-heading:opacity-100 group-hover/project-heading:pointer-events-auto group-hover/project-heading:opacity-100"
-                            size="icon"
-                            variant="ghost"
-                            aria-label={`New Session in ${project.displayTitle}`}
-                            tabIndex={-1}
-                            onClick={onCreateSession}
-                        >
-                            <SquarePen size={13} />
-                        </Button>
-                    </CommandTooltip>
+                    <CreateSessionMenu project={project} />
                 </div>
             </ProjectRowMenu>
             <div
