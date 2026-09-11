@@ -28,11 +28,7 @@ const ZSH_PROFILE = `if [[ -n "$__caxri_user_zdotdir" && -r "$__caxri_user_zdotd
 fi
 `;
 
-const ZSH_RC = String.raw`if [[ -n "$__caxri_user_zdotdir" && -r "$__caxri_user_zdotdir/.zshrc" ]]; then
-  source "$__caxri_user_zdotdir/.zshrc"
-fi
-
-autoload -Uz add-zsh-hook 2>/dev/null
+const ZSH_PROMPT_HOOKS = String.raw`autoload -Uz add-zsh-hook 2>/dev/null
 function __caxri_prompt_started() {
   local command_status=$?
   if (( ${'$'}{+__caxri_command_active} )); then
@@ -49,11 +45,51 @@ add-zsh-hook precmd __caxri_prompt_started
 add-zsh-hook preexec __caxri_command_started
 `;
 
+const ZSH_RC = `if [[ -n "$__caxri_user_zdotdir" && -r "$__caxri_user_zdotdir/.zshrc" ]]; then
+  source "$__caxri_user_zdotdir/.zshrc"
+fi
+${ZSH_PROMPT_HOOKS}`;
+
+/**
+ * A second Ctrl+C can arrive after the Agent restores terminal input but before user startup finishes. Consume only the
+ * first such interrupt for managed returns; another interrupt can still cancel a stuck startup file. Never replace an
+ * existing trap or remove one installed by user startup. The first prompt also repairs integration state if an
+ * intentional subsequent interrupt skips .zlogin.
+ */
+const ZSH_STARTUP_RECOVERY = `${ZSH_PROMPT_HOOKS}
+function __caxri_finish_startup() {
+  if [[ -n "\${__caxri_startup_trap-}" && "\${functions[TRAPINT]-}" == "$__caxri_startup_trap" ]]; then
+    unfunction TRAPINT
+  fi
+  unset __caxri_startup_trap
+  [[ -n "$__caxri_user_zdotdir" ]] && ZDOTDIR="$__caxri_user_zdotdir"
+  unset CAXRI_SHELL_INTEGRATION_DIR CAXRI_USER_ZDOTDIR
+  add-zsh-hook -d precmd __caxri_finish_startup
+  unfunction __caxri_finish_startup
+  return 0
+}
+add-zsh-hook precmd __caxri_finish_startup
+if [[ "\${__caxri_managed_agent_exited-}" == 1 && -z "$(trap)" ]]; then
+  function TRAPINT() {
+    unfunction TRAPINT
+    return 0
+  }
+  typeset -g __caxri_startup_trap="$functions[TRAPINT]"
+fi
+unset __caxri_managed_agent_exited
+`;
+
 /**
  * Removes one-time launcher metadata before starting the child so an exited Agent returns to a credential-free
- * interactive shell instead of ending the PTY or leaking its token.
+ * interactive shell instead of ending the PTY or leaking its token. zsh is still sourcing .zshenv while the Agent runs:
+ * an interrupt reaching the waiting shell must not abort the rest of its startup. A local, non-ignoring trap consumes
+ * that interrupt without making children inherit SIG_IGN or changing the eventual interactive shell.
  */
 const MANAGED_AGENT_LAUNCHER = String.raw`function __caxri_launch_managed_agent() {
+  if [[ -n "${'$'}{ZSH_VERSION-}" ]]; then
+    setopt localoptions localtraps
+    trap ':' INT
+  fi
   local __caxri_agent_restore_xtrace=0
   case "$-" in
     *x*) __caxri_agent_restore_xtrace=1; set +x ;;
@@ -68,6 +104,9 @@ const MANAGED_AGENT_LAUNCHER = String.raw`function __caxri_launch_managed_agent(
   if [[ -n "$__caxri_agent_launcher_runtime" && -n "$__caxri_agent_launcher_entry" && -n "$__caxri_agent_launcher_socket" && -n "$__caxri_agent_launcher_id" && -n "$__caxri_agent_launcher_token" ]]; then
     CAXRI_AGENT_LAUNCHER_TOKEN="$__caxri_agent_launcher_token" \
       "$__caxri_agent_launcher_runtime" "$__caxri_agent_launcher_entry" --managed-agent-launcher "$__caxri_agent_launcher_socket" "$__caxri_agent_launcher_id"
+    if [[ -n "${'$'}{ZSH_VERSION-}" ]]; then
+      typeset -g __caxri_managed_agent_exited=1
+    fi
   fi
 
   unset __caxri_agent_launcher_runtime __caxri_agent_launcher_entry __caxri_agent_launcher_socket __caxri_agent_launcher_id __caxri_agent_launcher_token
@@ -78,13 +117,13 @@ unset -f __caxri_launch_managed_agent
 `;
 
 const ZSH_ENV_WITH_MANAGED_AGENT = `${MANAGED_AGENT_LAUNCHER}
+${ZSH_STARTUP_RECOVERY}
 ${ZSH_ENV}`;
 
 const ZSH_LOGIN = `if [[ -n "$__caxri_user_zdotdir" && -r "$__caxri_user_zdotdir/.zlogin" ]]; then
   source "$__caxri_user_zdotdir/.zlogin"
 fi
-[[ -n "$__caxri_user_zdotdir" ]] && ZDOTDIR="$__caxri_user_zdotdir"
-unset CAXRI_SHELL_INTEGRATION_DIR CAXRI_USER_ZDOTDIR
+__caxri_finish_startup
 `;
 
 const BASH_RC = String.raw`${MANAGED_AGENT_LAUNCHER}
