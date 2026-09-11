@@ -25,9 +25,26 @@ const REFERENCE_MARKERS = [
     'Related to',
 ] as const;
 
+/**
+ * A Linear magic word owns only the identifiers attached to it (`Fixes LOBE-1, LOBE-2`), so the scan stops at the first
+ * token that is neither an identifier nor a connector. Sweeping every `word-digits` token out of the rest of the line
+ * instead — the previous behavior — pulled ordinary prose into the reference list: "This fixes local installs … The
+ * packageManager SHA-512 value matches the published npm artifact" yielded a `SHA-512` lookup that failed and marked
+ * the whole Project Status panel with a Linear error.
+ *
+ * Only whitespace and a soft `issue` may precede the first identifier. `#123` and `and` stay out of that prefix so a
+ * GitHub-style reference cannot bridge the keyword to an unrelated hyphenated word further down the sentence.
+ *
+ * @see https://github.com/tjx666/caxri/issues/796
+ */
+const REFERENCE_IDENTIFIER_PATTERN = /^([a-z][a-z0-9]*-[1-9]\d*)(?![\w-])/iu;
+const REFERENCE_PREFIX_PATTERN = /^(?:[^\S\n]+|[:：]|issues?\b)/iu;
+const REFERENCE_SEPARATOR_PATTERN = /^(?:[^\S\n]+|[,;、&+]|and\b|issues?\b|#\d+\b)/iu;
+
 export function projectStatusCliError(
     command: ExternalStatusSource,
     kind: CliFailureKind,
+    subject?: string,
 ): ProjectStatusError {
     const source = command === 'gh' ? 'github' : command === 'vc' ? 'vercel' : 'linear';
     if (kind === 'not-found') {
@@ -71,12 +88,42 @@ export function projectStatusCliError(
             message: `${command} timed out`,
             hint: 'Check the network or proxy, then refresh.',
         };
+    /**
+     * `diagnostics.ts` deliberately drops CLI stderr, so promising "details" in the logs was a lie: the only recorded
+     * fields are the failure classification, the exit code, and the subject below. Name what the logs actually hold,
+     * and name the failing subject here so a panel-level error points at the request that produced it.
+     */
     return {
         source,
-        message: `${command}: error`,
-        hint: 'See Runtime logs for details.',
+        message: subject ? `${command}: ${subject} failed` : `${command}: error`,
+        hint: subject
+            ? `Runtime logs record the failure kind and exit code for ${subject}. CLI output is never logged.`
+            : 'Runtime logs record the failure kind and exit code. CLI output is never logged.',
         detailsView: 'logs',
     };
+}
+
+/**
+ * Walks the text directly after one magic word and returns the identifiers attached to it, stopping at the first token
+ * that is neither an identifier nor a connector.
+ */
+function markerReferences(rest: string): string[] {
+    const identifiers: string[] = [];
+    let remaining = rest;
+    while (remaining.length > 0) {
+        const identifier = REFERENCE_IDENTIFIER_PATTERN.exec(remaining);
+        if (identifier) {
+            identifiers.push(identifier[1]);
+            remaining = remaining.slice(identifier[0].length);
+            continue;
+        }
+        const connector = (
+            identifiers.length > 0 ? REFERENCE_SEPARATOR_PATTERN : REFERENCE_PREFIX_PATTERN
+        ).exec(remaining);
+        if (!connector) break;
+        remaining = remaining.slice(connector[0].length);
+    }
+    return identifiers;
 }
 
 export function extractLinearReferences(body: string): LinearReference[] {
@@ -96,8 +143,8 @@ export function extractLinearReferences(body: string): LinearReference[] {
     ).join('|');
     const referenceLine = new RegExp(String.raw`(?:^|\b)(?:${markerPattern})\b([^\n]*)`, 'giu');
     for (const marker of body.matchAll(referenceLine)) {
-        const identifiers = marker[1].matchAll(/\b([a-z][a-z0-9]*-[1-9]\d*)\b/giu);
-        for (const identifier of identifiers) add(identifier[1]);
+        const identifiers = markerReferences(marker[1]);
+        for (const identifier of identifiers) add(identifier);
     }
     return references;
 }

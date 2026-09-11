@@ -157,12 +157,14 @@ export class ProjectStatusService {
         command: ExternalStatusSource,
         arguments_: readonly string[],
         cwd: string,
+        subject?: string,
     ): Promise<string> {
         return observeExternalStatusCommand({
             logger: this.logger,
             event: logEventCatalog.projectStatus.cli,
             command,
             arguments: arguments_,
+            subject,
             run: () => this.runner(command, arguments_, cwd),
         });
     }
@@ -372,7 +374,7 @@ export class ProjectStatusService {
                     ];
                     if (reference.workspace) arguments_.push('--workspace', reference.workspace);
                     const raw = parseExternalJson(
-                        await this.runCommand('linear', arguments_, cwd),
+                        await this.runCommand('linear', arguments_, cwd, reference.identifier),
                         linearIssueResponseSchema,
                         'Linear issue',
                     );
@@ -389,7 +391,11 @@ export class ProjectStatusService {
                         error instanceof ExternalStatusCliError
                             ? error
                             : new ExternalStatusCliError('linear', 'other', String(error));
-                    firstError ??= projectStatusCliError('linear', failure.kind);
+                    firstError ??= projectStatusCliError(
+                        'linear',
+                        failure.kind,
+                        reference.identifier,
+                    );
                     return { identifier: reference.identifier };
                 }
             }),

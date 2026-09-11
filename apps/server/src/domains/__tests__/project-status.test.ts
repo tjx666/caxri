@@ -748,6 +748,28 @@ describe('Project Status parsers', () => {
         ]);
     });
 
+    it('keeps prose out of the reference list when a keyword appears mid-sentence', () => {
+        expect(
+            extractLinearReferences(
+                'Fixes LOBE-14029\n\nThis fixes local installs creating a root pnpm-lock.yaml. The packageManager SHA-512 value matches the published npm artifact.\n\nTracked in https://linear.app/lobehub/issue/LOBE-14028.',
+            ),
+        ).toEqual([
+            { identifier: 'LOBE-14028', workspace: 'lobehub' },
+            { identifier: 'LOBE-14029', workspace: undefined },
+        ]);
+    });
+
+    it('accepts the connectors Linear magic words actually use', () => {
+        expect(extractLinearReferences('Closes LOBE-1 and LOBE-2')).toEqual([
+            { identifier: 'LOBE-1', workspace: undefined },
+            { identifier: 'LOBE-2', workspace: undefined },
+        ]);
+        expect(extractLinearReferences('Resolves issue LOBE-3')).toEqual([
+            { identifier: 'LOBE-3', workspace: undefined },
+        ]);
+        expect(extractLinearReferences('Fixes #12 and pnpm-12 regressions')).toEqual([]);
+    });
+
     it('bounds the vercelLinks cache under many distinct keys, evicting least-recently-used entries', () => {
         const links = new Map<string, VercelLink>();
         const maximum = 256;

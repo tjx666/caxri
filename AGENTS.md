@@ -117,11 +117,16 @@ directories.
   `bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts dev`. `bun run dev` is the
   first-clone equivalent in this checkout; agent sessions and parallel worktrees must use the
   wrapper so profiles and leases stay isolated. Manage isolated worktrees with `switch-worktree`.
-- Stop every dev instance you started before reporting a request complete, and verify it actually
-  died. Never `pkill -f "Electron.app/Contents/MacOS/Electron"`: it misses the `Caxri Dev` window
-  process, the launcher can outlive the signal, and a sibling worktree or `/Applications/Caxri.app`
-  must never be hit. Confirm with `ps` plus a CDP probe, then kill surviving PIDs that match this
-  worktree's absolute `apps/server/dist/server/` path. Procedure: `debug`.
+- Stop every dev instance, E2E run, or benchmark you started before reporting a request complete,
+  and verify it actually died:
+  `bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts stop`. It signals only what
+  this checkout owns, resolved from the worktree's absolute path and the launcher's process record.
+- Never terminate Caxri, Electron, or Playwright by name or bundle pattern — `pkill -f "Caxri.app"`,
+  `pkill -f Electron`, `killall Caxri`, or any variant. Those patterns read as "this checkout" and
+  mean "every match on the machine": they hit `/Applications/Caxri.app`, a sibling worktree, and
+  unrelated Electron apps, while still missing the `Caxri Dev` window process and the launcher. Kill
+  a PID only after resolving it from this worktree's absolute path. Confirm with `ps` plus a CDP
+  probe. Procedure: `debug`.
 - A user-visible Renderer/UI change is not done until it has been verified visually in the running
   dev app over CDP. Passing unit or e2e gates alone does not count. Procedure: `debug`.
 - Before using a live instance to verify or disprove a Server change, confirm Server Core and

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ToastKind, ToastOptions } from '../../../stores/toasts';
 
@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => {
     return {
         askAgentForProject: vi.fn(),
         caxriRequest: vi.fn((): Promise<unknown> => Promise.resolve([])),
+        copyFilePath: vi.fn(() => Promise.resolve()),
         dropSessions: vi.fn(),
         getBootstrap: vi.fn(),
         getQueryData: vi.fn(),
@@ -40,10 +41,12 @@ const mocks = vi.hoisted(() => {
                 }
             },
         ),
+        writeText: vi.fn(() => Promise.resolve()),
     };
 });
 
 vi.mock('../../../lib/caxri', () => ({ caxri: { request: mocks.caxriRequest } }));
+vi.mock('../../../lib/copy-file-path', () => ({ copyFilePath: mocks.copyFilePath }));
 vi.mock('../../../lib/external-link', () => ({ openExternalUrl: mocks.openExternalUrl }));
 vi.mock('../../../queries/client', () => ({
     caxriQueryKey: (method: string, parameters: unknown) => [method, parameters],
@@ -80,6 +83,8 @@ vi.mock('../../../stores/workbench', () => ({
 import {
     archiveSelectedSession,
     archiveSession,
+    copyAgentSessionId,
+    copyAgentTranscriptPath,
     deleteSelectedSession,
     deleteSession,
     describeArchivedSession,
@@ -96,8 +101,12 @@ import {
 
 describe('Session actions', () => {
     beforeEach(() => {
+        vi.stubGlobal('navigator', { clipboard: { writeText: mocks.writeText } });
         mocks.askAgentForProject.mockClear();
         mocks.caxriRequest.mockClear();
+        mocks.copyFilePath.mockClear();
+        mocks.pushToast.mockClear();
+        mocks.writeText.mockClear();
         mocks.dropSessions.mockClear();
         mocks.getBootstrap.mockReset();
         mocks.getQueryData.mockReset();
@@ -109,6 +118,52 @@ describe('Session actions', () => {
         mocks.removeSessionQueries.mockClear();
         mocks.selectSelectedProject.mockReset();
         mocks.tryCommand.mockClear();
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it('copies the Agent conversation id rather than the Caxri Session row id', async () => {
+        copyAgentSessionId('01a08fbe-2b76-7ae2-8c0e-8a11262ac36d');
+        await mocks.tryCommand.mock.results[0]?.value;
+
+        expect(mocks.writeText).toHaveBeenCalledWith('01a08fbe-2b76-7ae2-8c0e-8a11262ac36d');
+        expect(mocks.pushToast).toHaveBeenCalledWith('success', 'Agent Session ID copied');
+    });
+
+    it('asks the Runtime for the transcript path without reading the transcript', async () => {
+        mocks.caxriRequest.mockResolvedValueOnce({
+            path: '/Users/tj/.codex/sessions/2026/09/11/rollout-01a08fbe.jsonl',
+            exists: true,
+            truncated: false,
+        });
+
+        copyAgentTranscriptPath('terminal-1');
+        await mocks.tryCommand.mock.results[0]?.value;
+
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('terminal.agentTranscript', {
+            terminalId: 'terminal-1',
+            withContent: false,
+        });
+        expect(mocks.copyFilePath).toHaveBeenCalledWith(
+            '/Users/tj/.codex/sessions/2026/09/11/rollout-01a08fbe.jsonl',
+        );
+    });
+
+    it('copies nothing when the Agent keeps no on-disk transcript', async () => {
+        mocks.caxriRequest.mockResolvedValueOnce(null);
+
+        copyAgentTranscriptPath('terminal-1');
+        // `tryCommand` swallows the throw and reports it, so the user-visible evidence is the toast rather than a
+        // rejected promise: the caller discards the promise on purpose and would otherwise surface nothing.
+        await mocks.tryCommand.mock.results[0]?.value;
+
+        expect(mocks.pushToast).toHaveBeenCalledWith(
+            'error',
+            'Unable to copy the transcript path: This Agent keeps no on-disk transcript',
+        );
+        expect(mocks.copyFilePath).not.toHaveBeenCalled();
     });
 
     it('opens the selected Session pull request from the sidebar snapshot without refetching', () => {
