@@ -53,7 +53,9 @@ export interface AgentDispatchServiceOptions {
 type DispatchReason = AgentDispatchFailure['reason'];
 
 export interface AgentDispatchStartOptions {
+    delegationId?: string;
     launch: AgentLaunchSettings;
+    shouldStart?: () => boolean;
     cwd?: string;
     /**
      * Checks current layout capacity after async path validation, immediately before durable creation.
@@ -63,6 +65,18 @@ export interface AgentDispatchStartOptions {
      * Runs after durable Terminal creation and before any provider process can start.
      */
     prepared(terminal: TerminalRecord): void;
+}
+
+/**
+ * Delegation-only recovery of one frozen native session; ordinary dispatch cannot replace a running Agent.
+ */
+export interface AgentDispatchResumeOptions {
+    delegationId?: string;
+    launch: AgentLaunchSettings;
+    initialPrompt: string;
+    replaceLaunchId?: string;
+    shouldStart?: () => boolean;
+    beforeResume(): void;
 }
 
 function dispatchFingerprint(principal: Principal, operation: string, input: unknown): string {
@@ -128,6 +142,7 @@ function terminalStatePatch(
  */
 export class AgentDispatchService {
     private readonly inFlight = new SingleFlight<string, AgentDispatchReceipt>();
+    private readonly intentionalRestarts = new Map<string, string>();
     private readonly now: () => number;
     private readonly waiters = new Map<string, Set<DispatchWaiter>>();
 
@@ -205,7 +220,16 @@ export class AgentDispatchService {
         } catch (error) {
             return this.fail(dispatchId, error, 'launch_failed');
         }
-        return this.launch(dispatchId, terminal, identity, undefined, launch);
+        return this.launch(
+            dispatchId,
+            terminal,
+            identity,
+            undefined,
+            launch,
+            options?.shouldStart,
+            undefined,
+            options?.delegationId,
+        );
     }
 
     private async resumeOnce(
@@ -214,6 +238,7 @@ export class AgentDispatchService {
         input: AgentDispatchResumeParameters,
         operation: 'resume' | 'wake',
         requestFingerprint?: string,
+        options?: AgentDispatchResumeOptions,
     ): Promise<AgentDispatchReceipt> {
         const fingerprint = requestFingerprint ?? dispatchFingerprint(principal, operation, input);
         const existing = this.existing(dispatchId, fingerprint);
@@ -223,12 +248,14 @@ export class AgentDispatchService {
             throw new CaxriError('CONFLICT', 'Dispatch resume requires an Agent Terminal');
         if (terminal.agentSessionId !== input.providerSessionId)
             throw new CaxriError('UNAVAILABLE', 'Provider session binding changed');
+        const expectedLaunchId = this.options.terminals.agentLaunchId(terminal.id);
         if (
-            terminal.lastAgentProcessState === 'running' ||
-            this.options.terminals.agentProcessId(terminal.id) !== undefined
+            (terminal.lastAgentProcessState === 'running' ||
+                this.options.terminals.agentProcessId(terminal.id) !== undefined) &&
+            (!options?.replaceLaunchId || options.replaceLaunchId !== expectedLaunchId)
         )
             throw new CaxriError('CONFLICT', 'Agent Terminal is already running');
-        const launch = this.options.launchSettings(terminal.provider);
+        const launch = options?.launch ?? this.options.launchSettings(terminal.provider);
         const resumeArguments = agentProviders[terminal.provider].resumeArguments(
             input.providerSessionId,
         );
@@ -237,7 +264,7 @@ export class AgentDispatchService {
             terminal.provider,
             launch,
             'resume',
-            resumeArguments.length,
+            resumeArguments.length + (options?.initialPrompt ? 2 : 0),
         );
         const stored = this.options.database.createAgentDispatch({
             dispatchId,
@@ -256,11 +283,23 @@ export class AgentDispatchService {
         let identity: TerminalWorkingDirectoryIdentity;
         try {
             identity = await this.options.terminalDirectoryIdentity(terminal.cwd);
+            if (options && this.options.terminals.agentLaunchId(terminal.id) !== expectedLaunchId)
+                throw new CaxriError('CONFLICT', 'Agent generation changed before resume');
+            options?.beforeResume();
             this.options.coordinator.prepareTerminalResume(terminal.id);
         } catch (error) {
             return this.fail(dispatchId, error, 'launch_failed');
         }
-        return this.launch(dispatchId, terminal, identity, input.providerSessionId);
+        return this.launch(
+            dispatchId,
+            terminal,
+            identity,
+            input.providerSessionId,
+            launch,
+            options?.shouldStart,
+            options?.initialPrompt,
+            options?.delegationId,
+        );
     }
 
     private async launch(
@@ -269,17 +308,32 @@ export class AgentDispatchService {
         expectedWorkingDirectory: TerminalWorkingDirectoryIdentity,
         resumeAgentSessionId?: string,
         launchSettings?: AgentLaunchSettings,
+        shouldStart?: () => boolean,
+        initialPrompt?: string,
+        delegationId?: string,
     ): Promise<AgentDispatchReceipt> {
         try {
-            await (resumeAgentSessionId
-                ? this.options.terminals.restart(terminal.id, {
-                      expectedWorkingDirectory,
-                      resumeAgentSessionId,
-                  })
-                : this.options.terminals.start(terminal, {
-                      expectedWorkingDirectory,
-                      launchSettings,
-                  }));
+            if (resumeAgentSessionId) this.intentionalRestarts.set(terminal.id, dispatchId);
+            try {
+                await (resumeAgentSessionId
+                    ? this.options.terminals.restart(terminal.id, {
+                          expectedWorkingDirectory,
+                          resumeAgentSessionId,
+                          launchSettings,
+                          shouldStart,
+                          initialPrompt,
+                          delegationId,
+                      })
+                    : this.options.terminals.start(terminal, {
+                          expectedWorkingDirectory,
+                          launchSettings,
+                          shouldStart,
+                          delegationId,
+                      }));
+            } finally {
+                if (this.intentionalRestarts.get(terminal.id) === dispatchId)
+                    this.intentionalRestarts.delete(terminal.id);
+            }
             await this.options.terminals.waitForAgentRunning(terminal.id);
             const running = this.options.database.getTerminal(terminal.id);
             const currentEndpoint = this.options.endpoints?.endpointForTerminal(terminal.id);
@@ -429,9 +483,10 @@ export class AgentDispatchService {
         dispatchId: string,
         principal: Principal,
         input: AgentDispatchResumeParameters,
+        options?: AgentDispatchResumeOptions,
     ): Promise<AgentDispatchReceipt> {
         return this.inFlight.run(dispatchId, () =>
-            this.resumeOnce(dispatchId, principal, input, 'resume'),
+            this.resumeOnce(dispatchId, principal, input, 'resume', undefined, options),
         );
     }
 
@@ -516,6 +571,12 @@ export class AgentDispatchService {
     observeTerminalState(terminalId: string, state: ProcessState): void {
         for (const { receipt } of this.options.database.agentDispatchesForTerminal(terminalId)) {
             if (isSettled(receipt)) continue;
+            if (
+                state === 'interrupted' &&
+                receipt.status === 'starting' &&
+                this.intentionalRestarts.get(terminalId) === receipt.dispatchId
+            )
+                continue;
             if (state === 'starting') {
                 if (receipt.status === 'running')
                     this.update(receipt.dispatchId, { status: 'interrupted' });

@@ -35,6 +35,15 @@ const storedDelegationSchema = z.strictObject({
     responseDigest: z.string().optional(),
     transcriptOffset: z.number().int().nonnegative().optional(),
     answer: agentDelegationAnswerSchema.optional(),
+    rootDelegationId: z.string().optional(),
+    nextDelegationId: z.string().optional(),
+    inputEpoch: z.number().int().nonnegative().optional(),
+    hasHumanIntervention: z.boolean().optional(),
+    hasLostTarget: z.boolean().optional(),
+    continuationPromptDigests: z
+        .array(z.string().regex(/^[\da-f]{64}$/u))
+        .max(64)
+        .optional(),
 });
 
 export type StoredAgentDelegation = z.infer<typeof storedDelegationSchema>;
@@ -54,6 +63,46 @@ export class AgentDelegationsModel {
         return row ? storedDelegationSchema.parse(JSON.parse(row.recordJson)) : undefined;
     }
 
+    hasTerminal(terminalId: string): boolean {
+        return (
+            this.database
+                .select({ id: agentDelegations.id })
+                .from(agentDelegations)
+                .where(eq(agentDelegations.terminalId, terminalId))
+                .limit(1)
+                .get() !== undefined
+        );
+    }
+
+    /**
+     * Child task IDs name files inside their root task, never independently owned top-level directories.
+     */
+    storageRootsForSessions(sessionIds: readonly string[]): string[] {
+        if (sessionIds.length === 0) return [];
+        const rows = this.database
+            .select({ recordJson: agentDelegations.recordJson })
+            .from(agentDelegations)
+            .where(inArray(agentDelegations.sessionId, [...sessionIds]))
+            .all();
+        return [
+            ...new Set(
+                rows.map((row) => {
+                    const record = storedDelegationSchema.parse(JSON.parse(row.recordJson));
+                    return record.rootDelegationId ?? record.receipt.delegationId;
+                }),
+            ),
+        ];
+    }
+
+    forTerminal(terminalId: string): StoredAgentDelegation[] {
+        return this.database
+            .select()
+            .from(agentDelegations)
+            .where(eq(agentDelegations.terminalId, terminalId))
+            .all()
+            .map((row) => storedDelegationSchema.parse(JSON.parse(row.recordJson)));
+    }
+
     insert(record: StoredAgentDelegation): StoredAgentDelegation {
         const count = this.database
             .select({ value: sql<number>`count(*)` })
@@ -67,6 +116,7 @@ export class AgentDelegationsModel {
                 id: parsed.receipt.delegationId,
                 sessionId: parsed.receipt.sessionId,
                 status: parsed.receipt.status,
+                terminalId: parsed.receipt.terminalId,
                 recordJson: JSON.stringify(parsed),
             })
             .run();
@@ -77,7 +127,11 @@ export class AgentDelegationsModel {
         const parsed = storedDelegationSchema.parse(record);
         const result = this.database
             .update(agentDelegations)
-            .set({ status: parsed.receipt.status, recordJson: JSON.stringify(parsed) })
+            .set({
+                status: parsed.receipt.status,
+                terminalId: parsed.receipt.terminalId,
+                recordJson: JSON.stringify(parsed),
+            })
             .where(eq(agentDelegations.id, parsed.receipt.delegationId))
             .run();
         if (result.changes !== 1)

@@ -5,8 +5,26 @@ import process from 'node:process';
 
 import type { AgentActivityState, AgentProvider, ProcessState } from '@caxri/protocol';
 
-import type { AgentHookAdapter } from './hooks/contract';
+import type { AgentHookAdapter, AgentLifecycleSignal } from './hooks/contract';
 import type { AgentTranscriptLocation } from './transcript-security';
+
+export interface AgentCoordinatorOptions {
+    onLifecycleApplied?: (signal: AgentLifecycleSignal) => void;
+    /**
+     * Trailing delay before Terminal output refreshes durable Agent metadata.
+     */
+    refreshDelayMs?: number;
+    /**
+     * Safety bound for a lost PostCompact signal; production uses five minutes.
+     */
+    compactionTimeoutMs?: number;
+    runningWatchdogIntervalMs?: number;
+    detectForegroundAgent?: (shellPid: number) => Promise<AgentProvider | undefined>;
+    /**
+     * Delay between bounded foreground-process retries; production uses one second.
+     */
+    shellProcessProbeIntervalMs?: number;
+}
 
 export interface AgentSnapshotContext {
     /**

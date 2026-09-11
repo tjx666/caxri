@@ -65,66 +65,113 @@ async function createRuntime(name: string) {
 }
 
 describe('background Agent suspension', () => {
-    it('suspends an untouched Agent after leaving its Session and resumes it on return', async () => {
-        const runtime = await createRuntime('untouched');
-        const { domains } = runtime;
-        try {
-            const first = await domains.handlers['session.create']({
-                projectId: runtime.project.id,
-                defaultAgent: 'claude',
-            });
-            const terminalId = first.terminal!.id;
-            const terminalRecord = async () => {
-                const state = await domains.handlers['app.bootstrap']({});
-                return state.terminals.find((entry) => entry.id === terminalId);
-            };
-            await vi.waitFor(async () =>
-                expect((await terminalRecord())?.lastAgentProcessState).toBe('running'),
-            );
-            /**
-             * Bind an Agent session id through raw SQL: `updateAgentMetadata` needs a provider snapshot this hermetic
-             * test never produces, and opening a second `CaxriDatabase` would run unclean-shutdown recovery on the live
-             * records.
-             */
-            const direct = new Database(join(runtime.userDataPath, 'caxri.db'));
-            direct
-                .prepare('UPDATE terminals SET agent_session_id = ? WHERE id = ?')
-                .run('claude-session-1', terminalId);
-            direct.close();
+    it.each([false, true])(
+        'restores a suspended Terminal with explicit delegation ownership %s',
+        async (isDelegated) => {
+            const runtime = await createRuntime('untouched');
+            const { domains } = runtime;
+            try {
+                const first = await domains.handlers['session.create']({
+                    projectId: runtime.project.id,
+                    defaultAgent: 'claude',
+                });
+                const terminalId = first.terminal!.id;
+                const terminalRecord = async () => {
+                    const state = await domains.handlers['app.bootstrap']({});
+                    return state.terminals.find((entry) => entry.id === terminalId);
+                };
+                await vi.waitFor(async () =>
+                    expect((await terminalRecord())?.lastAgentProcessState).toBe('running'),
+                );
+                /**
+                 * Bind an Agent session id through raw SQL: `updateAgentMetadata` needs a provider snapshot this
+                 * hermetic test never produces, and opening a second `CaxriDatabase` would run unclean-shutdown
+                 * recovery on the live records.
+                 */
+                const direct = new Database(join(runtime.userDataPath, 'caxri.db'));
+                direct
+                    .prepare('UPDATE terminals SET agent_session_id = ? WHERE id = ?')
+                    .run('claude-session-1', terminalId);
+                if (isDelegated) {
+                    const record = {
+                        receipt: {
+                            delegationId: 'synthetic-delegation',
+                            projectId: runtime.project.id,
+                            sessionId: first.session.id,
+                            terminalId,
+                            provider: 'claude',
+                            status: 'completed',
+                            revision: 1,
+                            createdAt: 1,
+                            updatedAt: 1,
+                        },
+                        principal: { kind: 'human-cli', id: 'synthetic-owner' },
+                        input: {
+                            projectId: runtime.project.id,
+                            sessionId: first.session.id,
+                            provider: 'claude',
+                            prompt: 'Synthetic task',
+                        },
+                        fingerprint: 'synthetic',
+                        promptDigest: 'a'.repeat(64),
+                        frozenLaunch: { executable: 'claude', args: [] },
+                        providerSessionId: 'claude-session-1',
+                    };
+                    direct
+                        .prepare(
+                            'INSERT INTO agent_delegations (id, session_id, terminal_id, status, record_json) VALUES (?, ?, ?, ?, ?)',
+                        )
+                        .run(
+                            'synthetic-delegation',
+                            first.session.id,
+                            terminalId,
+                            'completed',
+                            JSON.stringify(record),
+                        );
+                }
+                direct.close();
 
-            // Switching to another Session leaves the untouched Agent behind.
-            const second = await domains.handlers['session.create']({
-                projectId: runtime.project.id,
-                defaultAgent: 'shell',
-            });
-            await domains.handlers['session.select']({ sessionId: second.session.id });
-            runtime.advance(UNTOUCHED_SUSPENSION_DELAY_MS);
-            await vi.waitFor(async () => {
-                const record = await terminalRecord();
-                expect(record?.lastProcessState).toBe('suspended');
-                expect(record?.lastAgentProcessState).toBe('suspended');
-            });
-            expect(runtime.kills[0]).toHaveBeenCalled();
-            expect(runtime.spawnSpy).toHaveBeenCalledTimes(2);
+                // Switching to another Session leaves the untouched Agent behind.
+                const second = await domains.handlers['session.create']({
+                    projectId: runtime.project.id,
+                    defaultAgent: 'shell',
+                });
+                await domains.handlers['session.select']({ sessionId: second.session.id });
+                runtime.advance(UNTOUCHED_SUSPENSION_DELAY_MS);
+                await vi.waitFor(async () => {
+                    const record = await terminalRecord();
+                    expect(record?.lastProcessState).toBe('suspended');
+                    expect(record?.lastAgentProcessState).toBe('suspended');
+                });
+                expect(runtime.kills[0]).toHaveBeenCalled();
+                expect(runtime.spawnSpy).toHaveBeenCalledTimes(2);
 
-            // Returning restores the Terminal and resumes the bound Agent session.
-            await domains.handlers['session.select']({ sessionId: first.session.id });
-            await vi.waitFor(() => expect(runtime.spawnSpy).toHaveBeenCalledTimes(3));
-            const resumed = runtime.start.mock.calls.at(-1)?.[0].agent;
-            expect(resumed?.args).toEqual([
-                ...defaultAgentProviderSettings.claude.launch.args,
-                '--resume',
-                'claude-session-1',
-            ]);
-            await vi.waitFor(async () => {
-                const record = await terminalRecord();
-                expect(record?.lastProcessState).toBe('running');
-                expect(record?.lastAgentProcessState).toBe('running');
-            });
-        } finally {
-            await domains.close();
-        }
-    });
+                // Returning restores the Terminal and resumes the bound Agent session.
+                await domains.handlers['session.select']({ sessionId: first.session.id });
+                await vi.waitFor(() => expect(runtime.spawnSpy).toHaveBeenCalledTimes(3));
+                const resumed = runtime.start.mock.calls.at(-1)?.[0].agent;
+                expect(resumed?.args).toEqual(
+                    isDelegated
+                        ? undefined
+                        : [
+                              ...defaultAgentProviderSettings.claude.launch.args,
+                              '--resume',
+                              'claude-session-1',
+                          ],
+                );
+                await vi.waitFor(async () => {
+                    const record = await terminalRecord();
+                    expect(record?.lastProcessState).toBe('running');
+                    expect(record?.lastAgentProcessState).toBe(
+                        isDelegated ? 'suspended' : 'running',
+                    );
+                    expect(record?.agentSessionId).toBe('claude-session-1');
+                });
+            } finally {
+                await domains.close();
+            }
+        },
+    );
 
     it('keeps a detached Agent parked across Session selection and resumes it only on request', async () => {
         const runtime = await createRuntime('detach');

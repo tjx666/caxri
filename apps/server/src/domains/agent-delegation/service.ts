@@ -1,5 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { createHash, randomUUID } from 'node:crypto';
+import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
 import type {
@@ -21,9 +22,14 @@ import type { AgentLifecycleSignal } from '../agents';
 import { extractClaudeDelegationAnswer } from '../agents';
 import type { CaxriDatabase, StoredAgentDelegation } from '../db';
 import { SingleFlight } from '../single-flight';
-import { prepareDelegationLaunch, validateDelegationLaunch } from './launch';
+import {
+    prepareDelegationFollowUp,
+    prepareDelegationLaunch,
+    validateDelegationLaunch,
+} from './launch';
 import { assertDelegationLayout, delegationLayout } from './layout';
 import { applyDelegationLifecycle, isDelegationActive } from './lifecycle';
+import { removeDelegationFiles } from './storage';
 
 interface DelegationAuthority {
     principal: Principal;
@@ -32,12 +38,17 @@ interface DelegationAuthority {
 
 interface AgentDelegationServiceOptions {
     database: CaxriDatabase;
-    dispatch: Pick<AgentDispatchService, 'start'>;
+    dispatch: Pick<AgentDispatchService, 'start'> & Partial<Pick<AgentDispatchService, 'resume'>>;
     userDataPath: string;
     launchSettings(): AgentLaunchSettings;
     verifyLaunch(launch: AgentLaunchSettings): Promise<void>;
     readTranscript(terminalId: string): Promise<AgentTranscript | null>;
     dimensions?(terminalId: string): { cols: number; rows: number } | undefined;
+    inputEpoch?(terminalId: string): number;
+    currentLaunchId?(terminalId: string): string | undefined;
+    isIdle?(terminalId: string, launchId: string, turnId: string): boolean;
+    write?(terminalId: string, launchId: string, data: string): boolean;
+    submissionTimeoutMs?: number;
     now?: () => number;
 }
 
@@ -48,6 +59,7 @@ export class AgentDelegationService {
     private readonly requests = new SingleFlight<string, AgentDelegationReceipt>();
     private readonly now: () => number;
     private readonly collectors = new Map<string, NodeJS.Timeout>();
+    private readonly submissionTimers = new Map<string, NodeJS.Timeout>();
     private readonly activeTerminals = new Map<string, string>();
     private readonly nextCollections = new Map<string, number>();
     private readonly collections = new SingleFlight<
@@ -59,6 +71,9 @@ export class AgentDelegationService {
     >();
     private isClosed = false;
     private waiterCount = 0;
+    private readonly deletingSessions = new Set<string>();
+    private readonly pendingCreations = new Map<string, Set<Promise<AgentDelegationReceipt>>>();
+    private readonly humanIntervenedTerminals = new Set<string>();
 
     constructor(private readonly options: AgentDelegationServiceOptions) {
         this.now = options.now ?? Date.now;
@@ -94,6 +109,8 @@ export class AgentDelegationService {
     }
 
     private authorize(authority: DelegationAuthority, input: AgentDelegationCreate): void {
+        if (this.deletingSessions.has(input.sessionId))
+            throw new CaxriError('CONFLICT', 'Delegation Session is being deleted');
         const session = this.options.database.getSession(input.sessionId);
         if (!session || session.projectId !== input.projectId)
             throw new CaxriError('NOT_FOUND', 'Delegation Session is unavailable');
@@ -131,6 +148,7 @@ export class AgentDelegationService {
             (isDelegationActive(record.receipt) ||
                 (failure === 'launch_failed' &&
                     !record.turnId &&
+                    record.receipt.failure === 'target_changed' &&
                     record.receipt.status === 'interrupted'))
         )
             this.save({ ...record, receipt: { ...record.receipt, status: 'failed', failure } });
@@ -176,6 +194,7 @@ export class AgentDelegationService {
                     sessionId: record.providerSessionId,
                     promptDigest: record.promptDigest,
                     answerDigest: record.responseDigest,
+                    continuationPromptDigests: record.continuationPromptDigests,
                 });
             if (answer) {
                 const byteLength = Buffer.byteLength(answer.text);
@@ -216,6 +235,171 @@ export class AgentDelegationService {
         return { receipt: record.receipt, answer: record.answer };
     }
 
+    private async resumeTask(
+        record: StoredAgentDelegation,
+        authority: DelegationAuthority,
+        previous: StoredAgentDelegation,
+    ): Promise<AgentDelegationReceipt> {
+        const id = record.receipt.delegationId;
+        const prepared = await prepareDelegationFollowUp(
+            this.options.userDataPath,
+            record.rootDelegationId!,
+            id,
+            record.input.prompt,
+        );
+        const parent = this.owned(previous.receipt.delegationId, authority);
+        const reject = (failure: AgentDelegationReceipt['failure']) => {
+            this.fail(id, failure);
+            return this.owned(id, authority).receipt;
+        };
+        if (!isDelegationActive(this.owned(id, authority).receipt))
+            return this.owned(id, authority).receipt;
+        const terminalId = parent.receipt.terminalId;
+        if (
+            !terminalId ||
+            !parent.providerSessionId ||
+            this.options.database.getTerminal(terminalId)?.agentSessionId !==
+                parent.providerSessionId
+        )
+            return reject('session_changed');
+        if (parent.nextDelegationId || this.activeForTerminal(terminalId))
+            return reject('target_busy');
+        const expectedLaunchId = this.options.currentLaunchId?.(terminalId);
+        if (parent.hasLostTarget || (expectedLaunchId && expectedLaunchId !== parent.launchId))
+            return reject('target_changed');
+        if (
+            parent.hasHumanIntervention ||
+            parent.inputEpoch === undefined ||
+            this.options.inputEpoch?.(terminalId) !== parent.inputEpoch ||
+            parent.receipt.status === 'human_intervened' ||
+            parent.receipt.failure === 'human_input'
+        )
+            return reject('human_input');
+        if (!this.options.dispatch.resume) return reject('target_not_ready');
+        this.save({ ...parent, nextDelegationId: id });
+        this.save({
+            ...record,
+            promptDigest: prepared.promptDigest,
+            inputEpoch: parent.inputEpoch,
+            receipt: { ...record.receipt, terminalId, status: 'launching' },
+        });
+        const shouldStart = () => {
+            const current = this.options.database.agentDelegations.get(id);
+            return (
+                current !== undefined &&
+                isDelegationActive(current.receipt) &&
+                !this.deletingSessions.has(record.input.sessionId) &&
+                this.options.inputEpoch?.(terminalId) === parent.inputEpoch
+            );
+        };
+        const dispatched = await this.options.dispatch.resume(
+            id,
+            authority.principal,
+            {
+                projectId: record.input.projectId,
+                sessionId: record.input.sessionId,
+                terminalId,
+                providerSessionId: parent.providerSessionId,
+            },
+            {
+                delegationId: id,
+                launch: {
+                    ...record.frozenLaunch,
+                    args: [
+                        ...record.frozenLaunch.args,
+                        '--add-dir',
+                        join(this.options.userDataPath, 'delegations', record.rootDelegationId!),
+                    ],
+                },
+                initialPrompt: prepared.pointer,
+                replaceLaunchId: expectedLaunchId,
+                shouldStart,
+                beforeResume: () => {
+                    if (
+                        !shouldStart() ||
+                        this.options.currentLaunchId?.(terminalId) !== expectedLaunchId
+                    )
+                        throw new CaxriError(
+                            'CONFLICT',
+                            'Delegation ownership changed before exact resume',
+                        );
+                },
+            },
+        );
+        if (dispatched.status === 'failed') this.fail(id, 'launch_failed');
+        return this.owned(id, authority).receipt;
+    }
+
+    private async followUp(
+        record: StoredAgentDelegation,
+        authority: DelegationAuthority,
+        previous: StoredAgentDelegation,
+    ): Promise<AgentDelegationReceipt> {
+        const id = record.receipt.delegationId;
+        const prepared = await prepareDelegationFollowUp(
+            this.options.userDataPath,
+            record.rootDelegationId!,
+            id,
+            record.input.prompt,
+        );
+        const current = this.owned(id, authority);
+        if (!isDelegationActive(current.receipt)) return current.receipt;
+        const parent = this.owned(previous.receipt.delegationId, authority);
+        const terminalId = parent.receipt.terminalId;
+        const reject = (failure: AgentDelegationReceipt['failure']) => {
+            this.fail(id, failure);
+            return this.owned(id, authority).receipt;
+        };
+        if (parent.nextDelegationId || (terminalId && this.activeForTerminal(terminalId)))
+            return reject('target_busy');
+        if (
+            !terminalId ||
+            parent.hasLostTarget ||
+            !parent.launchId ||
+            !parent.providerSessionId ||
+            this.options.currentLaunchId?.(terminalId) !== parent.launchId
+        )
+            return reject('target_changed');
+        if (
+            parent.hasHumanIntervention ||
+            parent.inputEpoch === undefined ||
+            this.options.inputEpoch?.(terminalId) !== parent.inputEpoch
+        )
+            return reject('human_input');
+        if (!parent.turnId || !this.options.isIdle?.(terminalId, parent.launchId, parent.turnId))
+            return reject('target_not_ready');
+        /**
+         * No await may split admission, the durable chain claim and exact-generation write. Human input must either
+         * invalidate the preceding epoch or arrive after the new task owns the Terminal.
+         */
+        this.save({ ...parent, nextDelegationId: id });
+        this.save({
+            ...record,
+            launchId: parent.launchId,
+            inputEpoch: parent.inputEpoch,
+            promptDigest: prepared.promptDigest,
+            receipt: { ...record.receipt, terminalId, status: 'submitting' },
+        });
+        if (
+            !this.options.write?.(
+                terminalId,
+                parent.launchId,
+                `\u{1B}[200~${prepared.pointer}\u{1B}[201~\r`,
+            )
+        )
+            return reject('target_changed');
+        if (this.options.database.agentDelegations.get(id)?.receipt.status === 'submitting') {
+            const timer = setTimeout(() => {
+                this.submissionTimers.delete(id);
+                if (this.options.database.agentDelegations.get(id)?.receipt.status === 'submitting')
+                    this.fail(id, 'submission_unconfirmed');
+            }, this.options.submissionTimeoutMs ?? 15_000);
+            timer.unref();
+            this.submissionTimers.set(id, timer);
+        }
+        return this.owned(id, authority).receipt;
+    }
+
     async create(
         id: string,
         authority: DelegationAuthority,
@@ -225,7 +409,7 @@ export class AgentDelegationService {
         const fingerprint = createHash('sha256')
             .update(JSON.stringify({ authority, input }))
             .digest('hex');
-        const receipt = await this.requests.run(id, async () => {
+        const pending = this.requests.run(id, async () => {
             const existing = this.options.database.agentDelegations.get(id);
             if (existing) {
                 this.owned(id, authority);
@@ -236,9 +420,19 @@ export class AgentDelegationService {
                     );
                 return existing.receipt;
             }
-            const frozenLaunch = structuredClone(this.options.launchSettings());
+            const previousId = input.followUpOf ?? input.resumeFrom;
+            const previous = previousId ? this.owned(previousId, authority) : undefined;
+            if (
+                previous &&
+                (previous.input.projectId !== input.projectId ||
+                    previous.input.sessionId !== input.sessionId)
+            )
+                throw new CaxriError('FORBIDDEN', 'Follow-up must remain in its original Session');
+            const frozenLaunch = structuredClone(
+                previous?.frozenLaunch ?? this.options.launchSettings(),
+            );
             validateDelegationLaunch(frozenLaunch);
-            await this.options.verifyLaunch(frozenLaunch);
+            if (!previous || input.resumeFrom) await this.options.verifyLaunch(frozenLaunch);
             const now = this.now();
             let record = this.options.database.agentDelegations.insert({
                 receipt: {
@@ -246,6 +440,8 @@ export class AgentDelegationService {
                     projectId: input.projectId,
                     sessionId: input.sessionId,
                     callerTerminalId: authority.callerTerminalId,
+                    followUpOf: input.followUpOf,
+                    resumeFrom: input.resumeFrom,
                     provider: input.provider,
                     status: 'requested',
                     revision: 1,
@@ -256,10 +452,16 @@ export class AgentDelegationService {
                 input,
                 fingerprint,
                 frozenLaunch,
-                providerSessionId: randomUUID(),
+                providerSessionId: previous?.providerSessionId ?? randomUUID(),
+                rootDelegationId:
+                    previous?.rootDelegationId ?? previous?.receipt.delegationId ?? id,
                 promptDigest: '',
             });
             try {
+                if (previous)
+                    return await (input.resumeFrom
+                        ? this.resumeTask(record, authority, previous)
+                        : this.followUp(record, authority, previous));
                 const prepared = await prepareDelegationLaunch(
                     this.options.userDataPath,
                     id,
@@ -267,6 +469,8 @@ export class AgentDelegationService {
                     input.prompt,
                     frozenLaunch,
                 );
+                record = this.owned(id, authority);
+                if (!isDelegationActive(record.receipt)) return record.receipt;
                 record = this.save({
                     ...record,
                     promptDigest: prepared.promptDigest,
@@ -281,16 +485,37 @@ export class AgentDelegationService {
                         provider: input.provider,
                     },
                     {
+                        delegationId: id,
                         launch: prepared.launch,
-                        beforeCreate: () =>
+                        shouldStart: () => {
+                            const current = this.options.database.agentDelegations.get(id);
+                            return (
+                                current !== undefined &&
+                                isDelegationActive(current.receipt) &&
+                                !this.deletingSessions.has(input.sessionId)
+                            );
+                        },
+                        beforeCreate: () => {
+                            if (!isDelegationActive(this.owned(id, authority).receipt))
+                                throw new CaxriError(
+                                    'CANCELLED',
+                                    'Delegation was stopped before launch',
+                                );
                             assertDelegationLayout(
                                 this.options.database.getSessionState(input.sessionId).paneLayout,
                                 authority.callerTerminalId,
-                            ),
+                            );
+                        },
                         cwd: authority.callerTerminalId
                             ? this.options.database.getTerminal(authority.callerTerminalId)?.cwd
                             : undefined,
                         prepared: (terminal) => {
+                            record = this.owned(id, authority);
+                            if (!isDelegationActive(record.receipt))
+                                throw new CaxriError(
+                                    'CANCELLED',
+                                    'Delegation was stopped before launch',
+                                );
                             record = this.save({
                                 ...record,
                                 receipt: { ...record.receipt, terminalId: terminal.id },
@@ -316,6 +541,19 @@ export class AgentDelegationService {
             }
             return this.owned(id, authority).receipt;
         });
+        let creations = this.pendingCreations.get(input.sessionId);
+        if (!creations) {
+            creations = new Set();
+            this.pendingCreations.set(input.sessionId, creations);
+        }
+        creations.add(pending);
+        let receipt: AgentDelegationReceipt;
+        try {
+            receipt = await pending;
+        } finally {
+            creations.delete(pending);
+            if (creations.size === 0) this.pendingCreations.delete(input.sessionId);
+        }
         if (this.owned(id, authority).fingerprint !== fingerprint)
             throw new CaxriError(
                 'CONFLICT',
@@ -324,19 +562,65 @@ export class AgentDelegationService {
         return receipt;
     }
 
+    /**
+     * Fences admission and drains in-flight file creation before metadata cascades remove the only ownership index.
+     * Cleanup failure retains the database records so an explicit deletion retry can reclaim the same directories.
+     */
+    async deleteSessions<T>(sessionIds: readonly string[], removeRecords: () => T): Promise<T> {
+        if (sessionIds.some((id) => this.deletingSessions.has(id)))
+            throw new CaxriError('CONFLICT', 'Delegation Session is already being deleted');
+        for (const id of sessionIds) this.deletingSessions.add(id);
+        try {
+            await Promise.allSettled(
+                sessionIds.flatMap((id) => [...(this.pendingCreations.get(id) ?? [])]),
+            );
+            await removeDelegationFiles(
+                this.options.userDataPath,
+                this.options.database.agentDelegations.storageRootsForSessions(sessionIds),
+            );
+            return removeRecords();
+        } finally {
+            for (const id of sessionIds) this.deletingSessions.delete(id);
+        }
+    }
+
     bindLaunch(terminalId: string, launchId: string): boolean {
         const record = this.activeForTerminal(terminalId);
         if (!record || record.launchId) return false;
         this.save({
             ...record,
             launchId,
+            inputEpoch: this.options.inputEpoch?.(terminalId),
             receipt: { ...record.receipt, status: 'awaiting_ready' },
         });
         return true;
     }
 
-    bindEnvironment(terminalId: string, launchId: string, environment: NodeJS.ProcessEnv): void {
-        if (!this.bindLaunch(terminalId, launchId)) return;
+    bindEnvironment(
+        terminalId: string,
+        launchId: string,
+        environment: NodeJS.ProcessEnv,
+        delegationId?: string,
+    ): void {
+        const active = this.activeForTerminal(terminalId);
+        if (delegationId && active?.receipt.delegationId !== delegationId)
+            throw new CaxriError('CANCELLED', 'Delegation no longer owns this launch');
+        if (!delegationId || !this.bindLaunch(terminalId, launchId)) {
+            /**
+             * Owner-initiated restart can retain the native session without PTY input. Persist the generation fence
+             * before that launch so Server restart cannot make the earlier delegation eligible to resume again.
+             */
+            for (const task of this.options.database.agentDelegations.forTerminal(terminalId))
+                if (task.launchId !== launchId && !task.hasLostTarget)
+                    this.save({
+                        ...task,
+                        hasLostTarget: true,
+                        receipt: isDelegationActive(task.receipt)
+                            ? { ...task.receipt, status: 'interrupted', failure: 'target_changed' }
+                            : task.receipt,
+                    });
+            return;
+        }
         if (!environment.CAXRI_HOOK_TOKEN)
             throw new CaxriError(
                 'UNAVAILABLE',
@@ -351,6 +635,10 @@ export class AgentDelegationService {
         const next = applyDelegationLifecycle(record, signal);
         if (next) {
             const saved = this.save(next);
+            if (saved.receipt.status !== 'submitting') {
+                clearTimeout(this.submissionTimers.get(saved.receipt.delegationId));
+                this.submissionTimers.delete(saved.receipt.delegationId);
+            }
             if (saved.receipt.status === 'collecting') this.scheduleCollection(saved);
         }
     }
@@ -359,20 +647,51 @@ export class AgentDelegationService {
         return this.owned(id, authority).receipt;
     }
 
+    stop(id: string, authority: DelegationAuthority): AgentDelegationReceipt {
+        const record = this.owned(id, authority);
+        if (!isDelegationActive(record.receipt) || record.receipt.status === 'collecting')
+            return record.receipt;
+        const { terminalId } = record.receipt;
+        const accepted =
+            !terminalId ||
+            !record.launchId ||
+            this.options.write?.(terminalId, record.launchId, '\u{1B}');
+        return this.save({
+            ...record,
+            receipt: {
+                ...record.receipt,
+                status: 'interrupted',
+                failure: accepted ? 'caller_stopped' : 'target_changed',
+            },
+        }).receipt;
+    }
+
     initialize(): void {
-        for (const record of this.options.database.agentDelegations.active())
+        for (const record of this.options.database.agentDelegations.active()) {
+            if (
+                record.receipt.status === 'collecting' &&
+                record.responseDigest &&
+                record.providerSessionId
+            ) {
+                this.scheduleCollection(this.save(record));
+                continue;
+            }
             this.save({
                 ...record,
                 receipt: { ...record.receipt, status: 'interrupted', failure: 'host_reset' },
             });
+        }
     }
 
     close(): void {
         this.isClosed = true;
         for (const timer of this.collectors.values()) clearTimeout(timer);
+        for (const timer of this.submissionTimers.values()) clearTimeout(timer);
+        this.submissionTimers.clear();
         this.collectors.clear();
         this.activeTerminals.clear();
         this.nextCollections.clear();
+        this.humanIntervenedTerminals.clear();
     }
 
     async wait(
@@ -403,9 +722,32 @@ export class AgentDelegationService {
         }
     }
 
-    interruptTerminal(terminalId: string, isHumanInput = false): void {
+    interruptTerminal(terminalId: string, isHumanInput = false, retiredLaunchId?: string): void {
+        /**
+         * A completed answer stays readable, but human takeover permanently revokes its continuation authority. Persist
+         * once per Terminal lifetime because the input epoch alone is lost on Server restart.
+         */
+        if (isHumanInput && !this.humanIntervenedTerminals.has(terminalId)) {
+            this.humanIntervenedTerminals.add(terminalId);
+            for (const task of this.options.database.agentDelegations.forTerminal(terminalId))
+                if (!task.hasHumanIntervention) this.save({ ...task, hasHumanIntervention: true });
+        }
         const record = this.activeForTerminal(terminalId);
         if (!record) return;
+        if (
+            !isHumanInput &&
+            record.input.resumeFrom &&
+            !record.launchId &&
+            record.receipt.status === 'launching'
+        )
+            return;
+        if (
+            !isHumanInput &&
+            retiredLaunchId &&
+            record.launchId &&
+            record.launchId !== retiredLaunchId
+        )
+            return;
         this.save({
             ...record,
             receipt: {

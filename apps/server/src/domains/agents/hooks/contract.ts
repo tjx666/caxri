@@ -88,6 +88,10 @@ export interface AgentLifecycleSignal {
      */
     agentTurnId?: string;
     /**
+     * Coordinator-only evidence: this parent resumed the exact Stop deferred behind tracked subagent work.
+     */
+    agentContinuedTurnId?: string;
+    /**
      * Opt-in delegation evidence. Hashes prove that the bound transcript contains the exact submitted prompt and final
      * response without forwarding either body through the lifecycle channel.
      */

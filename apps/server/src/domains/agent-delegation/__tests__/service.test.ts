@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -64,6 +64,60 @@ async function fixture() {
 }
 
 describe('AgentDelegationService', () => {
+    it('retains metadata when private-file cleanup fails and permits an explicit retry', async () => {
+        const f = await fixture();
+        await f.service.create(f.id, owner, f.input);
+        const root = join(f.directory, 'delegations');
+        await chmod(root, 0o755);
+        const removeRecords = vi.fn(() => f.database.deleteSession(f.input.sessionId));
+        await expect(
+            f.service.deleteSessions([f.input.sessionId], removeRecords),
+        ).rejects.toThrow();
+        expect(removeRecords).not.toHaveBeenCalled();
+        expect(f.database.agentDelegations.get(f.id)).toBeDefined();
+        await chmod(root, 0o700);
+        await f.service.deleteSessions([f.input.sessionId], removeRecords);
+        expect(removeRecords).toHaveBeenCalledOnce();
+    });
+
+    it('drains an admitted create before deleting its private files and Session metadata', async () => {
+        const f = await fixture();
+        const pending = Promise.withResolvers<Awaited<ReturnType<AgentDispatchService['start']>>>();
+        f.start.mockImplementation(() => pending.promise);
+        const creation = f.service.create(f.id, owner, f.input);
+        await vi.waitFor(() => expect(f.start).toHaveBeenCalledOnce());
+        const removeRecords = vi.fn(() => f.database.deleteSession(f.input.sessionId));
+        const deletion = f.service.deleteSessions([f.input.sessionId], removeRecords);
+        await expect(f.service.create(randomUUID(), owner, f.input)).rejects.toThrow(/delet/u);
+        expect(removeRecords).not.toHaveBeenCalled();
+        pending.resolve({ status: 'running' } as Awaited<
+            ReturnType<AgentDispatchService['start']>
+        >);
+        await expect(creation).rejects.toThrow(/delet/u);
+        await deletion;
+        expect(removeRecords).toHaveBeenCalledOnce();
+        expect(f.database.getSession(f.input.sessionId)).toBeUndefined();
+        await expect(stat(join(f.directory, 'delegations', f.id))).rejects.toMatchObject({
+            code: 'ENOENT',
+        });
+    });
+
+    it('does not revive a task stopped while dispatch is validating its working directory', async () => {
+        const f = await fixture();
+        f.start.mockImplementation((_id, _principal, _input, options) => {
+            f.service.stop(f.id, owner);
+            options?.beforeCreate?.();
+            options?.prepared(f.terminal);
+            return Promise.resolve({ status: 'running' } as Awaited<
+                ReturnType<AgentDispatchService['start']>
+            >);
+        });
+        expect(await f.service.create(f.id, owner, f.input)).toMatchObject({
+            status: 'interrupted',
+            failure: 'caller_stopped',
+        });
+    });
+
     it('preserves the launch failure when retiring a failed startup first reports interruption', async () => {
         const f = await fixture();
         f.start.mockImplementation((_id, _principal, _input, options) => {
@@ -197,6 +251,10 @@ describe('AgentDelegationService', () => {
             agentResponseDigest: digest('Answer'),
         });
         expect((await f.service.result(f.id, owner)).receipt.status).toBe('collecting');
+        expect(f.service.stop(f.id, owner).status).toBe('collecting');
+        f.service.initialize();
+        expect(f.service.status(f.id, owner).status).toBe('collecting');
+        expect(f.start).toHaveBeenCalledTimes(1);
         f.readTranscript.mockResolvedValue({
             exists: true,
             truncated: false,

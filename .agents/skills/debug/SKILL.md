@@ -52,7 +52,7 @@ only for an explicit scope limit or a concrete blocker requiring the user's deci
 ## Controlled real-Agent debugging
 
 When a fake Agent cannot reproduce a provider-owned PTY or input-protocol behavior, debugging may
-launch one explicitly selected real Codex process. This is a diagnostic exception, not permission for
+launch one explicitly selected real Agent CLI process. This is a diagnostic exception, not permission for
 ordinary E2E, CI, or Acceptance to discover or invoke a host provider.
 
 - Use an isolated profile or an already authorized Project, the narrowest read-only sandbox

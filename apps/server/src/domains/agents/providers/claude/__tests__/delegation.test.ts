@@ -27,6 +27,38 @@ const intermediate = record('assistant', 'intermediate', 'prompt', 'Synthetic pr
 const final = record('assistant', 'final', 'intermediate', 'Synthetic final answer');
 
 describe('extractClaudeDelegationAnswer', () => {
+    it('selects the answer after every proven continuation even when an earlier answer has the same text', () => {
+        const source = [
+            prompt,
+            record('assistant', 'early-answer', 'prompt', 'Synthetic final answer'),
+            record('user', 'continuation', 'early-answer', 'Synthetic child completion'),
+            record('assistant', 'continued-answer', 'continuation', 'Synthetic final answer'),
+        ].join('\n');
+        const continuedEvidence = {
+            ...evidence,
+            continuationPromptDigests: [digest('Synthetic child completion')],
+        };
+        expect(extractClaudeDelegationAnswer(source, continuedEvidence)).toEqual({
+            text: 'Synthetic final answer',
+            messageId: 'continued-answer',
+        });
+        expect(
+            extractClaudeDelegationAnswer(
+                [
+                    prompt,
+                    record('assistant', 'early-answer', 'prompt', 'Synthetic final answer'),
+                ].join('\n'),
+                continuedEvidence,
+            ),
+        ).toBeUndefined();
+        expect(
+            extractClaudeDelegationAnswer(
+                source.replace('Synthetic child completion', 'Synthetic human question'),
+                continuedEvidence,
+            ),
+        ).toBeUndefined();
+    });
+
     it('joins text blocks with one native message identity across transcript records', () => {
         const source = [
             prompt,

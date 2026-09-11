@@ -103,6 +103,11 @@ state access.
   Save the returned delegation ID; use `agent delegate wait <id>` and `agent delegate result <id>`
   to retrieve the exact saved answer. A wait timeout never authorizes resubmitting the task.
   Reuse a stable `--request-id` when recovering a disconnected create request.
+  Use `create --follow-up <id>` with a fresh prompt file for the next task in the same idle Terminal.
+  Use `stop <id>` to interrupt your active task. `create --resume <id>` explicitly starts a new task
+  in the exact saved native conversation with frozen settings; it never replays the old prompt.
+  Human input or another launch prevents automatic continuation. A restarted caller generation
+  does not inherit an older caller's ownership; ask the authenticated owner to recover that task.
   Inspect the receipt status: `completed` with an answer is distinct from blocked, interrupted,
   human intervention or missing result evidence. Never treat dispatch idle as task completion.
 
