@@ -1,8 +1,8 @@
 import type { AgentProvider } from '@caxri/protocol';
 import { agentProviderCatalog, CaxriError, isCaxriError } from '@caxri/protocol';
-import { safeProcessEnvironment } from '@caxri/system';
 import { coerce, gte } from 'semver';
 
+import { serverProcessEnvironment } from '../executables';
 import type { AgentEnvironment } from './contract';
 
 export function assertAgentRenameVersion(
@@ -22,10 +22,17 @@ export function assertAgentRenameVersion(
 /**
  * Keeps provider subprocesses on the same secret-minimized environment boundary as every other Server command while
  * honoring test, portable, and custom Agent homes supplied through the Agent integration seam.
+ *
+ * The login-shell PATH is part of that boundary, not an extra. A GUI-launched Server Core inherits macOS's launchd PATH
+ * (`/usr/bin:/bin:/usr/sbin:/sbin`), and several Agent CLIs — `codex` among them — are installed as `/bin/sh` shims
+ * that `exec node`. Handing such a shim the launchd PATH makes it exit 127 within milliseconds, which surfaced as an
+ * unexplained "could not rename the Agent session".
  */
-export function agentCommandEnvironment(environment: AgentEnvironment): NodeJS.ProcessEnv {
+export async function agentCommandEnvironment(
+    environment: AgentEnvironment,
+): Promise<NodeJS.ProcessEnv> {
     return {
-        ...safeProcessEnvironment(environment.variables),
+        ...(await serverProcessEnvironment(environment.variables)),
         HOME: environment.homeDirectory,
     };
 }
