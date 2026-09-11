@@ -66,7 +66,13 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
             .poll(() => readFile(join(sessionRoot, 'note.txt'), 'utf8'))
             .toContain('saved by Caxri');
         const editorTab = running.page.getByRole('tab', { name: 'note.txt', exact: true });
-        await expect(editorTab).not.toHaveAttribute('aria-describedby');
+        // The tab description now carries the Git state alongside the unsaved state (`work-tab.tsx`), and this file is
+        // modified inside a repository, so the attribute's mere presence no longer says anything about the buffer.
+        // Assert the unsaved half by text instead; the span is absent entirely while the description is empty.
+        const editorTabDescription = running.page
+            .locator('.work-tab', { has: editorTab })
+            .locator('span[id$="-description"]');
+        await expect(editorTabDescription).not.toContainText('Unsaved changes.');
 
         const externalReloadNotice = running.page.getByText(
             /reloaded from disk; external changes take precedence/,
@@ -78,11 +84,11 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         await editorSurface.click({ position: { x: 120, y: 24 } });
         await running.page.keyboard.press('Meta+A');
         await running.page.keyboard.insertText('dirty local buffer');
-        await expect(editorTab).toHaveAttribute('aria-describedby', /.+/);
+        await expect(editorTabDescription).toContainText('Unsaved changes.');
         await writeFile(join(sessionRoot, 'note.txt'), 'external wins\n', 'utf8');
         await expect(externalReloadNotice).toBeVisible();
         await expect(running.page.locator('.view-lines')).toContainText('external wins');
-        await expect(editorTab).not.toHaveAttribute('aria-describedby');
+        await expect(editorTabDescription).not.toContainText('Unsaved changes.');
 
         await running.page.getByRole('tab', { name: 'Git', exact: true }).click();
         const sourceControlText = running.page
