@@ -49,7 +49,7 @@ The generated `assets/<case-id>-agent-fixture.json` receipt binds the launch to 
 and records whether its owned profile was cleaned. Include it in the case evidence; report
 finalization rejects a missing, mismatched, or incompletely cleaned receipt.
 
-The `agent-delegation-v1` fixture provides Claude Code and Codex. Its Claude target reads a
+The `agent-delegation-v1` fixture provides Claude Code and Codex. Either target reads a
 private synthetic task pointer, emits correlated native hooks, and saves the fixed task result
 in the isolated provider home. Use it to verify visible delegation and caller focus without
-launching a host Agent; the Codex target retains the shared caller fixture behavior.
+launching a host Agent.

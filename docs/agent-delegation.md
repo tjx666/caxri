@@ -1,14 +1,16 @@
 # Visible Agent delegation
 
-Visible delegation runs a task in a managed Claude Terminal, in a sibling pane of the caller's
+Visible delegation runs a task in a managed Claude or Codex Terminal, in a sibling pane of the caller's
 Session. Wide caller panes split right; narrow or tall panes split down. The existing active pane
 and tab remain selected. The child uses the caller's working directory and remains available for
 inspection after its answer is collected.
 
-This implements the Claude delegation and continuation stages of
+This implements Claude delegation and continuation, plus Codex target delegation, in
 [issue #686](https://github.com/tjx666/caxri/issues/686). It does not yet replace dianjiang:
-Codex and Grok delegation, presets, caller policies, usage accounting, and standalone directory
+Grok delegation, presets, caller policies, usage accounting, and standalone directory
 authorization remain subsequent stages of that umbrella issue.
+Real Codex caller transport permissions are a separate validation boundary; target support does not
+claim that every Codex sandbox can connect to a Caxri Server socket.
 
 ## Commands and authority
 
@@ -41,7 +43,7 @@ the saved answer using the same authorized identity.
 
 ## Correlation and persistence
 
-Before any provider starts, Server Core saves the request, caller identity, native session ID,
+Before any provider starts, Server Core saves the request, caller identity, any preallocated native session ID,
 frozen launch configuration, and task fingerprint in the private profile database. Task files use
 `delegations/<delegation-id>/task.md`, private directories (0700), and exclusive files (0600).
 The native interactive command receives only a fixed instruction pointing at that file.
@@ -51,11 +53,27 @@ Claude Code 2.1.196 or newer within major 2 is required. Its documented `prompt_
 The hook bridge forwards identifiers, digests and closed failure classifications, never task or
 answer bodies. See the [Claude hook reference](https://code.claude.com/docs/en/hooks).
 
-Completion requires a coordinator-applied parent Stop, the exact launch/session/turn, and a matching
+Claude completion requires a coordinator-applied parent Stop, the exact launch/session/turn, and a matching
 answer digest in the safely resolved native transcript. Attachment ancestry and text blocks sharing
 one native message identity are followed. Child completion, an old turn, terminal silence and file
 EOF cannot complete a delegation. Background collection retries bounded reads because native
 transcript writes can lag Stop.
+
+Codex CLI 0.153.4 or newer within major 0 is required. Codex generates its native session ID; the
+first authenticated signal from the owned launch binds it. `UserPromptSubmit` must match the private
+pointer digest and supplies the exact `turn_id`. A Stop hook may continue that same turn, so it does
+not make the task complete or noncancelable. Caxri reads only the matching native `task_complete`
+event and its final `last_agent_message`; intermediate assistant messages and Stop digests cannot
+substitute for that event. Additional Stop-hook work is part of the task. Native errors use closed
+failure classifications and never copy provider diagnostic text into the result.
+
+Codex collection starts from a bounded 4 MiB tail, retaining a fast completion written before the
+first read, then reads only appended complete lines every two seconds. Unchanged files return no
+content; incomplete lines remain pending. A rewritten file behind the cursor or an oversized single
+record fails closed. Running tasks have no Claude-style 15-second missing-result deadline. When
+Codex's persisted state proves the exact thread and turn have ended, collection gets 15 seconds to
+find the final event before returning `result_missing`; a missing file cannot reserve the Terminal
+forever. This state proves finality only and never substitutes for the answer event.
 
 A background-child continuation belongs to the task only when the coordinator proves its exact
 deferred parent turn and every subsequent prompt digest appears in order in the transcript ancestry.
@@ -70,7 +88,9 @@ rate-limit, billing/quota, authentication, output-limit or generic provider fail
 is never returned as a task answer.
 
 Server startup marks unfinished execution `interrupted/host_reset` and never replays it automatically.
-Tasks already collecting a proven Stop can finish reading their exact saved evidence; completed
+Tasks already collecting a proven Stop can finish reading their exact saved evidence. A Codex task
+with a bound turn gets a bounded recovery read for a final event written before restart; missing
+evidence settles as `result_missing` after 15 seconds without relaunching the Agent. Completed
 answers survive restart. Deleting a Session or Project drains pending task creation and removes its
 private task files before the metadata cascade. Cleanup failure retains ownership records for retry.
 Project folders and user files are never removed.
@@ -98,13 +118,16 @@ inherit the previous caller's delegation ownership.
 
 ## Current launch boundary
 
-Launch settings are frozen per task. Supported configuration flags are the explicit model, effort,
+Launch settings are frozen per task. Claude supports the explicit model, effort,
 permission mode, agent, name and tool-list values, plus verbose, disabled slash commands, strict MCP
 configuration and the existing
 configured permission-bypass flag. Caxri does not add permission bypass itself. Unknown flags,
 positionals, print mode, resume/session overrides and remote/background modes fail before launch.
-Startup trust/login interfaces receive no synthesized input. An unconfirmed startup remains
-`awaiting_ready`, which callers can distinguish from a confirmed running turn.
+Codex supports explicit model, sandbox and approval-policy values, plus search, no-alt-screen, and
+an already configured approval/sandbox bypass. It does not add a bypass to a read-only launch.
+Its private task pointer does not add `--add-dir`, which would grant write access. Config/profile
+overrides and hook-trust bypass fail closed. Startup trust/login interfaces receive no synthesized
+input; an unconfirmed startup settles as `startup_not_ready` after 15 seconds.
 
 Ordinary automated coverage uses isolated fake providers. Real-provider checks use only the guarded
 debug procedure, a fixed synthetic task, and content-free evidence.

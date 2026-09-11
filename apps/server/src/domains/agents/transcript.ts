@@ -20,6 +20,83 @@ import { openSafeAgentTranscript, resolveSafeAgentTranscriptPath } from './trans
  */
 export const MAX_AGENT_TRANSCRIPT_BYTES = 4 * 1024 * 1024;
 
+export interface DelegationTranscriptBatch {
+    content: string;
+    offset?: number;
+    isFinished?: boolean;
+    failure?: 'payload_overflow' | 'result_missing';
+}
+
+/**
+ * A task starts at the bounded tail, including a completion already written before its hook arrives. Later polls read
+ * only appended complete lines; observing the current file size as the initial cursor would lose fast answers. The
+ * native identity is checked independently of the asynchronous caller's launch/revision fence.
+ */
+export async function readDelegationTranscript(
+    database: CaxriDatabase,
+    terminalId: string,
+    sessionId: string,
+    offset: number | undefined,
+    environment: AgentEnvironment,
+    turnId?: string,
+): Promise<DelegationTranscriptBatch> {
+    const identity = boundAgentIdentity(database, terminalId);
+    if (!identity || identity.agentSessionId !== sessionId) return { content: '' };
+    const status = turnId
+        ? await agentProviders[identity.provider].readTurnStatus?.(
+              { agentSessionId: sessionId, agentTurnId: turnId },
+              environment,
+          )
+        : undefined;
+    const location = await locateAgentTranscript(database, terminalId, environment);
+    return {
+        ...(await readDelegationTranscriptFile(location, offset)),
+        ...(turnId && { isFinished: status === 'completed' || status === 'failed' }),
+    };
+}
+
+async function readDelegationTranscriptFile(
+    location: AgentTranscriptLocation | undefined,
+    offset: number | undefined,
+): Promise<DelegationTranscriptBatch> {
+    const opened = location && (await openSafeAgentTranscript(location));
+    if (!opened) return { content: '' };
+    const { handle, stats } = opened;
+    try {
+        if (
+            offset !== undefined &&
+            (!Number.isSafeInteger(offset) || offset < 0 || offset > stats.size)
+        )
+            return { content: '', failure: 'result_missing' };
+        const start = offset ?? Math.max(0, stats.size - MAX_AGENT_TRANSCRIPT_BYTES);
+        const length = Math.min(MAX_AGENT_TRANSCRIPT_BYTES, stats.size - start);
+        if (length === 0) return { content: '', offset: start };
+        const buffer = Buffer.allocUnsafe(length);
+        let read = 0;
+        while (read < length) {
+            // eslint-disable-next-line no-await-in-loop -- the next file offset depends on the previous read
+            const result = await handle.read(buffer, read, length - read, start + read);
+            if (result.bytesRead === 0) break;
+            read += result.bytesRead;
+        }
+        const bytes = buffer.subarray(0, read);
+        const end = bytes.lastIndexOf(0x0a);
+        if (end === -1)
+            return {
+                content: '',
+                offset: start,
+                failure: read === MAX_AGENT_TRANSCRIPT_BYTES ? 'payload_overflow' : undefined,
+            };
+        const first = offset === undefined && start > 0 ? bytes.indexOf(0x0a) + 1 : 0;
+        return {
+            content: bytes.subarray(first, end + 1).toString('utf8'),
+            offset: start + end + 1,
+        };
+    } finally {
+        await handle.close();
+    }
+}
+
 interface BoundAgentIdentity {
     agentSessionId: string;
     cwd: string;
@@ -130,7 +207,7 @@ export async function readAgentTranscript(
     shouldIncludeContent: boolean,
     environment: AgentEnvironment = defaultAgentEnvironment(),
 ): Promise<AgentTranscript | null> {
-    const location = resolveAgentTranscriptLocation(database, terminalId, environment);
+    const location = await locateAgentTranscript(database, terminalId, environment);
     if (!location) return null;
     const safe = await resolveSafeAgentTranscriptPath(location);
     if (!safe) {

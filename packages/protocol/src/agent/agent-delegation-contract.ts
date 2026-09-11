@@ -50,7 +50,7 @@ export const agentDelegationReceiptSchema = z.strictObject({
     terminalId: identifierSchema.optional(),
     followUpOf: identifierSchema.optional(),
     resumeFrom: identifierSchema.optional(),
-    provider: z.literal('claude'),
+    provider: z.enum(['claude', 'codex']),
     status: agentDelegationStatusSchema,
     failure: agentDelegationFailureSchema.optional(),
     revision: z.number().int().positive(),
@@ -77,7 +77,7 @@ export const agentDelegationCreateSchema = z
     .strictObject({
         projectId: identifierSchema,
         sessionId: identifierSchema,
-        provider: z.literal('claude'),
+        provider: z.enum(['claude', 'codex']),
         prompt: promptSchema,
         followUpOf: identifierSchema.optional(),
         resumeFrom: identifierSchema.optional(),

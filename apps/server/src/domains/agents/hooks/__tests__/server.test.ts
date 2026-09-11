@@ -15,6 +15,38 @@ import { anyHandlingMs, createTestServer, send, validPayload } from './server.fi
 
 describe('AgentHookServer', () => {
     describe('authorize()', () => {
+        it.each(['claude', 'codex'] as const)(
+            'accepts authenticated %s task digests only on the owning main-agent phase',
+            async (provider) => {
+                const { server, socketPath, onSignal } = await createTestServer();
+                try {
+                    const token = server.register('terminal-1', 'launch-1', provider);
+                    const payload = {
+                        token,
+                        provider,
+                        phase: 'turnStarted',
+                        agentTurnId: 'synthetic-turn',
+                        agentPromptDigest: 'a'.repeat(64),
+                    };
+                    expect(await send(socketPath, validPayload(payload))).toBe('{"ok":true}\n');
+                    expect(onSignal).toHaveBeenCalledWith(
+                        expect.objectContaining({
+                            provider,
+                            agentPromptDigest: 'a'.repeat(64),
+                            agentTurnId: 'synthetic-turn',
+                        }),
+                    );
+                    expect(
+                        await send(socketPath, validPayload({ ...payload, agentId: 'child' })),
+                    ).toBe('{"ok":false}\n');
+                    expect(
+                        await send(socketPath, validPayload({ ...payload, phase: 'turnFinished' })),
+                    ).toBe('{"ok":false}\n');
+                } finally {
+                    await server.close();
+                }
+            },
+        );
         it('accepts a signal whose token, launchId, terminalId, provider, and schema all match the registration', async () => {
             const { server, socketPath, onDiagnostic, onSignal } = await createTestServer();
             try {

@@ -22,8 +22,10 @@ public command registry.
 Visible task delegation owns a separate `agent-delegation` Server domain. Its explicit
 `agents.delegate` capability and `agent:delegate` grant never widen human Terminal steer or general
 Agent control. Task identity, frozen launch settings and private answers are persisted before/after
-the managed Terminal side effects; only exact coordinator-applied turn evidence can produce a
-result. See [visible delegation](../../../../docs/agent-delegation.md) for storage, recovery,
+the managed Terminal side effects. Provider adapters own native launch flags, identity and finality:
+Claude matches a proven Stop digest, while Codex binds an authenticated turn to a native final event.
+Codex result reads advance a bounded private cursor without rescanning unchanged history.
+See [visible delegation](../../../../docs/agent-delegation.md) for storage, recovery,
 provider limits and the staged replacement scope.
 
 Server Core owns durable structural events in a monotonic, bounded cursor journal: a reconnect receives

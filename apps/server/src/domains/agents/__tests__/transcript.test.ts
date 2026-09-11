@@ -52,6 +52,25 @@ describe('readAgentTranscript', () => {
         return { id: 't1', provider: 'claude', agentSessionId, cwd };
     }
 
+    it('reads a bound Codex rollout through its asynchronous provider locator', async () => {
+        const id = '019e676d-8740-7bb2-8bcb-f189c8260607';
+        const date = new Date(0x019e676d8740);
+        const day = [
+            String(date.getFullYear()),
+            String(date.getMonth() + 1).padStart(2, '0'),
+            String(date.getDate()).padStart(2, '0'),
+        ];
+        const directory = join(home, '.codex', 'sessions', ...day);
+        await mkdir(directory, { recursive: true });
+        const content =
+            '{"type":"event_msg","payload":{"type":"task_complete","turn_id":"synthetic"}}\n';
+        await writeFile(join(directory, `rollout-${day.join('-')}T11-14-52-${id}.jsonl`), content);
+        const database = databaseWith({ id: 't1', provider: 'codex', agentSessionId: id, cwd });
+        await expect(
+            readAgentTranscript(database, 't1', true, environment()),
+        ).resolves.toMatchObject({ exists: true, content, truncated: false });
+    });
+
     async function writeTranscript(agentSessionId: string, content: string): Promise<string> {
         const encodedCwd = cwd.replaceAll(/[^a-z0-9]/gi, '-');
         const directory = join(home, '.claude', 'projects', encodedCwd);
