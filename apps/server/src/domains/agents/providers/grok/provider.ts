@@ -6,7 +6,8 @@ import { CaxriError } from '@caxri/protocol';
 
 import type { AgentProviderDescriptor } from '../../contract';
 import { grokHookAdapter, isGrokVersionSupported } from './hooks';
-import { grokHome } from './paths';
+import { grokSessionDirectory } from './paths';
+import { readGrokState } from './state';
 
 const sessionIdPattern = /^[a-f\d]{8}(?:-[a-f\d]{4}){3}-[a-f\d]{12}$/i;
 
@@ -15,9 +16,10 @@ export const grokProvider: AgentProviderDescriptor = {
     requiresLifecycleHooks: true,
     hooks: grokHookAdapter,
     /**
-     * Hooks own identity. Directory recency cannot distinguish simultaneous same-directory sessions.
+     * Hooks own identity and activity. The probe only adds the conversation title Grok Build keeps for the exact
+     * hook-bound session, because directory recency cannot distinguish simultaneous same-directory sessions.
      */
-    readState: async () => {},
+    readState: readGrokState,
     resumeArguments: (sessionId) => ['--resume', sessionId],
     prepareLaunch: async ({ args, cwd, environment, resumeAgentSessionId, version }) => {
         if (!isGrokVersionSupported(version))
@@ -67,10 +69,7 @@ export const grokProvider: AgentProviderDescriptor = {
              * Exact local existence avoids a remote lookup hanging or silently selecting another conversation.
              */
             const summary = join(
-                grokHome(environment),
-                'sessions',
-                encodeURIComponent(await realpath(cwd)),
-                agentSessionId,
+                grokSessionDirectory(environment, await realpath(cwd), agentSessionId),
                 'summary.json',
             );
             let isExists = false;
