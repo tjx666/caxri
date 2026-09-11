@@ -56,6 +56,16 @@ export async function dispatchExtensionViewAction(
 }
 
 /**
+ * Reactivates a failed extension. A rejected retry carries the Runtime's own code so the caller's toast can name the
+ * reason rather than a generic failure.
+ */
+export async function retryExtension(extensionId: string): Promise<void> {
+    const result = await caxri.request('extensions.retry', { extensionId });
+    if (result.accepted || !result.error) return;
+    throw Object.assign(new Error(result.error.message), { code: result.error.code });
+}
+
+/**
  * Reconciles command-owned provider state even when its one-shot change event raced the view's first subscription.
  */
 export async function invalidateControlledViewSnapshot(viewId: string): Promise<void> {

@@ -18,18 +18,34 @@ import { describeFailure, pushToast } from '../stores/toasts';
  * (a bad path, a closed Session) rather than a transient network blip worth retrying. Individual queries override
  * `staleTime` where a shorter or longer window makes sense (see the `useCaxriQuery` call sites below).
  */
-export const queryClient = new QueryClient({
-    defaultOptions: {
-        queries: {
-            refetchOnWindowFocus: false,
-            retry: 0,
-            staleTime: 10_000,
+/**
+ * Extension Tree branches outlive React Query's five-minute default because the view that reads them is remounted by
+ * Session identity: returning to a Session is a minutes-scale action, so the default window would drop the tree exactly
+ * when the user expects to find it still there. The payload is bounded by the protocol's tree-item ceiling, and an
+ * unobserved branch is still swept when its Session is deleted (see `removeSessionQueries`).
+ */
+export const EXTENSION_TREE_GC_TIME_MS = 30 * 60_000;
+
+export function createCaxriQueryClient(): QueryClient {
+    const client = new QueryClient({
+        defaultOptions: {
+            queries: {
+                refetchOnWindowFocus: false,
+                retry: 0,
+                staleTime: 10_000,
+            },
+            mutations: {
+                retry: 0,
+            },
         },
-        mutations: {
-            retry: 0,
-        },
-    },
-});
+    });
+    client.setQueryDefaults(['viewContainers.treeChildren'], {
+        gcTime: EXTENSION_TREE_GC_TIME_MS,
+    });
+    return client;
+}
+
+export const queryClient = createCaxriQueryClient();
 
 /**
  * The single params argument a Caxri method accepts, or `undefined` for a no-params method.
