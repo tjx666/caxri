@@ -24,7 +24,6 @@ import {
     delegationRoster,
     resolveDelegationAdmission,
 } from './admission';
-import type { DelegationTranscriptReader } from './collection';
 import { readDelegationCompletion } from './collection';
 import { prepareDelegationFollowUp, prepareDelegationLaunch } from './launch';
 import { assertDelegationLayout, delegationLayout } from './layout';
