@@ -28,11 +28,16 @@ function SymlinkBadge() {
 export function FileTypeIcon({
     entry,
     expanded = false,
+    childRepo: childRepo = false,
 }: {
     entry: Pick<FileEntry, 'kind' | 'linkKind' | 'linkTarget' | 'name'>;
     expanded?: boolean;
+    /**
+     * Whether this directory is a submodule or a nested clone, which takes the Git repository folder icon.
+     */
+    childRepo?: boolean;
 }) {
-    const icon = resolveFileIcon(entry, expanded);
+    const icon = resolveFileIcon(entry, expanded, childRepo);
     const image = (
         <img
             alt=""

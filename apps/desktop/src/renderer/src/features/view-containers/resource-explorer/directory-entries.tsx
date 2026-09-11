@@ -10,10 +10,11 @@ import { ContextMenu, ContextMenuTrigger } from '../../../components/ui/context-
 import { Input } from '../../../components/ui/input';
 import { FileTypeIcon } from '../../../icons/files/file-type-icon';
 import { FILE_TREE_DRAG_TYPE, hasDraggedPath } from '../../../lib/file-drag';
-import { gitDecorationClassName, gitDecorationDescription } from '../../../lib/git-decorations';
+import type { GitChildRepoKind, GitDecoration } from '../../../lib/git-decorations';
+import { gitDecorationClassName } from '../../../lib/git-decorations';
 import { cn } from '../../../lib/utilities';
 import { useToastOnQueryError } from '../../../queries/client';
-import { useGitDecoration } from '../../../stores/git-decorations';
+import { useGitChildRepo, useGitDecoration } from '../../../stores/git-decorations';
 import { describeFailure } from '../../../stores/toasts';
 import { useResourceExplorerClient } from '../controlled-view-context';
 import { controlledViewQueryKey } from '../view-operation-client';
@@ -29,7 +30,7 @@ import {
     useIsPathFocusRequested,
     useIsPathSelected,
 } from './resource-explorer-scope-store';
-import { fileTreeRowTooltip, symlinkRowDescription } from './resource-explorer-state';
+import { fileTreeRowDescription, fileTreeRowTooltip } from './resource-explorer-state';
 import { useFileTreeItemInteractions } from './use-file-tree-item-interactions';
 
 export { type EditRequest, type FocusTarget };
@@ -234,6 +235,55 @@ export function DirectoryEntries({
     );
 }
 
+/**
+ * Everything drawn inside the row button. Split out of {@link FileTreeItem}, which is left owning the row's
+ * interactions, drag handling, and aria wiring.
+ */
+function FileTreeRowContent({
+    childRepo,
+    decoration,
+    description,
+    descriptionId,
+    entry,
+    expanded,
+    isDirectory,
+}: {
+    childRepo: GitChildRepoKind | undefined;
+    decoration: GitDecoration | undefined;
+    /**
+     * The row's `aria-describedby` text, empty when the row has nothing its name does not already say.
+     */
+    description: string;
+    descriptionId: string;
+    entry: FileEntry;
+    expanded: boolean;
+    isDirectory: boolean;
+}) {
+    return (
+        <>
+            {isDirectory && (expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />)}
+            <FileTypeIcon childRepo={Boolean(childRepo)} entry={entry} expanded={expanded} />
+            {/*
+             * VS Code's Git decoration: the name takes the change's color, and only a file adds the status letter at
+             * the row's trailing edge. A folder is colored by the strongest change anywhere beneath it but stays
+             * letterless, because the letter would claim the folder itself changed. The file type icon keeps its own
+             * color on purpose — it identifies the language, not the change.
+             */}
+            <span className={cn('truncate', decoration && gitDecorationClassName(decoration.kind))}>
+                {entry.name}
+            </span>
+            {description && (
+                <span id={descriptionId} className="sr-only">
+                    {description}
+                </span>
+            )}
+            {decoration && (
+                <GitFileStatusLetter className="ml-auto text-[11px]" decoration={decoration} />
+            )}
+        </>
+    );
+}
+
 function FileTreeItem({
     entry,
     index,
@@ -248,6 +298,7 @@ function FileTreeItem({
 }: Omit<TreeProperties, 'directory'> & { entry: FileEntry; index: number }) {
     const client = useResourceExplorerClient();
     const decoration = useGitDecoration(entry.path);
+    const childRepo = useGitChildRepo(entry.path);
     const expanded = useIsPathExpanded(scopeId, entry.path);
     const selected = useIsPathSelected(scopeId, entry.path);
     const hasSelection = useHasScopeSelection(scopeId);
@@ -316,17 +367,7 @@ function FileTreeItem({
             />
         );
 
-    /*
-     * Everything the row shows that its name cannot carry. The name stays the bare file name — it is what the user
-     * typed to find the row and what every role query matches — so the followable-symlink reason and the Git state
-     * ride along as a description instead.
-     */
-    const rowDescription = [
-        entry.kind === 'symlink' ? symlinkRowDescription(entry) : undefined,
-        decoration ? gitDecorationDescription(decoration.kind) : undefined,
-    ]
-        .filter(Boolean)
-        .join(' ');
+    const rowDescription = fileTreeRowDescription(entry, childRepo, decoration);
 
     const row = (
         <button
@@ -354,7 +395,7 @@ function FileTreeItem({
                 isDirectory,
                 isExpanded: expanded,
             })}
-            title={fileTreeRowTooltip(entry)}
+            title={fileTreeRowTooltip(entry, childRepo)}
             onClick={(event) =>
                 discard(
                     activateEntry({
@@ -404,25 +445,15 @@ function FileTreeItem({
             }}
             onKeyDown={handleKeyDown}
         >
-            {isDirectory && (expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />)}
-            <FileTypeIcon entry={entry} expanded={expanded} />
-            {/*
-             * VS Code's Git decoration: the name takes the change's color, and only a file adds the status letter at
-             * the row's trailing edge. A folder is colored by the strongest change anywhere beneath it but stays
-             * letterless, because the letter would claim the folder itself changed. The file type icon keeps its own
-             * color on purpose — it identifies the language, not the change.
-             */}
-            <span className={cn('truncate', decoration && gitDecorationClassName(decoration.kind))}>
-                {entry.name}
-            </span>
-            {rowDescription && (
-                <span id={rowDescriptionId} className="sr-only">
-                    {rowDescription}
-                </span>
-            )}
-            {decoration && (
-                <GitFileStatusLetter className="ml-auto text-[11px]" decoration={decoration} />
-            )}
+            <FileTreeRowContent
+                childRepo={childRepo}
+                decoration={decoration}
+                description={rowDescription}
+                descriptionId={rowDescriptionId}
+                entry={entry}
+                expanded={expanded}
+                isDirectory={isDirectory}
+            />
         </button>
     );
 
