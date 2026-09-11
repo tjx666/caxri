@@ -41,7 +41,7 @@ it('correlates Grok turns and filters shutdown, children, malformed payloads and
             },
         });
         result.child.stdin?.end(JSON.stringify(payload));
-        await result;
+        return result;
     };
     try {
         await invoke('sessionIdentified', { sessionId: 'session-a', source: 'new' });
@@ -66,17 +66,23 @@ it('correlates Grok turns and filters shutdown, children, malformed payloads and
             backgroundTasks: [{}],
         });
         await invoke('turnStarted', { sessionId: 'session-b' }, 'claude');
-        await invoke('turnStarted', {
+        const truncated = await invoke('turnStarted', {
             sessionId: 'session-b',
             promptId: 'long-turn',
             prompt: 'x'.repeat(70_000),
         });
-        expect(packets).toHaveLength(5);
-        expect(packets[4]).toMatchObject({
-            agentSessionId: 'session-b',
-            agentTurnId: 'long-turn',
-            phase: 'turnStarted',
-        });
+        expect(truncated.stderr).toContain('payload_scope_unavailable');
+        await Promise.all(
+            [{ subagentId: 'child' }, { subagentType: 'explorer' }].map((scope) =>
+                invoke('turnFinished', {
+                    sessionId: 'session-b',
+                    promptId: 'turn-b',
+                    reason: 'end_turn',
+                    ...scope,
+                }),
+            ),
+        );
+        expect(packets).toHaveLength(4);
         expect(packets[0]).toMatchObject({
             agentSessionId: 'session-a',
             phase: 'sessionIdentified',
@@ -93,8 +99,8 @@ it('correlates Grok turns and filters shutdown, children, malformed payloads and
             reason: 'end_turn',
             lastAssistantMessage: '合成'.repeat(25_000),
         });
-        expect(packets).toHaveLength(6);
-        expect(packets[5]).toMatchObject({
+        expect(packets).toHaveLength(5);
+        expect(packets[4]).toMatchObject({
             agentSessionId: 'session-b',
             agentTurnId: 'unicode-turn',
             phase: 'turnFinished',

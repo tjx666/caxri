@@ -19,6 +19,7 @@ const exitCodes = {
   socketUnavailable: 12,
   signalRejected: 13,
   ackUnavailable: 14,
+  payloadScopeUnavailable: 15,
 };
 const args = new Map();
 for (let index = 2; index < process.argv.length - 1; index += 2) {
@@ -183,7 +184,7 @@ function hasWorktreeCreateIntent(payload) {
 function readIdentifiers(callback) {
   let source = '';
   let done = false;
-  const captureDigests = ['claude', 'codex'].includes(provider) && process.env.CAXRI_HOOK_DIGEST === '1';
+  const captureDigests = ['claude', 'codex', 'grok'].includes(provider) && process.env.CAXRI_HOOK_DIGEST === '1';
   const sourceLimit = captureDigests ? 1048576 : 65536;
   let overflow = false;
   function prefixString(keys) {
@@ -191,12 +192,6 @@ function readIdentifiers(callback) {
     for (const marker of ['"tool_calls"', '"tool_input"', '"tool_response"', '"permission_suggestions"']) {
       const index = source.indexOf(marker);
       if (index >= 0 && index < commonEnd) commonEnd = index;
-    }
-    if (provider === 'grok') {
-      for (const marker of ['"prompt"', '"lastAssistantMessage"']) {
-        const index = source.indexOf(marker);
-        if (index >= 0 && index < commonEnd) commonEnd = index;
-      }
     }
     const common = source.slice(0, commonEnd);
     for (const key of keys) {
@@ -214,50 +209,57 @@ function readIdentifiers(callback) {
     let turnId;
     let promptDigest;
     let responseDigest;
+    let responseByteLength;
+    let turnContinues;
     let failure;
     let worktreeCreateIntent = false;
     try {
       const payload = JSON.parse(source);
+      const agentValue = payload && (payload.agent_id ?? payload.agentId ?? (provider === 'grok' ? (payload.subagentId ?? (payload.subagentType ? payload.sessionId : undefined)) : undefined));
       if (provider === 'grok') {
         // A shutdown Stop has no completed turn. Child/background activity cannot settle the main Session.
-        if (payload.agent_id || payload.agentId) return callback({ ignored: true });
+        if (agentValue) return callback({ ignored: true });
         if (signal.phase === 'sessionIdentified' && !['new', 'load'].includes(payload.source))
           return callback({ ignored: true });
-        if (signal.phase === 'turnFinished' && (payload.reason !== 'end_turn' || !payload.promptId ||
+        if (signal.phase === 'turnFinished' && !payload.promptId) return callback({ ignored: true });
+        if (signal.phase === 'turnFinished' && (payload.reason !== 'end_turn' ||
             (Array.isArray(payload.backgroundTasks) && payload.backgroundTasks.length) ||
-            (Array.isArray(payload.sessionCrons) && payload.sessionCrons.length)))
-          return callback({ ignored: true });
+            (Array.isArray(payload.sessionCrons) && payload.sessionCrons.length))) {
+          if (!captureDigests) return callback({ ignored: true });
+          turnContinues = true;
+        }
       }
-      const agentValue = payload && (payload.agent_id ?? payload.agentId);
       if (typeof agentValue === 'string' && agentValue.length > 0 && agentValue.length <= 256) agentId = agentValue;
       const value = payload && (payload.session_id ?? payload.sessionId);
       if (typeof value === 'string' && value.length > 0 && value.length <= 256) sessionId = value;
       // Claude's documented per-prompt identity spans UserPromptSubmit, Stop, and StopFailure (v2.1.196+).
       // https://code.claude.com/docs/en/hooks#common-input-fields
-      const turnValue = payload && (provider === 'claude' ? payload.prompt_id : (payload.turn_id ?? payload.turnId ?? (provider === 'grok' ? payload.promptId : undefined)));
+      const turnValue = payload && (provider === 'claude' ? payload.prompt_id : provider === 'grok' ? payload.promptId : (payload.turn_id ?? payload.turnId));
       if (typeof turnValue === 'string' && turnValue.length > 0 && turnValue.length <= 256) turnId = turnValue;
       const toolValue = payload && (payload.tool_use_id ?? payload.toolUseId);
       if (typeof toolValue === 'string' && toolValue.length > 0 && toolValue.length <= 256) toolUseId = toolValue;
       worktreeCreateIntent = hasWorktreeCreateIntent(payload);
       cwd = readCwd(payload);
       if (captureDigests && !agentId && !overflow) {
-        if (signal.phase === 'turnFinished' && payload.hook_event_name === 'StopFailure')
+        if (['turnFinished', 'turnFailed'].includes(signal.phase) && payload.hook_event_name === 'StopFailure')
           failure = ['rate_limit', 'billing_error', 'authentication_failed', 'max_output_tokens'].includes(payload.error) ? payload.error : 'provider_failed';
+        if (signal.phase === 'turnFailed' && provider === 'grok' && payload.hook_event_name === 'StopCancelled')
+          failure = 'provider_failed';
         if (signal.phase === 'turnStarted' && typeof payload.prompt === 'string')
           promptDigest = createHash('sha256').update(payload.prompt).digest('hex');
-        if (signal.phase === 'turnFinished' && !failure && typeof payload.last_assistant_message === 'string')
-          responseDigest = createHash('sha256').update(payload.last_assistant_message).digest('hex');
+        const response = provider === 'grok' ? payload.lastAssistantMessage : payload.last_assistant_message;
+        if (signal.phase === 'turnFinished' && !failure && typeof response === 'string') {
+          responseDigest = createHash('sha256').update(response).digest('hex');
+          if (provider === 'grok') {
+            responseByteLength = Buffer.byteLength(response);
+            // Native Grok clips Stop text; a prefix hash cannot authenticate the omitted suffix.
+            if (/… \[\+\d+ chars\]$/.test(response)) overflow = true;
+          }
+        }
       }
     } catch {
-      if (provider === 'grok') {
-        // Large prompts follow the common header. Recover start identity without reading prompt text;
-        // completion still requires the full payload to prove reason and absence of background work.
-        if (signal.phase !== 'turnStarted' || prefixString(['agent_id', 'agentId']))
-          return callback({ ignored: true });
-        sessionId = prefixString(['sessionId', 'session_id']);
-        turnId = prefixString(['promptId']);
-        return callback(sessionId && turnId ? { sessionId, turnId } : { ignored: true });
-      }
+      // Grok writes native-child scope after event content. A truncated prefix cannot prove this is the main Agent.
+      if (provider === 'grok') { process.exitCode = exitCodes.payloadScopeUnavailable; return; }
       // Common hook fields precede event-specific tool input/results. A large payload is intentionally truncated, but
       // these bounded opaque identifiers remain recoverable without retaining or parsing provider content. The cwd is
       // deliberately not recovered here: its character class overlaps provider content, and every later hook event
@@ -266,7 +268,8 @@ function readIdentifiers(callback) {
       sessionId = prefixString(['session_id', 'sessionId']);
       turnId = prefixString(provider === 'claude' ? ['prompt_id'] : ['turn_id', 'turnId']);
     }
-    callback({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateIntent, promptDigest, responseDigest, failure, overflow: captureDigests && overflow });
+    const responseStop = captureDigests && provider === 'grok' && signal.phase === 'turnFinished';
+    callback({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateIntent, promptDigest, responseDigest, responseByteLength, responseStop, turnContinues, failure, overflow: captureDigests && overflow });
   };
   // Stdin may be an interactive TTY when a human runs the bridge by hand; never wait on it.
   const timer = setTimeout(finish, ${BRIDGE_STDIN_TIMEOUT_MS});
@@ -287,7 +290,7 @@ if (!hasAnyLaunchContext) {
   process.exitCode = exitCodes.launchContextUnavailable;
 } else {
 if (process.env.CAXRI_HOOK_RECEIPTS === '1') reportBridgeStarted();
-readIdentifiers(({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateIntent, promptDigest, responseDigest, failure, overflow, ignored }) => {
+readIdentifiers(({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateIntent, promptDigest, responseDigest, responseByteLength, responseStop, turnContinues, failure, overflow, ignored }) => {
   if (ignored) { process.stdin.pause(); return; }
   if (agentId) signal.agentId = agentId;
   if (cwd) signal.agentCwd = cwd;
@@ -296,8 +299,11 @@ readIdentifiers(({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateInt
   if (turnId) signal.agentTurnId = turnId;
   if (promptDigest) signal.agentPromptDigest = promptDigest;
   if (responseDigest) signal.agentResponseDigest = responseDigest;
+  if (responseByteLength !== undefined) signal.agentResponseByteLength = responseByteLength;
+  if (responseStop) signal.agentResponseStop = true;
   if (failure) signal.agentFailure = failure;
   if (overflow) signal.agentContentOverflow = true;
+  if (turnContinues) signal.agentTurnContinues = true;
   if (worktreeCreateIntent) signal.worktreeCreateIntent = true;
   const socket = net.createConnection(socketPath);
   let response = '';
@@ -336,7 +342,7 @@ readIdentifiers(({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateInt
 }
 `;
 
-const BRIDGE_VERSION = 18;
+const BRIDGE_VERSION = 20;
 
 const BRIDGE_WRAPPER = String.raw`#!/bin/sh
 bridge_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
@@ -362,6 +368,7 @@ else
     12) printf 'caxri-hook: socket_unavailable\n' >&2 ;;
     13) printf 'caxri-hook: signal_rejected\n' >&2 ;;
     14) printf 'caxri-hook: ack_unavailable\n' >&2 ;;
+    15) printf 'caxri-hook: payload_scope_unavailable\n' >&2 ;;
     *) printf 'caxri-hook: bridge_runtime_failed\n' >&2 ;;
   esac
 fi

@@ -5,7 +5,7 @@ import codex from '@lobehub/icons-static-svg/icons/codex-color.svg?no-inline';
 import grok from '@lobehub/icons-static-svg/icons/grok.svg?no-inline';
 import openCode from '@lobehub/icons-static-svg/icons/opencode.svg?no-inline';
 
-export type AgentIconIdentity = TerminalKind | 'grok' | 'opencode' | 'unknown';
+export type AgentIconIdentity = TerminalKind | 'opencode' | 'unknown';
 
 export interface AgentIconDefinition {
     id: AgentIconIdentity;

@@ -15,6 +15,12 @@ export const acceptanceAgentFixtureIds = [
 ] as const;
 type AcceptanceAgentFixtureId = (typeof acceptanceAgentFixtureIds)[number];
 
+export const acceptanceAgentFixtureProviders = {
+    'agent-features-v1': ['claude', 'codex'],
+    'grok-build-v1': ['grok'],
+    'agent-delegation-v1': ['claude', 'codex', 'grok'],
+} as const satisfies Record<AcceptanceAgentFixtureId, readonly AgentProvider[]>;
+
 export interface PreparedAcceptanceAgentFixture<Provider extends AgentProvider = never> {
     environment: NodeJS.ProcessEnv;
     executables: Partial<Record<AgentProvider, string>> & Record<Provider, string>;
@@ -416,9 +422,12 @@ interface PrepareAcceptanceAgentFixtureOptions {
 
 export function prepareAcceptanceAgentFixture(
     options: PrepareAcceptanceAgentFixtureOptions & {
-        fixtureId: 'agent-features-v1' | 'agent-delegation-v1';
+        fixtureId: 'agent-features-v1';
     },
 ): Promise<PreparedAcceptanceAgentFixture<'claude' | 'codex'>>;
+export function prepareAcceptanceAgentFixture(
+    options: PrepareAcceptanceAgentFixtureOptions & { fixtureId: 'agent-delegation-v1' },
+): Promise<PreparedAcceptanceAgentFixture<AgentProvider>>;
 export function prepareAcceptanceAgentFixture(
     options: PrepareAcceptanceAgentFixtureOptions & { fixtureId: 'grok-build-v1' },
 ): Promise<PreparedAcceptanceAgentFixture<'grok'>>;
@@ -434,14 +443,11 @@ export async function prepareAcceptanceAgentFixture(
     await mkdir(bin, { recursive: true });
     const executables = Object.fromEntries(
         await Promise.all(
-            (options.fixtureId === 'grok-build-v1'
-                ? (['grok'] as const)
-                : (['claude', 'codex'] as const)
-            ).map(async (provider) => {
+            acceptanceAgentFixtureProviders[options.fixtureId].map(async (provider) => {
                 const executable = join(bin, provider);
                 await writeFile(
                     executable,
-                    provider === 'grok'
+                    options.fixtureId === 'grok-build-v1'
                         ? grokAcceptanceSource()
                         : options.fixtureId === 'agent-delegation-v1'
                           ? delegationFixtureSource(provider)
