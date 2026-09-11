@@ -324,8 +324,9 @@ chrome. This does not govern the Session list's right-edge running spinner.
 
 **Git decorations** — a file with working-tree changes reads the same wherever its name appears.
 The name takes the `--git-*` color of its change, and a single status letter (`M`, `A`, `D`, `U`…)
-sits at the trailing edge of the row or tab in the same color — the Files tree, the tab strip,
-Source Control, and the diff headers all render that letter from one component. The staged column
+sits at the trailing edge of the row or tab in the same color — the Files tree, the tab strip, and
+the diff headers all render that letter from one component. Source Control still paints its own
+from the Extension API's generic `tone`. The staged column
 wins when both are set, so a file staged as added and then edited reads `A` everywhere. The file
 type icon keeps its own color: it identifies the language, not the change. A directory in the Files
 tree takes the color of the most severe change anywhere beneath it (conflicted > deleted > modified
@@ -333,7 +334,9 @@ tree takes the color of the most severe change anywhere beneath it (conflicted >
 > renamed > added > untracked) but no letter, which would claim the folder itself changed; the
 > repository root is never decorated. Inactive tabs keep their decoration color — the point is to be
 > readable across the whole rail without selecting each tab. Ignored entries stay muted and italic
-> and take no decoration.
+> and take no decoration. The decoration is visual only: a row or tab is still named by its bare
+> filename, and the status reaches assistive technology as an accessible description
+> (`Git: modified.`) rather than being folded into that name.
 
 **Editor breadcrumbs** — an ordinary Project file gets one 24px metadata row below the tab strip.
 Its Project-relative path sits on the left and the current file's last-change annotation sits on

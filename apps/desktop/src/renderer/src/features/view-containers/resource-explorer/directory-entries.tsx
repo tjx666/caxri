@@ -10,7 +10,7 @@ import { ContextMenu, ContextMenuTrigger } from '../../../components/ui/context-
 import { Input } from '../../../components/ui/input';
 import { FileTypeIcon } from '../../../icons/files/file-type-icon';
 import { FILE_TREE_DRAG_TYPE, hasDraggedPath } from '../../../lib/file-drag';
-import { gitDecorationClassName } from '../../../lib/git-decorations';
+import { gitDecorationClassName, gitDecorationDescription } from '../../../lib/git-decorations';
 import { cn } from '../../../lib/utilities';
 import { useToastOnQueryError } from '../../../queries/client';
 import { useGitDecoration } from '../../../stores/git-decorations';
@@ -276,7 +276,7 @@ function FileTreeItem({
         setIsDropTarget,
         startCreate,
         startRename,
-        symlinkReasonId,
+        rowDescriptionId,
     } = useFileTreeItemInteractions({
         depth,
         editing,
@@ -316,11 +316,29 @@ function FileTreeItem({
             />
         );
 
+    /*
+     * Everything the row shows that its name cannot carry. The name stays the bare file name — it is what the user
+     * typed to find the row and what every role query matches — so the followable-symlink reason and the Git state
+     * ride along as a description instead.
+     */
+    const rowDescription = [
+        entry.kind === 'symlink' ? symlinkRowDescription(entry) : undefined,
+        decoration ? gitDecorationDescription(decoration.kind) : undefined,
+    ]
+        .filter(Boolean)
+        .join(' ');
+
     const row = (
         <button
             ref={rowRef}
             role="treeitem"
-            aria-describedby={entry.kind === 'symlink' ? symlinkReasonId : undefined}
+            /*
+             * Named explicitly rather than from content, the way a Source Control row is. The row also holds the
+             * `sr-only` description below, and name-from-content would otherwise swallow it — a modified file would
+             * announce, and match `getByRole`, as "tracked.ts Git: modified." instead of "tracked.ts".
+             */
+            aria-label={entry.name}
+            aria-describedby={rowDescription ? rowDescriptionId : undefined}
             aria-expanded={isDirectory ? expanded : undefined}
             aria-level={depth + 1}
             aria-selected={selected}
@@ -397,9 +415,9 @@ function FileTreeItem({
             <span className={cn('truncate', decoration && gitDecorationClassName(decoration.kind))}>
                 {entry.name}
             </span>
-            {entry.kind === 'symlink' && (
-                <span id={symlinkReasonId} className="sr-only">
-                    {symlinkRowDescription(entry)}
+            {rowDescription && (
+                <span id={rowDescriptionId} className="sr-only">
+                    {rowDescription}
                 </span>
             )}
             {decoration && (
