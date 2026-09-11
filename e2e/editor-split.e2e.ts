@@ -236,6 +236,11 @@ test('Split-down via a dragged tab moves the tab and converges back to a single 
         // The new (bottom) pane holds only b.ts; closing its tab removes b.ts entirely and the empty pane
         // collapses, converging the tree back to a single pane.
         const newPaneTab = running.page.locator('.work-tab', { hasText: 'b.ts' });
+        /**
+         * Pane mounts outlive the split that created them for a frame, so the retiring pane can still expose its copy
+         * of the moved tab. Await the single surviving tab before hovering it.
+         */
+        await expect(newPaneTab).toHaveCount(1);
         await newPaneTab.hover();
         await newPaneTab.locator('.tab-close').click();
 
