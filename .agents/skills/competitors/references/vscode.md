@@ -20,6 +20,15 @@ _Researched 2026-08-28 at `8512d16a6b20ff9197d24424918ff105703f91f4`._
   release expensive listeners while the tree instance remains available, so tab/view switching and
   window reload both preserve disclosure state without keeping hidden data work active.
 
+## Terminal view placement
+
+_Researched 2026-09-10 at `1dbbce1da524efa885a751381426f1591a9f41c1`._
+
+- `src/vs/workbench/contrib/terminal/browser/terminalInstance.ts:1061-1093` separates
+  `detachFromElement` / `attachToElement` from instance disposal. A changed container receives the
+  existing wrapper; the same container is a no-op. Caxri follows the ownership principle with stable
+  pane portals: layout placement must not recreate a surviving visible Terminal's xterm instance.
+
 ## File watching
 
 _Researched 2026-09-05 at `1dbbce1da524efa885a751381426f1591a9f41c1`._

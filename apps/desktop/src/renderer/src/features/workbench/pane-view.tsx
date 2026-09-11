@@ -30,6 +30,8 @@ import {
     resolvePaneDropIntent,
     resolvePaneDropZone,
 } from './pane-drop-zone';
+import { PaneMountPortal } from './pane-mount-portal';
+import { reconcilePaneMounts } from './pane-mounts';
 import { PaneTabBar } from './pane-tab-bar';
 import { useTabFocusRecovery } from './use-tab-focus-recovery';
 
@@ -241,6 +243,7 @@ function PaneBox({
             onDragEnd={(event) => settlePaneActivation(event.currentTarget)}
         >
             <PaneTabBar
+                key={pane.id}
                 hasTabsToSwitch={hasTabsToSwitch}
                 isOnlySessionTerminal={isOnlySessionTerminal}
                 isRootBar={isLeading}
@@ -378,7 +381,7 @@ function PaneNodeView({
     node: PaneLayoutNode;
 }) {
     return node.type === 'pane' ? (
-        <PaneBox key={node.id} isLeading={node.id === leadingPane} layout={layout} pane={node} />
+        <div className={fullBleedClassName} data-pane-slot={node.id} />
     ) : (
         <PaneSplitView leadingPane={leadingPane} layout={layout} node={node} />
     );
@@ -390,6 +393,15 @@ function PaneNodeView({
  */
 export function PaneView() {
     const layout = useSessionState()?.paneLayout;
+    const [mounted, setMounted] = useState(() => ({
+        layout,
+        panes: reconcilePaneMounts([], layout ? listPanes(layout) : []),
+    }));
+    let panes = mounted.panes;
+    if (mounted.layout !== layout) {
+        panes = reconcilePaneMounts(panes, layout ? listPanes(layout) : []);
+        setMounted({ layout, panes });
+    }
     /**
      * Retained once for the whole layout, not per pane: `retainTerminalProgress` drops every Terminal outside the set
      * it is given, so calling it from each `PaneTabBar` with only that pane's Terminals would have panes clearing each
@@ -402,6 +414,21 @@ export function PaneView() {
     useTabFocusRecovery(layout);
     if (!layout) return null;
     return (
-        <PaneNodeView leadingPane={leadingPaneId(layout.root)} layout={layout} node={layout.root} />
+        <div className={fullBleedClassName}>
+            <PaneNodeView
+                leadingPane={leadingPaneId(layout.root)}
+                layout={layout}
+                node={layout.root}
+            />
+            {panes.map(({ key, pane }) => (
+                <PaneMountPortal key={key} paneId={pane.id}>
+                    <PaneBox
+                        isLeading={pane.id === leadingPaneId(layout.root)}
+                        layout={layout}
+                        pane={pane}
+                    />
+                </PaneMountPortal>
+            ))}
+        </div>
     );
 }
