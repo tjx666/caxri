@@ -52,6 +52,11 @@ export function ExtensionTreeTooltip({
         (event) => {
             triggerFocus?.(event);
             if (event.defaultPrevented) return;
+            /**
+             * Disclosure clicks focus the row too. Match Base UI's keyboard-focus gate so those clicks do not replace a
+             * hover anchor with the row's bottom edge or open a card before the hover delay.
+             */
+            if (!event.currentTarget.matches(':focus-visible')) return;
             setCursorAnchor(undefined);
             setOpen(true);
         },
