@@ -7,9 +7,16 @@ const mocks = vi.hoisted(() => {
     return {
         askAgentForProject: vi.fn(),
         caxriRequest: vi.fn((): Promise<unknown> => Promise.resolve([])),
+        closeCreateSessionMenu: vi.fn(),
         copyFilePath: vi.fn(() => Promise.resolve()),
         dropSessions: vi.fn(),
         getBootstrap: vi.fn(),
+        openCreateSessionMenu: vi.fn(),
+        pendingProjectId: undefined as string | undefined,
+        pendingRoot: undefined as string | undefined,
+        primarySidebarVisible: true,
+        recordTerminalKind: vi.fn(),
+        setPrimarySidebarVisible: vi.fn(),
         getQueryData: vi.fn(),
         getSelectedSession: vi.fn(),
         openExternalUrl: vi.fn(() => Promise.resolve()),
@@ -55,10 +62,29 @@ vi.mock('../../../queries/client', () => ({
 vi.mock('../../../queries/invalidation', () => ({
     removeSessionQueries: mocks.removeSessionQueries,
 }));
+vi.mock('../../../stores/chrome-layout', () => ({
+    useChromeLayoutStore: {
+        getState: vi.fn(() => ({
+            primarySidebarVisible: mocks.primarySidebarVisible,
+            setPrimarySidebarVisible: mocks.setPrimarySidebarVisible,
+        })),
+    },
+}));
 vi.mock('../../../stores/dialogs', () => ({
     clearPendingSession: vi.fn(),
     useDialogStore: {
-        getState: vi.fn(() => ({ askAgentForProject: mocks.askAgentForProject })),
+        getState: vi.fn(() => ({
+            askAgentForProject: mocks.askAgentForProject,
+            closeCreateSessionMenu: mocks.closeCreateSessionMenu,
+            openCreateSessionMenu: mocks.openCreateSessionMenu,
+            pendingProjectId: mocks.pendingProjectId,
+            pendingRoot: mocks.pendingRoot,
+        })),
+    },
+}));
+vi.mock('../terminal-kind-recency', () => ({
+    useTerminalKindRecencyStore: {
+        getState: vi.fn(() => ({ recordTerminalKind: mocks.recordTerminalKind })),
     },
 }));
 vi.mock('../../../stores/selectors', () => ({
@@ -83,6 +109,9 @@ vi.mock('../../../stores/workbench', () => ({
 import {
     archiveSelectedSession,
     archiveSession,
+    beginSessionCreation,
+    chooseSessionTerminalKind,
+    confirmPendingSession,
     copyAgentSessionId,
     copyAgentTranscriptPath,
     deleteSelectedSession,
@@ -118,10 +147,105 @@ describe('Session actions', () => {
         mocks.removeSessionQueries.mockClear();
         mocks.selectSelectedProject.mockReset();
         mocks.tryCommand.mockClear();
+        mocks.closeCreateSessionMenu.mockClear();
+        mocks.openCreateSessionMenu.mockClear();
+        mocks.recordTerminalKind.mockClear();
+        mocks.setPrimarySidebarVisible.mockClear();
+        mocks.pendingProjectId = undefined;
+        mocks.pendingRoot = undefined;
+        mocks.primarySidebarVisible = true;
     });
 
     afterEach(() => {
         vi.unstubAllGlobals();
+    });
+
+    it('skips the Terminal choice entirely when a default Agent is configured', async () => {
+        mocks.getBootstrap.mockReturnValue({ settings: { 'session.defaultAgent': 'codex' } });
+
+        beginSessionCreation('project-1');
+        await mocks.tryCommand.mock.results[0]?.value;
+
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('session.create', {
+            projectId: 'project-1',
+            defaultAgent: 'codex',
+        });
+        expect(mocks.openCreateSessionMenu).not.toHaveBeenCalled();
+    });
+
+    it('marks the Project whose anchored menu should open when no default Agent is configured', () => {
+        mocks.getBootstrap.mockReturnValue({ settings: { 'session.defaultAgent': null } });
+
+        beginSessionCreation('project-1');
+
+        expect(mocks.openCreateSessionMenu).toHaveBeenCalledWith('project-1');
+        expect(mocks.caxriRequest).not.toHaveBeenCalled();
+        expect(mocks.setPrimarySidebarVisible).not.toHaveBeenCalled();
+    });
+
+    /**
+     * The menu is anchored inside the Primary Side Bar, so `session.create` reaching this action from the native menu,
+     * a shortcut, or the command palette would otherwise mark a Project whose row is not mounted and do nothing at
+     * all.
+     */
+    it('reveals a collapsed Primary Side Bar before marking the Project', () => {
+        mocks.getBootstrap.mockReturnValue({ settings: { 'session.defaultAgent': null } });
+        mocks.primarySidebarVisible = false;
+
+        beginSessionCreation('project-1');
+
+        expect(mocks.setPrimarySidebarVisible).toHaveBeenCalledWith(true);
+        expect(mocks.openCreateSessionMenu).toHaveBeenCalledWith('project-1');
+    });
+
+    it('leaves the Primary Side Bar alone when the default Agent short-circuits the choice', async () => {
+        mocks.getBootstrap.mockReturnValue({ settings: { 'session.defaultAgent': 'claude' } });
+        mocks.primarySidebarVisible = false;
+
+        beginSessionCreation('project-1');
+        await mocks.tryCommand.mock.results[0]?.value;
+
+        expect(mocks.setPrimarySidebarVisible).not.toHaveBeenCalled();
+    });
+
+    it('closes the menu, records the chosen kind, and creates the Session', async () => {
+        chooseSessionTerminalKind('project-1', 'grok');
+        await mocks.tryCommand.mock.results[0]?.value;
+
+        expect(mocks.closeCreateSessionMenu).toHaveBeenCalled();
+        expect(mocks.recordTerminalKind).toHaveBeenCalledWith('grok');
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('session.create', {
+            projectId: 'project-1',
+            defaultAgent: 'grok',
+        });
+    });
+
+    /**
+     * "Start without a Terminal" names no Terminal the menu could lead with next time, so recording it would push a
+     * real preference down the list in exchange for an entry that can never be the most-used choice.
+     */
+    it('does not record a preference when the user starts without a Terminal', async () => {
+        chooseSessionTerminalKind('project-1', null);
+        await mocks.tryCommand.mock.results[0]?.value;
+
+        expect(mocks.recordTerminalKind).not.toHaveBeenCalled();
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('session.create', {
+            projectId: 'project-1',
+            defaultAgent: null,
+        });
+    });
+
+    it('records the kind chosen in the centered fallback dialog too, so both surfaces feed one order', async () => {
+        mocks.pendingProjectId = 'project-2';
+
+        confirmPendingSession('codex');
+        await mocks.tryCommand.mock.results[0]?.value;
+
+        expect(mocks.recordTerminalKind).toHaveBeenCalledWith('codex');
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('session.create', {
+            projectId: 'project-2',
+            defaultAgent: 'codex',
+        });
     });
 
     it('copies the Agent conversation id rather than the Caxri Session row id', async () => {

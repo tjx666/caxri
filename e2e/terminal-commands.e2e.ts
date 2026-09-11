@@ -8,6 +8,7 @@ import type { E2EApp } from './support/electron-app.ts';
 import type { Locator, Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
+    chooseTerminalFromCreateMenu,
     createAdditionalShellSession,
     createShellSession,
     launchCaxri,
@@ -524,10 +525,7 @@ test('unsupported shells and Agent Terminals remain usable without inferred boun
             .filter({ has: running.page.getByRole('button', { name: /^New Session in /u }) })
             .hover();
         await running.page.getByRole('button', { name: /^New Session in /u }).click();
-        await running.page
-            .getByRole('dialog')
-            .getByRole('button', { name: 'Codex', exact: true })
-            .click();
+        await chooseTerminalFromCreateMenu(running.page, 'Codex');
         await expect.poll(() => selectedSessionId(running.page)).not.toBe(shellSessionId);
         const agentTerminalId = await waitForNewTerminalId(running.page, [shellTerminalId]);
         const agentSurface = terminalSurface(running.page, agentTerminalId);

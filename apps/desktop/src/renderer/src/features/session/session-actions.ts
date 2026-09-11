@@ -12,6 +12,7 @@ import { copyFilePath } from '../../lib/copy-file-path';
 import { openExternalUrl } from '../../lib/external-link';
 import { caxriQueryKey, queryClient } from '../../queries/client';
 import { removeSessionQueries } from '../../queries/invalidation';
+import { useChromeLayoutStore } from '../../stores/chrome-layout';
 import { clearPendingSession, useDialogStore } from '../../stores/dialogs';
 import { getBootstrap, getSelectedSession, selectSelectedProject } from '../../stores/selectors';
 import { useSessionViewStore } from '../../stores/session-view';
@@ -26,6 +27,7 @@ import {
 } from './session-mru-switcher-state';
 import type { SessionNavigationDirection } from './session-navigation-history';
 import { useSessionNavigationHistoryStore } from './session-navigation-history';
+import { useTerminalKindRecencyStore } from './terminal-kind-recency';
 
 const mruNavigationState: { pendingSelection?: PendingSessionMruSelection } = {};
 
@@ -120,7 +122,13 @@ async function createProjectSession(
 }
 
 /**
- * Skips the Agent-choice dialog whenever the user configured a default Agent.
+ * Skips the Terminal choice whenever the user configured a default Agent. Otherwise it opens the Project row's anchored
+ * menu rather than a centered dialog: the trigger already sits under the pointer, so the choice should too.
+ *
+ * The menu lives inside the Primary Side Bar, so `session.create` from the native menu, a shortcut, or the command
+ * palette would otherwise mark a Project whose row is not mounted and do nothing visible. Revealing the bar first keeps
+ * the keyboard path leading to the same picker as the pointer path, the way `activateSecondarySidebarViewContainer`
+ * already reveals its panel before selecting a view.
  */
 export function beginSessionCreation(projectId: string): void {
     const defaultAgent = getBootstrap()?.settings['session.defaultAgent'];
@@ -128,7 +136,23 @@ export function beginSessionCreation(projectId: string): void {
         // Fire-and-forget: `createSession` funnels its own failures into a toast via `tryCommand`.
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void createSession(projectId, defaultAgent);
-    } else useDialogStore.getState().askAgentForProject(projectId);
+        return;
+    }
+    if (!useChromeLayoutStore.getState().primarySidebarVisible)
+        useChromeLayoutStore.getState().setPrimarySidebarVisible(true);
+    useDialogStore.getState().openCreateSessionMenu(projectId);
+}
+
+/**
+ * Commits the anchored Session-creation menu's choice. `null` is the deliberate "no Terminal" escape hatch and is not
+ * recorded as a preference, since it names no Terminal the menu could lead with next time.
+ */
+export function chooseSessionTerminalKind(projectId: string, kind: TerminalKind | null): void {
+    useDialogStore.getState().closeCreateSessionMenu();
+    if (kind) useTerminalKindRecencyStore.getState().recordTerminalKind(kind);
+    // Fire-and-forget: `createSession` funnels its own failures into a toast via `tryCommand`.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+    void createSession(projectId, kind);
 }
 
 export async function chooseProjectFolder(): Promise<void> {
@@ -416,6 +440,7 @@ export function cancelPendingSession(): void {
 
 export function confirmPendingSession(kind: TerminalKind | null): void {
     const { pendingRoot, pendingProjectId } = useDialogStore.getState();
+    if (kind) useTerminalKindRecencyStore.getState().recordTerminalKind(kind);
     // Fire-and-forget: both `createProjectSession` and `createSession` funnel their own failures
     // into a toast via `tryCommand`.
     if (pendingRoot) {
