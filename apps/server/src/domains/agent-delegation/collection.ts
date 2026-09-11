@@ -1,6 +1,10 @@
 import type { AgentTranscript } from '@caxri/protocol';
 
 import type { DelegationTranscriptBatch } from '../agents';
+/**
+ * Provider transcript extraction stays behind the agents domain's public API.
+ */
+// react-doctor-disable-next-line react-doctor/no-barrel-import
 import { delegationAdapter } from '../agents';
 import type { StoredAgentDelegation } from '../db';
 
