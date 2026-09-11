@@ -81,6 +81,13 @@ function sourceControlModes(selectedCommitSha?: string) {
     ] as const;
 }
 
+/**
+ * Names the uncommitted work a non-working mode is hiding, for both the button's accessible name and its tooltip.
+ */
+function uncommittedChangesLabel(count: number, repoName: string): string {
+    return `${count} uncommitted ${count === 1 ? 'change' : 'changes'} in ${repoName}`;
+}
+
 function fallbackRegisterAction(action: ActionRegistration): SourceControlAction {
     return { id: action.command.id, ...action };
 }
@@ -403,6 +410,23 @@ export function buildSourceControlViewModel({
     const hasEnabledExclusions = Object.entries(excludePatterns).some(
         ([pattern, enabled]) => enabled && pattern.trim() !== '',
     );
+    /**
+     * Repository-level `hasUnloadedExclusions` (below) decides whether one repository may discard everything; the
+     * header toggle is panel-wide, so it asks the same question across every repository at once. Any truncated
+     * repository can still be hiding excluded files in its unloaded tail even when every loaded path is visible.
+     */
+    const hasAnyUnloadedExclusions =
+        !isShowingExcluded &&
+        hasEnabledExclusions &&
+        summary.repositories.some((repo) => repo.truncated === true);
+    /**
+     * A configured pattern is not by itself something to reveal: matching nothing left `Show excluded files (0)` on the
+     * caption permanently, promising a change it could not make. The toggle appears only when it would actually change
+     * what the panel shows, or when it is the way back out of the shown state.
+     */
+    const hasActionableExclusions =
+        hasEnabledExclusions &&
+        (excludedCount > 0 || isShowingExcluded || hasAnyUnloadedExclusions);
     return {
         revision,
         title: 'Source Control',
@@ -415,7 +439,7 @@ export function buildSourceControlViewModel({
             icon: themeIcon('refresh'),
             label: mode === 'pull-request' ? 'Refresh Pull Request' : 'Refresh Git',
         }),
-        ...(hasEnabledExclusions && {
+        ...(hasActionableExclusions && {
             headerActions: [
                 registerAction({
                     command: { id: 'caxri.git.toggleExcludedFiles' },
@@ -448,6 +472,12 @@ export function buildSourceControlViewModel({
                 !isShowingExcluded && hasEnabledExclusions && repo.truncated === true;
             const isDiscardBlockedByExclusions = hiddenCount > 0 || hasUnloadedExclusions;
             const count = mode === 'working' ? repo.changedFileCount : files.length;
+            /**
+             * Commit and Pull Request mode replace the file list with that commit's or that pull request's files, so a
+             * repository holding uncommitted work looks exactly like a clean one — the user only finds out by switching
+             * modes. State the count on the repository row and make it the way back to it.
+             */
+            const uncommittedCount = mode === 'working' ? 0 : repo.changedFileCount;
             const description = pullRequest
                 ? `#${pullRequest.number} ${pullRequest.title}`
                 : details
@@ -465,7 +495,11 @@ export function buildSourceControlViewModel({
                   ? details
                       ? `Commit ${details.commit.shortSha}`
                       : 'Last Commit'
-                  : 'Changes';
+                  : // A repository with no pull request still sits in Pull Request mode. Leaving the heading at
+                    // `Changes` made its zero read as "the working tree is clean" instead of "no pull request here".
+                    mode === 'pull-request'
+                    ? 'Pull Request Changes'
+                    : 'Changes';
             const actions: SourceControlAction[] = [];
             const aggregateResource = aggregateEditorResource(
                 mode,
@@ -521,7 +555,14 @@ export function buildSourceControlViewModel({
                 countLabel:
                     mode === 'pull-request' && detailErrorsByRepo.has(repo.id)
                         ? ' · Unavailable'
-                        : `${mode === 'working' ? ` · ↑${repo.ahead} ↓${repo.behind}` : ''} · ${count}`,
+                        : `${mode === 'working' ? ` · ↑${repo.ahead} ↓${repo.behind}` : ''} · ${count}${uncommittedCount > 0 ? ` · ${uncommittedCount} uncommitted` : ''}`,
+                ...(uncommittedCount > 0 && {
+                    uncommittedNotice: {
+                        modeId: 'working',
+                        accessibilityLabel: uncommittedChangesLabel(uncommittedCount, repo.name),
+                        tooltip: `${uncommittedChangesLabel(uncommittedCount, repo.name)}. Show Working Tree Changes.`,
+                    },
+                }),
                 expandedByDefault: true,
                 actions:
                     mode === 'working'

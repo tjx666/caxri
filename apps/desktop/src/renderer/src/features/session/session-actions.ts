@@ -176,14 +176,60 @@ export async function didReorderSession(
     return true;
 }
 
-export function archiveSession(sessionId: string): void {
-    // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-    void tryCommand(
+/**
+ * Longest Session title the archive notice quotes. Titles are user- and Agent-authored and effectively unbounded, so a
+ * runaway one would push the notice's own verb and its Undo button out of the toast's fixed width.
+ */
+const ARCHIVED_SESSION_TITLE_MAX_LENGTH = 48;
+
+/**
+ * Copy for the notice that records an archive. An empty `displayTitle` is representable in the Session record — a
+ * Shell-only Session has no Agent to name it — and quoting nothing reads as a rendering bug, so that case names the
+ * noun instead of the title.
+ */
+export function describeArchivedSession(displayTitle: string | undefined): string {
+    const title = displayTitle?.trim() ?? '';
+    if (title.length === 0) return 'Archived Session';
+    // Count and cut by code point: an Agent-authored title can end on an emoji, and a UTF-16 cut would leave a lone
+    // surrogate that renders as the replacement character.
+    const characters = [...title];
+    if (characters.length <= ARCHIVED_SESSION_TITLE_MAX_LENGTH) return `Archived "${title}"`;
+    const head = characters.slice(0, ARCHIVED_SESSION_TITLE_MAX_LENGTH).join('').trimEnd();
+    return `Archived "${head}…"`;
+}
+
+/**
+ * Archiving deliberately skips a confirmation because it is reversible, but the Archived Sessions dialog it relies on
+ * is reachable only through the PrimarySidebar footer entry, which `Command+[` hides entirely — and the `Delete`
+ * keyboard path reports nothing at all on its own. The notice is therefore the state-change record for both the hover
+ * button and the keyboard shortcut, it carries the reversal inline so the escape hatch never depends on finding that
+ * dialog, and Sonner's live region gives the keyboard path its screen-reader announcement. It stays an ordinary
+ * four-second toast: `persist` is reserved for events that already cost the user something irreversible.
+ */
+async function archiveSessionWithNotice(sessionId: string): Promise<void> {
+    const archived = await tryCommand(
         'Session archive failed',
         () => caxri.request('session.archive', { sessionId }),
         { refresh: refreshWorkbench },
     );
+    if (!archived) return;
+    pushToast('info', describeArchivedSession(archived.displayTitle), {
+        action: {
+            label: 'Undo',
+            /**
+             * The notice outlives the row it describes: the Session can be deleted, or the window navigated elsewhere,
+             * inside those four seconds. `unarchiveSession` runs the request through `tryCommand`, so a stale Undo
+             * reports one error toast instead of throwing out of the toast's click handler.
+             */
+            onSelect: () => unarchiveSession(sessionId),
+        },
+    });
+}
+
+export function archiveSession(sessionId: string): void {
+    // Fire-and-forget: `archiveSessionWithNotice` funnels its own failures into a toast via `tryCommand`.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+    void archiveSessionWithNotice(sessionId);
 }
 
 export function archiveSelectedSession(): void {

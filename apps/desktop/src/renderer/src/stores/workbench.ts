@@ -28,6 +28,7 @@ import { openSettings } from './dialogs';
 import { recordNotification, syncNotificationSettings } from './notifications';
 import { mergeStructurally } from './structural-sharing';
 import { describeFailure, pushToast } from './toasts';
+import { reportWorkbenchRootChange } from './workbench-root-notice';
 
 interface WorkbenchState {
     /**
@@ -586,6 +587,16 @@ export function persistSessionState(
         );
 }
 
+/**
+ * Reads the root this Session is currently showing. Called synchronously while handling `workbench.changed` it still
+ * observes the pre-change snapshot, because the `state.changed` emitted alongside it only schedules a refresh.
+ */
+function currentWorkbenchProjectId(sessionId: string): string | undefined {
+    return useWorkbenchStore
+        .getState()
+        .bootstrap?.sessions.find((session) => session.id === sessionId)?.workbenchProjectId;
+}
+
 export interface WorkbenchEventHandlers {
     /**
      * Runs a command id pushed by the native menu, honouring the modal guard. `wasViaAccelerator` forwards whether the
@@ -689,16 +700,10 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                 return;
             case 'workbench.changed':
                 dismissWorkbenchRootCandidate(event.payload.sessionId);
-                if (event.payload.reason === 'fallback' && event.payload.returnedProjectTitle)
-                    pushToast(
-                        'info',
-                        `The active worktree is no longer available. Returned to ${event.payload.returnedProjectTitle}.`,
-                        {
-                            type: 'worktree-fallback',
-                            projectId: event.payload.workbenchProjectId,
-                            projectTitle: event.payload.returnedProjectTitle,
-                        },
-                    );
+                reportWorkbenchRootChange(
+                    event.payload,
+                    currentWorkbenchProjectId(event.payload.sessionId),
+                );
                 return;
             case 'window.fullScreen':
                 useWorkbenchStore.setState({ isFullScreen: event.payload.isFullScreen });

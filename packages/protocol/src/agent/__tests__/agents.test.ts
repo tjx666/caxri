@@ -12,6 +12,33 @@ describe('agentProviderCatalog capabilities', () => {
     });
 });
 
+describe('agentProviderCatalog autonomy arguments', () => {
+    it('names tokens the shipped launch arguments actually contain', () => {
+        for (const provider of agentProviderIds) {
+            const { autonomyArgs, defaultLaunchArgs } = agentProviderCatalog[provider];
+            expect(autonomyArgs.length).toBeGreaterThan(0);
+            for (const token of autonomyArgs) {
+                expect(defaultLaunchArgs).toContain(token);
+            }
+        }
+    });
+
+    it('keeps Grok Build confinement out of the approval bypass', () => {
+        expect(agentProviderCatalog.grok.autonomyArgs).toEqual(['--always-approve']);
+        expect(agentProviderCatalog.grok.autonomyArgs).not.toContain('--sandbox');
+        expect(agentProviderCatalog.grok.autonomyArgs).not.toContain('workspace');
+    });
+
+    it('scopes each bypass to the provider that owns it', () => {
+        expect(agentProviderCatalog.claude.autonomyArgs).toEqual([
+            '--dangerously-skip-permissions',
+        ]);
+        expect(agentProviderCatalog.codex.autonomyArgs).toEqual([
+            '--dangerously-bypass-approvals-and-sandbox',
+        ]);
+    });
+});
+
 describe('defaultAgentProviderSettings', () => {
     it('keeps unsupported Grok capabilities off and confines its managed process', () => {
         expect(defaultAgentProviderSettings.grok.messaging.enabled).toBe(false);

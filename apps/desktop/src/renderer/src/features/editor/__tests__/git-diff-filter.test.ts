@@ -1,7 +1,12 @@
-import type { GitFileStatus } from '@caxri/protocol';
+import type { GitDiffTab, GitFileStatus } from '@caxri/protocol';
+import { parseGitDiffTab } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { describeHiddenGitDiffFiles, filterGitDiffFiles } from '../git-diff-filter';
+import {
+    describeHiddenGitDiffFiles,
+    filterGitDiffFiles,
+    gitChangesDiffTabPathFor,
+} from '../git-diff-filter';
 
 const files: GitFileStatus[] = [
     { index: ' ', kind: 'modified', path: 'README.md', workingTree: 'M' },
@@ -38,5 +43,39 @@ describe('filterGitDiffFiles', () => {
         expect(describeHiddenGitDiffFiles(2_000, true, true)).toBe(
             'All 2,000 loaded changed files are hidden by Git diff exclusions.',
         );
+    });
+});
+
+describe('gitChangesDiffTabPathFor', () => {
+    const workingTab: Extract<GitDiffTab, { kind: 'changes' }> = {
+        kind: 'changes',
+        repositoryId: 'repo 1',
+        repositoryName: 'my project',
+        source: 'working',
+    };
+
+    it('round-trips the showing state through the aggregate tab resource path', () => {
+        expect(parseGitDiffTab(gitChangesDiffTabPathFor(workingTab, true))).toEqual({
+            ...workingTab,
+            showExcluded: true,
+        });
+        expect(parseGitDiffTab(gitChangesDiffTabPathFor(workingTab, false))).toEqual(workingTab);
+    });
+
+    it('keeps a pull request aggregate on its own resource family', () => {
+        const pullRequestTab = { ...workingTab, source: 'pull-request' as const };
+
+        expect(gitChangesDiffTabPathFor(pullRequestTab, true)).toContain('pr-changes/');
+        expect(parseGitDiffTab(gitChangesDiffTabPathFor(pullRequestTab, true))).toEqual({
+            ...pullRequestTab,
+            showExcluded: true,
+        });
+    });
+
+    it('reproduces the path a hiding tab already occupies so it can be replaced', () => {
+        const hidingPath = gitChangesDiffTabPathFor(workingTab, false);
+        const parsed = parseGitDiffTab(hidingPath) as Extract<GitDiffTab, { kind: 'changes' }>;
+
+        expect(gitChangesDiffTabPathFor(parsed, false)).toBe(hidingPath);
     });
 });

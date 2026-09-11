@@ -38,13 +38,15 @@ describe('GPU incident budget', () => {
     });
 
     it('emits one pinned transition with the tripping incident and a reset when the preference changes', () => {
+        const onPinned = vi.fn();
         const onTransition = vi.fn();
-        const budget = createGpuIncidentBudget({ onTransition, probeWebgl2: () => true });
+        const budget = createGpuIncidentBudget({ onPinned, onTransition, probeWebgl2: () => true });
         budget.applyPreference('on');
 
         budget.recordIncident('incident-1');
         budget.recordIncident('incident-2');
         expect(onTransition).not.toHaveBeenCalled();
+        expect(onPinned).not.toHaveBeenCalled();
         expect(budget.recordIncident('incident-3')).toBe(true);
         expect(onTransition).toHaveBeenCalledWith({
             transition: 'pinned',
@@ -55,9 +57,12 @@ describe('GPU incident budget', () => {
             threshold: GPU_INCIDENT_PIN_THRESHOLD,
             preference: 'on',
         });
+        // The notification layer hears the same record, and only for the pinned transition.
+        expect(onPinned).toHaveBeenCalledExactlyOnceWith(onTransition.mock.calls[0]?.[0]);
         // A later incident on an already pinned session is not a second transition.
         expect(budget.recordIncident('incident-4')).toBe(false);
         expect(onTransition).toHaveBeenCalledOnce();
+        expect(onPinned).toHaveBeenCalledOnce();
 
         budget.applyPreference('auto');
         // The reset record names the preference the session was pinned under, not the incoming one.
@@ -73,6 +78,8 @@ describe('GPU incident budget', () => {
         // Changing the preference of a session that never pinned is not a transition either.
         budget.applyPreference('on');
         expect(onTransition).toHaveBeenCalledTimes(2);
+        // A reset is not a user-facing event: only the pin costs the user GPU acceleration.
+        expect(onPinned).toHaveBeenCalledOnce();
     });
 
     it('reports the reset of a context-loss pin when auto leaves for on or off', () => {
@@ -126,9 +133,11 @@ describe('GPU incident budget', () => {
 
     it('pins auto after repeated context-loss episodes and counts one episode per GPU event', () => {
         let now = 0;
+        const onPinned = vi.fn();
         const onTransition = vi.fn();
         const budget = createGpuIncidentBudget({
             now: () => now,
+            onPinned,
             onTransition,
             probeWebgl2: () => true,
         });
@@ -155,8 +164,11 @@ describe('GPU incident budget', () => {
             threshold: GPU_INCIDENT_PIN_THRESHOLD,
             preference: 'auto',
         });
+        // A pin the user never sees reported is the gap this hook closes, whichever cause reached it.
+        expect(onPinned).toHaveBeenCalledExactlyOnceWith(onTransition.mock.calls[0]?.[0]);
         expect(budget.recordIncident('incident-1')).toBe(false);
         expect(onTransition).toHaveBeenCalledOnce();
+        expect(onPinned).toHaveBeenCalledOnce();
     });
 
     it('keeps on pinned only by Main-observed GPU incidents', () => {

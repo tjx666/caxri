@@ -44,6 +44,17 @@ function eventHandlers() {
     return { onCommand: vi.fn(), onDesktopOpen: vi.fn() };
 }
 
+/**
+ * Activates the Undo button of the newest toast the way the rendered notification does.
+ */
+function undoToast(): void {
+    const action = getToasts().at(-1)?.action;
+    if (typeof action !== 'object' || action === null || !('onClick' in action))
+        throw new Error('The notice offered no Undo action');
+    expect(action.label).toBe('Undo');
+    (action.onClick as unknown as () => void)();
+}
+
 afterEach(() => {
     mocks.request.mockClear();
     mocks.onEvent.mockClear();
@@ -512,6 +523,104 @@ describe('workbench Runtime events', () => {
             startLine: 12,
             endLine: 14,
         });
+        unsubscribe();
+    });
+
+    it('announces an Agent-driven Workbench Root switch and undoes it to the captured root', async () => {
+        useWorkbenchStore.setState({
+            bootstrap: {
+                configurationErrors: [],
+                sessions: [{ id: 'session-1', workbenchProjectId: 'project-owner' }],
+                sessionStates: [],
+                terminals: [],
+            } as unknown as BootstrapState,
+        });
+        const unsubscribe = subscribeWorkbenchEvents(eventHandlers());
+
+        mocks.emit({
+            event: 'workbench.changed',
+            payload: {
+                sessionId: 'session-1',
+                workbenchProjectId: 'project-worktree',
+                reason: 'followed',
+                followedProjectTitle: 'feature-entered',
+            },
+        });
+
+        expect(getToasts()).toEqual([
+            expect.objectContaining({
+                type: 'info',
+                title: 'Switched to worktree "feature-entered" — an Agent moved there.',
+                duration: 4_000,
+            }),
+        ]);
+        mocks.request.mockImplementation((method: unknown) =>
+            Promise.resolve(
+                method === 'app.bootstrap'
+                    ? { configurationErrors: [], sessions: [], sessionStates: [], terminals: [] }
+                    : {},
+            ),
+        );
+        undoToast();
+        await vi.waitFor(() =>
+            expect(mocks.request).toHaveBeenCalledWith('session.selectWorkbenchRoot', {
+                sessionId: 'session-1',
+                projectId: 'project-owner',
+            }),
+        );
+        unsubscribe();
+    });
+
+    it('reports a failed undo as one error toast instead of an unhandled rejection', async () => {
+        useWorkbenchStore.setState({
+            bootstrap: {
+                configurationErrors: [],
+                sessions: [{ id: 'session-1', workbenchProjectId: 'project-owner' }],
+                sessionStates: [],
+                terminals: [],
+            } as unknown as BootstrapState,
+        });
+        const unsubscribe = subscribeWorkbenchEvents(eventHandlers());
+        mocks.emit({
+            event: 'workbench.changed',
+            payload: {
+                sessionId: 'session-1',
+                workbenchProjectId: 'project-worktree',
+                reason: 'followed',
+                followedProjectTitle: 'feature-entered',
+            },
+        });
+        mocks.request.mockImplementation(() =>
+            Promise.reject(new Error('The worktree is no longer available.')),
+        );
+
+        undoToast();
+
+        await vi.waitFor(() =>
+            expect(getToasts()).toContainEqual(
+                expect.objectContaining({
+                    type: 'error',
+                    title: 'The worktree is no longer available.',
+                }),
+            ),
+        );
+        unsubscribe();
+    });
+
+    it('stays silent for a Workbench Root switch the user performed', () => {
+        const unsubscribe = subscribeWorkbenchEvents(eventHandlers());
+
+        for (const reason of ['selected', 'authorized'] as const)
+            mocks.emit({
+                event: 'workbench.changed',
+                payload: {
+                    sessionId: 'session-1',
+                    workbenchProjectId: 'project-worktree',
+                    reason,
+                },
+            });
+
+        expect(getToasts()).toEqual([]);
         unsubscribe();
     });
 

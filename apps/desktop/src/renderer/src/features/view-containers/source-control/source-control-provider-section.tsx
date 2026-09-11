@@ -30,6 +30,13 @@ function ProviderHeader({
     provider: ProviderModel;
 }) {
     const [runningActionId, setRunningActionId] = useState<string>();
+    /**
+     * The notice borrows the target mode's own icon and switch, so it can never drift from the mode switch it is a
+     * shortcut to. A notice naming a mode this provider does not offer renders nothing rather than a dead button.
+     */
+    const uncommittedMode = controller.model.modes.find(
+        (mode) => mode.id === provider.uncommittedNotice?.modeId,
+    );
     const run = async (action_: SourceControlAction): Promise<void> => {
         if (runningActionId) return;
         setRunningActionId(action_.id);
@@ -47,10 +54,16 @@ function ProviderHeader({
                 title={provider.tooltip}
                 onClick={() => controller.setProviderExpanded(provider.id, !expanded)}
             >
-                <span className="git-repository-identity flex shrink-0 items-center gap-1">
+                {/*
+                 * The identity shrinks and the name ellipsizes so the counts on the right survive a narrow panel:
+                 * a worktree-length repository name used to push the meta span to zero width, and the counts —
+                 * which are `shrink-0` — then overflowed leftward and printed on top of the name. The name is
+                 * recoverable from the row's path tooltip; the counts exist nowhere else on this row.
+                 */}
+                <span className="git-repository-identity flex min-w-0 items-center gap-1">
                     {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                     <SourceControlIcon icon={provider.icon} size={12} />
-                    <strong className="git-repository-name shrink-0 font-semibold whitespace-nowrap">
+                    <strong className="git-repository-name min-w-0 truncate font-semibold">
                         {provider.label}
                     </strong>
                     {provider.kindLabel && (
@@ -60,7 +73,7 @@ function ProviderHeader({
                     )}
                 </span>
                 <span
-                    className="git-repository-meta flex min-w-0 flex-1 items-center justify-end gap-1 text-[11px] text-muted"
+                    className="git-repository-meta flex min-w-0 flex-auto items-center justify-end gap-1 text-[11px] text-muted"
                     aria-label={provider.descriptionAccessibilityLabel}
                     title={provider.descriptionTooltip}
                 >
@@ -72,6 +85,19 @@ function ProviderHeader({
                     </span>
                 </span>
             </button>
+            {uncommittedMode && provider.uncommittedNotice && (
+                <Tooltip content={provider.uncommittedNotice.tooltip}>
+                    <Button
+                        className="git-uncommitted-notice mr-1 flex size-6 flex-none"
+                        size="icon"
+                        variant="ghost"
+                        aria-label={provider.uncommittedNotice.accessibilityLabel}
+                        onClick={() => controller.selectMode(uncommittedMode)}
+                    >
+                        <SourceControlIcon icon={uncommittedMode.icon} />
+                    </Button>
+                </Tooltip>
+            )}
             {provider.actions.map((action) => {
                 const isRunning = runningActionId === action.id;
                 return (

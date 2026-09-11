@@ -1,5 +1,5 @@
 import { mkdir } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
@@ -153,6 +153,30 @@ describe('WorkbenchRootService reported Agent working directory', () => {
         expect(context.database.getTerminal(context.sessions[0].terminal!.id)?.cwd).toBe(
             context.ownerRoot,
         );
+        /**
+         * The user never asked for this re-rooting, so it must be distinguishable from their own picker switch and must
+         * name where it landed. Reporting it as a plain `selected`/`authorized` change is what left the status bar's
+         * folder name as the only cue.
+         */
+        expect(
+            context.events.findLast((event) => event.event === 'workbench.changed'),
+        ).toMatchObject({
+            payload: {
+                reason: 'followed',
+                followedProjectTitle: basename(context.worktreeRoot),
+                sessionId: context.sessions[0].session.id,
+            },
+        });
+
+        // Undoing it is an ordinary user selection again, which the Renderer must not announce a second time.
+        await context.service.select(context.sessions[0].session.id, context.owner.id);
+
+        expect(
+            context.events.findLast((event) => event.event === 'workbench.changed'),
+        ).toMatchObject({ payload: { reason: 'selected' } });
+        expect(
+            context.events.findLast((event) => event.event === 'workbench.changed')?.payload,
+        ).not.toHaveProperty('followedProjectTitle');
         await context.service.close();
         context.database.close();
     });
@@ -285,6 +309,12 @@ describe('WorkbenchRootService reported Agent working directory', () => {
             ).toBe(authorized.id),
         );
         expect(context.events.filter((event) => event.event === 'workbench.candidate')).toEqual([]);
+        // Already authorized selects instead of registering, but the origin is still the Agent.
+        expect(
+            context.events.findLast((event) => event.event === 'workbench.changed'),
+        ).toMatchObject({
+            payload: { reason: 'followed', followedProjectTitle: authorized.displayTitle },
+        });
         await context.service.close();
         context.database.close();
     });

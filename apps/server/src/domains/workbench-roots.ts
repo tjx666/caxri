@@ -13,7 +13,6 @@ import { logEventCatalog } from '@caxri/system';
 
 import type { AgentLifecycleSignal, AgentSignalDecision } from './agents';
 import type { CaxriDatabase } from './db';
-import type { DomainHandlers } from './domain-services';
 import type { GitService, GitWorktreeTopology } from './git';
 import { SingleFlight } from './single-flight';
 import type { WorktreeProvenanceScope } from './workbench-provenance';
@@ -222,10 +221,12 @@ export class WorkbenchRootService {
 
     private publishChange(
         session: SessionRecord,
-        reason: 'selected' | 'authorized' | 'fallback',
+        reason: 'selected' | 'authorized' | 'followed' | 'fallback',
         fallbackReason?: string,
     ): void {
         const owner = this.requireProject(session.projectId);
+        const followed =
+            reason === 'followed' && this.options.database.getProject(session.workbenchProjectId);
         this.onRootChanged?.(session.id);
         this.options.emit({
             event: 'state.changed',
@@ -237,6 +238,7 @@ export class WorkbenchRootService {
                 sessionId: session.id,
                 workbenchProjectId: session.workbenchProjectId,
                 reason,
+                ...(followed && { followedProjectTitle: followed.displayTitle }),
                 ...(reason === 'fallback' && { returnedProjectTitle: owner.displayTitle }),
             },
         });
@@ -400,25 +402,30 @@ export class WorkbenchRootService {
             authorized ? 'selected' : 'authorized',
             identity,
             startedAt,
+            'agent',
         );
     }
 
+    /**
+     * `origin` is not a second spelling of `reason`; see `workbench.changed` in `@caxri/protocol` for why.
+     */
     private commitSelection(
         sessionId: string,
         projectId: string,
         reason: 'selected' | 'authorized',
         identity: { device: string; inode: string } | undefined,
         startedAt: number,
+        origin: 'user' | 'agent',
     ): SessionRecord {
         const selected = this.options.database.selectWorkbenchProject(
             sessionId,
             projectId,
             identity,
         );
-        this.publishChange(selected, reason);
+        this.publishChange(selected, origin === 'agent' ? 'followed' : reason);
         this.options.logger.write('info', workbenchRootLogEvents.selected, {
             durationMs: performance.now() - startedAt,
-            fields: { reason, sessionId, projectId, policy: this.options.behavior() },
+            fields: { reason, origin, sessionId, projectId, policy: this.options.behavior() },
         });
         return selected;
     }
@@ -517,6 +524,9 @@ export class WorkbenchRootService {
         return options.toSorted((left, right) => Number(right.owner) - Number(left.owner));
     }
 
+    /**
+     * Every caller is an explicit picker, candidate-prompt, or confirmed Main request, so the origin is the user.
+     */
     async select(
         sessionId: string,
         projectId: string,
@@ -539,7 +549,7 @@ export class WorkbenchRootService {
         }
         if (!isStillAuthorized())
             throw new CaxriError('UNAVAILABLE', 'Workbench selection authority expired');
-        return this.commitSelection(sessionId, projectId, reason, identity, startedAt);
+        return this.commitSelection(sessionId, projectId, reason, identity, startedAt, 'user');
     }
 
     /**
@@ -656,6 +666,7 @@ export class WorkbenchRootService {
             'authorized',
             project.id === owner.id ? undefined : identity,
             startedAt,
+            'user',
         );
     }
 
@@ -727,55 +738,4 @@ export class WorkbenchRootService {
         this.observedAgentCwds.clear();
         await this.queue;
     }
-}
-
-type WorkbenchRootHandlers = Pick<
-    DomainHandlers,
-    | 'session.authorizeWorkbenchRoot'
-    | 'session.continueInWorktree'
-    | 'session.dismissWorkbenchCandidate'
-    | 'session.selectWorkbenchRoot'
-    | 'session.validateWorkbenchRoots'
-    | 'session.workbenchCandidate.authorize'
-    | 'session.workbenchCandidate.cancel'
-    | 'session.workbenchCandidate.claim'
-    | 'session.workbenchRoot.authorizeSelection'
-    | 'session.workbenchRoot.resolve'
-    | 'session.workbenchRoots'
->;
-
-/**
- * Keeps the Workbench Root protocol surface beside its state machine instead of in bootstrap.
- */
-export function createWorkbenchRootHandlers(
-    service: WorkbenchRootService,
-    mainOwned: (method: 'session.authorizeWorkbenchRoot' | 'session.continueInWorktree') => never,
-): WorkbenchRootHandlers {
-    return {
-        'session.authorizeWorkbenchRoot': () => mainOwned('session.authorizeWorkbenchRoot'),
-        'session.workbenchRoot.resolve': ({ sessionId, worktreeId }) =>
-            service.resolveWorktree(sessionId, worktreeId),
-        'session.continueInWorktree': () => mainOwned('session.continueInWorktree'),
-        'session.workbenchRoots': ({ sessionId }) => service.listOptions(sessionId),
-        'session.selectWorkbenchRoot': ({ sessionId, projectId }) =>
-            service.select(sessionId, projectId),
-        'session.dismissWorkbenchCandidate': ({ sessionId, candidateId }) => {
-            service.dismissCandidate(sessionId, candidateId);
-            return null;
-        },
-        'session.workbenchCandidate.claim': ({ sessionId, candidateId }) =>
-            service.claimCandidate(sessionId, candidateId),
-        'session.workbenchCandidate.authorize': ({ sessionId, candidateId, rootPath }) =>
-            service.authorizeCandidate(sessionId, candidateId, rootPath),
-        'session.workbenchCandidate.cancel': ({ sessionId, candidateId }) => {
-            service.cancelCandidate(sessionId, candidateId);
-            return null;
-        },
-        'session.workbenchRoot.authorizeSelection': ({ sessionId, rootPath, worktreeId }) =>
-            service.authorizeSelection(sessionId, rootPath, worktreeId),
-        'session.validateWorkbenchRoots': async ({ sessionId }) => {
-            await service.validate(sessionId);
-            return null;
-        },
-    };
 }

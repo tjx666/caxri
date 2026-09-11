@@ -29,6 +29,7 @@ import { FilesExcludeEditor } from './files-exclude-editor';
 import { IgnoredChecksForm } from './ignored-checks-form';
 import { IntegerControl } from './integer-control';
 import { MobileAccessForm } from './mobile-access-form';
+import { hasProviderAutonomy, withProviderAutonomy } from './provider-autonomy';
 import { hookHealthLabel } from './provider-health';
 import { ProviderRecoveryEditor } from './provider-recovery-editor';
 import { ProviderSkillHealth } from './provider-skill-health';
@@ -271,6 +272,36 @@ function rowControl(properties: SettingRowProperties): {
                                 'agents.providers',
                                 withProviderField(settings, binding.provider, {
                                     [binding.field]: { enabled: checked },
+                                }),
+                            )
+                        }
+                    />
+                ),
+            };
+        }
+        case 'provider-autonomy': {
+            const providerName = agentProviderCatalog[binding.provider].displayName;
+            const launch = settings['agents.providers'][binding.provider].launch;
+            return {
+                labelFor: controlId,
+                control: (
+                    <Switch
+                        id={controlId}
+                        aria-label={`Let ${providerName} act without asking each time`}
+                        checked={hasProviderAutonomy(launch.args, binding.provider)}
+                        className="mt-0.5"
+                        onCheckedChange={(checked) =>
+                            onFieldChange(
+                                'agents.providers',
+                                withProviderField(settings, binding.provider, {
+                                    launch: {
+                                        ...launch,
+                                        args: withProviderAutonomy(
+                                            launch.args,
+                                            binding.provider,
+                                            checked,
+                                        ),
+                                    },
                                 }),
                             )
                         }

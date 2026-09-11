@@ -117,7 +117,10 @@ process.exit(result.status ?? 1);
         const files = running.page.locator('.git-files');
         await expect(files.locator('.git-row[title="working-only.txt"]')).toBeVisible();
 
-        await running.page.getByRole('button', { name: 'Pull Request Changes' }).click();
+        // Scope every mode switch to its own toolbar: the repository group heading is also named
+        // `Pull Request Changes` in that mode, so an unscoped role lookup matches two buttons.
+        const modeSwitch = running.page.locator('.git-mode-switch');
+        await modeSwitch.getByRole('button', { name: 'Pull Request Changes' }).click();
         await expect(running.page.getByText('PR #42 Changes', { exact: true })).toBeVisible();
         await expect(files.locator('.git-row[title="pr-only.txt"]')).toBeVisible();
         await expect(
@@ -150,17 +153,13 @@ process.exit(result.status ?? 1);
                 },
             });
         });
-        await running.page
-            .getByRole('button', { name: 'Working Tree Changes', exact: true })
-            .click();
+        await modeSwitch.getByRole('button', { name: 'Working Tree Changes', exact: true }).click();
         await expect(files.locator('.git-row[title="working-only.txt"]')).toBeVisible();
-        await running.page
-            .getByRole('button', { name: 'Pull Request Changes', exact: true })
-            .click();
+        await modeSwitch.getByRole('button', { name: 'Pull Request Changes', exact: true }).click();
         await expect(running.page.getByText('PR #42 Changes', { exact: true })).toBeVisible();
         await expect(files.locator('.git-row[title="pr-only.txt"]')).toBeVisible();
         await expect(
-            running.page.getByRole('button', { name: 'Pull Request Changes', exact: true }),
+            modeSwitch.getByRole('button', { name: 'Pull Request Changes', exact: true }),
         ).toBeEnabled();
         expect(
             await running.page.evaluate(() =>
