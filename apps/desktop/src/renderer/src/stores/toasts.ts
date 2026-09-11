@@ -176,13 +176,18 @@ export function dismissToast(id?: number | string): void {
 }
 
 /**
- * Renders any rejection as one sentence. `CaxriError` messages are already user-facing, so the code is only consulted
- * for the classifications whose message alone does not explain what to do next.
+ * Renders any rejection as one sentence. `CaxriError` messages are already user-facing, so the reported reason is
+ * always the Server's own. `UNAVAILABLE` and `TIMEOUT` additionally keep the caller's label, because "Codex could not
+ * rename the Agent session" does not by itself say which action the user just attempted; the generic sentences below
+ * are only for the rare error that carries no message at all. Replacing a specific reason with "Caxri is not ready
+ * yet." used to mislabel every provider-side failure as an app-startup problem.
  */
 export function describeFailure(error: unknown, label: string): string {
     if (isCaxriError(error)) {
-        if (error.code === 'UNAVAILABLE') return `${label}: Caxri is not ready yet.`;
-        if (error.code === 'TIMEOUT') return `${label}: Caxri did not respond in time.`;
+        if (error.code === 'UNAVAILABLE')
+            return `${label}: ${error.message || 'Caxri is not ready yet.'}`;
+        if (error.code === 'TIMEOUT')
+            return `${label}: ${error.message || 'Caxri did not respond in time.'}`;
         return error.message;
     }
     return errorMessage(error, label);

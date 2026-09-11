@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type * as ExecutablesModule from '../../../../executables';
 
 const mocks = vi.hoisted(() => ({
+    loginPath: '/login/bin',
     runExternalCommand: vi.fn<typeof ExecutablesModule.runExternalCommand>(),
 }));
 
@@ -22,7 +23,14 @@ vi.mock('../../../../executables', async (importOriginal) => {
         mocks.runExternalCommand.getMockImplementation()
             ? mocks.runExternalCommand(name, arguments_, options, dependencies)
             : actual.runExternalCommand(name, arguments_, options, dependencies);
-    return { ...actual, runExternalCommand };
+    /**
+     * The real implementation reads the login shell's PATH, which is whatever machine runs the suite. Stubbing it keeps
+     * the assertion about what this test owns: the Agent's own variables survive, and PATH comes from the login shell
+     * rather than from the caller.
+     */
+    const serverProcessEnvironment: typeof actual.serverProcessEnvironment = (variables = {}) =>
+        Promise.resolve({ ...variables, PATH: mocks.loginPath });
+    return { ...actual, runExternalCommand, serverProcessEnvironment };
 });
 
 import type { AgentProviderSessionRenameContext } from '../../../contract';
@@ -174,7 +182,9 @@ process.stdin.on('end', () => {
         expect(options.env).toMatchObject({
             CLAUDE_CONFIG_DIR: '/tmp/claude-test-config',
             HOME: '/Users/tester',
-            PATH: '/opt/claude/bin:/usr/bin',
+            // The caller's own `/opt/claude/bin:/usr/bin` is deliberately overridden: a GUI-launched Server only has
+            // launchd's PATH, which cannot start a CLI shim that `exec node`.
+            PATH: mocks.loginPath,
         });
         expect(dependencies).toBeUndefined();
     });
