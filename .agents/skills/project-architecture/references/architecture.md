@@ -286,7 +286,10 @@ Server fallback selection share the sidebar comparator; actual activity history 
 A successfully parsed Workbench Root snapshot is also checked against the Session's current durable
 Terminal ownership. Historical tabs for deleted Terminals are pruned on first read and that Root is
 rewritten immediately, while sibling Root snapshots, extension Tree View state, and editor-remap
-identity remain intact.
+identity remain intact. A first visit also persists its generated Root layout before subsequent
+bootstrap reads can replace pane and tab identities. Renderer pane portals preserve a surviving
+visible Terminal across Root layouts and split placement without retaining hidden tab contents;
+see [view placement](../../../../docs/adr/0002-unified-pane-layout.md#view-placement).
 
 Snapshots retain at most 2,000 lines and 2 MiB per Terminal. Each live PTY owns a Terminal Host-side
 headless xterm screen whose ordered write and resize queue preserves cursor-addressed state. A live

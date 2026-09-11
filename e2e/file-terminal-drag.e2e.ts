@@ -85,6 +85,11 @@ test('Editor tabs paste paths at Terminal edges by default and Option restores s
             await running.page.keyboard.up('Alt');
         }
         await expect(running.page.locator('.workbench-pane')).toHaveCount(2);
+        /**
+         * Pane mounts outlive the split that created them for a frame, so the page briefly holds both the retiring and
+         * the relocated Editor tab. Await the single surviving tab before filtering panes by it.
+         */
+        await expect(editorTab).toHaveCount(1);
         // Terminal drags still use pane placement without a modifier.
         const editorSurface = running.page
             .locator('.workbench-pane')
