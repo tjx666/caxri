@@ -83,6 +83,16 @@ describe('stageAgentHookBridge', () => {
                         },
                     },
                 );
+                /**
+                 * The bridge stops reading as soon as the payload passes its limit (`bridge.ts` truncates and finishes,
+                 * then pauses stdin), so an oversized payload leaves this write unfinished when the child exits. The
+                 * resulting `EPIPE` is the expected shape of overflow rather than a failure, but Node surfaces an
+                 * unhandled stream error as an uncaught exception, which fails the whole run even though every
+                 * assertion passed.
+                 */
+                invocation.child.stdin?.on('error', (cause: NodeJS.ErrnoException) => {
+                    if (cause.code !== 'EPIPE') throw cause;
+                });
                 invocation.child.stdin?.end(
                     JSON.stringify({
                         session_id: 'fixture-session',
