@@ -12,19 +12,44 @@ import type { MessageBoxOptions } from 'electron';
 /**
  * Buttons are indexed, so the mapping back to a decision belongs next to the copy that defines it.
  */
-export type ExternalLinkChoice = 'open_once' | 'trust' | 'cancel';
+export type ExternalLinkChoice = 'open_once' | 'trust' | 'trust_parent' | 'cancel';
 
-export function externalLinkPrompt(target: URL, canTrust: boolean): MessageBoxOptions {
-    /**
-     * The full URL — not just the host — is what makes consent meaningful: a plausible host can still carry a hostile
-     * path or query, and this dialog is the last point where the user can see it.
-     */
-    const detail = canTrust
-        ? `${target.href}\n\nYou can open this link once or trust this exact origin for future links. Trusted origins can be reviewed or removed in Settings.`
-        : `${target.href}\n\nYou can open this link once.`;
-    const buttons = canTrust
-        ? ['Open Once', 'Trust Domain and Open', 'Cancel']
-        : ['Open Once', 'Cancel'];
+/**
+ * A second trust button makes the generic label ambiguous — "Trust Domain" no longer says which domain — so the
+ * exact-origin button names its host once there is something to confuse it with. With no parent candidate the wording,
+ * the count, and the indices stay exactly as they were.
+ */
+function externalLinkButtons(target: URL, canTrust: boolean, parentHostname?: string): string[] {
+    if (!canTrust) return ['Open Once', 'Cancel'];
+    if (!parentHostname) return ['Open Once', 'Trust Domain and Open', 'Cancel'];
+    return [
+        'Open Once',
+        `Trust ${target.host} and Open`,
+        `Trust *.${parentHostname} and Open`,
+        'Cancel',
+    ];
+}
+
+/**
+ * The full URL — not just the host — is what makes consent meaningful: a plausible host can still carry a hostile path
+ * or query, and this dialog is the last point where the user can see it. When a wildcard rule is on offer the detail
+ * also has to say how much wider it is, because nothing in `venice.ai` distinguishes a domain one party owns from a
+ * hosting domain anyone can publish under.
+ */
+function externalLinkDetail(target: URL, canTrust: boolean, parentHostname?: string): string {
+    if (!canTrust) return `${target.href}\n\nYou can open this link once.`;
+    if (!parentHostname)
+        return `${target.href}\n\nYou can open this link once or trust this exact origin for future links. Trusted origins can be reviewed or removed in Settings.`;
+    return `${target.href}\n\nTrusting ${target.host} covers that host alone. Trusting *.${parentHostname} covers every subdomain of ${parentHostname}, including ones you have never visited — on a shared hosting domain that means sites other people control. Both rules can be reviewed or removed in Settings.`;
+}
+
+export function externalLinkPrompt(
+    target: URL,
+    canTrust: boolean,
+    parentHostname?: string,
+): MessageBoxOptions {
+    const detail = externalLinkDetail(target, canTrust, parentHostname);
+    const buttons = externalLinkButtons(target, canTrust, parentHostname);
     return {
         type: 'question',
         title: 'Open External Link',
@@ -36,9 +61,19 @@ export function externalLinkPrompt(target: URL, canTrust: boolean): MessageBoxOp
     };
 }
 
-export function externalLinkChoice(response: number, canTrust: boolean): ExternalLinkChoice {
+export function externalLinkChoice(
+    response: number,
+    canTrust: boolean,
+    hasParentOption = false,
+): ExternalLinkChoice {
     if (response === 0) return 'open_once';
-    return canTrust && response === 1 ? 'trust' : 'cancel';
+    if (!canTrust) return 'cancel';
+    if (response === 1) return 'trust';
+    /**
+     * Index 2 is the wildcard button only when that button was rendered; in the three-button shape it is Cancel and
+     * must never be read as a request to trust a whole domain.
+     */
+    return hasParentOption && response === 2 ? 'trust_parent' : 'cancel';
 }
 
 export function trashPrompt(item: {
