@@ -19,7 +19,7 @@ import { monaco } from '../../lib/monaco';
 import { useCaxriQuery, useToastOnQueryError } from '../../queries/client';
 import { useSelectedSession, useTheme } from '../../stores/selectors';
 import { describeFailure } from '../../stores/toasts';
-import { openFile } from './document-actions';
+import { closeResolvedGitDiff, openFile } from './document-actions';
 import { resolveRegisteredEditorLanguage } from './editor-language';
 import { GitChangesDiffList } from './git-changes-diff-list';
 import { registerDiffEditorActions } from './git-diff-actions';
@@ -267,7 +267,7 @@ function FileDiffResult({
     sessionId,
     tab,
 }: {
-    document?: GitDiffDocument;
+    document?: GitDiffDocument | null;
     editorInstanceId: string;
     error: Error | null;
     isError: boolean;
@@ -276,7 +276,7 @@ function FileDiffResult({
     tab: Extract<GitDiffTab, { kind: 'commit-file' | 'file' }>;
 }) {
     useToastOnQueryError(isError, error, 'Unable to open Git diff');
-    if (!sessionId) return null;
+    if (!sessionId || document === null) return null;
     if (isError)
         return (
             <div className={emptyWorkClassName}>
@@ -308,16 +308,42 @@ function WorkingFileDiffEditor({
     navigationKey: string;
     tab: Extract<GitDiffTab, { kind: 'file' }>;
 }) {
-    const sessionId = useSelectedSession()?.id;
+    const session = useSelectedSession();
+    const sessionId = session?.id;
+    const workbenchProjectId = session?.workbenchProjectId;
     const {
         data: document,
+        isFetchedAfterMount,
+        isFetching,
         isError,
         error,
     } = useCaxriQuery(
         'git.diffDocument',
         { sessionId: sessionId ?? '', repositoryId: tab.repositoryId, path: tab.path },
-        { enabled: Boolean(sessionId) },
+        { enabled: Boolean(sessionId), refetchOnMount: 'always' },
     );
+    useEffect(() => {
+        /**
+         * A reopened file may have new changes while its cached diff still says it was resolved.
+         */
+        if (
+            document === null &&
+            isFetchedAfterMount &&
+            !isFetching &&
+            !isError &&
+            sessionId &&
+            workbenchProjectId
+        )
+            closeResolvedGitDiff(sessionId, workbenchProjectId, navigationKey);
+    }, [
+        document,
+        isFetchedAfterMount,
+        isFetching,
+        isError,
+        sessionId,
+        workbenchProjectId,
+        navigationKey,
+    ]);
     return (
         <FileDiffResult
             document={document}
@@ -412,7 +438,7 @@ function GitChangesDiffResult({
     source,
 }: {
     contentHeight?: number;
-    document?: GitDiffDocument;
+    document?: GitDiffDocument | null;
     error: Error | null;
     isError: boolean;
     onContentHeightChange?: (height: number) => void;
@@ -421,6 +447,7 @@ function GitChangesDiffResult({
     source: GitDiffTab['source'];
 }) {
     useToastOnQueryError(isError, error, 'Unable to open Git diff');
+    if (document === null) return null;
     if (isError)
         return (
             <div className={gitMultiDiffErrorClassName}>

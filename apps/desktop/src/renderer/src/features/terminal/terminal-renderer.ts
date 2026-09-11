@@ -27,6 +27,7 @@ export type TerminalRendererTrigger =
     | 'dispose'
     | 'gpu-incident-limit'
     | 'gpu-process-recovery'
+    | 'manual-retry'
     | 'preference-change'
     | 'visibility-restore'
     | 'webgl-context-loss'
@@ -89,6 +90,10 @@ export interface TerminalWebglSessionPolicy {
      * Main-visible GPU process exit.
      */
     recordContextLoss(): void;
+    /**
+     * Clears the session incident budget only after an explicit user retry.
+     */
+    resetForManualRetry(): void;
 }
 
 export interface TerminalRendererControllerOptions {
@@ -458,6 +463,31 @@ export class TerminalRendererController {
             return;
         }
         this.activateWebgl('preference-change', 'webgl-load-failed');
+    }
+
+    /**
+     * One explicit attempt, without touching settings or the PTY. Cancel any pending automatic sequence first; failure
+     * stays on DOM until another user action, while later context losses retain the normal retry limits.
+     */
+    retryFromUser(): boolean {
+        if (this.disposed || this.preference === undefined || this.preference === 'off')
+            return false;
+        if (this.webgl) return true;
+        this.cancelRetry();
+        this.retryAttemptTimestamps.length = 0;
+        this.policy.resetForManualRetry();
+        this.retrySequenceId = this.createRetrySequenceId();
+        this.retryAttemptTimestamps.push(this.now());
+        this.retryState = 'trying';
+        this.publish(this.status?.reason ?? 'load-failed', 'manual-retry');
+        if (
+            this.policy.isWebgl2Available() &&
+            this.activateWebgl('webgl-retry-succeeded', 'webgl-retry-failed')
+        )
+            return true;
+        this.retryReason = 'load-failed';
+        this.publishRetryExhausted();
+        return false;
     }
 
     /**

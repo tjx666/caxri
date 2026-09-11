@@ -49,7 +49,9 @@ Review observable states against Caxri's workbench behavior and `DESIGN.md`, not
 ## Rule sources
 
 - `DESIGN.md`
-- `.agents/skills/project-architecture/references/architecture.md` product behavior sections
+- `.agents/skills/project-architecture/references/product-model.md`
+- `.agents/skills/project-architecture/references/editor-and-search.md`
+- `.agents/skills/project-architecture/references/settings-and-themes.md`
 - Existing focused Playwright workflows in `e2e/`
 
 ## Not violations

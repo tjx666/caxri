@@ -49,7 +49,9 @@ nearest same-kind implementation before accepting a new route or helper.
 ## Rule sources
 
 - `.agents/skills/project-architecture/SKILL.md`
-- `.agents/skills/project-architecture/references/architecture.md`
+- `.agents/skills/project-architecture/references/process-model.md`
+- `.agents/skills/project-architecture/references/packages.md`
+- `.agents/skills/project-architecture/references/ipc.md`
 - `packages/protocol/src` and the nearest owning domain
   re-exports only)
 

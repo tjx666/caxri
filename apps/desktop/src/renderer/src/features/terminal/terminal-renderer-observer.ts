@@ -6,6 +6,7 @@ import { createTerminalRendererDiagnostic } from './terminal-renderer-diagnostic
 import {
     clearTerminalRendererStatus,
     publishTerminalRendererStatus,
+    registerTerminalRendererRetry,
 } from './terminal-renderer-status';
 import { terminalVisibilityRestoreScheduler } from './terminal-visibility-restore';
 
@@ -19,6 +20,7 @@ interface TerminalRendererObserverState {
 interface TerminalRendererObserverOptions {
     container: HTMLElement;
     current(): TerminalRendererObserverState;
+    retry(this: void): boolean;
     terminalId: string;
 }
 
@@ -30,9 +32,11 @@ export function createTerminalRendererObserver(options: TerminalRendererObserver
     let correlationId: string | undefined;
     let droppedBytes = 0;
     let receivedBytes = 0;
+    const unregisterRetry = registerTerminalRendererRetry(options.terminalId, options.retry);
 
     return {
         dispose(): void {
+            unregisterRetry();
             clearTerminalRendererStatus(options.terminalId);
             gpuRecoveryNotificationCoordinator.disposeTerminal(options.terminalId);
         },

@@ -21,6 +21,7 @@ vi.mock('../../../lib/caxri', () => ({
 vi.mock('../../../stores/toasts', () => ({ tryCommand: mocks.tryCommand }));
 
 import { confirmTerminalRendererSwitch } from '../terminal-renderer-actions';
+import { registerTerminalRendererRetry } from '../terminal-renderer-status';
 
 const action = {
     confirmLabel: 'Turn On',
@@ -36,6 +37,44 @@ beforeEach(() => {
 });
 
 describe('confirmTerminalRendererSwitch', () => {
+    const retryAction = {
+        confirmLabel: 'Retry GPU',
+        message: 'Retry this Terminal.',
+        title: 'Retry GPU rendering?',
+    };
+
+    it('retries the current renderer only after confirmation without writing settings', async () => {
+        const retry = vi.fn(() => true);
+        const unregister = registerTerminalRendererRetry('t1', retry);
+        mocks.showConfirm.mockResolvedValueOnce(false);
+        await confirmTerminalRendererSwitch(retryAction, 't1');
+        expect(retry).not.toHaveBeenCalled();
+        mocks.showConfirm.mockResolvedValueOnce(true);
+        await confirmTerminalRendererSwitch(retryAction, 't1');
+        expect(retry).toHaveBeenCalledTimes(1);
+        expect(mocks.caxriRequest).not.toHaveBeenCalled();
+        unregister();
+    });
+
+    it('ignores confirmation for a replaced pane and reports a failed retry', async () => {
+        const retry = vi.fn(() => false);
+        const unregister = registerTerminalRendererRetry('t1', retry);
+        mocks.showConfirm.mockImplementationOnce(() => {
+            unregister();
+            return Promise.resolve(true);
+        });
+        await confirmTerminalRendererSwitch(retryAction, 't1');
+        expect(retry).not.toHaveBeenCalled();
+        const remove = registerTerminalRendererRetry('t1', retry);
+        mocks.showConfirm.mockResolvedValueOnce(true);
+        await confirmTerminalRendererSwitch(retryAction, 't1');
+        expect(retry).toHaveBeenCalledTimes(1);
+        expect(mocks.tryCommand).toHaveBeenLastCalledWith(
+            'Unable to restore GPU rendering',
+            expect.any(Function),
+        );
+        remove();
+    });
     it('asks the question the chip advertised before writing anything', async () => {
         await confirmTerminalRendererSwitch(action);
 

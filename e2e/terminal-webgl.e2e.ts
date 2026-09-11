@@ -626,7 +626,7 @@ test('repeated context losses preserve user choice and explicit GPU Safe Mode pe
     }
 });
 
-test('repeated GPU incidents pin the session to DOM until the preference changes', async () => {
+test('repeated GPU incidents pin the session to DOM until an explicit retry', async () => {
     allowE2EErrors([
         { source: 'desktop', event: 'gpu.process_gone', code: 'GPU_PROCESS_GONE', count: 3 },
     ]);
@@ -674,7 +674,7 @@ test('repeated GPU incidents pin the session to DOM until the preference changes
         const rendererChip = running.page.locator('.statusbar-terminal-renderer');
         await expect(rendererChip).toHaveAttribute(
             'aria-label',
-            'Terminal renderer: DOM. WebGL was lost repeatedly (GPU process exits or context losses); it stays off until GPU acceleration is changed in Settings or Caxri restarts.',
+            'Retry GPU rendering? — Terminal renderer: DOM. WebGL was lost repeatedly. Automatic recovery is paused; click to retry GPU rendering.',
         );
         await typeTerminal(running.page, String.raw`printf 'PINNED_DOM_STILL_LIVE\n'`);
         await expect(pane.locator('.xterm-rows')).toContainText('PINNED_DOM_STILL_LIVE');
@@ -715,10 +715,30 @@ test('repeated GPU incidents pin the session to DOM until the preference changes
         );
         await expect(secondSurface).toHaveAttribute('data-terminal-webgl-context-losses', '0');
 
-        // Changing the preference is the user's request to try again and clears the session budget.
-        await applyGpuPreference(running.page, 'Auto');
+        // Cancellation preserves the pin; confirmation retries the mounted pane without changing settings or PTYs.
+        await rendererChip.click();
+        const confirmation = running.page.locator('.confirmation-dialog');
+        await expect(confirmation).toContainText('Retry GPU rendering?');
+        await running.page.keyboard.press('Escape');
+        await expect(confirmation).toHaveCount(0);
+        await expect(secondSurface).toHaveAttribute(
+            'data-terminal-renderer-reason',
+            'context-loss-limit',
+        );
+        await rendererChip.click();
+        await confirmation.getByRole('button', { name: 'Retry GPU', exact: true }).click();
         await expect(secondSurface).toHaveAttribute('data-terminal-renderer', 'webgl');
         await expect(secondSurface).toHaveAttribute('data-terminal-renderer-reason', 'active');
+        await expect(rendererChip).toHaveCount(0);
+        await expect(running.page.locator('.terminal-pane')).toHaveAttribute(
+            'data-terminal-id',
+            secondTerminalId,
+        );
+        const settings = await pageRequest<{ value: { 'terminal.gpuAcceleration': string } }>(
+            running.page,
+            'settings.get',
+        );
+        expect(settings.value['terminal.gpuAcceleration']).toBe('on');
 
         const desktopRecords = await readStructuredLog(join(userData, 'logs', 'desktop.jsonl'));
         const limitRecords = desktopRecords.filter(
@@ -731,7 +751,7 @@ test('repeated GPU incidents pin the session to DOM until the preference changes
             true,
         );
 
-        // The third incident pins the session once, with that incident's correlation; the preference change resets it.
+        // The third incident pins once, and the explicit retry records a separate reset cause.
         const incidentIds = desktopRecords
             .filter((record) => record.event === 'gpu.process_gone')
             .map((record) => record.correlationId);
@@ -747,7 +767,7 @@ test('repeated GPU incidents pin the session to DOM until the preference changes
             ]),
         ).toEqual([
             ['pinned', 'gpu-incident', 3],
-            ['reset', 'preference-change', 3],
+            ['reset', 'manual-retry', 3],
         ]);
         expect(budgetRecords[0]?.correlationId).toBe(incidentIds[2]);
 

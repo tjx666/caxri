@@ -28,6 +28,7 @@ export const terminalRendererDiagnosticSchema = z.strictObject({
         'gpu-incident-limit',
         'gpu-process-recovery',
         'preference-change',
+        'manual-retry',
         'visibility-restore',
         'webgl-context-loss',
         'webgl-load-failed',
@@ -83,7 +84,7 @@ export const gpuIncidentBudgetDiagnosticSchema = z.strictObject({
     kind: z.literal('gpu-incident-budget'),
     diagnosticId: z.uuid(),
     transition: z.enum(['pinned', 'reset']),
-    cause: z.enum(['context-loss', 'gpu-incident', 'preference-change']),
+    cause: z.enum(['context-loss', 'gpu-incident', 'preference-change', 'manual-retry']),
     /**
      * Main-owned incident id when a `gpu.recoveryRequested` event tripped the budget.
      */

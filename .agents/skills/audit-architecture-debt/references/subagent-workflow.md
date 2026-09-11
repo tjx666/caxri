@@ -56,6 +56,22 @@ The root agent must read `AGENTS.md`, `DESIGN.md`, the audit references, and rel
 - relevant source, consumer, test, and architecture paths;
 - read-only rules and the output contract below.
 
+Use the decision table in [project-architecture](../../project-architecture/SKILL.md) to select
+each reviewer's architecture references. The architecture index is a map, not a requirement to
+read every linked file. Send paths and relevant section/search hints, not the same full document
+body to every reviewer. Start with these group-specific topics and follow additional contracts
+only when a causal path requires them:
+
+| Group                   | Initial architecture topics                                                                          |
+| ----------------------- | ---------------------------------------------------------------------------------------------------- |
+| `product-boundaries`    | `product-model.md`, `process-model.md`, `ipc.md`, `security.md`                                      |
+| `structure-extension`   | `packages.md`, `ipc.md`, `cli.md`, `diagnostics.md`                                                  |
+| `state-runtime`         | `persistence.md`, `terminal-lifecycle.md`, `process-model.md`, `performance.md`                      |
+| `interaction-toolchain` | `editor-and-search.md`, `terminal-interaction.md`, `settings-and-themes.md`, `electron-toolchain.md` |
+
+These filenames are relative to `project-architecture/references/`. Root synthesis reads the
+contracts needed to adjudicate findings; it does not repeat every reviewer's baseline read.
+
 Do not include suspected findings, historical conclusions, another agent's output, expected category/severity, or preferred remediation. Tell reviewers the worktree may keep changing while they work: judge code as it exists on disk, record their own start and end `git status`, and report drift only when it affects cited evidence — not as an anomaly in itself. If the worktree changes during the audit, the root agent identifies affected paths and revalidates their evidence instead of silently mixing baselines.
 
 ## Broad audit groups

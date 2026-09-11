@@ -128,8 +128,9 @@ unavailable, say so and offer light mode; never substitute a single-agent "deep"
 
 - `AGENTS.md` for repository commands and hard boundaries
 - `CONTEXT.md` for the project's ubiquitous language and canonical domain terms
-- [project architecture](../project-architecture/references/architecture.md) for process,
-  persistence, security, recovery, and performance contracts
+- [project architecture topic router](../project-architecture/SKILL.md) for the process,
+  persistence, security, recovery, or performance contract needed by the assigned review dimension;
+  do not load all topics as a shared baseline
 - [Electron toolchain ADR](../project-architecture/references/electron-toolchain.md) for build,
   native-module, and release decisions
 - [stack baseline](../project-architecture/references/stack-baseline.md) for dependency and
