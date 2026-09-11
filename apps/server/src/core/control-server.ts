@@ -67,6 +67,7 @@ import {
     logControlRequestOutcome,
     observeControlRequest,
     operatorContext,
+    refreshDelegationReply,
     reserveControlRequest,
     shouldSettleOutsideOrderedLane,
     terminateSocket,
@@ -254,7 +255,7 @@ export class ControlServer {
                 : await this.dispatch.admit(request, context);
         const settle = async (): Promise<void> => {
             try {
-                const reply = await admission.reply;
+                const reply = refreshDelegationReply(await admission.reply, context, this.options);
                 logControlRequestOutcome(this.options, request, reply, context, startedAt, timing);
                 this.writeCommandReply(socket, state, request, reply, context, release);
             } catch {
@@ -493,53 +494,68 @@ export class ControlServer {
                         }
                         let context: CommandExecutionContext;
                         let desktopLease: DesktopLease | undefined;
-                        if (hello.credential.kind === 'operator') {
-                            if (!isTokenMatch(hello.credential.token, identity.operatorToken)) {
-                                terminate('hello-operator-token-mismatch');
-                                return;
+                        switch (hello.credential.kind) {
+                            case 'operator': {
+                                if (!isTokenMatch(hello.credential.token, identity.operatorToken)) {
+                                    terminate('hello-operator-token-mismatch');
+                                    return;
+                                }
+                                context = operatorContext(identity.profileId);
+
+                                break;
                             }
-                            context = operatorContext(identity.profileId);
-                        } else if (hello.credential.kind === 'agent') {
-                            if (!this.options.authenticateAgent) {
-                                terminate('hello-agent-auth-unavailable');
-                                return;
+                            case 'delegation-client':
+                            case 'agent': {
+                                try {
+                                    const authenticated =
+                                        hello.credential.kind === 'agent'
+                                            ? this.options.authenticateAgent?.(hello.credential)
+                                            : this.options.authenticateDelegation?.(
+                                                  hello.credential,
+                                              );
+                                    if (!authenticated) {
+                                        terminate('hello-agent-auth-unavailable');
+                                        return;
+                                    }
+                                    context = authenticated;
+                                } catch {
+                                    terminate('hello-agent-auth-failed');
+                                    return;
+                                }
+
+                                break;
                             }
-                            try {
-                                context = this.options.authenticateAgent(hello.credential);
-                            } catch {
-                                terminate('hello-agent-auth-failed');
-                                return;
-                            }
-                        } else {
-                            const credential = this.options.desktopCredential;
-                            if (
-                                credential.profileId !== identity.profileId ||
-                                credential.processIdentity !== identity.processIdentity ||
-                                !isTokenMatch(hello.credential.token, credential.desktopToken)
-                            ) {
-                                terminate('hello-desktop-credential-mismatch');
-                                return;
-                            }
-                            const generation = ++this.desktopGeneration;
-                            desktopLease = {
-                                desktopId: hello.credential.desktopId,
-                                generation,
-                                expiresAt:
-                                    Date.now() +
-                                    (this.options.desktopLeaseDurationMs ?? DESKTOP_LEASE_MS),
-                            };
-                            context = {
-                                capabilities: ['desktop'],
-                                principal: {
-                                    kind: 'desktop',
-                                    id: hello.credential.desktopId,
+                            default: {
+                                const credential = this.options.desktopCredential;
+                                if (
+                                    credential.profileId !== identity.profileId ||
+                                    credential.processIdentity !== identity.processIdentity ||
+                                    !isTokenMatch(hello.credential.token, credential.desktopToken)
+                                ) {
+                                    terminate('hello-desktop-credential-mismatch');
+                                    return;
+                                }
+                                const generation = ++this.desktopGeneration;
+                                desktopLease = {
+                                    desktopId: hello.credential.desktopId,
                                     generation,
-                                },
-                            };
-                            if (this.currentDesktop) {
-                                const replaced = this.currentDesktop;
-                                revokeDesktop(this.leaseHost, replaced, false, 'replaced');
-                                closeReplacedDesktop(replaced, this.options.logger);
+                                    expiresAt:
+                                        Date.now() +
+                                        (this.options.desktopLeaseDurationMs ?? DESKTOP_LEASE_MS),
+                                };
+                                context = {
+                                    capabilities: ['desktop'],
+                                    principal: {
+                                        kind: 'desktop',
+                                        id: hello.credential.desktopId,
+                                        generation,
+                                    },
+                                };
+                                if (this.currentDesktop) {
+                                    const replaced = this.currentDesktop;
+                                    revokeDesktop(this.leaseHost, replaced, false, 'replaced');
+                                    closeReplacedDesktop(replaced, this.options.logger);
+                                }
                             }
                         }
                         const protocolIdentity = this.options.protocolIdentity ?? {

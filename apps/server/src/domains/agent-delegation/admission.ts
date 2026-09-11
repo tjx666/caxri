@@ -31,6 +31,17 @@ export function authorizeDelegationSession(
     if (!session || session.projectId !== input.projectId)
         throw new CaxriError('NOT_FOUND', 'Delegation Session is unavailable');
     if (authority.principal.kind === 'human-cli' || authority.principal.kind === 'desktop') return;
+    if (authority.principal.kind === 'delegation-client') {
+        if (
+            authority.principal.projectIds[0] !== input.projectId ||
+            authority.principal.sessionId !== input.sessionId
+        )
+            throw new CaxriError(
+                'FORBIDDEN',
+                'Delegation must remain in the authorized external Session',
+            );
+        return;
+    }
     if (
         authority.principal.kind !== 'agent' ||
         !authority.principal.projectIds.includes(input.projectId)
@@ -49,6 +60,14 @@ export function delegationCaller(
     authority: DelegationAuthority,
     requested?: DelegationSelection['provider'],
 ) {
+    if (authority.principal.kind === 'delegation-client') {
+        if (requested && requested !== authority.principal.callerProvider)
+            throw new CaxriError(
+                'FORBIDDEN',
+                'Delegation caller must match its authorized provider',
+            );
+        return authority.principal.callerProvider;
+    }
     if (authority.principal.kind !== 'agent') return requested;
     const terminal = authority.callerTerminalId
         ? database.getTerminal(authority.callerTerminalId)

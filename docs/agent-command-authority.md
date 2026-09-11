@@ -17,6 +17,13 @@ not make their authority, origin, retry, or audit semantics interchangeable.
 environments for this command and `terminal send`. These checks distinguish authenticated connection
 roles; they do not isolate mutually untrusted processes sharing the same OS user.
 
+`agent delegate access create|list|revoke` requires the owner CLI's `agents.delegation.access`
+capability. It issues a separate `delegation-client` principal, bound to one Project, dedicated
+Session and caller provider, with only `agents.delegate`. It is not a managed Endpoint and cannot
+use messaging, dispatch control, settings import or Terminal steering. Expiry and revocation are
+checked before each command, including cached replies. See the
+[external caller workflow](agent-delegation.md#external-callers-and-directory-authorization).
+
 For task submission and final answers, use [visible delegation](agent-delegation.md). Dispatch
 receipts describe process lifecycle and cannot prove that a particular task has finished.
 

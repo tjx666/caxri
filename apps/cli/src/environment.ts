@@ -47,15 +47,53 @@ export interface AgentEndpointCredential {
     token: string;
 }
 
+export interface DelegationClientCredential {
+    kind: 'delegation-client';
+    clientId: string;
+    generation: number;
+    token: string;
+}
+
+/**
+ * Partial external credentials must fail closed rather than falling back to the profile owner.
+ */
+export function resolveDelegationClientCredential(
+    environment: NodeJS.ProcessEnv,
+): DelegationClientCredential | undefined {
+    const values = [
+        environment.CAXRI_DELEGATION_CLIENT_ID,
+        environment.CAXRI_DELEGATION_GENERATION,
+        environment.CAXRI_DELEGATION_TOKEN,
+    ];
+    if (values.every((value) => value === undefined)) return undefined;
+    const parsed = z
+        .object({
+            clientId: z.uuid(),
+            generation: z.coerce.number().int().positive(),
+            token: serverCredentialTokenSchema,
+        })
+        .safeParse({ clientId: values[0], generation: values[1], token: values[2] });
+    if (!parsed.success || !environment.CAXRI_USER_DATA_DIR)
+        throw new CaxriError(
+            'VALIDATION',
+            'Delegation client environment requires a complete credential and explicit profile',
+        );
+    return { kind: 'delegation-client', ...parsed.data };
+}
+
 export interface PackagedServerLaunch {
     artifactRoot: string;
+    environment: NodeJS.ProcessEnv;
 }
 
 /**
  * Derives launch authority only from the currently executing packaged Caxri application layout.
  */
 export function resolvePackagedServerLaunch(input: {
+    environment?: NodeJS.ProcessEnv;
     executable: string;
+    home?: string;
+    platform?: NodeJS.Platform;
     resourcesPath?: string;
     runAsNode?: string;
     scriptPath?: string;
@@ -66,7 +104,21 @@ export function resolvePackagedServerLaunch(input: {
     const cliBundle = resolve(resourcesPath, 'cli', 'caxri.cjs');
     if (resolve(input.executable) !== executable || resolve(input.scriptPath) !== cliBundle)
         return undefined;
-    return { artifactRoot: resolve(resourcesPath, 'server') };
+    /**
+     * Share Desktop's hook coordinator even when the owner starts Server before opening a window.
+     */
+    const defaultProfile = defaultProfilePath(
+        input.platform ?? process.platform,
+        input.home ?? homedir(),
+        input.environment ?? process.env,
+    );
+    return {
+        artifactRoot: resolve(resourcesPath, 'server'),
+        environment: {
+            CAXRI_CLI_PATH: cliBundle,
+            CAXRI_AGENT_HOOKS_PATH: resolve(defaultProfile, '..', 'caxri', 'agent-hooks'),
+        },
+    };
 }
 
 /**

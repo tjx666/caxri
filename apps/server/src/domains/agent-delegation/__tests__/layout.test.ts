@@ -4,6 +4,13 @@ import { describe, expect, it } from 'vitest';
 import { assertDelegationLayout, delegationLayout } from '../layout';
 
 describe('delegationLayout', () => {
+    it('keeps the first external task visible in an otherwise empty Session', () => {
+        const before = addPaneTerminalSilently(createPaneLayout(), 'child');
+        const after = delegationLayout(before, 'child');
+        const child = findResourceTabs(after, { kind: 'terminal', terminalId: 'child' })[0];
+        expect(after.root.type).toBe('pane');
+        expect(child.pane.activeTabId).toBe(child.tab.id);
+    });
     it('rejects a full pane tree before child insertion', () => {
         let layout = createPaneLayout({ kind: 'terminal', terminalId: 'caller' });
         for (let index = 0; index < 7; index++) {

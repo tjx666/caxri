@@ -97,6 +97,7 @@ function receiptKey(
     let generation = '';
     switch (principal.kind) {
         case 'agent':
+        case 'delegation-client':
         case 'desktop':
         case 'paired-device':
             generation = `:${principal.generation}`;

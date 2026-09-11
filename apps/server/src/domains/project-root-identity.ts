@@ -1,4 +1,5 @@
 import { lstat, realpath } from 'node:fs/promises';
+import { isAbsolute } from 'node:path';
 
 import { CaxriError } from '@caxri/protocol';
 
@@ -55,4 +56,32 @@ export async function resolveProjectRoot(
     )
         throw changedRoot();
     return canonicalRoot;
+}
+
+/**
+ * Explicit owner CLI paths use the same identity recheck as a native folder selection.
+ */
+export async function resolveOwnerProjectRoot(rootPath: string): Promise<string> {
+    if (!isAbsolute(rootPath))
+        throw new CaxriError(
+            'PATH_DENIED',
+            'Owner directory authorization requires an absolute path',
+        );
+    let path: string;
+    try {
+        path = await realpath(rootPath);
+    } catch {
+        throw new CaxriError(
+            'PATH_DENIED',
+            'Owner directory authorization requires an existing directory',
+        );
+    }
+    const info = await selectedRootStats(path);
+    if (!info.isDirectory())
+        throw new CaxriError('PATH_DENIED', 'Owner directory authorization requires a directory');
+    return resolveProjectRoot(path, {
+        path,
+        device: info.dev.toString(),
+        inode: info.ino.toString(),
+    });
 }
