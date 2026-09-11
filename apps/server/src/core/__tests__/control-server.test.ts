@@ -185,6 +185,7 @@ describe('local Host transport', () => {
             'sessions.read',
             'settings.read',
             'settings.write',
+            'settings.delegation.write',
             'terminals.read',
             'terminals.steer',
         ]);

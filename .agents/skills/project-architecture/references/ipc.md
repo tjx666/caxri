@@ -30,6 +30,9 @@ are not persisted. Native Stop execution counts guard against stale evidence aft
 Grok's shared `prepareLaunch` renders Server-owned `assignedAgentSessionId` and `initialPrompt`
 separately from untrusted launch settings, preserving its identity-override rejection and workspace
 sandbox requirement. Public launch requests cannot populate those internal fields.
+Preset imports use the owner-only `settings.delegation.write` capability and Server configuration
+serialization. They replace only `agents.delegation`, preserve unrelated JSONC, default to dry run,
+and return no private instructions. This key remains outside ordinary Agent settings patches.
 See [visible delegation](../../../../docs/agent-delegation.md) for storage, recovery,
 provider limits and the staged replacement scope.
 

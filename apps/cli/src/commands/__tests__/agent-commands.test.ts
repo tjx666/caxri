@@ -181,5 +181,27 @@ describe('CLI Agent commands', () => {
             enter: true,
         });
         expect(steerOutput.stdout()).not.toContain('private prompt');
+        const connect = vi.fn();
+        expect(
+            await runCli(
+                [
+                    'terminal',
+                    'send',
+                    '--terminal',
+                    'terminal-1',
+                    '--text',
+                    'Synthetic input',
+                    '--profile',
+                    '/profiles/selected',
+                    '--yes',
+                ],
+                {
+                    connect,
+                    io: steerOutput.io,
+                    environment: { CI: '1' },
+                },
+            ),
+        ).not.toBe(0);
+        expect(connect).not.toHaveBeenCalled();
     });
 });

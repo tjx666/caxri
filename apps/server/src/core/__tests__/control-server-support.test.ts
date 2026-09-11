@@ -223,7 +223,8 @@ describe('operatorContext', () => {
          * Every capability in the list is intentional; an unexpected extra would silently widen what a human-CLI
          * connection can do.
          */
-        expect(context.capabilities).toHaveLength(16);
+        expect(context.capabilities).toContain('settings.delegation.write');
+        expect(context.capabilities).toHaveLength(17);
     });
 
     it('derives the principal id from the profile id it is given', () => {
