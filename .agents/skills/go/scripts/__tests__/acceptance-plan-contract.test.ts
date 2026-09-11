@@ -46,8 +46,9 @@ describe('Go Acceptance planning contract', () => {
     });
 
     it('uses one type label plus focused scope labels', () => {
-        expect(fileIssueSkill).toContain('Apply exactly one type label');
-        expect(fileIssueSkill).toContain('normally one to three');
+        expect(fileIssueSkill).toContain('### Type — exactly one');
+        expect(fileIssueSkill).toContain('### Surface — which app, zero or one');
+        expect(fileIssueSkill).toContain('### Area — what it changes, one to three');
         for (const label of [
             'skill',
             'unit-testing',
@@ -65,9 +66,7 @@ describe('Go Acceptance planning contract', () => {
         expect(fileIssueSkill).toContain(
             'Do not apply `unit-testing` or `e2e-testing` merely because a product change requires regression',
         );
-        expect(fileIssueSkill).toContain(
-            'Then apply exactly one priority label — `P0`, `P1`, or `P2`',
-        );
+        expect(fileIssueSkill).toContain('Apply exactly one priority label — `P0`, `P1`, or `P2`');
         expect(fileIssueSkill).toContain(
             'Finally apply exactly one effort label — `XS`, `S`, `M`, `L`, or `XL`',
         );
