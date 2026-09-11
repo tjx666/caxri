@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 import { setImmediate as waitForImmediate } from 'node:timers/promises';
+import { stripVTControlCharacters } from 'node:util';
 
 import type { ServerEvent } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
@@ -14,6 +15,7 @@ import { createTestAgentService } from '../../__tests__/create-test-domain-servi
 import { AgentCoordinator } from '../../agents/coordinator';
 import { detectForegroundAgentProvider } from '../../agents/process-detection';
 import { CaxriDatabase } from '../../db/repository';
+import { ShellIntegrationService } from '../shell-integration';
 
 const temporaryDirectories: string[] = [];
 const temporaryLoggers: StructuredLogger[] = [];
@@ -87,6 +89,83 @@ afterEach(async () => {
 });
 
 describe('TerminalManager process integration', () => {
+    it.each([
+        { shell: '/bin/zsh', interruptStartup: false },
+        { shell: '/bin/zsh', interruptStartup: true },
+        { shell: '/bin/bash', interruptStartup: false },
+    ])(
+        'loads user aliases after Agent exit in $shell (startup interrupt: $interruptStartup)',
+        async ({ shell, interruptStartup }) => {
+            const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-shell-startup-'));
+            temporaryDirectories.push(directory);
+            const launcher = join(directory, 'launcher.cjs');
+            /**
+             * Deliver the exit interrupt to the waiting startup shell as well as the fixture. Raw-mode CLIs can handle
+             * Ctrl+C themselves, so a plain exit code alone does not reproduce zsh's interrupted-startup state.
+             */
+            await writeFile(
+                launcher,
+                String.raw`
+process.stdin.resume();
+process.on('SIGINT', () => {
+    process.kill(process.ppid, 'SIGINT');
+    process.exit(130);
+});
+process.stdout.write('FIXTURE_AGENT_READY\r\n');
+`,
+            );
+            await writeFile(
+                join(directory, '.zshrc'),
+                `${interruptStartup ? 'kill -INT $$\n' : ''}alias cxy='echo FIXTURE_ALIAS_READY'\n`,
+            );
+            await writeFile(join(directory, '.zlogin'), 'echo FIXTURE_LOGIN_READY\n');
+            await writeFile(
+                join(directory, '.bash_profile'),
+                "alias cxy='echo FIXTURE_ALIAS_READY'\necho FIXTURE_LOGIN_READY\n",
+            );
+            const integration = await ShellIntegrationService.create(directory);
+            const launch = integration.resolve(shell, { HOME: directory, PATH: '/usr/bin:/bin' });
+            if (!launch) throw new Error('Missing shell integration');
+            const child = spawnTrackedPty(shell, launch.args, {
+                cwd: directory,
+                env: {
+                    ...launch.environment,
+                    CAXRI_AGENT_LAUNCHER_RUNTIME: process.execPath,
+                    CAXRI_AGENT_LAUNCHER_ENTRY: launcher,
+                    CAXRI_AGENT_LAUNCHER_SOCKET: join(directory, 'fixture.sock'),
+                    CAXRI_AGENT_LAUNCHER_ID: 'fixture-launch',
+                    CAXRI_AGENT_LAUNCHER_TOKEN: 'fixture-token',
+                },
+            });
+            let output = '';
+            const visibleOutput = () => stripVTControlCharacters(output);
+            child.onData((data) => {
+                output += data;
+            });
+            await expect.poll(() => output).toContain('FIXTURE_AGENT_READY');
+            child.write('\u{3}');
+            await expect.poll(() => output).toContain('FIXTURE_LOGIN_READY');
+            child.write('cxy\r');
+            await expect.poll(visibleOutput).toContain('\r\nFIXTURE_ALIAS_READY\r\n');
+            if (shell === '/bin/zsh') {
+                child.write(
+                    '[[ ! -o localtraps && ! -o localoptions ]] && test -z "$(trap)" && echo FIXTURE_TRAPS_RESTORED\r',
+                );
+                await expect.poll(visibleOutput).toContain('\r\nFIXTURE_TRAPS_RESTORED\r\n');
+                child.write('test "$ZDOTDIR" = "$HOME" && echo FIXTURE_ZDOTDIR_RESTORED\r');
+                await expect.poll(visibleOutput).toContain('\r\nFIXTURE_ZDOTDIR_RESTORED\r\n');
+            }
+            child.write('echo FIXTURE_READ_READY; read fixture; echo FIXTURE_READ_COMPLETED\r');
+            await expect.poll(visibleOutput).toContain('\r\nFIXTURE_READ_READY\r\n');
+            output = '';
+            child.write('\u{3}');
+            await expect.poll(() => output).toContain('\u{1B}]133;A\u{7}');
+            child.write('cxy\r');
+            await expect.poll(visibleOutput).toContain('\r\nFIXTURE_ALIAS_READY\r\n');
+            expect(visibleOutput()).not.toContain('\r\nFIXTURE_READ_COMPLETED\r\n');
+        },
+    );
+
     it('spawns a real PTY, accepts input, emits output, persists a snapshot, and exits', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-'));
         temporaryDirectories.push(directory);

@@ -233,6 +233,19 @@ done
 
         await pressNewTerminal(page);
         await expect(page.locator('.work-tab[data-terminal-id]')).toHaveCount(2);
+        /**
+         * The Server publishes the new tab before the New Terminal action finishes activating it. Wait for that
+         * activation before switching back; otherwise the pending action can overwrite the click on the Agent tab.
+         */
+        await expect(page.getByRole('tab', { name: 'Shell', exact: true })).toHaveAttribute(
+            'aria-selected',
+            'true',
+        );
+        await expect(
+            page
+                .getByRole('tabpanel', { name: 'Shell', exact: true })
+                .locator('.terminal-surface[data-terminal-attached="true"]'),
+        ).toBeVisible();
         // An Agent CLI names its conversation but never reports that name through OSC 0/2, so the tab has to take it
         // from the probe's metadata; before that it stayed on the provider name ("Codex") for the Terminal's whole life.
         await expect(page.getByRole('tab', { name: 'Codex', exact: true })).toHaveCount(0);
