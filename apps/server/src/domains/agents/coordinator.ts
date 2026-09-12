@@ -165,7 +165,11 @@ export class AgentCoordinator {
         if (event.phase === 'turnFinished' || event.phase === 'turnFailed') {
             this.attention.forget(event.terminalId);
             this.lifecycleWatchdogs.stopRunningTurn(event.terminalId);
-            this.hookLaunches.markAuthoritative(event.terminalId, event.launchId);
+            this.hookLaunches.markAuthoritative(
+                event.terminalId,
+                event.launchId,
+                event.agentTurnId,
+            );
         }
         if (
             hasSessionActivityChanged(this.database, this.logger, {
@@ -241,9 +245,10 @@ export class AgentCoordinator {
                 ...(this.excludedAgentSessionIdsByTerminal.get(terminal.id) ?? []),
                 ...this.database.claimedAgentSessionIds(terminal.id),
             ];
+            const agentTurnId = this.lifecycleWatchdogs.agentTurnId(terminal.id);
             const snapshot = await this.agents.snapshot(terminal.provider, {
                 agentSessionId: terminal.agentSessionId,
-                agentTurnId: this.lifecycleWatchdogs.agentTurnId(terminal.id),
+                agentTurnId,
                 correlationId: terminal.id,
                 excludedAgentSessionIds,
                 rootPath: agentProviderStateRoot(terminal),
@@ -263,7 +268,16 @@ export class AgentCoordinator {
             const currentSession = this.database.getSession(terminal.sessionId);
             if (!currentSession) return;
             const launchId = this.launchIdsByTerminal.get(terminal.id);
-            const isHookOwned = this.hookLaunches.ownsProbe(terminal.id, launchId, snapshot.status);
+            const isHookOwned = this.hookLaunches.ownsProbe(
+                terminal.id,
+                launchId,
+                snapshot.status,
+                agentTurnId === undefined &&
+                    terminal.provider === 'codex' &&
+                    snapshot.activitySource === 'latestTurn'
+                    ? snapshot.activityTurnId
+                    : undefined,
+            );
             const hasMetadataBaseline = this.metadataActivityBaselines.has(terminal.id);
             const activityBaseline = this.metadataActivityBaselines.get(terminal.id);
             const isBaselineReconciliation =
@@ -593,7 +607,11 @@ export class AgentCoordinator {
             this.hookLaunches.observeEvidence(signal.terminalId, signal.launchId);
         if (work.outcome !== undefined) return work.outcome;
         if (signal.phase === 'turnFinished')
-            this.hookLaunches.markAuthoritative(signal.terminalId, signal.launchId);
+            this.hookLaunches.markAuthoritative(
+                signal.terminalId,
+                signal.launchId,
+                signal.agentTurnId,
+            );
         const isToolBatchFinished = signal.phase === 'toolBatchFinished';
         const didResolveAttention =
             isToolBatchFinished && this.attention.resolvesFinalRequest(signal);
