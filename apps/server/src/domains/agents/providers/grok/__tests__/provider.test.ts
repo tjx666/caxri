@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { encodeGrokCwdDirname } from '../paths';
 import { grokProvider } from '../provider';
 
 const directories: string[] = [];
@@ -71,10 +72,7 @@ describe('Grok Build launch contract', () => {
             const cwd = join(input.cwd, kind === 'special' ? "project!'()*" : 'segment'.repeat(30));
             await mkdir(cwd);
             const id = '49cc1001-2b93-4bb3-9ee8-104e8dcdd683';
-            const encoded = encodeURIComponent(cwd).replaceAll(
-                /[!'()*]/gu,
-                (value) => `%${value.codePointAt(0)!.toString(16).toUpperCase()}`,
-            );
+            const encoded = encodeGrokCwdDirname(cwd);
             const project = join(
                 input.environment.variables.GROK_HOME,
                 'sessions',
@@ -118,7 +116,7 @@ describe('Grok Build launch contract', () => {
         const session = join(
             input.environment.variables.GROK_HOME,
             'sessions',
-            encodeURIComponent(input.cwd),
+            encodeGrokCwdDirname(input.cwd),
             resumeAgentSessionId,
         );
         await mkdir(session, { recursive: true });

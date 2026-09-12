@@ -6,7 +6,7 @@ import { sessionRenameTitleSchema } from '@caxri/protocol';
 
 import type { AgentEnvironment, AgentSnapshotContext, LocalAgentState } from '../../contract';
 import { canonicalPath, isOpaqueAgentSessionId } from '../../contract';
-import { grokSessionDirectory } from './paths';
+import { grokProjectRoot } from './paths';
 
 /**
  * `summary.json` is a compact per-conversation record — about 1 KB in practice. A larger file is provider schema drift
@@ -59,8 +59,9 @@ export async function readGrokState(
     const { agentSessionId } = context;
     if (!agentSessionId || !isOpaqueAgentSessionId(agentSessionId)) return undefined;
     const rootPath = await canonicalPath(context.rootPath);
-    const directory = grokSessionDirectory(environment, rootPath, agentSessionId);
-    const summary = await readGrokSummary(join(directory, 'summary.json'));
+    const projectRoot = await grokProjectRoot(rootPath, environment);
+    if (!projectRoot) return undefined;
+    const summary = await readGrokSummary(join(projectRoot, agentSessionId, 'summary.json'));
     /**
      * Provider metadata is untrusted model-written text that reaches the Session list, the Terminal tab, and native
      * notifications, so it must satisfy the same single-line, bounded contract as a user-entered Session name.
