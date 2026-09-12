@@ -613,6 +613,8 @@ esac
             .poll(async () => (await treeCommandOpenedUrls(running))?.at(-1))
             .toBe('https://vercel.com/tjx666/project/Canceled123');
         await production.click();
+        await expect(production).toHaveText('Productionproject-production-tjx666.vercel.app');
+        await expect(preview).toHaveText('Previewproject-preview-tjx666.vercel.app');
         await expect
             .poll(async () => (await treeCommandOpenedUrls(running))?.at(-1))
             .toBe('https://vercel.com/tjx666/project/Production123');
