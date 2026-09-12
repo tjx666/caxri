@@ -1,10 +1,11 @@
-import { readFile, stat } from 'node:fs/promises';
+import { stat } from 'node:fs/promises';
 import { basename, dirname, relative, resolve, sep } from 'node:path';
 
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 import type parcelWatcher from '@parcel/watcher';
 
+import { readBoundedRegularFileText } from '../bounded-file-reader';
 import { isOutsideRoot } from '../path-security';
 import type { WatchHandle } from '../watch-hub';
 import { WatchHub } from '../watch-hub';
@@ -15,6 +16,11 @@ import { WatchHub } from '../watch-hub';
  */
 const MAX_WATCHED_REPOSITORIES = 16;
 const POLL_FALLBACK_INTERVAL_MS = 5_000;
+/**
+ * A `gitdir` readback file is one worktree path plus a newline. Bound the read so a replaced regular file cannot pull
+ * an arbitrary blob into the watcher; capacity and other read failures still resolve as an unreadable root.
+ */
+const MAX_GITDIR_FILE_BYTES = 4_096;
 /**
  * Metadata files polled per worktree gitDir when the native backend is unavailable.
  */
@@ -171,7 +177,9 @@ export class GitMetadataWatcher {
                 let root: string | undefined;
                 try {
                     const gitdirFile = resolve(repoKey, 'worktrees', name, 'gitdir');
-                    const target = (await readFile(gitdirFile, 'utf8')).trim();
+                    const target = (
+                        await readBoundedRegularFileText(gitdirFile, MAX_GITDIR_FILE_BYTES)
+                    ).trim();
                     // `gitdir` stores the path of the worktree's `.git` file; its parent is the root.
                     if (basename(target) === '.git') root = dirname(target);
                 } catch {
