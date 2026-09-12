@@ -93,6 +93,24 @@ describe('HookLaunchTracker', () => {
         expect(tracker.isAuthoritative('terminal', 'launch-1')).toBe(false);
     });
 
+    it('lets ordered Codex turn history recover a start hook lost after a hooked completion', () => {
+        const tracker = new HookLaunchTracker(() => 0);
+
+        tracker.markAuthoritative('terminal', 'launch-1', 'turn-1');
+        expect(tracker.ownsProbe('terminal', 'launch-1', 'running')).toBe(true);
+        expect(tracker.ownsProbe('terminal', 'launch-1', 'running', 'turn-1')).toBe(true);
+        expect(tracker.ownsProbe('terminal', 'launch-1', 'running', 'turn-2')).toBe(false);
+        expect(tracker.isAuthoritative('terminal', 'launch-1')).toBe(false);
+    });
+
+    it('does not release attention authority for a different persisted running turn', () => {
+        const tracker = new HookLaunchTracker(() => 0);
+
+        tracker.markAuthoritative('terminal', 'launch-1');
+        expect(tracker.ownsProbe('terminal', 'launch-1', 'running', 'turn-2')).toBe(true);
+        expect(tracker.isAuthoritative('terminal', 'launch-1')).toBe(true);
+    });
+
     it('expires an in-flight turn whose Stop hook never arrived', () => {
         let now = 1_000;
         const tracker = new HookLaunchTracker(() => now);

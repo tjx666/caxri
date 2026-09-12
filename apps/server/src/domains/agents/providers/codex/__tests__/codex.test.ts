@@ -447,17 +447,45 @@ process.stdin.on('end', () => {
                 42,
                 0,
             );
+        database
+            .prepare('INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+            .run(
+                'codex-session-legacy-history',
+                root,
+                'Legacy history prompt',
+                null,
+                startedAt - 30_000,
+                startedAt - 30_000,
+                0,
+                0,
+            );
         database.close();
         const turnHistory = new Database(join(state, 'thread_history_1.sqlite'));
         turnHistory.exec(
+            'CREATE TABLE thread_turns (thread_id TEXT, turn_id TEXT, rollout_ordinal INTEGER, status TEXT, completed_at INTEGER)',
+        );
+        const insertTurn = turnHistory.prepare('INSERT INTO thread_turns VALUES (?, ?, ?, ?, ?)');
+        insertTurn.run('codex-session-older', 'turn-1', 1, 'completed', Date.now());
+        insertTurn.run('codex-session-older', 'turn-running', 2, 'inProgress', null);
+        insertTurn.run('codex-session-older', 'turn-interrupted', 3, 'interrupted', Date.now());
+        insertTurn.run('codex-session-older', 'turn-failed', 4, 'failed', Date.now());
+        insertTurn.run('codex-session-older', 'turn-resumed', 5, 'inProgress', null);
+        turnHistory.close();
+        const legacyTurnHistory = new Database(join(state, 'thread_history_2.sqlite'));
+        legacyTurnHistory.exec(
             'CREATE TABLE thread_turns (thread_id TEXT, turn_id TEXT, status TEXT, completed_at INTEGER)',
         );
-        const insertTurn = turnHistory.prepare('INSERT INTO thread_turns VALUES (?, ?, ?, ?)');
-        insertTurn.run('codex-session-older', 'turn-1', 'completed', Date.now());
-        insertTurn.run('codex-session-older', 'turn-running', 'inProgress', null);
-        insertTurn.run('codex-session-older', 'turn-interrupted', 'interrupted', Date.now());
-        insertTurn.run('codex-session-older', 'turn-failed', 'failed', Date.now());
-        turnHistory.close();
+        const insertLegacyTurn = legacyTurnHistory.prepare(
+            'INSERT INTO thread_turns VALUES (?, ?, ?, ?)',
+        );
+        insertLegacyTurn.run(
+            'codex-session-legacy-history',
+            'legacy-completed',
+            'completed',
+            Date.now(),
+        );
+        insertLegacyTurn.run('codex-session-legacy-history', 'legacy-running', 'inProgress', null);
+        legacyTurnHistory.close();
         vi.stubEnv('PATH', bin);
         vi.stubEnv('SHELL', '/usr/bin/false');
         const service = new AgentService(
@@ -480,8 +508,24 @@ process.stdin.on('end', () => {
                 startedAt,
             }),
         ).resolves.toMatchObject({
+            activitySource: 'latestTurn',
+            activityTurnId: 'turn-resumed',
             sessionId: 'codex-session-older',
+            status: 'running',
             title: undefined,
+        });
+        await expect(
+            service.snapshot('codex', {
+                agentSessionId: 'codex-session-legacy-history',
+                rootPath: root,
+                processState: 'running',
+                startedAt,
+            }),
+        ).resolves.toMatchObject({
+            activitySource: 'latestTurn',
+            activityTurnId: 'legacy-running',
+            sessionId: 'codex-session-legacy-history',
+            status: 'running',
         });
 
         await expect(
@@ -599,6 +643,8 @@ process.stdin.on('end', () => {
                 processState: 'running',
             }),
         ).resolves.toMatchObject({
+            activitySource: 'exactTurn',
+            activityTurnId: 'turn-1',
             attentionKind: 'completed',
             sessionId: 'codex-session-older',
             status: 'completed',
@@ -650,6 +696,11 @@ process.stdin.on('end', () => {
             'running',
             'completed',
             'failed',
+        ]);
+        expect(statusSnapshots.map((snapshot) => snapshot.activityTurnId)).toEqual([
+            'turn-running',
+            'turn-interrupted',
+            'turn-failed',
         ]);
     });
 
