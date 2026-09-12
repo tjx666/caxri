@@ -506,8 +506,20 @@ async function chooseDefaultTerminal(page: Page, name: string): Promise<void> {
  * synchronously closes the menu, so a pointer click can observe its target detaching mid-click.
  */
 export async function chooseTerminalFromCreateMenu(page: Page, name: string): Promise<void> {
-    const choice = page.getByRole('menu').getByRole('menuitem', { exact: true, name });
+    const menu = page.getByRole('menu');
+    const choice = menu.getByRole('menuitem', { exact: true, name });
     await expect(choice).toBeVisible();
+    /**
+     * Base UI's floating focus manager claims focus for a freshly opened Menu one animation frame after the open, and
+     * its guard against clobbering a focus that arrived first samples the document before that frame. `press` focuses
+     * its target and dispatches the key as two separate steps, so a focus landing inside that window is read as
+     * "already inside" and the queued frame still pulls focus onto the popup. The Enter then arrives on the Menu rather
+     * than the item and activates nothing: no Session is created and the Menu stays open holding focus. The claim is
+     * one-shot, so letting it land first closes the window.
+     */
+    await expect
+        .poll(() => menu.evaluate((popup) => popup.contains(document.activeElement)))
+        .toBe(true);
     await choice.press('Enter');
 }
 
@@ -584,108 +596,7 @@ export async function typeTerminal(page: Page, command: string): Promise<void> {
     await input.press('Enter');
 }
 
-export async function terminalTextBounds(page: Page, text: string) {
-    return page.locator('.xterm-rows').evaluate((rows, target) => {
-        /**
-         * Finds the text-node offsets spanning `[targetStart, targetStart + target.length)` within `row`.
-         */
-        function findTextNodeRange(
-            row: Element,
-            targetStart: number,
-        ):
-            | { start: { node: Node; offset: number }; end: { node: Node; offset: number } }
-            | undefined {
-            const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
-            let offset = 0;
-            let start: { node: Node; offset: number } | undefined;
-            for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-                const length = node.textContent?.length ?? 0;
-                if (!start && targetStart >= offset && targetStart <= offset + length)
-                    start = { node, offset: targetStart - offset };
-                const targetEnd = targetStart + target.length;
-                if (targetEnd >= offset && targetEnd <= offset + length) {
-                    return start ? { start, end: { node, offset: targetEnd - offset } } : undefined;
-                }
-                offset += length;
-            }
-            return undefined;
-        }
-
-        let matched: { x: number; y: number; width: number; height: number } | undefined;
-        for (const row of rows.children) {
-            const rowText = row.textContent;
-            /**
-             * Xterm renders cell spaces as non-breaking spaces; normalization preserves one code unit per cell.
-             */
-            const targetStart = rowText.replaceAll('\u{A0}', ' ').indexOf(target);
-            if (targetStart === -1) continue;
-            const found = findTextNodeRange(row, targetStart);
-            if (!found) continue;
-            const range = document.createRange();
-            range.setStart(found.start.node, found.start.offset);
-            range.setEnd(found.end.node, found.end.offset);
-            const bounds = range.getBoundingClientRect();
-            const candidate = {
-                x: bounds.x,
-                y: bounds.y,
-                width: bounds.width,
-                height: bounds.height,
-            };
-            /**
-             * Xterm can recycle screen rows in a DOM order that differs from their visual order. Prefer the bottom-most
-             * visible occurrence so echoed commands do not win over their later output.
-             */
-            if (!matched || candidate.y > matched.y) matched = candidate;
-        }
-        return matched ?? null;
-    }, text);
-}
-
-/**
- * Moves off the target row before waiting for xterm's asynchronous link provider. xterm caches an empty provider result
- * when output replaces a blank row beneath a stationary pointer.
- */
-export async function hoverTerminalLink(
-    page: Page,
-    text: string,
-    options: { expectPointerClass?: boolean } = {},
-) {
-    await expect.poll(() => terminalTextBounds(page, text)).not.toBeNull();
-    const bounds = await terminalTextBounds(page, text);
-    if (!bounds) throw new Error(`Terminal text not found: ${text}`);
-    const x = bounds.x + bounds.width / 2;
-    const y = bounds.y + bounds.height / 2;
-    const rows = page.locator('.xterm-rows > div');
-    const [firstRow, lastRow] = await Promise.all([
-        rows.first().boundingBox(),
-        rows.last().boundingBox(),
-    ]);
-    if (!firstRow || !lastRow) throw new Error('Terminal rows not found');
-    const firstY = firstRow.y + firstRow.height / 2;
-    const lastY = lastRow.y + lastRow.height / 2;
-    const resetRow = Math.abs(y - firstY) > Math.abs(y - lastY) ? firstRow : lastRow;
-    await page.mouse.move(resetRow.x + 2, resetRow.y + resetRow.height / 2);
-    await expect(page.locator('.xterm-cursor-pointer')).toHaveCount(0);
-    await expect(page.locator('.terminal-link-hint')).toHaveCount(0);
-    await page.mouse.move(x, y);
-    if (options.expectPointerClass)
-        await expect(page.locator('.xterm-cursor-pointer')).toBeVisible();
-    else await expect(page.locator('.xterm-cursor-pointer')).toHaveCount(0);
-    return bounds;
-}
-
-export async function clickTerminalLink(page: Page, text: string): Promise<void> {
-    const bounds = await hoverTerminalLink(page, text);
-    const x = bounds.x + bounds.width / 2;
-    const y = bounds.y + bounds.height / 2;
-    await page.keyboard.down('Meta');
-    try {
-        await expect(page.locator('.xterm-cursor-pointer')).toBeVisible();
-        await page.mouse.click(x, y);
-    } finally {
-        await page.keyboard.up('Meta');
-    }
-}
+export { clickTerminalLink, hoverTerminalLink, terminalTextBounds } from './terminal-links.ts';
 
 export type PageReply<T> =
     { ok: true; result: T } | { ok: false; error: { code: string; message: string } };

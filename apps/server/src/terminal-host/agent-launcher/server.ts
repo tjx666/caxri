@@ -5,6 +5,8 @@ import type { Server, Socket } from 'node:net';
 import { createServer } from 'node:net';
 import { isAbsolute } from 'node:path';
 
+import { ensureUnixSocketDirectory } from '@caxri/system';
+
 import type {
     ManagedAgentLauncherClientMessage,
     ManagedAgentLauncherEnvironment,
@@ -346,6 +348,8 @@ export class ManagedAgentLauncherServer {
     async start(): Promise<void> {
         if (this.server) return;
         if (this.isClosing) throw new Error('Managed Agent launcher server is closing');
+
+        await ensureUnixSocketDirectory(this.options.socketPath);
 
         try {
             const existing = await lstat(this.options.socketPath);

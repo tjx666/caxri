@@ -231,6 +231,21 @@ describe('Sonner notification adapter', () => {
         expect(toasts[0]).toMatchObject({ type: 'error', title: 'disk is full', duration: 4_000 });
     });
 
+    /**
+     * Main answers every queued Renderer request with this once quit starts, so a read still in flight when the user
+     * quits would otherwise raise a notification over a window that is already going away.
+     */
+    it('tryCommand stays silent when the request was cancelled', async () => {
+        const run = vi.fn(() =>
+            Promise.reject(new CaxriError('CANCELLED', 'Application is quitting')),
+        );
+
+        const result = await tryCommand('Unable to read directory', run);
+
+        expect(result).toBeUndefined();
+        expect(getToasts()).toEqual([]);
+    });
+
     it('tryCommand does not refresh the workbench when the run rejects', async () => {
         const run = vi.fn(() => Promise.reject(new Error('boom')));
 
