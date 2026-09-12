@@ -66,6 +66,7 @@ import type {
 } from '../device-registry';
 import { createServerSealedPayload, sendFinalSealedPayload } from './sealed-payload';
 import { MobileSocketQueueBudget } from './socket-queue-budget';
+import { SourceAttemptLimiter } from './source-attempt-limiter';
 
 const MOBILE_PATH = '/mobile';
 const HANDSHAKE_TIMEOUT_MS = 10_000;
@@ -73,8 +74,6 @@ const PAIRING_TTL_MS = 2 * 60_000;
 const MAXIMUM_CONNECTIONS = 32;
 const MAXIMUM_HANDSHAKES = 8;
 const MAXIMUM_PENDING_PAIRINGS = 8;
-const MAXIMUM_SOURCE_ATTEMPTS = 10;
-const SOURCE_ATTEMPT_WINDOW_MS = 60_000;
 
 /**
  * React Native adds the WebSocket endpoint as its default Origin. Accept that same-origin native request while
@@ -108,11 +107,6 @@ interface PendingPairing {
     pairingId: string;
     projectIds: string[];
     secret: string;
-}
-
-interface SourceAttempt {
-    count: number;
-    startedAt: number;
 }
 
 interface GatewaySession {
@@ -252,7 +246,7 @@ export class MobileGateway {
     readonly #pairings = new Map<string, PendingPairing>();
     readonly #random: (bytes: number) => Uint8Array;
     readonly #sockets = new Set<WebSocket>();
-    readonly #sourceAttempts = new Map<string, SourceAttempt>();
+    readonly #sourceAttempts: SourceAttemptLimiter;
     readonly #tcpSockets = new Set<Socket>();
     readonly #terminators = new Map<WebSocket, () => void>();
     #addresses?: string[];
@@ -264,6 +258,7 @@ export class MobileGateway {
     constructor(options: MobileGatewayOptions) {
         this.#options = options;
         this.#now = options.now ?? Date.now;
+        this.#sourceAttempts = new SourceAttemptLimiter({ now: this.#now });
         this.#random = options.random ?? randomBytes;
         const adapter: CommandAdapter = {
             invoke: (request, context, invocation) => {
@@ -437,6 +432,7 @@ export class MobileGateway {
 
     async disable(): Promise<MobileAccessStatus> {
         this.#pairings.clear();
+        this.#sourceAttempts.clear();
         for (const socket of this.#sockets) this.#terminate(socket);
         for (const socket of this.#tcpSockets) socket.destroy();
         this.#sockets.clear();
@@ -457,14 +453,7 @@ export class MobileGateway {
     }
 
     #admitSource(source: string): boolean {
-        const now = this.#now();
-        const current = this.#sourceAttempts.get(source);
-        if (!current || now - current.startedAt >= SOURCE_ATTEMPT_WINDOW_MS) {
-            this.#sourceAttempts.set(source, { count: 1, startedAt: now });
-            return true;
-        }
-        current.count += 1;
-        return current.count <= MAXIMUM_SOURCE_ATTEMPTS;
+        return this.#sourceAttempts.admit(source);
     }
 
     #removeExpiredPairings(): void {
