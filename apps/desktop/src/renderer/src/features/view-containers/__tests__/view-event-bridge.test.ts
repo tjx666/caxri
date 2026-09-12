@@ -21,6 +21,7 @@ import {
     resetViewEventBridgeForTests,
     startViewEventBridge,
     subscribeViewEvents,
+    viewEventScopeKey,
 } from '../view-event-bridge';
 
 const scope = {
@@ -37,7 +38,10 @@ const defaultContext = {
 
 function event(
     eventId: string,
-    context = defaultContext,
+    context: Extract<
+        ServerEvent,
+        { event: 'viewContainers.viewChanged' }
+    >['payload']['context'] = defaultContext,
     extensionGeneration = 3,
 ): Extract<ServerEvent, { event: 'viewContainers.viewChanged' }> {
     return {
@@ -128,5 +132,54 @@ describe('view event bridge', () => {
 
         expect(otherScope).not.toHaveBeenCalled();
         expect(matchingScope).toHaveBeenCalledExactlyOnceWith(selection);
+    });
+
+    it('does not queue a no-session event for later replay', () => {
+        startViewEventBridge();
+        const orphan = event('event-no-session', { kind: 'no-session' });
+        for (const listener of mocks.listeners) listener(orphan);
+        const received: ServerEvent[] = [];
+        subscribeViewEvents(scope, (next) => received.push(next));
+        expect(received).toEqual([]);
+    });
+
+    it('uses the same key for a Session-scoped event and its matching subscriber', () => {
+        expect(
+            viewEventScopeKey({
+                viewId: scope.viewId,
+                sessionId: scope.sessionId,
+                workbenchProjectId: scope.workbenchProjectId,
+            }),
+        ).toBe(`${scope.viewId}\0${scope.sessionId}\0${scope.workbenchProjectId}`);
+    });
+
+    it('evicts the oldest pending Session key once the pending-key cap is reached', () => {
+        startViewEventBridge();
+        const first = event('event-oldest', {
+            kind: 'session',
+            sessionId: 'session-oldest',
+            workbenchProjectId: 'project-1',
+        });
+        for (const listener of mocks.listeners) listener(first);
+        for (let index = 0; index < 64; index += 1) {
+            const extra = event(`event-cap-${index}`, {
+                kind: 'session',
+                sessionId: `session-cap-${index}`,
+                workbenchProjectId: 'project-1',
+            });
+            for (const listener of mocks.listeners) listener(extra);
+        }
+        const oldest = vi.fn();
+        const newest = vi.fn();
+        subscribeViewEvents({ ...scope, sessionId: 'session-oldest' }, oldest);
+        subscribeViewEvents({ ...scope, sessionId: 'session-cap-63' }, newest);
+        expect(oldest).not.toHaveBeenCalled();
+        expect(newest).toHaveBeenCalledExactlyOnceWith(
+            event('event-cap-63', {
+                kind: 'session',
+                sessionId: 'session-cap-63',
+                workbenchProjectId: 'project-1',
+            }),
+        );
     });
 });
