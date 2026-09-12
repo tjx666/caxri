@@ -3,6 +3,11 @@ import { useQuery } from '@tanstack/react-query';
 
 import { useSelectedSession } from '../../../../stores/selectors';
 import { useControlledView, useSourceControlClient } from '../../controlled-view-context';
+import {
+    isViewContainerQueryEnabled,
+    useCancelViewContainerQueryWhenHidden,
+    useIsViewContainerActive,
+} from '../../view-container-activity';
 import { controlledViewQueryKey } from '../../view-operation-client';
 
 export function useSourceControlHistoryDetails(
@@ -13,21 +18,24 @@ export function useSourceControlHistoryDetails(
     const { viewId } = useControlledView();
     const client = useSourceControlClient();
     const session = useSelectedSession();
+    const isContainerActive = useIsViewContainerActive();
     const request = {
         historyId: descriptor.id,
         itemId,
         revision: descriptor.revision!,
         ...(path && { path }),
     };
+    const queryKey = controlledViewQueryKey(
+        viewId,
+        'source.historyDetails',
+        request,
+        session ? `${session.id}:${session.workbenchProjectId}` : undefined,
+    );
+    useCancelViewContainerQueryWhenHidden(queryKey, isContainerActive);
     return useQuery({
-        queryKey: controlledViewQueryKey(
-            viewId,
-            'source.historyDetails',
-            request,
-            session ? `${session.id}:${session.workbenchProjectId}` : undefined,
-        ),
+        queryKey,
         queryFn: ({ signal }) => client.historyDetails(request, signal),
-        enabled: Boolean(descriptor.revision),
+        enabled: isViewContainerQueryEnabled(isContainerActive, Boolean(descriptor.revision)),
         staleTime: Infinity,
     });
 }

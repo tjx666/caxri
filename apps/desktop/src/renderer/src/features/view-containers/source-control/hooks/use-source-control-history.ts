@@ -1,14 +1,18 @@
 import type { Dispatch, SetStateAction } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { SourceControlHistoryDescriptor, SourceControlHistoryPage } from '@caxri/protocol';
+import type { SourceControlHistoryDescriptor } from '@caxri/protocol';
 
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 
 import { describeFailure } from '../../../../stores/toasts';
 import { useSourceControlClient } from '../../controlled-view-context';
-
-type SourceControlHistoryItem = SourceControlHistoryPage['items'][number];
+import { useIsViewContainerActive } from '../../view-container-activity';
+import type { SourceControlHistoryItemsState } from '../source-control-history-state';
+import {
+    applySourceControlHistoryPage,
+    areSourceControlHistoryActionsCurrent,
+} from '../source-control-history-state';
 
 export interface SourceControlHistoryScope {
     kind: 'file';
@@ -33,14 +37,18 @@ export function useSourceControlHistory(
     const [path, setPath] = useState('');
     const debouncedInputPath = useDebouncedValue(path, 200);
     const debouncedPath = scope?.kind === 'file' ? (scope.path ?? '') : debouncedInputPath;
-    const [items, setItems] = useState<SourceControlHistoryItem[]>([]);
-    const [nextOffset, setNextOffset] = useState<number>();
-    const [selectedId, setSelectedId] = useState<string>();
+    const [pageState, setPageState] = useState<SourceControlHistoryItemsState>({
+        items: [],
+        nextOffset: undefined,
+        selectedId: undefined,
+    });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string>();
     const activeRequest = useRef<AbortController | undefined>(undefined);
+    const isContainerActive = useIsViewContainerActive();
     const scopePath = debouncedPath.trim() || undefined;
-    const canLoad = isEnabled && (scope?.kind !== 'file' || scopePath !== undefined);
+    const canLoad =
+        isEnabled && isContainerActive && (scope?.kind !== 'file' || scopePath !== undefined);
 
     const loadPage = useCallback(
         async (offset: number, shouldReplace: boolean) => {
@@ -48,10 +56,6 @@ export function useSourceControlHistory(
             const request = new AbortController();
             activeRequest.current = request;
             setLoading(true);
-            if (shouldReplace) {
-                setItems([]);
-                setSelectedId(undefined);
-            }
             setError(undefined);
             try {
                 const page = await client.historyPage(
@@ -69,8 +73,13 @@ export function useSourceControlHistory(
                 );
                 if (request !== activeRequest.current || page.revision !== descriptor.revision)
                     return;
-                setItems((current) => (shouldReplace ? page.items : [...current, ...page.items]));
-                setNextOffset(page.nextOffset);
+                setPageState((current) =>
+                    applySourceControlHistoryPage(
+                        current,
+                        { ...page, path: scopePath },
+                        shouldReplace,
+                    ),
+                );
             } catch (error_) {
                 if (request === activeRequest.current)
                     setError(describeFailure(error_, descriptor.loadErrorMessage));
@@ -98,18 +107,28 @@ export function useSourceControlHistory(
             activeRequest.current = undefined;
         };
     }, [canLoad, descriptor.revision, expanded, loadPage]);
+    const setSelectedId = useCallback<Dispatch<SetStateAction<string | undefined>>>((value) => {
+        setPageState((current) => ({
+            ...current,
+            selectedId: typeof value === 'function' ? value(current.selectedId) : value,
+        }));
+    }, []);
 
     return {
+        areActionsCurrent: areSourceControlHistoryActionsCurrent(pageState, {
+            path: scopePath,
+            revision: descriptor.revision,
+        }),
         debouncedPath,
         error,
         expanded,
-        items,
+        items: pageState.items,
         loadPage,
         loading,
-        nextOffset,
+        nextOffset: pageState.nextOffset,
         path,
         scopePath,
-        selectedId,
+        selectedId: pageState.selectedId,
         setExpanded,
         setPath,
         setSelectedId,

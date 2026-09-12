@@ -42,6 +42,7 @@ export function SourceControlHistory({
 }) {
     const now = useNow(30_000);
     const {
+        areActionsCurrent,
         debouncedPath,
         error,
         expanded,
@@ -157,6 +158,7 @@ export function SourceControlHistory({
                                 <div key={item.id}>
                                     <SourceControlHistoryHoverCard
                                         descriptor={descriptor}
+                                        detailsEnabled={areActionsCurrent}
                                         item={item}
                                         now={now}
                                         path={scopePath}
@@ -169,10 +171,12 @@ export function SourceControlHistory({
                                                 )}
                                                 aria-label={`${descriptor.itemAccessibilityLabelPrefix} ${item.label}`}
                                                 disabled={
-                                                    descriptor.itemActivation === 'action' &&
-                                                    !item.action
+                                                    !areActionsCurrent ||
+                                                    (descriptor.itemActivation === 'action' &&
+                                                        !item.action)
                                                 }
                                                 onClick={() => {
+                                                    if (!areActionsCurrent) return;
                                                     if (descriptor.itemActivation === 'action') {
                                                         if (item.action) runAction(item.action);
                                                         return;
@@ -225,7 +229,8 @@ export function SourceControlHistory({
                                             </button>
                                         }
                                     />
-                                    {descriptor.itemActivation !== 'action' &&
+                                    {areActionsCurrent &&
+                                        descriptor.itemActivation !== 'action' &&
                                         selectedId === item.id && (
                                             <SourceControlHistoryDetails
                                                 descriptor={descriptor}
@@ -242,7 +247,11 @@ export function SourceControlHistory({
                                 className="load-more-commits h-7 w-full gap-1.5 rounded-none text-[11px] text-muted hover:text-foreground"
                                 size="sm"
                                 variant="ghost"
-                                disabled={loading || (!scope && path !== debouncedPath)}
+                                disabled={
+                                    loading ||
+                                    !areActionsCurrent ||
+                                    (!scope && path !== debouncedPath)
+                                }
                                 onClick={() => {
                                     // eslint-disable-next-line no-void -- loadPage owns its loading and error state
                                     void loadPage(nextOffset, false);
