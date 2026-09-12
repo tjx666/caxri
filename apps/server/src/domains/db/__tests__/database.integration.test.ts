@@ -65,6 +65,7 @@ describe('CaxriDatabaseConnection', () => {
             CURRENT_SCHEMA_VERSION,
         );
         expect(database.appState.get('schemaVersion')).toBe(CURRENT_SCHEMA_VERSION);
+        expect(database.database.pragma('foreign_keys', { simple: true })).toBe(1);
         expect(
             (database.database.pragma('table_info(sessions)') as Array<{ name: string }>).map(
                 (column) => column.name,
@@ -294,6 +295,7 @@ describe('CaxriDatabaseConnection', () => {
             CURRENT_SCHEMA_VERSION,
         );
         expect(upgraded.appState.get('schemaVersion')).toBe(CURRENT_SCHEMA_VERSION);
+        expect(upgraded.database.pragma('foreign_keys', { simple: true })).toBe(1);
         upgraded.close();
     });
 
