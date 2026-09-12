@@ -3,7 +3,7 @@ import type { ChildProcess } from 'node:child_process';
 import { access, mkdtemp, readFile, realpath, rm, stat } from 'node:fs/promises';
 import { createConnection } from 'node:net';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import process from 'node:process';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -555,7 +555,50 @@ describe('managed Agent launcher socket path', () => {
         servers.push(server);
 
         expect(Buffer.byteLength(socketPath, 'utf8')).toBeLessThanOrEqual(103);
+        expect(socketPath.startsWith(tmpdir())).toBe(true);
         await expect(server.start()).resolves.toBeUndefined();
         expect((await stat(socketPath)).mode & 0o777).toBe(0o600);
+    });
+
+    /**
+     * The E2E harness gives every Playwright worker its own `caxri-e2e-<pool>-<index>` directory under the per-user
+     * temp root, which is exactly the shape that used to exceed `sun_path` and kill Terminal Host at module top level.
+     */
+    it('starts from a worker temp directory too deep for the socket limit', async () => {
+        const workerDirectory = join(tmpdir(), 'caxri-e2e-parallel-safe-0');
+        const socketPath = managedAgentLauncherSocketPath(
+            workerDirectory,
+            '4bd5b8e2-8a1b-4b0e-9d95-2c0a2f1b7e64',
+        );
+        const server = new ManagedAgentLauncherServer({
+            socketPath,
+            runtimePath: process.execPath,
+            entryPath: join(tmpdir(), 'agent-launcher.js'),
+        });
+        servers.push(server);
+
+        // Proves the fallback is what keeps this under the limit rather than the directory happening to be short.
+        const inWorkerDirectory = join(workerDirectory, basename(socketPath));
+        expect(Buffer.byteLength(inWorkerDirectory, 'utf8')).toBeGreaterThan(103);
+        expect(Buffer.byteLength(socketPath, 'utf8')).toBeLessThanOrEqual(103);
+        await expect(server.start()).resolves.toBeUndefined();
+        expect((await stat(socketPath)).mode & 0o777).toBe(0o600);
+    });
+
+    it('keeps every supported directory depth within the limit', () => {
+        for (const depth of [0, 1, 2, 4, 8, 16]) {
+            const directory = join(tmpdir(), ...Array.from({ length: depth }, () => 'nested-name'));
+            const socketPath = managedAgentLauncherSocketPath(
+                directory,
+                '0f2b9c71-5f3f-4c41-b0a7-19f0c5a0e1d2',
+            );
+            expect(Buffer.byteLength(socketPath, 'utf8')).toBeLessThanOrEqual(103);
+        }
+    });
+
+    it('rejects a relative directory', () => {
+        expect(() =>
+            managedAgentLauncherSocketPath('relative', '0f2b9c71-5f3f-4c41-b0a7-19f0c5a0e1d2'),
+        ).toThrow('must be absolute');
     });
 });
