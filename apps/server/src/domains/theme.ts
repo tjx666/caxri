@@ -69,6 +69,63 @@ function firstHex(
     return fallback;
 }
 
+const SYNTAX_EDITOR_ROLES = ['comment', 'keyword', 'string', 'number'] as const;
+type SyntaxEditorRole = (typeof SYNTAX_EDITOR_ROLES)[number];
+
+const SYNTAX_SCOPE_PREFIX = {
+    comment: 'comment',
+    keyword: 'keyword',
+    string: 'string',
+    number: 'constant.numeric',
+} as const satisfies Record<SyntaxEditorRole, string>;
+
+function tokenColorScopes(scope: unknown): string[] {
+    const tokens = typeof scope === 'string' ? [scope] : Array.isArray(scope) ? scope : [];
+    return tokens
+        .filter((token): token is string => typeof token === 'string')
+        .flatMap((token) => token.split(',').map((part) => part.trim()))
+        .filter((token) => token.length > 0);
+}
+
+function assignMatchingSyntaxRoles(
+    theme: ThemeTokens,
+    scopes: readonly string[],
+    foreground: string,
+    assigned: Set<SyntaxEditorRole>,
+): void {
+    for (const role of SYNTAX_EDITOR_ROLES) {
+        if (!scopes.includes(SYNTAX_SCOPE_PREFIX[role])) continue;
+        theme.editor[role] = foreground;
+        assigned.add(role);
+    }
+}
+
+/**
+ * Maps VS Code `tokenColors` onto Caxri's four editor syntax roles. Only exact selectors count — `keyword.operator`
+ * must not overwrite `keyword`. Later exact rules still win. Returns the roles that never received a foreground so the
+ * import can warn specifically.
+ */
+function applyVsCodeTokenColors(theme: ThemeTokens, tokenColors: unknown): SyntaxEditorRole[] {
+    if (!Array.isArray(tokenColors)) return [...SYNTAX_EDITOR_ROLES];
+    const assigned = new Set<SyntaxEditorRole>();
+    for (const entry of tokenColors) {
+        if (!entry || typeof entry !== 'object') continue;
+        const rule = entry as { scope?: unknown; settings?: { foreground?: unknown } };
+        const scopes = tokenColorScopes(rule.scope);
+        if (scopes.length === 0) continue;
+        const foreground = normalizedHex(rule.settings?.foreground, '');
+        if (!foreground) continue;
+        assignMatchingSyntaxRoles(theme, scopes, foreground, assigned);
+    }
+    return SYNTAX_EDITOR_ROLES.filter((role) => !assigned.has(role));
+}
+
+function formatMissingSyntaxWarning(missing: readonly SyntaxEditorRole[]): string {
+    if (missing.length === 1) return `Syntax colors for ${missing[0]} were not imported.`;
+    const head = missing.slice(0, -1).join(', ');
+    return `Syntax colors for ${head}, and ${missing.at(-1)} were not imported.`;
+}
+
 function mixHex(from: string, toward: string, amount: number): string {
     const channel = (hex: string, start: number): number =>
         Number.parseInt(hex.slice(start, start + 2), 16);
@@ -304,6 +361,11 @@ function parseVsCode(value: Record<string, unknown>, name: string): ThemeTokens 
     theme.terminal.background = firstHex(colors, ['terminal.background'], theme.editor.background);
     theme.terminal.foreground = firstHex(colors, ['terminal.foreground'], theme.editor.foreground);
     theme.terminal.cursor = firstHex(colors, ['terminalCursor.foreground'], theme.terminal.cursor);
+    theme.terminal.selectionBackground = firstHex(
+        colors,
+        ['terminal.selectionBackground'],
+        theme.terminal.selectionBackground,
+    );
     const ansiMap: Array<[keyof ThemeTokens['terminal'], string]> = [
         ['black', 'terminal.ansiBlack'],
         ['red', 'terminal.ansiRed'],
@@ -324,7 +386,10 @@ function parseVsCode(value: Record<string, unknown>, name: string): ThemeTokens 
     ];
     for (const [target, source] of ansiMap)
         theme.terminal[target] = firstHex(colors, [source], theme.terminal[target]);
-    theme.warnings.push('Unsupported VS Code tokens and extension metadata were ignored.');
+    const missingSyntax = applyVsCodeTokenColors(theme, value.tokenColors);
+    if (missingSyntax.length > 0) theme.warnings.push(formatMissingSyntaxWarning(missingSyntax));
+    if (value.semanticTokenColors != null)
+        theme.warnings.push('Semantic token colors were not imported.');
     return theme;
 }
 
