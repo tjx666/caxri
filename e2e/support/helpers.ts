@@ -506,8 +506,20 @@ async function chooseDefaultTerminal(page: Page, name: string): Promise<void> {
  * synchronously closes the menu, so a pointer click can observe its target detaching mid-click.
  */
 export async function chooseTerminalFromCreateMenu(page: Page, name: string): Promise<void> {
-    const choice = page.getByRole('menu').getByRole('menuitem', { exact: true, name });
+    const menu = page.getByRole('menu');
+    const choice = menu.getByRole('menuitem', { exact: true, name });
     await expect(choice).toBeVisible();
+    /**
+     * Base UI's floating focus manager claims focus for a freshly opened Menu one animation frame after the open, and
+     * its guard against clobbering a focus that arrived first samples the document before that frame. `press` focuses
+     * its target and dispatches the key as two separate steps, so a focus landing inside that window is read as
+     * "already inside" and the queued frame still pulls focus onto the popup. The Enter then arrives on the Menu rather
+     * than the item and activates nothing: no Session is created and the Menu stays open holding focus. The claim is
+     * one-shot, so letting it land first closes the window.
+     */
+    await expect
+        .poll(() => menu.evaluate((popup) => popup.contains(document.activeElement)))
+        .toBe(true);
     await choice.press('Enter');
 }
 
