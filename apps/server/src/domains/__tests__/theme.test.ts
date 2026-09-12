@@ -165,6 +165,124 @@ describe('theme import mapping', () => {
             expect(theme.colors[role], role).not.toBe(draculaTheme.colors[role]);
     });
 
+    it('keeps a chrome seam when a VS Code theme only sets the editor canvas', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-editor-only-'));
+        temporaryDirectories.push(directory);
+        const path = join(directory, 'dark.json');
+        await writeFile(
+            path,
+            JSON.stringify({
+                name: 'Editor only',
+                type: 'dark',
+                colors: { 'editor.background': '#1e1e1e' },
+            }),
+            'utf8',
+        );
+
+        const theme = await importTheme(path, draculaTheme);
+        expect(theme.colors.background).toBe('#1e1e1e');
+        expect(theme.colors.surface).toBe('#252526');
+        expect(theme.colors.surface).not.toBe(theme.colors.background);
+    });
+
+    it('nudges surface away from background when a VS Code theme paints them the same color', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-same-surface-'));
+        temporaryDirectories.push(directory);
+        const path = join(directory, 'dark.json');
+        await writeFile(
+            path,
+            JSON.stringify({
+                name: 'Same surface',
+                type: 'dark',
+                colors: {
+                    'editor.background': '#1e1e1e',
+                    'sideBar.background': '#1e1e1e',
+                },
+            }),
+            'utf8',
+        );
+
+        const theme = await importTheme(path, draculaTheme);
+        expect(theme.colors.background).toBe('#1e1e1e');
+        expect(theme.colors.surface).toBe('#303030');
+    });
+
+    it('maps tab strip and title-bar fills onto surface when sidebar keys are absent', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-tab-surface-'));
+        temporaryDirectories.push(directory);
+        const path = join(directory, 'dark.json');
+        await writeFile(
+            path,
+            JSON.stringify({
+                name: 'Tab surface',
+                type: 'dark',
+                colors: {
+                    'editor.background': '#1e1e1e',
+                    'tab.activeBackground': '#2d2d30',
+                    'titleBar.activeBackground': '#252530',
+                },
+            }),
+            'utf8',
+        );
+
+        expect((await importTheme(path, draculaTheme)).colors.surface).toBe('#2d2d30');
+    });
+
+    it('maps list hover and selection fills onto elevated when the widget key is absent', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-list-elevated-'));
+        temporaryDirectories.push(directory);
+        const hover = join(directory, 'hover.json');
+        await writeFile(
+            hover,
+            JSON.stringify({
+                name: 'List hover',
+                type: 'dark',
+                colors: {
+                    'editor.background': '#1e1e1e',
+                    'list.hoverBackground': '#2a2d2e',
+                    'list.activeSelectionBackground': '#2c2c32',
+                },
+            }),
+            'utf8',
+        );
+        expect((await importTheme(hover, draculaTheme)).colors.elevated).toBe('#2a2d2e');
+
+        const selection = join(directory, 'selection.json');
+        await writeFile(
+            selection,
+            JSON.stringify({
+                name: 'List selection',
+                type: 'dark',
+                colors: {
+                    'editor.background': '#1e1e1e',
+                    'list.activeSelectionBackground': '#2c2c32',
+                },
+            }),
+            'utf8',
+        );
+        expect((await importTheme(selection, draculaTheme)).colors.elevated).toBe('#2c2c32');
+    });
+
+    it('reads success from a passed-test green when charts.green is absent', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-success-'));
+        temporaryDirectories.push(directory);
+        const path = join(directory, 'dark.json');
+        await writeFile(
+            path,
+            JSON.stringify({
+                name: 'Passed green',
+                type: 'dark',
+                colors: {
+                    'editor.background': '#1e1e1e',
+                    'testing.iconPassed': '#73c991',
+                },
+            }),
+            'utf8',
+        );
+
+        expect((await importTheme(path, draculaTheme)).colors.success).toBe('#73c991');
+    });
+
     it('reads badge and Git decoration colors from their VS Code keys', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-decorations-'));
         temporaryDirectories.push(directory);

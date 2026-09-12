@@ -12,7 +12,7 @@ import {
     upgradeThemeColors,
 } from '@caxri/protocol';
 import { parseJsonc } from '@caxri/system';
-import { contrastRatio } from '@caxri/utils';
+import { contrastRatio, relativeLuminance } from '@caxri/utils';
 import { parse as parsePlist } from 'plist';
 import YAML from 'yaml';
 
@@ -69,6 +69,31 @@ function firstHex(
     return fallback;
 }
 
+function mixHex(from: string, toward: string, amount: number): string {
+    const channel = (hex: string, start: number): number =>
+        Number.parseInt(hex.slice(start, start + 2), 16);
+    const mix = (start: number, end: number): string =>
+        Math.round(start + (end - start) * amount)
+            .toString(16)
+            .padStart(2, '0');
+    return `#${[0, 2, 4].map((offset) => mix(channel(from, offset + 1), channel(toward, offset + 1))).join('')}`;
+}
+
+/**
+ * Caxri chrome seams are only `bg-surface` vs `bg-background`. When a theme paints those two the same color, nudge
+ * surface toward the opposite pole so the workbench regions stay distinguishable.
+ */
+function separateSurfaceFromBackground(background: string, surface: string): string {
+    if (surface === background) {
+        return mixHex(
+            background,
+            relativeLuminance(background) > 0.5 ? '#000000' : '#ffffff',
+            0.08,
+        );
+    }
+    return surface;
+}
+
 function cloneFallback(source: ThemeTokens['source'], name: string): ThemeTokens {
     return structuredClone({
         ...draculaTheme,
@@ -88,6 +113,7 @@ function cloneFallback(source: ThemeTokens['source'], name: string): ThemeTokens
  */
 const VSCODE_DEFAULTS = {
     dark: {
+        surface: '#252526', // sideBar.background
         elevated: '#252526', // editorWidget.background
         muted: '#9d9d9d', // descriptionForeground
         selection: '#264f78', // editor.selectionBackground
@@ -103,6 +129,7 @@ const VSCODE_DEFAULTS = {
         gitConflicting: '#e4676b',
     },
     light: {
+        surface: '#f3f3f3', // sideBar.background
         elevated: '#f3f3f3',
         /**
          * VS Code's light `foreground`, not its light `descriptionForeground` (`#717171`): that value lands at 4.4:1 on
@@ -145,15 +172,39 @@ function parseVsCode(value: Record<string, unknown>, name: string): ThemeTokens 
      * sidebar color and the sidebar in its activity-bar color.
      */
     theme.colors.background = firstHex(colors, ['editor.background'], theme.colors.background);
-    theme.colors.surface = firstHex(
-        colors,
-        ['sideBar.background', 'activityBar.background'],
-        theme.colors.background,
-    );
     const defaults = isLightVsCodeTheme(value, theme.colors.background)
         ? VSCODE_DEFAULTS.light
         : VSCODE_DEFAULTS.dark;
-    theme.colors.elevated = firstHex(colors, ['editorWidget.background'], defaults.elevated);
+    /**
+     * Chrome seams are only `bg-surface` vs `bg-background`. Fall back to VS Code's own `sideBar.background` default
+     * rather than the editor canvas just assigned above; otherwise an import that omitted the sidebar key painted the
+     * whole workbench one color. Tab strip and title-bar fills map onto the same chrome role because Caxri has no extra
+     * schema tokens for them.
+     */
+    theme.colors.surface = separateSurfaceFromBackground(
+        theme.colors.background,
+        firstHex(
+            colors,
+            [
+                'sideBar.background',
+                'activityBar.background',
+                'tab.activeBackground',
+                'editorGroupHeader.tabsBackground',
+                'titleBar.activeBackground',
+            ],
+            defaults.surface,
+        ),
+    );
+    /**
+     * `editorWidget.background` is the popover fill. `--elevated` also paints hover states, so `list.hoverBackground`
+     * is next; active-selection is last because it is often a saturated accent that would fail the muted-contrast gate
+     * if it became the panel color.
+     */
+    theme.colors.elevated = firstHex(
+        colors,
+        ['editorWidget.background', 'list.hoverBackground', 'list.activeSelectionBackground'],
+        defaults.elevated,
+    );
     theme.colors.foreground = firstHex(
         colors,
         ['foreground', 'editor.foreground'],
@@ -186,7 +237,20 @@ function parseVsCode(value: Record<string, unknown>, name: string): ThemeTokens 
         ],
         theme.colors.accent,
     );
-    theme.colors.success = firstHex(colors, ['charts.green'], defaults.success);
+    /**
+     * `charts.green` is the named success swatch, but most themes never set `charts.*`. Passed-test and added-file
+     * greens are the keys authors actually write.
+     */
+    theme.colors.success = firstHex(
+        colors,
+        [
+            'charts.green',
+            'testing.iconPassed',
+            'notebookStatusSuccessIcon.foreground',
+            'gitDecoration.addedResourceForeground',
+        ],
+        defaults.success,
+    );
     theme.colors.warning = firstHex(colors, ['editorWarning.foreground'], defaults.warning);
     theme.colors.danger = firstHex(colors, ['editorError.foreground'], defaults.danger);
     /**

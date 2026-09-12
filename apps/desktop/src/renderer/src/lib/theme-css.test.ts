@@ -88,11 +88,11 @@ describe('applyCssTheme', () => {
         const theme = themeFixture();
         applyCssTheme(theme);
 
-        // Derived from the fixture, plus the foregrounds `applyCssTheme` computes, so a new color role
-        // is covered here automatically instead of failing on a stale literal.
-        const derivedForegrounds = 3;
+        // Derived from the fixture, plus the foregrounds and `--shadow` `applyCssTheme` computes, so a
+        // new color role is covered here automatically instead of failing on a stale literal.
+        const derivedProperties = 4;
         expect(setProperty).toHaveBeenCalledTimes(
-            Object.keys(theme.colors).length + derivedForegrounds,
+            Object.keys(theme.colors).length + derivedProperties,
         );
         for (const [token, value] of Object.entries(theme.colors))
             expect(setProperty).toHaveBeenCalledWith(themeColorCssVariable(token), value);
@@ -133,5 +133,14 @@ describe('applyCssTheme', () => {
 
         expect(setProperty).not.toHaveBeenCalledWith('--cyan', expect.anything());
         expect(setProperty).not.toHaveBeenCalledWith('--comment', expect.anything());
+    });
+
+    it('derives --shadow from canvas luminance so a light theme is not as heavy as dark', () => {
+        applyCssTheme(themeFixture());
+        expect(setProperty).toHaveBeenCalledWith('--shadow', 'rgb(0 0 0 / 0.45)');
+
+        setProperty.mockClear();
+        applyCssTheme(solarizedLightTheme);
+        expect(setProperty).toHaveBeenCalledWith('--shadow', 'rgb(0 0 0 / 0.16)');
     });
 });
