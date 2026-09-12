@@ -15,6 +15,11 @@ import {
     SelectValue,
 } from '../../components/ui/select';
 import { Tooltip } from '../../components/ui/tooltip';
+import {
+    dismissThemeImportWarning,
+    readThemeImportWarningDismissals,
+    themeImportWarningDismissGeneration,
+} from './theme-import-warnings';
 import { ThemePreview } from './theme-preview';
 import { humanizeThemeTokenLabel } from './theme-token-labels';
 
@@ -103,16 +108,29 @@ export function ThemeForm({
                         ))}
                     </fieldset>
                 ))}
-                <ThemeImportWarnings key={theme.id} warnings={theme.warnings} />
+                <ThemeImportWarnings key={theme.id} themeId={theme.id} warnings={theme.warnings} />
             </div>
         </div>
     );
 }
 
-function ThemeImportWarnings({ warnings }: { warnings: readonly string[] }) {
-    const [dismissedWarnings, setDismissedWarnings] = useState<ReadonlySet<string>>(
-        () => new Set(),
-    );
+function ThemeImportWarnings({
+    themeId,
+    warnings,
+}: {
+    themeId: string;
+    warnings: readonly string[];
+}) {
+    const generation = themeImportWarningDismissGeneration(themeId);
+    const [dismissedState, setDismissedState] = useState(() => ({
+        generation,
+        warnings: readThemeImportWarningDismissals(themeId),
+    }));
+    // A second import of the same theme keeps this component mounted; its new generation must reveal warnings again.
+    const dismissedWarnings =
+        dismissedState.generation === generation
+            ? dismissedState.warnings
+            : readThemeImportWarningDismissals(themeId);
     return (
         <>
             {warnings.map((warning) =>
@@ -129,13 +147,13 @@ function ThemeImportWarnings({ warnings }: { warnings: readonly string[] }) {
                                 variant="ghost"
                                 className="size-6 shrink-0"
                                 aria-label="Dismiss warning"
-                                onClick={() =>
-                                    setDismissedWarnings((current) => {
-                                        const next = new Set(current);
-                                        next.add(warning);
-                                        return next;
-                                    })
-                                }
+                                onClick={() => {
+                                    dismissThemeImportWarning(themeId, warning);
+                                    setDismissedState({
+                                        generation,
+                                        warnings: readThemeImportWarningDismissals(themeId),
+                                    });
+                                }}
                             >
                                 <X aria-hidden="true" size={12} />
                             </Button>

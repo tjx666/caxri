@@ -73,6 +73,19 @@ export type ConfigAction =
     | { type: 'theme/externalChanged'; source: string; value?: ThemeTokens }
     | { type: 'theme/imported'; value: ThemeTokens; source: string };
 
+/**
+ * Keep importer diagnostics visible when a serialized read returns the same theme without them.
+ */
+function keepSessionThemeWarnings(
+    current: ThemeTokens | undefined,
+    next: ThemeTokens,
+): ThemeTokens {
+    if (next.warnings.length > 0 || current?.id !== next.id || current.warnings.length === 0) {
+        return next;
+    }
+    return { ...next, warnings: current.warnings };
+}
+
 export function configReducer(state: ConfigState, action: ConfigAction): ConfigState {
     switch (action.type) {
         case 'loaded':
@@ -191,11 +204,21 @@ export function configReducer(state: ConfigState, action: ConfigAction): ConfigS
         case 'theme/sourceChanged':
             return { ...state, theme: { ...state.theme, source: action.source } };
         case 'theme/sourceParsed':
-            return { ...state, theme: { ...state.theme, value: action.value } };
+            return {
+                ...state,
+                theme: {
+                    ...state.theme,
+                    value: keepSessionThemeWarnings(state.theme.value, action.value),
+                },
+            };
         case 'theme/applied':
             return {
                 ...state,
-                theme: { value: action.value, source: action.source, appliedSource: action.source },
+                theme: {
+                    value: keepSessionThemeWarnings(state.theme.value, action.value),
+                    source: action.source,
+                    appliedSource: action.source,
+                },
             };
         case 'theme/echoApplied':
             return {
@@ -207,7 +230,9 @@ export function configReducer(state: ConfigState, action: ConfigAction): ConfigS
             return {
                 ...state,
                 theme: {
-                    value: hasPendingDraft ? state.theme.value : action.value,
+                    value: hasPendingDraft
+                        ? state.theme.value
+                        : keepSessionThemeWarnings(state.theme.value, action.value),
                     source: hasPendingDraft ? state.theme.source : action.source,
                     appliedSource: action.source,
                 },
@@ -217,7 +242,9 @@ export function configReducer(state: ConfigState, action: ConfigAction): ConfigS
             return {
                 ...state,
                 theme: {
-                    value: action.value ?? state.theme.value,
+                    value: action.value
+                        ? keepSessionThemeWarnings(state.theme.value, action.value)
+                        : state.theme.value,
                     source: action.source,
                     appliedSource: action.source,
                 },

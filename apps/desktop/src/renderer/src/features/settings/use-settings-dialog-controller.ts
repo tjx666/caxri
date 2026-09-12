@@ -27,6 +27,7 @@ import { configReducer, initialConfigState, parseConfigSource } from './settings
 import { settingsRows } from './settings-registry';
 import { createSettingsWriteCoordinator } from './settings-write-coordinator';
 import { applyBuiltinTheme, applyThemeColorEdit } from './theme-edit';
+import { resetThemeImportWarningDismissals } from './theme-import-warnings';
 
 /**
  * Requests that land on the ordinary settings list and are then answered by a `scrollToIndex` effect in
@@ -592,6 +593,7 @@ export function useSettingsDialogController() {
             const result = await caxri.request('theme.get');
             // Use the import payload for `value` so session-local warnings survive serializeTheme
             // stripping them from theme.json / `theme.get`.
+            resetThemeImportWarningDismissals(imported.id);
             dispatchConfig({
                 type: 'theme/imported',
                 value: imported,
