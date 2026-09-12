@@ -590,7 +590,13 @@ export function useSettingsDialogController() {
             // the generation so a stale response cannot clobber the just-imported theme afterward.
             writeCoordinator.supersede('theme');
             const result = await caxri.request('theme.get');
-            dispatchConfig({ type: 'theme/imported', value: result.value, source: result.source });
+            // Use the import payload for `value` so session-local warnings survive serializeTheme
+            // stripping them from theme.json / `theme.get`.
+            dispatchConfig({
+                type: 'theme/imported',
+                value: imported,
+                source: result.source,
+            });
             onApplied();
         } catch (error) {
             onSettingsError(error, 'Theme import failed');

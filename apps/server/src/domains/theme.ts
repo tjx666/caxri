@@ -1,4 +1,4 @@
-import { extname } from 'node:path';
+import { dirname, extname, join } from 'node:path';
 
 /**
  * The theme token shape lives in the IPC contract; importers reuse it instead of redeclaring it.
@@ -30,6 +30,71 @@ type ThemeImportFormat = (typeof themeImportFormats)[number];
  * `files/documents.ts` and `MAX_CONFIGURABLE_FILE_BYTES` in `shared/ipc/domain.ts`).
  */
 export const MAX_THEME_IMPORT_FILE_BYTES = 1 * 1024 * 1024;
+const ZERO_HIT_THEME_MESSAGE =
+    'This theme file does not define any workbench colors. Caxri could not find the colors it needs — check that you picked the theme JSON and not a package manifest.';
+const VSIX_THEME_MESSAGE =
+    'Caxri cannot read a .vsix package yet. Unzip it and pick the theme JSON under themes/.';
+const INCLUDE_DIRECTORY_MESSAGE = 'Theme include must be a file in the same directory.';
+
+/**
+ * VS Code `colors` keys `parseVsCode` actually maps. Zero-hit rejection uses this set so a file that only has
+ * `tokenColors` or an empty `colors` object cannot import as a renamed Dracula.
+ */
+const VSCODE_MAPPED_COLOR_KEYS = new Set([
+    'editor.background',
+    'editor.foreground',
+    'editor.lineHighlightBackground',
+    'editor.selectionBackground',
+    'sideBar.background',
+    'activityBar.background',
+    'tab.activeBackground',
+    'editorGroupHeader.tabsBackground',
+    'titleBar.activeBackground',
+    'editorWidget.background',
+    'list.hoverBackground',
+    'list.activeSelectionBackground',
+    'foreground',
+    'descriptionForeground',
+    'sideBar.border',
+    'tab.border',
+    'panel.border',
+    'tab.activeBorderTop',
+    'activityBar.activeBorder',
+    'progressBar.background',
+    'focusBorder',
+    'charts.green',
+    'testing.iconPassed',
+    'notebookStatusSuccessIcon.foreground',
+    'charts.purple',
+    'editorWarning.foreground',
+    'editorError.foreground',
+    'activityBarBadge.background',
+    'gitDecoration.addedResourceForeground',
+    'gitDecoration.modifiedResourceForeground',
+    'gitDecoration.deletedResourceForeground',
+    'gitDecoration.untrackedResourceForeground',
+    'gitDecoration.conflictingResourceForeground',
+    'terminal.background',
+    'terminal.foreground',
+    'terminalCursor.foreground',
+    'terminal.selectionBackground',
+    'terminal.ansiBlack',
+    'terminal.ansiRed',
+    'terminal.ansiGreen',
+    'terminal.ansiYellow',
+    'terminal.ansiBlue',
+    'terminal.ansiMagenta',
+    'terminal.ansiCyan',
+    'terminal.ansiWhite',
+    'terminal.ansiBrightBlack',
+    'terminal.ansiBrightRed',
+    'terminal.ansiBrightGreen',
+    'terminal.ansiBrightYellow',
+    'terminal.ansiBrightBlue',
+    'terminal.ansiBrightMagenta',
+    'terminal.ansiBrightCyan',
+    'terminal.ansiBrightWhite',
+]);
 const MIN_MUTED_CONTRAST = 4.5;
 const APP_COLOR_SURFACES = ['background', 'surface', 'elevated'] as const;
 const APP_COLOR_SURFACE_LABELS = {
@@ -81,10 +146,15 @@ const SYNTAX_SCOPE_PREFIX = {
 
 function tokenColorScopes(scope: unknown): string[] {
     const tokens = typeof scope === 'string' ? [scope] : Array.isArray(scope) ? scope : [];
-    return tokens
-        .filter((token): token is string => typeof token === 'string')
-        .flatMap((token) => token.split(',').map((part) => part.trim()))
-        .filter((token) => token.length > 0);
+    const scopes: string[] = [];
+    for (const token of tokens) {
+        if (typeof token !== 'string') continue;
+        for (const part of token.split(',')) {
+            const trimmed = part.trim();
+            if (trimmed.length > 0) scopes.push(trimmed);
+        }
+    }
+    return scopes;
 }
 
 function assignMatchingSyntaxRoles(
@@ -219,9 +289,19 @@ function isLightVsCodeTheme(value: Record<string, unknown>, editorBackground: st
     return contrastRatio(editorBackground, '#000000') > contrastRatio(editorBackground, '#ffffff');
 }
 
+function hasMappedVsCodeColor(colors: Record<string, unknown>): boolean {
+    for (const key of VSCODE_MAPPED_COLOR_KEYS) {
+        if (normalizedHex(colors[key], '')) return true;
+    }
+    return false;
+}
+
 function parseVsCode(value: Record<string, unknown>, name: string): ThemeTokens {
     const theme = cloneFallback('vscode', name);
     const colors = (value.colors ?? {}) as Record<string, unknown>;
+    if (!hasMappedVsCodeColor(colors)) {
+        throw new CaxriError('VALIDATION', ZERO_HIT_THEME_MESSAGE);
+    }
     /**
      * `--background` is the editor/Terminal canvas and `--surface` is the chrome around it, which is exactly VS Code's
      * `editor.background` / `sideBar.background` split. These two were previously swapped — `background` read
@@ -564,11 +644,71 @@ interface ThemeImportTestSeam {
     beforeRead?: BoundedRegularFileReadOptions['beforeRead'];
 }
 
+function sameDirectoryIncludePath(fromPath: string, include: string): string | undefined {
+    const posix = include.trim().replaceAll('\\', '/');
+    if (posix.length === 0 || posix.includes('..')) return undefined;
+    const relative = posix.startsWith('./') ? posix.slice(2) : posix;
+    if (relative.length === 0 || relative.includes('/')) return undefined;
+    return join(dirname(fromPath), relative);
+}
+
+function mergeVsCodeTheme(
+    parent: Record<string, unknown>,
+    child: Record<string, unknown>,
+): Record<string, unknown> {
+    const parentColors =
+        parent.colors && typeof parent.colors === 'object' && !Array.isArray(parent.colors)
+            ? (parent.colors as Record<string, unknown>)
+            : {};
+    const childColors =
+        child.colors && typeof child.colors === 'object' && !Array.isArray(child.colors)
+            ? (child.colors as Record<string, unknown>)
+            : {};
+    const parentTokens: unknown[] = Array.isArray(parent.tokenColors) ? parent.tokenColors : [];
+    const childTokens: unknown[] = Array.isArray(child.tokenColors) ? child.tokenColors : [];
+    return {
+        ...parent,
+        ...child,
+        colors: { ...parentColors, ...childColors },
+        tokenColors: [...parentTokens, ...childTokens],
+    };
+}
+
+async function resolveVsCodeInclude(
+    path: string,
+    source: string,
+    testSeam?: ThemeImportTestSeam,
+): Promise<string> {
+    let child: unknown;
+    try {
+        child = parseJsonc(source);
+    } catch {
+        return source;
+    }
+    if (!child || typeof child !== 'object' || Array.isArray(child)) return source;
+    const document = child as Record<string, unknown>;
+    if (themeSchema.safeParse(upgradeThemeColors(document)).success) return source;
+    if (typeof document.include !== 'string' || document.include.trim() === '') return source;
+    const parentPath = sameDirectoryIncludePath(path, document.include);
+    if (!parentPath) throw new CaxriError('VALIDATION', INCLUDE_DIRECTORY_MESSAGE);
+    const parentSource = await readBoundedRegularFileText(parentPath, MAX_THEME_IMPORT_FILE_BYTES, {
+        beforeRead: testSeam?.beforeRead,
+        capacityMessage: `Theme file exceeds the ${MAX_THEME_IMPORT_FILE_BYTES} byte import limit`,
+    });
+    const parent = parseJsonc(parentSource);
+    if (!parent || typeof parent !== 'object' || Array.isArray(parent)) {
+        throw new CaxriError('VALIDATION', INCLUDE_DIRECTORY_MESSAGE);
+    }
+    return JSON.stringify(mergeVsCodeTheme(parent as Record<string, unknown>, document));
+}
+
 export async function importTheme(
     path: string,
     current: ThemeTokens,
     testSeam?: ThemeImportTestSeam,
 ): Promise<ThemeTokens> {
+    const extension = extname(path).toLowerCase();
+    if (extension === '.vsix') throw new CaxriError('VALIDATION', VSIX_THEME_MESSAGE);
     const source = await readBoundedRegularFileText(path, MAX_THEME_IMPORT_FILE_BYTES, {
         beforeRead: testSeam?.beforeRead,
         capacityMessage: `Theme file exceeds the ${MAX_THEME_IMPORT_FILE_BYTES} byte import limit`,
@@ -578,9 +718,10 @@ export async function importTheme(
             .split('/')
             .at(-1)
             ?.replace(/\.[^.]+$/, '') ?? 'Imported Theme';
-    const extension = extname(path).toLowerCase();
     const format = resolveThemeImportFormat(extension, source);
-    const theme = parsersByFormatId[format.id](source, name);
+    const document =
+        format.id === 'vscode' ? await resolveVsCodeInclude(path, source, testSeam) : source;
+    const theme = parsersByFormatId[format.id](document, name);
 
     if (format.terminalOnly) {
         theme.colors = structuredClone(current.colors);
@@ -590,5 +731,5 @@ export async function importTheme(
 }
 
 export function serializeTheme(theme: ThemeTokens): string {
-    return `${JSON.stringify(theme, null, 2)}\n`;
+    return `${JSON.stringify({ ...theme, warnings: [] }, null, 2)}\n`;
 }

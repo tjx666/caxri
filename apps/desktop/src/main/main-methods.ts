@@ -316,8 +316,9 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                     filters: [
                         {
                             name: 'Theme files',
-                            extensions: [...themeImportExtensions],
+                            extensions: [...themeImportExtensions, 'vsix'],
                         },
+                        { name: 'All Files', extensions: ['*'] },
                     ],
                 });
                 const path = result.filePaths[0];
