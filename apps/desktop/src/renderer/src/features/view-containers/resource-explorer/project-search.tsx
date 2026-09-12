@@ -18,6 +18,7 @@ import { sessionViewScope } from '../../../stores/session-view';
 import { openFile } from '../../editor/document-actions';
 import { revealEditorMatch } from '../../editor/editor-reveal';
 import { useResourceExplorerClient } from '../controlled-view-context';
+import { isViewContainerQueryEnabled, useIsViewContainerActive } from '../view-container-activity';
 import { projectSearchQueryKey } from './project-search-query';
 import {
     projectSearchDisplayState,
@@ -196,6 +197,7 @@ export function ProjectSearch({
     scopeId: string;
 }) {
     const client = useResourceExplorerClient();
+    const isContainerActive = useIsViewContainerActive();
     const inputReference = useRef<HTMLInputElement>(null);
     const [query, setQuery] = useState('');
     const [mode, setMode] = useState<FileSearchMode>('name');
@@ -219,7 +221,7 @@ export function ProjectSearch({
     const result = useQuery({
         queryKey: projectSearchQueryKey(client.viewId, searchOptions, scopeId),
         queryFn: ({ signal }) => client.search(searchOptions, signal),
-        enabled: debouncedQuery.length > 0,
+        enabled: isViewContainerQueryEnabled(isContainerActive, debouncedQuery.length > 0),
     });
     const groups = useMemo(
         () => groupSearchMatches(result.data?.matches ?? []),
