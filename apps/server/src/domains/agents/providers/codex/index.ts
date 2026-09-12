@@ -641,6 +641,12 @@ export const codexProvider: AgentProviderDescriptor = {
     },
     hooks: codexHookAdapter,
     id: 'codex',
+    /**
+     * Codex 0.154 skips implicit shared-daemon reuse for CLI config overrides. A local backend must inherit this
+     * Terminal's hook identity and credentials; Caxri owns cross-Session messaging. This also disables auto recap.
+     * https://github.com/openai/codex/blob/rust-v0.154.0/codex-rs/tui/src/lib.rs#L988-L998
+     */
+    managedLaunchArguments: ['-c', 'tui.auto_recap=false'],
     pasteSummary: {
         summarize: (context) =>
             generateCodexLowCostText(

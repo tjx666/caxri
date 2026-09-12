@@ -2,6 +2,8 @@
 
 _Researched 2026-08-06._
 
+Codex hook follow-up, 2026-09-13: [current hook script](https://github.com/stablyai/orca/blob/403b62a8d8fa6e896a93acc4c15405be0f0b7dc7/src/main/codex/codex-hook-script.ts) refreshes port/token from the file named by `ORCA_AGENT_HOOK_ENDPOINT` before HTTP delivery. This supports surviving PTYs after Server restart, but still requires that environment variable and `ORCA_PANE_KEY`; its spool also requires both. Therefore this path alone does not solve completely missing shared-daemon environment. Source inspected only, not a live Orca reproduction.
+
 - **Positioning**: "Agent Development Environment" (ADE) — desktop app for running many parallel coding-agent CLIs (Claude Code, Codex, OpenCode, …), each in its own git worktree, with terminal, browser, and file editing built in.
 - **Company/traction**: Stably, Inc. (YC W22, pivoted from AI QA testing). Daily releases; iOS/Android companion apps; Discord + X `@orca_build`. Aimed at engineers running 10–100 agents at once.
 - **Tech stack**: TypeScript/Electron (electron-vite), pnpm monorepo, React renderer, node-pty, SQLite persistence, oxlint/oxfmt, native helpers under `native/`.

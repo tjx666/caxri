@@ -74,7 +74,7 @@ describe('domain-service composition root', () => {
             expect(spawn.mock.calls[0]?.[2]).toMatchObject({ cwd: canonicalProjectRoot });
             const agent = start.mock.calls[0]?.[0].agent;
             expect(agent?.executable).toBe('/bin/echo');
-            expect(agent?.args).toEqual(['--profile', 'focused']);
+            expect(agent?.args).toEqual(['-c', 'tui.auto_recap=false', '--profile', 'focused']);
             expect(agent?.environment).toMatchObject({ PATH: '/login/bin:/usr/bin' });
         } finally {
             await runtime.close();
@@ -488,6 +488,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
                 const agent = start.mock.calls[0]?.[0].agent;
                 expect(agent?.executable).toBe(`/usr/local/bin/${provider}`);
                 expect(agent?.args).toEqual([
+                    ...(provider === 'codex' ? ['-c', 'tui.auto_recap=false'] : []),
                     ...defaultAgentProviderSettings[provider].launch.args,
                     ...resumeArguments,
                 ]);
