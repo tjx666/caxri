@@ -3,6 +3,7 @@ import { gitFileDiffTabPath } from '@caxri/protocol';
 import { QueryClient, QueryObserver } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
 
+import { invalidateControlledViewSnapshotQueries } from '../../view-operation-client';
 import {
     buildSourceControlSnapshotRequest,
     sourceControlSnapshotQueryOptions,
@@ -319,6 +320,53 @@ describe('Source Control snapshot queries', () => {
             pending.resolve(fallback);
             await refetch;
         } finally {
+            unsubscribe();
+            queryClient.clear();
+        }
+    });
+
+    it('abandons a cold in-flight snapshot so a bumped refresh nonce reaches Server', async () => {
+        const queryClient = new QueryClient({
+            defaultOptions: { queries: { retry: false } },
+        });
+        const pending = Promise.withResolvers<SourceControlViewModel>();
+        const snapshot = vi
+            .fn<
+                (
+                    request: { refresh: number },
+                    signal?: AbortSignal,
+                ) => Promise<SourceControlViewModel>
+            >()
+            .mockReturnValueOnce(pending.promise)
+            .mockResolvedValueOnce(model('2'));
+        const options = (refresh: number) =>
+            sourceControlSnapshotQueryOptions({
+                client: { snapshot },
+                configRevision: '[]',
+                enabled: true,
+                queryScope: 'session-1:project-1',
+                refresh,
+                request: { activeResource: '/project/file.ts' },
+                viewId: 'caxri.git.sourceControl',
+            });
+        const observer = new QueryObserver(queryClient, options(0));
+        const unsubscribe = observer.subscribe(() => {});
+
+        try {
+            await vi.waitFor(() => expect(snapshot).toHaveBeenCalledTimes(1));
+            expect(snapshot.mock.calls[0]?.[0]).toMatchObject({ refresh: 0 });
+
+            observer.setOptions(options(1));
+            const refresh = invalidateControlledViewSnapshotQueries(
+                queryClient,
+                'caxri.git.sourceControl',
+            );
+            await vi.waitFor(() => expect(snapshot).toHaveBeenCalledTimes(2));
+            expect(snapshot.mock.calls[1]?.[0]).toMatchObject({ refresh: 1 });
+            await refresh;
+            await vi.waitFor(() => expect(observer.getCurrentResult().data).toEqual(model('2')));
+        } finally {
+            pending.resolve(model('1'));
             unsubscribe();
             queryClient.clear();
         }

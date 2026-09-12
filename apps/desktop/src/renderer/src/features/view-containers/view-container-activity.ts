@@ -1,5 +1,8 @@
 import type { ReactNode } from 'react';
-import { createContext, createElement, useContext } from 'react';
+import { createContext, createElement, useContext, useEffect } from 'react';
+
+import type { QueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 
 /**
  * Whether the keep-alive view container currently owns the visible tab. Hidden panels stay mounted so scroll, focus,
@@ -29,4 +32,31 @@ export function useIsViewContainerActive(): boolean {
  */
 export function isViewContainerQueryEnabled(isActive: boolean, isExtraEnabled = true): boolean {
     return isActive && isExtraEnabled;
+}
+
+/**
+ * `enabled: false` only blocks new fetches. A keep-alive panel that hides mid-request would otherwise keep talking to
+ * Server Core until that promise settled.
+ */
+export function cancelViewContainerQuery(
+    queryClient: QueryClient,
+    queryKey: readonly unknown[],
+): Promise<void> {
+    return queryClient.cancelQueries({ queryKey, exact: true });
+}
+
+export function useCancelViewContainerQueryWhenHidden(
+    queryKey: readonly unknown[],
+    isActive: boolean,
+): void {
+    const queryClient = useQueryClient();
+    const serializedQueryKey = JSON.stringify(queryKey);
+    useEffect(() => {
+        if (isActive) return;
+        // eslint-disable-next-line no-void -- cancellation is best-effort against the shared cache
+        void cancelViewContainerQuery(
+            queryClient,
+            JSON.parse(serializedQueryKey) as readonly unknown[],
+        );
+    }, [isActive, queryClient, serializedQueryKey]);
 }

@@ -18,7 +18,11 @@ import { sessionViewScope } from '../../../stores/session-view';
 import { openFile } from '../../editor/document-actions';
 import { revealEditorMatch } from '../../editor/editor-reveal';
 import { useResourceExplorerClient } from '../controlled-view-context';
-import { isViewContainerQueryEnabled, useIsViewContainerActive } from '../view-container-activity';
+import {
+    isViewContainerQueryEnabled,
+    useCancelViewContainerQueryWhenHidden,
+    useIsViewContainerActive,
+} from '../view-container-activity';
 import { projectSearchQueryKey } from './project-search-query';
 import type { ProjectSearchDisplayState } from './project-search-status';
 import {
@@ -276,19 +280,28 @@ export function ProjectSearch({
     const debouncedQuery = useDebouncedValue(query, 150);
     const isActive = query.length > 0;
     const isSettled = query === debouncedQuery;
-    const searchOptions = {
-        mode,
-        query: debouncedQuery || ' ',
-        caseSensitive: mode === 'content' && caseSensitive,
-        wholeWord: mode === 'content' && wholeWord,
-        regex: mode === 'content' && regex,
-        include,
-        exclude,
-    };
+    const searchOptions = useMemo(
+        () => ({
+            mode,
+            query: debouncedQuery || ' ',
+            caseSensitive: mode === 'content' && caseSensitive,
+            wholeWord: mode === 'content' && wholeWord,
+            regex: mode === 'content' && regex,
+            include,
+            exclude,
+        }),
+        [caseSensitive, debouncedQuery, exclude, include, mode, regex, wholeWord],
+    );
+    const queryKey = useMemo(
+        () => projectSearchQueryKey(client.viewId, searchOptions, scopeId),
+        [client.viewId, searchOptions, scopeId],
+    );
+    useCancelViewContainerQueryWhenHidden(queryKey, isContainerActive);
     const result = useQuery({
-        queryKey: projectSearchQueryKey(client.viewId, searchOptions, scopeId),
+        queryKey,
         queryFn: ({ signal }) => client.search(searchOptions, signal),
         enabled: isViewContainerQueryEnabled(isContainerActive, debouncedQuery.length > 0),
+        staleTime: 0,
     });
     const groups = useMemo(
         () => groupSearchMatches(result.data?.matches ?? []),

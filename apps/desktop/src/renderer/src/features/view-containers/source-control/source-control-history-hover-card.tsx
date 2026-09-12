@@ -11,12 +11,14 @@ type SourceControlHistoryItem = SourceControlHistoryPage['items'][number];
 
 export function SourceControlHistoryHoverCard({
     descriptor,
+    detailsEnabled = true,
     item,
     now,
     path,
     trigger,
 }: {
     descriptor: SourceControlHistoryDescriptor;
+    detailsEnabled?: boolean;
     item: SourceControlHistoryItem;
     now: number;
     path?: string;
@@ -53,11 +55,13 @@ export function SourceControlHistoryHoverCard({
                     <code className="rounded bg-elevated px-1 py-0.5 text-muted">
                         {item.description}
                     </code>
-                    <SourceControlHistoryHoverDetails
-                        descriptor={descriptor}
-                        itemId={item.id}
-                        path={path}
-                    />
+                    {detailsEnabled && (
+                        <SourceControlHistoryHoverDetails
+                            descriptor={descriptor}
+                            itemId={item.id}
+                            path={path}
+                        />
+                    )}
                 </div>
                 {item.decorations.length > 0 && (
                     <div className="mt-1.5 flex max-w-full flex-wrap gap-1">

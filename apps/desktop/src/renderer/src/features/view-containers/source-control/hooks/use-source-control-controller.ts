@@ -25,6 +25,7 @@ import { useActivePaneTab } from '../../../workbench/pane-actions';
 import { useControlledView, useSourceControlClient } from '../../controlled-view-context';
 import {
     isViewContainerQueryEnabled,
+    useCancelViewContainerQueryWhenHidden,
     useIsViewContainerActive,
 } from '../../view-container-activity';
 import { subscribeViewEvents } from '../../view-event-bridge';
@@ -207,6 +208,7 @@ export function useSourceControlController(
         request: snapshotRequest,
         viewId,
     });
+    useCancelViewContainerQueryWhenHidden(snapshotOptions.queryKey, isContainerActive);
     const snapshot = useQuery(snapshotOptions);
     const requestRefresh = useCallback(() => {
         setRefresh((current) => current + 1);
