@@ -101,6 +101,11 @@ directories.
   site in the same change. Never leave two coexisting ways of doing the same thing.
 - Reproduce a reported bug before changing code. Demonstrate the failure against the current build
   so the fix targets the verified cause rather than the first plausible suspect.
+- An intermittent failure is repaired against a measured rate, never against a plausible story.
+  Establish how often it fails before the change, name the mechanism, and re-measure with enough
+  repetitions that the new rate carries information; one green run is not evidence. A change whose
+  explanatory comment asserts a mechanism that was never confirmed is worse than no change at all —
+  the comment outlives the guess and is read as established fact. Revert it instead.
 - Controlled provider or PTY debugging may deliberately launch one explicitly selected real Agent
   CLI only through the `debug` skill's fail-closed procedure. This does not authorize ordinary E2E,
   CI, or Acceptance to discover or invoke a host provider.
