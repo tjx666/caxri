@@ -20,6 +20,7 @@ import { revealEditorMatch } from '../../editor/editor-reveal';
 import { useResourceExplorerClient } from '../controlled-view-context';
 import { isViewContainerQueryEnabled, useIsViewContainerActive } from '../view-container-activity';
 import { projectSearchQueryKey } from './project-search-query';
+import type { ProjectSearchDisplayState } from './project-search-status';
 import {
     projectSearchDisplayState,
     projectSearchTerminationMessage,
@@ -185,6 +186,72 @@ function ContentResultGroup({
             </DisclosureMotion>
         </div>
     );
+}
+
+function ProjectSearchResults({
+    displayState,
+    groups,
+    mode,
+    nameTree,
+    sessionId,
+    terminationMessage,
+    truncated,
+}: {
+    displayState: ProjectSearchDisplayState;
+    groups: Map<string, FileSearchMatch[]>;
+    mode: FileSearchMode;
+    nameTree: NameSearchNode[];
+    sessionId: string;
+    terminationMessage: string | undefined;
+    truncated: boolean | undefined;
+}) {
+    switch (displayState) {
+        case 'idle':
+            return <div className="min-h-0 flex-1" />;
+        case 'searching':
+            return <div className="p-3 text-center text-muted">Searching…</div>;
+        case 'error':
+            return (
+                <div className="p-3 text-center text-danger" role="alert">
+                    Search failed.
+                </div>
+            );
+        case 'incomplete':
+            return (
+                <div className="p-3 text-center text-warning" role="status">
+                    {terminationMessage}
+                </div>
+            );
+        case 'empty':
+            return <div className="p-3 text-center text-muted">No results.</div>;
+        case 'results':
+            return (
+                <div className="search-results min-h-0 flex-1 overflow-auto">
+                    {mode === 'name'
+                        ? nameTree.map((node) => (
+                              <NameSearchTreeNode
+                                  key={node.relativePath}
+                                  depth={0}
+                                  node={node}
+                                  sessionId={sessionId}
+                              />
+                          ))
+                        : [...groups].map(([relativePath, matches]) => (
+                              <ContentResultGroup
+                                  key={relativePath}
+                                  relativePath={relativePath}
+                                  matches={matches}
+                                  sessionId={sessionId}
+                              />
+                          ))}
+                    {truncated && (
+                        <div className="border-t border-border p-2 text-center text-[11px] text-warning">
+                            {terminationMessage}
+                        </div>
+                    )}
+                </div>
+            );
+    }
 }
 
 export function ProjectSearch({
@@ -372,46 +439,15 @@ export function ProjectSearch({
                     </div>
                 )}
             </div>
-            {displayState === 'idle' ? (
-                <div className="min-h-0 flex-1" />
-            ) : displayState === 'searching' ? (
-                <div className="p-3 text-center text-muted">Searching…</div>
-            ) : displayState === 'error' ? (
-                <div className="p-3 text-center text-danger" role="alert">
-                    Search failed.
-                </div>
-            ) : displayState === 'incomplete' ? (
-                <div className="p-3 text-center text-warning" role="status">
-                    {terminationMessage}
-                </div>
-            ) : displayState === 'empty' ? (
-                <div className="p-3 text-center text-muted">No results.</div>
-            ) : (
-                <div className="search-results min-h-0 flex-1 overflow-auto">
-                    {mode === 'name'
-                        ? nameTree.map((node) => (
-                              <NameSearchTreeNode
-                                  key={node.relativePath}
-                                  depth={0}
-                                  node={node}
-                                  sessionId={sessionId}
-                              />
-                          ))
-                        : [...groups].map(([relativePath, matches]) => (
-                              <ContentResultGroup
-                                  key={relativePath}
-                                  relativePath={relativePath}
-                                  matches={matches}
-                                  sessionId={sessionId}
-                              />
-                          ))}
-                    {result.data?.truncated && (
-                        <div className="border-t border-border p-2 text-center text-[11px] text-warning">
-                            {terminationMessage}
-                        </div>
-                    )}
-                </div>
-            )}
+            <ProjectSearchResults
+                displayState={displayState}
+                groups={groups}
+                mode={mode}
+                nameTree={nameTree}
+                sessionId={sessionId}
+                terminationMessage={terminationMessage}
+                truncated={result.data?.truncated}
+            />
         </div>
     );
 }
