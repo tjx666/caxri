@@ -1,6 +1,6 @@
 import type { ThemeTokens } from '@caxri/protocol';
 import { themeColorCssVariable } from '@caxri/protocol';
-import { contrastRatio } from '@caxri/utils';
+import { contrastRatio, relativeLuminance } from '@caxri/utils';
 
 const MIN_TEXT_CONTRAST = 4.5;
 
@@ -24,4 +24,12 @@ export function applyCssTheme(theme: ThemeTokens): void {
     root.style.setProperty('--accent-foreground', readableForeground(theme.colors.accent, theme));
     root.style.setProperty('--danger-foreground', readableForeground(theme.colors.danger, theme));
     root.style.setProperty('--badge-foreground', readableForeground(theme.colors.badge, theme));
+    /**
+     * DESIGN.md derives `--shadow` once from theme colors. Skip `widget.shadow`: Caxri has no schema token for it, and
+     * a light canvas needs a lighter veil than the first-frame dark fallback.
+     */
+    root.style.setProperty(
+        '--shadow',
+        `rgb(0 0 0 / ${relativeLuminance(theme.colors.background) > 0.5 ? 0.16 : 0.45})`,
+    );
 }
