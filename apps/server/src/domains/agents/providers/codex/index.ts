@@ -269,14 +269,15 @@ const CODEX_SQLITE_WHITESPACE =
     'char(9,10,11,12,13,32,133,160,5760,8192,8193,8194,8195,8196,8197,8198,8199,8200,8201,8202,8232,8233,8239,8287,12288)';
 
 interface CodexTurnRow {
+    turn_id: string;
     status: string;
 }
 
-async function readCodexTurnStatus(
+async function readCodexTurnState(
     context: Pick<AgentSnapshotContext, 'agentSessionId' | 'agentTurnId'>,
     stateDirectories: string[],
-): Promise<LocalAgentState['status']> {
-    if (!context.agentSessionId || !context.agentTurnId) return undefined;
+): Promise<Pick<LocalAgentState, 'activitySource' | 'activityTurnId' | 'status'> | undefined> {
+    if (!context.agentSessionId) return undefined;
     const databasePaths = await findCodexStateDatabases(
         stateDirectories,
         /^thread_history_\d+\.sqlite$/,
@@ -291,14 +292,40 @@ async function readCodexTurnStatus(
                 ),
             );
             if (['thread_id', 'turn_id', 'status'].some((column) => !columns.has(column))) continue;
+            const isExactTurn = context.agentTurnId !== undefined;
+            /**
+             * A validated hook supplies the exact turn and remains authoritative. Restored PTYs may not inherit the
+             * current hook environment, though, so a bound thread also needs a persisted-state fallback: Codex writes
+             * `inProgress` before rendering work and advances `rollout_ordinal` for every new turn. Older supported
+             * stores predate that column; their insertion order is the only available recency signal.
+             *
+             * @see https://github.com/openai/codex/blob/5af85998/codex-rs/thread-store/src/local/thread_history.rs
+             */
+            const order = isExactTurn
+                ? ''
+                : columns.has('rollout_ordinal')
+                  ? ' ORDER BY rollout_ordinal DESC'
+                  : ' ORDER BY rowid DESC';
             const row = database
                 .prepare(
-                    'SELECT status FROM thread_turns WHERE thread_id = ? AND turn_id = ? LIMIT 1',
+                    `SELECT turn_id, status FROM thread_turns WHERE thread_id = ?${isExactTurn ? ' AND turn_id = ?' : ''}${order} LIMIT 1`,
                 )
-                .get(context.agentSessionId, context.agentTurnId) as CodexTurnRow | undefined;
-            if (row?.status === 'inProgress') return 'running';
-            if (row?.status === 'failed') return 'failed';
-            if (row?.status === 'completed' || row?.status === 'interrupted') return 'completed';
+                .get(context.agentSessionId, ...(isExactTurn ? [context.agentTurnId] : [])) as
+                CodexTurnRow | undefined;
+            const status =
+                row?.status === 'inProgress'
+                    ? 'running'
+                    : row?.status === 'failed'
+                      ? 'failed'
+                      : row?.status === 'completed' || row?.status === 'interrupted'
+                        ? 'completed'
+                        : undefined;
+            if (row && status)
+                return {
+                    activitySource: isExactTurn ? 'exactTurn' : 'latestTurn',
+                    activityTurnId: row.turn_id,
+                    status,
+                };
         } catch {
             /**
              * Codex owns this private database schema; missing tables and schema drift degrade to unknown.
@@ -308,6 +335,13 @@ async function readCodexTurnStatus(
         }
     }
     return undefined;
+}
+
+async function readCodexTurnStatus(
+    context: Pick<AgentSnapshotContext, 'agentSessionId' | 'agentTurnId'>,
+    stateDirectories: string[],
+): Promise<LocalAgentState['status']> {
+    return (await readCodexTurnState(context, stateDirectories))?.status;
 }
 
 function isWritableOpenFile(access: string): boolean {
@@ -554,9 +588,10 @@ async function readCodexState(
         }
     }
     if (!selectedRow) return undefined;
+    const turnState = await readCodexTurnState(context, stateDirectories);
     return {
+        ...turnState,
         sessionId: selectedRow.id,
-        status: await readCodexTurnStatus(context, stateDirectories),
         title: selectedRow.title?.trim(),
         usage:
             typeof selectedRow.tokens_used === 'number' && selectedRow.tokens_used > 0
