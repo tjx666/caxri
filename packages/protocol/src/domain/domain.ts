@@ -312,6 +312,7 @@ const agentHookHealthKindSchema = z.enum([
     'unsupported',
     'notInstalled',
     'installedPending',
+    'incompatible',
     'active',
     'stale',
     'drifted',
@@ -322,6 +323,7 @@ const agentHookHealthKindSchema = z.enum([
 const agentHookHealthSchema = z.object({
     kind: agentHookHealthKindSchema,
     message: z.string().max(1_024).optional(),
+    installedSchema: z.number().int().nonnegative().optional(),
 });
 
 export const agentHookHealthMapSchema = z.record(agentProviderSchema, agentHookHealthSchema);

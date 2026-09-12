@@ -9,6 +9,15 @@ import type {
 
 import type { TerminalExecutionPort } from './execution-port';
 
+export type TerminalLifecycleCause =
+    | 'hostRestart'
+    | 'terminalRestart'
+    | 'idleSuspended'
+    | 'untouchedSuspended'
+    | 'sessionArchived'
+    | 'terminalClosed'
+    | 'serverShutdown';
+
 export interface TerminalManagerOptions {
     execution: TerminalExecutionPort;
     resolveExecutable?: (
@@ -46,7 +55,11 @@ export interface TerminalManagerOptions {
     /**
      * Dispatch receipts follow the managed Agent child rather than the long-lived Shell state.
      */
-    onAgentStateChanged?: (terminalId: string, state: ProcessState) => void;
+    onAgentStateChanged?: (
+        terminalId: string,
+        state: ProcessState,
+        cause?: TerminalLifecycleCause,
+    ) => void;
     /**
      * Dispatch receipts observe durable process state without reading Terminal output.
      */

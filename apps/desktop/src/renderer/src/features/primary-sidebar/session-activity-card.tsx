@@ -14,10 +14,9 @@ import { useNow } from '@/hooks/use-now';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '../../components/ui/hover-card';
 import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
-import { openExternalUrl } from '../../lib/external-link';
 import { isRestoringPickerFocus } from '../../lib/picker-final-focus';
 import { cn } from '../../lib/utilities';
-import { pushToast } from '../../stores/toasts';
+import { openSessionPullRequest } from '../session/session-actions';
 import { ProjectIcon } from './project-icon';
 import type { SessionActivityPresentation } from './session-activity';
 import {
@@ -55,8 +54,13 @@ const detachedActivityPresentation = {
     tone: 'neutral',
 } satisfies ReturnType<typeof sessionActivityPresentation>;
 
-function SessionPullRequestDetails({ pullRequest }: { pullRequest: SessionPullRequest }) {
-    const presentation = sessionPullRequestPresentation(pullRequest);
+function SessionPullRequestLink({
+    pullRequest,
+    presentation,
+}: {
+    pullRequest: SessionPullRequest;
+    presentation: ReturnType<typeof sessionPullRequestPresentation>;
+}) {
     return (
         <a
             className="mt-2 flex min-w-0 items-center gap-1.5 rounded-md border border-border bg-surface px-2 py-1.5 text-[11px] text-foreground no-underline hover:bg-elevated"
@@ -64,11 +68,10 @@ function SessionPullRequestDetails({ pullRequest }: { pullRequest: SessionPullRe
             rel="noreferrer"
             aria-label={`Open pull request #${pullRequest.number}: ${pullRequest.title}`}
             onClick={(event) => {
-                // Main denies window.open navigation; use the structured external.open boundary.
+                // Main denies window navigation; this semantic link uses the shared external.open action.
                 event.preventDefault();
                 event.stopPropagation();
-                // eslint-disable-next-line no-void -- intentional floating-promise discard, openExternalUrl reports its own failure
-                void openExternalUrl(pullRequest.url, (message) => pushToast('error', message));
+                openSessionPullRequest(pullRequest);
             }}
         >
             <SessionPullRequestIndicator pullRequest={pullRequest} />
@@ -208,7 +211,12 @@ export function SessionActivityCard({
                         {activity.description}
                     </p>
                 </div>
-                {pullRequest && <SessionPullRequestDetails pullRequest={pullRequest} />}
+                {pullRequest && pullRequestPresentation && (
+                    <SessionPullRequestLink
+                        pullRequest={pullRequest}
+                        presentation={pullRequestPresentation}
+                    />
+                )}
                 {worktreeProject && (
                     <div className="session-card-worktree mt-2 flex items-center justify-between gap-3 text-[10px] text-muted">
                         <span className="flex-none">Worktree</span>

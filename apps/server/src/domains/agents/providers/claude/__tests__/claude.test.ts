@@ -1,4 +1,13 @@
-import { appendFile, chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import {
+    appendFile,
+    chmod,
+    mkdir,
+    mkdtemp,
+    readFile,
+    rm,
+    symlink,
+    writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
@@ -72,31 +81,44 @@ function claudeRenameContext(
 }
 
 describe('Claude Code provider', () => {
-    it('sends low-cost prompt content only through stdin and blocks instruction files', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-claude-low-cost-command-'));
-        temporaryDirectories.push(directory);
-        const executable = join(directory, 'claude.cjs');
-        const argumentsPath = join(directory, 'arguments.json');
-        const cwdPath = join(directory, 'cwd.txt');
-        const exposurePath = join(directory, 'exposure.json');
-        const inputPath = join(directory, 'input.txt');
-        const projectDirectory = join(directory, 'project');
-        const claudeHome = join(directory, 'claude-home');
-        const projectMarker = join(projectDirectory, 'private-source.txt');
-        await Promise.all([mkdir(projectDirectory), mkdir(claudeHome)]);
-        await Promise.all([
-            writeFile(projectMarker, 'PROJECT_SOURCE_MARKER'),
-            writeFile(join(claudeHome, 'CLAUDE.md'), 'GLOBAL_INSTRUCTION_MARKER'),
-        ]);
-        await writeFile(
-            executable,
-            `#!${process.execPath}
+    it.each([
+        ['CLAUDE.md', false],
+        ['CLAUDE.local.md', false],
+        ['CLAUDE.md', true],
+        ['CLAUDE.local.md', true],
+    ] as const)(
+        'sends low-cost prompt through stdin and blocks %s (symlink: %s)',
+        async (instructionName, isSymlink) => {
+            const directory = await mkdtemp(join(tmpdir(), 'caxri-claude-low-cost-command-'));
+            temporaryDirectories.push(directory);
+            const executable = join(directory, 'claude.cjs');
+            const argumentsPath = join(directory, 'arguments.json');
+            const cwdPath = join(directory, 'cwd.txt');
+            const exposurePath = join(directory, 'exposure.json');
+            const inputPath = join(directory, 'input.txt');
+            const projectDirectory = join(directory, 'project');
+            const claudeHome = join(directory, 'claude-home');
+            const instructionPath = join(claudeHome, instructionName);
+            const instructionTarget = isSymlink
+                ? join(directory, 'external-instructions.md')
+                : instructionPath;
+            const projectMarker = join(projectDirectory, 'private-source.txt');
+            await Promise.all([mkdir(projectDirectory), mkdir(claudeHome)]);
+            await Promise.all([
+                writeFile(projectMarker, 'PROJECT_SOURCE_MARKER'),
+                writeFile(instructionTarget, 'GLOBAL_INSTRUCTION_MARKER'),
+            ]);
+            if (isSymlink) await symlink(instructionTarget, instructionPath);
+            await writeFile(
+                executable,
+                `#!${process.execPath}
 const { readFileSync, writeFileSync } = require('node:fs');
 writeFileSync(${JSON.stringify(argumentsPath)}, JSON.stringify(process.argv.slice(2)));
 writeFileSync(${JSON.stringify(cwdPath)}, process.cwd());
 const readMarker = (path) => { try { return readFileSync(path, 'utf8'); } catch { return 'blocked'; } };
 writeFileSync(${JSON.stringify(exposurePath)}, JSON.stringify({
-    globalInstructions: readMarker(${JSON.stringify(join(claudeHome, 'CLAUDE.md'))}),
+    globalInstructions: readMarker(${JSON.stringify(instructionTarget)}),
+    instructionEntry: readMarker(${JSON.stringify(instructionPath)}),
     projectSource: readMarker(${JSON.stringify(projectMarker)}),
 }));
 let input = '';
@@ -107,44 +129,53 @@ process.stdin.on('end', () => {
     process.stdout.write('Claude Paste Summary');
 });
 `,
-            'utf8',
-        );
-        await chmod(executable, 0o700);
-        const claudeEnvironment = {
-            homeDirectory: directory,
-            variables: { CLAUDE_CONFIG_DIR: claudeHome },
-        };
+                'utf8',
+            );
+            await chmod(executable, 0o700);
+            const claudeEnvironment = {
+                homeDirectory: directory,
+                variables: { CLAUDE_CONFIG_DIR: claudeHome },
+            };
 
-        await expect(
-            claudeProvider.pasteSummary?.summarize({
-                cwd: projectDirectory,
-                environment: claudeEnvironment,
-                executable,
-                prompt: 'long paste fixture',
-                version: '2.1.251 (Claude Code)',
-            }),
-        ).resolves.toBe('Claude Paste Summary');
-        const arguments_ = JSON.parse(await readFile(argumentsPath, 'utf8')) as string[];
-        expect(arguments_).toEqual(
-            expect.arrayContaining(['--model', 'haiku', '--no-session-persistence', '--safe-mode']),
-        );
-        expect(arguments_[arguments_.indexOf('--system-prompt') + 1]).toContain(
-            'If the text is a log, build trace, test output, or diagnostic dump:',
-        );
-        expect(arguments_.join(' ')).not.toContain('long paste fixture');
-        expect(await readFile(inputPath, 'utf8')).toBe('long paste fixture');
-        expect(await readFile(cwdPath, 'utf8')).not.toBe(projectDirectory);
-        /**
-         * Claude Code resolves its user memory from the configuration directory, so an isolated cwd alone cannot stop
-         * it. Only the host sandbox can, which is why this asserts the real subprocess rather than the built argv.
-         */
-        const exposure = JSON.parse(await readFile(exposurePath, 'utf8')) as {
-            globalInstructions: string;
-            projectSource: string;
-        };
-        expect(exposure.globalInstructions).toBe('blocked');
-        expect(exposure.projectSource).toBe('blocked');
-    });
+            await expect(
+                claudeProvider.pasteSummary?.summarize({
+                    cwd: projectDirectory,
+                    environment: claudeEnvironment,
+                    executable,
+                    prompt: 'long paste fixture',
+                    version: '2.1.251 (Claude Code)',
+                }),
+            ).resolves.toBe('Claude Paste Summary');
+            const arguments_ = JSON.parse(await readFile(argumentsPath, 'utf8')) as string[];
+            expect(arguments_).toEqual(
+                expect.arrayContaining([
+                    '--model',
+                    'haiku',
+                    '--no-session-persistence',
+                    '--safe-mode',
+                ]),
+            );
+            expect(arguments_[arguments_.indexOf('--system-prompt') + 1]).toContain(
+                'If the text is a log, build trace, test output, or diagnostic dump:',
+            );
+            expect(arguments_.join(' ')).not.toContain('long paste fixture');
+            expect(await readFile(inputPath, 'utf8')).toBe('long paste fixture');
+            expect(await readFile(cwdPath, 'utf8')).not.toBe(projectDirectory);
+            /**
+             * Claude Code resolves its user memory from the configuration directory, so an isolated cwd alone cannot
+             * stop it. Only the host sandbox can, which is why this asserts the real subprocess rather than the built
+             * argv.
+             */
+            const exposure = JSON.parse(await readFile(exposurePath, 'utf8')) as {
+                globalInstructions: string;
+                instructionEntry: string;
+                projectSource: string;
+            };
+            expect(exposure.globalInstructions).toBe('blocked');
+            expect(exposure.instructionEntry).toBe('blocked');
+            expect(exposure.projectSource).toBe('blocked');
+        },
+    );
 
     it('renames the exact native session with structured arguments and returns the provider-authoritative name', async () => {
         mocks.runExternalCommand.mockResolvedValue({

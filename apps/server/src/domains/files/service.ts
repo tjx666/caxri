@@ -96,12 +96,18 @@ export class FileService {
             options.mutationJournal,
         );
         this.documents = new DocumentService(resolveWorkspacePath, logger, maxFileBytes, options);
-        this.watcher = new WatcherService(resolveSessionPath, emit, logger, options);
+        this.watcher = new WatcherService(resolveSessionPath, emit, logger, {
+            ...options,
+            resolveWorkspacePath,
+        });
         this.listing = new ListingService(
             resolveWorkspacePath,
             logger,
             options.fileTreeExcludes ?? (() => ({})),
-            (sessionId, path) => this.watcher.noteDirectoryListed(sessionId, path),
+            async (sessionId, path, resolved) => {
+                this.watcher.noteDirectoryListed(sessionId, path);
+                await this.watcher.noteWorkspacePath(sessionId, resolved);
+            },
             options.decorateGitIgnored,
             (sessionId, paths) => this.watcher.noteGitIgnoreRulePaths(sessionId, paths),
             options.openDirectory,
@@ -336,6 +342,7 @@ export class FileService {
     async read(sessionId: string, path: string, signal?: AbortSignal): Promise<FileDocument> {
         signal?.throwIfAborted();
         const operationPath = await this.projectRoots.resolveSessionPath(sessionId, path, true);
+        await this.watcher.noteWorkspacePath(sessionId, operationPath);
         return this.operations.run(
             () => this.documents.read(sessionId, path, signal, operationPath),
             {

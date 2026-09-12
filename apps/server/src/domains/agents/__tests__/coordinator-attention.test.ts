@@ -11,6 +11,19 @@ import { AgentCoordinator } from '../coordinator';
 import type { AgentAdapter } from '../service';
 import { AgentService } from '../service';
 
+const loggers: StructuredLogger[] = [];
+
+function createLogger(...arguments_: ConstructorParameters<typeof StructuredLogger>) {
+    const logger = new StructuredLogger(...arguments_);
+    loggers.push(logger);
+    return logger;
+}
+
+async function flushLoggers(): Promise<void> {
+    const pendingLoggers = [...loggers];
+    loggers.length = 0;
+    await Promise.all(pendingLoggers.map((logger) => logger.flush()));
+}
 const temporaryDirectories: string[] = [];
 
 function createAgents(): AgentService {
@@ -25,6 +38,7 @@ function createAgents(): AgentService {
 }
 
 afterEach(async () => {
+    await flushLoggers();
     const pendingCleanup = [...temporaryDirectories];
     temporaryDirectories.length = 0;
     await Promise.all(pendingCleanup.map((path) => rm(path, { recursive: true, force: true })));
@@ -40,7 +54,7 @@ describe('AgentCoordinator permission attention', () => {
             database,
             createAgents(),
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
         );
         const baseSignal = {
             launchId: 'launch-1',

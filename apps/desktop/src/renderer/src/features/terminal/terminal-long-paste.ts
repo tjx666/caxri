@@ -38,8 +38,20 @@ export function formatLongPasteReference(
         `Original file: ${filePath}`,
         `Original size: ${lines}, ${characters}`,
     ];
-    if (result.status === 'unavailable')
-        return [...header, '', 'Read the original file for the exact content.'].join('\n');
+    if (result.status === 'unavailable') {
+        const reason =
+            result.reason === 'sandboxBoundaryConflict'
+                ? 'Summary blocked by the Project sandbox boundary. Choose a more specific Project folder.'
+                : result.reason === 'sandboxPathUnavailable'
+                  ? 'Summary unavailable because its sandbox paths could not be verified.'
+                  : undefined;
+        return [
+            ...header,
+            ...(reason ? [reason] : []),
+            '',
+            'Read the original file for the exact content.',
+        ].join('\n');
+    }
     const summary = result.summary.replaceAll(/\r\n?/gu, '\n').trim();
     return [
         ...header,

@@ -172,6 +172,7 @@ export type AgentHookEntryStatus =
     | { kind: 'current' }
     | { kind: 'stale'; installedSchema: number }
     | { kind: 'newer'; installedSchema: number }
+    | { kind: 'newerIncomplete'; installedSchema: number }
     | { kind: 'drifted' }
     | { kind: 'conflict'; message: string }
     | { kind: 'unparseable'; message: string };

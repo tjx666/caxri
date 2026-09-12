@@ -92,6 +92,13 @@ export class TerminalSuspensionService {
             const record = await this.options.terminals.suspend(
                 terminalId,
                 reason === 'detached' ? 'detached' : 'suspended',
+                reason === 'archived'
+                    ? 'sessionArchived'
+                    : reason === 'idle'
+                      ? 'idleSuspended'
+                      : reason === 'untouched'
+                        ? 'untouchedSuspended'
+                        : undefined,
             );
             if (!record) return false;
             this.samples.delete(terminalId);

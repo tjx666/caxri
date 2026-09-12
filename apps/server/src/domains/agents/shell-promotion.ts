@@ -3,8 +3,10 @@ import { agentProviderCatalog, agentProviderIds } from '@caxri/protocol';
 
 import type { AgentLifecycleSignal } from './hooks/contract';
 
-export const MAX_SHELL_COMMAND_LENGTH = 4_096;
+const MAX_SHELL_COMMAND_LENGTH = 4_096;
 export const SHELL_PROMOTION_WINDOW_MS = 30_000;
+const BRACKETED_PASTE_START = '\u{1B}[200~';
+const BRACKETED_PASTE_END = '\u{1B}[201~';
 
 export interface ShellInputState {
     command: string;
@@ -68,6 +70,65 @@ function inputPromotionCandidate(
         provider,
         startedAt,
     };
+}
+
+/**
+ * Advances the Terminal's unpublished-input state machine over one PTY input chunk, without logging or persisting the
+ * text. `onSubmit` fires only for a complete unedited command; `onDiscard` fires when the user drops the line with
+ * Ctrl-C or Ctrl-U. Both run in the exact order their characters arrive, so a submission followed by a discard inside
+ * one chunk still retires the candidate it just opened. It lives beside the promotion rules rather than inside
+ * `AgentCoordinator` so that module stays within the repository's file-size budget.
+ */
+export function scanShellInput(
+    initial: ShellInputState,
+    data: string,
+    handlers: { onDiscard: () => void; onSubmit: (command: string) => void },
+): { didSubmit: boolean; state: ShellInputState } {
+    let state = initial;
+    let didSubmit = false;
+    for (let index = 0; index < data.length; index += 1) {
+        if (data.startsWith(BRACKETED_PASTE_START, index)) {
+            state.isBracketedPaste = true;
+            index += BRACKETED_PASTE_START.length - 1;
+            continue;
+        }
+        if (data.startsWith(BRACKETED_PASTE_END, index)) {
+            state.isBracketedPaste = false;
+            index += BRACKETED_PASTE_END.length - 1;
+            continue;
+        }
+        const character = data[index];
+        if (character === '\r' || character === '\n') {
+            if (state.isBracketedPaste) {
+                state.command += '\n';
+                state.valid = false;
+                continue;
+            }
+            const hasContent = Boolean(state.command.trim());
+            didSubmit ||= hasContent;
+            if (hasContent && state.valid) handlers.onSubmit(state.command);
+            state = { command: '', isBracketedPaste: false, valid: true };
+            continue;
+        }
+        if (character === '\u{3}' || character === '\u{15}') {
+            state = { command: '', isBracketedPaste: false, valid: true };
+            handlers.onDiscard();
+            continue;
+        }
+        if (character === '\b' || character === '\u{7F}') {
+            if (state.valid) state.command = [...state.command].slice(0, -1).join('');
+            continue;
+        }
+        if (character === '\u{1B}' || character === '\t') {
+            state.valid = false;
+            continue;
+        }
+        if (character < ' ') continue;
+        if (!state.valid) continue;
+        state.command += character;
+        if (state.command.length > MAX_SHELL_COMMAND_LENGTH) state.valid = false;
+    }
+    return { didSubmit, state };
 }
 
 /**

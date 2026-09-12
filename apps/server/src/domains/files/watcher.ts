@@ -9,9 +9,11 @@ import type parcelWatcher from '@parcel/watcher';
 
 import { NATIVE_WATCHER_BACKEND } from '../native-watcher';
 import { isOutsideRoot } from '../path-security';
+import type { ResolvedSessionPath } from '../project-roots';
 import type { WatchHandle } from '../watch-hub';
 import { WatchHub } from '../watch-hub';
 import type { ResolveSessionPath } from './documents';
+import { ExternalLinkWatcher } from './external-link-watcher';
 import {
     isTraversalExcludedName,
     isTraversalExcludedPath,
@@ -23,7 +25,7 @@ const MAX_POLLED_DIRECTORIES = 64;
 const MAX_RECENT_CHANGE_FINGERPRINTS = 5_000;
 const WATCH_BATCH_DELAY_MS = 75;
 const WATCH_POLL_INTERVAL_MS = 750;
-const MISSING_PATH_FINGERPRINT = '<missing>';
+const MISSING = '<missing>';
 const MAX_CONCURRENT_POLL_DIRECTORIES = 4;
 const MAX_CONCURRENT_SIGNATURE_STATS = 16;
 
@@ -96,6 +98,7 @@ export function didFingerprintChange(
 }
 
 export interface WatcherServiceOptions {
+    resolveWorkspacePath?: ResolveSessionPath;
     maxPolledDirectories?: number;
     onRootUnavailable?: (sessionId: string) => void;
     pollIntervalMs?: number;
@@ -124,6 +127,7 @@ export interface WatchScope {
  * `ListingService` primes via `noteDirectoryListed`.
  */
 export class WatcherService {
+    private readonly externalLinks: ExternalLinkWatcher;
     private watchHandle?: WatchHandle;
     private watchedScope?: WatchScope;
     private watchGeneration = 0;
@@ -170,6 +174,13 @@ export class WatcherService {
         this.ownsWatchHub = !options.watchHub;
         this.watchHub = options.watchHub ?? new WatchHub({ logger, subscribe: options.subscribe });
         this.onRootUnavailable = options.onRootUnavailable;
+        this.externalLinks = new ExternalLinkWatcher(
+            options.resolveWorkspacePath ?? resolveSessionPath,
+            this.watchHub,
+            this.pollIntervalMs,
+            (scope, change) => this.queueFingerprintedEvent(scope, change.kind, change.path),
+            (scope) => this.triggerRescan(scope),
+        );
     }
 
     /**
@@ -233,10 +244,17 @@ export class WatcherService {
                 if (generation !== this.watchGeneration) return;
                 const eventScope = this.watchedScope;
                 if (!eventScope) return;
+                let isRootDeleted = false;
                 for (const event of events) {
                     const relativePath = relative(root, event.path);
                     if (isOutsideRoot(relativePath) || isTraversalExcludedPath(relativePath))
                         continue;
+                    if (relativePath === '' && event.type === 'delete') {
+                        // Queue before Workbench validation can replace the watcher generation.
+                        this.queueFingerprintedEvent(eventScope, 'delete', event.path, MISSING);
+                        isRootDeleted = true;
+                        continue;
+                    }
                     this.queueNativeEventInBackground(
                         eventScope,
                         event.type,
@@ -244,6 +262,7 @@ export class WatcherService {
                         generation,
                     );
                 }
+                if (isRootDeleted) this.onRootUnavailable?.(eventScope.sessionId);
             },
             onError: (error, erroredHandle) => {
                 if (generation !== this.watchGeneration) return;
@@ -335,7 +354,7 @@ export class WatcherService {
         path: string,
         generation: number,
     ): Promise<void> {
-        let fingerprint = MISSING_PATH_FINGERPRINT;
+        let fingerprint = MISSING;
         try {
             fingerprint = fileSignature(await lstat(path));
         } catch {
@@ -346,7 +365,7 @@ export class WatcherService {
         if (generation !== this.watchGeneration) return;
         this.queueFingerprintedEvent(
             scope,
-            fingerprint === MISSING_PATH_FINGERPRINT ? 'delete' : kind,
+            fingerprint === MISSING ? 'delete' : kind,
             path,
             fingerprint,
         );
@@ -383,7 +402,13 @@ export class WatcherService {
             this.gitIgnoreRulesChanged = true;
         }
         if (this.pendingEvents.has(path) || this.pendingEvents.size < MAX_PENDING_WATCH_EVENTS) {
-            this.pendingEvents.set(path, kind);
+            const pendingKind = this.pendingEvents.get(path);
+            /**
+             * Creating and then writing a file can produce two fingerprints inside one batch. Preserve the create
+             * transition so consumers see the path move from absent to present instead of only its final write.
+             */
+            const batchedKind = pendingKind === 'create' && kind === 'update' ? pendingKind : kind;
+            this.pendingEvents.set(path, batchedKind);
         } else {
             this.droppedEvents += 1;
         }
@@ -471,7 +496,7 @@ export class WatcherService {
         try {
             return fileSignature(await lstat(path));
         } catch {
-            return MISSING_PATH_FINGERPRINT;
+            return MISSING;
         }
     }
 
@@ -592,12 +617,7 @@ export class WatcherService {
                     }
                     for (const path of previous.keys()) {
                         if (!current.has(path))
-                            this.queueFingerprintedEvent(
-                                scope,
-                                'delete',
-                                path,
-                                MISSING_PATH_FINGERPRINT,
-                            );
+                            this.queueFingerprintedEvent(scope, 'delete', path, MISSING);
                     }
                     this.polledDirectories.set(directory, current);
                 },
@@ -729,6 +749,15 @@ export class WatcherService {
 
     watchSession(scope?: WatchScope, shouldForce = false): Promise<void> {
         if (
+            shouldForce ||
+            scope?.sessionId !== this.watchedScope?.sessionId ||
+            scope?.workbenchProjectId !== this.watchedScope?.workbenchProjectId
+        ) {
+            // Reset fences synchronously; hub disposal never rejects and must not delay root setup.
+            // eslint-disable-next-line no-void -- synchronous generation invalidation
+            void this.externalLinks.reset(scope);
+        }
+        if (
             scope &&
             !shouldForce &&
             scope.workbenchProjectId === this.watchedScope?.workbenchProjectId
@@ -744,7 +773,12 @@ export class WatcherService {
         return this.watchSetup;
     }
 
+    noteWorkspacePath(sessionId: string, resolved: ResolvedSessionPath): Promise<void> {
+        return this.externalLinks.note(sessionId, resolved);
+    }
+
     async close(): Promise<void> {
+        await this.externalLinks.reset();
         this.flushPendingBatch();
         this.watchGeneration += 1;
         this.pollingActive = false;

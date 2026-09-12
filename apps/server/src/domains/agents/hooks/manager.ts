@@ -33,6 +33,7 @@ import type {
 } from './contract';
 import type { HookExecutableDiscovery } from './executable-gate';
 import { gateHookSettingsOnExecutables } from './executable-gate';
+import { defaultHookHealth, hookHealthFor } from './health';
 import { HookLaunchRegistry } from './launch-registry';
 import { parseProfileIntents, serializeProfileIntents } from './profile-intents';
 import { AgentHookServer, pruneStaleAgentHookSockets } from './server';
@@ -85,15 +86,6 @@ interface AgentHookManagerOptions {
     watchHub?: WatchHub;
 }
 
-function defaultHealth(message?: string): AgentHookHealthMap {
-    return Object.fromEntries(
-        agentProviderIds.map((provider) => [
-            provider,
-            { kind: 'notInstalled', ...(message && { message }) },
-        ]),
-    ) as AgentHookHealthMap;
-}
-
 function isFileSystemError(error: unknown, code: string): boolean {
     return (
         typeof error === 'object' &&
@@ -122,30 +114,6 @@ async function readTargets(targets: readonly AgentHookConfigTarget[]): Promise<A
     return new Map(entries);
 }
 
-function healthFor(status: AgentHookEntryStatus, isActive: boolean): AgentHookHealth {
-    /**
-     * Entries written by a newer Caxri build are healthy for this one. Hook schema changes are additive, the bridge
-     * takes this instance's schema and socket from the launch environment rather than from the file, and repairing them
-     * would only make the two builds rewrite each other's entries (issue #557).
-     */
-    if (status.kind === 'current' || status.kind === 'newer')
-        return isActive
-            ? { kind: 'active' }
-            : {
-                  kind: 'installedPending',
-                  message: 'Installed. Review and trust the hook in the Agent CLI if prompted.',
-              };
-    if (status.kind === 'absent') return { kind: 'notInstalled' };
-    if (status.kind === 'stale')
-        return {
-            kind: 'stale',
-            message: `Installed hook schema ${status.installedSchema} needs an update.`,
-        };
-    if (status.kind === 'conflict') return { kind: 'conflict', message: status.message };
-    if (status.kind === 'unparseable') return { kind: 'error', message: status.message };
-    return { kind: 'drifted', message: 'Caxri hook entries were edited outside Caxri.' };
-}
-
 /**
  * Generic lifecycle-hook owner. Provider adapters define config syntax only; this class owns the cross-process lock,
  * atomic filesystem changes, bridge/server lifecycle, health, and PTY tokens.
@@ -158,10 +126,11 @@ export class AgentHookManager {
     private readonly configWatchers = new Map<string, HookConfigWatcher>();
     private readonly watchHub: WatchHub;
     private readonly ownsWatchHub: boolean;
-    private health = defaultHealth();
+    private health = defaultHookHealth();
     private reconcileQueue = Promise.resolve();
     private server?: AgentHookServer;
     private settings?: Record<AgentProvider, AgentProviderSettings>;
+    private requestedSettings?: Record<AgentProvider, AgentProviderSettings>;
     private readonly telemetry: AgentHookTelemetry;
     private readonly launches: HookLaunchRegistry;
     private readonly profileId: string;
@@ -218,7 +187,7 @@ export class AgentHookManager {
          * hook signal for a provider whose CLI Caxri could not resolve came from another installation and must not flip
          * this profile's health to `active`.
          */
-        if (this.settings === requested) this.settings = settings;
+        if (this.requestedSettings === requested) this.settings = settings;
         const installHints = new Map<AgentProvider, string>();
         for (const provider of missing) {
             const message = `Install the ${agentProviderCatalog[provider].displayName} CLI, then restart Caxri.`;
@@ -231,7 +200,8 @@ export class AgentHookManager {
         }
         try {
             await this.withInstallLock(async () => {
-                const globallyEnabled = await this.updateProfileIntent(settings);
+                // Missing CLI availability is temporary; only explicit requested settings change profile intent.
+                const globallyEnabled = await this.updateProfileIntent(requested);
                 /**
                  * Provider adapters own disjoint config files; the shared profile registry is already durable before
                  * these independent reconciliations begin.
@@ -288,7 +258,7 @@ export class AgentHookManager {
             let status = adapter.inspect(documents, this.desired(provider)).status;
             if (!isGloballyEnabled) {
                 this.loseAuthority(provider);
-                if (!['absent', 'newer', 'unparseable'].includes(status.kind)) {
+                if (!['absent', 'newer', 'newerIncomplete', 'unparseable'].includes(status.kind)) {
                     await this.writeEdits(
                         adapter.remove(documents, this.desired(provider)),
                         targetById,
@@ -299,13 +269,24 @@ export class AgentHookManager {
                     documents = await readTargets(targets);
                     status = adapter.inspect(documents, this.desired(provider)).status;
                 }
-                const health = healthFor(status, false);
+                const health = hookHealthFor(status, false, this.schemaVersions[provider]);
                 this.setHealth(
                     provider,
                     installHint && health.kind === 'notInstalled'
                         ? { kind: 'notInstalled', message: installHint }
                         : health,
                 );
+                return;
+            }
+            /**
+             * Other profiles protect removal but never grant this profile install or repair authority.
+             */
+            if (!isLocallyEnabled) {
+                this.loseAuthority(provider);
+                this.setHealth(provider, {
+                    kind: 'notInstalled',
+                    ...(installHint && { message: installHint }),
+                });
                 return;
             }
             if (['absent', 'stale', 'drifted'].includes(status.kind)) {
@@ -321,15 +302,14 @@ export class AgentHookManager {
                 status = adapter.inspect(documents, this.desired(provider)).status;
             }
             if (status.kind !== 'current' && status.kind !== 'newer') this.loseAuthority(provider);
-            if (!isLocallyEnabled) {
-                this.loseAuthority(provider);
-                this.setHealth(provider, {
-                    kind: 'notInstalled',
-                    ...(installHint && { message: installHint }),
-                });
-                return;
-            }
-            this.setHealth(provider, healthFor(status, this.activeProviders.has(provider)));
+            this.setHealth(
+                provider,
+                hookHealthFor(
+                    status,
+                    this.activeProviders.has(provider),
+                    this.schemaVersions[provider],
+                ),
+            );
         } catch (error) {
             const message = errorMessage(error, 'Lifecycle hook reconciliation failed');
             this.loseAuthority(provider);
@@ -454,19 +434,25 @@ export class AgentHookManager {
         const next: AgentHookHealth = {
             kind: health.kind,
             ...(health.message && { message: health.message }),
+            ...(health.installedSchema !== undefined && {
+                installedSchema: health.installedSchema,
+            }),
         };
         const previous = this.health[provider];
         if (JSON.stringify(previous) === JSON.stringify(next)) return;
         this.health = { ...this.health, [provider]: next };
         /**
-         * Only the health `kind` values are logged. A `conflict` or `unparseable` message is adapter-authored from the
-         * user's own provider config and can quote its contents, so it stays on the Settings surface and out of
-         * diagnostics. The kinds alone are enough to place the moment hooks stopped working on a timeline.
+         * Closed states, installed schema, and the hashed profile identify which build's installation changed. Adapter
+         * messages may quote provider configuration, so they remain on Settings and never enter diagnostics.
          */
         this.options.logger.write('info', logEventCatalog.agentHooks.healthChanged, {
             fields: {
                 stage: 'serverCore',
                 provider,
+                profileId: this.profileId,
+                ...(next.installedSchema !== undefined && {
+                    installedSchema: next.installedSchema,
+                }),
                 from: previous.kind,
                 to: next.kind,
             },
@@ -480,8 +466,12 @@ export class AgentHookManager {
 
     private markActive(provider: AgentProvider): void {
         if (!this.settings?.[provider].hooks.enabled) return;
+        if (!['installedPending', 'active'].includes(this.health[provider].kind)) return;
         this.activeProviders.add(provider);
-        this.setHealth(provider, { kind: 'active' });
+        this.setHealth(provider, {
+            kind: 'active',
+            installedSchema: this.health[provider].installedSchema,
+        });
     }
 
     private anyEnabled(): boolean {
@@ -558,8 +548,8 @@ export class AgentHookManager {
                         groupKey: 'agent-hooks-reconcile',
                         intervalMs: CONFIG_FALLBACK_POLL_INTERVAL_MS,
                         pollOnce: async () => {
-                            if (this.settings && this.anyEnabled())
-                                await this.reconcile(this.settings);
+                            if (this.requestedSettings && this.anyEnabled())
+                                await this.reconcile(this.requestedSettings);
                         },
                     },
                 });
@@ -574,7 +564,7 @@ export class AgentHookManager {
         this.configReconcileTimer = setTimeout(() => {
             this.configReconcileTimer = undefined;
             // eslint-disable-next-line no-void -- synchronous timer callback cannot await; reconcile() never rejects (errors are caught and logged internally)
-            if (this.settings) void this.reconcile(this.settings);
+            if (this.requestedSettings) void this.reconcile(this.requestedSettings);
         }, CONFIG_WATCH_SETTLE_MS);
         this.configReconcileTimer.unref();
     }
@@ -635,9 +625,12 @@ export class AgentHookManager {
     }
 
     async initialize(settings: Record<AgentProvider, AgentProviderSettings>): Promise<void> {
+        this.requestedSettings = settings;
         this.settings = settings;
         if (!this.options.sharedPath) {
-            this.health = defaultHealth('Lifecycle hook installation is unavailable in this mode.');
+            this.health = defaultHookHealth(
+                'Lifecycle hook installation is unavailable in this mode.',
+            );
             return;
         }
         try {
@@ -697,6 +690,7 @@ export class AgentHookManager {
     }
 
     reconcile(settings: Record<AgentProvider, AgentProviderSettings>): Promise<void> {
+        this.requestedSettings = settings;
         this.settings = settings;
         /**
          * The queue field must be reassigned synchronously (not after an `await`) so concurrent `reconcile()` calls

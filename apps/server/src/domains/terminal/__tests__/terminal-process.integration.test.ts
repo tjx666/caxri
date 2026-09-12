@@ -60,6 +60,43 @@ function createTestLogger(logDirectory: string): StructuredLogger {
     return logger;
 }
 
+/**
+ * PTY spawn/attach does not prove an interactive shell has finished startup. Use a profile-free fixture and wait for
+ * its generation-specific prompt, so host startup scripts cannot consume test input and restart cannot reuse old
+ * proof.
+ */
+function createShellFixture(directory: string) {
+    let generation = 0;
+    const prompt = () => `CAXRI_TEST_SHELL_READY_${generation}> `;
+    return {
+        options: {
+            resolveExecutable: () => Promise.resolve('/bin/bash'),
+            shellIntegration: (_executable: string, environment: NodeJS.ProcessEnv) => {
+                generation += 1;
+                return {
+                    args: ['--noprofile', '--norc', '-i'],
+                    environment: {
+                        ...environment,
+                        HOME: directory,
+                        PS1: prompt(),
+                        PROMPT_COMMAND: '',
+                        ENV: '',
+                        BASH_ENV: '',
+                    },
+                };
+            },
+        },
+        ready: async (
+            manager: ReturnType<typeof createTestTerminalManager>,
+            terminalId: string,
+        ) => {
+            await expect
+                .poll(async () => (await manager.snapshot(terminalId))?.payload)
+                .toContain(prompt());
+        },
+    };
+}
+
 async function drainTrackedPtys(): Promise<void> {
     const pendingPtys = [...spawnedPtys];
     spawnedPtys.length = 0;
@@ -172,28 +209,25 @@ process.stdout.write('FIXTURE_AGENT_READY\r\n');
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'shell');
         const events: ServerEvent[] = [];
-        let resolveMarker: (() => void) | undefined;
+        let output = '';
         let resolveExit: (() => void) | undefined;
-        const marker = new Promise<void>((resolve) => (resolveMarker = resolve));
         const exited = new Promise<void>((resolve) => (resolveExit = resolve));
+        const shell = createShellFixture(directory);
         const manager = createTestTerminalManager(
             database,
             (event) => {
                 events.push(event);
-                if (
-                    event.event === 'terminal.output' &&
-                    event.payload.data.includes('CAXRI_INTEGRATION_OK')
-                )
-                    resolveMarker?.();
-                if (event.event === 'terminal.exit') resolveExit?.();
+                if (event.event === 'terminal.output') output += event.payload.data;
+                else if (event.event === 'terminal.exit') resolveExit?.();
             },
             createTestLogger(join(directory, 'logs')),
-            { spawn: spawnTrackedPty },
+            { ...shell.options, spawn: spawnTrackedPty },
         );
         await Promise.all([manager.start(created.terminal!), manager.start(created.terminal!)]);
         await manager.attach(created.terminal!.id);
-        manager.write(created.terminal!.id, "printf 'CAXRI_INTEGRATION_OK\\n'\r");
-        await marker;
+        await shell.ready(manager, created.terminal!.id);
+        manager.write(created.terminal!.id, "printf 'CAXRI_%s_OK\\n' INTEGRATION\r");
+        await expect.poll(() => output, { timeout: 5_000 }).toContain('CAXRI_INTEGRATION_OK');
         manager.resize(created.terminal!.id, 120, 40);
         manager.write(created.terminal!.id, 'exit\r');
         await exited;
@@ -234,17 +268,19 @@ process.stdout.write('FIXTURE_AGENT_READY\r\n');
         const created = database.createSession(database.createProject(directory).id, 'shell');
         let output = '';
         const onOutputActivity = vi.fn();
+        const shell = createShellFixture(directory);
         const manager = createTestTerminalManager(
             database,
             (event) => {
                 if (event.event === 'terminal.output') output += event.payload.data;
             },
             createTestLogger(join(directory, 'logs')),
-            { onOutputActivity, spawn: spawnTrackedPty },
+            { ...shell.options, onOutputActivity, spawn: spawnTrackedPty },
         );
 
         await manager.start(created.terminal!);
-        manager.write(created.terminal!.id, "printf 'DETACHED_ONLY\\n'\r");
+        await shell.ready(manager, created.terminal!.id);
+        manager.write(created.terminal!.id, "printf 'DETACHED_%s\\n' ONLY\r");
         await expect
             .poll(async () => (await manager.snapshot(created.terminal!.id))?.payload)
             .toContain('DETACHED_ONLY');
@@ -252,10 +288,10 @@ process.stdout.write('FIXTURE_AGENT_READY\r\n');
         expect(output).not.toContain('DETACHED_ONLY');
         expect((await manager.attach(created.terminal!.id))?.payload).toContain('DETACHED_ONLY');
 
-        manager.write(created.terminal!.id, "printf 'ATTACHED_OUTPUT\\n'\r");
+        manager.write(created.terminal!.id, "printf 'ATTACHED_%s\\n' OUTPUT\r");
         await expect.poll(() => output).toContain('ATTACHED_OUTPUT');
         manager.detachView(created.terminal!.id);
-        manager.write(created.terminal!.id, "printf 'DETACHED_AGAIN\\n'\r");
+        manager.write(created.terminal!.id, "printf 'DETACHED_%s\\n' AGAIN\r");
         await expect
             .poll(async () => (await manager.snapshot(created.terminal!.id))?.payload)
             .toContain('DETACHED_AGAIN');
@@ -272,19 +308,21 @@ process.stdout.write('FIXTURE_AGENT_READY\r\n');
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'shell');
         let output = '';
+        const shell = createShellFixture(directory);
         const manager = createTestTerminalManager(
             database,
             (event) => {
                 if (event.event === 'terminal.output') output += event.payload.data;
             },
             createTestLogger(join(directory, 'logs')),
-            { spawn: spawnTrackedPty },
+            { ...shell.options, spawn: spawnTrackedPty },
         );
 
         await manager.start(created.terminal!);
         await manager.attach(created.terminal!.id);
         await manager.restart(created.terminal!.id);
-        manager.write(created.terminal!.id, "printf 'CAXRI_RESTART_OK\\n'\r");
+        await shell.ready(manager, created.terminal!.id);
+        manager.write(created.terminal!.id, "printf 'CAXRI_%s_OK\\n' RESTART\r");
         await expect.poll(() => output).toContain('CAXRI_RESTART_OK');
         expect(database.getTerminal(created.terminal!.id)?.lastProcessState).toBe('running');
 
@@ -333,6 +371,7 @@ process.stdout.write('FIXTURE_AGENT_READY\r\n');
             },
         );
         let output = '';
+        const shell = createShellFixture(directory);
         const manager = createTestTerminalManager(
             database,
             (event) => {
@@ -340,6 +379,7 @@ process.stdout.write('FIXTURE_AGENT_READY\r\n');
             },
             logger,
             {
+                ...shell.options,
                 onOutputActivity: (terminalId, shellPid) =>
                     coordinator.observeOutput(terminalId, shellPid),
                 spawn: spawnTrackedPty,
@@ -349,12 +389,15 @@ process.stdout.write('FIXTURE_AGENT_READY\r\n');
         try {
             await manager.start(created.terminal!);
             await manager.attach(created.terminal!.id);
+            await shell.ready(manager, created.terminal!.id);
             expect(database.promoteShellToAgent(created.terminal!.id, 'claude')).toBe(true);
             database.updateAgentProcessState(created.terminal!.id, 'stopped');
 
             expect(manager.write(created.terminal!.id, `${executable}\r`)).toBe(true);
             expect(coordinator.observeInput(created.terminal!.id, `${executable}\r`)).toBe(true);
 
+            // The local fake CLI must execute within the existing five-second bound. Foreground detection samples
+            // the OS process tree separately and can wait for the next production retry, hence its ten-second bound.
             await expect.poll(() => output, { timeout: 5_000 }).toContain('MANUAL_CLAUDE_READY');
             await expect.poll(() => detectedProviders, { timeout: 10_000 }).toContain('claude');
             await expect
@@ -375,11 +418,12 @@ process.stdout.write('FIXTURE_AGENT_READY\r\n');
         temporaryDirectories.push(directory);
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'shell');
+        const shell = createShellFixture(directory);
         const manager = createTestTerminalManager(
             database,
             () => {},
             createTestLogger(join(directory, 'logs')),
-            { spawn: spawnTrackedPty },
+            { ...shell.options, spawn: spawnTrackedPty },
         );
 
         expect(manager.write(created.terminal!.id, 'ignored')).toBe(false);

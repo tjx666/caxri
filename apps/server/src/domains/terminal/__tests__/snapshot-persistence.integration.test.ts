@@ -11,6 +11,19 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createTestTerminalManager } from '../../../__tests__/support/terminal';
 import { CaxriDatabase } from '../../db/repository';
 
+const loggers: StructuredLogger[] = [];
+
+function createLogger(...arguments_: ConstructorParameters<typeof StructuredLogger>) {
+    const logger = new StructuredLogger(...arguments_);
+    loggers.push(logger);
+    return logger;
+}
+
+async function flushLoggers(): Promise<void> {
+    const pendingLoggers = [...loggers];
+    loggers.length = 0;
+    await Promise.all(pendingLoggers.map((logger) => logger.flush()));
+}
 const temporaryDirectories: string[] = [];
 
 function createFakePty() {
@@ -39,17 +52,10 @@ function createFakePty() {
 }
 
 afterEach(async () => {
+    await flushLoggers();
     const pendingCleanup = [...temporaryDirectories];
     temporaryDirectories.length = 0;
-    await Promise.all(
-        pendingCleanup.map(async (path) => {
-            try {
-                await rm(path, { recursive: true, force: true });
-            } catch {
-                // Best-effort cleanup for logger writes that finish just after the assertion.
-            }
-        }),
-    );
+    await Promise.all(pendingCleanup.map((path) => rm(path, { recursive: true, force: true })));
 });
 
 describe('TerminalManager snapshot persistence', () => {
@@ -66,7 +72,7 @@ describe('TerminalManager snapshot persistence', () => {
                 if (event.event === 'terminal.exit')
                     snapshotAtExit = database.getSnapshot(created.terminal!.id);
             },
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn: () => fake.process },
         );
 
@@ -106,7 +112,7 @@ describe('TerminalManager snapshot persistence', () => {
         const manager = createTestTerminalManager(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn: () => fake.process },
         );
 
@@ -143,7 +149,7 @@ describe('TerminalManager snapshot persistence', () => {
         const manager = createTestTerminalManager(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             { resolveExecutable: () => Promise.resolve('/bin/zsh') },
         );
 
@@ -165,7 +171,7 @@ describe('TerminalManager snapshot persistence', () => {
         const manager = createTestTerminalManager(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             {
                 resolveExecutable: () => Promise.resolve('/bin/zsh'),
                 spawn: () => spawned.shift()!.process,
@@ -201,7 +207,7 @@ describe('TerminalManager snapshot persistence', () => {
         const manager = createTestTerminalManager(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             {
                 onStateChanged: (terminalId, state) => {
                     if (state === 'interrupted')

@@ -11,9 +11,23 @@ import { AgentCoordinator } from '../coordinator';
 import type { AgentAdapter } from '../service';
 import { AgentService } from '../service';
 
+const loggers: StructuredLogger[] = [];
+
+function createLogger(...arguments_: ConstructorParameters<typeof StructuredLogger>) {
+    const logger = new StructuredLogger(...arguments_);
+    loggers.push(logger);
+    return logger;
+}
+
+async function flushLoggers(): Promise<void> {
+    const pendingLoggers = [...loggers];
+    loggers.length = 0;
+    await Promise.all(pendingLoggers.map((logger) => logger.flush()));
+}
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
+    await flushLoggers();
     await Promise.all(
         temporaryDirectories.map((directory) => rm(directory, { force: true, recursive: true })),
     );
@@ -59,7 +73,7 @@ describe('AgentCoordinator Session Activity', () => {
             database,
             new AgentService(undefined, adapters),
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
         );
 
         try {

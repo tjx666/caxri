@@ -14,8 +14,18 @@ import { FileService } from '../service';
 import { WatcherService } from '../watcher';
 
 const temporaryDirectories: string[] = [];
+const loggers: StructuredLogger[] = [];
+
+function createLogger(...arguments_: ConstructorParameters<typeof StructuredLogger>) {
+    const logger = new StructuredLogger(...arguments_);
+    loggers.push(logger);
+    return logger;
+}
 
 afterEach(async () => {
+    // The fixture owns the logger; service shutdown alone does not drain its queued filesystem writes.
+    await Promise.all(loggers.map((logger) => logger.flush()));
+    loggers.length = 0;
     const paths = temporaryDirectories.slice();
     temporaryDirectories.length = 0;
     await Promise.all(paths.map((path) => rm(path, { recursive: true, force: true })));
@@ -34,7 +44,7 @@ describe('Git ignored file decorations', () => {
             (event) => {
                 events.push(event);
             },
-            new StructuredLogger(join(root, 'logs')),
+            createLogger(join(root, 'logs')),
             {
                 pollIntervalMs: 20,
                 subscribe: () => Promise.resolve({ unsubscribe: () => Promise.resolve(undefined) }),
@@ -75,7 +85,7 @@ describe('Git ignored file decorations', () => {
             (event) => {
                 events.push(event);
             },
-            new StructuredLogger(join(root, 'logs')),
+            createLogger(join(root, 'logs')),
             { watchHub },
         );
         await watcher.watchSession({ sessionId: 'session', workbenchProjectId: 'project' });
@@ -115,7 +125,7 @@ describe('Git ignored file decorations', () => {
             (event) => {
                 events.push(event);
             },
-            new StructuredLogger(join(root, 'logs')),
+            createLogger(join(root, 'logs')),
             {
                 pollIntervalMs: 20,
                 subscribe: () => Promise.reject(new Error('native backend unavailable')),
@@ -164,7 +174,7 @@ describe('Git ignored file decorations', () => {
         const service = new FileService(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             () => 1024,
             options,
         );
@@ -215,7 +225,7 @@ describe('Git ignored file decorations', () => {
             .fn<GitIgnoreDecorator>()
             .mockRejectedValue(new Error('not a Git repository'));
         const options = { decorateGitIgnored };
-        const logger = new StructuredLogger(join(directory, 'logs'));
+        const logger = createLogger(join(directory, 'logs'));
         const service = new FileService(
             database,
             () => {},

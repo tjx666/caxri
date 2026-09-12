@@ -7,9 +7,15 @@ import { CoalescedScheduler } from '../coalesced-scheduler';
 import type { CaxriDatabase } from '../db';
 import { SingleFlight } from '../single-flight';
 import { AgentAttentionTracker } from './attention-tracker';
-import type { AgentCoordinatorOptions } from './contract';
 import { agentProviderStateRoot } from './contract';
-import { HookLaunchTracker } from './hook-launch-tracker';
+import {
+    AGENT_COMPACTION_TIMEOUT_MS,
+    AGENT_METADATA_REFRESH_DELAY_MS,
+    AGENT_RUNNING_WATCHDOG_INTERVAL_MS,
+    MAX_SHELL_PROMOTION_PROBES,
+} from './coordinator-constants';
+import type { AgentCoordinatorOptions } from './coordinator-options';
+import { createRecoveringHookLaunchTracker } from './hook-launch-tracker';
 import type { AgentLifecycleSignal, AgentSignalDecision } from './hooks/contract';
 import { AgentIdleProof } from './idle-proof';
 import { AgentLifecycleWatchdogs, isStandaloneEscape } from './lifecycle-watchdogs';
@@ -30,19 +36,10 @@ import { ShellProcessProbe } from './shell-process-probe';
 import type { ShellInputState, ShellPromotionCandidate } from './shell-promotion';
 import {
     decideInputPromotionCandidate,
-    MAX_SHELL_COMMAND_LENGTH,
+    scanShellInput,
     SHELL_PROMOTION_WINDOW_MS,
 } from './shell-promotion';
 import { AgentWorkTracker } from './work-tracker';
-
-const AGENT_METADATA_REFRESH_DELAY_MS = 2_000;
-const AGENT_COMPACTION_TIMEOUT_MS = 5 * 60_000;
-const AGENT_RUNNING_WATCHDOG_INTERVAL_MS = 5 * 60_000;
-const MAX_SHELL_PROMOTION_PROBES = 3;
-const BRACKETED_PASTE_START = '\u{1B}[200~';
-const BRACKETED_PASTE_END = '\u{1B}[201~';
-
-export type { AgentCoordinatorOptions } from './contract';
 
 /**
  * Single owner of Agent metadata probing. It decides which Terminals are Agent Terminals, schedules the trailing
@@ -62,14 +59,14 @@ export class AgentCoordinator {
     private readonly startedAtByTerminal = new Map<string, number>();
     private readonly probeGenerations = new Map<string, number>();
     private readonly launchIdsByTerminal = new Map<string, string>();
-    private readonly hookLaunches = new HookLaunchTracker();
+    private readonly hookLaunches: ReturnType<typeof createRecoveringHookLaunchTracker>;
     private readonly attention = new AgentAttentionTracker();
     private readonly idleProof = new AgentIdleProof();
     private readonly work = new AgentWorkTracker((signal) =>
         this.applyLifecycle(signal, 'deferredHook'),
     );
     /**
-     * Tracks whether provider metadata is still only the launch baseline; `null` marks a real transition.
+     * A `null` provider metadata baseline marks a real transition.
      */
     private readonly metadataActivityBaselines = new Map<string, MetadataActivityBaseline | null>();
     private readonly grokTurns = new GrokTurnTracker();
@@ -81,6 +78,11 @@ export class AgentCoordinator {
         private readonly logger: StructuredLogger,
         private readonly options: AgentCoordinatorOptions = {},
     ) {
+        this.hookLaunches = createRecoveringHookLaunchTracker(
+            (terminalId, launchId) => this.launchIdsByTerminal.get(terminalId) === launchId,
+            (terminalId) => this.probeTerminal(terminalId),
+            logger,
+        );
         this.shellProcessProbe = new ShellProcessProbe({
             detect: options.detectForegroundAgent ?? detectForegroundAgentProvider,
             intervalMs: options.shellProcessProbeIntervalMs,
@@ -261,15 +263,7 @@ export class AgentCoordinator {
             const currentSession = this.database.getSession(terminal.sessionId);
             if (!currentSession) return;
             const launchId = this.launchIdsByTerminal.get(terminal.id);
-            /**
-             * The hook owns the activity state after it reported a turn boundary, and also between `turnStarted` and
-             * the applied `turnFinished` when the probe found no provider evidence: the 2-second trailing refresh
-             * otherwise raced the hook and left the Session without its running cue for the whole turn (issue #568).
-             */
-            const isHookOwned =
-                this.hookLaunches.isAuthoritative(terminal.id, launchId) ||
-                (snapshot.status === 'unknown' &&
-                    this.hookLaunches.isTurnInFlight(terminal.id, launchId));
+            const isHookOwned = this.hookLaunches.ownsProbe(terminal.id, launchId, snapshot.status);
             const hasMetadataBaseline = this.metadataActivityBaselines.has(terminal.id);
             const activityBaseline = this.metadataActivityBaselines.get(terminal.id);
             const isBaselineReconciliation =
@@ -450,66 +444,37 @@ export class AgentCoordinator {
     }
 
     /**
-     * Tracks only the current unpublished input line and never logs or persists it. Detection is intentionally
-     * conservative: a direct `claude` or `codex` command creates a short-lived candidate, while shell editing escape
-     * sequences disable detection until the next submission. Provider metadata must still confirm the launch before
-     * durable Terminal identity changes.
+     * Both a delivered SIGINT and standalone Escape release hook ownership and request current evidence.
+     */
+    observeInterrupt(terminalId: string, launchId?: string): void {
+        if (launchId !== undefined && this.launchIdsByTerminal.get(terminalId) !== launchId) return;
+        const wasCompacting = this.lifecycleWatchdogs.operation(terminalId) === 'compacting';
+        this.lifecycleWatchdogs.clearCompaction(terminalId);
+        const released = this.hookLaunches.markTurnInterrupted(
+            terminalId,
+            launchId === undefined ? 'escape' : 'signal',
+        );
+        if (released || wasCompacting || launchId !== undefined) this.probeTerminal(terminalId);
+    }
+
+    /**
+     * Tracks unpublished input without logging or persistence. Direct Agent commands create candidates; editing escape
+     * sequences disable detection until submission. Provider metadata must confirm a candidate before identity
+     * changes.
      */
     observeInput(terminalId: string, data: string): boolean {
         let state = this.shellInputs.get(terminalId);
         if (!state) {
-            const terminal = this.database.getTerminal(terminalId);
-            if (!terminal) return false;
+            if (!this.database.getTerminal(terminalId)) return false;
             state = { command: '', isBracketedPaste: false, valid: true };
         }
-        this.lifecycleWatchdogs.observeInput(terminalId, data);
-        if (isStandaloneEscape(data)) this.hookLaunches.markTurnInterrupted(terminalId);
-        let didSubmit = false;
-        for (let index = 0; index < data.length; index += 1) {
-            if (data.startsWith(BRACKETED_PASTE_START, index)) {
-                state.isBracketedPaste = true;
-                index += BRACKETED_PASTE_START.length - 1;
-                continue;
-            }
-            if (data.startsWith(BRACKETED_PASTE_END, index)) {
-                state.isBracketedPaste = false;
-                index += BRACKETED_PASTE_END.length - 1;
-                continue;
-            }
-            const character = data[index];
-            if (character === '\r' || character === '\n') {
-                if (state.isBracketedPaste) {
-                    state.command += '\n';
-                    state.valid = false;
-                    continue;
-                }
-                const hasContent = Boolean(state.command.trim());
-                didSubmit ||= hasContent;
-                if (hasContent && state.valid)
-                    this.openPromotionCandidate(terminalId, state.command);
-                state = { command: '', isBracketedPaste: false, valid: true };
-                continue;
-            }
-            if (character === '\u{3}' || character === '\u{15}') {
-                state = { command: '', isBracketedPaste: false, valid: true };
-                this.shellPromotionCandidates.delete(terminalId);
-                continue;
-            }
-            if (character === '\b' || character === '\u{7F}') {
-                if (state.valid) state.command = [...state.command].slice(0, -1).join('');
-                continue;
-            }
-            if (character === '\u{1B}' || character === '\t') {
-                state.valid = false;
-                continue;
-            }
-            if (character < ' ') continue;
-            if (!state.valid) continue;
-            state.command += character;
-            if (state.command.length > MAX_SHELL_COMMAND_LENGTH) state.valid = false;
-        }
-        this.shellInputs.set(terminalId, state);
-        return didSubmit;
+        if (isStandaloneEscape(data)) this.observeInterrupt(terminalId);
+        const scan = scanShellInput(state, data, {
+            onDiscard: () => this.shellPromotionCandidates.delete(terminalId),
+            onSubmit: (command) => this.openPromotionCandidate(terminalId, command),
+        });
+        this.shellInputs.set(terminalId, scan.state);
+        return scan.didSubmit;
     }
 
     /**
@@ -624,6 +589,8 @@ export class AgentCoordinator {
         if (signal.agentTurnContinues) return 'accepted';
         this.idleProof.invalidate(signal.terminalId);
         const work = this.work.observe(signal);
+        if (work.outcome !== 'subagentUnmatched')
+            this.hookLaunches.observeEvidence(signal.terminalId, signal.launchId);
         if (work.outcome !== undefined) return work.outcome;
         if (signal.phase === 'turnFinished')
             this.hookLaunches.markAuthoritative(signal.terminalId, signal.launchId);
@@ -738,14 +705,8 @@ export class AgentCoordinator {
         this.forgetLifecycleState(terminalId);
     }
 
-    /**
-     * Immediately probes a Terminal after start or restart.
-     */
     probeTerminal(terminalId: string): void {
-        /**
-         * `probe` handles failures internally; synchronous callers cannot await it.
-         */
-        // eslint-disable-next-line no-void -- see comment above; awaiting is not possible here
+        // eslint-disable-next-line no-void -- probe handles failures; synchronous callers cannot await it.
         void this.probe(terminalId);
     }
 

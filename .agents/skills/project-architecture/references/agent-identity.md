@@ -46,6 +46,12 @@ denies reads of the Project root and of the global instruction files the CLI off
 alone cannot reach a file the CLI resolves from its own configuration directory. Pasted text and model output never
 enter logs, events, diagnostics, SQLite, or UI.
 
+Preflight rejects ancestor Projects containing required provider/runtime paths. Instruction denials
+cover both link entries and resolved targets; only missing instruction files are tolerated. A blocked
+automatic-naming launch emits one notice and does not retry until a new launch, while long paste
+retains its original file and reports the closed failure reason. See
+[Low-cost generation sandbox](../../../../docs/low-cost-generation.md) for recovery and threat-model limits.
+
 Every managed Agent inherits the public, non-authorizing `CAXRI_MANAGED_AGENT=1` marker, which a user's own hook script
 may read to skip its work inside Caxri. A personal provider hook — including a personal session-naming hook — is
 preserved untouched across install and removal; Caxri owns only its own marked entries.

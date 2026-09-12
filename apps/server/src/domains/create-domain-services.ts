@@ -176,8 +176,8 @@ export async function createDomainServices(
             suspensionState.service?.observeInput(terminalId);
             delegationState.service?.interruptTerminal(terminalId, true);
         },
-        onAgentStateChanged: (terminalId, state) =>
-            agentDispatchState.service?.observeTerminalState(terminalId, state),
+        onAgentStateChanged: (terminalId, state, cause) =>
+            agentDispatchState.service?.observeTerminalState(terminalId, state, cause),
         shellIntegration: (executable, environment) =>
             shellIntegration?.resolve(executable, environment),
         terminalColors:
@@ -386,6 +386,7 @@ export async function createDomainServices(
         return restored;
     };
     const agentCommands = createAgentCommandRuntime({
+        logger,
         delegationSettings: () => configuration.getSettings().value['agents.delegation'],
         database,
         coordinator,

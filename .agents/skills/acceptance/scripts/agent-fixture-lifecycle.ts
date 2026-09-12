@@ -8,7 +8,22 @@ import { acceptanceAgentFixtureIds, acceptanceAgentFixtureProviders } from './ag
 import { LIFECYCLE_FORCED_COMPLETION_SOURCES } from './case-lifecycle';
 import { errorCode, validateExistingReportDirectory, writeJsonAtomically } from './report-paths';
 
+const claudeCodexProvidersSchema = z.tuple([z.literal('claude'), z.literal('codex')]);
+const claudeProvidersSchema = z.tuple([z.literal('claude')]);
+const grokProvidersSchema = z.tuple([z.literal('grok')]);
+const claudeCodexGrokProvidersSchema = z.tuple([
+    z.literal('claude'),
+    z.literal('codex'),
+    z.literal('grok'),
+]);
+const availableProvidersSchema = z.union([
+    claudeCodexProvidersSchema,
+    claudeProvidersSchema,
+    grokProvidersSchema,
+    claudeCodexGrokProvidersSchema,
+]);
 const agentFixtureLaunchSchema = z.object({
+    availableProviders: availableProvidersSchema,
     cleanupCompleted: z.boolean(),
     completedAt: z.string().nullable(),
     /**
@@ -23,10 +38,27 @@ const agentFixtureLaunchSchema = z.object({
 });
 
 const fixtureProvidersSchema = z.union([
-    z.tuple([z.literal('claude'), z.literal('codex')]),
-    z.tuple([z.literal('grok')]),
-    z.tuple([z.literal('claude'), z.literal('codex'), z.literal('grok')]),
+    claudeCodexProvidersSchema,
+    grokProvidersSchema,
+    claudeCodexGrokProvidersSchema,
 ]);
+type AvailableProviders = z.infer<typeof agentFixtureLaunchSchema>['availableProviders'];
+
+/**
+ * Only the Agent-features fixture models a provider that can become unavailable mid-plan (Codex retires while Claude
+ * stays), so it is the sole fixture allowed to launch with fewer providers than its fixed identity. Every other fixture
+ * must expose exactly the providers it declares.
+ */
+function areAvailableProvidersValidForFixture(
+    fixtureId: (typeof acceptanceAgentFixtureIds)[number],
+    availableProviders: AvailableProviders,
+): boolean {
+    const identity = acceptanceAgentFixtureProviders[fixtureId].join(',');
+    const available = availableProviders.join(',');
+    if (fixtureId === 'agent-features-v1') return available === identity || available === 'claude';
+    return available === identity;
+}
+
 const agentFixtureReceiptSchema = z
     .object({
         caseId: z.string().min(1),
@@ -39,7 +71,10 @@ const agentFixtureReceiptSchema = z
     .refine(
         (receipt) =>
             receipt.providers.join(',') ===
-            acceptanceAgentFixtureProviders[receipt.fixtureId].join(','),
+                acceptanceAgentFixtureProviders[receipt.fixtureId].join(',') &&
+            receipt.launches.every(({ availableProviders }) =>
+                areAvailableProvidersValidForFixture(receipt.fixtureId, availableProviders),
+            ),
         { message: 'Agent fixture providers must match its fixed identity' },
     );
 
@@ -59,7 +94,15 @@ async function readAgentFixtureReceipt(path: string): Promise<AgentFixtureReceip
 
 export async function beginAgentFixtureLifecycle(
     reportDirectory: string,
-    input: { caseId: string; fixtureId: string },
+    input: {
+        availableProviders:
+            | readonly ['claude', 'codex']
+            | readonly ['claude']
+            | readonly ['grok']
+            | readonly ['claude', 'codex', 'grok'];
+        caseId: string;
+        fixtureId: string;
+    },
     startedAt = new Date().toISOString(),
 ): Promise<string> {
     const directory = await validateExistingReportDirectory(reportDirectory);
@@ -86,7 +129,14 @@ export async function beginAgentFixtureLifecycle(
         };
     }
     const launchId = randomUUID();
+    const availableProviders = agentFixtureLaunchSchema.shape.availableProviders.parse(
+        input.availableProviders,
+    );
+    if (!areAvailableProvidersValidForFixture(fixtureId, availableProviders)) {
+        throw new Error('Available providers do not match the Acceptance Agent fixture');
+    }
     receipt.launches.push({
+        availableProviders,
         cleanupCompleted: false,
         completedAt: null,
         id: launchId,

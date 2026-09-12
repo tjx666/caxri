@@ -1,8 +1,81 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { HOOK_TURN_PRESERVE_MS, HookLaunchTracker } from '../hook-launch-tracker';
 
 describe('HookLaunchTracker', () => {
+    it('records hard expiry when a probe wins the race against its timer', () => {
+        let now = 0;
+        const released = vi.fn();
+        const tracker = new HookLaunchTracker(() => now, undefined, released);
+        tracker.markTurnStarted('terminal', 'launch');
+        now = HOOK_TURN_PRESERVE_MS + 1;
+        expect(tracker.ownsProbe('terminal', 'launch', 'unknown')).toBe(false);
+        expect(released).toHaveBeenCalledExactlyOnceWith('terminal', 'launch', {
+            reason: 'hardTimeout',
+            unknownCount: 1,
+            durationMs: now,
+        });
+        tracker.clear();
+    });
+    it('actively obtains three unknown observations before releasing a quiet turn', async () => {
+        vi.useFakeTimers();
+        const expired = vi.fn();
+        const tracker = new HookLaunchTracker(
+            () => Date.now(),
+            (terminalId, launchId) => tracker.observeUnknown(terminalId, launchId),
+            expired,
+        );
+        try {
+            tracker.markTurnStarted('terminal', 'launch');
+            tracker.observeUnknown('terminal', 'launch');
+            await vi.advanceTimersByTimeAsync(119_999);
+            expect(expired).not.toHaveBeenCalled();
+            await vi.advanceTimersByTimeAsync(2);
+            expect(expired).toHaveBeenCalledExactlyOnceWith('terminal', 'launch', {
+                reason: 'unknownEvidence',
+                unknownCount: 3,
+                durationMs: 120_000,
+            });
+            expect(tracker.isTurnInFlight('terminal', 'launch')).toBe(false);
+        } finally {
+            tracker.clear();
+            vi.useRealTimers();
+        }
+    });
+
+    it('resets missing evidence on activity and cancels timers at every ownership boundary', async () => {
+        vi.useFakeTimers();
+        const expired = vi.fn();
+        const tracker = new HookLaunchTracker(() => Date.now(), undefined, expired);
+        try {
+            tracker.markTurnStarted('terminal', 'launch');
+            tracker.observeUnknown('terminal', 'launch');
+            tracker.observeUnknown('terminal', 'launch');
+            tracker.observeUnknown('terminal', 'launch');
+            await vi.advanceTimersByTimeAsync(119_999);
+            tracker.observeEvidence('terminal', 'launch');
+            await vi.advanceTimersByTimeAsync(120_001);
+            expect(expired).not.toHaveBeenCalled();
+            expect(tracker.isTurnInFlight('terminal', 'launch')).toBe(true);
+            tracker.markTurnStarted('terminal', 'new-launch');
+            tracker.observeUnknown('terminal', 'launch');
+            tracker.markTurnInterrupted('terminal');
+            await vi.advanceTimersByTimeAsync(HOOK_TURN_PRESERVE_MS + 1);
+            expect(expired).not.toHaveBeenCalled();
+            tracker.markTurnStarted('terminal', 'final-launch');
+            tracker.observeEvidence('terminal', 'final-launch');
+            await vi.advanceTimersByTimeAsync(HOOK_TURN_PRESERVE_MS + 1);
+            expect(expired).toHaveBeenCalledExactlyOnceWith('terminal', 'final-launch', {
+                reason: 'hardTimeout',
+                unknownCount: 0,
+                durationMs: HOOK_TURN_PRESERVE_MS + 1,
+            });
+        } finally {
+            tracker.clear();
+            vi.useRealTimers();
+        }
+    });
+
     it('scopes both facts to the launch that reported them', () => {
         const tracker = new HookLaunchTracker(() => 0);
 

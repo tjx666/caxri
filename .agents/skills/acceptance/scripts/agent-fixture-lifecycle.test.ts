@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -71,6 +71,7 @@ describe('Acceptance Agent fixture lifecycle', () => {
     ] as const)('binds %s to its declared providers and cleanup', async (fixtureId, providers) => {
         const directory = await reportDirectory(fixtureId);
         const launchId = await beginAgentFixtureLifecycle(directory, {
+            availableProviders: providers,
             caseId: 'terminal-layout',
             fixtureId,
         });
@@ -99,10 +100,33 @@ describe('Acceptance Agent fixture lifecycle', () => {
                 evidencePaths: [evidence],
             }),
         ).rejects.toThrow();
+        const receiptPath = join(directory, evidence);
+        const tampered = JSON.parse(await readFile(receiptPath, 'utf8')) as {
+            launches: Array<{ availableProviders?: string[] }>;
+        };
+        tampered.launches[0].availableProviders = ['claude'];
+        await writeFile(receiptPath, JSON.stringify(tampered));
+        await expect(
+            validateAgentFixtureEvidence(directory, {
+                caseId: 'terminal-layout',
+                fixtureId: 'grok-build-v1',
+                evidencePaths: [evidence],
+            }),
+        ).rejects.toThrow();
+        tampered.launches[0].availableProviders = undefined;
+        await writeFile(receiptPath, JSON.stringify(tampered));
+        await expect(
+            validateAgentFixtureEvidence(directory, {
+                caseId: 'terminal-layout',
+                fixtureId: 'grok-build-v1',
+                evidencePaths: [evidence],
+            }),
+        ).rejects.toThrow();
     });
     it('covers every earlier launch of a shared restart profile with one deferred cleanup', async () => {
         const directory = await reportDirectory();
         const first = await beginAgentFixtureLifecycle(directory, {
+            availableProviders: ['claude', 'codex'],
             caseId: 'terminal-layout',
             fixtureId: 'agent-features-v1',
         });
@@ -114,6 +138,7 @@ describe('Acceptance Agent fixture lifecycle', () => {
             sharedProfile: true,
         });
         const last = await beginAgentFixtureLifecycle(directory, {
+            availableProviders: ['claude'],
             caseId: 'terminal-layout',
             fixtureId: 'agent-features-v1',
         });
@@ -133,11 +158,15 @@ describe('Acceptance Agent fixture lifecycle', () => {
         ).resolves.toBe('cleanup_recorded');
         const evidence = 'assets/terminal-layout-agent-fixture.json';
         const receipt = JSON.parse(await readFile(join(directory, evidence), 'utf8')) as {
-            launches: Array<{ cleanupCompleted: boolean }>;
+            launches: Array<{ availableProviders: string[]; cleanupCompleted: boolean }>;
         };
         expect(receipt.launches.map(({ cleanupCompleted }) => cleanupCompleted)).toEqual([
             true,
             true,
+        ]);
+        expect(receipt.launches.map(({ availableProviders }) => availableProviders)).toEqual([
+            ['claude', 'codex'],
+            ['claude'],
         ]);
         await expect(
             validateAgentFixtureEvidence(directory, {
@@ -151,6 +180,7 @@ describe('Acceptance Agent fixture lifecycle', () => {
     it('records deferred fixture cleanup only on a completed launch whose profile was removed later', async () => {
         const directory = await reportDirectory();
         const launchId = await beginAgentFixtureLifecycle(directory, {
+            availableProviders: ['claude', 'codex'],
             caseId: 'terminal-layout',
             fixtureId: 'agent-features-v1',
         });

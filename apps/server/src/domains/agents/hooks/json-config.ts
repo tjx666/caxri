@@ -183,8 +183,35 @@ export function inspectJsonHooks(
     const installed = installedOwnedEntries(document, desired.provider);
     if (installed.length === 0) return { kind: 'absent' };
     const schemas = installed.map((entry) => entry.schema);
+    if (schemas.some((schema) => !Number.isSafeInteger(schema)))
+        return { kind: 'unparseable', message: 'Installed hook schema is not a safe integer' };
     const newer = Math.max(...schemas);
-    if (newer > desired.schemaVersion) return { kind: 'newer', installedSchema: newer };
+    if (newer > desired.schemaVersion) {
+        /**
+         * Newer builds may add fields and events, but must still cover this build's required lifecycle bindings.
+         */
+        const complete = bindings.every((binding) =>
+            installed.some(
+                (entry) =>
+                    entry.event === binding.event &&
+                    entry.group.matcher === binding.matcher &&
+                    ownedHandlers(entry.group, desired.provider).some((handler) => {
+                        const command = handler.command;
+                        return (
+                            handler.type === 'command' &&
+                            typeof command === 'string' &&
+                            new RegExp(
+                                String.raw`(?:^|\s)--phase\s+${binding.phase}(?:\s|$)`,
+                                'u',
+                            ).test(command) &&
+                            (binding.reply !== 'emptyJson' ||
+                                /(?:^|\s)--reply\s+empty-json(?:\s|$)/u.test(command))
+                        );
+                    }),
+            ),
+        );
+        return { kind: complete ? 'newer' : 'newerIncomplete', installedSchema: newer };
+    }
     const older = Math.min(...schemas);
     if (older < desired.schemaVersion) return { kind: 'stale', installedSchema: older };
     if (installed.length !== bindings.length) return { kind: 'drifted' };

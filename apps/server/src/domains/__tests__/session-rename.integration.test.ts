@@ -13,9 +13,23 @@ import { CaxriDatabase } from '../db';
 import { SessionRenameService } from '../session-rename';
 import { createFakePty, createPendingAgentAdapters } from './create-test-domain-services';
 
+const loggers: StructuredLogger[] = [];
+
+function createLogger(...arguments_: ConstructorParameters<typeof StructuredLogger>) {
+    const logger = new StructuredLogger(...arguments_);
+    loggers.push(logger);
+    return logger;
+}
+
+async function flushLoggers(): Promise<void> {
+    const pendingLoggers = [...loggers];
+    loggers.length = 0;
+    await Promise.all(pendingLoggers.map((logger) => logger.flush()));
+}
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
+    await flushLoggers();
     const pendingDirectories = temporaryDirectories.slice();
     temporaryDirectories.length = 0;
     await Promise.all(pendingDirectories.map((path) => rm(path, { recursive: true, force: true })));
@@ -29,7 +43,7 @@ describe('Session rename', () => {
         await mkdir(projectRoot);
         const runtime = await createTestDomainServices({
             userDataPath: join(directory, 'user-data'),
-            logger: new StructuredLogger(join(directory, 'logs')),
+            logger: createLogger(join(directory, 'logs')),
             send: () => {},
             terminal: {
                 resolveExecutable: () => Promise.resolve('/bin/zsh'),
@@ -97,7 +111,7 @@ describe('Session rename', () => {
             .mockRejectedValueOnce(new CaxriError('UNAVAILABLE', 'Codex rename failed'));
         const runtime = await createTestDomainServices({
             userDataPath: join(directory, 'user-data'),
-            logger: new StructuredLogger(join(directory, 'logs')),
+            logger: createLogger(join(directory, 'logs')),
             send: (event) => events.push(event),
             terminal: {
                 resolveExecutable: () => Promise.resolve('/bin/zsh'),
@@ -221,7 +235,7 @@ describe('Session rename', () => {
             database,
             agents,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
         );
         const service = new SessionRenameService(database, agents, coordinator, () => {});
 
@@ -276,7 +290,7 @@ describe('Session rename', () => {
             database,
             agents,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
         );
         const service = new SessionRenameService(database, agents, coordinator, () => {});
 

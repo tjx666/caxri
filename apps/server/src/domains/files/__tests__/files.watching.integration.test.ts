@@ -39,8 +39,18 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 });
 
 const temporaryDirectories: string[] = [];
+const loggers: StructuredLogger[] = [];
+
+function createLogger(...arguments_: ConstructorParameters<typeof StructuredLogger>) {
+    const logger = new StructuredLogger(...arguments_);
+    loggers.push(logger);
+    return logger;
+}
 
 afterEach(async () => {
+    // The fixture owns the logger; service shutdown alone does not drain its queued filesystem writes.
+    await Promise.all(loggers.map((logger) => logger.flush()));
+    loggers.length = 0;
     const paths = temporaryDirectories.slice();
     temporaryDirectories.length = 0;
     await Promise.all(paths.map((path) => rm(path, { recursive: true, force: true })));
@@ -63,7 +73,7 @@ describe('FileService watcher and polling behavior', () => {
                 if (event.event === 'files.changed')
                     events.push(...event.payload.changes.map((change) => change.path));
             },
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             () => 1024,
             {
                 pollIntervalMs: 30,
@@ -98,7 +108,7 @@ describe('FileService watcher and polling behavior', () => {
             database.createProject(directory).id,
             'shell',
         ).session;
-        const logger = new StructuredLogger(join(directory, 'logs'));
+        const logger = createLogger(join(directory, 'logs'));
         const service = new FileService(
             database,
             () => {},
@@ -137,7 +147,7 @@ describe('FileService watcher and polling behavior', () => {
                 if (event.event === 'files.changed')
                     events.push(...event.payload.changes.map((change) => change.path));
             },
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             () => 1024,
             { pollIntervalMs: 50 },
         );
@@ -181,7 +191,7 @@ describe('FileService watcher and polling behavior', () => {
         const service = new FileService(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             () => 1024,
             {
                 pollIntervalMs: 20,
@@ -220,7 +230,7 @@ describe('FileService watcher and polling behavior', () => {
                 if (event.event === 'files.changed')
                     events.push(...event.payload.changes.map((change) => change.path));
             },
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             () => 1024,
             { pollIntervalMs: 50, subscribe },
         );
@@ -256,7 +266,7 @@ describe('FileService watcher and polling behavior', () => {
                 if (event.event === 'files.changed' && event.payload.sessionId === second.id)
                     events.push(...event.payload.changes.map((change) => change.path));
             },
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             () => 1024,
             {
                 pollIntervalMs: 50,
@@ -310,7 +320,7 @@ describe('FileService watcher and polling behavior', () => {
         const service = new FileService(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             () => 1024,
             { subscribe },
         );
@@ -357,7 +367,7 @@ describe('FileService watcher and polling behavior', () => {
             return Promise.resolve({ unsubscribe: () => Promise.resolve() });
         };
         const onRootUnavailable = vi.fn();
-        const logger = new StructuredLogger(join(directory, 'logs'));
+        const logger = createLogger(join(directory, 'logs'));
         const service = new FileService(
             database,
             (event) => events.push(event),

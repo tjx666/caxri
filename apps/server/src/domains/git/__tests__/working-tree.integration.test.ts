@@ -9,6 +9,19 @@ import { CaxriDatabase } from '../../db/repository';
 import { ProjectRootResolver } from '../../project-roots';
 import { GitService } from '..';
 
+const loggers: StructuredLogger[] = [];
+
+function createLogger(...arguments_: ConstructorParameters<typeof StructuredLogger>) {
+    const logger = new StructuredLogger(...arguments_);
+    loggers.push(logger);
+    return logger;
+}
+
+async function flushLoggers(): Promise<void> {
+    const pendingLoggers = [...loggers];
+    loggers.length = 0;
+    await Promise.all(pendingLoggers.map((logger) => logger.flush()));
+}
 const temporaryDirectories: string[] = [];
 const gitServices: GitService[] = [];
 const databases: CaxriDatabase[] = [];
@@ -29,6 +42,7 @@ afterEach(async () => {
     await Promise.allSettled(servicesToClose.map((git) => git.close()));
     for (const database of databases) database.close();
     databases.length = 0;
+    await flushLoggers();
     const directoriesToRemove = [...temporaryDirectories];
     temporaryDirectories.length = 0;
     await Promise.all(
@@ -61,7 +75,7 @@ async function createService(directory: string): Promise<{ git: GitService; sess
     databases.push(database);
     const session = database.createSession(database.createProject(directory).id, 'shell').session;
     const paths = new ProjectRootResolver(database);
-    const logger = new StructuredLogger(join(support, 'logs'));
+    const logger = createLogger(join(support, 'logs'));
     return { git: trackGitService(new GitService(paths, logger)), sessionId: session.id };
 }
 

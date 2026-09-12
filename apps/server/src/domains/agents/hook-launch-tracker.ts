@@ -1,14 +1,55 @@
+import type { AgentActivityState } from '@caxri/protocol';
+import type { StructuredLogger } from '@caxri/system';
+import { logEventCatalog } from '@caxri/system';
+
 interface HookTurn {
     launchId: string;
     startedAt: number;
+    lastEvidenceAt: number;
+    unknownSince?: number;
+    unknownCount: number;
+    timer?: NodeJS.Timeout;
 }
 
 /**
- * Bound on how long a hook-reported turn keeps a probe without provider evidence from demoting `running`. Matches the
- * subagent stale timeout in `work-tracker.ts`: a Claude `Stop` hook can be lost, and the running-turn watchdog only
- * covers Codex, so after this window an `unknown` reading is allowed through again rather than pinning `running`.
+ * Final bound for a hook-reported turn whose completion never arrives. Repeated unknown probes also have a shorter
+ * evidence-based recovery path; neither expiry fabricates a completed turn or interrupts the process.
  */
 export const HOOK_TURN_PRESERVE_MS = 30 * 60_000;
+const UNKNOWN_RECOVERY_MS = 2 * 60_000;
+const UNKNOWN_RECOVERY_PROBES = 3;
+
+interface HookTurnExpiry {
+    reason: 'unknownEvidence' | 'hardTimeout';
+    unknownCount: number;
+    durationMs: number;
+}
+
+export function createRecoveringHookLaunchTracker(
+    isCurrent: (terminalId: string, launchId: string) => boolean,
+    probe: (terminalId: string) => void,
+    logger: StructuredLogger,
+): HookLaunchTracker {
+    return new HookLaunchTracker(
+        () => Date.now(),
+        (terminalId, launchId) => {
+            if (isCurrent(terminalId, launchId)) probe(terminalId);
+        },
+        (terminalId, launchId, expiry) => {
+            if (!isCurrent(terminalId, launchId)) return;
+            logger.write('info', logEventCatalog.agent.hookTurnExpired, {
+                durationMs: expiry.durationMs,
+                fields: { terminalId, reason: expiry.reason, unknownCount: expiry.unknownCount },
+            });
+        },
+        (terminalId, launchId, reason) => {
+            if (isCurrent(terminalId, launchId))
+                logger.write('info', logEventCatalog.agent.hookTurnInterrupted, {
+                    fields: { terminalId, reason },
+                });
+        },
+    );
+}
 
 /**
  * Tracks, per Terminal, which launch the hook bridge last spoke for so probes can defer to it.
@@ -18,24 +59,145 @@ export const HOOK_TURN_PRESERVE_MS = 30 * 60_000;
  * - **authoritative**: the hook reported a turn boundary (`turnFinished`, or the equivalent lifecycle end). A probe then
  *   preserves the current activity state instead of re-deriving it from provider metadata.
  * - **turn in flight**: the hook reported `turnStarted` and no `turnFinished` has been applied yet. A probe that only
- *   proves the process is alive (`unknown`) must not demote the hook-established `running` (issue #568); a probed
- *   `completed`/`waiting` still ends the turn as the lost-`Stop` fallback, and the flag expires after
- *   {@link HOOK_TURN_PRESERVE_MS}.
+ *   proves the process is alive (`unknown`) preserves running until three unknown observations and two minutes without
+ *   evidence. A real, silent generation with no hooks or readable metadata can also lose its running cue: unknown is
+ *   deliberately uncertainty, never a completion claim. A probed `completed`/`waiting` ends the turn as the lost-Stop
+ *   fallback; {@link HOOK_TURN_PRESERVE_MS} remains the hard bound.
  */
 export class HookLaunchTracker {
     private readonly authoritativeLaunchIds = new Map<string, string>();
     private readonly turns = new Map<string, HookTurn>();
 
-    constructor(private readonly now: () => number = Date.now) {}
+    constructor(
+        private readonly now: () => number = () => Date.now(),
+        private readonly onProbe?: (terminalId: string, launchId: string) => void,
+        private readonly onExpired?: (
+            terminalId: string,
+            launchId: string,
+            expiry: HookTurnExpiry,
+        ) => void,
+        private readonly onInterrupted?: (
+            terminalId: string,
+            launchId: string,
+            reason: 'escape' | 'signal',
+        ) => void,
+    ) {}
+
+    private clearTurn(terminalId: string): void {
+        clearTimeout(this.turns.get(terminalId)?.timer);
+        this.turns.delete(terminalId);
+    }
+
+    private expire(terminalId: string, turn: HookTurn, reason: HookTurnExpiry['reason']): void {
+        this.clearTurn(terminalId);
+        this.onExpired?.(terminalId, turn.launchId, {
+            reason,
+            unknownCount: turn.unknownCount,
+            durationMs: this.now() - turn.startedAt,
+        });
+    }
+
+    private arm(terminalId: string, turn: HookTurn): void {
+        clearTimeout(turn.timer);
+        if (!this.onProbe && !this.onExpired) return;
+        const hardDeadline = turn.startedAt + HOOK_TURN_PRESERVE_MS + 1;
+        const recoveryDeadline =
+            turn.unknownSince === undefined
+                ? Infinity
+                : Math.max(turn.lastEvidenceAt, turn.unknownSince) + UNKNOWN_RECOVERY_MS;
+        const nextProbe =
+            turn.unknownCount > 0 && turn.unknownCount < UNKNOWN_RECOVERY_PROBES
+                ? this.now() + UNKNOWN_RECOVERY_MS / (UNKNOWN_RECOVERY_PROBES - 1)
+                : Infinity;
+        const deadline = Math.min(
+            hardDeadline,
+            nextProbe,
+            turn.unknownCount >= UNKNOWN_RECOVERY_PROBES ? recoveryDeadline : Infinity,
+        );
+        turn.timer = setTimeout(
+            () => {
+                if (this.turns.get(terminalId) !== turn) return;
+                const reason =
+                    this.now() >= hardDeadline
+                        ? 'hardTimeout'
+                        : turn.unknownCount >= UNKNOWN_RECOVERY_PROBES &&
+                            this.now() >= recoveryDeadline
+                          ? 'unknownEvidence'
+                          : undefined;
+                if (reason) this.expire(terminalId, turn, reason);
+                else this.arm(terminalId, turn);
+                this.onProbe?.(terminalId, turn.launchId);
+            },
+            Math.max(0, deadline - this.now()),
+        );
+        turn.timer.unref();
+    }
+
+    /**
+     * Any accepted hook or trustworthy running probe breaks a sequence of missing evidence.
+     */
+    observeEvidence(terminalId: string, launchId: string | undefined): void {
+        const turn = this.turns.get(terminalId);
+        if (!turn || turn.launchId !== launchId) return;
+        turn.lastEvidenceAt = this.now();
+        turn.unknownCount = 0;
+        turn.unknownSince = undefined;
+        this.arm(terminalId, turn);
+    }
+
+    /**
+     * Quiet turns need scheduled observations too; Terminal output is not a recovery clock.
+     */
+    observeUnknown(terminalId: string, launchId: string | undefined): void {
+        const turn = this.turns.get(terminalId);
+        if (!turn || turn.launchId !== launchId) return;
+        turn.unknownSince ??= this.now();
+        turn.unknownCount += 1;
+        if (
+            turn.unknownCount >= UNKNOWN_RECOVERY_PROBES &&
+            this.now() >= Math.max(turn.lastEvidenceAt, turn.unknownSince) + UNKNOWN_RECOVERY_MS
+        )
+            this.expire(terminalId, turn, 'unknownEvidence');
+        else this.arm(terminalId, turn);
+    }
+
+    observeSettled(terminalId: string, launchId: string | undefined): void {
+        if (this.turns.get(terminalId)?.launchId === launchId) this.clearTurn(terminalId);
+    }
+
+    /**
+     * Preserve hook boundaries while missing metadata alone cannot disprove an active turn (issue #568).
+     */
+    ownsProbe(
+        terminalId: string,
+        launchId: string | undefined,
+        status: AgentActivityState,
+    ): boolean {
+        if (status === 'unknown') this.observeUnknown(terminalId, launchId);
+        else if (status === 'running') this.observeEvidence(terminalId, launchId);
+        else this.observeSettled(terminalId, launchId);
+        return (
+            this.isAuthoritative(terminalId, launchId) ||
+            (status === 'unknown' && this.isTurnInFlight(terminalId, launchId))
+        );
+    }
 
     markAuthoritative(terminalId: string, launchId: string): void {
         this.authoritativeLaunchIds.set(terminalId, launchId);
-        this.turns.delete(terminalId);
+        this.clearTurn(terminalId);
     }
 
     markTurnStarted(terminalId: string, launchId: string): void {
         this.authoritativeLaunchIds.delete(terminalId);
-        this.turns.set(terminalId, { launchId, startedAt: this.now() });
+        this.clearTurn(terminalId);
+        const turn = {
+            launchId,
+            startedAt: this.now(),
+            lastEvidenceAt: this.now(),
+            unknownCount: 0,
+        };
+        this.turns.set(terminalId, turn);
+        this.arm(terminalId, turn);
     }
 
     /**
@@ -51,8 +213,12 @@ export class HookLaunchTracker {
      * re-establishes `running`. Unlike the other mutators this one is not launch-scoped: the coordinator forgets the
      * Terminal on every launch boundary, so only the current launch's turn can be present here.
      */
-    markTurnInterrupted(terminalId: string): void {
-        this.turns.delete(terminalId);
+    markTurnInterrupted(terminalId: string, reason: 'escape' | 'signal' = 'escape'): boolean {
+        const turn = this.turns.get(terminalId);
+        if (!turn) return false;
+        this.clearTurn(terminalId);
+        this.onInterrupted?.(terminalId, turn.launchId, reason);
+        return true;
     }
 
     isAuthoritative(terminalId: string, launchId: string | undefined): boolean {
@@ -64,17 +230,17 @@ export class HookLaunchTracker {
         const turn = this.turns.get(terminalId);
         if (!turn || turn.launchId !== launchId) return false;
         if (this.now() - turn.startedAt <= HOOK_TURN_PRESERVE_MS) return true;
-        this.turns.delete(terminalId);
+        this.expire(terminalId, turn, 'hardTimeout');
         return false;
     }
 
     forget(terminalId: string): void {
         this.authoritativeLaunchIds.delete(terminalId);
-        this.turns.delete(terminalId);
+        this.clearTurn(terminalId);
     }
 
     clear(): void {
         this.authoritativeLaunchIds.clear();
-        this.turns.clear();
+        for (const terminalId of this.turns.keys()) this.clearTurn(terminalId);
     }
 }

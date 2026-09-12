@@ -22,8 +22,18 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { DocumentService } from '../documents';
 
 const temporaryDirectories: string[] = [];
+const loggers: StructuredLogger[] = [];
+
+function createLogger(...arguments_: ConstructorParameters<typeof StructuredLogger>) {
+    const logger = new StructuredLogger(...arguments_);
+    loggers.push(logger);
+    return logger;
+}
 
 afterEach(async () => {
+    // The fixture owns the logger; service shutdown alone does not drain its queued filesystem writes.
+    await Promise.all(loggers.map((logger) => logger.flush()));
+    loggers.length = 0;
     const paths = temporaryDirectories.slice();
     temporaryDirectories.length = 0;
     await Promise.all(paths.map((path) => rm(path, { force: true, recursive: true })));
@@ -49,7 +59,7 @@ describe('DocumentService', () => {
         const admitted = await resolvePath();
         await rename(alias, join(root, 'old-link'));
         await symlink(second, alias);
-        const logger = new StructuredLogger(join(directory, 'logs'));
+        const logger = createLogger(join(directory, 'logs'));
         const service = new DocumentService(resolvePath, logger, () => 1024, {
             beforeReplaceValidation: async () => {
                 await rename(alias, join(root, 'second-link'));
@@ -81,7 +91,7 @@ describe('DocumentService', () => {
         await writeFile(path, 'previous complete content', 'utf8');
         const service = new DocumentService(
             () => Promise.resolve({ path, root }),
-            new StructuredLogger(join(root, 'logs')),
+            createLogger(join(root, 'logs')),
             () => 1_024,
             { replaceFile: () => Promise.reject(new Error('injected failure')) },
         );
@@ -103,7 +113,7 @@ describe('DocumentService', () => {
         await chmod(path, 0o640);
         const service = new DocumentService(
             () => Promise.resolve({ path, root }),
-            new StructuredLogger(join(root, 'logs')),
+            createLogger(join(root, 'logs')),
             () => 1_024,
         );
 
@@ -127,7 +137,7 @@ describe('DocumentService', () => {
             await writeFile(outsidePath, 'foreign', 'utf8');
             const service = new DocumentService(
                 () => Promise.resolve({ path, root }),
-                new StructuredLogger(join(root, 'logs')),
+                createLogger(join(root, 'logs')),
                 () => 1_024,
                 {
                     beforeReplaceValidation: async () => {
@@ -166,7 +176,7 @@ describe('DocumentService', () => {
         let outsideContentDuringWrite: string | undefined;
         const service = new DocumentService(
             () => Promise.resolve({ path, root }),
-            new StructuredLogger(join(testRoot, 'logs')),
+            createLogger(join(testRoot, 'logs')),
             () => 1_024,
             {
                 openFile: async (...arguments_) => {
@@ -212,7 +222,7 @@ describe('DocumentService', () => {
         await writeFile(path, 'previous', 'utf8');
         const service = new DocumentService(
             () => Promise.resolve({ path, root }),
-            new StructuredLogger(join(testRoot, 'logs')),
+            createLogger(join(testRoot, 'logs')),
             () => 1_024,
             {
                 beforeReplaceValidation: async () => {

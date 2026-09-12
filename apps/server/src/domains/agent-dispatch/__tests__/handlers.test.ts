@@ -17,6 +17,8 @@ const ENDPOINT: AgentEndpointRef = {
 describe('Agent command handlers', () => {
     it('signals the exact managed Agent launch instead of the outer Shell process', () => {
         const signalAgentExact = vi.fn(() => true);
+        const observeInterrupt = vi.fn();
+        const isCurrent = vi.fn(() => true);
         const signalExact = vi.fn(() => true);
         const target = {
             launchId: 'launch-1',
@@ -24,13 +26,13 @@ describe('Agent command handlers', () => {
             terminalId: 'terminal-1',
         };
         const handlers = createAgentCommandHandlers({
-            coordinator: {} as AgentCoordinator,
+            coordinator: { observeInterrupt } as unknown as AgentCoordinator,
             database: {} as CaxriDatabase,
             dispatch: {} as AgentDispatchService,
             emit: vi.fn(),
             endpoints: {
                 controlTarget: vi.fn(() => target),
-                isCurrent: vi.fn(() => true),
+                isCurrent,
             } as unknown as AgentEndpointLifecycle,
             mainOwned: () => {
                 throw new Error('Unexpected public handler call');
@@ -49,6 +51,22 @@ describe('Agent command handlers', () => {
         });
         expect(signalAgentExact).toHaveBeenCalledWith('terminal-1', 'launch-1', 'SIGINT');
         expect(signalExact).not.toHaveBeenCalled();
+        expect(observeInterrupt).toHaveBeenCalledExactlyOnceWith('terminal-1', 'launch-1');
+        expect(handlers['agent.control.stopInternal']({ endpoint: ENDPOINT })).toMatchObject({
+            outcome: 'signaled',
+        });
+        expect(observeInterrupt).toHaveBeenCalledOnce();
+        signalAgentExact.mockReturnValue(false);
+        expect(() => handlers['agent.control.interruptInternal']({ endpoint: ENDPOINT })).toThrow(
+            'Agent Endpoint generation is unavailable',
+        );
+        expect(observeInterrupt).toHaveBeenCalledOnce();
+        signalAgentExact.mockReturnValue(true);
+        isCurrent.mockReturnValue(false);
+        expect(() => handlers['agent.control.interruptInternal']({ endpoint: ENDPOINT })).toThrow(
+            'Agent Endpoint generation is unavailable',
+        );
+        expect(observeInterrupt).toHaveBeenCalledOnce();
     });
 
     it('accepts a reply only while the exact waiting attention generation is still current', async () => {

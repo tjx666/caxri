@@ -11,6 +11,9 @@ describe('hookHealthLabel', () => {
 
     it('maps every health kind to user language and appends the detail message', () => {
         expect(hookHealthLabel(true, { kind: 'active' })).toBe('Active');
+        expect(hookHealthLabel(true, { kind: 'incompatible', installedSchema: 99 })).toBe(
+            'Newer installation is incomplete',
+        );
         expect(hookHealthLabel(true, { kind: 'stale' })).toContain('restart Agent Terminals');
         expect(hookHealthLabel(true, { kind: 'error', message: 'EPERM' })).toBe(
             'Setup failed — restart Agent Terminals to try again — EPERM',
