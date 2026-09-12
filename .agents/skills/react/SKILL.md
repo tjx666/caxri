@@ -1,13 +1,13 @@
 ---
 name: react
-description: Author and refactor React code in the Caxri Renderer against the repository's component-composition, hook-extraction, shared-layer, data-flow, and testability contracts. Use whenever writing or reviewing a `.tsx` component, extracting logic into a hook or utility, adding client or server state, debouncing or formatting values in the UI, or when the user asks about React 规范, 组件拆分, hooks 抽取, or component file organization. Do not use for file placement or naming (source-layout), styling tokens (DESIGN.md), or IPC/process boundaries (project-architecture).
+description: Author and refactor React code in the Caxri Renderer against the repository's component-composition, hook-extraction, shared-layer, data-flow, and testability contracts. Use whenever writing or reviewing a `.tsx` component, extracting logic into a hook or utility, adding client or server state, debouncing or formatting values in the UI, or when the user asks about React 规范, 组件拆分, hooks 抽取, or component file organization. Do not use for file placement or naming (source-layout), visual and interaction behavior (DESIGN.md), or IPC/process boundaries (project-architecture).
 ---
 
 # React authoring
 
 How React code inside the Renderer is composed, not where it lives. `source-layout` owns paths and
-names; `DESIGN.md` owns styling; `project-architecture` owns IPC meaning. This skill owns the shape
-of components, hooks, state, and their tests.
+names; `DESIGN.md` owns visual and interaction behavior; `project-architecture` owns IPC meaning.
+This skill owns the shape of components, hooks, state, and their tests.
 
 ## 1. Compose files, don't grow them
 
@@ -119,6 +119,9 @@ over-render or memoize defensively.
   what the tooltip promises.
 - Styling stays on DESIGN.md semantic tokens; a component that needs a new color case gets a token
   question, not a literal utility.
+- On the second use whose semantic meaning and interaction contract match an existing primitive or
+  business component, promote to that shared implementation in the same change. Visual similarity
+  alone is not enough: different behavior, ownership, or data lifetime stay separate.
 
 ## 8. Finish
 
