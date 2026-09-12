@@ -83,6 +83,24 @@ function childProcess(fake = new FakeChild()): ChildProcess {
 }
 
 describe('Acceptance Electron launcher seams', () => {
+    it.each([undefined, 'other-case', 'session-pr-open-parity'])(
+        'binds external-open fixture authority to case %s',
+        (caseId) => {
+            const spec = createElectronLaunchSpec({
+                caseId,
+                port: 9222,
+                testRootPath: '/tmp/project',
+                testRootPaths: ['/tmp/project'],
+                userDataDir: '/tmp/caxri-acceptance-owned',
+                environment: { CAXRI_ACCEPTANCE_EXTERNAL_OPEN: 'session-pr-open-parity-v1' },
+                agentEnvironment: { CAXRI_ACCEPTANCE_EXTERNAL_OPEN: 'session-pr-open-parity-v1' },
+            });
+            expect(spec.options.env.CAXRI_ACCEPTANCE_EXTERNAL_OPEN).toBe(
+                caseId === 'session-pr-open-parity' ? 'session-pr-open-parity-v1' : undefined,
+            );
+        },
+    );
+
     it('protects a reused profile as soon as verified process ownership is inherited', () => {
         expect(shouldPreserveInheritedRuntimeState(runtime.ownedProcesses)).toBe(true);
         expect(shouldPreserveInheritedRuntimeState([])).toBe(false);

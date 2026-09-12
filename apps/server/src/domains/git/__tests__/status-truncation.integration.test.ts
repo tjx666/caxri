@@ -10,6 +10,19 @@ import { CaxriDatabase } from '../../db/repository';
 import { ProjectRootResolver } from '../../project-roots';
 import { GitService } from '..';
 
+const loggers: StructuredLogger[] = [];
+
+function createLogger(...arguments_: ConstructorParameters<typeof StructuredLogger>) {
+    const logger = new StructuredLogger(...arguments_);
+    loggers.push(logger);
+    return logger;
+}
+
+async function flushLoggers(): Promise<void> {
+    const pendingLoggers = [...loggers];
+    loggers.length = 0;
+    await Promise.all(pendingLoggers.map((logger) => logger.flush()));
+}
 const temporaryDirectories: string[] = [];
 const gitServices: GitService[] = [];
 
@@ -31,18 +44,11 @@ afterEach(async () => {
     const servicesToClose = [...gitServices];
     gitServices.length = 0;
     await Promise.allSettled(servicesToClose.map((git) => git.close()));
+    await flushLoggers();
     const directoriesToRemove = [...temporaryDirectories];
     temporaryDirectories.length = 0;
-    /**
-     * `maxRetries` matters: a late fire-and-forget log write can race this cleanup, and `StructuredLogger.write`
-     * deliberately recreates its log directory on ENOENT, so a recursive `rm` that just emptied `state/logs` can fail
-     * with ENOTEMPTY when a straggler record lands. Writes stop once the services are closed, so retrying with backoff
-     * converges.
-     */
     await Promise.all(
-        directoriesToRemove.map((path) =>
-            rm(path, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }),
-        ),
+        directoriesToRemove.map((path) => rm(path, { recursive: true, force: true })),
     );
 });
 
@@ -100,7 +106,7 @@ async function createFixture(): Promise<Fixture> {
     const sessionId = database.createSession(database.createProject(repoDirectory).id, 'shell')
         .session.id;
     const rootResolver = new ProjectRootResolver(database);
-    const gitLogger = new StructuredLogger(join(stateDirectory, 'logs'));
+    const gitLogger = createLogger(join(stateDirectory, 'logs'));
     const git = trackGitService(new GitService(rootResolver, gitLogger));
     return { repoDirectory, database, git, sessionId };
 }

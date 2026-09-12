@@ -18,6 +18,7 @@ import {
     updateStateSchema,
 } from '../domain/domain.js';
 import { editorNavigationTargetSchema } from '../domain/editor.js';
+import { lowCostSandboxFailureReasonSchema } from '../domain/terminal-long-paste.js';
 import {
     extensionIdSchema,
     extensionViewChangeSchema,
@@ -271,6 +272,13 @@ export const serverEventPayloads = {
     'agent.notification': z.object({
         sessionId: identifierSchema,
         attentionKind: z.enum(['waiting', 'completed']),
+    }),
+    /**
+     * One content-free notice per blocked automatic-naming launch; the Server owns deduplication.
+     */
+    'agent.automaticNamingUnavailable': z.object({
+        sessionId: identifierSchema,
+        reason: lowCostSandboxFailureReasonSchema,
     }),
     /**
      * Main-originated, content-free request after Chromium restarts the GPU process. Every mounted Terminal handles

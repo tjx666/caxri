@@ -401,9 +401,14 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
             }
             /**
              * The Server sweeps pull requests only when a snapshot is requested, and the sidebar otherwise re-asks on a
-             * one-minute poll, so a new Session's PR glyph would sit blank for up to a minute after creation.
+             * one-minute poll. Membership changes must refresh that shared query immediately.
              */
-            if (event.payload.kind === 'full' && event.payload.reason === 'session.create') {
+            if (
+                event.payload.kind === 'full' &&
+                ['session.create', 'terminal.moveToNewSession', 'session.unarchive'].includes(
+                    event.payload.reason,
+                )
+            ) {
                 // eslint-disable-next-line no-void -- React Query owns the invalidation lifecycle
                 void queryClient.invalidateQueries({ queryKey: ['session.pullRequests'] });
             }
@@ -423,6 +428,8 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
         }
         if (event.event === 'workbench.changed') {
             removeSessionQueries(queryClient, [event.payload.sessionId]);
+            // eslint-disable-next-line no-void -- React Query owns the invalidation lifecycle.
+            void queryClient.invalidateQueries({ queryKey: ['session.pullRequests'] });
             return;
         }
         if (event.event === 'settings.changed') {

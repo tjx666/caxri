@@ -10,6 +10,19 @@ import { CaxriDatabase } from '../../db/repository';
 import { AgentCoordinator } from '../coordinator';
 import type { AgentAdapter } from '../service';
 
+const loggers: StructuredLogger[] = [];
+
+function createLogger(...arguments_: ConstructorParameters<typeof StructuredLogger>) {
+    const logger = new StructuredLogger(...arguments_);
+    loggers.push(logger);
+    return logger;
+}
+
+async function flushLoggers(): Promise<void> {
+    const pendingLoggers = [...loggers];
+    loggers.length = 0;
+    await Promise.all(pendingLoggers.map((logger) => logger.flush()));
+}
 const temporaryDirectories: string[] = [];
 
 function createAgents(snapshot: AgentAdapter['snapshot']) {
@@ -20,6 +33,7 @@ function createAgents(snapshot: AgentAdapter['snapshot']) {
 }
 
 afterEach(async () => {
+    await flushLoggers();
     const pendingCleanup = [...temporaryDirectories];
     temporaryDirectories.length = 0;
     await Promise.all(pendingCleanup.map((path) => rm(path, { recursive: true, force: true })));
@@ -40,7 +54,7 @@ describe('AgentCoordinator session rebinding', () => {
             const terminalId = created.terminal!.id;
             database.updateTerminalState(terminalId, 'running');
             const confirmation = Promise.withResolvers<'codex'>();
-            const logger = new StructuredLogger(join(directory, 'logs'));
+            const logger = createLogger(join(directory, 'logs'));
             const coordinator = new AgentCoordinator(
                 database,
                 createAgents(() =>
@@ -127,7 +141,7 @@ describe('AgentCoordinator session rebinding', () => {
                     available: true,
                 };
             });
-            const logger = new StructuredLogger(join(directory, 'logs'));
+            const logger = createLogger(join(directory, 'logs'));
             const coordinator = new AgentCoordinator(
                 database,
                 createAgents(snapshot),
@@ -180,7 +194,7 @@ describe('AgentCoordinator session rebinding', () => {
                 available: true,
             }),
         );
-        const logger = new StructuredLogger(join(directory, 'logs'));
+        const logger = createLogger(join(directory, 'logs'));
         const coordinator = new AgentCoordinator(
             database,
             createAgents(snapshot),
@@ -234,7 +248,7 @@ describe('AgentCoordinator session rebinding', () => {
             database,
             createAgents(snapshot),
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             { refreshDelayMs: 5 },
         );
 
@@ -278,7 +292,7 @@ describe('AgentCoordinator session rebinding', () => {
             database,
             createAgents(snapshot),
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             { refreshDelayMs: 5 },
         );
 
@@ -340,7 +354,7 @@ describe('AgentCoordinator session rebinding', () => {
             database,
             createAgents(snapshot),
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             { refreshDelayMs: 5 },
         );
 
@@ -394,7 +408,7 @@ describe('AgentCoordinator session rebinding', () => {
             database,
             createAgents(snapshot),
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             { refreshDelayMs: 5 },
         );
 

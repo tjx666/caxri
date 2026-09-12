@@ -3,8 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { AgentProviderPasteSummaryGenerationContext } from '../../contract';
-import { canonicalPath } from '../../contract';
-import { lowCostSandboxProfile, MACOS_SANDBOX_EXECUTABLE } from '../../low-cost-sandbox';
+import { MACOS_SANDBOX_EXECUTABLE, prepareLowCostSandbox } from '../../low-cost-sandbox';
 import { agentCommandEnvironment, assertAgentRenameVersion } from '../../rename';
 import { runAgentTextCommand } from '../../text-generation';
 import { resolveCodexHome } from './paths';
@@ -38,13 +37,6 @@ function parseCodexText(stdout: string): string {
  * Codex has no CLI switch for its global AGENTS.md. The macOS host sandbox therefore denies both global instruction
  * files and the Project itself while leaving provider authentication and model network access intact.
  */
-function sandboxProfile(projectDirectory: string, codexHome: string): string {
-    return lowCostSandboxProfile({
-        literals: [join(codexHome, 'AGENTS.md'), join(codexHome, 'AGENTS.override.md')],
-        subpaths: [projectDirectory],
-    });
-}
-
 export async function generateCodexLowCostText(
     context: AgentProviderPasteSummaryGenerationContext,
     systemInstructions: string,
@@ -54,14 +46,17 @@ export async function generateCodexLowCostText(
     assertAgentRenameVersion('codex', context.version, CODEX_LOW_COST_GENERATION_MINIMUM_VERSION);
     const isolatedDirectory = await mkdtemp(join(tmpdir(), 'caxri-codex-text-'));
     try {
-        const [canonicalProjectDirectory, canonicalCodexHome] = await Promise.all([
-            canonicalPath(context.cwd),
-            canonicalPath(resolveCodexHome(context.environment)),
-        ]);
+        const profile = await prepareLowCostSandbox({
+            projectDirectory: context.cwd,
+            configDirectory: resolveCodexHome(context.environment),
+            executable: context.executable,
+            isolatedDirectory,
+            instructionNames: ['AGENTS.md', 'AGENTS.override.md'],
+        });
         const output = await runAgentTextCommand({
             arguments: [
                 '-p',
-                sandboxProfile(canonicalProjectDirectory, canonicalCodexHome),
+                profile,
                 context.executable,
                 'exec',
                 '--ephemeral',

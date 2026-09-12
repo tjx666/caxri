@@ -9,19 +9,27 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createTestTerminalManager } from '../../../__tests__/support/terminal';
 import { CaxriDatabase } from '../../db/repository';
 
+const loggers: StructuredLogger[] = [];
+
+function createLogger(...arguments_: ConstructorParameters<typeof StructuredLogger>) {
+    const logger = new StructuredLogger(...arguments_);
+    loggers.push(logger);
+    return logger;
+}
+
+async function flushLoggers(): Promise<void> {
+    const pendingLoggers = [...loggers];
+    loggers.length = 0;
+    await Promise.all(pendingLoggers.map((logger) => logger.flush()));
+}
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
+    await flushLoggers();
     const directoriesToRemove = [...temporaryDirectories];
     temporaryDirectories.length = 0;
     await Promise.all(
-        directoriesToRemove.map(async (directory) => {
-            try {
-                await rm(directory, { recursive: true, force: true });
-            } catch {
-                // best-effort cleanup
-            }
-        }),
+        directoriesToRemove.map((directory) => rm(directory, { recursive: true, force: true })),
     );
 });
 
@@ -60,7 +68,7 @@ describe('TerminalManager color-query replies', () => {
             (event) => {
                 if (event.event === 'terminal.output') output += event.payload.data;
             },
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             {
                 resolveExecutable: () => Promise.resolve('/bin/codex'),
                 spawn: () => fake.process,

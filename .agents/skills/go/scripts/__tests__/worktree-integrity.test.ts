@@ -7,8 +7,11 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import {
     assertCleanValidationStart,
+    assertGitAncestor,
+    assertGitCommitMissing,
     inspectWorktreeDelta,
     inspectWorktreeIntegrity,
+    resolveGitCommit,
 } from '../worktree-integrity';
 
 const directories: string[] = [];
@@ -69,5 +72,23 @@ describe('Go validation worktree integrity', () => {
             commitCount: 1,
             fileCount: 2,
         });
+    });
+
+    it('distinguishes missing commits and verifies canonical ancestry', async () => {
+        const directory = await repo();
+        const parent = await resolveGitCommit(directory, 'HEAD');
+        await writeFile(join(directory, 'source.ts'), 'export const value = 2;\n', 'utf8');
+        execFileSync('git', ['add', '.'], { cwd: directory });
+        execFileSync('git', ['commit', '-qm', 'descendant'], { cwd: directory });
+        const descendant = await resolveGitCommit(directory, 'HEAD');
+
+        await expect(assertGitCommitMissing(directory, 'f'.repeat(40))).resolves.toBeUndefined();
+        await expect(assertGitCommitMissing(directory, parent)).rejects.toThrow(
+            'cannot amend a valid commit',
+        );
+        await expect(assertGitAncestor(directory, parent, descendant)).resolves.toBeUndefined();
+        await expect(assertGitAncestor(directory, descendant, parent)).rejects.toThrow(
+            'not an ancestor',
+        );
     });
 });

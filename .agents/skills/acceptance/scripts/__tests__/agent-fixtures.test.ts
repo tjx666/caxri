@@ -1,14 +1,46 @@
 import { spawn } from 'node:child_process';
-import { access, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import {
+    access,
+    chmod,
+    mkdir,
+    mkdtemp,
+    readFile,
+    rm,
+    stat,
+    symlink,
+    writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { AgentProvider } from '@caxri/protocol';
 import { execFileAsync } from '@caxri/system';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { prepareAcceptanceAgentFixture } from '../agent-fixtures';
+import {
+    getAgentFixtureStdout,
+    observeAgentFixtureProcess,
+    stopAgentFixtureProcess,
+    waitForAgentFixtureExit,
+    waitForAgentFixtureReady,
+} from '../agent-fixture-process';
+import {
+    prepareAcceptanceAgentEnvironment,
+    prepareAcceptanceAgentFixture,
+    setAcceptanceAgentFixtureProviderAvailability,
+} from '../agent-fixtures';
 
 const directories: string[] = [];
+
+function fixtureExecutable(
+    fixture: { executables: Partial<Record<AgentProvider, string>> },
+    provider: AgentProvider,
+): string {
+    const executable = fixture.executables[provider];
+    expect(executable).toBeTypeOf('string');
+    if (!executable) throw new Error(`Missing ${provider} fixture executable`);
+    return executable;
+}
 
 async function runFixture(
     executable: string,
@@ -68,6 +100,22 @@ afterEach(async () => {
 });
 
 describe('Acceptance Agent fixtures', () => {
+    it('keeps hook health available in the owned profile while provider launches remain blocked', async () => {
+        const userDataDirectory = await mkdtemp(join(tmpdir(), 'caxri-acceptance-agent-fixture-'));
+        directories.push(userDataDirectory);
+        const environment = await prepareAcceptanceAgentEnvironment({
+            sourceEnvironment: { PATH: '/usr/bin:/bin' },
+            userDataDir: userDataDirectory,
+        });
+        expect(environment).toMatchObject({
+            CAXRI_E2E_AGENT_HOOKS: '1',
+            CAXRI_E2E_AGENT_MODE: 'blocked',
+            HOME: join(userDataDirectory, 'acceptance-agents', 'home'),
+            CLAUDE_CONFIG_DIR: join(userDataDirectory, 'acceptance-agents', 'claude'),
+            CODEX_HOME: join(userDataDirectory, 'acceptance-agents', 'codex'),
+        });
+    });
+
     it('prepares one fixed fake-only fixture beneath the owned profile', async () => {
         const userDataDirectory = await mkdtemp(join(tmpdir(), 'caxri-acceptance-agent-fixture-'));
         directories.push(userDataDirectory);
@@ -104,6 +152,153 @@ describe('Acceptance Agent fixtures', () => {
         ).resolves.toBe('notify = ["/usr/bin/true"]\n');
     });
 
+    it('keeps a closed provider availability transition across restart preparation', async () => {
+        const userDataDirectory = await mkdtemp(join(tmpdir(), 'caxri-acceptance-agent-fixture-'));
+        directories.push(userDataDirectory);
+        const hostBin = join(userDataDirectory, 'host-bin');
+        await mkdir(hostBin);
+        await writeFile(join(hostBin, 'codex'), '#!/bin/sh\nexit 0\n');
+        await chmod(join(hostBin, 'codex'), 0o700);
+        const sourceEnvironment = { PATH: `${hostBin}:/usr/bin:/bin` };
+
+        const first = await prepareAcceptanceAgentFixture({
+            fixtureId: 'agent-features-v1',
+            sourceEnvironment,
+            userDataDir: userDataDirectory,
+        });
+        expect(
+            Object.keys(first.executables).toSorted((left, right) => left.localeCompare(right)),
+        ).toEqual(['claude', 'codex']);
+        await setAcceptanceAgentFixtureProviderAvailability({
+            available: false,
+            fixtureId: 'agent-features-v1',
+            provider: 'codex',
+            userDataDir: userDataDirectory,
+        });
+
+        const second = await prepareAcceptanceAgentFixture({
+            fixtureId: 'agent-features-v1',
+            sourceEnvironment,
+            userDataDir: userDataDirectory,
+        });
+        expect(Object.keys(second.executables)).toEqual(['claude']);
+        expect(second.environment.CAXRI_E2E_FAKE_CODEX_EXECUTABLE).toBeUndefined();
+        const blocked = spawn('/bin/zsh', ['-lc', 'codex --version'], {
+            env: second.environment,
+            stdio: 'ignore',
+        });
+        await expect(
+            new Promise<number | null>((resolve, reject) => {
+                blocked.once('error', reject);
+                blocked.once('close', resolve);
+            }),
+        ).resolves.toBe(127);
+
+        await setAcceptanceAgentFixtureProviderAvailability({
+            available: true,
+            fixtureId: 'agent-features-v1',
+            provider: 'codex',
+            userDataDir: userDataDirectory,
+        });
+        const restored = await prepareAcceptanceAgentFixture({
+            fixtureId: 'agent-features-v1',
+            sourceEnvironment,
+            userDataDir: userDataDirectory,
+        });
+        expect(
+            Object.keys(restored.executables).toSorted((left, right) => left.localeCompare(right)),
+        ).toEqual(['claude', 'codex']);
+    });
+
+    it('rejects untrusted provider availability state and update inputs', async () => {
+        const userDataDirectory = await mkdtemp(join(tmpdir(), 'caxri-acceptance-agent-fixture-'));
+        directories.push(userDataDirectory);
+        const root = join(userDataDirectory, 'acceptance-agents');
+        await mkdir(root);
+        const state = join(root, 'provider-availability.json');
+        await writeFile(
+            state,
+            JSON.stringify({
+                executable: '/tmp/untrusted',
+                fixtureId: 'agent-features-v1',
+                schemaVersion: 1,
+                unavailableProviders: ['codex'],
+            }),
+        );
+        await expect(
+            prepareAcceptanceAgentFixture({
+                fixtureId: 'agent-features-v1',
+                userDataDir: userDataDirectory,
+            }),
+        ).rejects.toThrow();
+        await rm(state);
+        await symlink(join(root, 'missing-target'), state);
+        await expect(
+            prepareAcceptanceAgentFixture({
+                fixtureId: 'agent-features-v1',
+                userDataDir: userDataDirectory,
+            }),
+        ).rejects.toThrow('direct regular file');
+        await expect(
+            setAcceptanceAgentFixtureProviderAvailability({
+                available: false,
+                fixtureId: 'unknown',
+                provider: 'codex',
+                userDataDir: userDataDirectory,
+            }),
+        ).rejects.toThrow();
+        await expect(
+            setAcceptanceAgentFixtureProviderAvailability({
+                available: false,
+                fixtureId: 'agent-features-v1',
+                provider: 'claude',
+                userDataDir: userDataDirectory,
+            }),
+        ).rejects.toThrow();
+        await expect(
+            setAcceptanceAgentFixtureProviderAvailability({
+                available: false,
+                executable: '/tmp/untrusted',
+                fixtureId: 'agent-features-v1',
+                provider: 'codex',
+                userDataDir: userDataDirectory,
+            } as Parameters<typeof setAcceptanceAgentFixtureProviderAvailability>[0]),
+        ).rejects.toThrow();
+    });
+
+    it('completes the initial Claude turn with its provider hooks and no SessionStart binding', async () => {
+        const userDataDirectory = await mkdtemp(join(tmpdir(), 'caxri-acceptance-agent-fixture-'));
+        directories.push(userDataDirectory);
+        const fixture = await prepareAcceptanceAgentFixture({
+            fixtureId: 'agent-features-v1',
+            sourceEnvironment: { PATH: '/usr/bin:/bin' },
+            userDataDir: userDataDirectory,
+        });
+        const claudeRoot = fixture.environment.CLAUDE_CONFIG_DIR!;
+        const hook = [{ hooks: [{ command: '/usr/bin/true' }] }];
+        await writeFile(
+            join(claudeRoot, 'settings.json'),
+            JSON.stringify({
+                hooks: { UserPromptSubmit: hook, Stop: hook },
+            }),
+        );
+        const fixtureProcess = observeAgentFixtureProcess(
+            spawn(fixtureExecutable(fixture, 'claude'), [], {
+                env: fixture.environment,
+                stdio: ['pipe', 'pipe', 'pipe'],
+            }),
+        );
+        try {
+            await waitForAgentFixtureReady(fixtureProcess, 'Fake claude Acceptance fixture ready');
+            await waitForReceiptCount(claudeRoot, 'Stop', 1);
+            const receipts = await readReceipts(claudeRoot);
+            expect(receipts.filter(({ event }) => event === 'UserPromptSubmit')).toHaveLength(1);
+            expect(receipts.filter(({ event }) => event === 'SessionStart')).toHaveLength(0);
+        } finally {
+            await stopAgentFixtureProcess(fixtureProcess);
+        }
+    });
+
     it('emits Codex SessionStart once per fixture process and prompt hooks once per turn', async () => {
         const userDataDirectory = await mkdtemp(join(tmpdir(), 'caxri-acceptance-agent-fixture-'));
         directories.push(userDataDirectory);
@@ -125,19 +320,19 @@ describe('Acceptance Agent fixtures', () => {
                 },
             }),
         );
-        const child = spawn(fixture.executables.codex, [], {
-            env: fixture.environment,
-            stdio: ['pipe', 'pipe', 'pipe'],
-        });
-        child.stdout.resume();
-        child.stderr.resume();
+        const fixtureProcess = observeAgentFixtureProcess(
+            spawn(fixtureExecutable(fixture, 'codex'), [], {
+                env: fixture.environment,
+                stdio: ['pipe', 'pipe', 'pipe'],
+            }),
+        );
         try {
+            await waitForAgentFixtureReady(fixtureProcess, 'Fake codex Acceptance fixture ready');
             await waitForReceiptCount(codexRoot, 'Stop', 1);
-            child.stdin.write('fixture:turn\n');
+            fixtureProcess.child.stdin?.write('fixture:turn\n');
             await waitForReceiptCount(codexRoot, 'Stop', 2);
         } finally {
-            child.kill('SIGTERM');
-            await new Promise<void>((resolve) => child.once('close', () => resolve()));
+            await stopAgentFixtureProcess(fixtureProcess);
         }
 
         const hookReceipts = (await readReceipts(codexRoot)).filter(({ kind }) => kind === 'hook');
@@ -163,32 +358,28 @@ describe('Acceptance Agent fixtures', () => {
             sourceEnvironment: { PATH: '/usr/bin:/bin' },
             userDataDir: userDataDirectory,
         });
-        const child = spawn(fixture.executables.claude, [], {
-            env: fixture.environment,
-            stdio: ['pipe', 'pipe', 'pipe'],
-        });
-        let stdout = '';
-        child.stdout.setEncoding('utf8').on('data', (chunk: string) => {
-            stdout += chunk;
-        });
-        child.stderr.resume();
+        const fixtureProcess = observeAgentFixtureProcess(
+            spawn(fixtureExecutable(fixture, 'claude'), [], {
+                env: fixture.environment,
+                stdio: ['pipe', 'pipe', 'pipe'],
+            }),
+        );
 
-        const exited = new Promise<number | null>((resolve) => child.once('close', resolve));
         try {
-            // Match the neighboring process-readiness budget when suites contend for the host.
-            await expect
-                .poll(() => stdout, { timeout: 3_000 })
-                .toContain('Fake claude Acceptance fixture ready');
-            child.stdin.write('fixture:exit\n');
-            await expect(exited).resolves.toBe(0);
-            expect(stdout).toContain('Fixture Agent exiting');
-            await expect(
-                readReceipts(fixture.environment.CLAUDE_CONFIG_DIR!),
-            ).resolves.toContainEqual(expect.objectContaining({ kind: 'fixtureExit' }));
+            await waitForAgentFixtureReady(fixtureProcess, 'Fake claude Acceptance fixture ready');
+            fixtureProcess.child.stdin?.write('fixture:exit\n');
+            await expect(waitForAgentFixtureExit(fixtureProcess)).resolves.toMatchObject({
+                exitCode: 0,
+                signal: null,
+            });
         } finally {
-            if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM');
-            await exited;
+            await stopAgentFixtureProcess(fixtureProcess);
         }
+        const stdout = getAgentFixtureStdout(fixtureProcess);
+        expect(stdout).toContain('Fixture Agent exiting');
+        await expect(readReceipts(fixture.environment.CLAUDE_CONFIG_DIR!)).resolves.toContainEqual(
+            expect.objectContaining({ kind: 'fixtureExit' }),
+        );
     });
 
     it('can expose unsent Terminal input through an explicit fixture receipt and echo', async () => {
@@ -201,19 +392,18 @@ describe('Acceptance Agent fixtures', () => {
         });
         const codexRoot = fixture.environment.CODEX_HOME!;
         await writeFile(join(codexRoot, 'acceptance-echo-terminal-input'), '');
-        const child = spawn(fixture.executables.codex, [], {
-            env: fixture.environment,
-            stdio: ['pipe', 'pipe', 'pipe'],
-        });
-        let stdout = '';
-        child.stdout.setEncoding('utf8').on('data', (chunk: string) => {
-            stdout += chunk;
-        });
-        child.stderr.resume();
+        const fixtureProcess = observeAgentFixtureProcess(
+            spawn(fixtureExecutable(fixture, 'codex'), [], {
+                env: fixture.environment,
+                stdio: ['pipe', 'pipe', 'pipe'],
+            }),
+        );
         try {
-            await expect.poll(() => stdout).toContain('Fake codex Acceptance fixture ready');
-            child.stdin.write('SYNTHETIC_SUMMARY_WITHOUT_SUBMIT');
-            await expect.poll(() => stdout).toContain('SYNTHETIC_SUMMARY_WITHOUT_SUBMIT');
+            await waitForAgentFixtureReady(fixtureProcess, 'Fake codex Acceptance fixture ready');
+            fixtureProcess.child.stdin?.write('SYNTHETIC_SUMMARY_WITHOUT_SUBMIT');
+            await expect
+                .poll(() => getAgentFixtureStdout(fixtureProcess))
+                .toContain('SYNTHETIC_SUMMARY_WITHOUT_SUBMIT');
             await expect
                 .poll(async () => readReceipts(codexRoot))
                 .toContainEqual({
@@ -223,8 +413,7 @@ describe('Acceptance Agent fixtures', () => {
                     provider: 'codex',
                 });
         } finally {
-            child.kill('SIGTERM');
-            await new Promise<void>((resolve) => child.once('close', () => resolve()));
+            await stopAgentFixtureProcess(fixtureProcess);
         }
 
         expect((await readReceipts(codexRoot)).some(({ kind }) => kind === 'terminalInput')).toBe(
@@ -242,26 +431,25 @@ describe('Acceptance Agent fixtures', () => {
         });
         const codexRoot = fixture.environment.CODEX_HOME!;
         await writeFile(join(codexRoot, 'acceptance-echo-terminal-input'), '');
-        const child = spawn(fixture.executables.codex, [], {
-            env: fixture.environment,
-            stdio: ['pipe', 'pipe', 'pipe'],
-        });
-        let stdout = '';
-        child.stdout.setEncoding('utf8').on('data', (chunk: string) => {
-            stdout += chunk;
-        });
-        child.stderr.resume();
+        const fixtureProcess = observeAgentFixtureProcess(
+            spawn(fixtureExecutable(fixture, 'codex'), [], {
+                env: fixture.environment,
+                stdio: ['pipe', 'pipe', 'pipe'],
+            }),
+        );
         try {
-            await expect.poll(() => stdout).toContain('\u{1B}[?2004h');
-            child.stdin.write('\u{1B}[200~Summary:\n- Error E42\n- src/task.ts:17\u{1B}[201~');
+            await waitForAgentFixtureReady(fixtureProcess, '\u{1B}[?2004h');
+            fixtureProcess.child.stdin?.write(
+                '\u{1B}[200~Summary:\n- Error E42\n- src/task.ts:17\u{1B}[201~',
+            );
             await expect
-                .poll(() => stdout)
+                .poll(() => getAgentFixtureStdout(fixtureProcess))
                 .toContain('Summary:\r\n- Error E42\r\n- src/task.ts:17');
         } finally {
-            child.kill('SIGTERM');
-            await new Promise<void>((resolve) => child.once('close', () => resolve()));
+            await stopAgentFixtureProcess(fixtureProcess);
         }
 
+        const stdout = getAgentFixtureStdout(fixtureProcess);
         expect((await readReceipts(codexRoot)).some(({ kind }) => kind === 'terminalInput')).toBe(
             false,
         );
@@ -278,17 +466,14 @@ describe('Acceptance Agent fixtures', () => {
             userDataDir: userDataDirectory,
         });
         const codexRoot = fixture.environment.CODEX_HOME!;
-        const child = spawn(fixture.executables.codex, [], {
-            env: fixture.environment,
-            stdio: ['pipe', 'pipe', 'pipe'],
-        });
-        let stdout = '';
-        child.stdout.setEncoding('utf8').on('data', (chunk: string) => {
-            stdout += chunk;
-        });
-        child.stderr.resume();
+        const fixtureProcess = observeAgentFixtureProcess(
+            spawn(fixtureExecutable(fixture, 'codex'), [], {
+                env: fixture.environment,
+                stdio: ['pipe', 'pipe', 'pipe'],
+            }),
+        );
         try {
-            await expect.poll(() => stdout).toContain('Fake codex Acceptance fixture ready');
+            await waitForAgentFixtureReady(fixtureProcess, 'Fake codex Acceptance fixture ready');
             await new Promise((resolve) => setTimeout(resolve, 700));
             expect(await readReceipts(codexRoot)).not.toContainEqual(
                 expect.objectContaining({ kind: 'fixtureError' }),
@@ -312,8 +497,7 @@ describe('Acceptance Agent fixtures', () => {
                 expect.objectContaining({ kind: 'fixtureError' }),
             );
         } finally {
-            child.kill('SIGTERM');
-            await new Promise<void>((resolve) => child.once('close', () => resolve()));
+            await stopAgentFixtureProcess(fixtureProcess);
         }
     });
 
@@ -333,7 +517,7 @@ describe('Acceptance Agent fixtures', () => {
         );
     });
 
-    it('drives paste summaries for both providers and rejects any other text generation', async () => {
+    it('supports the product title-generation invocation for both providers', async () => {
         const userDataDirectory = await mkdtemp(join(tmpdir(), 'caxri-acceptance-agent-fixture-'));
         directories.push(userDataDirectory);
         const fixture = await prepareAcceptanceAgentFixture({
@@ -341,11 +525,54 @@ describe('Acceptance Agent fixtures', () => {
             sourceEnvironment: { PATH: '/usr/bin:/bin' },
             userDataDir: userDataDirectory,
         });
-        const pasteSummaryInput =
-            'If the text is a log, build trace, test output, or diagnostic dump:\n\nCAXRI_ACCEPTANCE_PRIVATE_';
+        const instructions = 'Generate a concise coding-session title from the conversation below.';
+        const conversation =
+            '<user>CAXRI_ACCEPTANCE_PRIVATE_CLAUDE CAXRI_ACCEPTANCE_PRIVATE_CODEX</user>';
         await expect(
             runFixture(
-                fixture.executables.claude,
+                fixtureExecutable(fixture, 'claude'),
+                ['--print', '--model', 'haiku', '--system-prompt', instructions],
+                fixture.environment,
+                conversation,
+            ),
+        ).resolves.toBe('Repair Session Naming');
+        await expect(
+            runFixture(
+                fixtureExecutable(fixture, 'codex'),
+                ['exec', '--skip-git-repo-check', '-'],
+                fixture.environment,
+                `${instructions}\n\n${conversation}`,
+            ),
+        ).resolves.toContain('Repair Session Naming');
+        const receipts = await Promise.all(
+            [fixture.environment.CLAUDE_CONFIG_DIR!, fixture.environment.CODEX_HOME!].map(
+                readReceipts,
+            ),
+        );
+        for (const records of receipts) {
+            expect(records).toContainEqual(
+                expect.objectContaining({
+                    kind: 'generate',
+                    argumentContainsPrivateInput: false,
+                    inputContainsPrivateMarker: true,
+                }),
+            );
+        }
+    });
+
+    it('drives paste summaries for both providers and rejects unrecognized text generation', async () => {
+        const userDataDirectory = await mkdtemp(join(tmpdir(), 'caxri-acceptance-agent-fixture-'));
+        directories.push(userDataDirectory);
+        const fixture = await prepareAcceptanceAgentFixture({
+            fixtureId: 'agent-features-v1',
+            sourceEnvironment: { PATH: '/usr/bin:/bin' },
+            userDataDir: userDataDirectory,
+        });
+        const pasteSummaryInstructions =
+            'If the text is a log, build trace, test output, or diagnostic dump:';
+        await expect(
+            runFixture(
+                fixtureExecutable(fixture, 'claude'),
                 ['--print', '--model', 'haiku'],
                 fixture.environment,
                 'CAXRI_ACCEPTANCE_PRIVATE_CLAUDE',
@@ -353,15 +580,15 @@ describe('Acceptance Agent fixtures', () => {
         ).rejects.toThrow('Fixture exited with 7');
         await expect(
             runFixture(
-                fixture.executables.claude,
-                ['--print', '--model', 'haiku'],
+                fixtureExecutable(fixture, 'claude'),
+                ['--print', '--model', 'haiku', '--system-prompt', pasteSummaryInstructions],
                 fixture.environment,
-                `${pasteSummaryInput}CLAUDE`,
+                'CAXRI_ACCEPTANCE_PRIVATE_CLAUDE',
             ),
         ).resolves.toContain('Actual error: build failed with code E42');
         await expect(
             runFixture(
-                fixture.executables.codex,
+                fixtureExecutable(fixture, 'codex'),
                 ['exec', '--skip-git-repo-check', '-'],
                 fixture.environment,
                 'CAXRI_ACCEPTANCE_PRIVATE_CODEX',
@@ -369,10 +596,10 @@ describe('Acceptance Agent fixtures', () => {
         ).rejects.toThrow('Fixture exited with 7');
         await expect(
             runFixture(
-                fixture.executables.codex,
+                fixtureExecutable(fixture, 'codex'),
                 ['exec', '--skip-git-repo-check', '-'],
                 fixture.environment,
-                `${pasteSummaryInput}CODEX`,
+                `${pasteSummaryInstructions}\n\nCAXRI_ACCEPTANCE_PRIVATE_CODEX`,
             ),
         ).resolves.toContain('Actual error: build failed with code E42');
 

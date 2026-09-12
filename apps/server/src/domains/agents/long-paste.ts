@@ -13,6 +13,7 @@ import { CaxriError } from '@caxri/protocol';
 import { AsyncSemaphore, waitForSharedOperation } from '@caxri/system';
 
 import type { CaxriDatabase } from '../db';
+import { lowCostSandboxFailureReason } from './low-cost-sandbox';
 import {
     agentPasteSummaryCharacterLimit,
     countAgentPasteLines,
@@ -221,12 +222,13 @@ export class LongPasteService {
                       ...originalSize,
                       status: 'unavailable',
                   };
-        } catch {
+        } catch (error) {
             result = {
                 agentLaunchId: initialAgentLaunchId,
                 filePath,
                 ...originalSize,
                 status: 'unavailable',
+                reason: lowCostSandboxFailureReason(error),
             };
         } finally {
             clearTimeout(summaryTimeout);

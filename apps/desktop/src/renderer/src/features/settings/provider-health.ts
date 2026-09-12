@@ -25,6 +25,8 @@ export function hookHealthLabel(
                 return 'Waiting for the agent CLI to be installed';
             case 'installedPending':
                 return 'Installed — activates once you start a session';
+            case 'incompatible':
+                return 'Newer installation is incomplete';
             case 'active':
                 return 'Active';
             case 'stale':

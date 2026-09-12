@@ -13,7 +13,7 @@ export type TestDomainDependencies = Omit<DomainDependencies, 'terminal' | 'term
 /**
  * Supplies the in-process Terminal adapter at the test composition root without making it a production fallback.
  */
-export function createTestDomainServices(
+export async function createTestDomainServices(
     dependencies: TestDomainDependencies,
 ): Promise<DomainServices> {
     const terminal = dependencies.terminal ?? {};
@@ -23,11 +23,19 @@ export function createTestDomainServices(
         'sampleResources',
         'spawn',
     ]);
-    return createDomainServices({
+    const services = await createDomainServices({
         ...dependencies,
         terminal: managerOptions,
         terminalExecution:
             dependencies.terminalExecution ??
             createTestTerminalExecution(dependencies.logger, terminal),
     });
+    return {
+        ...services,
+        async close() {
+            await services.close();
+            // The test composition root owns its injected logger and must drain it after every producer stops.
+            await dependencies.logger.flush();
+        },
+    };
 }

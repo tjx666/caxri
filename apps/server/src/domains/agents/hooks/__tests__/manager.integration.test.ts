@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- Hook lifecycle scenarios share one multi-provider integration fixture. */
 import { createHash } from 'node:crypto';
 import { once } from 'node:events';
 import { lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
@@ -15,6 +16,19 @@ import { codexHookAdapter } from '../../providers/codex/hooks';
 import type { AgentLifecycleSignal, AgentSignalDecision } from '../contract';
 import { AgentHookManager, MAX_AGENT_HOOK_CONFIG_BYTES } from '../manager';
 
+const loggers: StructuredLogger[] = [];
+
+function createLogger(...arguments_: ConstructorParameters<typeof StructuredLogger>) {
+    const logger = new StructuredLogger(...arguments_);
+    loggers.push(logger);
+    return logger;
+}
+
+async function flushLoggers(): Promise<void> {
+    const pendingLoggers = [...loggers];
+    loggers.length = 0;
+    await Promise.all(pendingLoggers.map((logger) => logger.flush()));
+}
 const temporaryDirectories: string[] = [];
 
 function parseHooks(source: string): Record<string, unknown[]> {
@@ -30,6 +44,7 @@ async function readHooks(path: string): Promise<Record<string, unknown[]>> {
 
 afterEach(async () => {
     vi.restoreAllMocks();
+    await flushLoggers();
     const pendingCleanup = [...temporaryDirectories];
     temporaryDirectories.length = 0;
     await Promise.all(pendingCleanup.map((path) => rm(path, { recursive: true, force: true })));
@@ -48,7 +63,7 @@ describe('AgentHookManager', () => {
         await once(staleServer, 'listening');
         const manager = new AgentHookManager({
             environment: { homeDirectory: directory, variables: {} },
-            logger: new StructuredLogger(join(directory, 'logs')),
+            logger: createLogger(join(directory, 'logs')),
             onAuthorityLost: vi.fn(),
             onLaunchEnded: vi.fn(),
             onLaunchStarted: vi.fn(),
@@ -90,7 +105,7 @@ describe('AgentHookManager', () => {
         const createManager = (profile: string) =>
             new AgentHookManager({
                 environment,
-                logger: new StructuredLogger(join(directory, `logs-${profile}`)),
+                logger: createLogger(join(directory, `logs-${profile}`)),
                 onAuthorityLost: vi.fn(),
                 onLaunchEnded: vi.fn(),
                 onLaunchStarted: vi.fn(),
@@ -148,7 +163,7 @@ describe('AgentHookManager', () => {
         const createManager = (userDataPath: string, onAuthorityLost = vi.fn()) =>
             new AgentHookManager({
                 environment,
-                logger: new StructuredLogger(join(userDataPath, 'logs')),
+                logger: createLogger(join(userDataPath, 'logs')),
                 onAuthorityLost,
                 onLaunchEnded: vi.fn(),
                 onLaunchStarted: vi.fn(),
@@ -193,7 +208,7 @@ describe('AgentHookManager', () => {
         const send = vi.fn();
         const manager = new AgentHookManager({
             environment: { homeDirectory: directory, variables: { CODEX_HOME: codexHome } },
-            logger: new StructuredLogger(join(directory, 'logs')),
+            logger: createLogger(join(directory, 'logs')),
             onAuthorityLost: vi.fn(),
             onLaunchEnded: vi.fn(),
             onLaunchStarted: vi.fn(),
@@ -230,6 +245,8 @@ describe('AgentHookManager', () => {
             ) as { profiles: Record<string, { providers: string[] }> };
             expect(Object.values(registry.profiles).flatMap((entry) => entry.providers)).toEqual([
                 'claude',
+                'codex',
+                'grok',
             ]);
         } finally {
             await manager.close();
@@ -249,7 +266,7 @@ describe('AgentHookManager', () => {
                 homeDirectory: directory,
                 variables: { CODEX_HOME: join(directory, 'codex') },
             },
-            logger: new StructuredLogger(join(directory, 'logs')),
+            logger: createLogger(join(directory, 'logs')),
             onAuthorityLost: vi.fn(),
             onLaunchEnded: vi.fn(),
             onLaunchStarted: vi.fn(),
@@ -291,7 +308,7 @@ describe('AgentHookManager', () => {
         const createManager = (userDataPath: string) =>
             new AgentHookManager({
                 environment: { homeDirectory: directory, variables: { CODEX_HOME: codexHome } },
-                logger: new StructuredLogger(join(userDataPath, 'logs')),
+                logger: createLogger(join(userDataPath, 'logs')),
                 onAuthorityLost: vi.fn(),
                 onLaunchEnded: vi.fn(),
                 onLaunchStarted: vi.fn(),
@@ -333,7 +350,7 @@ describe('AgentHookManager', () => {
             () => 'accepted',
         );
         const launches = vi.fn();
-        const logger = new StructuredLogger(join(directory, 'logs'), 'server-core', 'info');
+        const logger = createLogger(join(directory, 'logs'), 'server-core', 'info');
         const manager = new AgentHookManager({
             environment: {
                 homeDirectory: directory,
@@ -559,7 +576,7 @@ describe('AgentHookManager', () => {
         settings.codex.hooks.enabled = true;
         const manager = new AgentHookManager({
             environment: { homeDirectory: directory, variables: { CODEX_HOME: codexHome } },
-            logger: new StructuredLogger(join(directory, 'logs')),
+            logger: createLogger(join(directory, 'logs')),
             onAuthorityLost: vi.fn(),
             onLaunchEnded: vi.fn(),
             onLaunchStarted: vi.fn(),
@@ -597,7 +614,7 @@ describe('AgentHookManager', () => {
         settings.codex.hooks.enabled = true;
         const manager = new AgentHookManager({
             environment: { homeDirectory: directory, variables: { CODEX_HOME: codexHome } },
-            logger: new StructuredLogger(join(directory, 'logs')),
+            logger: createLogger(join(directory, 'logs')),
             onAuthorityLost: vi.fn(),
             onLaunchEnded: vi.fn(),
             onLaunchStarted: vi.fn(),
@@ -653,7 +670,7 @@ describe('AgentHookManager', () => {
         settings.claude.hooks.enabled = true;
         const manager = new AgentHookManager({
             environment: { homeDirectory: directory, variables: {} },
-            logger: new StructuredLogger(join(directory, 'logs')),
+            logger: createLogger(join(directory, 'logs')),
             onAuthorityLost: vi.fn(),
             onLaunchEnded: vi.fn(),
             onLaunchStarted: vi.fn(),
@@ -692,7 +709,7 @@ describe('AgentHookManager', () => {
         settings.codex.hooks.enabled = true;
         const manager = new AgentHookManager({
             environment: { homeDirectory: directory, variables: { CODEX_HOME: codexHome } },
-            logger: new StructuredLogger(join(directory, 'logs')),
+            logger: createLogger(join(directory, 'logs')),
             onAuthorityLost: vi.fn(),
             onLaunchEnded: vi.fn(),
             onLaunchStarted: vi.fn(),
@@ -750,7 +767,7 @@ describe('AgentHookManager', () => {
         settings.codex.hooks.enabled = true;
         const manager = new AgentHookManager({
             environment: { homeDirectory: directory, variables: { CODEX_HOME: codexHome } },
-            logger: new StructuredLogger(join(directory, 'logs')),
+            logger: createLogger(join(directory, 'logs')),
             onAuthorityLost: vi.fn(),
             onLaunchEnded: vi.fn(),
             onLaunchStarted: vi.fn(),
@@ -764,8 +781,22 @@ describe('AgentHookManager', () => {
 
         try {
             await manager.initialize(settings);
-            expect(manager.getHealth().codex.kind).toBe('installedPending');
+            expect(manager.getHealth().codex).toMatchObject({
+                kind: 'incompatible',
+                installedSchema: 99,
+            });
             expect(await readFile(hooksPath, 'utf8')).toBe(newerSource);
+            await execFileAsync(
+                join(directory, 'shared', 'bin', 'caxri-agent-hook-bridge'),
+                ['--source', 'caxri', '--provider', 'codex', '--phase', 'turnFinished'],
+                {
+                    env: {
+                        ...process.env,
+                        ...manager.terminalEnvironment('newer-terminal', 'codex'),
+                    },
+                },
+            );
+            expect(manager.getHealth().codex.kind).toBe('incompatible');
 
             await writeFile(
                 join(codexHome, 'config.toml'),
@@ -780,3 +811,4 @@ describe('AgentHookManager', () => {
         }
     });
 });
+/* eslint-enable max-lines */

@@ -7,11 +7,16 @@ import { z } from 'zod';
 export const logEventCatalog = {
     agent: {
         automaticNamingFinished: 'agent.automatic_naming_finished',
+        hookTurnExpired: 'agent.hook_turn_expired',
+        hookTurnInterrupted: 'agent.hook_turn_interrupted',
         integrationReconcileFailed: 'agent.integration_reconcile_failed',
         probe: 'agent.probe',
         probeFailed: 'agent.probe_failed',
         processProbeFailed: 'agent.process_probe_failed',
         sessionActivityChanged: 'agent.session_activity_changed',
+    },
+    agentDispatch: {
+        transitioned: 'agent_dispatch.transitioned',
     },
     agentEndpoint: {
         retireFailed: 'agent_endpoint.retire_failed',

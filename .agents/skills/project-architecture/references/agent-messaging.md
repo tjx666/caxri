@@ -36,6 +36,9 @@ process events without reading output or silence. Server Core and Terminal Host 
 launch ID before an interrupt or stop reaches the current Caxri-owned Agent child; control never targets the
 long-lived Shell root. A client disconnect explicitly cancels its dispatch long poll.
 
+Managed launch failure, interruption causes, and content-free transition logs are documented in
+[Agent dispatch receipts](../../../../docs/agent-dispatch-receipts.md).
+
 `terminal.send` requires a Desktop or human CLI owner with `terminals.steer`. Its text is bounded by
 UTF-8 bytes, rejects C0/C1 controls except Tab, and adds Enter only through the explicit flag. It
 shares the existing content-free PTY input metrics and logs only target, byte count, and Enter state;

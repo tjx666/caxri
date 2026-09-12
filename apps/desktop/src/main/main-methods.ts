@@ -2,6 +2,7 @@ import { Buffer } from 'node:buffer';
 import { randomBytes } from 'node:crypto';
 import { lstat, mkdir, opendir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import process from 'node:process';
 
 import type { ArgvConfig, ArgvConfigChanges, MainRequest } from '@caxri/protocol';
 import {
@@ -13,6 +14,7 @@ import {
 import type { BrowserWindow } from 'electron';
 import { app, clipboard, ClipboardItem, dialog, nativeImage, shell } from 'electron';
 
+import { createAcceptanceExternalOpenFixture } from './acceptance-external-open';
 import { readArgvConfig, updateArgvConfig } from './argv-config';
 import {
     deleteProjectPrompt,
@@ -33,6 +35,7 @@ import type { UpdateService } from './updates';
 import type { createWorkbenchRootAuthority } from './workbench-root-authority';
 
 interface MainMethodHandlerOptions {
+    externalOpenFixture?: ReturnType<typeof createAcceptanceExternalOpenFixture>;
     allowGpuTestInjection?: boolean;
     getProcessExplorer(): ProcessExplorerWindowController;
     getUserDataPath(): string;
@@ -106,6 +109,12 @@ async function pruneBugReportScreenshots(directoryPath: string): Promise<void> {
  * screenshots, and update control all need direct Electron API access the Server process lacks.
  */
 export function createMainMethodHandler(options: MainMethodHandlerOptions) {
+    const externalOpenFixture =
+        options.externalOpenFixture ??
+        createAcceptanceExternalOpenFixture({
+            environment: process.env,
+            userDataPath: options.getUserDataPath(),
+        });
     async function handleExternalUrl(
         url: string,
         externalOptions: { allowTrust: boolean; window?: BrowserWindow },
@@ -122,9 +131,11 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                         externalOptions.allowTrust,
                         parentHostname,
                     );
-                    const result = externalOptions.window
-                        ? await dialog.showMessageBox(externalOptions.window, messageBoxOptions)
-                        : await dialog.showMessageBox(messageBoxOptions);
+                    const result = externalOpenFixture
+                        ? await externalOpenFixture.prompt(parsed, messageBoxOptions)
+                        : externalOptions.window
+                          ? await dialog.showMessageBox(externalOptions.window, messageBoxOptions)
+                          : await dialog.showMessageBox(messageBoxOptions);
                     return externalLinkChoice(
                         result.response,
                         externalOptions.allowTrust,
@@ -134,7 +145,10 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 trust: async (domain) => {
                     await supervisor.request('settings.trustDomain', { domain });
                 },
-                open: (target) => shell.openExternal(target),
+                open: (target) =>
+                    externalOpenFixture
+                        ? externalOpenFixture.open(target)
+                        : shell.openExternal(target),
             },
             { allowTrust: externalOptions.allowTrust },
         );

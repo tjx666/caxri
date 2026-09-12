@@ -259,6 +259,12 @@ process.stdout.write('Workbench Agent ready\r\n');
         await running.page.locator('.xterm-helper-textarea').press('r');
         await expectWorkbenchRoot(running.page, sessionId, root, 'main');
         await expect(
+            running.page.getByRole('treeitem', { name: 'owner.ts', exact: true }),
+        ).toBeVisible();
+        await expect(
+            running.page.getByText('Unable to read directory', { exact: true }),
+        ).toHaveCount(0);
+        await expect(
             running.page.getByText(
                 'The active worktree is no longer available. Returned to owner.',
                 { exact: true },

@@ -120,31 +120,6 @@ evidence rather than automated test or Acceptance evidence.
   `pkill -f "Caxri.app"` also matches the installed `/Applications/Caxri.app` and has already
   terminated it mid-session during exactly this cleanup.
 
-## Synthetic input versus asynchronous claims
-
-Playwright input arrives in windows a person's input cannot land in, and every one of those windows
-widens on a slower or loaded machine — which is why this class surfaces on CI first and is usually
-mistaken for a product defect. A person drags a pointer through many intermediate positions and
-presses a key long after focus has settled; `mouse.move` delivers one event, and `locator.press`
-focuses and dispatches as two separate steps.
-
-- Let an overlay's focus claim land before activating an item inside it. Base UI claims focus for a
-  freshly opened Menu one animation frame after the open, and its guard against clobbering a focus
-  that arrived first samples the document before that frame — so a focus landing between the two is
-  read as "already inside" and the queued frame still pulls focus onto the popup. The key then
-  reaches the popup container instead of the item and activates nothing. Poll until focus is inside
-  the popup, then press.
-- Drive pointer interactions through locator actions rather than coordinates read from
-  `boundingBox`. `hover` and `click` run actionability checks that include waiting for the layout
-  box to stop moving; a box measured once and pressed a few calls later is stale wherever siblings
-  share a container's width and one of them is still playing its exit animation. A tab bar is the
-  standing example: a split leaves an `inert` copy of the moved tab behind, still taking up a share
-  of the width.
-- Where a single synthetic event has to be enough, retry the approach until the observable effect
-  appears instead of asserting on the first attempt. xterm resolves its link providers from one
-  `mousemove` and caches "no link" for that row until the pointer moves again, so a misread event is
-  never revisited.
-
 ## CI-only parity
 
 Reproduce only the exact failed cases against the production build with one worker and three
@@ -168,10 +143,6 @@ Preserve the relevant CI viewport, font/locale/shell behavior, and long temporar
 Inject slowness at the owning async boundary or wait for an observable product invariant. Never use
 machine-wide throttling, fixed sleeps, random pressure, or a timeout-only change as the fix.
 
-Leave every timeout at its default while measuring a rate. A shortened `expect` timeout added for
-diagnosis is itself a change to the race being measured: lowering one from 15s to 4s moved an
-observed rate from 1-in-10 to 6-in-12, which reads as the fix under test having made things worse.
-
 CI retains screenshots, traces, the final viewport/grid, fixture ready markers, and content-free
 Main/Runtime logs for failures. Keep the failed CI run red while diagnosing it.
 
@@ -180,15 +151,6 @@ sufficient. Run the exact failed specs again under the repository-owned namespac
 because loaded-runner races can expose stale async state and hidden warmup surfaces that one worker
 cannot reproduce. Prefer stable observable locators and explicit busy-to-ready transitions over
 arbitrary delays.
-
-A `parallel-safe` spec cannot be reproduced by running it directly: the fixture demands a live
-repository-wide coordinator, and a hand-made `CAXRI_E2E_COORDINATOR_TOKEN` fails the namespaced
-lease check. Hold a real lease around the whole repetition, as in the `desktop` wrapper above.
-
-The reverse direction matters too. CI plans only `desktop-exclusive` and `parallel-safe`, so the
-`control` pool — every spec, one worker — is the only place a serial-only ordering shows up, and it
-has caught intermittents the other two pools ran green through. Keep it in local full-suite rounds
-even though no CI receipt covers it.
 
 Issue #116 CI evidence uses the repository-owned workflow dispatch instead of an ad-hoc command.
 `docs/ci-performance.md` owns the current profile, pool, receipt, and comparison contract; use the

@@ -13,6 +13,19 @@ import { AgentEndpointLifecycle } from '../../agent-endpoints';
 import { AgentMessagingCapabilityProbe } from '../../agent-messaging';
 import { CaxriDatabase } from '../../db/repository';
 
+const loggers: StructuredLogger[] = [];
+
+function createLogger(...arguments_: ConstructorParameters<typeof StructuredLogger>) {
+    const logger = new StructuredLogger(...arguments_);
+    loggers.push(logger);
+    return logger;
+}
+
+async function flushLoggers(): Promise<void> {
+    const pendingLoggers = [...loggers];
+    loggers.length = 0;
+    await Promise.all(pendingLoggers.map((logger) => logger.flush()));
+}
 const temporaryDirectories: string[] = [];
 
 function createFakePty() {
@@ -43,6 +56,7 @@ function createFakePty() {
 }
 
 afterEach(async () => {
+    await flushLoggers();
     const directoriesToRemove = [...temporaryDirectories];
     temporaryDirectories.length = 0;
     await Promise.all(
@@ -84,7 +98,7 @@ describe('TerminalManager Agent Endpoint lifecycle', () => {
         const manager = createTestTerminalManager(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             {
                 agentEnvironment: () => Promise.resolve({ PATH: '/usr/bin' }),
                 agentLaunchSettings: () => ({ executable: 'codex', args: [] }),
@@ -137,7 +151,7 @@ describe('TerminalManager Agent Endpoint lifecycle', () => {
             (event) => {
                 emitted.push(event);
             },
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             {
                 agentEnvironment: () => Promise.resolve({ PATH: '/usr/bin' }),
                 agentLaunchSettings: () => ({ executable: 'codex', args: [] }),
@@ -206,7 +220,7 @@ describe('TerminalManager Agent Endpoint lifecycle', () => {
         const manager = createTestTerminalManager(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             {
                 agentEnvironment: () => Promise.resolve({ PATH: '/usr/bin' }),
                 agentLaunchSettings: () => ({ executable: 'codex', args: [] }),

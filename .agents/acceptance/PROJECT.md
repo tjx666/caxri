@@ -41,6 +41,10 @@ Android, and iOS Simulator product surfaces.
   The adapter replaces only the blocked Claude Code and Codex targets with fixed fake executables.
   It rejects arbitrary ids and host executable paths and
   records `assets/<case-id>-agent-fixture.json`; include that receipt in the case evidence.
+  A restart case may call the closed
+  `setAcceptanceAgentFixtureProviderAvailability` adapter between launches to mark only the fixed Codex provider
+  unavailable under `agent-features-v1`. Each launch receipt records its actual `availableProviders`; omitted providers
+  remain blocked by the fixture environment and never fall back to a host executable.
   The fixed `grok-build-v1` fixture replaces only Grok and renders a bounded synthetic grid for
   Session identity, turn outcome, and restart checks; host Grok remains blocked.
 

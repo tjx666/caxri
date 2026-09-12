@@ -146,7 +146,11 @@ export function boundFileListEntries(entries: readonly FileEntry[]): FileEntry[]
 /**
  * Notified with the resolved directory just before it is enumerated, so the watcher can lazily start polling it.
  */
-export type DirectoryListedListener = (sessionId: string, path: string) => void;
+export type DirectoryListedListener = (
+    sessionId: string,
+    path: string,
+    resolved: { root: string; path: string; workspacePath: string },
+) => Promise<void> | void;
 export type OpenDirectory = (path: string) => ReturnType<typeof opendir>;
 export interface GitIgnoreDecoration {
     ignoredNames: ReadonlySet<string>;
@@ -215,7 +219,7 @@ export class ListingService {
             workspacePath = path,
         } = await this.resolveSessionPath(sessionId, directory);
         if (!isCurrent()) return { entries: [], truncated: true };
-        this.onDirectoryListed?.(sessionId, workspacePath);
+        await this.onDirectoryListed?.(sessionId, workspacePath, { root, path, workspacePath });
         const before = await lstat(path);
         if (!before.isDirectory() || before.isSymbolicLink())
             throw new CaxriError('IO', 'Path is not a directory');
@@ -345,7 +349,7 @@ export class ListingService {
             path,
             workspacePath = path,
         } = await this.resolveSessionPath(sessionId, directory);
-        this.onDirectoryListed?.(sessionId, workspacePath);
+        await this.onDirectoryListed?.(sessionId, workspacePath, { root, path, workspacePath });
         const before = await lstat(path);
         if (!before.isDirectory() || before.isSymbolicLink())
             throw new CaxriError('IO', 'Path is not a directory');

@@ -65,6 +65,8 @@ export function createAgentCommandHandlers(
             !options.terminals.signalAgentExact(target.terminalId, target.launchId, signal)
         )
             throw new CaxriError('UNAVAILABLE', 'Agent Endpoint generation is unavailable');
+        if (signal === 'SIGINT')
+            options.coordinator.observeInterrupt(target.terminalId, target.launchId);
         return { endpoint, terminalId: target.terminalId, outcome: 'signaled' as const };
     };
 

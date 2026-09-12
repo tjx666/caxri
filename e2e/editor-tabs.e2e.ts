@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -360,6 +360,66 @@ test('Open Work tabs provide roving keyboard navigation and dirty editor state',
         await expect(
             running.page.getByRole('button', { name: 'New Terminal', exact: true }),
         ).toBeFocused();
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('external replacement refreshes every open workspace alias model', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-editor-alias-model-e2e-'));
+    const root = join(testDirectory, 'project');
+    const shared = join(testDirectory, 'shared');
+    await Promise.all([mkdir(root), mkdir(shared)]);
+    const target = join(shared, 'note.txt');
+    await writeFile(target, 'initial external fixture\n');
+    await Promise.all([
+        symlink('../shared/note.txt', join(root, 'linked-note.txt')),
+        symlink('../shared/note.txt', join(root, 'alias-note.txt')),
+    ]);
+    const running = await launchCaxri({
+        userDataDir: join(testDirectory, 'profile'),
+        testRootPath: root,
+    });
+    try {
+        await createProjectSession(running.page);
+        const tree = running.page.getByRole('tree', { name: 'Files' });
+        await tree.getByRole('treeitem', { name: /^linked-note\.txt/ }).dblclick();
+        const editor = running.page.locator('.monaco-editor').last();
+        await expect(editor.locator('.view-lines')).toContainText('initial external fixture');
+        await tree.getByRole('treeitem', { name: /^alias-note\.txt/ }).dblclick();
+        const linkedTab = running.page.locator('.work-tab', { hasText: 'linked-note.txt' });
+        const aliasTab = running.page.locator('.work-tab', { hasText: 'alias-note.txt' });
+        await expect(linkedTab).toBeVisible();
+        await expect(aliasTab).toBeVisible();
+        await expect(editor.locator('.view-lines')).toContainText('initial external fixture');
+
+        await linkedTab.click();
+        await editor.click();
+        await running.page.keyboard.press('Meta+End');
+        await running.page.keyboard.insertText('unsaved local fixture');
+        await expect(linkedTab).toContainText('●');
+
+        const replacement = join(shared, 'note.next.txt');
+        await writeFile(replacement, 'external change takes precedence\n');
+        await rename(replacement, target);
+        await expect(editor.locator('.view-lines')).toContainText(
+            'external change takes precedence',
+        );
+        await expect(linkedTab).not.toContainText('●');
+        await expect(
+            running.page.getByText(/reloaded from disk; external changes take precedence/),
+        ).toBeVisible();
+
+        await aliasTab.click();
+        await expect(editor.locator('.view-lines')).toContainText(
+            'external change takes precedence',
+        );
+        await expect(aliasTab).not.toContainText('●');
     } finally {
         try {
             await running.app.close();

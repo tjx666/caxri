@@ -11,6 +11,7 @@ export {
     type AgentSignalDecision,
 } from './hooks/contract';
 export { LongPasteService } from './long-paste';
+export { lowCostSandboxFailureReason } from './low-cost-sandbox';
 export { agentProviders } from './providers';
 export { extractClaudeDelegationAnswer } from './providers/claude/delegation';
 export { type AgentAdapter, AgentService, createLocalAgentAdapters } from './service';

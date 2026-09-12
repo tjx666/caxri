@@ -18,6 +18,7 @@ import type {
     TranscriptPullRequestScan,
 } from './agents';
 import {
+    agentProviderStateRoot,
     createTranscriptPullRequestScan,
     defaultAgentEnvironment,
     locateAgentTranscript,
@@ -100,6 +101,10 @@ interface SessionEntry {
     value?: SessionPullRequest;
 }
 
+interface ScopedSessionEntry extends SessionEntry {
+    context: string;
+}
+
 export interface SessionPullRequestServiceOptions {
     agentEnvironment?: AgentEnvironment;
     emit?: (event: ServerEvent) => void;
@@ -118,7 +123,10 @@ export interface SessionPullRequestServiceOptions {
     missingTtlMs?: number;
 }
 
-type SessionPullRequestDatabase = Pick<CaxriDatabase, 'getTerminal' | 'listSessions'>;
+type SessionPullRequestDatabase = Pick<
+    CaxriDatabase,
+    'getSession' | 'getTerminal' | 'listSessions'
+>;
 
 function pullRequestKey(reference: PullRequestReference): string {
     return `${reference.owner}/${reference.repo}#${reference.number}`;
@@ -189,8 +197,9 @@ export class SessionPullRequestService {
     private readonly now: () => number;
     private readonly pullRequests = new Map<string, PullRequestEntry>();
     private refreshedAt = 0;
-    private readonly sessions = new Map<string, SessionEntry>();
+    private readonly sessions = new Map<string, ScopedSessionEntry>();
     private sweep?: Promise<void>;
+    private isRefreshRequested = false;
     private readonly transcriptScans = new Map<string, TranscriptPullRequestScan>();
     private readonly github: GitHubPullRequestStore;
     /**
@@ -210,6 +219,23 @@ export class SessionPullRequestService {
         this.now = options.now ?? Date.now;
         this.github =
             options.github ?? new GitHubPullRequestStore(this.runner, { now: () => this.now() });
+    }
+
+    /**
+     * Root and in-place Agent rebinding invalidate discovery without changing the cached PR's TTL.
+     */
+    private discoveryContext(session: SessionRecord): string {
+        const terminal = session.primaryAgentTerminalId
+            ? this.database.getTerminal(session.primaryAgentTerminalId)
+            : undefined;
+        return JSON.stringify([
+            session.rootPath,
+            session.workbenchProjectId,
+            session.primaryAgentTerminalId,
+            terminal?.provider,
+            terminal?.agentSessionId,
+            terminal ? agentProviderStateRoot(terminal) : undefined,
+        ]);
     }
 
     private ignoredChecks(): readonly string[] {
@@ -241,21 +267,30 @@ export class SessionPullRequestService {
         return this.database.listSessions().filter((session) => session.archivedAt === undefined);
     }
 
-    private async runSweep(): Promise<void> {
+    private async runSweep(): Promise<boolean> {
         const startedAt = performance.now();
         const changed: string[] = [];
         let lookups = 0;
+        let isContextChanged = false;
         try {
             const sessions = this.activeSessions();
             const liveIds = new Set(sessions.map((session) => session.id));
             for (const sessionId of this.sessions.keys())
                 if (!liveIds.has(sessionId)) this.sessions.delete(sessionId);
             await mapWithConcurrency(sessions, MAX_CONCURRENT_LOOKUPS, async (session) => {
-                const previous = this.sessions.get(session.id);
+                const context = this.discoveryContext(session);
+                const cached = this.sessions.get(session.id);
+                const previous = cached?.context === context ? cached : undefined;
                 const result = await this.resolveSessionSafely(session, previous);
                 if (result.lookedUp) lookups += 1;
-                if (previous && !this.sessions.has(session.id)) return;
-                this.sessions.set(session.id, result.entry);
+                const current = this.database.getSession(session.id);
+                if (!current || current.archivedAt !== undefined) return;
+                if (this.discoveryContext(current) !== context) {
+                    // An old asynchronous lookup must never overwrite a newly selected root's projection.
+                    isContextChanged = true;
+                    return;
+                }
+                this.sessions.set(session.id, { ...result.entry, context });
                 if (
                     result.entry.value?.state !== previous?.value?.state ||
                     result.entry.value?.checks !== previous?.value?.checks ||
@@ -279,6 +314,7 @@ export class SessionPullRequestService {
                 event: 'sessionPullRequests.changed',
                 payload: { sessionIds: changed },
             });
+        return isContextChanged;
     }
 
     /**
@@ -543,6 +579,23 @@ export class SessionPullRequestService {
         });
     }
 
+    private async refreshUntilCurrent(): Promise<void> {
+        let isContextChanged: boolean;
+        do {
+            this.consumeRefreshRequest();
+            // Root changes discovered during lookup must settle before a replacement sweep starts.
+            // eslint-disable-next-line no-await-in-loop
+            const changedDuringLookup = await this.runSweep();
+            isContextChanged = this.consumeRefreshRequest() || changedDuringLookup;
+        } while (isContextChanged);
+    }
+
+    private consumeRefreshRequest(): boolean {
+        const requested = this.isRefreshRequested;
+        this.isRefreshRequested = false;
+        return requested;
+    }
+
     /**
      * Returns the last settled projection immediately and refreshes stale Sessions in the background; the
      * `sessionPullRequests.changed` event owns UI convergence.
@@ -553,7 +606,8 @@ export class SessionPullRequestService {
         const pullRequests: SessionPullRequests['pullRequests'] = {};
         let isStale = false;
         for (const session of this.activeSessions()) {
-            const entry = this.sessions.get(session.id);
+            const cached = this.sessions.get(session.id);
+            const entry = cached?.context === this.discoveryContext(session) ? cached : undefined;
             if (!entry || entry.expiresAt <= now) isStale = true;
             if (entry?.value) pullRequests[session.id] = entry.value;
         }
@@ -567,10 +621,18 @@ export class SessionPullRequestService {
 
     async refresh(): Promise<void> {
         if (this.sweep) {
+            // A Session may have settled before another lookup; preserve requests that invalidate that earlier result.
+            if (
+                this.activeSessions().some(
+                    (session) =>
+                        this.sessions.get(session.id)?.context !== this.discoveryContext(session),
+                )
+            )
+                this.isRefreshRequested = true;
             await this.sweep;
             return;
         }
-        this.sweep = this.runSweep();
+        this.sweep = this.refreshUntilCurrent();
         try {
             await this.sweep;
         } finally {

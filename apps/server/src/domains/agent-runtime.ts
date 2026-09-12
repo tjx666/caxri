@@ -98,6 +98,8 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
             );
         },
         logger,
+        (sessionId, reason) =>
+            send({ event: 'agent.automaticNamingUnavailable', payload: { sessionId, reason } }),
     );
     namingState.service = automaticNaming;
     const agentHooks = new AgentHookManager({

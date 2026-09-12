@@ -16,6 +16,8 @@ import type {
     TerminalRecord,
 } from '@caxri/protocol';
 import { CaxriError, toWireError } from '@caxri/protocol';
+import type { StructuredLogger } from '@caxri/system';
+import { logEventCatalog } from '@caxri/system';
 
 import type { AgentEndpointLifecycle } from '../agent-endpoints';
 import type { AgentCoordinator } from '../agents';
@@ -26,7 +28,11 @@ import type { AgentCoordinator } from '../agents';
 import { agentProviders } from '../agents';
 import type { CaxriDatabase } from '../db';
 import { SingleFlight } from '../single-flight';
-import type { TerminalManager, TerminalWorkingDirectoryIdentity } from '../terminal';
+import type {
+    TerminalLifecycleCause,
+    TerminalManager,
+    TerminalWorkingDirectoryIdentity,
+} from '../terminal';
 
 interface DispatchWaiter {
     afterRevision: number;
@@ -39,6 +45,7 @@ const MAX_DISPATCH_WAITERS = 256;
 const MAX_WAITERS_PER_DISPATCH = 32;
 
 export interface AgentDispatchServiceOptions {
+    logger: StructuredLogger;
     database: CaxriDatabase;
     endpoints?: AgentEndpointLifecycle;
     coordinator: AgentCoordinator;
@@ -51,6 +58,17 @@ export interface AgentDispatchServiceOptions {
 }
 
 type DispatchReason = AgentDispatchFailure['reason'];
+type TransitionReason =
+    | TerminalLifecycleCause
+    | 'created'
+    | 'launchStarted'
+    | 'launchReady'
+    | 'launchFailed'
+    | 'processFailed'
+    | 'agentExit'
+    | 'terminalSuspended'
+    | 'userDetached'
+    | 'processInterrupted';
 
 export interface AgentDispatchStartOptions {
     delegationId?: string;
@@ -208,6 +226,7 @@ export class AgentDispatchService {
             input.provider,
             cwd,
         );
+        this.logTransition(stored.receipt, 'created');
         this.publish(stored.receipt);
         try {
             options?.prepared(terminal);
@@ -286,6 +305,7 @@ export class AgentDispatchService {
             effectiveLaunch: effective,
             now: this.now(),
         });
+        this.logTransition(stored.receipt, 'created');
         this.publish(stored.receipt);
         this.update(dispatchId, { status: 'starting', terminalId: terminal.id });
         let identity: TerminalWorkingDirectoryIdentity;
@@ -446,13 +466,47 @@ export class AgentDispatchService {
             endpoint?: AgentEndpointReference;
             failure?: AgentDispatchFailure;
         },
+        reason?: TransitionReason,
     ): AgentDispatchReceipt {
+        const previous = this.options.database.getAgentDispatch(dispatchId)?.receipt;
         const stored = this.options.database.updateAgentDispatch(dispatchId, {
             ...patch,
             now: this.now(),
         });
+        if (previous?.status !== stored.receipt.status)
+            this.logTransition(
+                stored.receipt,
+                reason ??
+                    (patch.failure?.reason === 'host_reset'
+                        ? 'hostRestart'
+                        : patch.failure?.reason === 'launch_failed'
+                          ? 'launchFailed'
+                          : patch.status === 'failed'
+                            ? 'processFailed'
+                            : patch.status === 'running'
+                              ? 'launchReady'
+                              : 'launchStarted'),
+                previous?.status,
+            );
         this.publish(stored.receipt);
         return stored.receipt;
+    }
+
+    private logTransition(
+        receipt: AgentDispatchReceipt,
+        reason: TransitionReason,
+        previous?: AgentDispatchReceipt['status'],
+    ): void {
+        this.options.logger.write('info', logEventCatalog.agentDispatch.transitioned, {
+            fields: {
+                dispatchId: receipt.dispatchId,
+                terminalId: receipt.terminalId ?? null,
+                previousStatus: previous ?? null,
+                status: receipt.status,
+                reason,
+                durationMs: Math.max(0, this.now() - receipt.createdAt),
+            },
+        });
     }
 
     private publish(receipt: AgentDispatchReceipt): void {
@@ -579,7 +633,11 @@ export class AgentDispatchService {
         return isCanceled;
     }
 
-    observeTerminalState(terminalId: string, state: ProcessState): void {
+    observeTerminalState(
+        terminalId: string,
+        state: ProcessState,
+        cause?: TerminalLifecycleCause,
+    ): void {
         for (const { receipt } of this.options.database.agentDispatchesForTerminal(terminalId)) {
             if (isSettled(receipt)) continue;
             if (
@@ -590,11 +648,43 @@ export class AgentDispatchService {
                 continue;
             if (state === 'starting') {
                 if (receipt.status === 'running')
-                    this.update(receipt.dispatchId, { status: 'interrupted' });
+                    this.update(
+                        receipt.dispatchId,
+                        { status: 'interrupted' },
+                        'processInterrupted',
+                    );
                 continue;
             }
             const patch = terminalStatePatch(state);
-            if (patch) this.update(receipt.dispatchId, patch);
+            if (!patch) continue;
+            /**
+             * A process exit before launch proof is a failed launch, even with exit code zero. Preserve intentional
+             * interruption instead of rewriting the result after its waiter has already observed it.
+             */
+            if (
+                cause === undefined &&
+                receipt.status !== 'running' &&
+                (patch.status === 'stopped' || patch.status === 'failed')
+            ) {
+                this.update(
+                    receipt.dispatchId,
+                    { status: 'failed', failure: { code: 'UNAVAILABLE', reason: 'launch_failed' } },
+                    'launchFailed',
+                );
+                continue;
+            }
+            const reason: TransitionReason =
+                cause ??
+                (state === 'suspended'
+                    ? 'terminalSuspended'
+                    : state === 'detached'
+                      ? 'userDetached'
+                      : patch.status === 'failed'
+                        ? 'processFailed'
+                        : patch.status === 'stopped'
+                          ? 'agentExit'
+                          : 'processInterrupted');
+            this.update(receipt.dispatchId, patch, reason);
         }
     }
 

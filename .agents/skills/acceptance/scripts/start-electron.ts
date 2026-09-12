@@ -21,6 +21,7 @@ import {
 } from './agent-fixture-lifecycle';
 import {
     prepareAcceptanceAgentEnvironment,
+    prepareAcceptanceAgentFixture,
     validateAcceptanceAgentFixture,
 } from './agent-fixtures';
 import { assertAcceptanceBuildCommit } from './build-identity';
@@ -110,6 +111,7 @@ const WATCHED_BUILD_INPUT_EXTENSIONS = new Set([
 const OWNED_PROCESS_DISCOVERY_TIMEOUT_MS = 10_000;
 
 interface ElectronLaunchSpecInput {
+    caseId?: string;
     agentEnvironment?: NodeJS.ProcessEnv;
     electronPath?: string;
     environment?: NodeJS.ProcessEnv;
@@ -176,6 +178,7 @@ const defaultWaitForCdpDependencies: WaitForCdpDependencies = {
  * Keeps the executable, structured argv, and isolated environment in one testable launch contract.
  */
 export function createElectronLaunchSpec({
+    caseId,
     agentEnvironment,
     electronPath = ELECTRON_PATH,
     environment = process.env,
@@ -194,6 +197,7 @@ export function createElectronLaunchSpec({
     for (const key of [
         ...e2eAgentEnvironmentKeys(),
         'CAXRI_E2E_AGENT_HOOKS',
+        'CAXRI_ACCEPTANCE_EXTERNAL_OPEN',
         'CAXRI_REAL_AGENT_E2E',
         'CAXRI_REAL_AGENT_OK',
     ])
@@ -209,6 +213,8 @@ export function createElectronLaunchSpec({
                 CAXRI_ACCEPTANCE: '1',
                 CAXRI_E2E: '1',
                 CAXRI_E2E_WINDOW_MODE: 'visible',
+                CAXRI_ACCEPTANCE_EXTERNAL_OPEN:
+                    caseId === 'session-pr-open-parity' ? 'session-pr-open-parity-v1' : undefined,
                 ...(useTestRootFixture && {
                     CAXRI_TEST_ROOT_PATH: testRootPath,
                     CAXRI_TEST_ROOT_PATHS: JSON.stringify(testRootPaths),
@@ -550,12 +556,25 @@ async function main(): Promise<void> {
             throw error;
         }
         try {
-            const agentEnvironment = await prepareAcceptanceAgentEnvironment({
-                fixtureId: requestedAgentFixture,
-                userDataDir,
-            });
+            const preparedAgentFixture = requestedAgentFixture
+                ? await prepareAcceptanceAgentFixture({
+                      fixtureId: requestedAgentFixture,
+                      userDataDir,
+                  })
+                : undefined;
+            const agentEnvironment = preparedAgentFixture
+                ? preparedAgentFixture.environment
+                : await prepareAcceptanceAgentEnvironment({ userDataDir });
             if (requestedAgentFixture) {
+                const availableProviders = preparedAgentFixture?.executables.grok
+                    ? preparedAgentFixture.executables.claude
+                        ? (['claude', 'codex', 'grok'] as const)
+                        : (['grok'] as const)
+                    : preparedAgentFixture?.executables.codex
+                      ? (['claude', 'codex'] as const)
+                      : (['claude'] as const);
                 agentFixtureLaunchId = await beginAgentFixtureLifecycle(plannedCase.directory, {
+                    availableProviders,
                     caseId,
                     fixtureId: requestedAgentFixture,
                 });
@@ -567,6 +586,7 @@ async function main(): Promise<void> {
                 userDataDir,
             });
             const launch = createMacosAcceptanceLaunchSpec({
+                caseId,
                 agentEnvironment,
                 appPath: acceptanceApp.appPath,
                 port,

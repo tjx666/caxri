@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 
 import type { ThemeTokens } from '@caxri/protocol';
 import type { OnMount } from '@monaco-editor/react';
@@ -9,6 +9,7 @@ import { useEditorFontFamily } from '@/hooks/use-editor-font-family';
 import { applyEditorTheme } from '../../lib/editor-theme';
 import { monaco } from '../../lib/monaco';
 import { resolveEditorLanguage } from './editor-language';
+import { synchronizeControlledEditorModel } from './editor-model-sync';
 import { markEditorBeforeMount, markEditorMounted } from './editor-performance';
 import { registerEditorRevealTarget } from './editor-reveal';
 import { useEditorStatusStore } from './editor-status';
@@ -63,9 +64,16 @@ export function CodeEditor({
     const editorReference = useRef<Parameters<OnMount>[0] | null>(null);
     const registrationReference = useRef<(() => void) | undefined>(undefined);
     const cursorSubscriptionReference = useRef<{ dispose(): void } | undefined>(undefined);
+    const programmaticChangeReference = useRef(false);
     const statusKeyReference = useRef(statusKey);
     const language = resolveEditorLanguage(path);
     const fontFamily = useEditorFontFamily();
+    const handleChange = useCallback(
+        (content: string | undefined) => {
+            if (!programmaticChangeReference.current) onChange(content);
+        },
+        [onChange],
+    );
     useEffect(() => applyEditorTheme(theme), [theme]);
     /**
      * Scroll position and cursor outlive the widget that showed them. The two halves run in different effect phases on
@@ -90,6 +98,16 @@ export function CodeEditor({
         const editor = editorReference.current;
         if (editor) restoreEditorViewState(editor, editorInstanceId);
     }, [editorInstanceId, path]);
+    useEffect(() => {
+        const editor = editorReference.current;
+        if (editor)
+            synchronizeControlledEditorModel(
+                editor,
+                monaco.Uri.parse(path).toString(),
+                value,
+                programmaticChangeReference,
+            );
+    }, [path, value]);
     useEffect(() => {
         const editor = editorReference.current;
         if (!editor) return;
@@ -156,7 +174,7 @@ export function CodeEditor({
                 publishEditorStatus(editor, statusKeyReference.current);
                 markEditorMounted();
             }}
-            onChange={onChange}
+            onChange={handleChange}
             options={{
                 automaticLayout: true,
                 minimap: { enabled: false },

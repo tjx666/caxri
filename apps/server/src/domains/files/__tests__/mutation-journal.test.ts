@@ -9,6 +9,13 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { FileMutationJournal } from '../mutation-journal';
 
 const temporaryDirectories: string[] = [];
+const loggers: StructuredLogger[] = [];
+
+function createLogger(...arguments_: ConstructorParameters<typeof StructuredLogger>) {
+    const logger = new StructuredLogger(...arguments_);
+    loggers.push(logger);
+    return logger;
+}
 
 function createOperation(
     id: string,
@@ -28,6 +35,9 @@ function createOperation(
 }
 
 afterEach(async () => {
+    // The fixture owns the logger; service shutdown alone does not drain its queued filesystem writes.
+    await Promise.all(loggers.map((logger) => logger.flush()));
+    loggers.length = 0;
     const paths = temporaryDirectories.slice();
     temporaryDirectories.length = 0;
     await Promise.all(paths.map((path) => rm(path, { recursive: true, force: true })));
@@ -40,7 +50,7 @@ describe('FileMutationJournal', () => {
         const journal = new FileMutationJournal(
             join(directory, 'operations.json'),
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
         );
         await journal.initialize();
         const operation = {
@@ -109,7 +119,7 @@ describe('FileMutationJournal', () => {
         const journal = new FileMutationJournal(
             join(directory, 'operations.json'),
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             { preStageTimeoutMs: 10 },
         );
         await journal.initialize();
@@ -137,7 +147,7 @@ describe('FileMutationJournal', () => {
         const journal = new FileMutationJournal(
             join(directory, 'operations.json'),
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
         );
         await journal.initialize();
         const result = {
@@ -171,7 +181,7 @@ describe('FileMutationJournal', () => {
         const target = join(directory, 'target.txt');
         await writeFile(source, 'preserved', 'utf8');
         const sourceStats = await lstat(source, { bigint: true });
-        const logger = new StructuredLogger(join(directory, 'logs'));
+        const logger = createLogger(join(directory, 'logs'));
         const first = new FileMutationJournal(path, () => {}, logger);
         await first.initialize();
         const never = new Promise<never>(() => {});
@@ -222,7 +232,7 @@ describe('FileMutationJournal', () => {
         temporaryDirectories.push(directory);
         const path = join(directory, 'operations.json');
         const target = join(directory, 'created.txt');
-        const logger = new StructuredLogger(join(directory, 'logs'));
+        const logger = createLogger(join(directory, 'logs'));
         const first = new FileMutationJournal(path, () => {}, logger);
         await first.initialize();
         const identityRecorded = Promise.withResolvers<void>();
@@ -275,7 +285,7 @@ describe('FileMutationJournal', () => {
         const preserved = join(directory, 'preserved.txt');
         await writeFile(source, 'original', 'utf8');
         const sourceStats = await lstat(source, { bigint: true });
-        const logger = new StructuredLogger(join(directory, 'logs'));
+        const logger = createLogger(join(directory, 'logs'));
         const first = new FileMutationJournal(path, () => {}, logger);
         await first.initialize();
         const pending = first.run(
@@ -337,7 +347,7 @@ describe('FileMutationJournal', () => {
         const journal = new FileMutationJournal(
             path,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             {
                 completionRetryBaseMs: 1,
                 writeJournal: async (journalPath, sourceText) => {
@@ -394,7 +404,7 @@ describe('FileMutationJournal', () => {
         const journal = new FileMutationJournal(
             path,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             {
                 completionRetryBaseMs: 1,
                 writeJournal: async (journalPath, sourceText) => {
@@ -437,7 +447,7 @@ describe('FileMutationJournal', () => {
         const journal = new FileMutationJournal(
             path,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             {
                 completionRetryBaseMs: 100,
                 writeJournal: async (journalPath, sourceText) => {
@@ -479,7 +489,7 @@ describe('FileMutationJournal', () => {
         const journal = new FileMutationJournal(
             join(directory, 'operations.json'),
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             { maximumActivePerSession: 1, preStageTimeoutMs: 30_000 },
         );
         await journal.initialize();

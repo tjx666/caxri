@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ClipboardNativeAdapter } from './clipboard.ts';
-import { runNativeHelper, snapshotClipboard } from './clipboard.ts';
+import {
+    ClipboardNativeError,
+    createClipboardNativeAdapter,
+    runNativeHelper,
+    snapshotClipboard,
+} from './clipboard.ts';
 
 const PRIVATE_PAYLOAD = 'private clipboard snapshot payload';
 
@@ -40,10 +45,74 @@ function nativeAdapter(overrides: Partial<ClipboardNativeAdapter> = {}): Clipboa
 }
 
 describe('E2E clipboard ownership session', () => {
+    it.each(['not json', '[]', '{"generation":"private"}', '{"generation":-1}'])(
+        'rejects invalid claim metadata without exposing response bytes: %s',
+        async (output) => {
+            const native = createClipboardNativeAdapter(() => Promise.resolve(output));
+            const session = await snapshotClipboard(nativeAdapter({ claimText: native.claimText }));
+            let failure: unknown;
+            try {
+                await session.claimText(PRIVATE_PAYLOAD);
+            } catch (error) {
+                failure = error;
+            }
+            expect(failure).toMatchObject({
+                reason: 'protocol_failure',
+                stage: 'claim-text',
+                durationMs: expect.any(Number) as unknown,
+            });
+            expect(String(failure)).not.toContain(PRIVATE_PAYLOAD);
+            expect(String(failure)).not.toContain(output);
+        },
+    );
+
+    it.each(['timeout', 'process_failure', 'ownership_mismatch'] as const)(
+        'preserves %s diagnostics and the previous owned generation after a failed claim',
+        async (reason) => {
+            const diagnostic = new ClipboardNativeError(reason, 'claim-text', 17);
+            const adapter = nativeAdapter({ claimText: vi.fn().mockRejectedValue(diagnostic) });
+            const session = await snapshotClipboard(adapter);
+            await expect(session.claimText(PRIVATE_PAYLOAD)).rejects.toBe(diagnostic);
+            await session.restore();
+            expect(adapter.restore).toHaveBeenCalledWith(PRIVATE_PAYLOAD, 10);
+        },
+    );
+
     it('kills a stalled native helper at the owning process boundary', async () => {
         await expect(
             runNativeHelper('exec sleep 5', undefined, shellHelperOptions({ timeoutMs: 20 })),
-        ).rejects.toThrow('Could not run exec sleep 5 for the native E2E clipboard');
+        ).rejects.toMatchObject({
+            reason: 'timeout',
+            stage: 'native-helper',
+            durationMs: expect.any(Number) as unknown,
+        });
+    });
+
+    it.each([
+        ['exit 1', 'process_failure'],
+        ['exit 2', 'protocol_failure'],
+        ['exit 3', 'ownership_mismatch'],
+    ])('classifies helper failure %s without exposing command data', async (command, reason) => {
+        await expect(
+            runNativeHelper(command, PRIVATE_PAYLOAD, shellHelperOptions()),
+        ).rejects.toMatchObject({
+            reason,
+            stage: 'native-helper',
+            durationMs: expect.any(Number) as unknown,
+        });
+    });
+
+    it('classifies spawn failures without exposing executable paths', async () => {
+        await expect(
+            runNativeHelper('snapshot', undefined, {
+                ...shellHelperOptions(),
+                executablePath: '/missing-private-clipboard-helper',
+            }),
+        ).rejects.toMatchObject({
+            reason: 'spawn_failure',
+            stage: 'snapshot',
+            durationMs: expect.any(Number) as unknown,
+        });
     });
 
     it('rejects oversized helper input and output without exposing clipboard bytes', async () => {
@@ -67,6 +136,8 @@ describe('E2E clipboard ownership session', () => {
 
         expect(inputFailure).toBeInstanceOf(Error);
         expect(outputFailure).toBeInstanceOf(Error);
+        expect(inputFailure).toMatchObject({ reason: 'input_limit' });
+        expect(outputFailure).toMatchObject({ reason: 'output_limit' });
         expect((inputFailure as Error).message.includes(privateInput)).toBe(false);
         expect((outputFailure as Error).message.includes(PRIVATE_PAYLOAD)).toBe(false);
     });

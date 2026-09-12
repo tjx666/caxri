@@ -212,6 +212,16 @@ esac
             await expect(menu).toBeVisible();
             await menu.getByRole('menuitem', { name: 'Open Pull Request #42' }).click();
             await expect.poll(openedUrls).toEqual([PULL_REQUEST_URL, PULL_REQUEST_URL]);
+            const confirmations = await running.app.evaluate(() => {
+                const target = globalThis as typeof globalThis & {
+                    caxriPullRequestProbe?: { confirmations: string[] };
+                };
+                return target.caxriPullRequestProbe?.confirmations ?? [];
+            });
+            expect(confirmations).toEqual([
+                'Open github.com in your default browser?',
+                'Open github.com in your default browser?',
+            ]);
         } finally {
             try {
                 await running.app.close();

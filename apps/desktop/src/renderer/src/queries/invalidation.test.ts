@@ -168,17 +168,37 @@ describe('subscribeRuntimeQueryInvalidation', () => {
         unsubscribe();
     });
 
-    it('re-asks for Session pull requests as soon as a Session is created', () => {
+    it.each(['session.create', 'terminal.moveToNewSession', 'session.unarchive'] as const)(
+        're-asks for Session pull requests after %s',
+        (reason) => {
+            const queryClient = new QueryClient();
+            const pullRequests = ['session.pullRequests', undefined] as const;
+            queryClient.setQueryData(pullRequests, { pullRequests: {} });
+            const unsubscribe = subscribeRuntimeQueryInvalidation(queryClient);
+
+            mocks.state.handler?.({
+                event: 'state.changed',
+                payload: { kind: 'full', reason },
+            });
+
+            expect(queryClient.getQueryState(pullRequests)?.isInvalidated).toBe(true);
+            unsubscribe();
+        },
+    );
+
+    it('re-asks for Session pull requests after a Workbench Root change', () => {
         const queryClient = new QueryClient();
         const pullRequests = ['session.pullRequests', undefined] as const;
         queryClient.setQueryData(pullRequests, { pullRequests: {} });
         const unsubscribe = subscribeRuntimeQueryInvalidation(queryClient);
-
         mocks.state.handler?.({
-            event: 'state.changed',
-            payload: { kind: 'full', reason: 'session.create' },
+            event: 'workbench.changed',
+            payload: {
+                sessionId: 'session-a',
+                workbenchProjectId: 'project-b',
+                reason: 'selected',
+            },
         });
-
         expect(queryClient.getQueryState(pullRequests)?.isInvalidated).toBe(true);
         unsubscribe();
     });
@@ -661,138 +681,6 @@ describe('subscribeRuntimeQueryInvalidation', () => {
             queryClient.getQueryState(['projectStatus.summary', { sessionId: 'session-b' }])
                 ?.isInvalidated,
         ).toBe(false);
-        unsubscribe();
-    });
-
-    it('invalidates only the transcript query for the changed Terminal', () => {
-        const queryClient = new QueryClient();
-        queryClient.setQueryData(
-            ['terminal.agentTranscript', { terminalId: 'terminal-a', withContent: true }],
-            { content: 'old' },
-        );
-        queryClient.setQueryData(
-            ['terminal.agentTranscript', { terminalId: 'terminal-b', withContent: true }],
-            { content: 'other' },
-        );
-        const unsubscribe = subscribeRuntimeQueryInvalidation(queryClient);
-
-        mocks.state.handler?.({
-            event: 'agentTranscript.changed',
-            payload: { terminalId: 'terminal-a' },
-        });
-
-        expect(
-            queryClient.getQueryState([
-                'terminal.agentTranscript',
-                { terminalId: 'terminal-a', withContent: true },
-            ])?.isInvalidated,
-        ).toBe(true);
-        expect(
-            queryClient.getQueryState([
-                'terminal.agentTranscript',
-                { terminalId: 'terminal-b', withContent: true },
-            ])?.isInvalidated,
-        ).toBe(false);
-        unsubscribe();
-    });
-
-    it('invalidates every transcript after a Server reconnect closes a journal-gap race', () => {
-        const queryClient = new QueryClient();
-        queryClient.setQueryData(
-            ['terminal.agentTranscript', { terminalId: 'terminal-a', withContent: true }],
-            { content: 'old-a' },
-        );
-        queryClient.setQueryData(
-            ['terminal.agentTranscript', { terminalId: 'terminal-b', withContent: true }],
-            { content: 'old-b' },
-        );
-        queryClient.setQueryData(['files.browse', { sessionId: 'session-a' }], { entries: [] });
-        const unsubscribe = subscribeRuntimeQueryInvalidation(queryClient);
-
-        mocks.state.handler?.({
-            event: 'host.connectionChanged',
-            payload: { status: 'replaced' },
-        });
-
-        expect(
-            queryClient.getQueryState([
-                'terminal.agentTranscript',
-                { terminalId: 'terminal-a', withContent: true },
-            ])?.isInvalidated,
-        ).toBe(true);
-        expect(
-            queryClient.getQueryState([
-                'terminal.agentTranscript',
-                { terminalId: 'terminal-b', withContent: true },
-            ])?.isInvalidated,
-        ).toBe(true);
-        expect(
-            queryClient.getQueryState(['files.browse', { sessionId: 'session-a' }])?.isInvalidated,
-        ).toBe(false);
-        unsubscribe();
-    });
-
-    it('invalidates the rebound Terminal transcript on a record-scoped state change', () => {
-        const queryClient = new QueryClient();
-        queryClient.setQueryData(
-            ['terminal.agentTranscript', { terminalId: 'terminal-a', withContent: true }],
-            { content: 'old-a' },
-        );
-        queryClient.setQueryData(
-            ['terminal.agentTranscript', { terminalId: 'terminal-b', withContent: true }],
-            { content: 'old-b' },
-        );
-        const unsubscribe = subscribeRuntimeQueryInvalidation(queryClient);
-
-        mocks.state.handler?.({
-            event: 'state.changed',
-            payload: { kind: 'records', sessionIds: [], terminalIds: ['terminal-a'] },
-        });
-
-        expect(
-            queryClient.getQueryState([
-                'terminal.agentTranscript',
-                { terminalId: 'terminal-a', withContent: true },
-            ])?.isInvalidated,
-        ).toBe(true);
-        expect(
-            queryClient.getQueryState([
-                'terminal.agentTranscript',
-                { terminalId: 'terminal-b', withContent: true },
-            ])?.isInvalidated,
-        ).toBe(false);
-        unsubscribe();
-    });
-
-    it('invalidates every transcript when a full state change may replace Terminal bindings', () => {
-        const queryClient = new QueryClient();
-        queryClient.setQueryData(
-            ['terminal.agentTranscript', { terminalId: 'terminal-a', withContent: true }],
-            { content: 'old-a' },
-        );
-        queryClient.setQueryData(
-            ['terminal.agentTranscript', { terminalId: 'terminal-b', withContent: true }],
-            { content: 'old-b' },
-        );
-        const unsubscribe = subscribeRuntimeQueryInvalidation(queryClient);
-
-        mocks.state.handler?.({
-            event: 'state.changed',
-            payload: { kind: 'full', reason: 'terminal.create' },
-        });
-
-        expect(
-            queryClient.getQueryState([
-                'terminal.agentTranscript',
-                { terminalId: 'terminal-a', withContent: true },
-            ])?.isInvalidated,
-        ).toBe(true);
-        expect(
-            queryClient.getQueryState([
-                'terminal.agentTranscript',
-                { terminalId: 'terminal-b', withContent: true },
-            ])?.isInvalidated,
-        ).toBe(true);
         unsubscribe();
     });
 });
