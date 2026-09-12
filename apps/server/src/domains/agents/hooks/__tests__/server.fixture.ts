@@ -2,6 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { createConnection } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 
 import type { AgentProvider } from '@caxri/protocol';
 import { agentProviderIds } from '@caxri/protocol';
@@ -22,6 +23,19 @@ const SCHEMA_VERSIONS = Object.fromEntries(
  * matcher keeps that exactness without spreading an `any` through each expectation.
  */
 export const anyHandlingMs = expect.any(Number) as number;
+
+/**
+ * The staged bridge exits 0 for a non-Grok provider when `GROK_SESSION_ID` is set, because Grok imports Claude hooks by
+ * default. Manager tests that spawn that bridge must not inherit the host Agent's session identity.
+ */
+export function hookBridgeEnvironment(
+    environment: NodeJS.ProcessEnv,
+    overrides: NodeJS.ProcessEnv = {},
+): NodeJS.ProcessEnv {
+    const environment_ = { ...process.env, ...environment, ...overrides };
+    delete environment_.GROK_SESSION_ID;
+    return environment_;
+}
 
 export function validPayload(overrides: Record<string, unknown> = {}): string {
     return JSON.stringify({
