@@ -1,6 +1,7 @@
 import type { ExtensionViewActionRole } from '@caxri/protocol';
 
 const MAX_PENDING_CORE_VIEW_COMMANDS = 64;
+const MAX_PENDING_CORE_VIEW_COMMAND_KEYS = 64;
 
 export interface CoreViewCommand {
     arguments: readonly unknown[];
@@ -19,6 +20,17 @@ function scopedViewKey(viewId: string, contextKey: string): string {
     return `${viewId}\0${contextKey}`;
 }
 
+function enqueuePending(key: string, command: CoreViewCommand): void {
+    if (!pending.has(key) && pending.size >= MAX_PENDING_CORE_VIEW_COMMAND_KEYS) {
+        const oldest = pending.keys().next().value;
+        if (oldest !== undefined) pending.delete(oldest);
+    }
+    const queue = pending.get(key) ?? [];
+    queue.push(command);
+    if (queue.length > MAX_PENDING_CORE_VIEW_COMMANDS) queue.shift();
+    pending.set(key, queue);
+}
+
 /**
  * Delivers a catalog-declared Workbench Core action without teaching the command router about a product id. Hidden
  * views retain a bounded queue so a shortcut can reveal the view and still reach its controller after React mounts it.
@@ -27,10 +39,7 @@ export function dispatchCoreViewCommand(command: CoreViewCommand): void {
     const key = scopedViewKey(command.viewId, command.contextKey);
     const current = listeners.get(key);
     if (!current || current.size === 0) {
-        const queue = pending.get(key) ?? [];
-        queue.push(command);
-        if (queue.length > MAX_PENDING_CORE_VIEW_COMMANDS) queue.shift();
-        pending.set(key, queue);
+        enqueuePending(key, command);
         return;
     }
     for (const listener of current) listener(command);

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { lstat, readFile, realpath } from 'node:fs/promises';
+import { lstat, realpath } from 'node:fs/promises';
 import { isAbsolute, relative, resolve } from 'node:path';
 
 import type {
@@ -30,6 +30,7 @@ import {
     safeProcessEnvironment,
 } from '@caxri/system';
 
+import { readBoundedRegularFile } from '../bounded-file-reader';
 import { ExternalStatusHub } from '../external-status';
 import { assertInsideRoot, isOutsideRoot } from '../path-security';
 import type { ProjectRootResolver } from '../project-roots';
@@ -348,13 +349,14 @@ export class GitService {
 
     private async readWorkingTreeFile(path: string): Promise<string | undefined> {
         try {
-            const content = await readFile(path);
-            if (content.byteLength > MAX_CONFIGURABLE_FILE_BYTES)
-                throw new CaxriError('CAPACITY', 'Git diff file exceeds the configured size limit');
-            if (content.includes(0))
+            const content = await readBoundedRegularFile(path, MAX_CONFIGURABLE_FILE_BYTES, {
+                capacityMessage: 'Git diff file exceeds the configured size limit',
+            });
+            if (content.subarray(0, 8_192).includes(0))
                 throw new CaxriError('GIT', 'Binary files cannot be opened in the diff editor');
             return content.toString('utf8');
         } catch (error) {
+            if (isCaxriError(error) && error.code === 'IO') return undefined;
             const code = (error as NodeJS.ErrnoException).code;
             if (code === 'ENOENT' || code === 'EISDIR') return undefined;
             throw error;

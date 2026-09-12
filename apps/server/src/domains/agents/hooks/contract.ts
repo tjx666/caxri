@@ -60,7 +60,13 @@ export type AgentSignalIgnoredReason =
     /**
      * The Terminal record is gone, typically because it was closed while its Agent was still running.
      */
-    | 'terminalMissing';
+    | 'terminalMissing'
+    /**
+     * The remaining wire fields authenticated, but the phase token is outside this build's closed set. A newer provider
+     * event must not look like a forged or malformed packet; the bounded received token is logged separately and never
+     * used as a metric label.
+     */
+    | 'unknownPhase';
 
 /**
  * Result of applying one authenticated lifecycle signal. `'accepted'` means the signal became durable state; every

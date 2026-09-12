@@ -3,6 +3,7 @@ import type { ServerEvent } from '@caxri/protocol';
 import { caxri } from '../../lib/caxri';
 
 const MAX_PENDING_VIEW_EVENTS = 64;
+const MAX_PENDING_VIEW_EVENT_KEYS = 64;
 const MAX_SEEN_VIEW_EVENT_IDS = 512;
 
 type ViewChangedEvent = Extract<ServerEvent, { event: 'viewContainers.viewChanged' }>;
@@ -20,15 +21,20 @@ const listeners = new Map<string, Set<ViewEventListener>>();
 const seenEventIds = new Set<string>();
 const bridgeState: { unsubscribe?: () => void } = {};
 
-function scopeKey(scope: ViewEventScope): string {
+export function viewEventScopeKey(
+    scope: Pick<ViewEventScope, 'viewId' | 'sessionId' | 'workbenchProjectId'>,
+): string {
     return `${scope.viewId}\0${scope.sessionId}\0${scope.workbenchProjectId}`;
 }
 
-function eventKey(event: ViewChangedEvent): string {
+function eventKey(event: ViewChangedEvent): string | undefined {
     const context = event.payload.context;
-    return context.kind === 'no-session'
-        ? `${event.payload.viewId}\0no-session`
-        : `${event.payload.viewId}\0${context.sessionId}\0${context.workbenchProjectId}`;
+    if (context.kind === 'no-session') return;
+    return viewEventScopeKey({
+        viewId: event.payload.viewId,
+        sessionId: context.sessionId,
+        workbenchProjectId: context.workbenchProjectId,
+    });
 }
 
 function isReplayable(change: ViewChangedEvent['payload']['change']): boolean {
@@ -43,14 +49,23 @@ function didRememberEventId(eventId: string): boolean {
     return true;
 }
 
+function enqueuePending(key: string, event: ViewChangedEvent): void {
+    if (!pending.has(key) && pending.size >= MAX_PENDING_VIEW_EVENT_KEYS) {
+        const oldest = pending.keys().next().value;
+        if (oldest !== undefined) pending.delete(oldest);
+    }
+    const queue = pending.get(key) ?? [];
+    queue.push(event);
+    if (queue.length > MAX_PENDING_VIEW_EVENTS) queue.shift();
+    pending.set(key, queue);
+}
+
 function deliver(event: ViewChangedEvent): void {
     const key = eventKey(event);
+    if (!key) return;
     const current = listeners.get(key);
     if (!current || current.size === 0) {
-        const queue = pending.get(key) ?? [];
-        queue.push(event);
-        if (queue.length > MAX_PENDING_VIEW_EVENTS) queue.shift();
-        pending.set(key, queue);
+        enqueuePending(key, event);
         return;
     }
     for (const listener of current) listener(event);
@@ -75,7 +90,7 @@ export function subscribeViewEvents(
     listener: ViewEventListener,
 ): () => void {
     startViewEventBridge();
-    const key = scopeKey(scope);
+    const key = viewEventScopeKey(scope);
     const guardedListener: ViewEventListener = (event) => {
         if (event.payload.extensionGeneration === scope.extensionGeneration) listener(event);
     };

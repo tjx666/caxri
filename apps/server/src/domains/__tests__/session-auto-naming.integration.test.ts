@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import type { AgentSnapshot } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
-import { StructuredLogger } from '@caxri/system';
+import { logEventCatalog, StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import * as agentFunctions from '../agents';
@@ -203,11 +203,32 @@ describe('Automatic Session rename synchronization', () => {
         try {
             service.observe(event);
             await vi.waitFor(() => expect(log).toHaveBeenCalled());
+            const namingOptions = () =>
+                log.mock.calls
+                    .filter((call) => call[1] === logEventCatalog.agent.automaticNamingFinished)
+                    .map((call) => call[2]);
+            expect(namingOptions()[0]).toEqual({
+                durationMs: expect.any(Number) as number,
+                fields: {
+                    provider: 'codex',
+                    reason: 'insufficientContext',
+                    sessionId: f.sessionId,
+                },
+            });
             service.observe(event);
             expect(generate).toHaveBeenCalledOnce();
             await vi.advanceTimersByTimeAsync(60_000);
             expect(f.database.getSession(f.sessionId)?.displayTitle).toBe('Concrete task title');
             expect(f.rename).toHaveBeenCalledOnce();
+            expect(namingOptions().at(-1)).toEqual({
+                durationMs: expect.any(Number) as number,
+                fields: {
+                    provider: 'codex',
+                    reason: 'completed',
+                    retryDeferredCount: 1,
+                    sessionId: f.sessionId,
+                },
+            });
         } finally {
             await service.close();
             vi.useRealTimers();
