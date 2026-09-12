@@ -172,7 +172,6 @@ export function DirectoryEntries({
         queryKey,
         queryFn: ({ signal }) => client.listDirectory(directory, signal),
         enabled: isViewContainerQueryEnabled(isContainerActive),
-        staleTime: 0,
     });
     const entries = data?.entries ?? [];
     useToastOnQueryError(isError, error, 'Unable to read directory');
