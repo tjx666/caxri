@@ -104,9 +104,12 @@ async function finishTabDrag(page: Page): Promise<void> {
  * only the drag events are dispatched.
  */
 async function cancelTabDragFrom(page: Page, tab: Locator): Promise<void> {
-    const bounds = await tab.boundingBox();
-    if (!bounds) throw new Error('Tab has no layout box to press');
-    await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+    /**
+     * Hovering rather than pressing a measured box is what keeps the press on the tab: `hover` runs Playwright's
+     * actionability checks, including waiting for the layout box to stop moving, while a box read once and pressed a
+     * few calls later can already be stale — tabs share their bar's width, so one tab leaving re-lays out the rest.
+     */
+    await tab.hover();
     await page.mouse.down();
     const tabButtonId = await tab.getByRole('tab').getAttribute('id');
     if (!tabButtonId) throw new Error('Drag-cancel fixture is missing a tab id');
@@ -322,6 +325,12 @@ test('a cancelled drag and a context-menu close both leave focus and the active 
         await terminalTab.click({ button: 'right' });
         await running.page.getByRole('menuitem', { name: 'Split Right' }).click();
         await expect(panes).toHaveCount(2);
+        /**
+         * The split leaves an `inert` copy of the Terminal tab behind in the old bar for the length of its exit
+         * animation, and that copy still takes up a share of the bar's width. Everything below either presses a tab by
+         * position or addresses the Terminal tab by selector, so both need the bar to have finished settling first.
+         */
+        await expect(terminalTab).toHaveCount(1);
         const paneIds = await panes.evaluateAll((nodes) =>
             nodes.map((node) => (node as HTMLElement).dataset.paneId),
         );
