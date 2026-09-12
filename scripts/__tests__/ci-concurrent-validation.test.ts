@@ -21,6 +21,7 @@ import {
 import {
     ConcurrentValidationProcesses,
     concurrentValidationProvenance,
+    formatConcurrentValidationFailureSummary,
     isVerificationPassed,
     parseConcurrentValidationReceipt,
     runE2ESetup,
@@ -51,6 +52,44 @@ const greenReceipt = {
 const execFileAsync = promisify(execFile);
 
 describe('concurrent CI validation', () => {
+    it('stays silent for a green receipt', () => {
+        expect(formatConcurrentValidationFailureSummary(greenReceipt)).toBeUndefined();
+    });
+
+    it('lists every non-zero component with its exit code, log hint, and receipt path', () => {
+        const summary = formatConcurrentValidationFailureSummary(
+            { ...greenReceipt, checks: 1, failureCensus: 2, parallelSafe: 1 },
+            '/tmp/ci-concurrent-validation.json',
+        );
+        expect(summary).toContain('- checks: exit 1.');
+        expect(summary).toContain('- failureCensus: exit 2.');
+        expect(summary).toContain('- parallelSafe: exit 1.');
+        expect(summary).toContain('Full platform checks failed with exit');
+        expect(summary).toContain('Bounded E2E failure census failed with exit');
+        expect(summary).toContain('Parallel-safe E2E pool failed with exit');
+        expect(summary).toContain('Receipt: /tmp/ci-concurrent-validation.json');
+        expect(summary).not.toContain('e2eSetup');
+        expect(summary).not.toContain('desktopExclusive');
+    });
+
+    it('does not list skipped null components as failures', () => {
+        const summary = formatConcurrentValidationFailureSummary({
+            ...greenReceipt,
+            e2eSetup: 1,
+            ciParity: null,
+            desktopExclusive: null,
+            failureCensus: null,
+            failureIsolation: null,
+            manifest: null,
+            parallelSafe: null,
+        });
+        expect(summary).toContain('- e2eSetup: exit 1.');
+        expect(summary).not.toContain('ciParity');
+        expect(summary).not.toContain('desktopExclusive');
+        expect(summary).not.toContain('failureCensus');
+        expect(summary).not.toContain('parallelSafe');
+    });
+
     it('terminates a sibling process group after a non-zero child exit', async () => {
         // eslint-disable-next-line unicorn/prefer-event-target -- ChildProcess exposes Node EventEmitter events.
         const failedChild = new EventEmitter() as ChildProcess;

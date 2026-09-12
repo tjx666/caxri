@@ -2,7 +2,7 @@
 
 import type { ChildProcess, SpawnOptions } from 'node:child_process';
 import { spawn } from 'node:child_process';
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import process from 'node:process';
 
@@ -43,6 +43,34 @@ interface ConcurrentValidationReceipt {
 }
 
 type E2EValidationResults = Omit<ConcurrentValidationReceipt, 'checks' | 'provenance' | 'version'>;
+
+const RECEIPT_EXIT_KEYS = [
+    'checks',
+    'e2eSetup',
+    'failureIsolation',
+    'failureCensus',
+    'parallelSafe',
+    'desktopExclusive',
+    'ciParity',
+    'manifest',
+] as const satisfies ReadonlyArray<keyof ConcurrentValidationReceipt>;
+
+/**
+ * Job-log search anchors for each receipted component. The concurrent `run` step inherits child stdio, so these strings
+ * are the practical way to jump to the failing fragment without knowing the receipt file exists.
+ */
+const RECEIPT_LOG_HINTS = {
+    checks: 'Search the job log for "Full platform checks failed with exit".',
+    ciParity: 'Search the job log for "Deterministic CI-parity cases failed with exit".',
+    desktopExclusive: 'Search the job log for "Desktop-exclusive E2E pool failed with exit".',
+    e2eSetup:
+        'Search the job log for "Electron Vite build failed with exit" or "Electron native compatibility failed with exit".',
+    failureCensus: 'Search the job log for "Bounded E2E failure census failed with exit".',
+    failureIsolation:
+        'Search the job log for "Desktop worker interruption recovery failed with exit".',
+    manifest: 'Search the job log for "E2E execution receipt failed with exit".',
+    parallelSafe: 'Search the job log for "Parallel-safe E2E pool failed with exit".',
+} as const satisfies Record<(typeof RECEIPT_EXIT_KEYS)[number], string>;
 
 interface ConcurrentValidationProcessOperations {
     clearForceTimer: (timer: ReturnType<typeof setTimeout>) => void;
@@ -435,6 +463,35 @@ async function writeReceipt(receipt: ConcurrentValidationReceipt): Promise<void>
     await rename(temporary, receiptPath);
 }
 
+/**
+ * Human-readable failure summary for a concurrent-validation receipt. Green receipts return `undefined` so a passing
+ * `run` stays silent. Null (skipped) components are not listed; only a concrete non-zero exit is.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-concurrent-validation.test.ts
+export function formatConcurrentValidationFailureSummary(
+    receipt: ConcurrentValidationReceipt,
+    receiptFile = receiptPath,
+): string | undefined {
+    const failed = RECEIPT_EXIT_KEYS.flatMap((key) => {
+        const exitCode = receipt[key];
+        return typeof exitCode === 'number' && exitCode !== 0
+            ? [`- ${key}: exit ${exitCode}. ${RECEIPT_LOG_HINTS[key]}`]
+            : [];
+    });
+    if (failed.length === 0) return undefined;
+    return ['Concurrent validation failed.', ...failed, `Receipt: ${receiptFile}`].join('\n');
+}
+
+async function publishConcurrentValidationFailureSummary(
+    receipt: ConcurrentValidationReceipt,
+): Promise<void> {
+    const summary = formatConcurrentValidationFailureSummary(receipt);
+    if (!summary) return;
+    console.error(summary);
+    const stepSummary = process.env.GITHUB_STEP_SUMMARY;
+    if (stepSummary) await appendFile(stepSummary, `${summary}\n`);
+}
+
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-concurrent-validation.test.ts
 export function isVerificationPassed(
     receipt: ConcurrentValidationReceipt,
@@ -490,7 +547,9 @@ async function execute(): Promise<void> {
     const e2ePromise = runE2E(safeEnvironment, processes);
     try {
         const [checks, e2e] = await Promise.all([checksPromise, e2ePromise]);
-        await writeReceipt({ checks, ...e2e, provenance, version: 1 });
+        const receipt = { checks, ...e2e, provenance, version: 1 as const };
+        await writeReceipt(receipt);
+        await publishConcurrentValidationFailureSummary(receipt);
     } finally {
         clearTimeout(deadline);
     }
@@ -501,6 +560,7 @@ async function verify(component: ConcurrentValidationComponent): Promise<void> {
         JSON.parse(await readFile(receiptPath, 'utf8')),
     );
     if (!isVerificationPassed(receipt, component, concurrentValidationProvenance(process.env))) {
+        await publishConcurrentValidationFailureSummary(receipt);
         throw new Error(`${component} validation failed: ${JSON.stringify(receipt)}`);
     }
 }
