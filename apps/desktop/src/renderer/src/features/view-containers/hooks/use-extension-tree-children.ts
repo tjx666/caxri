@@ -24,6 +24,7 @@ import {
     replaceTreeChildren,
     treeSnapshotLoading,
 } from '../extension-tree-state';
+import { useIsViewContainerActive } from '../view-container-activity';
 
 type UpdateExtensionTreeState = (
     update: (current: ExtensionTreeState) => ExtensionTreeState,
@@ -59,6 +60,7 @@ export function useExtensionTreeChildren(
     visibleLoading: ReadonlySet<string>;
 } {
     const queryClient = useQueryClient();
+    const isActive = useIsViewContainerActive();
     const requests = useRef(new Map<string, string>());
     const rootLoadRevision = useRef(0);
     /**
@@ -139,6 +141,7 @@ export function useExtensionTreeChildren(
 
     const loadChildren = useCallback(
         async (parentHandle: string): Promise<void> => {
+            if (!isActive) return;
             if (
                 parentHandle !== ROOT_HANDLE &&
                 childrenReference.current
@@ -196,10 +199,24 @@ export function useExtensionTreeChildren(
                 }
             }
         },
-        [replaceLoadedChildren, resetLoadedChildren, scope, updateTreeState],
+        [isActive, replaceLoadedChildren, resetLoadedChildren, scope, updateTreeState],
     );
 
     useEffect(() => {
+        // Hidden keep-alive trees keep their last children on screen and drop in-flight provider work. Showing the
+        // container again revalidates the root so treeChanged events that arrived while hidden are not lost.
+        if (!isActive) {
+            const cancelledHandles = requests.current.keys().toArray();
+            for (const requestId of requests.current.values()) cancelTreeChildrenRequest(requestId);
+            requests.current.clear();
+            if (cancelledHandles.length === 0) return;
+            setLoading((current) => {
+                const next = new Set(current);
+                for (const handle of cancelledHandles) next.delete(handle);
+                return next;
+            });
+            return;
+        }
         // eslint-disable-next-line no-void -- the loader reports failures in the tree's error row
         void loadChildren(ROOT_HANDLE);
         const unsubscribe = caxri.onEvent((event) => {
@@ -230,7 +247,7 @@ export function useExtensionTreeChildren(
             for (const requestId of activeRequests.values()) cancelTreeChildrenRequest(requestId);
             activeRequests.clear();
         };
-    }, [loadChildren, resetLoadedChildren, scope]);
+    }, [isActive, loadChildren, resetLoadedChildren, scope]);
 
     return {
         children,

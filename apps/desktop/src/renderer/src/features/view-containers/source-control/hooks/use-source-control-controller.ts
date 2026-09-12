@@ -13,13 +13,21 @@ import { queryOptions, useQuery } from '@tanstack/react-query';
 
 import { useShouldReduceMotion } from '@/hooks/use-should-reduce-motion';
 
-import { executeViewCatalogShortcut } from '../../../../features/view-containers/view-container-commands';
+import {
+    executeViewCatalogShortcut,
+    invalidateControlledViewSnapshot,
+} from '../../../../features/view-containers/view-container-commands';
 import { useToastOnQueryError } from '../../../../queries/client';
 import { useSelectedSession, useSettings } from '../../../../stores/selectors';
 import { pushToast, tryCommand } from '../../../../stores/toasts';
 import { openEditorTab } from '../../../editor/document-actions';
 import { useActivePaneTab } from '../../../workbench/pane-actions';
 import { useControlledView, useSourceControlClient } from '../../controlled-view-context';
+import {
+    isViewContainerQueryEnabled,
+    useCancelViewContainerQueryWhenHidden,
+    useIsViewContainerActive,
+} from '../../view-container-activity';
 import { subscribeViewEvents } from '../../view-event-bridge';
 import type { SourceControlClient } from '../../view-operation-client';
 import { controlledViewQueryKey } from '../../view-operation-client';
@@ -67,7 +75,6 @@ export type SourceControlController =
 type SourceControlSnapshotRequest = Record<string, unknown> & {
     activeResource?: string;
     preferredModeId?: string;
-    refresh: number;
 };
 
 interface SourceControlSnapshotIdentity {
@@ -95,10 +102,8 @@ function requestedSnapshotIdentityFromQueryKey(
 export function buildSourceControlSnapshotRequest(
     activeResource: PaneResource | undefined,
     preferredModeId: string | undefined,
-    refresh: number,
 ): SourceControlSnapshotRequest {
     return {
-        refresh,
         ...(preferredModeId && { preferredModeId }),
         ...(activeResource?.kind === 'file' &&
             !isVirtualEditorTabPath(activeResource.path) && {
@@ -112,6 +117,10 @@ export function buildSourceControlSnapshotRequest(
  * together until the replacement arrives, and fetching blocks revision-bound actions. Active-file changes receive no
  * placeholder so file-specific content never crosses that boundary.
  *
+ * `refresh` is a Server nonce, not cache identity: putting it in the query key made a re-mount with `refresh: 0` miss
+ * the last `refresh:N` snapshot and flash the loading empty state. Forced refreshes pass the nonce into `queryFn` and
+ * invalidate the same key so a hidden `enabled: false` observer does not fetch.
+ *
  * Session and Workbench Root changes remount `ScopedSourceControlView` with a new scope key, so placeholder data never
  * crosses those ownership boundaries.
  */
@@ -120,6 +129,7 @@ export function sourceControlSnapshotQueryOptions({
     configRevision,
     enabled,
     queryScope,
+    refresh = 0,
     request,
     viewId,
 }: {
@@ -127,6 +137,7 @@ export function sourceControlSnapshotQueryOptions({
     configRevision: string;
     enabled: boolean;
     queryScope?: string;
+    refresh?: number;
     request: SourceControlSnapshotRequest;
     viewId: string;
 }) {
@@ -138,7 +149,7 @@ export function sourceControlSnapshotQueryOptions({
             queryScope,
             configRevision,
         ),
-        queryFn: ({ signal }) => client.snapshot(request, signal),
+        queryFn: ({ signal }) => client.snapshot({ ...request, refresh }, signal),
         enabled,
         /**
          * Revision-bound actions and history pages make cached snapshots unsafe after another file advances the model.
@@ -168,6 +179,7 @@ export function useSourceControlController(
     const client = useSourceControlClient();
     const session = useSelectedSession();
     const settings = useSettings();
+    const isContainerActive = useIsViewContainerActive();
     const activeResource = useActivePaneTab()?.resource;
     const queryScope = session ? `${session.id}:${session.workbenchProjectId}` : undefined;
     const [fileHistoryExpanded, setFileHistoryExpanded] = useState(false);
@@ -180,27 +192,32 @@ export function useSourceControlController(
         navigationScope,
         persistedNavigation,
     );
-    const snapshotRequest = buildSourceControlSnapshotRequest(
-        activeResource,
-        navigation.modeId,
-        refresh,
-    );
+    const snapshotRequest = buildSourceControlSnapshotRequest(activeResource, navigation.modeId);
     const configRevision = JSON.stringify(
         configurationDependencies.map((key) => [
             key,
             (settings as Readonly<Record<string, unknown>> | undefined)?.[key],
         ]),
     );
-    const snapshot = useQuery(
-        sourceControlSnapshotQueryOptions({
-            client,
-            configRevision,
-            enabled: Boolean(session),
-            queryScope,
-            request: snapshotRequest,
-            viewId,
-        }),
-    );
+    const snapshotOptions = sourceControlSnapshotQueryOptions({
+        client,
+        configRevision,
+        enabled: isViewContainerQueryEnabled(isContainerActive, Boolean(session)),
+        queryScope,
+        refresh,
+        request: snapshotRequest,
+        viewId,
+    });
+    useCancelViewContainerQueryWhenHidden(snapshotOptions.queryKey, isContainerActive);
+    const snapshot = useQuery(snapshotOptions);
+    const requestRefresh = useCallback(() => {
+        setRefresh((current) => current + 1);
+    }, []);
+    useEffect(() => {
+        if (refresh === 0) return;
+        // eslint-disable-next-line no-void -- invalidateQueries reports through the snapshot observer
+        void invalidateControlledViewSnapshot(viewId);
+    }, [refresh, viewId]);
     useToastOnQueryError(
         snapshot.isError,
         snapshot.error,
@@ -230,15 +247,14 @@ export function useSourceControlController(
                           extensionGeneration: providerGeneration,
                       },
                       (event) => {
-                          if (event.payload.change.kind === 'refresh')
-                              setRefresh((value) => value + 1);
+                          if (event.payload.change.kind === 'refresh') requestRefresh();
                           else if (event.payload.change.kind === 'selection')
                               updateNavigation({
                                   modeId: event.payload.change.selectedModeId,
                               });
                       },
                   ),
-        [providerGeneration, session, updateNavigation, viewId],
+        [providerGeneration, requestRefresh, session, updateNavigation, viewId],
     );
     const focusProvider = useCallback(
         (targetId: string): void => {
@@ -261,7 +277,7 @@ export function useSourceControlController(
                     });
             });
         },
-        [navigation.expandedProviders, reduceMotion, updateNavigation],
+        [navigation.expandedProviders, reduceMotion, setFlashedProviderId, updateNavigation],
     );
     const runAction = useCallback(
         async (action: SourceControlAction): Promise<void> => {
@@ -275,12 +291,13 @@ export function useSourceControlController(
             );
             if (!result || result.revision !== revision) return;
             for (const effect of result.effects) applyActionEffect(effect, focusProvider);
-            if (result.refresh) setRefresh((value) => value + 1);
+            if (result.refresh) requestRefresh();
         },
         [
             client,
             focusProvider,
             presentation?.actionErrorMessage,
+            requestRefresh,
             snapshot.data,
             snapshot.isFetching,
         ],

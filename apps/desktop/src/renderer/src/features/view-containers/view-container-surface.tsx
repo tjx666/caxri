@@ -34,6 +34,7 @@ import { useViewBadges } from './hooks/use-view-badges';
 import { resolveViewContainerId } from './resolution';
 import { ResourceExplorerView } from './resource-explorer/resource-explorer-view';
 import { SourceControlView } from './source-control/source-control-view';
+import { ViewContainerActivityProvider } from './view-container-activity';
 import { retryExtension } from './view-container-commands';
 
 const builtinIcons = {
@@ -126,6 +127,7 @@ export function ViewContainerSurface({
     const resolvedId = resolveViewContainerId(desiredId, location, catalog);
     // A container stays mounted (hidden) once it has been shown, so switching back does not rebuild its content:
     // re-mounting a large Files tree costs hundreds of mounts, and every view keeps its scroll, focus, and expansion.
+    // Hidden keep-alive still must pause Server reads; `ViewContainerActivityProvider` is that gate.
     // Adjusting state during render (rather than in an effect) records the first show before the content commits,
     // so a container never mounts twice.
     if (resolvedId !== undefined && !shownContainerIds.has(resolvedId))
@@ -213,132 +215,135 @@ export function ViewContainerSurface({
                         idPrefix={idPrefix}
                         value={container.id}
                     >
-                        {container.error
-                            ? isActive && (
-                                  <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 p-4 text-center text-xs text-muted">
-                                      <AlertTriangle className="text-danger" size={18} />
-                                      <p className="font-medium text-foreground">
-                                          Extension unavailable
-                                      </p>
-                                      <p>{container.error.message}</p>
-                                      {container.source.kind === 'extension' &&
-                                          (() => {
-                                              const extensionId = container.source.extensionId;
-                                              const isRetrying =
-                                                  retryingExtensionIds.has(extensionId);
-                                              return (
-                                                  <Button
-                                                      disabled={isRetrying}
-                                                      size="sm"
-                                                      variant="secondary"
-                                                      onClick={() => {
-                                                          // Disabling for the duration of the request (rather than only until the
-                                                          // catalog refetches) prevents a double-click from firing a second
-                                                          // `extensions.retry` while the first is still outstanding.
-                                                          setRetryingExtensionIds((current) =>
-                                                              new Set(current).add(extensionId),
-                                                          );
-                                                          // eslint-disable-next-line no-void -- intentional floating-promise discard, tryCommand() reports its own errors
-                                                          void tryCommand(
-                                                              'Unable to retry extension',
-                                                              async () => {
-                                                                  try {
-                                                                      await retryExtension(
-                                                                          extensionId,
-                                                                      );
-                                                                  } finally {
-                                                                      setRetryingExtensionIds(
-                                                                          (current) => {
-                                                                              const next = new Set(
-                                                                                  current,
-                                                                              );
-                                                                              next.delete(
-                                                                                  extensionId,
-                                                                              );
-                                                                              return next;
-                                                                          },
-                                                                      );
-                                                                  }
-                                                              },
-                                                          );
-                                                      }}
-                                                  >
-                                                      {isRetrying && (
-                                                          <LoaderCircle
-                                                              aria-hidden="true"
-                                                              className="animate-spin"
-                                                              size={13}
-                                                          />
-                                                      )}
-                                                      Retry
-                                                  </Button>
-                                              );
-                                          })()}
-                                  </div>
-                              )
-                            : isMounted &&
-                              views.map((view) => {
-                                  const isOnlyView = views.length === 1;
-                                  let content: ReactNode;
-                                  if (view.viewKind.kind === 'builtin-react') {
-                                      const Component = getBuiltinViewComponent(
-                                          view.viewKind.component,
-                                      );
-                                      content = <Component />;
-                                  } else if (view.viewKind.kind === 'tree')
-                                      content = (
-                                          <ExtensionTreeView
-                                              actions={view.actions}
-                                              extensionGeneration={
-                                                  catalog.extensions.find(
-                                                      ({ id }) =>
-                                                          view.source.kind === 'extension' &&
-                                                          id === view.source.extensionId,
-                                                  )?.generation ?? 0
-                                              }
-                                              title={view.title}
-                                              viewId={view.id}
-                                          />
-                                      );
-                                  else
-                                      content = (
-                                          <ControlledViewProvider
-                                              actions={view.actions}
-                                              configurationDependencies={
-                                                  view.configurationDependencies
-                                              }
-                                              providerGeneration={
-                                                  catalog.extensions.find(
-                                                      ({ id }) =>
-                                                          view.source.kind === 'extension' &&
-                                                          id === view.source.extensionId,
-                                                  )?.generation ?? 0
-                                              }
-                                              kind={view.viewKind.kind}
-                                              presentation={view.presentation}
-                                              viewId={view.id}
-                                          >
-                                              {view.viewKind.kind === 'resource-explorer' ? (
-                                                  <ResourceExplorerView />
-                                              ) : (
-                                                  <SourceControlView />
-                                              )}
-                                          </ControlledViewProvider>
-                                      );
-                                  return (
-                                      <div
-                                          key={view.id}
-                                          className="flex min-h-0 flex-1 flex-col overflow-hidden"
-                                      >
-                                          {!isOnlyView && (
-                                              <h3 className="border-b border-border px-3 py-1.5 text-xs font-medium">
-                                                  {view.title}
-                                              </h3>
-                                          )}
-                                          {content}
+                        <ViewContainerActivityProvider isActive={isActive}>
+                            {container.error
+                                ? isActive && (
+                                      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 p-4 text-center text-xs text-muted">
+                                          <AlertTriangle className="text-danger" size={18} />
+                                          <p className="font-medium text-foreground">
+                                              Extension unavailable
+                                          </p>
+                                          <p>{container.error.message}</p>
+                                          {container.source.kind === 'extension' &&
+                                              (() => {
+                                                  const extensionId = container.source.extensionId;
+                                                  const isRetrying =
+                                                      retryingExtensionIds.has(extensionId);
+                                                  return (
+                                                      <Button
+                                                          disabled={isRetrying}
+                                                          size="sm"
+                                                          variant="secondary"
+                                                          onClick={() => {
+                                                              // Disabling for the duration of the request (rather than only until the
+                                                              // catalog refetches) prevents a double-click from firing a second
+                                                              // `extensions.retry` while the first is still outstanding.
+                                                              setRetryingExtensionIds((current) =>
+                                                                  new Set(current).add(extensionId),
+                                                              );
+                                                              // eslint-disable-next-line no-void -- intentional floating-promise discard, tryCommand() reports its own errors
+                                                              void tryCommand(
+                                                                  'Unable to retry extension',
+                                                                  async () => {
+                                                                      try {
+                                                                          await retryExtension(
+                                                                              extensionId,
+                                                                          );
+                                                                      } finally {
+                                                                          setRetryingExtensionIds(
+                                                                              (current) => {
+                                                                                  const next =
+                                                                                      new Set(
+                                                                                          current,
+                                                                                      );
+                                                                                  next.delete(
+                                                                                      extensionId,
+                                                                                  );
+                                                                                  return next;
+                                                                              },
+                                                                          );
+                                                                      }
+                                                                  },
+                                                              );
+                                                          }}
+                                                      >
+                                                          {isRetrying && (
+                                                              <LoaderCircle
+                                                                  aria-hidden="true"
+                                                                  className="animate-spin"
+                                                                  size={13}
+                                                              />
+                                                          )}
+                                                          Retry
+                                                      </Button>
+                                                  );
+                                              })()}
                                       </div>
-                                  );
-                              })}
+                                  )
+                                : isMounted &&
+                                  views.map((view) => {
+                                      const isOnlyView = views.length === 1;
+                                      let content: ReactNode;
+                                      if (view.viewKind.kind === 'builtin-react') {
+                                          const Component = getBuiltinViewComponent(
+                                              view.viewKind.component,
+                                          );
+                                          content = <Component />;
+                                      } else if (view.viewKind.kind === 'tree')
+                                          content = (
+                                              <ExtensionTreeView
+                                                  actions={view.actions}
+                                                  extensionGeneration={
+                                                      catalog.extensions.find(
+                                                          ({ id }) =>
+                                                              view.source.kind === 'extension' &&
+                                                              id === view.source.extensionId,
+                                                      )?.generation ?? 0
+                                                  }
+                                                  title={view.title}
+                                                  viewId={view.id}
+                                              />
+                                          );
+                                      else
+                                          content = (
+                                              <ControlledViewProvider
+                                                  actions={view.actions}
+                                                  configurationDependencies={
+                                                      view.configurationDependencies
+                                                  }
+                                                  providerGeneration={
+                                                      catalog.extensions.find(
+                                                          ({ id }) =>
+                                                              view.source.kind === 'extension' &&
+                                                              id === view.source.extensionId,
+                                                      )?.generation ?? 0
+                                                  }
+                                                  kind={view.viewKind.kind}
+                                                  presentation={view.presentation}
+                                                  viewId={view.id}
+                                              >
+                                                  {view.viewKind.kind === 'resource-explorer' ? (
+                                                      <ResourceExplorerView />
+                                                  ) : (
+                                                      <SourceControlView />
+                                                  )}
+                                              </ControlledViewProvider>
+                                          );
+                                      return (
+                                          <div
+                                              key={view.id}
+                                              className="flex min-h-0 flex-1 flex-col overflow-hidden"
+                                          >
+                                              {!isOnlyView && (
+                                                  <h3 className="border-b border-border px-3 py-1.5 text-xs font-medium">
+                                                      {view.title}
+                                                  </h3>
+                                              )}
+                                              {content}
+                                          </div>
+                                      );
+                                  })}
+                        </ViewContainerActivityProvider>
                     </ChromeTabPanel>
                 );
             })}

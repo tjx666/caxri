@@ -5,6 +5,7 @@ import type {
     SourceControlHistoryPage,
     SourceControlViewModel,
 } from '@caxri/protocol';
+import type { QueryClient } from '@tanstack/react-query';
 
 import { caxri } from '../../lib/caxri';
 
@@ -66,6 +67,23 @@ export function controlledViewQueryKey(
             ...(cacheRevision && { cacheRevision }),
         },
     ] as const;
+}
+
+/**
+ * Drops an in-flight `source.snapshot` before marking it stale. `invalidateQueries` reuses that promise, and Source
+ * Control closes the refresh nonce over `queryFn`, so a Refresh during the cold fetch would otherwise land generation
+ * 0.
+ */
+export async function invalidateControlledViewSnapshotQueries(
+    queryClient: QueryClient,
+    viewId: string,
+): Promise<void> {
+    const filters = {
+        predicate: ({ queryKey }: { queryKey: readonly unknown[] }) =>
+            isControlledViewOperationQuery(queryKey, viewId, 'source.snapshot'),
+    };
+    await queryClient.cancelQueries(filters);
+    await queryClient.invalidateQueries(filters);
 }
 
 export function isControlledViewOperationQuery(
