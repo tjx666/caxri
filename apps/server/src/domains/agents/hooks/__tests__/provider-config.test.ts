@@ -46,6 +46,36 @@ function install(
 }
 
 describe('Agent provider hook configuration adapters', () => {
+    it('keeps an unrepresentable schema out of health while preserving its file', () => {
+        const bindings = [binding('Stop', 'turnFinished')];
+        const source = renderJsonHooks(
+            'target',
+            undefined,
+            desired('codex', 3),
+            bindings,
+        ).source.replace('--schema 3', '--schema 999999999999999999999999999999999');
+        expect(inspectJsonHooks(source, desired('codex'), bindings)).toMatchObject({
+            kind: 'unparseable',
+        });
+        expect(removeJsonHooks('target', source, desired('codex'))).toEqual([]);
+    });
+    it('preserves but does not endorse a newer schema with a missing required binding', () => {
+        const required = [
+            binding('Stop', 'turnFinished'),
+            binding('UserPromptSubmit', 'turnStarted'),
+        ];
+        const source = renderJsonHooks(
+            'target',
+            undefined,
+            desired('codex', 3),
+            required.slice(0, 1),
+        ).source;
+        expect(inspectJsonHooks(source, desired('codex'), required)).toEqual({
+            kind: 'newerIncomplete',
+            installedSchema: 3,
+        });
+        expect(removeJsonHooks('target', source, desired('codex'))).toEqual([]);
+    });
     it('repairs an owned group in place without changing positional trust keys for neighboring hooks', () => {
         interface Document {
             hooks: Record<string, Array<{ hooks: Array<{ type: string; command: string }> }>>;

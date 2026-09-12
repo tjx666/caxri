@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { queryClient } from '../../../queries/client';
 import type { ToastKind, ToastOptions } from '../../../stores/toasts';
 
 const mocks = vi.hoisted(() => {
@@ -546,7 +547,7 @@ describe('Session actions', () => {
             sessionId: 'session-1',
         });
         expect(mocks.dropSessions).toHaveBeenCalledWith(['session-1']);
-        expect(mocks.removeSessionQueries).toHaveBeenCalledWith(expect.anything(), ['session-1']);
+        expect(mocks.removeSessionQueries).toHaveBeenCalledWith(queryClient, ['session-1']);
         expect(mocks.refreshWorkbench).toHaveBeenCalled();
     });
 

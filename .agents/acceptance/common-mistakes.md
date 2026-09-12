@@ -99,6 +99,29 @@ Declare `agentFixture` in the frozen plan when fake Agent processes are genuinel
 snapshot before focusing any dialog `@ref`: ref numbering is assigned per launch, so a ref memorized
 from an earlier launch silently activates a different button.
 
+## Sending fixed Agent input after its Terminal view detached
+
+**Situation:** A fixture command must start or finish a real Agent turn while the evidence excludes Terminal output.
+
+**Does not work:** Hiding or replacing the Terminal pane before calling `terminal.input`, then treating an
+`{ok:true,result:null}` response as proof that the PTY received the bytes. An inactive Terminal view detaches its
+attachment, and the request result alone does not prove delivery.
+
+**Works:** Send the fixed command while the exact Agent Terminal is visibly attached, then verify a hook or metadata
+increment. Capture only the Session row when Terminal output must remain private, and switch back to the attached
+Terminal before an input action such as Escape.
+
+## Deferring every boundary receipt until cleanup
+
+**Situation:** One Acceptance case exercises several lifecycle boundaries before stopping an owned runtime.
+
+**Does not work:** Keep every result in memory and write one aggregate receipt from a `finally` block. A later assertion
+or stop failure can overwrite the primary error and erase which earlier boundaries completed.
+
+**Works:** Write one exclusive, content-free checkpoint immediately after each boundary. Freeze the primary stage,
+error class, and closed reason before cleanup, then record cleanup status and reason separately; cleanup errors must not
+replace the scenario result.
+
 ## Naming a repository test suite in a frozen Acceptance plan item
 
 **Situation:** A plan item's `method` or `category` explains that some part of the contract is

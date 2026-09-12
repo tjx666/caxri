@@ -95,13 +95,17 @@ describe('TerminalManager', () => {
         const logger = createTestLogger(join(directory, 'logs'));
         const execution = new LocalTerminalExecution({ logger, spawn });
         const agentStates: string[] = [];
+        const interruptionCauses: Array<string | undefined> = [];
         const retired = vi.fn();
         const manager = createTestTerminalManager(database, () => {}, logger, {
             agentEnvironment: () => Promise.resolve({ PATH: '/agent/bin' }),
             agentLaunchSettings: () => ({ executable: 'codex', args: [] }),
             execution,
             lifecycleEnvironment,
-            onAgentStateChanged: (_terminalId, state) => agentStates.push(state),
+            onAgentStateChanged: (_terminalId, state, cause) => {
+                agentStates.push(state);
+                if (state === 'interrupted') interruptionCauses.push(cause);
+            },
             onLifecycleRetired: retired,
             resolveExecutable: (kind) =>
                 Promise.resolve(kind === 'shell' ? '/bin/zsh' : '/bin/codex'),
@@ -127,6 +131,7 @@ describe('TerminalManager', () => {
             expect(lifecycleEnvironment).toHaveBeenCalledTimes(2);
             expect(agentStates.filter((state) => state !== 'running')).toEqual(['interrupted']);
             expect(agentStates).not.toContain('dead');
+            expect(interruptionCauses).toEqual(['terminalRestart']);
         } finally {
             manager.close(created.terminal!.id);
             database.close();
@@ -406,43 +411,6 @@ describe('TerminalManager', () => {
                 `before${TERMINAL_IMAGE_RECOVERY_PLACEHOLDER}after`,
             );
             expect(database.getSnapshot(created.terminal!.id)?.payload).not.toContain('PNG_SECRET');
-        } finally {
-            manager.close(created.terminal!.id);
-            database.close();
-        }
-    });
-
-    it('does not register a PTY whose durable record was closed while spawn was pending', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-pending-close-'));
-        temporaryDirectories.push(directory);
-        const database = new CaxriDatabase(join(directory, 'state.db'));
-        const created = database.createSession(database.createProject(directory).id, 'shell');
-        const executable = Promise.withResolvers<string>();
-        const fake = createFakePty();
-        const manager = createTestTerminalManager(
-            database,
-            () => {},
-            createTestLogger(join(directory, 'logs')),
-            {
-                resolveExecutable: () => executable.promise,
-                spawn: () => fake.process,
-            },
-        );
-
-        const starting = manager.start(created.terminal!);
-        manager.close(created.terminal!.id);
-        executable.resolve('/bin/zsh');
-        let result: unknown;
-        try {
-            result = await starting;
-        } catch (error) {
-            result = error;
-        }
-
-        try {
-            expect(result).toBeInstanceOf(Error);
-            expect(manager.runningCount()).toBe(0);
-            expect(fake.kill).toHaveBeenCalledOnce();
         } finally {
             manager.close(created.terminal!.id);
             database.close();

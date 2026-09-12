@@ -71,14 +71,6 @@ export class AgentLifecycleWatchdogs {
         return this.operations.get(terminalId);
     }
 
-    /**
-     * Codex may abort compaction on a standalone Escape without emitting `PostCompact`. The coordinator calls this only
-     * after a live PTY accepts the bytes.
-     */
-    observeInput(terminalId: string, data: string): void {
-        if (isStandaloneEscape(data)) this.clearCompaction(terminalId);
-    }
-
     startCompaction(terminalId: string): void {
         const existingTimeout = this.compactionTimeouts.get(terminalId);
         if (existingTimeout) clearTimeout(existingTimeout);

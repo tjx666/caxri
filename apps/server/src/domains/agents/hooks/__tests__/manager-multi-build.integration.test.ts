@@ -11,10 +11,24 @@ import { codexHookAdapter } from '../../providers/codex/hooks';
 import type { AgentLifecycleSignal, AgentSignalDecision } from '../contract';
 import { AgentHookManager } from '../manager';
 
+const loggers: StructuredLogger[] = [];
+
+function createLogger(...arguments_: ConstructorParameters<typeof StructuredLogger>) {
+    const logger = new StructuredLogger(...arguments_);
+    loggers.push(logger);
+    return logger;
+}
+
+async function flushLoggers(): Promise<void> {
+    const pendingLoggers = [...loggers];
+    loggers.length = 0;
+    await Promise.all(pendingLoggers.map((logger) => logger.flush()));
+}
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
     vi.restoreAllMocks();
+    await flushLoggers();
     const pendingCleanup = [...temporaryDirectories];
     temporaryDirectories.length = 0;
     await Promise.all(pendingCleanup.map((path) => rm(path, { recursive: true, force: true })));
@@ -52,7 +66,7 @@ describe('AgentHookManager across concurrently running Caxri builds', () => {
             const authorityLost = vi.fn();
             const manager = new AgentHookManager({
                 environment: { homeDirectory: directory, variables: { CODEX_HOME: codexHome } },
-                logger: new StructuredLogger(join(userDataPath, 'logs')),
+                logger: createLogger(join(userDataPath, 'logs')),
                 onAuthorityLost: authorityLost,
                 onLaunchEnded: vi.fn(),
                 onLaunchStarted: vi.fn(),

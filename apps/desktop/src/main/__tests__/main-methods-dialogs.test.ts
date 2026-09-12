@@ -10,6 +10,7 @@ const electronMock = vi.hoisted(() => ({
 }));
 vi.mock('electron', () => ({ dialog: electronMock.dialog, shell: electronMock.shell }));
 
+import { externalLinkPrompt } from '../confirmations';
 import { createMainMethodHandler } from '../main-methods';
 import type { ProcessExplorerWindowController } from '../process-explorer-window';
 import type { DesktopServerConnection } from '../server-connection';
@@ -79,6 +80,32 @@ describe('external.open trust wiring', () => {
 
     beforeEach(() => {
         trustCalls = [];
+    });
+
+    it('routes real confirmation copy through the fixed Acceptance I/O without native side effects', async () => {
+        const url = new URL('https://github.com/tjx666/project/pull/42');
+        const fixture = {
+            prompt: vi.fn().mockResolvedValue({ response: 0 }),
+            open: vi.fn().mockResolvedValue(undefined),
+        };
+        const handle = createMainMethodHandler({
+            ...options({ request: settingsRequest([]) }),
+            externalOpenFixture: fixture,
+        });
+        await expect(
+            handle({ method: 'external.open', params: { url: url.href } }),
+        ).resolves.toEqual({ status: 'opened' });
+        expect(fixture.prompt).toHaveBeenCalledWith(url, externalLinkPrompt(url, true));
+        expect(fixture.open).toHaveBeenCalledWith(url.href);
+        fixture.prompt.mockResolvedValue({ response: 2 });
+        fixture.open.mockClear();
+        await expect(
+            handle({ method: 'external.open', params: { url: url.href } }),
+        ).resolves.toEqual({ status: 'canceled' });
+        expect(fixture.open).not.toHaveBeenCalled();
+        expect(trustCalls).toEqual([]);
+        expect(electronMock.dialog.showMessageBox).not.toHaveBeenCalled();
+        expect(electronMock.shell.openExternal).not.toHaveBeenCalled();
     });
 
     it('opens directly for an already trusted domain without prompting', async () => {

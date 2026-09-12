@@ -67,7 +67,11 @@ export class GitBlameService {
              * stale metadata, not an IPC failure. Trusted workspace links may also resolve outside the Git scope; their
              * documents stay editable without claiming repository metadata for the outside target.
              */
-            if (['ENOENT', 'PATH_DENIED'].includes((error as NodeJS.ErrnoException).code ?? ''))
+            if (
+                ['ENOENT', 'NOT_FOUND', 'PATH_DENIED'].includes(
+                    (error as NodeJS.ErrnoException).code ?? '',
+                )
+            )
                 return null;
             throw error;
         }

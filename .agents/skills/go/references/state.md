@@ -55,20 +55,43 @@ Freeze the review policy before the aggregate baseline. The default is
 `full-once`; use an override only for an explicit pre-review decision.
 
 ```bash
+BASELINE_HEAD="$(git rev-parse --verify 'HEAD^{commit}')"
+
 bun run .agents/skills/go/scripts/state.ts review-policy \
   --state "$STATE" --mode full-once --source "Go default"
 
 bun run .agents/skills/go/scripts/state.ts review \
-  --state "$STATE" --head-sha abc1234 --mode full --p0 0 --p1 0 \
+  --state "$STATE" --head-sha "$BASELINE_HEAD" --mode full --p0 0 --p1 0 \
   --scope "Goal-range product review" \
-  --reviewed-range "origin/main...abc1234" --freeze
+  --reviewed-range "origin/main...${BASELINE_HEAD}" --freeze
+
+# After committing the reviewed repair:
+CURRENT_HEAD="$(git rev-parse --verify 'HEAD^{commit}')"
 
 bun run .agents/skills/go/scripts/state.ts review \
-  --state "$STATE" --head-sha def5678 --mode light --p0 0 --p1 0 \
+  --state "$STATE" --head-sha "$CURRENT_HEAD" --mode light --p0 0 --p1 0 \
   --scope "P1 repair delta" --baseline-review-id review-001 \
-  --baseline-head-sha abc1234 --parent-review-id review-001 \
-  --reviewed-range "abc1234..def5678" --freeze
+  --baseline-head-sha "$BASELINE_HEAD" --parent-review-id review-001 \
+  --reviewed-range "${BASELINE_HEAD}..${CURRENT_HEAD}" --freeze
 ```
+
+Ordinary review recording resolves the ledger worktree's canonical `HEAD`, requires no active mutation lease and a
+clean Git-visible source state, and rejects a declared SHA that does not exactly match it. A second integrity read at
+the persistence boundary rejects a concurrent HEAD or source-status change. If the latest frozen nonbaseline review
+instead contains a transcription-only SHA that does not resolve as a Git commit, reconcile that one unconsumed
+record with:
+
+```bash
+bun run .agents/skills/go/scripts/state.ts review-reconcile-head \
+  --state "$STATE" --review-id review-017 \
+  --reason "The recorded full SHA was transcribed incorrectly before any downstream evidence ran."
+```
+
+The reconciliation resolves `HEAD` and its parent from the recorded worktree, rejects a valid old SHA or any
+downstream validation, fallback, publication, handoff, finalization, or cleanup, and writes the complete original
+review into the append-only event audit before correcting only its head, range, and freeze. It deliberately permits
+uncommitted tooling edits because those files remain outside the already reviewed commit; two Git-visible worktree
+identity reads must still match across the operation. The command never accepts a replacement SHA or range.
 
 Record validation independently from review through the runner. Tokens after `--` are passed as one executable and
 its argument vector; they are never interpreted as a shell command.

@@ -3,8 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { AgentProviderPasteSummaryGenerationContext } from '../../contract';
-import { canonicalPath } from '../../contract';
-import { lowCostSandboxProfile, MACOS_SANDBOX_EXECUTABLE } from '../../low-cost-sandbox';
+import { MACOS_SANDBOX_EXECUTABLE, prepareLowCostSandbox } from '../../low-cost-sandbox';
 import { agentCommandEnvironment, assertAgentRenameVersion } from '../../rename';
 import { runAgentTextCommand } from '../../text-generation';
 import { resolveClaudeConfigDirectory } from './paths';
@@ -15,17 +14,8 @@ const CLAUDE_LOW_COST_GENERATION_MINIMUM_VERSION = '2.1.232';
  * `--setting-sources ''` drops every `settings.json` layer, but Claude Code resolves its user memory from the
  * configuration directory rather than from the working directory, and exposes no switch that turns it off. An isolated
  * cwd therefore cannot reach it. The macOS host sandbox denies those two files by exact path, and re-denies the Project
- * root as defence in depth so a later flag regression cannot quietly widen a bounded text transformation.
- */
-function sandboxProfile(projectDirectory: string, configDirectory: string): string {
-    return lowCostSandboxProfile({
-        literals: [join(configDirectory, 'CLAUDE.md'), join(configDirectory, 'CLAUDE.local.md')],
-        subpaths: [projectDirectory],
-    });
-}
-
-/**
- * Safe mode plus an isolated cwd prevents Project CLAUDE.md and provider customizations from changing a bounded text
+ * root as defence in depth so a later flag regression cannot quietly widen a bounded text transformation. Safe mode
+ * plus an isolated cwd prevents Project CLAUDE.md and provider customizations from changing a bounded text
  * transformation, while Claude Code can still use the provider account already authenticated in its configured home.
  */
 export async function generateClaudeLowCostText(
@@ -37,14 +27,17 @@ export async function generateClaudeLowCostText(
     assertAgentRenameVersion('claude', context.version, CLAUDE_LOW_COST_GENERATION_MINIMUM_VERSION);
     const isolatedDirectory = await mkdtemp(join(tmpdir(), 'caxri-claude-text-'));
     try {
-        const [canonicalProjectDirectory, canonicalConfigDirectory] = await Promise.all([
-            canonicalPath(context.cwd),
-            canonicalPath(resolveClaudeConfigDirectory(context.environment)),
-        ]);
+        const profile = await prepareLowCostSandbox({
+            projectDirectory: context.cwd,
+            configDirectory: resolveClaudeConfigDirectory(context.environment),
+            executable: context.executable,
+            isolatedDirectory,
+            instructionNames: ['CLAUDE.md', 'CLAUDE.local.md'],
+        });
         return await runAgentTextCommand({
             arguments: [
                 '-p',
-                sandboxProfile(canonicalProjectDirectory, canonicalConfigDirectory),
+                profile,
                 context.executable,
                 '--print',
                 '--model',

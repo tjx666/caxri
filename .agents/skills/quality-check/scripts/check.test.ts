@@ -488,6 +488,7 @@ describe('direct import test selection', () => {
         const selected = await selectedTestCandidates(process.cwd(), [source]);
 
         expect(direct).toEqual([
+            'apps/server/src/domains/files/__tests__/external-links.integration.test.ts',
             'apps/server/src/domains/files/__tests__/files.browse.integration.test.ts',
             'apps/server/src/domains/files/__tests__/files.integration.test.ts',
             'apps/server/src/domains/files/__tests__/files.watching.integration.test.ts',
@@ -499,6 +500,7 @@ describe('direct import test selection', () => {
             'apps/server/src/domains/files/__tests__/workbench-mutations.integration.test.ts',
         ]);
         expect(selected).toEqual([
+            'apps/server/src/domains/files/__tests__/external-links.integration.test.ts',
             'apps/server/src/domains/files/__tests__/files.browse.integration.test.ts',
             'apps/server/src/domains/files/__tests__/files.integration.test.ts',
             'apps/server/src/domains/files/__tests__/files.watching.integration.test.ts',

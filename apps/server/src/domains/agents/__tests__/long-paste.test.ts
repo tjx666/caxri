@@ -2,7 +2,7 @@ import { mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { defaultAppSettings, MAX_LONG_PASTE_SUMMARY_CHARACTERS } from '@caxri/protocol';
+import { CaxriError, defaultAppSettings, MAX_LONG_PASTE_SUMMARY_CHARACTERS } from '@caxri/protocol';
 import { afterEach, assert, describe, expect, it, vi } from 'vitest';
 
 import { CaxriDatabase } from '../../db/repository';
@@ -149,6 +149,20 @@ describe('LongPasteService', () => {
         expect(result).toMatchObject({ status: 'unavailable' });
         assert(result.status === 'unavailable');
         expect(await readFile(result.filePath, 'utf8')).toBe(content);
+    });
+
+    it('preserves the original paste and a content-free sandbox failure reason', async () => {
+        const test = await fixture({
+            summary: new CaxriError('UNAVAILABLE', 'Private native error', {
+                reason: 'sandboxBoundaryConflict',
+            }),
+        });
+        const content = 'private fixture '.repeat(100);
+        const result = await test.service.prepare({ terminalId: test.terminal.id, content });
+        expect(result).toMatchObject({ status: 'unavailable', reason: 'sandboxBoundaryConflict' });
+        assert(result.status === 'unavailable');
+        expect(await readFile(result.filePath, 'utf8')).toBe(content);
+        expect(JSON.stringify(result)).not.toContain('Private native error');
     });
 
     it('keeps astral summary text inside the wire character limit without splitting a symbol', async () => {

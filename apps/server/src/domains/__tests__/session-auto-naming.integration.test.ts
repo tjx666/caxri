@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { AgentSnapshot } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -13,6 +14,19 @@ import { SessionAutoNamingService } from '../session-auto-naming';
 import { SessionRenameService } from '../session-rename';
 import { createPendingAgentAdapters } from './create-test-domain-services';
 
+const loggers: StructuredLogger[] = [];
+
+function createLogger(...arguments_: ConstructorParameters<typeof StructuredLogger>) {
+    const logger = new StructuredLogger(...arguments_);
+    loggers.push(logger);
+    return logger;
+}
+
+async function flushLoggers(): Promise<void> {
+    const pendingLoggers = [...loggers];
+    loggers.length = 0;
+    await Promise.all(pendingLoggers.map((logger) => logger.flush()));
+}
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
     const pending = cleanups.slice();
@@ -66,12 +80,13 @@ async function fixture() {
         database,
         agents,
         () => {},
-        new StructuredLogger(join(directory, 'logs')),
+        createLogger(join(directory, 'logs')),
     );
     const renames = new SessionRenameService(database, agents, coordinator, () => {});
     cleanups.push(async () => {
         coordinator.close();
         database.close();
+        await flushLoggers();
         await rm(directory, { recursive: true, force: true });
     });
     const automatic = () =>
@@ -100,6 +115,58 @@ async function fixture() {
 }
 
 describe('Automatic Session rename synchronization', () => {
+    it('reports a sandbox conflict once and retries only after a new launch', async () => {
+        const f = await fixture();
+        vi.useFakeTimers();
+        vi.spyOn(agentFunctions, 'locateAgentTranscript').mockResolvedValue({
+            baseRoot: f.directory,
+            root: f.directory,
+            path: join(f.directory, 'fixture.jsonl'),
+        });
+        vi.spyOn(agentFunctions, 'readAgentTitleMessages').mockResolvedValue([
+            { role: 'user', text: 'Fixture request' },
+            { role: 'assistant', text: 'Fixture reply' },
+        ]);
+        const generate = vi.spyOn(f.agents, 'generateTitle').mockRejectedValue(
+            new CaxriError('UNAVAILABLE', 'Fixture sandbox conflict', {
+                reason: 'sandboxBoundaryConflict',
+            }),
+        );
+        const notice = vi.fn();
+        const logger = createLogger(join(f.directory, 'logs'));
+        const service = new SessionAutoNamingService(
+            f.database,
+            f.agents,
+            f.renames,
+            { homeDirectory: f.directory, variables: {} },
+            () => true,
+            logger,
+            notice,
+        );
+        const event = {
+            provider: 'codex' as const,
+            terminalId: f.terminalId,
+            launchId: 'first',
+            phase: 'turnFinished' as const,
+            agentSessionId: f.target.agentSessionId,
+        };
+        try {
+            service.observe(event);
+            await vi.waitFor(() => expect(notice).toHaveBeenCalledOnce());
+            service.observe(event);
+            await vi.advanceTimersByTimeAsync(120_000);
+            service.observe(event);
+            expect(generate).toHaveBeenCalledOnce();
+            expect(notice).toHaveBeenCalledWith(f.sessionId, 'sandboxBoundaryConflict');
+            service.observe({ ...event, launchId: 'second' });
+            await vi.waitFor(() => expect(generate).toHaveBeenCalledTimes(2));
+        } finally {
+            await service.close();
+            await logger.flush();
+            vi.useRealTimers();
+        }
+    });
+
     it('retains a useful completed turn received during the insufficient-context cooldown', async () => {
         const f = await fixture();
         vi.useFakeTimers();
@@ -116,7 +183,7 @@ describe('Automatic Session rename synchronization', () => {
             .spyOn(f.agents, 'generateTitle')
             .mockResolvedValueOnce('SKIP')
             .mockResolvedValue('Concrete task title');
-        const logger = new StructuredLogger(join(f.directory, 'logs'));
+        const logger = createLogger(join(f.directory, 'logs'));
         const log = vi.spyOn(logger, 'write');
         const service = new SessionAutoNamingService(
             f.database,
@@ -169,7 +236,7 @@ describe('Automatic Session rename synchronization', () => {
             f.renames,
             { homeDirectory: f.directory, variables: {} },
             () => true,
-            new StructuredLogger(join(f.directory, 'logs')),
+            createLogger(join(f.directory, 'logs')),
         );
         const event = {
             provider: 'codex' as const,
@@ -206,7 +273,7 @@ describe('Automatic Session rename synchronization', () => {
         ]);
         const generation = Promise.withResolvers<string>();
         const generate = vi.spyOn(f.agents, 'generateTitle').mockReturnValue(generation.promise);
-        const logger = new StructuredLogger(join(f.directory, 'logs'));
+        const logger = createLogger(join(f.directory, 'logs'));
         const settled = Promise.withResolvers<void>();
         vi.spyOn(logger, 'write').mockImplementation(() => settled.resolve());
         const service = new SessionAutoNamingService(
@@ -260,7 +327,7 @@ describe('Automatic Session rename synchronization', () => {
             reopened,
             f.agents,
             () => {},
-            new StructuredLogger(join(f.directory, 'reopened-logs')),
+            createLogger(join(f.directory, 'reopened-logs')),
         );
         try {
             const renames = new SessionRenameService(reopened, f.agents, coordinator, () => {});

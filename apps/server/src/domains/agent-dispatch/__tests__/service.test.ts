@@ -1,14 +1,17 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { lstat, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { AgentDispatchReceipt, Principal, TerminalRecord } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
+import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { createTestTerminalManager } from '../../../__tests__/support/terminal';
 import type { AgentEndpointLifecycle } from '../../agent-endpoints';
 import type { AgentCoordinator } from '../../agents';
 import { CaxriDatabase } from '../../db';
-import type { TerminalManager } from '../../terminal';
+import type { TerminalManager, TerminalWorkingDirectoryIdentity } from '../../terminal';
 import { AgentDispatchService } from '../service';
 
 const MAX_DISPATCH_WAITERS = 256;
@@ -78,8 +81,13 @@ function createService(
             },
         }),
     } as AgentEndpointLifecycle,
+    logger: StructuredLogger = { write: vi.fn() } as never,
+    terminalDirectoryIdentity: (path: string) => Promise<TerminalWorkingDirectoryIdentity> = (
+        path,
+    ) => Promise.resolve({ device: '1', inode: '1', path }),
 ) {
     const service = new AgentDispatchService({
+        logger,
         database,
         coordinator: {
             prepareTerminalStart: vi.fn(),
@@ -89,7 +97,7 @@ function createService(
         terminals,
         endpoints,
         launchSettings: () => ({ executable: '/fixture/codex', args: [] }),
-        terminalDirectoryIdentity: (path) => Promise.resolve({ device: '1', inode: '1', path }),
+        terminalDirectoryIdentity,
         terminalWorkingDirectory: (projectRoot) => Promise.resolve(projectRoot),
         emit: vi.fn(),
     });
@@ -106,6 +114,198 @@ async function seededDispatch() {
 }
 
 describe('AgentDispatchService', () => {
+    it.each(['terminal', 'session'] as const)(
+        'preserves %s close before Agent launch registration through the real TerminalManager',
+        async (target) => {
+            const database = await openDatabase();
+            const directory = await realpath(temporaryDirectories.at(-1)!);
+            const project = database.createProject(directory);
+            const { session } = database.createSession(project.id, 'shell');
+            const logger = new StructuredLogger(join(directory, 'logs'));
+            const entered = Promise.withResolvers<void>();
+            const release = Promise.withResolvers<void>();
+            const spawn = vi.fn(() => {
+                throw new Error('Closed Terminal must not spawn');
+            });
+            const dispatchState: { service?: AgentDispatchService } = {};
+            const terminals = createTestTerminalManager(database, () => {}, logger, {
+                spawn,
+                agentEnvironment: () => Promise.resolve({ PATH: '/fixture' }),
+                agentLaunchSettings: () => ({ executable: '/fixture/codex', args: [] }),
+                resolveExecutable: async (kind) => {
+                    entered.resolve();
+                    await release.promise;
+                    return kind === 'shell' ? '/bin/zsh' : '/fixture/codex';
+                },
+                onAgentStateChanged: (terminalId, state, cause) =>
+                    dispatchState.service?.observeTerminalState(terminalId, state, cause),
+            });
+            const service = createService(database, terminals, undefined, logger, async (path) => {
+                const stats = await lstat(path, { bigint: true });
+                return { path, device: stats.dev.toString(), inode: stats.ino.toString() };
+            });
+            dispatchState.service = service;
+            const launching = service.start('close-before-registration', PRINCIPAL, {
+                projectId: project.id,
+                sessionId: session.id,
+                provider: 'codex',
+            });
+            try {
+                await entered.promise;
+                const starting = service.status('close-before-registration', null);
+                expect(starting.status).toBe('starting');
+                if (target === 'terminal') terminals.close(starting.terminalId!);
+                else {
+                    terminals.terminateSession(session.id);
+                    database.deleteSession(session.id);
+                }
+                release.resolve();
+                const receipt = await launching;
+                expect(receipt.status).toBe('stopped');
+                expect(receipt.failure).toBeUndefined();
+                expect(spawn).not.toHaveBeenCalled();
+            } finally {
+                release.resolve();
+                await launching;
+                await logger.flush();
+            }
+        },
+    );
+
+    it('reports real resume preparation failure without retiring the new dispatch', async () => {
+        const database = await openDatabase();
+        const directory = await realpath(temporaryDirectories.at(-1)!);
+        const project = database.createProject(directory);
+        const { session, terminal } = database.createSession(project.id, 'codex');
+        database.database
+            .prepare('UPDATE terminals SET agent_session_id = ? WHERE id = ?')
+            .run('codex-session-1', terminal!.id);
+        database.updateTerminalState(terminal!.id, 'stopped');
+        database.updateAgentProcessState(terminal!.id, 'stopped');
+        const logger = new StructuredLogger(join(directory, 'logs'));
+        const entered = Promise.withResolvers<void>();
+        const release = Promise.withResolvers<void>();
+        const dispatchState: { service?: AgentDispatchService } = {};
+        const terminals = createTestTerminalManager(database, () => {}, logger, {
+            agentEnvironment: () => Promise.resolve({ PATH: '/fixture' }),
+            resolveExecutable: async () => {
+                entered.resolve();
+                await release.promise;
+                throw new CaxriError('UNAVAILABLE', 'Fixture executable unavailable');
+            },
+            onAgentStateChanged: (id, state, cause) =>
+                dispatchState.service?.observeTerminalState(id, state, cause),
+        });
+        const service = createService(database, terminals, undefined, logger, async (path) => {
+            const stats = await lstat(path, { bigint: true });
+            return { path, device: stats.dev.toString(), inode: stats.ino.toString() };
+        });
+        dispatchState.service = service;
+        const launching = service.resume('real-resume-failure', PRINCIPAL, {
+            projectId: project.id,
+            sessionId: session.id,
+            terminalId: terminal!.id,
+            providerSessionId: 'codex-session-1',
+        });
+        try {
+            await entered.promise;
+            expect(service.status('real-resume-failure', null).status).toBe('starting');
+            release.resolve();
+            expect(await launching).toMatchObject({
+                status: 'failed',
+                failure: { reason: 'launch_failed' },
+            });
+        } finally {
+            release.resolve();
+            await launching;
+            await logger.flush();
+        }
+    });
+
+    it.each(['terminalClosed', 'serverShutdown'] as const)(
+        'preserves intentional %s during launch',
+        async (cause) => {
+            const database = await openDatabase();
+            const project = database.createProject(join(temporaryDirectories.at(-1)!, 'project'));
+            const { session } = database.createSession(project.id, 'shell');
+            const terminals = fakeTerminals(database);
+            const service = createService(database, terminals);
+            terminals.waitForAgentRunning = vi.fn((terminalId: string) => {
+                database.updateAgentProcessState(terminalId, 'stopped');
+                service.observeTerminalState(terminalId, 'stopped', cause);
+                return Promise.reject(new CaxriError('UNAVAILABLE', 'Managed Agent did not start'));
+            });
+            const receipt = await service.start('closed-before-running', PRINCIPAL, {
+                projectId: project.id,
+                sessionId: session.id,
+                provider: 'codex',
+            });
+            expect(receipt.status).toBe('stopped');
+            expect(receipt.failure).toBeUndefined();
+        },
+    );
+
+    it.each([
+        ['suspended', 'idleSuspended', 'idleSuspended'],
+        ['suspended', 'sessionArchived', 'sessionArchived'],
+        ['detached', undefined, 'userDetached'],
+        ['interrupted', 'hostRestart', 'hostRestart'],
+        ['interrupted', 'terminalRestart', 'terminalRestart'],
+    ] as const)(
+        'logs the causal %s transition without launch contents',
+        async (state, cause, reason) => {
+            const database = await openDatabase();
+            const project = database.createProject(join(temporaryDirectories.at(-1)!, 'project'));
+            const { session } = database.createSession(project.id, 'shell');
+            const write = vi.fn<StructuredLogger['write']>();
+            const service = createService(database, undefined, undefined, { write } as never);
+            const receipt = await service.start('causal-receipt', PRINCIPAL, {
+                projectId: project.id,
+                sessionId: session.id,
+                provider: 'codex',
+            });
+            service.observeTerminalState(receipt.terminalId!, state, cause);
+            service.observeTerminalState(receipt.terminalId!, state, cause);
+            expect(write.mock.calls.map((call) => call[2]?.fields?.reason)).toEqual([
+                'created',
+                'launchReady',
+                reason,
+            ]);
+            const fields = write.mock.calls.at(-1)?.[2]?.fields;
+            expect(fields?.durationMs).toBeGreaterThanOrEqual(0);
+            expect(fields).toEqual({
+                dispatchId: receipt.dispatchId,
+                terminalId: receipt.terminalId,
+                previousStatus: 'running',
+                status: 'interrupted',
+                reason,
+                durationMs: fields?.durationMs,
+            });
+        },
+    );
+
+    it('records an immediate successful process exit during launch as launch failure', async () => {
+        const database = await openDatabase();
+        const project = database.createProject(join(temporaryDirectories.at(-1)!, 'project'));
+        const { session } = database.createSession(project.id, 'shell');
+        const terminals = fakeTerminals(database);
+        const service = createService(database, terminals);
+        terminals.waitForAgentRunning = vi.fn((terminalId: string) => {
+            database.updateAgentProcessState(terminalId, 'stopped');
+            service.observeTerminalState(terminalId, 'stopped');
+            return Promise.reject(new CaxriError('UNAVAILABLE', 'Managed Agent did not start'));
+        });
+        const receipt = await service.start('exit-before-running', PRINCIPAL, {
+            projectId: project.id,
+            sessionId: session.id,
+            provider: 'codex',
+        });
+        expect(receipt).toMatchObject({
+            status: 'failed',
+            failure: { code: 'UNAVAILABLE', reason: 'launch_failed' },
+        });
+    });
+
     it('rolls back a child whose visible layout preparation fails before launch', async () => {
         const { database, project, service, session } = await seededDispatch();
         const terminals = database.listTerminals(session.id);
@@ -451,7 +651,7 @@ describe('AgentDispatchService', () => {
         expect(service.status(receipt.dispatchId, null)).toMatchObject(expected);
     });
 
-    it('marks a running dispatch interrupted when the terminal returns to starting', async () => {
+    it('marks a running dispatch interrupted through the restart retirement event', async () => {
         const { project, service, session } = await seededDispatch();
         const receipt = await service.start('dispatch-1', PRINCIPAL, {
             projectId: project.id,
@@ -459,7 +659,7 @@ describe('AgentDispatchService', () => {
             provider: 'codex',
         });
 
-        service.observeTerminalState(receipt.terminalId!, 'starting');
+        service.observeTerminalState(receipt.terminalId!, 'interrupted', 'terminalRestart');
         expect(service.status(receipt.dispatchId, null)).toMatchObject({ status: 'interrupted' });
     });
 });

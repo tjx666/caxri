@@ -11,7 +11,14 @@ import { resolveTerminalFileLink } from '../file-links';
 
 const databases: CaxriDatabase[] = [];
 const fileServices: FileService[] = [];
+const loggers: StructuredLogger[] = [];
 const temporaryDirectories: string[] = [];
+
+function createLogger(...arguments_: ConstructorParameters<typeof StructuredLogger>) {
+    const logger = new StructuredLogger(...arguments_);
+    loggers.push(logger);
+    return logger;
+}
 
 async function fixture(options?: ConstructorParameters<typeof FileService>[4]) {
     const temporary = await mkdtemp(join(tmpdir(), 'caxri-terminal-file-link-'));
@@ -25,7 +32,7 @@ async function fixture(options?: ConstructorParameters<typeof FileService>[4]) {
     const files = new FileService(
         database,
         () => {},
-        new StructuredLogger(join(userHome, 'logs')),
+        createLogger(join(userHome, 'logs')),
         () => 1_024 * 1_024,
         options,
     );
@@ -55,6 +62,9 @@ afterEach(async () => {
     const pendingServices = [...fileServices];
     fileServices.length = 0;
     await Promise.all(pendingServices.map((service) => service.close()));
+    // The fixture owns the logger; service shutdown alone does not drain its queued filesystem writes.
+    await Promise.all(loggers.map((logger) => logger.flush()));
+    loggers.length = 0;
     const pendingDatabases = [...databases];
     databases.length = 0;
     for (const database of pendingDatabases) database.close();

@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { runInNewContext } from 'node:vm';
 
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
@@ -35,6 +36,47 @@ const setupActionDocument = parse(setupAction) as {
 };
 
 describe('CI workflow contract', () => {
+    it('releases cancelled runs without suppressing the gate after validation failures', () => {
+        const document = parse(workflow) as { jobs: Record<string, { if: string }> };
+        const needs = {
+            'checks': { result: 'success' },
+            'retry-policy': {
+                result: 'success',
+                outputs: { mode: 'full', run_e2e: 'true' },
+            },
+        };
+        /**
+         * Evaluate only checked-in job expressions against a controlled Actions status fixture.
+         */
+        const shouldRun = (job: string, isCancelled: boolean): boolean => {
+            const expression = document.jobs[job].if
+                .replaceAll(/\$\{\{|\}\}/gu, '')
+                .replaceAll('needs.retry-policy', "needs['retry-policy']");
+            const result: unknown = runInNewContext(expression, {
+                always: () => true,
+                cancelled: () => isCancelled,
+                /**
+                 * The gate also skips ordinary merges to main, so evaluate the pull-request path it guards.
+                 */
+                github: {
+                    event: { head_commit: { message: 'fix: an ordinary change' } },
+                    event_name: 'pull_request',
+                },
+                needs,
+                startsWith: (value: string, prefix: string) => value.startsWith(prefix),
+            });
+            return result === true;
+        };
+
+        expect(shouldRun('e2e', false)).toBe(true);
+        expect(shouldRun('e2e', true)).toBe(false);
+        for (const result of ['success', 'failure', 'skipped', 'cancelled']) {
+            needs.checks.result = result;
+            expect(shouldRun('ci', false)).toBe(true);
+            expect(shouldRun('ci', true)).toBe(false);
+        }
+    });
+
     it('keeps the pre-install runner boundary free of runtime package imports', () => {
         const packageImports = selfHostedRunner
             .split(';')

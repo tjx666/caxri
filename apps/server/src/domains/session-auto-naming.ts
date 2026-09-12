@@ -7,6 +7,7 @@ import {
     agentProviderStateRoot,
     buildAgentTitlePrompt,
     locateAgentTranscript,
+    lowCostSandboxFailureReason,
     normalizeGeneratedAgentTitle,
     readAgentTitleMessages,
 } from './agents';
@@ -26,6 +27,7 @@ export class SessionAutoNamingService {
     private readonly retryAfter = new Map<string, number>();
     private readonly deferred = new Map<string, AgentLifecycleSignal>();
     private readonly retryTimers = new Map<string, NodeJS.Timeout>();
+    private readonly blockedLaunches = new Map<string, string>();
     private closed = false;
 
     constructor(
@@ -35,6 +37,10 @@ export class SessionAutoNamingService {
         private readonly environment: AgentEnvironment,
         private readonly isCurrentLaunch: (terminalId: string, launchId: string) => boolean,
         private readonly logger: StructuredLogger,
+        private readonly onSandboxUnavailable?: (
+            sessionId: string,
+            reason: NonNullable<ReturnType<typeof lowCostSandboxFailureReason>>,
+        ) => void,
     ) {}
 
     observe(event: AgentLifecycleSignal): void {
@@ -59,6 +65,12 @@ export class SessionAutoNamingService {
             !agentProviderCatalog[terminal.provider].capabilities.nativeRename
         )
             return;
+        if (!this.isCurrentLaunch(terminal.id, event.launchId)) return;
+        /**
+         * A boundary failure cannot be repaired by retrying the same launch after every completed turn.
+         */
+        if (this.blockedLaunches.get(session.id) === event.launchId) return;
+        this.blockedLaunches.delete(session.id);
         const state = this.database.automaticSessionNaming(session.id);
         if (this.running.has(session.id)) {
             this.deferred.set(session.id, event);
@@ -102,8 +114,13 @@ export class SessionAutoNamingService {
         };
         const execute = async (): Promise<void> => {
             const startedAt = performance.now();
-            let reason: 'completed' | 'ineligible' | 'insufficientContext' | 'declined' | 'failed' =
-                'ineligible';
+            let reason:
+                | 'completed'
+                | 'ineligible'
+                | 'insufficientContext'
+                | 'declined'
+                | 'failed'
+                | NonNullable<ReturnType<typeof lowCostSandboxFailureReason>> = 'ineligible';
             try {
                 await this.executions.run(async () => {
                     if (!isEligible()) return;
@@ -146,8 +163,15 @@ export class SessionAutoNamingService {
                         ? 'completed'
                         : 'declined';
                 });
-            } catch {
-                reason = controller.signal.aborted ? 'ineligible' : 'failed';
+            } catch (error) {
+                const sandboxReason = lowCostSandboxFailureReason(error);
+                reason = controller.signal.aborted ? 'ineligible' : (sandboxReason ?? 'failed');
+                if (sandboxReason && !controller.signal.aborted) {
+                    this.blockedLaunches.set(session.id, event.launchId);
+                    if (this.blockedLaunches.size > 128)
+                        this.blockedLaunches.delete(this.blockedLaunches.keys().next().value!);
+                    this.onSandboxUnavailable?.(session.id, sandboxReason);
+                }
             } finally {
                 /**
                  * Only enums and timing enter diagnostics; neither prompts, generated names nor provider error text do.
@@ -160,7 +184,7 @@ export class SessionAutoNamingService {
                         fields: { provider: target.provider, reason },
                     },
                 );
-                if (!controller.signal.aborted)
+                if (!controller.signal.aborted && !this.blockedLaunches.has(session.id))
                     this.retryAfter.set(session.id, Date.now() + 60_000);
                 if (this.retryAfter.size > 128)
                     this.retryAfter.delete(this.retryAfter.keys().next().value!);
@@ -181,5 +205,6 @@ export class SessionAutoNamingService {
         await Promise.allSettled(this.running.values().map((task) => task.promise));
         this.retryAfter.clear();
         this.deferred.clear();
+        this.blockedLaunches.clear();
     }
 }

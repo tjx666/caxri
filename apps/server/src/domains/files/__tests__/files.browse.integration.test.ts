@@ -60,8 +60,27 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 });
 
 const temporaryDirectories: string[] = [];
+const loggers: StructuredLogger[] = [];
+const services: FileService[] = [];
+
+function createService(...arguments_: ConstructorParameters<typeof FileService>) {
+    const service = new FileService(...arguments_);
+    services.push(service);
+    return service;
+}
+
+function createLogger(...arguments_: ConstructorParameters<typeof StructuredLogger>) {
+    const logger = new StructuredLogger(...arguments_);
+    loggers.push(logger);
+    return logger;
+}
 
 afterEach(async () => {
+    await Promise.all(services.map((service) => service.close()));
+    services.length = 0;
+    // The fixture owns the logger; service shutdown alone does not drain its queued filesystem writes.
+    await Promise.all(loggers.map((logger) => logger.flush()));
+    loggers.length = 0;
     const paths = temporaryDirectories.slice();
     temporaryDirectories.length = 0;
     await Promise.all(paths.map((path) => rm(path, { recursive: true, force: true })));
@@ -87,10 +106,10 @@ describe('path browsing', () => {
             database.createProject(directory).id,
             'shell',
         ).session;
-        const service = new FileService(
+        const service = createService(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             () => 1024,
         );
 
@@ -142,10 +161,10 @@ describe('path browsing', () => {
                 },
             } as unknown as Dir);
         });
-        const service = new FileService(
+        const service = createService(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             () => 1024,
             { openDirectory },
         );
@@ -200,10 +219,10 @@ describe('path browsing', () => {
                 },
             } as unknown as Dir);
         });
-        const service = new FileService(
+        const service = createService(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             () => 1024,
             { openDirectory },
         );
@@ -244,10 +263,10 @@ describe('path browsing', () => {
         ).session;
         let readCount = 0;
         const close = vi.fn(() => Promise.resolve());
-        const service = new FileService(
+        const service = createService(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             () => 1024,
             {
                 openDirectory: () =>
@@ -281,7 +300,7 @@ describe('path browsing', () => {
         await symlink('./missing', join(root, 'broken-link'));
         const listing = new ListingService(
             () => Promise.resolve({ path: root, root }),
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             () => ({}),
         );
 
@@ -332,7 +351,7 @@ describe('path browsing', () => {
         const linkPath = join(root, 'link-to-dir');
         const listing = new ListingService(
             () => Promise.resolve({ path: root, root }),
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             () => ({}),
         );
         const follows = new Map<string, number>();
@@ -376,7 +395,7 @@ describe('path browsing', () => {
         let createdProbes = 0;
         const listing = new ListingService(
             () => Promise.resolve({ path: root, root }),
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             () => ({}),
             undefined,
             undefined,
@@ -415,10 +434,10 @@ describe('path browsing', () => {
             database.createProject(directory).id,
             'shell',
         ).session;
-        const service = new FileService(
+        const service = createService(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             () => 1024,
         );
         let entryRestats = 0;

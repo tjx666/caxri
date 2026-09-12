@@ -7,6 +7,11 @@ import { identifierSchema, MAX_TERMINAL_INPUT_LENGTH, pathSchema } from './domai
 export const MAX_LONG_PASTE_CHARACTERS = 1_048_576;
 export const MAX_LONG_PASTE_SUMMARY_CHARACTERS = 4_096;
 
+export const lowCostSandboxFailureReasonSchema = z.enum([
+    'sandboxBoundaryConflict',
+    'sandboxPathUnavailable',
+]);
+
 export const terminalLongPasteParametersSchema = z.object({
     terminalId: identifierSchema,
     content: z.string().min(1).max(MAX_LONG_PASTE_CHARACTERS),
@@ -39,6 +44,7 @@ export const terminalLongPasteResultSchema = z.discriminatedUnion('status', [
             .min(1)
             .max(MAX_LONG_PASTE_CHARACTERS + 1),
         status: z.literal('unavailable'),
+        reason: lowCostSandboxFailureReasonSchema.optional(),
     }),
 ]);
 

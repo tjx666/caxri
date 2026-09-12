@@ -11,6 +11,13 @@ import { GitService } from '..';
 
 const temporaryDirectories: string[] = [];
 const gitServices: GitService[] = [];
+const loggers: StructuredLogger[] = [];
+
+function createLogger(...arguments_: ConstructorParameters<typeof StructuredLogger>) {
+    const logger = new StructuredLogger(...arguments_);
+    loggers.push(logger);
+    return logger;
+}
 
 function trackGitService(git: GitService): GitService {
     gitServices.push(git);
@@ -21,6 +28,12 @@ afterEach(async () => {
     const servicesToClose = [...gitServices];
     gitServices.length = 0;
     await Promise.allSettled(servicesToClose.map((git) => git.close()));
+    /**
+     * Drain logs after their producers stop, before queued writes can race directory removal.
+     */
+    const loggersToFlush = [...loggers];
+    loggers.length = 0;
+    await Promise.all(loggersToFlush.map((logger) => logger.flush()));
     const directoriesToRemove = [...temporaryDirectories];
     temporaryDirectories.length = 0;
     await Promise.all(
@@ -40,7 +53,7 @@ async function createStatusFixture(prefix: string) {
     await writeFile(join(directory, 'tracked.txt'), 'after\n', 'utf8');
     const database = new CaxriDatabase(join(directory, '.caxri-test.db'));
     const session = database.createSession(database.createProject(directory).id, 'shell').session;
-    const logger = new StructuredLogger(join(directory, '.logs'));
+    const logger = createLogger(join(directory, '.logs'));
     const git = trackGitService(new GitService(new ProjectRootResolver(database), logger));
     return { database, directory, git, logger, session };
 }

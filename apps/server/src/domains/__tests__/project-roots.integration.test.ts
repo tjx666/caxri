@@ -17,6 +17,48 @@ afterEach(async () => {
 });
 
 describe('ProjectRootResolver', () => {
+    it('reports a missing stale directory after fallback without an internal filesystem error', async () => {
+        const createdDirectory = await mkdtemp(join(tmpdir(), 'caxri-root-fallback-'));
+        const directory = await realpath(createdDirectory);
+        temporaryDirectories.push(directory);
+        const ownerRoot = join(directory, 'owner');
+        const worktreeRoot = join(directory, 'worktree');
+        await Promise.all([mkdir(ownerRoot), mkdir(worktreeRoot)]);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        try {
+            const owner = database.createProject(ownerRoot);
+            const worktree = database.createProject(worktreeRoot);
+            const session = database.createSession(owner.id, 'shell').session;
+            const identity = await lstat(worktreeRoot, { bigint: true });
+            database.selectWorkbenchProject(session.id, worktree.id, {
+                device: identity.dev.toString(),
+                inode: identity.ino.toString(),
+            });
+            const resolver = new ProjectRootResolver(database);
+            await expect(
+                resolver.resolveSessionPath(session.id, worktreeRoot),
+            ).resolves.toMatchObject({ path: worktreeRoot });
+            database.selectWorkbenchProject(session.id, owner.id);
+            await rm(worktreeRoot, { recursive: true });
+
+            await expect(
+                resolver.resolveSessionPath(session.id, worktreeRoot),
+            ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+            await expect(
+                resolver.resolveSessionPath(session.id, 'missing.txt'),
+            ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+            await expect(resolver.resolveSessionPath(session.id)).resolves.toMatchObject({
+                path: ownerRoot,
+            });
+            await mkdir(worktreeRoot);
+            await expect(
+                resolver.resolveSessionPath(session.id, worktreeRoot),
+            ).rejects.toMatchObject({ code: 'PATH_DENIED' });
+        } finally {
+            database.close();
+        }
+    });
+
     it('classifies a missing owner-authorized root as a denied path', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-owner-root-missing-'));
         temporaryDirectories.push(directory);

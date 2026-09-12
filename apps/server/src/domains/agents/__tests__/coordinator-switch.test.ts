@@ -10,6 +10,19 @@ import { CaxriDatabase } from '../../db/repository';
 import { AgentCoordinator } from '../coordinator';
 import type { AgentAdapter } from '../service';
 
+const loggers: StructuredLogger[] = [];
+
+function createLogger(...arguments_: ConstructorParameters<typeof StructuredLogger>) {
+    const logger = new StructuredLogger(...arguments_);
+    loggers.push(logger);
+    return logger;
+}
+
+async function flushLoggers(): Promise<void> {
+    const pendingLoggers = [...loggers];
+    loggers.length = 0;
+    await Promise.all(pendingLoggers.map((logger) => logger.flush()));
+}
 const temporaryDirectories: string[] = [];
 
 function createAgents(snapshot: AgentAdapter['snapshot']) {
@@ -20,6 +33,7 @@ function createAgents(snapshot: AgentAdapter['snapshot']) {
 }
 
 afterEach(async () => {
+    await flushLoggers();
     const pendingCleanup = [...temporaryDirectories];
     temporaryDirectories.length = 0;
     await Promise.all(pendingCleanup.map((path) => rm(path, { recursive: true, force: true })));
@@ -61,7 +75,7 @@ describe('AgentCoordinator provider switch', () => {
                 codex: { provider: 'codex', snapshot: codexSnapshot },
             }),
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             { detectForegroundAgent, refreshDelayMs: 5 },
         );
 
@@ -122,7 +136,7 @@ describe('AgentCoordinator provider switch', () => {
                 },
             }),
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             { detectForegroundAgent, refreshDelayMs: 5 },
         );
 
@@ -176,7 +190,7 @@ describe('AgentCoordinator provider switch', () => {
                 codex: { provider: 'codex', snapshot: codexSnapshot },
             }),
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             { detectForegroundAgent, refreshDelayMs: 5 },
         );
 
@@ -219,7 +233,7 @@ describe('AgentCoordinator provider switch', () => {
             database,
             createAgents(snapshot),
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             { detectForegroundAgent, refreshDelayMs: 5 },
         );
 
@@ -263,7 +277,7 @@ describe('AgentCoordinator provider switch', () => {
                 database,
                 createAgents(snapshot),
                 () => {},
-                new StructuredLogger(join(directory, 'logs')),
+                createLogger(join(directory, 'logs')),
                 { detectForegroundAgent, refreshDelayMs: 5 },
             );
 
@@ -309,7 +323,7 @@ describe('AgentCoordinator provider switch', () => {
                 database,
                 createAgents(snapshot),
                 () => {},
-                new StructuredLogger(join(directory, 'logs')),
+                createLogger(join(directory, 'logs')),
                 { detectForegroundAgent, refreshDelayMs: 5 },
             );
 
@@ -336,9 +350,10 @@ describe('AgentCoordinator provider switch', () => {
         const created = database.createSession(database.createProject(directory).id, 'claude');
         database.updateTerminalState(created.terminal!.id, 'running');
         database.updateAgentProcessState(created.terminal!.id, 'stopped');
+        const firstProbe = Promise.withResolvers<'claude' | undefined>();
         const detectForegroundAgent = vi
             .fn<() => Promise<'claude' | undefined>>()
-            .mockResolvedValueOnce(undefined)
+            .mockImplementationOnce(() => firstProbe.promise)
             .mockResolvedValue('claude');
         const snapshot = vi.fn<AgentAdapter['snapshot']>(() =>
             Promise.resolve({
@@ -348,28 +363,41 @@ describe('AgentCoordinator provider switch', () => {
                 available: true,
             }),
         );
+        const logger = createLogger(join(directory, 'logs'));
+        vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
         const coordinator = new AgentCoordinator(
             database,
             createAgents(snapshot),
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
-            {
-                detectForegroundAgent,
-                refreshDelayMs: 5,
-                shellProcessProbeIntervalMs: 5,
-            },
+            logger,
+            { detectForegroundAgent },
         );
 
         try {
             coordinator.observeInput(created.terminal!.id, 'cc\r');
             coordinator.observeOutput(created.terminal!.id, 4242);
-
-            await expect
-                .poll(() => database.getTerminal(created.terminal!.id)?.lastAgentProcessState)
-                .toBe('running');
-            expect(detectForegroundAgent.mock.calls.length).toBeGreaterThanOrEqual(2);
+            coordinator.observeOutput(created.terminal!.id, 4242);
+            expect(detectForegroundAgent).toHaveBeenCalledTimes(1);
+            firstProbe.resolve(undefined);
+            await vi.advanceTimersByTimeAsync(0);
+            /**
+             * Drive the production one-second retry interval explicitly. Parallel worker load cannot consume a polling
+             * deadline, and a quiet Agent must be discovered without another output event.
+             */
+            await vi.advanceTimersByTimeAsync(999);
+            expect(database.getTerminal(created.terminal!.id)?.lastAgentProcessState).toBe(
+                'stopped',
+            );
+            expect(detectForegroundAgent).toHaveBeenCalledTimes(1);
+            await vi.advanceTimersByTimeAsync(1);
+            expect(database.getTerminal(created.terminal!.id)?.lastAgentProcessState).toBe(
+                'running',
+            );
+            expect(detectForegroundAgent).toHaveBeenCalledTimes(2);
         } finally {
             coordinator.close();
+            vi.useRealTimers();
+            await logger.flush();
             database.close();
         }
     });
@@ -396,7 +424,7 @@ describe('AgentCoordinator provider switch', () => {
                 }),
             ),
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             {
                 detectForegroundAgent,
                 refreshDelayMs: 5,
@@ -445,7 +473,7 @@ describe('AgentCoordinator provider switch', () => {
                 }),
             ),
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             {
                 detectForegroundAgent,
                 refreshDelayMs: 5,
@@ -494,7 +522,7 @@ describe('AgentCoordinator provider switch', () => {
             database,
             createAgents(snapshot),
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             { detectForegroundAgent, refreshDelayMs: 5 },
         );
 
@@ -541,7 +569,7 @@ describe('AgentCoordinator provider switch', () => {
                 codex: { provider: 'codex', snapshot: codexSnapshot },
             }),
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             { detectForegroundAgent, refreshDelayMs: 5 },
         );
 

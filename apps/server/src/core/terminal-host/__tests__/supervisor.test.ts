@@ -13,6 +13,19 @@ import { TERMINAL_HOST_PROTOCOL_VERSION } from '../../../terminal-host/protocol'
 import { TerminalHostSupervisor } from '../supervisor';
 
 const bootId = 'b'.repeat(32);
+const loggers: StructuredLogger[] = [];
+
+function createLogger(...arguments_: ConstructorParameters<typeof StructuredLogger>) {
+    const logger = new StructuredLogger(...arguments_);
+    loggers.push(logger);
+    return logger;
+}
+
+async function flushLoggers(): Promise<void> {
+    const pendingLoggers = [...loggers];
+    loggers.length = 0;
+    await Promise.all(pendingLoggers.map((logger) => logger.flush()));
+}
 const temporaryDirectories: string[] = [];
 
 // eslint-disable-next-line unicorn/prefer-event-target -- ChildProcess exposes EventEmitter, which this test seam mirrors.
@@ -48,7 +61,7 @@ function createSupervisor(): {
     const forkProcess = vi.fn(() => child as unknown as ChildProcess);
     const directory = mkdtempSync(join(tmpdir(), 'caxri-terminal-host-supervisor-'));
     temporaryDirectories.push(directory);
-    const logger = new StructuredLogger(join(directory, 'logs'), 'server-core');
+    const logger = createLogger(join(directory, 'logs'), 'server-core');
     return {
         child,
         forkProcess,
@@ -90,7 +103,8 @@ async function becomeReady(child: FakeChild, supervisor: TerminalHostSupervisor)
     await startup;
 }
 
-afterEach(() => {
+afterEach(async () => {
+    await flushLoggers();
     for (const directory of temporaryDirectories)
         rmSync(directory, { force: true, recursive: true });
     temporaryDirectories.length = 0;

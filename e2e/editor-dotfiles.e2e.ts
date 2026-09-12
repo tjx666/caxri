@@ -1,4 +1,4 @@
-import { lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readFile, rm, symlink, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -105,6 +105,64 @@ test('ignore and rc dotfiles open with syntax highlighting', async () => {
         } catch {
             // Ignore close errors during test cleanup.
         }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('external link target changes refresh the editor and expanded directory', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-external-links-sync-e2e-'));
+    const root = join(testDirectory, 'project');
+    const shared = join(testDirectory, 'shared');
+    await Promise.all([mkdir(root), mkdir(shared)]);
+    const target = join(shared, 'note.txt');
+    await writeFile(target, 'initial external fixture\n');
+    await Promise.all([
+        symlink('../shared/note.txt', join(root, 'linked-note.txt')),
+        symlink('../shared', join(root, 'linked-folder')),
+    ]);
+    const running = await launchCaxri({
+        userDataDir: join(testDirectory, 'profile'),
+        testRootPath: root,
+    });
+    try {
+        await createProjectSession(running.page);
+        const tree = running.page.getByRole('tree', { name: 'Files' });
+        await tree.getByRole('treeitem', { name: /^linked-note\.txt/ }).dblclick();
+        const editor = running.page.locator('.monaco-editor').last();
+        await expect(editor.locator('.view-lines')).toContainText('initial external fixture');
+        await writeFile(target, 'clean external replacement\n');
+        await expect(editor.locator('.view-lines')).toContainText('clean external replacement');
+        const notice = running.page.getByText(
+            /reloaded from disk; external changes take precedence/,
+        );
+        await expect(notice).not.toBeVisible();
+        await editor.click();
+        await running.page.keyboard.press('Meta+End');
+        await running.page.keyboard.type('unsaved local fixture');
+        await expect(editor.locator('.view-lines')).toContainText('unsaved local fixture');
+        await writeFile(target, 'external change takes precedence\n');
+        await expect(editor.locator('.view-lines')).toContainText(
+            'external change takes precedence',
+        );
+        await expect(notice).toBeVisible();
+        const folder = tree.getByRole('treeitem', { name: /^linked-folder/ });
+        await folder.focus();
+        await folder.press('ArrowRight');
+        await expect(folder).toHaveAttribute('aria-expanded', 'true');
+        await writeFile(join(shared, 'created-outside.txt'), 'new fixture');
+        const added = tree.getByRole('treeitem', { name: 'created-outside.txt', exact: true });
+        await expect(added).toBeVisible();
+        await running.page.screenshot({
+            path: test.info().outputPath('external-link-updates.png'),
+        });
+        await unlink(join(shared, 'created-outside.txt'));
+        await expect(added).not.toBeVisible();
+        expect((await lstat(join(root, 'linked-note.txt'))).isSymbolicLink()).toBe(true);
+        await running.page.screenshot({
+            path: test.info().outputPath('external-link-deletion.png'),
+        });
+    } finally {
+        await running.app.close();
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

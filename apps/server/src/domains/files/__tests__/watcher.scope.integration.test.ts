@@ -6,14 +6,24 @@ import type { ServerEvent } from '@caxri/protocol';
 import { durableServerEventSchema } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import type parcelWatcher from '@parcel/watcher';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CaxriDatabase } from '../../db/repository';
 import { FileService } from '../service';
 
 const temporaryDirectories: string[] = [];
+const loggers: StructuredLogger[] = [];
+
+function createLogger(...arguments_: ConstructorParameters<typeof StructuredLogger>) {
+    const logger = new StructuredLogger(...arguments_);
+    loggers.push(logger);
+    return logger;
+}
 
 afterEach(async () => {
+    // The fixture owns the logger; service shutdown alone does not drain its queued filesystem writes.
+    await Promise.all(loggers.map((logger) => logger.flush()));
+    loggers.length = 0;
     const paths = temporaryDirectories.slice();
     temporaryDirectories.length = 0;
     await Promise.all(paths.map((path) => rm(path, { recursive: true, force: true })));
@@ -44,7 +54,7 @@ describe('File watcher scopes', () => {
         const service = new FileService(
             database,
             (event) => events.push(event),
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             () => 1024,
             { subscribe },
         );
@@ -100,7 +110,7 @@ describe('File watcher scopes', () => {
             (event) => {
                 events.push(event);
             },
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             () => 1024,
             { subscribe },
         );
@@ -171,7 +181,7 @@ describe('File watcher scopes', () => {
             (event) => {
                 events.push(event);
             },
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             () => 1024,
             { subscribe },
         );
@@ -200,6 +210,71 @@ describe('File watcher scopes', () => {
         });
         await new Promise<void>((resolve) => setImmediate(resolve));
         expect(events).toHaveLength(1);
+        await service.close();
+        database.close();
+    });
+
+    it('reports only a current native root deletion as unavailable', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-file-watch-root-delete-'));
+        temporaryDirectories.push(directory);
+        const firstRoot = join(directory, 'first');
+        const secondRoot = join(directory, 'second');
+        await Promise.all([mkdir(firstRoot), mkdir(secondRoot)]);
+        const [canonicalFirstRoot, canonicalSecondRoot] = await Promise.all([
+            realpath(firstRoot),
+            realpath(secondRoot),
+        ]);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const firstProject = database.createProject(firstRoot);
+        const secondProject = database.createProject(secondRoot);
+        const first = database.createSession(firstProject.id, 'shell').session;
+        const second = database.createSession(secondProject.id, 'codex').session;
+        const events: ServerEvent[] = [];
+        const callbacks: Array<Parameters<typeof parcelWatcher.subscribe>[1]> = [];
+        const onRootUnavailable = vi.fn();
+        const subscribe: typeof parcelWatcher.subscribe = (_root, onEvents) => {
+            callbacks.push(onEvents);
+            return Promise.resolve({ unsubscribe: () => Promise.resolve() });
+        };
+        const service = new FileService(
+            database,
+            (event) => events.push(event),
+            createLogger(join(directory, 'logs')),
+            () => 1024,
+            { onRootUnavailable, subscribe },
+        );
+
+        await service.watchSession(first.id);
+        callbacks[0](null, [{ path: canonicalFirstRoot, type: 'delete' }]);
+
+        await expect.poll(() => onRootUnavailable).toHaveBeenCalledWith(first.id);
+        await expect
+            .poll(() => events.filter((event) => event.event === 'files.changed'))
+            .toHaveLength(1);
+        expect(events).toContainEqual({
+            event: 'files.changed',
+            payload: {
+                sessionId: first.id,
+                workbenchProjectId: firstProject.id,
+                changes: [{ path: canonicalFirstRoot, kind: 'delete' }],
+                overflow: false,
+            },
+        });
+
+        callbacks[0](null, [{ path: join(canonicalFirstRoot, 'descendant.txt'), type: 'delete' }]);
+        await expect
+            .poll(() => events.filter((event) => event.event === 'files.changed'))
+            .toHaveLength(2);
+        expect(onRootUnavailable).toHaveBeenCalledTimes(1);
+
+        await service.watchSession(second.id);
+        callbacks[0](null, [{ path: canonicalFirstRoot, type: 'delete' }]);
+        callbacks[1](null, [{ path: join(canonicalSecondRoot, 'descendant.txt'), type: 'delete' }]);
+        await expect
+            .poll(() => events.filter((event) => event.event === 'files.changed'))
+            .toHaveLength(3);
+        expect(onRootUnavailable).toHaveBeenCalledTimes(1);
+
         await service.close();
         database.close();
     });

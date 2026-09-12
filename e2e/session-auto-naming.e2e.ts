@@ -9,17 +9,18 @@ import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
 
-// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
-test('a completed turn receives one synchronized task title and preserves a later manual name', async ({}, testInfo) => {
-    const directory = await mkdtemp(join(tmpdir(), 'caxri-title-sync-e2e-'));
-    const userData = join(directory, 'user-data');
-    const root = join(directory, 'project');
-    await mkdir(root);
-    const mode = await createFakeAgentMode({
-        userDataDir: userData,
-        providers: {
-            claude: {
-                executableSource: String.raw`#!${process.execPath}
+for (const ancestorProject of [false, true]) {
+    // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+    test(`a completed turn names safely and preserves manual ownership (ancestor Project: ${ancestorProject})`, async ({}, testInfo) => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-title-sync-e2e-'));
+        const userData = join(directory, 'user-data');
+        const root = ancestorProject ? join(userData, 'e2e-agents') : join(directory, 'project');
+        await mkdir(root, { recursive: true });
+        const mode = await createFakeAgentMode({
+            userDataDir: userData,
+            providers: {
+                claude: {
+                    executableSource: String.raw`#!${process.execPath}
 // Deterministic Agent boundary for this Session naming workflow; no host provider is discovered.
 const fs = require('node:fs');
 const path = require('node:path');
@@ -61,73 +62,111 @@ if (process.argv.includes('--print')) {
   process.stdin.resume();
 }
 `,
+                },
             },
-        },
-    });
-    const running = await launchCaxri({
-        userDataDir: userData,
-        testRootPath: root,
-        agentMode: mode,
-        env: { CAXRI_E2E_AGENT_HOOKS: '1' },
-    });
-    try {
-        await createProjectSession(running.page, 'claude');
-        await expect
-            .poll(
-                async () =>
-                    (await pageRequest<BootstrapState>(running.page, 'app.bootstrap', {}))
-                        .sessions[0]?.displayTitle,
-                { timeout: 30_000 },
-            )
-            .toBe('Session title synchronization');
-        const state = await pageRequest<BootstrapState>(running.page, 'app.bootstrap', {});
-        const session = state.sessions[0];
-        const receiptPath = join(userData, 'e2e-agents', 'claude', 'naming-receipt.json');
-        await expect
-            .poll(
-                async () =>
-                    (JSON.parse(await readFile(receiptPath, 'utf8')) as { turns: number }).turns,
-            )
-            .toBeGreaterThanOrEqual(2);
-        await expect(
-            running.page.getByText('Session title synchronization', { exact: true }).first(),
-        ).toBeVisible();
-        /**
-         * Hidden Electron windows can return an unpainted capture; show without taking the developer's focus.
-         */
-        await running.app.evaluate(({ BrowserWindow }) =>
-            BrowserWindow.getAllWindows()[0]?.showInactive(),
-        );
-        try {
-            await running.page.screenshot({
-                path: testInfo.outputPath('automatic-title.png'),
-                clip: { x: 0, y: 0, width: 236, height: 500 },
-            });
-        } finally {
-            await running.app.evaluate(({ BrowserWindow }) =>
-                BrowserWindow.getAllWindows()[0]?.hide(),
-            );
-        }
-        await pageRequest(running.page, 'session.rename', {
-            sessionId: session.id,
-            displayTitle: 'Manual task title',
         });
-        await expect
-            .poll(
-                async () =>
-                    (await pageRequest<BootstrapState>(running.page, 'app.bootstrap', {}))
-                        .sessions[0]?.displayTitle,
-            )
-            .toBe('Manual task title');
-        const receipt: unknown = JSON.parse(
-            await readFile(join(userData, 'e2e-agents', 'claude', 'naming-receipt.json'), 'utf8'),
-        );
-        expect(receipt).toMatchObject({ generations: 1, renames: 2 });
-        await expect(
-            running.page.getByText('Manual task title', { exact: true }).first(),
-        ).toBeVisible();
-    } finally {
-        await running.app.close();
-        await rm(directory, { recursive: true, force: true });
-    }
-});
+        const running = await launchCaxri({
+            userDataDir: userData,
+            testRootPath: root,
+            agentMode: mode,
+            env: { CAXRI_E2E_AGENT_HOOKS: '1' },
+        });
+        try {
+            await createProjectSession(running.page, 'claude');
+            if (ancestorProject) {
+                await expect(
+                    running.page.getByText(
+                        'Automatic naming is blocked by the Project sandbox boundary. Choose a more specific Project folder and restart the Agent.',
+                        { exact: false },
+                    ),
+                ).toBeVisible();
+                await running.app.evaluate(({ BrowserWindow }) =>
+                    BrowserWindow.getAllWindows()[0]?.showInactive(),
+                );
+                try {
+                    await running.page.screenshot({
+                        path: testInfo.outputPath('sandbox-naming-notice.png'),
+                    });
+                } finally {
+                    await running.app.evaluate(({ BrowserWindow }) =>
+                        BrowserWindow.getAllWindows()[0]?.hide(),
+                    );
+                }
+                const receiptPath = join(userData, 'e2e-agents', 'claude', 'naming-receipt.json');
+                await expect
+                    .poll(
+                        async () =>
+                            (JSON.parse(await readFile(receiptPath, 'utf8')) as { turns: number })
+                                .turns,
+                    )
+                    .toBeGreaterThanOrEqual(2);
+                expect(JSON.parse(await readFile(receiptPath, 'utf8')) as unknown).toMatchObject({
+                    generations: 0,
+                    renames: 0,
+                });
+                return;
+            }
+            await expect
+                .poll(
+                    async () =>
+                        (await pageRequest<BootstrapState>(running.page, 'app.bootstrap', {}))
+                            .sessions[0]?.displayTitle,
+                    { timeout: 30_000 },
+                )
+                .toBe('Session title synchronization');
+            const state = await pageRequest<BootstrapState>(running.page, 'app.bootstrap', {});
+            const session = state.sessions[0];
+            const receiptPath = join(userData, 'e2e-agents', 'claude', 'naming-receipt.json');
+            await expect
+                .poll(
+                    async () =>
+                        (JSON.parse(await readFile(receiptPath, 'utf8')) as { turns: number })
+                            .turns,
+                )
+                .toBeGreaterThanOrEqual(2);
+            await expect(
+                running.page.getByText('Session title synchronization', { exact: true }).first(),
+            ).toBeVisible();
+            /**
+             * Hidden Electron windows can return an unpainted capture; show without taking the developer's focus.
+             */
+            await running.app.evaluate(({ BrowserWindow }) =>
+                BrowserWindow.getAllWindows()[0]?.showInactive(),
+            );
+            try {
+                await running.page.screenshot({
+                    path: testInfo.outputPath('automatic-title.png'),
+                    clip: { x: 0, y: 0, width: 236, height: 500 },
+                });
+            } finally {
+                await running.app.evaluate(({ BrowserWindow }) =>
+                    BrowserWindow.getAllWindows()[0]?.hide(),
+                );
+            }
+            await pageRequest(running.page, 'session.rename', {
+                sessionId: session.id,
+                displayTitle: 'Manual task title',
+            });
+            await expect
+                .poll(
+                    async () =>
+                        (await pageRequest<BootstrapState>(running.page, 'app.bootstrap', {}))
+                            .sessions[0]?.displayTitle,
+                )
+                .toBe('Manual task title');
+            const receipt: unknown = JSON.parse(
+                await readFile(
+                    join(userData, 'e2e-agents', 'claude', 'naming-receipt.json'),
+                    'utf8',
+                ),
+            );
+            expect(receipt).toMatchObject({ generations: 1, renames: 2 });
+            await expect(
+                running.page.getByText('Manual task title', { exact: true }).first(),
+            ).toBeVisible();
+        } finally {
+            await running.app.close();
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
+}

@@ -9,8 +9,18 @@ import { CaxriDatabase } from '../../db/repository';
 import { FileService } from '../service';
 
 const temporaryDirectories: string[] = [];
+const loggers: StructuredLogger[] = [];
+
+function createLogger(...arguments_: ConstructorParameters<typeof StructuredLogger>) {
+    const logger = new StructuredLogger(...arguments_);
+    loggers.push(logger);
+    return logger;
+}
 
 afterEach(async () => {
+    // The fixture owns the logger; service shutdown alone does not drain its queued filesystem writes.
+    await Promise.all(loggers.map((logger) => logger.flush()));
+    loggers.length = 0;
     const paths = temporaryDirectories.slice();
     temporaryDirectories.length = 0;
     await Promise.all(paths.map((path) => rm(path, { recursive: true, force: true })));
@@ -38,7 +48,7 @@ describe('FileService Workbench Root mutations', () => {
         const service = new FileService(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             () => 1024,
             { mutationJournalPath: join(directory, 'file-operations.json') },
         );

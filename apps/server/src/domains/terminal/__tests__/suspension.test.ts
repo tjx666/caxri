@@ -113,6 +113,22 @@ function createHarness(options: { selected?: string; settings?: Partial<AppSetti
 }
 
 describe('TerminalSuspensionService', () => {
+    it('does not suspend a starting Agent before lifecycle activation on an old Server', async () => {
+        const harness = createHarness({ settings: { 'terminal.suspendIdleAgents': '30m' } });
+        harness.service.start();
+        harness.advance(31 * 60_000);
+        harness.terminals.set(
+            'terminal-a',
+            terminal('terminal-a', 'session-a', {
+                lastAgentProcessState: 'starting',
+            }),
+        );
+        harness.advance(15_000);
+        await harness.poller()!.pollOnce();
+        expect(harness.suspend).not.toHaveBeenCalled();
+        await harness.service.close();
+    });
+
     it('registers a sweep poller and treats unselected Sessions as left at startup', async () => {
         const harness = createHarness();
         harness.service.start();
@@ -174,7 +190,7 @@ describe('TerminalSuspensionService', () => {
         );
         harness.live.add('shell-a');
         expect(await harness.service.detachSession('session-a')).toEqual(['terminal-a']);
-        expect(harness.suspend).toHaveBeenCalledWith('terminal-a', 'detached');
+        expect(harness.suspend).toHaveBeenCalledWith('terminal-a', 'detached', undefined);
         expect(harness.terminals.get('terminal-a')?.lastProcessState).toBe('detached');
         expect(harness.terminals.get('shell-a')?.lastProcessState).toBe('running');
         expect(harness.events).toEqual([

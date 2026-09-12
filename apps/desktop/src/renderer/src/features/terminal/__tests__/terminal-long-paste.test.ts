@@ -339,4 +339,18 @@ describe('long Terminal paste', () => {
             ].join('\n'),
         );
     });
+
+    it('explains an ancestor Project sandbox conflict while retaining the original file reference', () => {
+        const result = formatLongPasteReference({
+            agentLaunchId: 'launch-1',
+            characterCount: 2048,
+            filePath: '/local/paste.txt',
+            lineCount: 1,
+            status: 'unavailable',
+            reason: 'sandboxBoundaryConflict',
+        });
+        expect(result).toContain('Choose a more specific Project folder.');
+        expect(result).toContain('Original file: "/local/paste.txt"');
+        expect(result).toContain('Read the original file for the exact content.');
+    });
 });

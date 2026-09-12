@@ -103,6 +103,7 @@ async function writeIsolatedLifecycle(directory: string, caseId = 'terminal-layo
 
 async function writeAgentFixtureLifecycle(directory: string, caseId = 'terminal-layout') {
     const launchId = await beginAgentFixtureLifecycle(directory, {
+        availableProviders: ['claude', 'codex'],
         caseId,
         fixtureId: 'agent-features-v1',
     });
@@ -195,6 +196,7 @@ describe('Acceptance report scaffold', () => {
             plan: [{ ...plan[0], agentFixture: 'agent-features-v1' }],
         });
         const firstLaunchId = await beginAgentFixtureLifecycle(directory, {
+            availableProviders: ['claude', 'codex'],
             caseId: 'terminal-layout',
             fixtureId: 'agent-features-v1',
         });
@@ -205,6 +207,7 @@ describe('Acceptance report scaffold', () => {
             sharedProfile: true,
         });
         const finalLaunchId = await beginAgentFixtureLifecycle(directory, {
+            availableProviders: ['claude', 'codex'],
             caseId: 'terminal-layout',
             fixtureId: 'agent-features-v1',
         });
@@ -228,6 +231,7 @@ describe('Acceptance report scaffold', () => {
             plan: [{ ...plan[0], agentFixture: 'agent-features-v1' }],
         });
         const firstLaunchId = await beginAgentFixtureLifecycle(directory, {
+            availableProviders: ['claude', 'codex'],
             caseId: 'terminal-layout',
             fixtureId: 'agent-features-v1',
         });
@@ -238,6 +242,7 @@ describe('Acceptance report scaffold', () => {
             sharedProfile: false,
         });
         const retryLaunchId = await beginAgentFixtureLifecycle(directory, {
+            availableProviders: ['claude', 'codex'],
             caseId: 'terminal-layout',
             fixtureId: 'agent-features-v1',
         });
@@ -263,6 +268,7 @@ describe('Acceptance report scaffold', () => {
             plan: [{ ...plan[0], agentFixture: 'agent-features-v1' }],
         });
         const launchId = await beginAgentFixtureLifecycle(directory, {
+            availableProviders: ['claude', 'codex'],
             caseId: 'terminal-layout',
             fixtureId: 'agent-features-v1',
         });

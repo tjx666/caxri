@@ -16,6 +16,13 @@ import { computeRepoId } from '../repo';
 
 const temporaryDirectories: string[] = [];
 const gitServices: GitService[] = [];
+const loggers: StructuredLogger[] = [];
+
+function createLogger(...arguments_: ConstructorParameters<typeof StructuredLogger>) {
+    const logger = new StructuredLogger(...arguments_);
+    loggers.push(logger);
+    return logger;
+}
 
 interface GitServiceInternals {
     logger: StructuredLogger;
@@ -42,11 +49,12 @@ afterEach(async () => {
     gitServices.length = 0;
     await Promise.allSettled(servicesToClose.map((git) => git.close()));
     /**
-     * Closing services queues final metrics; drain their logs before removing the fixture directories.
+     * Closing services queues final metrics; drain their logs after their producers stop, before queued writes can race
+     * directory removal.
      */
-    await Promise.all(
-        servicesToClose.map((git) => (git as unknown as GitServiceInternals).logger.flush()),
-    );
+    const loggersToFlush = [...loggers];
+    loggers.length = 0;
+    await Promise.all(loggersToFlush.map((logger) => logger.flush()));
     const directoriesToRemove = [...temporaryDirectories];
     temporaryDirectories.length = 0;
     await Promise.all(
@@ -78,7 +86,7 @@ describe('GitService', () => {
             'shell',
         ).session;
         const rootResolver = new ProjectRootResolver(database);
-        const gitLogger = new StructuredLogger(join(directory, '.logs'));
+        const gitLogger = createLogger(join(directory, '.logs'));
         const git = trackGitService(new GitService(rootResolver, gitLogger));
 
         await expect(git.referenceContext(session.id)).resolves.toEqual({
@@ -123,7 +131,7 @@ describe('GitService', () => {
             'shell',
         ).session;
         const rootResolver = new ProjectRootResolver(database);
-        const gitLogger = new StructuredLogger(join(directory, '.logs'));
+        const gitLogger = createLogger(join(directory, '.logs'));
         const git = trackGitService(new GitService(rootResolver, gitLogger));
 
         await expect(git.blame({ sessionId: session.id, path, line: 2 })).resolves.toMatchObject({
@@ -161,7 +169,7 @@ describe('GitService', () => {
             database.createProject(directory).id,
             'shell',
         ).session;
-        const logger = new StructuredLogger(join(directory, '.logs'));
+        const logger = createLogger(join(directory, '.logs'));
         const paths = new ProjectRootResolver(database);
         const git = trackGitService(new GitService(paths, logger));
         const [summary, concurrentSummary] = await Promise.all([
@@ -253,7 +261,7 @@ describe('GitService', () => {
             },
         });
         const events: ServerEvent[] = [];
-        const logger = new StructuredLogger(join(directory, '.logs'));
+        const logger = createLogger(join(directory, '.logs'));
         const service = new GitService(paths, logger, {
             emit: (event) => events.push(event),
         });
@@ -293,7 +301,7 @@ describe('GitService', () => {
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const service = new GitService(
             new ProjectRootResolver(database),
-            new StructuredLogger(join(directory, '.logs')),
+            createLogger(join(directory, '.logs')),
         );
         const git = trackGitService(service);
 
@@ -334,7 +342,7 @@ describe('GitService', () => {
             'shell',
         ).session;
         const rootResolver = new ProjectRootResolver(database);
-        const gitLogger = new StructuredLogger(join(directory, '.logs'));
+        const gitLogger = createLogger(join(directory, '.logs'));
         const git = trackGitService(
             new GitService(rootResolver, gitLogger, {
                 subscribe: () => Promise.resolve({ unsubscribe: () => Promise.resolve(undefined) }),
@@ -438,7 +446,7 @@ describe('GitService', () => {
             'shell',
         ).session;
         const rootResolver = new ProjectRootResolver(database);
-        const gitLogger = new StructuredLogger(join(directory, 'logs'));
+        const gitLogger = createLogger(join(directory, 'logs'));
         /**
          * The production runner resolves login-shell executables, so changing PATH cannot isolate this fixture.
          */
@@ -533,7 +541,7 @@ describe('GitService', () => {
             database.createProject(directory).id,
             'shell',
         ).session;
-        const logger = new StructuredLogger(join(directory, '.logs'));
+        const logger = createLogger(join(directory, '.logs'));
         const paths = new ProjectRootResolver(database);
         const summary = await trackGitService(new GitService(paths, logger)).summary(session.id);
 
@@ -591,7 +599,7 @@ describe('GitService', () => {
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const session = database.createSession(database.createProject(root).id, 'shell').session;
         const rootResolver = new ProjectRootResolver(database);
-        const gitLogger = new StructuredLogger(join(directory, 'logs'));
+        const gitLogger = createLogger(join(directory, 'logs'));
         const git = trackGitService(new GitService(rootResolver, gitLogger));
         const repo = (await git.summary(session.id)).repositories[0];
 
@@ -672,7 +680,7 @@ describe('GitService', () => {
         const primaryProject = database.createProject(root);
         database.createProject(linked);
         const session = database.createSession(primaryProject.id, 'shell').session;
-        const logger = new StructuredLogger(join(directory, 'logs'));
+        const logger = createLogger(join(directory, 'logs'));
         const paths = new ProjectRootResolver(database);
         const git = trackGitService(new GitService(paths, logger));
         const topology = await git.worktreeTopology(root);
@@ -763,7 +771,7 @@ describe('GitService', () => {
             'shell',
         ).session;
         const logDirectory = join(directory, '.logs');
-        const logger = new StructuredLogger(logDirectory, 'server-core', 'info');
+        const logger = createLogger(logDirectory, 'server-core', 'info');
         const git = trackGitService(new GitService(new ProjectRootResolver(database), logger));
 
         const summary = await git.summary(session.id);

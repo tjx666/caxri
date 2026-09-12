@@ -25,6 +25,55 @@ function createAgents(
 }
 
 describe('AgentCoordinator subagent lifecycle', () => {
+    it('actively demotes a quiet hook turn only after repeated unknown evidence and two minutes', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-hook-unknown-recovery-'));
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'claude');
+        const logger = new StructuredLogger(join(directory, 'logs'));
+        const snapshot = vi.fn<AgentAdapter['snapshot']>(() =>
+            Promise.resolve({
+                available: true,
+                observedAt: Date.now(),
+                provider: 'claude',
+                status: 'unknown',
+            }),
+        );
+        vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+        const coordinator = new AgentCoordinator(
+            database,
+            createAgents(snapshot),
+            () => {},
+            logger,
+        );
+        const terminalId = created.terminal!.id;
+        try {
+            coordinator.beginTerminalLaunch(terminalId, 'launch-1');
+            await coordinator.probeTerminalNow(terminalId);
+            coordinator.observeLifecycleSignal({
+                launchId: 'launch-1',
+                phase: 'turnStarted',
+                provider: 'claude',
+                terminalId,
+            });
+            await coordinator.probeTerminalNow(terminalId);
+            await coordinator.probeTerminalNow(terminalId);
+            await coordinator.probeTerminalNow(terminalId);
+            await vi.advanceTimersByTimeAsync(119_999);
+            expect(database.getSession(created.session.id)?.lastActivityState).toBe('running');
+            await vi.advanceTimersByTimeAsync(1);
+            expect(database.getSession(created.session.id)).toMatchObject({
+                lastActivityState: 'unknown',
+                attentionEpoch: 0,
+            });
+        } finally {
+            coordinator.close();
+            vi.useRealTimers();
+            database.close();
+            await logger.flush();
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
+
     it('ignores a Claude subagent completion for Session activity and attention', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-claude-subagent-finished-'));
         const database = new CaxriDatabase(join(directory, 'state.db'));
@@ -316,54 +365,65 @@ describe('AgentCoordinator subagent lifecycle', () => {
         }
     });
 
-    it('lets a probe demote a hook-started turn after the user interrupts it', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-claude-turn-interrupted-'));
-        const database = new CaxriDatabase(join(directory, 'state.db'));
-        const created = database.createSession(database.createProject(directory).id, 'claude');
-        const snapshot = vi.fn<AgentAdapter['snapshot']>(() =>
-            Promise.resolve({
-                available: true,
-                observedAt: Date.now(),
-                provider: 'claude',
-                status: 'unknown',
-            }),
-        );
-        const logger = new StructuredLogger(join(directory, 'logs'));
-        const coordinator = new AgentCoordinator(
-            database,
-            createAgents(snapshot),
-            () => {},
-            logger,
-        );
-        const terminalId = created.terminal!.id;
+    it.each(['escape', 'control'] as const)(
+        'lets a probe demote a hook-started turn after %s interrupts it',
+        async (entry) => {
+            const directory = await mkdtemp(join(tmpdir(), 'caxri-claude-turn-interrupted-'));
+            const database = new CaxriDatabase(join(directory, 'state.db'));
+            const created = database.createSession(database.createProject(directory).id, 'claude');
+            const snapshot = vi.fn<AgentAdapter['snapshot']>(() =>
+                Promise.resolve({
+                    available: true,
+                    observedAt: Date.now(),
+                    provider: 'claude',
+                    status: 'unknown',
+                }),
+            );
+            const logger = new StructuredLogger(join(directory, 'logs'));
+            const coordinator = new AgentCoordinator(
+                database,
+                createAgents(snapshot),
+                () => {},
+                logger,
+            );
+            const terminalId = created.terminal!.id;
 
-        try {
-            coordinator.beginTerminalLaunch(terminalId, 'launch-1');
-            await coordinator.probeTerminalNow(terminalId);
-            coordinator.observeLifecycleSignal({
-                launchId: 'launch-1',
-                phase: 'turnStarted',
-                provider: 'claude',
-                terminalId,
-            });
-            await coordinator.probeTerminalNow(terminalId);
-            expect(database.getSession(created.session.id)?.lastActivityState).toBe('running');
+            try {
+                coordinator.beginTerminalLaunch(terminalId, 'launch-1');
+                await coordinator.probeTerminalNow(terminalId);
+                coordinator.observeLifecycleSignal({
+                    launchId: 'launch-1',
+                    phase: 'turnStarted',
+                    provider: 'claude',
+                    terminalId,
+                });
+                await coordinator.probeTerminalNow(terminalId);
+                expect(database.getSession(created.session.id)?.lastActivityState).toBe('running');
 
-            /**
-             * Neither provider fires `Stop` for a user interrupt, so the standalone Escape is the only evidence that
-             * the turn ended; the next probe must be free to read the idle process again.
-             */
-            coordinator.observeInput(terminalId, '\u{1B}');
-            expect(database.getSession(created.session.id)?.lastActivityState).toBe('running');
-            await coordinator.probeTerminalNow(terminalId);
-            expect(database.getSession(created.session.id)?.lastActivityState).toBe('unknown');
-        } finally {
-            coordinator.close();
-            database.close();
-            await logger.flush();
-            await rm(directory, { recursive: true, force: true });
-        }
-    });
+                /**
+                 * Neither provider fires `Stop` for a user interrupt, so the standalone Escape is the only evidence
+                 * that the turn ended; the next probe must be free to read the idle process again.
+                 */
+                coordinator.observeInterrupt(terminalId, 'stale-launch');
+                await coordinator.probeTerminalNow(terminalId);
+                expect(database.getSession(created.session.id)?.lastActivityState).toBe('running');
+                if (entry === 'escape') coordinator.observeInput(terminalId, '\u{1B}');
+                else coordinator.observeInterrupt(terminalId, 'launch-1');
+                expect(database.getSession(created.session.id)?.lastActivityState).toBe('running');
+                await coordinator.probeTerminalNow(terminalId);
+                expect(database.getSession(created.session.id)?.lastActivityState).toBe('unknown');
+                const probe = vi.spyOn(coordinator, 'probeTerminal');
+                for (let count = 0; count < 20; count += 1)
+                    coordinator.observeInput(terminalId, '\u{1B}');
+                expect(probe).not.toHaveBeenCalled();
+            } finally {
+                coordinator.close();
+                database.close();
+                await logger.flush();
+                await rm(directory, { recursive: true, force: true });
+            }
+        },
+    );
 
     it('keeps deferred hook lifecycle authoritative over Claude metadata probes', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-claude-subagent-metadata-'));

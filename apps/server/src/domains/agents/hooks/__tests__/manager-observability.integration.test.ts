@@ -7,6 +7,7 @@ import { defaultAgentProviderSettings } from '@caxri/protocol';
 import { execFileAsync, StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { codexHookAdapter } from '../../providers/codex/hooks';
 import type { AgentLifecycleSignal, AgentSignalDecision } from '../contract';
 import { AgentHookManager } from '../manager';
 
@@ -157,6 +158,13 @@ describe('AgentHookManager observability', () => {
             expect(healthTransitions).toContain('notInstalled->installedPending');
             expect(healthTransitions).toContain('installedPending->active');
             expect(healthTransitions.at(-1)).toBe('active->notInstalled');
+            const activeFields = logRecords.find(
+                (record) =>
+                    record.event === 'agent_hooks.health_changed' &&
+                    (record.fields as Record<string, unknown>).to === 'active',
+            )?.fields as Record<string, unknown> | undefined;
+            expect(activeFields?.installedSchema).toBe(codexHookAdapter.schemaVersion);
+            expect(activeFields?.profileId).toMatch(/^[a-f\d]{16}$/u);
 
             const metricNames = logger
                 .metricSnapshot()

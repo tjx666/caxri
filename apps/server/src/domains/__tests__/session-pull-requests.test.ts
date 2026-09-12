@@ -105,6 +105,7 @@ interface Harness {
     runner: ReturnType<typeof vi.fn<ExternalStatusRunner>>;
     service: SessionPullRequestService;
     setTranscript: (lines: string[]) => Promise<void>;
+    terminal: TerminalRecord;
 }
 
 async function harness(options: {
@@ -114,6 +115,7 @@ async function harness(options: {
     sessions?: SessionRecord[];
     settings?: () => AppSettings;
     summary?: (sessionId: string) => Promise<GitSummary>;
+    onSessionRead?: (sessionId: string) => void;
 }): Promise<Harness> {
     const home = await temporaryDirectory('caxri-session-pr-home-');
     const cwd = '/project';
@@ -137,6 +139,10 @@ async function harness(options: {
     });
     const service = new SessionPullRequestService(
         {
+            getSession: (id) => {
+                options.onSessionRead?.(id);
+                return sessions.find((candidate) => candidate.id === id);
+            },
             getTerminal: (id) => (id === terminal.id ? terminal : undefined),
             listSessions: () => sessions,
         },
@@ -155,7 +161,7 @@ async function harness(options: {
     );
     const setTranscript = (lines: string[]): Promise<void> =>
         writeFile(transcriptPath, `${lines.join('\n')}\n`);
-    return { emitted, runner, service, setTranscript };
+    return { emitted, runner, service, setTranscript, terminal };
 }
 
 const createdPullRequestLines = [
@@ -227,6 +233,151 @@ const codexCreatedPullRequestLines = [
 ];
 
 describe('SessionPullRequestService', () => {
+    it('refreshes a branch projection immediately when the Workbench Root changes', async () => {
+        const sessions = [session()];
+        const { service } = await harness({
+            sessions,
+            now: () => 0,
+            summary: () =>
+                Promise.resolve(
+                    gitSummary(sessions[0].rootPath === '/project' ? 'feat/a' : 'feat/b'),
+                ),
+            gh: (arguments_) => {
+                const number =
+                    arguments_.includes('--head=feat/a') || arguments_.includes('42') ? 42 : 43;
+                return Promise.resolve(
+                    arguments_[1] === 'list'
+                        ? JSON.stringify([{ number, state: 'OPEN' }])
+                        : pullRequestJson({
+                              number,
+                              state: 'OPEN',
+                              url: `https://github.com/lobehub/lobehub/pull/${number}`,
+                          }),
+                );
+            },
+        });
+        await service.refresh();
+        expect(service.snapshot().pullRequests['session-1']?.number).toBe(42);
+        sessions[0] = session({ rootPath: '/other-project', workbenchProjectId: 'project-2' });
+        expect(service.snapshot().pullRequests['session-1']).toBeUndefined();
+        await service.refresh();
+        expect(service.snapshot().pullRequests['session-1']?.number).toBe(43);
+    });
+
+    it('discards an in-flight lookup when its Workbench Root changes', async () => {
+        const sessions = [session()];
+        const started = Promise.withResolvers<void>();
+        const release = Promise.withResolvers<void>();
+        const { service } = await harness({
+            sessions,
+            now: () => 0,
+            summary: () =>
+                Promise.resolve(
+                    gitSummary(sessions[0].rootPath === '/project' ? 'feat/a' : 'main'),
+                ),
+            gh: async (arguments_) => {
+                if (arguments_[1] === 'list') {
+                    started.resolve();
+                    await release.promise;
+                    return JSON.stringify([{ number: 42, state: 'OPEN' }]);
+                }
+                return pullRequestJson({ number: 42, state: 'OPEN' });
+            },
+        });
+        const refresh = service.refresh();
+        await started.promise;
+        sessions[0] = session({ rootPath: '/other-project', workbenchProjectId: 'project-2' });
+        release.resolve();
+        await refresh;
+        expect(service.snapshot().pullRequests).toEqual({});
+    });
+
+    it('discovers the primary Agent PR without waiting for the previous branch cache to expire', async () => {
+        const sessions = [session()];
+        const { service, setTranscript } = await harness({
+            sessions,
+            now: () => 0,
+            branch: 'main',
+            gh: () => Promise.resolve(pullRequestJson()),
+        });
+        await service.refresh();
+        expect(service.snapshot().pullRequests).toEqual({});
+        await setTranscript(createdPullRequestLines);
+        sessions[0] = session({ primaryAgentTerminalId: 'terminal-1' });
+        service.snapshot();
+        await service.refresh();
+        expect(service.snapshot().pullRequests['session-1']?.source).toBe('agent');
+    });
+
+    it('refreshes a changed Session that already settled while another Session is still pending', async () => {
+        const sessions = [session()];
+        const firstCommitted = Promise.withResolvers<void>();
+        const releaseSecond = Promise.withResolvers<void>();
+        let hasSecond = false;
+        const { service } = await harness({
+            sessions,
+            now: () => 0,
+            onSessionRead: (id) => {
+                if (hasSecond && id === 'session-1') firstCommitted.resolve();
+            },
+            summary: async (id) => {
+                if (id === 'session-2') {
+                    await releaseSecond.promise;
+                    return gitSummary('main');
+                }
+                return gitSummary(sessions[0].rootPath === '/project' ? 'feat/a' : 'feat/b');
+            },
+            gh: (arguments_) => {
+                const number =
+                    arguments_.includes('--head=feat/a') || arguments_.includes('42') ? 42 : 43;
+                return Promise.resolve(
+                    arguments_[1] === 'list'
+                        ? JSON.stringify([{ number, state: 'OPEN' }])
+                        : pullRequestJson({
+                              number,
+                              state: 'OPEN',
+                              url: `https://github.com/lobehub/lobehub/pull/${number}`,
+                          }),
+                );
+            },
+        });
+        await service.refresh();
+        sessions.push(session({ id: 'session-2' }));
+        hasSecond = true;
+        const pending = service.refresh();
+        await firstCommitted.promise;
+        sessions[0] = session({ rootPath: '/other-project', workbenchProjectId: 'project-2' });
+        expect(service.snapshot().pullRequests['session-1']).toBeUndefined();
+        releaseSecond.resolve();
+        await pending;
+        expect(service.snapshot().pullRequests['session-1']?.number).toBe(43);
+    });
+
+    it.each(['agentSessionId', 'agentCwd'] as const)(
+        'discards an in-flight Agent projection when the same terminal changes %s',
+        async (field) => {
+            const started = Promise.withResolvers<void>();
+            const release = Promise.withResolvers<void>();
+            const { service, setTranscript, terminal } = await harness({
+                now: () => 0,
+                branch: 'main',
+                gh: async () => {
+                    started.resolve();
+                    await release.promise;
+                    return pullRequestJson();
+                },
+            });
+            await setTranscript(createdPullRequestLines);
+            const pending = service.refresh();
+            await started.promise;
+            terminal[field] =
+                field === 'agentSessionId' ? 'replacement-session' : '/replacement-cwd';
+            release.resolve();
+            await pending;
+            expect(service.snapshot().pullRequests).toEqual({});
+        },
+    );
+
     it('resolves the PR a Codex Agent created from its rollout while the Session sits on main', async () => {
         const home = await temporaryDirectory('caxri-session-pr-codex-home-');
         await writeCodexRollout(home, codexCreatedPullRequestLines);
@@ -249,6 +400,7 @@ describe('SessionPullRequestService', () => {
         );
         const service = new SessionPullRequestService(
             {
+                getSession: () => session({ primaryAgentTerminalId: terminal.id }),
                 getTerminal: (id) => (id === terminal.id ? terminal : undefined),
                 listSessions: () => [session({ primaryAgentTerminalId: terminal.id })],
             },

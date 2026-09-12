@@ -56,6 +56,7 @@ private struct RestoreResponse: Encodable {
 
 private enum PasteboardFailure: Error {
     case invalidInput
+    case ownershipMismatch
     case missingAdvertisedData
     case writeFailed
 }
@@ -116,7 +117,7 @@ private func captureStablePayload() throws -> (payload: PasteboardSnapshotPayloa
     let payload = try capturePayload()
     let generationAfterRead = pasteboard.changeCount
     guard generationBeforeRead == generationAfterRead else {
-        throw PasteboardFailure.invalidInput
+        throw PasteboardFailure.ownershipMismatch
     }
     return (payload, generationAfterRead)
 }
@@ -229,7 +230,7 @@ do {
         let image = NSImage(pasteboard: pasteboard)
         let generationAfterRead = pasteboard.changeCount
         guard image != nil && generationBeforeRead == generationAfterRead else {
-            throw PasteboardFailure.invalidInput
+            throw PasteboardFailure.ownershipMismatch
         }
         try writeOutput(GenerationResponse(generation: generationAfterRead))
     case "claim-text":
@@ -238,7 +239,7 @@ do {
         let text = pasteboard.string(forType: .string)
         let generationAfterRead = pasteboard.changeCount
         guard text == request.text && generationBeforeRead == generationAfterRead else {
-            throw PasteboardFailure.invalidInput
+            throw PasteboardFailure.ownershipMismatch
         }
         try writeOutput(GenerationResponse(generation: generationAfterRead))
     case "snapshot":
@@ -292,5 +293,9 @@ do {
     }
 } catch {
     // Clipboard contents and native error details must never cross into logs or test artifacts.
+    // clipboard.ts reserves exit 2 for invalid protocol and exit 3 for an unowned/unstable generation.
+    if case PasteboardFailure.ownershipMismatch = error { exit(3) }
+    if case PasteboardFailure.invalidInput = error { exit(2) }
+    if error is DecodingError { exit(2) }
     exit(1)
 }

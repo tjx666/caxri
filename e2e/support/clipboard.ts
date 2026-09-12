@@ -50,8 +50,57 @@ export interface ClipboardNativeAdapter {
 
 export type ClipboardFixture = 'custom-formats' | 'external-write';
 
+type NativeFailureReason =
+    | 'input_limit'
+    | 'output_limit'
+    | 'ownership_mismatch'
+    | 'process_failure'
+    | 'protocol_failure'
+    | 'spawn_failure'
+    | 'timeout';
+
+const nativeStages = [
+    'claim-image',
+    'claim-text',
+    'snapshot',
+    'restore',
+    'matches-snapshot',
+    'matches-custom-formats',
+    'matches-external-write',
+    'write-custom-formats',
+    'write-external-write',
+    'metadata',
+    'native-helper',
+] as const;
+type NativeStage = (typeof nativeStages)[number];
+
+/**
+ * Only closed metadata crosses the helper boundary; never retain native errors, arguments, or output as a cause.
+ */
+export class ClipboardNativeError extends Error {
+    constructor(
+        readonly reason: NativeFailureReason,
+        readonly stage: NativeStage,
+        readonly durationMs: number,
+    ) {
+        super(`Native E2E clipboard ${stage} failed: ${reason} (${durationMs}ms)`);
+        this.name = 'ClipboardNativeError';
+    }
+}
+
 function contentFreeNativeError(action: string): Error {
-    return new Error(`Could not ${action} the native E2E clipboard`);
+    return new ClipboardNativeError(
+        'protocol_failure',
+        nativeStages.find((stage) => stage === action) ?? 'metadata',
+        0,
+    );
+}
+
+/**
+ * Preserve only our closed diagnostic type; arbitrary adapter errors may contain clipboard data in their cause.
+ */
+function sanitizedClipboardFailure(error: unknown, message: string): Error {
+    return error instanceof ClipboardNativeError ? error : new Error(message);
 }
 
 export interface NativeHelperRunOptions {
@@ -79,48 +128,71 @@ export async function runNativeHelper(
     input?: string,
     options: NativeHelperRunOptions = defaultNativeHelperRunOptions,
 ): Promise<string> {
+    const startedAt = performance.now();
+    const stage = nativeStages.find((value) => value === command) ?? 'native-helper';
+    const failure = (reason: NativeFailureReason) =>
+        new ClipboardNativeError(reason, stage, Math.round(performance.now() - startedAt));
     if (input && Buffer.byteLength(input) > options.maxInputBytes) {
-        throw contentFreeNativeError(`run ${command} for`);
+        throw failure('input_limit');
     }
     return new Promise((resolve, reject) => {
-        const child = spawn(options.executablePath, [options.helperPath, command], {
-            killSignal: 'SIGKILL',
-            stdio: ['pipe', 'pipe', 'pipe'],
-            timeout: options.timeoutMs,
-        });
+        let child: ReturnType<typeof spawn>;
+        try {
+            child = spawn(options.executablePath, [options.helperPath, command], {
+                stdio: ['pipe', 'pipe', 'pipe'],
+            });
+        } catch {
+            reject(failure('spawn_failure'));
+            return;
+        }
         const output: Buffer[] = [];
         let outputBytes = 0;
         let isSettled = false;
-        const rejectOnce = (shouldKillChild = false): void => {
+        let terminationReason: NativeFailureReason | undefined;
+        const timer = setTimeout(() => {
+            terminationReason ??= 'timeout';
+            child.kill('SIGKILL');
+        }, options.timeoutMs);
+        timer.unref();
+        const rejectOnce = (reason: NativeFailureReason): void => {
             if (isSettled) return;
             isSettled = true;
-            if (shouldKillChild) child.kill('SIGKILL');
-            reject(contentFreeNativeError(`run ${command} for`));
+            clearTimeout(timer);
+            reject(failure(reason));
         };
-        child.once('error', () => rejectOnce());
-        child.stdout.on('data', (chunk: Buffer) => {
-            if (isSettled) return;
+        child.once('error', () => rejectOnce('spawn_failure'));
+        child.stdout!.on('data', (chunk: Buffer) => {
+            if (isSettled || terminationReason) return;
             outputBytes += chunk.byteLength;
             if (outputBytes > options.maxOutputBytes) {
-                rejectOnce(true);
+                terminationReason = 'output_limit';
+                child.kill('SIGKILL');
                 return;
             }
             output.push(Buffer.from(chunk));
         });
-        child.stderr.resume();
-        child.stdin.on('error', () => {
+        child.stderr!.resume();
+        child.stdin!.on('error', () => {
             // The exit handler below reports a content-free failure if the helper closes stdin early.
         });
         child.once('close', (code) => {
             if (isSettled) return;
-            if (code !== 0) {
-                rejectOnce();
+            if (terminationReason || code !== 0) {
+                rejectOnce(
+                    terminationReason ??
+                        (code === 3
+                            ? 'ownership_mismatch'
+                            : code === 2
+                              ? 'protocol_failure'
+                              : 'process_failure'),
+                );
                 return;
             }
             isSettled = true;
+            clearTimeout(timer);
             resolve(Buffer.concat(output).toString('utf8'));
         });
-        child.stdin.end(input);
+        child.stdin!.end(input);
     });
 }
 
@@ -152,67 +224,85 @@ function metadata(record: Record<string, unknown>, action: string): ClipboardMet
     };
 }
 
-const nativePasteboard: ClipboardNativeAdapter = {
-    claimImage: async () => {
-        const record = parseNativeObject(await runNativeHelper('claim-image'), 'image claim');
-        return numericField(record, 'generation', 'image claim');
-    },
-    claimText: async (expectedText) => {
-        const record = parseNativeObject(
-            await runNativeHelper('claim-text', JSON.stringify({ text: expectedText })),
-            'text claim',
-        );
-        return numericField(record, 'generation', 'text claim');
-    },
-    matchesFixture: async (fixture) => {
-        const record = parseNativeObject(
-            await runNativeHelper(`matches-${fixture}`),
-            'fixture comparison',
-        );
-        if (typeof record.matches !== 'boolean') {
-            throw contentFreeNativeError('parse fixture comparison metadata from');
+/**
+ * Injects the transport so malformed native responses can be tested without touching the desktop pasteboard.
+ */
+export function createClipboardNativeAdapter(
+    run: typeof runNativeHelper = runNativeHelper,
+): ClipboardNativeAdapter {
+    const read = async <T>(
+        command: NativeStage,
+        input: string | undefined,
+        decode: (record: Record<string, unknown>) => T,
+    ): Promise<T> => {
+        const startedAt = performance.now();
+        try {
+            return decode(parseNativeObject(await run(command, input), command));
+        } catch (error) {
+            if (error instanceof ClipboardNativeError && error.stage !== 'metadata') throw error;
+            throw new ClipboardNativeError(
+                'protocol_failure',
+                command,
+                Math.round(performance.now() - startedAt),
+            );
         }
-        return record.matches;
-    },
-    matchesSnapshot: async (payload) => {
-        const record = parseNativeObject(
-            await runNativeHelper('matches-snapshot', JSON.stringify({ payload })),
-            'snapshot comparison',
-        );
-        if (typeof record.matches !== 'boolean') {
-            throw contentFreeNativeError('parse snapshot comparison metadata from');
-        }
-        return record.matches;
-    },
-    restore: async (payload, expectedGeneration) => {
-        const record = parseNativeObject(
-            await runNativeHelper('restore', JSON.stringify({ expectedGeneration, payload })),
-            'restore',
-        );
-        const status = record.status;
-        if (status !== 'restored' && status !== 'skipped-external-write') {
-            throw contentFreeNativeError('parse restore metadata from');
-        }
-        return {
-            generation: numericField(record, 'generation', 'restore'),
-            status,
-        };
-    },
-    snapshot: async () => {
-        const record = parseNativeObject(await runNativeHelper('snapshot'), 'snapshot');
-        if (typeof record.payload !== 'string' || record.payload.length === 0) {
-            throw contentFreeNativeError('parse snapshot metadata from');
-        }
-        return { ...metadata(record, 'snapshot'), payload: record.payload };
-    },
-    writeFixture: async (fixture) => {
-        const record = parseNativeObject(
-            await runNativeHelper(`write-${fixture}`),
-            'fixture write',
-        );
-        return metadata(record, 'fixture write');
-    },
-};
+    };
+    return {
+        claimImage: async () => {
+            return read('claim-image', undefined, (record) =>
+                numericField(record, 'generation', 'image claim'),
+            );
+        },
+        claimText: async (expectedText) => {
+            return read('claim-text', JSON.stringify({ text: expectedText }), (record) =>
+                numericField(record, 'generation', 'text claim'),
+            );
+        },
+        matchesFixture: async (fixture) => {
+            return read(`matches-${fixture}`, undefined, (record) => {
+                if (typeof record.matches !== 'boolean') {
+                    throw contentFreeNativeError('parse fixture comparison metadata from');
+                }
+                return record.matches;
+            });
+        },
+        matchesSnapshot: async (payload) => {
+            return read('matches-snapshot', JSON.stringify({ payload }), (record) => {
+                if (typeof record.matches !== 'boolean') {
+                    throw contentFreeNativeError('parse snapshot comparison metadata from');
+                }
+                return record.matches;
+            });
+        },
+        restore: async (payload, expectedGeneration) => {
+            return read('restore', JSON.stringify({ expectedGeneration, payload }), (record) => {
+                const status = record.status;
+                if (status !== 'restored' && status !== 'skipped-external-write') {
+                    throw contentFreeNativeError('parse restore metadata from');
+                }
+                return {
+                    generation: numericField(record, 'generation', 'restore'),
+                    status,
+                };
+            });
+        },
+        snapshot: async () => {
+            return read('snapshot', undefined, (record) => {
+                if (typeof record.payload !== 'string' || record.payload.length === 0) {
+                    throw contentFreeNativeError('parse snapshot metadata from');
+                }
+                return { ...metadata(record, 'snapshot'), payload: record.payload };
+            });
+        },
+        writeFixture: async (fixture) => {
+            return read(`write-${fixture}`, undefined, (record) =>
+                metadata(record, 'fixture write'),
+            );
+        },
+    };
+}
+
+const nativePasteboard = createClipboardNativeAdapter();
 
 /**
  * Owns one clipboard snapshot and the last pasteboard generation explicitly produced by this E2E launch. Restore is
@@ -252,8 +342,8 @@ export class ClipboardSnapshot {
         if (this.restorePromise) throw new Error('The E2E clipboard restore is already finalized');
         try {
             this.ownedGeneration = await this.native.claimImage();
-        } catch {
-            throw new Error('Could not claim E2E image clipboard ownership');
+        } catch (error) {
+            throw sanitizedClipboardFailure(error, 'Could not claim E2E image clipboard ownership');
         }
     }
 
@@ -261,16 +351,16 @@ export class ClipboardSnapshot {
         if (this.restorePromise) throw new Error('The E2E clipboard restore is already finalized');
         try {
             this.ownedGeneration = await this.native.claimText(expectedText);
-        } catch {
-            throw new Error('Could not claim E2E text clipboard ownership');
+        } catch (error) {
+            throw sanitizedClipboardFailure(error, 'Could not claim E2E text clipboard ownership');
         }
     }
 
     async matchesSnapshot(): Promise<boolean> {
         try {
             return await this.native.matchesSnapshot(this.record.payload);
-        } catch {
-            throw new Error('Could not compare the E2E clipboard snapshot');
+        } catch (error) {
+            throw sanitizedClipboardFailure(error, 'Could not compare the E2E clipboard snapshot');
         }
     }
 
@@ -286,8 +376,8 @@ export class ClipboardSnapshot {
                  * second helper invocation would race a later external write and misreport a successful restore.
                  */
                 return outcome;
-            } catch {
-                throw new Error('Could not restore the E2E clipboard');
+            } catch (error) {
+                throw sanitizedClipboardFailure(error, 'Could not restore the E2E clipboard');
             }
         })();
         return this.restorePromise;
@@ -365,8 +455,8 @@ export async function snapshotClipboard(
 ): Promise<ClipboardSnapshot> {
     try {
         return new ClipboardSnapshot(await native.snapshot(), native);
-    } catch {
-        throw new Error('Could not snapshot the E2E clipboard');
+    } catch (error) {
+        throw sanitizedClipboardFailure(error, 'Could not snapshot the E2E clipboard');
     }
 }
 

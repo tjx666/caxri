@@ -76,6 +76,12 @@ function decideTerminal(
     const deselectedAt = input.deselectedAt(terminal.sessionId);
     if (deselectedAt === undefined) return undefined;
     const sample = input.sample(terminal.id);
+    /**
+     * Activation owns the launch timestamp. While it is pending, Server age cannot prove this new Agent is idle; the
+     * managed launch timeout remains responsible for a launch that never activates.
+     */
+    if (terminal.lastAgentProcessState === 'starting' && sample?.launchedAt === undefined)
+        return undefined;
     if (sample?.turnInFlight) return undefined;
     if (
         session.primaryAgentTerminalId === terminal.id &&

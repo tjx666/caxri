@@ -1,9 +1,11 @@
-import { chmod, mkdir, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { chmod, lstat, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import process from 'node:process';
 
 import type { AgentProvider } from '@caxri/protocol';
 import { createE2EAgentEnvironment } from '@caxri/system';
+import { z } from 'zod';
 
 import { delegationFixtureSource } from '../../../../scripts/agent-delegation-fixture';
 import { grokAcceptanceSource } from './grok-fixture';
@@ -14,6 +16,18 @@ export const acceptanceAgentFixtureIds = [
     'agent-delegation-v1',
 ] as const;
 type AcceptanceAgentFixtureId = (typeof acceptanceAgentFixtureIds)[number];
+const AGENT_FEATURES_AVAILABILITY = 'provider-availability.json';
+const agentFeaturesAvailabilitySchema = z.strictObject({
+    fixtureId: z.literal('agent-features-v1'),
+    schemaVersion: z.literal(1),
+    unavailableProviders: z.array(z.literal('codex')).max(1),
+});
+const agentFeaturesAvailabilityUpdateSchema = z.strictObject({
+    available: z.boolean(),
+    fixtureId: z.literal('agent-features-v1'),
+    provider: z.literal('codex'),
+    userDataDir: z.string().min(1),
+});
 
 export const acceptanceAgentFixtureProviders = {
     'agent-features-v1': ['claude', 'codex'],
@@ -26,6 +40,69 @@ export interface PreparedAcceptanceAgentFixture<Provider extends AgentProvider =
     executables: Partial<Record<AgentProvider, string>> & Record<Provider, string>;
     fixtureId: AcceptanceAgentFixtureId;
     root: string;
+}
+
+async function readAgentFeaturesAvailability(
+    root: string,
+): Promise<z.infer<typeof agentFeaturesAvailabilitySchema>> {
+    const target = join(root, AGENT_FEATURES_AVAILABILITY);
+    try {
+        const metadata = await lstat(target);
+        if (metadata.isSymbolicLink() || !metadata.isFile()) {
+            throw new Error('Acceptance Agent provider availability must be a direct regular file');
+        }
+        return agentFeaturesAvailabilitySchema.parse(JSON.parse(await readFile(target, 'utf8')));
+    } catch (error: unknown) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        return {
+            fixtureId: 'agent-features-v1',
+            schemaVersion: 1,
+            unavailableProviders: [],
+        };
+    }
+}
+
+async function unlinkIfPresent(path: string): Promise<void> {
+    try {
+        await unlink(path);
+    } catch (error: unknown) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
+}
+
+/**
+ * Changes one fixed provider availability flag beneath an owned Agent fixture profile. The closed input and strict
+ * state schema prevent Acceptance runners from injecting executables, paths, source, or environment values.
+ */
+export async function setAcceptanceAgentFixtureProviderAvailability(options: {
+    available: boolean;
+    fixtureId: string;
+    provider: string;
+    userDataDir: string;
+}): Promise<void> {
+    const update = agentFeaturesAvailabilityUpdateSchema.parse(options);
+    const root = join(update.userDataDir, 'acceptance-agents');
+    await mkdir(root, { recursive: true });
+    const current = await readAgentFeaturesAvailability(root);
+    const unavailableProviders = update.available ? [] : (['codex'] as const);
+    if (JSON.stringify(current.unavailableProviders) === JSON.stringify(unavailableProviders))
+        return;
+    const target = join(root, AGENT_FEATURES_AVAILABILITY);
+    const temporary = join(root, `.${AGENT_FEATURES_AVAILABILITY}.${randomUUID()}.tmp`);
+    await writeFile(
+        temporary,
+        `${JSON.stringify({
+            fixtureId: 'agent-features-v1',
+            schemaVersion: 1,
+            unavailableProviders,
+        })}\n`,
+        { encoding: 'utf8', flag: 'wx', mode: 0o600 },
+    );
+    try {
+        await rename(temporary, target);
+    } finally {
+        await unlinkIfPresent(temporary);
+    }
 }
 
 export function validateAcceptanceAgentFixture(
@@ -110,7 +187,7 @@ const currentTitle = (sessionId) => {
     return undefined;
   }
 };
-// Codex is the only provider whose fixture writes a title: it generates its thread name natively.
+// Native Codex titles remain distinct from Caxri's low-cost generated title.
 const nativeCodexTitle = (count) => count === 1 ? 'Codex Native Title' : 'Codex Renewed Title';
 const generatedPasteSummary = 'Actual error: build failed with code E42 at src/task.ts:17; repeated progress lines were omitted.';
 
@@ -140,9 +217,19 @@ if (isClaudeGeneration || isCodexGeneration) {
   process.stdin.setEncoding('utf8');
   process.stdin.on('data', (chunk) => { input += chunk; });
   process.stdin.on('end', () => {
-    // The long-paste summary is Caxri's only low-cost model call for either provider, so a call
-    // without those instructions is a regression that must fail the Acceptance run loudly.
-    if (!input.includes('If the text is a log, build trace, test output, or diagnostic dump:')) {
+    // Claude carries system instructions in argv; Codex prepends them to stdin. Recognize only
+    // the two product transformations so an unrelated invocation still fails the fixture.
+    const titleInstruction = 'Generate a concise coding-session title from the conversation below.';
+    const pasteSummaryInstruction = 'If the text is a log, build trace, test output, or diagnostic dump:';
+    const systemPromptIndex = process.argv.indexOf('--system-prompt');
+    const systemPrompt = systemPromptIndex >= 0 ? process.argv[systemPromptIndex + 1] : undefined;
+    const isTitle = provider === 'claude'
+      ? systemPrompt?.startsWith(titleInstruction)
+      : input.startsWith(titleInstruction);
+    const isPasteSummary = provider === 'claude'
+      ? systemPrompt?.includes(pasteSummaryInstruction)
+      : input.includes(pasteSummaryInstruction);
+    if (!isTitle && !isPasteSummary) {
       appendReceipt({ kind: 'unexpectedTextGeneration', provider });
       process.exit(7);
       return;
@@ -150,7 +237,8 @@ if (isClaudeGeneration || isCodexGeneration) {
     const mode = consumeMode();
     const count = nextCount();
     const sessionId = mode.sessionId ?? '';
-    const text = mode.kind === 'same' ? currentTitle(sessionId) : (mode.title ?? generatedPasteSummary);
+    const fallbackText = isTitle ? 'Repair Session Naming' : generatedPasteSummary;
+    const text = mode.kind === 'same' ? currentTitle(sessionId) : (mode.title ?? fallbackText);
     appendReceipt({
       argumentContainsPrivateInput: process.argv.join(' ').includes(privateMarker),
       call: count,
@@ -160,8 +248,8 @@ if (isClaudeGeneration || isCodexGeneration) {
     });
     const finish = () => {
       if (mode.kind === 'fail') process.exit(7);
-      if (provider === 'claude') process.stdout.write(text || generatedPasteSummary);
-      else process.stdout.write(JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', text: text || generatedPasteSummary } }) + '\n');
+      if (provider === 'claude') process.stdout.write(text || fallbackText);
+      else process.stdout.write(JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', text: text || fallbackText } }) + '\n');
     };
     if (mode.kind === 'hold') waitForRelease(finish);
     else finish();
@@ -287,7 +375,10 @@ const requestAttention = () => {
   invokeHook('PermissionRequest');
 };
 
-const requiredInitialHooks = ['SessionStart', 'UserPromptSubmit', 'Stop'];
+// Claude begins turns through UserPromptSubmit; only Codex installs a SessionStart binding.
+const requiredInitialHooks = provider === 'codex'
+  ? ['SessionStart', 'UserPromptSubmit', 'Stop']
+  : ['UserPromptSubmit', 'Stop'];
 const initialHooksReady = () => {
   try {
     const hooks = hookDocument().hooks;
@@ -424,7 +515,7 @@ export function prepareAcceptanceAgentFixture(
     options: PrepareAcceptanceAgentFixtureOptions & {
         fixtureId: 'agent-features-v1';
     },
-): Promise<PreparedAcceptanceAgentFixture<'claude' | 'codex'>>;
+): Promise<PreparedAcceptanceAgentFixture>;
 export function prepareAcceptanceAgentFixture(
     options: PrepareAcceptanceAgentFixtureOptions & { fixtureId: 'agent-delegation-v1' },
 ): Promise<PreparedAcceptanceAgentFixture<AgentProvider>>;
@@ -441,9 +532,16 @@ export async function prepareAcceptanceAgentFixture(
     const root = join(options.userDataDir, 'acceptance-agents');
     const bin = join(root, 'bin');
     await mkdir(bin, { recursive: true });
+    const availability =
+        options.fixtureId === 'agent-features-v1'
+            ? await readAgentFeaturesAvailability(root)
+            : undefined;
+    const providers = acceptanceAgentFixtureProviders[options.fixtureId].filter(
+        (provider) => !availability?.unavailableProviders.includes(provider as 'codex'),
+    );
     const executables = Object.fromEntries(
         await Promise.all(
-            acceptanceAgentFixtureProviders[options.fixtureId].map(async (provider) => {
+            providers.map(async (provider) => {
                 const executable = join(bin, provider);
                 await writeFile(
                     executable,
@@ -490,9 +588,11 @@ export async function prepareAcceptanceAgentEnvironment(options: {
             })
         ).environment;
     }
-    return createE2EAgentEnvironment({
+    const environment = await createE2EAgentEnvironment({
         fixtureRoot: join(options.userDataDir, 'acceptance-agents'),
         mode: { mode: 'blocked' },
         sourceEnvironment: options.sourceEnvironment ?? process.env,
     });
+    // Hook health and permission checks need the owned bridge even when provider launches are blocked.
+    return { ...environment, CAXRI_E2E_AGENT_HOOKS: '1' };
 }

@@ -733,6 +733,23 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                     );
                 return;
             }
+            case 'agent.automaticNamingUnavailable': {
+                const bootstrap = useWorkbenchStore.getState().bootstrap;
+                const session = bootstrap?.sessions.find(
+                    (item) => item.id === event.payload.sessionId,
+                );
+                const project = bootstrap?.projects.find((item) => item.id === session?.projectId);
+                const subject =
+                    [project?.displayTitle, session?.displayTitle].filter(Boolean).join(' / ') ||
+                    'Agent';
+                pushToast(
+                    'info',
+                    event.payload.reason === 'sandboxBoundaryConflict'
+                        ? `${subject}: Automatic naming is blocked by the Project sandbox boundary. Choose a more specific Project folder and restart the Agent.`
+                        : `${subject}: Automatic naming is unavailable because its sandbox paths could not be verified. Restart the Agent after correcting the paths.`,
+                );
+                return;
+            }
             case 'agent.notification': {
                 const bootstrap = useWorkbenchStore.getState().bootstrap;
                 const session = bootstrap?.sessions.find(

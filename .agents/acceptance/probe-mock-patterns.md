@@ -35,6 +35,21 @@ Existing examples include `apps/desktop/src/main/__tests__/workbench-root-author
 `apps/desktop/src/main/__tests__/main-methods-dialogs.test.ts`, and the focused Electron specs
 that set `CAXRI_TEST_ROOT_PATHS`.
 
+## Verify PR links without opening a native dialog or browser
+
+The frozen `session-pr-open-parity` case has a fixed external-link fixture in
+`apps/desktop/src/main/acceptance-external-open.ts`. The Acceptance launcher enables it only
+for that case; Main also requires the Acceptance and E2E gates. It accepts only
+`https://github.com/tjx666/project/pull/42` and never invokes a native confirmation or browser.
+Before each real UI action, write an increasing positive `sequence` and one `decision`
+(`confirm-success`, `cancel`, or `confirm-reject`) to
+`acceptance-external-open-command.json` under the owned runtime's `userDataDir`.
+The Main handler records its actual confirmation copy and the fixed open outcome in
+`acceptance-external-open-receipt.jsonl` in the same profile. Copy and inspect that receipt
+before the stop adapter removes the profile. The fixture never selects the trust action;
+missing, repeated, malformed, or foreign inputs fail closed. This proves the surrounding
+product flow and confirmation copy, not a native dialog or an external browser.
+
 ## Queue deterministic Project choices without a picker
 
 **Situation:** One Acceptance case must add or switch between multiple Projects.
@@ -91,6 +106,12 @@ request rate is high enough to intersect a sub-second window. Start the loop fir
 failure concurrently from the shell.
 
 ## Exercise Agent lifecycle behavior through fixed fake processes
+
+The fixed Agent also supports Caxri's two low-cost transformations. Automatic naming carries
+Claude's title instructions in `--system-prompt` and Codex's instructions at the start of stdin;
+the conversation stays on stdin. The fixture returns a fixed title without interpreting the
+conversation. Unknown transformations still fail, so normal naming must not be simulated with a
+long-paste summary request.
 
 **Situation:** A desktop case needs Claude Code or Codex discovery, hooks, terminal interaction,
 metadata, or provider-side renaming without using the developer's installed provider or data.

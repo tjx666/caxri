@@ -11,6 +11,12 @@ platform checks, Electron E2E, the final gate, and unsigned arm64 GitHub Release
 `self-hosted`, `macOS`, `ARM64`, `caxri-ci`, `caxri-e2e`, and `caxri-release`. There is no
 GitHub-hosted runner route.
 
+Superseded PR runs must release the same-ref concurrency slot. The E2E job and final gate use
+`!cancelled()` at job scope: dependency failures still reach the gate, while cancellation stops
+obsolete jobs from waiting for the runner. Step-level `always()` cleanup remains mandatory.
+This follows [GitHub's cancellation guidance](https://docs.github.com/en/actions/how-tos/troubleshoot-workflows#canceling-workflows).
+Do not treat a cancelled run or its skipped gate as successful validation of a deliverable head.
+
 The runner deliberately reuses an existing macOS user. This is a trust decision, not an isolation
 boundary: workflow code can access anything that user can access, including Home and Keychain
 material. Temporary profiles, blocked Agent discovery, owner-scoped cleanup, and a clean checkout

@@ -1,7 +1,9 @@
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import process from 'node:process';
+import { promisify } from 'node:util';
 
 import type { AppSettings, BootstrapState } from '@caxri/protocol';
 
@@ -41,6 +43,8 @@ function invokeHook(event) {
     input: JSON.stringify({ session_id: 'codex-compaction-e2e' }),
   });
 }
+fs.writeFileSync(path.join(process.env.CODEX_HOME, 'endpoint-ref'), [process.env.CAXRI_AGENT_ENDPOINT_HOST_ID, process.env.CAXRI_AGENT_ENDPOINT_ID, process.env.CAXRI_AGENT_ENDPOINT_GENERATION].join(':'));
+process.on('SIGINT', () => process.stdout.write('SIGINT received\r\n'));
 let step = 0;
 process.stdin.setRawMode?.(true);
 process.stdin.on('data', (data) => {
@@ -72,7 +76,12 @@ process.stdout.write('Compaction Agent ready\r\n');
         agentMode,
         userDataDir: userData,
         testRootPath: root,
-        windowMode: 'visible',
+        /**
+         * Native pointer events can leave the row after Playwright hovers it in a visible window. Keep this DOM
+         * workflow hidden so the hover delay is controlled by its own pointer; visible behavior is covered by
+         * Acceptance.
+         */
+        windowMode: 'hidden',
         env: { CAXRI_E2E_AGENT_HOOKS: '1' },
     });
 
@@ -216,6 +225,36 @@ process.stdout.write('Compaction Agent ready\r\n');
         );
         await running.page.keyboard.up('Meta');
         await expect.poll(() => selectedSessionId(running.page)).toBe(sessionId);
+        const endpoint = await readFile(
+            join(userData, 'e2e-agents', 'codex', 'endpoint-ref'),
+            'utf8',
+        );
+        await promisify(execFile)(
+            process.execPath,
+            [
+                resolve(import.meta.dirname, '../apps/cli/dist/caxri.cjs'),
+                'agent',
+                'control',
+                'interrupt',
+                endpoint,
+                '--profile',
+                userData,
+                '--yes',
+                '--json',
+            ],
+            { timeout: 10_000 },
+        );
+        await expect(running.page.locator('.xterm-rows')).toContainText('SIGINT received');
+        await expect(tabOperation).not.toBeVisible();
+        const interrupted = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
+        const interruptedTerminal = interrupted.terminals.find(
+            (terminal) => terminal.sessionId === sessionId,
+        );
+        expect(interruptedTerminal).toMatchObject({ lastAgentProcessState: 'running' });
+        expect(interruptedTerminal?.agentOperation).toBeUndefined();
+        await running.page.screenshot({
+            path: testInfo.outputPath('cli-interrupt-clears-compaction.png'),
+        });
     } finally {
         try {
             await running.app.close();

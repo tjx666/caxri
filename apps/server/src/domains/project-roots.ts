@@ -114,10 +114,22 @@ export class ProjectRootResolver {
             throw error;
         }
         const candidate = input && isAbsolute(input) ? resolve(input) : resolve(root, input ?? '.');
-        const workspacePath = shouldFollowWorkspaceLinks
-            ? await workspaceEntryPath(root, candidate)
-            : undefined;
-        const resolved = await realpath(candidate);
+        let workspacePath: string | undefined;
+        let resolved: string;
+        try {
+            workspacePath = shouldFollowWorkspaceLinks
+                ? await workspaceEntryPath(root, candidate)
+                : undefined;
+            resolved = await realpath(candidate);
+        } catch (error) {
+            /**
+             * A listing can still name the removed worktree after fallback selected its owner. Missing candidates are
+             * expected filesystem state, not INTERNAL failures; root validation and containment remain separate.
+             */
+            if ((error as NodeJS.ErrnoException).code === 'ENOENT')
+                throw new CaxriError('NOT_FOUND', 'Requested path no longer exists');
+            throw error;
+        }
         /**
          * Explorer/editor links are trusted through their workspace entry, even when the target is outside the root.
          * Other domains keep canonical containment; never turn a returned physical target into a new entry authority.

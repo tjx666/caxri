@@ -186,8 +186,10 @@ jobs:
       full_checks_result: ${{ steps.full-checks-receipt.outcome }}
       renderer_performance_result: ${{ steps.renderer-performance.outcome }}
     needs: [retry-policy, checks]
+    # Keep failed-dependency handling, but let superseded runs release their concurrency slot.
+    # https://docs.github.com/en/actions/how-tos/troubleshoot-workflows#canceling-workflows
     if: >-
-      always() &&
+      !cancelled() &&
       needs.retry-policy.result == 'success' &&
       needs.retry-policy.outputs.run_e2e == 'true' &&
       (
@@ -494,9 +496,11 @@ jobs:
     name: CI gate
     # Skipped alongside `retry-policy` on an ordinary merge to main, so those pushes leave no run to
     # report on at all. The gate asserts `retry-policy` succeeded, so leaving it at a bare `always()`
-    # would turn every merge red instead of quiet.
+    # would turn every merge red instead of quiet. `!cancelled()` rather than `always()` additionally
+    # lets a superseded run release its self-hosted concurrency slot.
+    # https://docs.github.com/en/actions/how-tos/troubleshoot-workflows#canceling-workflows
     if: >-
-      always() && (
+      !cancelled() && (
         github.event_name != 'push' ||
         startsWith(github.event.head_commit.message, 'release: v')
       )

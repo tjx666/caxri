@@ -24,10 +24,20 @@ import { CaxriDatabase } from '../../db/repository';
 import { FileService } from '../service';
 
 const temporaryDirectories: string[] = [];
+const loggers: StructuredLogger[] = [];
+
+function createLogger(...arguments_: ConstructorParameters<typeof StructuredLogger>) {
+    const logger = new StructuredLogger(...arguments_);
+    loggers.push(logger);
+    return logger;
+}
 const ripgrepExecutable = binPathFor({ arch: process.arch, os: process.platform });
 const searchWorkerPath = fileURLToPath(new URL('../project-search-worker.ts', import.meta.url));
 
 afterEach(async () => {
+    // The fixture owns the logger; service shutdown alone does not drain its queued filesystem writes.
+    await Promise.all(loggers.map((logger) => logger.flush()));
+    loggers.length = 0;
     const paths = temporaryDirectories.slice();
     temporaryDirectories.length = 0;
     await Promise.all(paths.map((path) => rm(path, { recursive: true, force: true })));
@@ -69,7 +79,7 @@ async function fixture(options?: ConstructorParameters<typeof FileService>[4]) {
     const service = new FileService(
         database,
         () => {},
-        new StructuredLogger(join(directory, 'logs')),
+        createLogger(join(directory, 'logs')),
         () => 1_024,
         {
             ...options,

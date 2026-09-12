@@ -53,8 +53,18 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 });
 
 const temporaryDirectories: string[] = [];
+const loggers: StructuredLogger[] = [];
+
+function createLogger(...arguments_: ConstructorParameters<typeof StructuredLogger>) {
+    const logger = new StructuredLogger(...arguments_);
+    loggers.push(logger);
+    return logger;
+}
 
 afterEach(async () => {
+    // The fixture owns the logger; service shutdown alone does not drain its queued filesystem writes.
+    await Promise.all(loggers.map((logger) => logger.flush()));
+    loggers.length = 0;
     const paths = temporaryDirectories.slice();
     temporaryDirectories.length = 0;
     await Promise.all(paths.map((path) => rm(path, { recursive: true, force: true })));
@@ -69,7 +79,7 @@ describe('FileService', () => {
         const directoryOpened = Promise.withResolvers<void>();
         const listing = new ListingService(
             () => Promise.resolve({ path: canonicalDirectory, root: canonicalDirectory }),
-            new StructuredLogger(join(canonicalDirectory, 'logs')),
+            createLogger(join(canonicalDirectory, 'logs')),
             () => ({}),
             undefined,
             undefined,
@@ -117,7 +127,7 @@ describe('FileService', () => {
         const service = new FileService(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             () => 1024,
         ) as FileService & {
             listDirectory(sessionId: string): Promise<{
@@ -148,7 +158,7 @@ describe('FileService', () => {
         const service = new FileService(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             () => 1024,
             {
                 openDirectory: () =>
@@ -184,7 +194,7 @@ describe('FileService', () => {
         await symlink('./missing', join(root, 'broken-link'));
         const listing = new ListingService(
             () => Promise.resolve({ path: root, root }),
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             () => ({}),
         );
 
@@ -255,7 +265,7 @@ describe('FileService', () => {
         const service = new FileService(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             () => 1024,
         );
         expect((await service.read(session.id, join(root, 'hello.txt'))).content).toBe('hello');
@@ -322,7 +332,7 @@ describe('FileService', () => {
         const service = new FileService(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             () => 1024,
         );
 
@@ -345,7 +355,7 @@ describe('FileService', () => {
         const service = new FileService(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             () => 1024,
         );
         await expect(service.read(session.id, join(directory, 'binary.bin'))).rejects.toThrow(
@@ -370,7 +380,7 @@ describe('FileService', () => {
         const service = new FileService(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             () => 1024,
         );
 
@@ -398,7 +408,7 @@ describe('FileService', () => {
         const service = new FileService(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             () => 1024,
             {
                 openFile: async (path, flags, mode) => {
@@ -431,7 +441,7 @@ describe('FileService', () => {
         const service = new FileService(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             () => 1024,
         );
         const resolvePath = service.resolveSessionPath.bind(service);
@@ -456,7 +466,7 @@ describe('FileService', () => {
         await writeFile(join(root, 'unreadable.txt'), 'unreadable', 'utf8');
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const session = database.createSession(database.createProject(root).id, 'shell').session;
-        const logger = new StructuredLogger(join(directory, 'logs'));
+        const logger = createLogger(join(directory, 'logs'));
         const service = new FileService(
             database,
             () => {},
@@ -513,7 +523,7 @@ describe('FileService', () => {
         const service = new FileService(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             () => 1024,
             { fileTreeExcludes: () => excludes },
         );

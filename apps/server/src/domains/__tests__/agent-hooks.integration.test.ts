@@ -12,10 +12,24 @@ import { LocalTerminalExecution } from '../../__tests__/support/local-terminal-e
 import { GitService } from '../git';
 import { createFakePty, createPendingAgentAdapters } from './create-test-domain-services';
 
+const loggers: StructuredLogger[] = [];
+
+function createLogger(...arguments_: ConstructorParameters<typeof StructuredLogger>) {
+    const logger = new StructuredLogger(...arguments_);
+    loggers.push(logger);
+    return logger;
+}
+
+async function flushLoggers(): Promise<void> {
+    const pendingLoggers = [...loggers];
+    loggers.length = 0;
+    await Promise.all(pendingLoggers.map((logger) => logger.flush()));
+}
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
     vi.restoreAllMocks();
+    await flushLoggers();
     const pendingDirectories = temporaryDirectories.slice();
     temporaryDirectories.length = 0;
     await Promise.all(pendingDirectories.map((path) => rm(path, { recursive: true, force: true })));
@@ -32,7 +46,7 @@ describe('Runtime Agent hook integration', () => {
             agentAdapters: createPendingAgentAdapters(),
             agentEnvironment: { homeDirectory: directory, variables: {} },
             agentHooksPath: join(directory, 'shared-hooks'),
-            logger: new StructuredLogger(join(directory, 'logs')),
+            logger: createLogger(join(directory, 'logs')),
             hookExecutable: process.execPath,
             send: () => {},
             terminal: {
@@ -82,7 +96,7 @@ describe('Runtime Agent hook integration', () => {
         const spawn = vi.fn<typeof spawnPty>(() => createFakePty());
         const start = vi.spyOn(LocalTerminalExecution.prototype, 'start');
         const execution = new LocalTerminalExecution({
-            logger: new StructuredLogger(join(directory, 'logs')),
+            logger: createLogger(join(directory, 'logs')),
             spawn,
         });
         const runtime = await createTestDomainServices({
@@ -93,7 +107,7 @@ describe('Runtime Agent hook integration', () => {
                 variables: { CODEX_HOME: codexHome },
             },
             agentHooksPath: join(directory, 'shared-hooks'),
-            logger: new StructuredLogger(join(directory, 'logs')),
+            logger: createLogger(join(directory, 'logs')),
             hookExecutable: process.execPath,
             send: () => {},
             terminal: {
@@ -320,7 +334,7 @@ describe('Runtime Agent hook integration', () => {
                 variables: { CLAUDE_CONFIG_DIR: claudeHome },
             },
             agentHooksPath: join(directory, 'shared-hooks'),
-            logger: new StructuredLogger(join(directory, 'logs')),
+            logger: createLogger(join(directory, 'logs')),
             hookExecutable: process.execPath,
             send,
             terminal: {

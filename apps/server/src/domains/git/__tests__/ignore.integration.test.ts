@@ -11,6 +11,13 @@ import { GitService } from '..';
 
 const temporaryDirectories: string[] = [];
 const gitServices: GitService[] = [];
+const loggers: StructuredLogger[] = [];
+
+function createLogger(...arguments_: ConstructorParameters<typeof StructuredLogger>) {
+    const logger = new StructuredLogger(...arguments_);
+    loggers.push(logger);
+    return logger;
+}
 
 /**
  * Registers a GitService so afterEach can close it before the temp directories are removed; otherwise an in-flight
@@ -26,6 +33,12 @@ afterEach(async () => {
     const servicesToClose = [...gitServices];
     gitServices.length = 0;
     await Promise.allSettled(servicesToClose.map((service) => service.close()));
+    /**
+     * Drain logs after their producers stop, before queued writes can race directory removal.
+     */
+    const loggersToFlush = [...loggers];
+    loggers.length = 0;
+    await Promise.all(loggersToFlush.map((logger) => logger.flush()));
     const directoriesToRemove = [...temporaryDirectories];
     temporaryDirectories.length = 0;
     await Promise.all(
@@ -54,7 +67,7 @@ describe('Git ignored entry batches', () => {
             'shell',
         ).session;
         const rootResolver = new ProjectRootResolver(database);
-        const gitLogger = new StructuredLogger(join(directory, 'logs'));
+        const gitLogger = createLogger(join(directory, 'logs'));
         const service = trackGitService(new GitService(rootResolver, gitLogger));
 
         await expect(
@@ -99,7 +112,7 @@ describe('Git ignored entry batches', () => {
             database.createProject(nonGit).id,
             'shell',
         ).session;
-        const logger = new StructuredLogger(join(directory, 'logs'));
+        const logger = createLogger(join(directory, 'logs'));
         const service = trackGitService(new GitService(new ProjectRootResolver(database), logger));
 
         await expect(

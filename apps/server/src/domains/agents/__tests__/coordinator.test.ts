@@ -13,6 +13,19 @@ import { AgentCoordinator } from '../coordinator';
 import type { AgentAdapter } from '../service';
 import { AgentService } from '../service';
 
+const loggers: StructuredLogger[] = [];
+
+function createLogger(...arguments_: ConstructorParameters<typeof StructuredLogger>) {
+    const logger = new StructuredLogger(...arguments_);
+    loggers.push(logger);
+    return logger;
+}
+
+async function flushLoggers(): Promise<void> {
+    const pendingLoggers = [...loggers];
+    loggers.length = 0;
+    await Promise.all(pendingLoggers.map((logger) => logger.flush()));
+}
 const temporaryDirectories: string[] = [];
 
 function createAgents(snapshot: AgentAdapter['snapshot']): AgentService {
@@ -26,6 +39,7 @@ function createAgents(snapshot: AgentAdapter['snapshot']): AgentService {
 }
 
 afterEach(async () => {
+    await flushLoggers();
     const pendingCleanup = [...temporaryDirectories];
     temporaryDirectories.length = 0;
     await Promise.all(pendingCleanup.map((path) => rm(path, { recursive: true, force: true })));
@@ -55,7 +69,7 @@ describe('AgentCoordinator', () => {
             database,
             createAgents(snapshot),
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
         );
 
         try {
@@ -90,7 +104,7 @@ describe('AgentCoordinator', () => {
                 database,
                 createAgents(snapshot),
                 () => {},
-                new StructuredLogger(join(directory, 'logs')),
+                createLogger(join(directory, 'logs')),
                 { refreshDelayMs: 5 },
             );
 
@@ -143,7 +157,7 @@ describe('AgentCoordinator', () => {
             database,
             createAgents(snapshot),
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             { detectForegroundAgent, refreshDelayMs: 5 },
         );
 
@@ -184,7 +198,7 @@ describe('AgentCoordinator', () => {
             database,
             createAgents(snapshot),
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             { detectForegroundAgent, refreshDelayMs: 5 },
         );
         /**
@@ -229,7 +243,7 @@ describe('AgentCoordinator', () => {
             database,
             createAgents(snapshot),
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             { refreshDelayMs: 5 },
         );
 
@@ -273,7 +287,7 @@ describe('AgentCoordinator', () => {
             database,
             createAgents(snapshot),
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             { refreshDelayMs: 5 },
         );
 
@@ -328,7 +342,7 @@ describe('AgentCoordinator', () => {
             database,
             createAgents(snapshot),
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
         );
 
         try {
@@ -367,7 +381,7 @@ describe('AgentCoordinator', () => {
             database,
             createAgents(snapshot),
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
         );
 
         try {
@@ -415,7 +429,7 @@ describe('AgentCoordinator', () => {
             (event) => {
                 events.push(event);
             },
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             { refreshDelayMs: 5 },
         );
 
@@ -482,7 +496,7 @@ describe('AgentCoordinator', () => {
             database,
             createAgents(snapshot),
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             { refreshDelayMs: 5 },
         );
 
@@ -555,7 +569,7 @@ describe('AgentCoordinator', () => {
             database,
             createAgents(snapshot),
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             { refreshDelayMs: 5 },
         );
 
@@ -623,7 +637,7 @@ describe('AgentCoordinator', () => {
             database,
             createAgents(snapshot),
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             { refreshDelayMs: 5 },
         );
 
@@ -670,7 +684,7 @@ describe('AgentCoordinator', () => {
             database,
             createAgents(snapshot),
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
             { refreshDelayMs: 5 },
         );
 
@@ -720,7 +734,7 @@ describe('AgentCoordinator', () => {
             database,
             createAgents(() => Promise.reject(new Error('not used'))),
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createLogger(join(directory, 'logs')),
         );
 
         try {
@@ -756,7 +770,7 @@ describe('AgentCoordinator', () => {
         const snapshot = vi.fn<AgentAdapter['snapshot']>(() =>
             Promise.reject(new Error('probe exploded')),
         );
-        const logger = new StructuredLogger(join(directory, 'logs'));
+        const logger = createLogger(join(directory, 'logs'));
         const coordinator = new AgentCoordinator(
             database,
             createAgents(snapshot),

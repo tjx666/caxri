@@ -11,7 +11,14 @@ import { createTestDomainServices } from '../../__tests__/support/domain-service
 import type { DomainHandlers } from '../../domains/domain-services';
 import { createOperationDispatcher } from '../operation-dispatcher';
 
+const loggers: StructuredLogger[] = [];
 const temporaryDirectories: string[] = [];
+
+function createLogger(...arguments_: ConstructorParameters<typeof StructuredLogger>) {
+    const logger = new StructuredLogger(...arguments_);
+    loggers.push(logger);
+    return logger;
+}
 
 async function temporaryDirectory(prefix: string): Promise<string> {
     const directory = await mkdtemp(join(tmpdir(), prefix));
@@ -51,6 +58,9 @@ async function logRecords(logger: StructuredLogger) {
 }
 
 afterEach(async () => {
+    const pendingLoggers = [...loggers];
+    loggers.length = 0;
+    await Promise.all(pendingLoggers.map((logger) => logger.flush()));
     const pendingDirectories = temporaryDirectories.slice();
     temporaryDirectories.length = 0;
     await Promise.all(pendingDirectories.map((path) => rm(path, { recursive: true, force: true })));
@@ -61,7 +71,7 @@ describe('domain handler table', () => {
         const directory = await temporaryDirectory('caxri-handler-table-');
         const runtime = await createTestDomainServices({
             userDataPath: join(directory, 'user-data'),
-            logger: new StructuredLogger(join(directory, 'logs')),
+            logger: createLogger(join(directory, 'logs')),
             send: () => {},
         });
 
@@ -80,7 +90,7 @@ describe('domain handler table', () => {
 describe('createOperationDispatcher', () => {
     it('exposes stable direct-call results without a wire response envelope', async () => {
         const directory = await temporaryDirectory('caxri-operation-dispatch-');
-        const logger = new StructuredLogger(join(directory, 'logs'));
+        const logger = createLogger(join(directory, 'logs'));
         const dispatch = createOperationDispatcher(
             stubHandlers({
                 'app.health': () => ({
@@ -110,7 +120,7 @@ describe('createOperationDispatcher', () => {
 
     it('revalidates a typed Workbench Root context before invoking a handler', async () => {
         const directory = await temporaryDirectory('caxri-dispatch-context-');
-        const logger = new StructuredLogger(join(directory, 'logs'));
+        const logger = createLogger(join(directory, 'logs'));
         const handler = vi.fn(() => []);
         const validateContext = vi.fn(() => {
             throw new CaxriError('CONFLICT', 'Workbench Root changed');
@@ -138,7 +148,7 @@ describe('createOperationDispatcher', () => {
 
     it('rejects an unknown method and invalid parameters as VALIDATION failures', async () => {
         const directory = await temporaryDirectory('caxri-dispatch-validation-');
-        const logger = new StructuredLogger(join(directory, 'logs'));
+        const logger = createLogger(join(directory, 'logs'));
         const dispatch = createOperationDispatcher(stubHandlers(), logger);
 
         await expect(dispatch({ id: 'r1', method: 'nope', params: {} })).rejects.toMatchObject({
@@ -178,7 +188,7 @@ describe('createOperationDispatcher', () => {
 
     it('preserves a handler error code and logs a stack only for unclassified faults', async () => {
         const directory = await temporaryDirectory('caxri-dispatch-errors-');
-        const logger = new StructuredLogger(join(directory, 'logs'));
+        const logger = createLogger(join(directory, 'logs'));
         const dispatch = createOperationDispatcher(
             stubHandlers({
                 'terminal.attach': () => {
@@ -208,7 +218,7 @@ describe('createOperationDispatcher', () => {
 
     it('records one boundary log per request except for high-frequency PTY traffic', async () => {
         const directory = await temporaryDirectory('caxri-dispatch-logging-');
-        const logger = new StructuredLogger(join(directory, 'logs'));
+        const logger = createLogger(join(directory, 'logs'));
         const dispatch = createOperationDispatcher(
             stubHandlers({
                 'app.health': () => ({
@@ -250,7 +260,7 @@ describe('createOperationDispatcher', () => {
 
     it('cancels an admitted handler and rejects cancellation that arrived before registration', async () => {
         const directory = await temporaryDirectory('caxri-dispatch-cancel-');
-        const logger = new StructuredLogger(join(directory, 'logs'));
+        const logger = createLogger(join(directory, 'logs'));
         const started = Promise.withResolvers<void>();
         const released = Promise.withResolvers<void>();
         const handler = vi.fn(async (_parameters: unknown, signal: AbortSignal) => {

@@ -26,6 +26,19 @@ const terminal: TerminalRecord = {
     createdAt: 1,
     updatedAt: 1,
 };
+const loggers: StructuredLogger[] = [];
+
+function createLogger(...arguments_: ConstructorParameters<typeof StructuredLogger>) {
+    const logger = new StructuredLogger(...arguments_);
+    loggers.push(logger);
+    return logger;
+}
+
+async function flushLoggers(): Promise<void> {
+    const pendingLoggers = [...loggers];
+    loggers.length = 0;
+    await Promise.all(pendingLoggers.map((logger) => logger.flush()));
+}
 const temporaryDirectories: string[] = [];
 
 class RestoreTerminalHostControl implements TerminalHostControl {
@@ -77,11 +90,12 @@ function createExecution(): {
     const directory = mkdtempSync(join(tmpdir(), 'caxri-remote-terminal-restore-'));
     temporaryDirectories.push(directory);
     const control = new RestoreTerminalHostControl();
-    const logger = new StructuredLogger(join(directory, 'logs'), 'server-core');
+    const logger = createLogger(join(directory, 'logs'), 'server-core');
     return { control, execution: new RemoteTerminalExecution(control, logger), logger };
 }
 
-afterEach(() => {
+afterEach(async () => {
+    await flushLoggers();
     for (const directory of temporaryDirectories)
         rmSync(directory, { force: true, recursive: true });
     temporaryDirectories.length = 0;
