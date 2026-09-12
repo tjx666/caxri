@@ -244,6 +244,7 @@ function parseVsCode(value: Record<string, unknown>, name: string): ThemeTokens 
         ['string', 'string', 'strings'],
         ['constant.numeric', 'number', 'numbers'],
     ] as const;
+    const mappedSyntaxScopes = new Set<string>(syntaxMappings.map(([selector]) => selector));
     const importedSyntaxRoles = new Set<keyof ThemeTokens['editor']>();
     let hasOtherSyntaxRules = false;
     /**
@@ -259,25 +260,27 @@ function parseVsCode(value: Record<string, unknown>, name: string): ThemeTokens 
             if (!settings || typeof settings !== 'object' || Array.isArray(settings)) continue;
             const foreground = normalizedHex((settings as Record<string, unknown>).foreground, '');
             if (!foreground) continue;
-            const scopes = (
+            const scopeValues =
                 typeof rule.scope === 'string'
                     ? [rule.scope]
                     : Array.isArray(rule.scope)
-                      ? rule.scope.filter((scope): scope is string => typeof scope === 'string')
-                      : []
-            ).flatMap((scope) => scope.split(',').map((selector) => selector.trim()));
+                      ? rule.scope
+                      : [];
+            const scopes = new Set<string>();
+            for (const scope of scopeValues) {
+                if (typeof scope === 'string') {
+                    for (const selector of scope.split(',')) scopes.add(selector.trim());
+                }
+            }
             syntaxMappings.forEach(([selector, role]) => {
-                if (!scopes.includes(selector)) {
+                if (!scopes.has(selector)) {
                     return;
                 }
 
                 theme.editor[role] = foreground;
                 importedSyntaxRoles.add(role);
             });
-            if (
-                scopes.length === 0 ||
-                scopes.some((scope) => syntaxMappings.every(([selector]) => selector !== scope))
-            )
+            if (scopes.size === 0 || [...scopes].some((scope) => !mappedSyntaxScopes.has(scope)))
                 hasOtherSyntaxRules = true;
         }
     }
@@ -314,9 +317,10 @@ function parseVsCode(value: Record<string, unknown>, name: string): ThemeTokens 
     if (importedSyntaxRoles.size === 0) {
         theme.warnings.push('Syntax colors were not imported.');
     } else {
-        const missingRoles = syntaxMappings
-            .filter(([, role]) => !importedSyntaxRoles.has(role))
-            .map((mapping) => mapping[2]);
+        const missingRoles: string[] = [];
+        for (const [, role, label] of syntaxMappings) {
+            if (!importedSyntaxRoles.has(role)) missingRoles.push(label);
+        }
         if (missingRoles.length > 0)
             theme.warnings.push(`Syntax colors for ${missingRoles.join(', ')} were not imported.`);
     }
