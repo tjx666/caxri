@@ -443,6 +443,34 @@ describe('workbench IPC sender boundary', () => {
         expect(onRendererDiagnostic).not.toHaveBeenCalled();
     });
 
+    /**
+     * The Renderer's failure funnel stays silent for a cancellation, which is what a refusal issued while the window is
+     * being torn down has to be: an outage code raised a real error notification over a closing window.
+     */
+    it('refuses a request queued after shutdown begins as a cancellation', async () => {
+        const dispatch = vi.fn();
+        installWorkbenchIpc({
+            isQuitting: () => true,
+            isRecovering: () => false,
+            logger: () => ({ write: vi.fn() }) as never,
+            renderer: () => renderer as never,
+            transport: { dispatch, negotiate },
+        });
+        const request = electronMock.handles.get('caxri:request')!;
+
+        await expect(
+            request(
+                { sender: renderer },
+                { protocolVersion: 2, id: 'quitting-read', method: 'app.health', params: {} },
+            ),
+        ).resolves.toMatchObject({
+            error: { code: 'CANCELLED', message: 'Application is quitting' },
+            id: 'quitting-read',
+            ok: false,
+        });
+        expect(dispatch).not.toHaveBeenCalled();
+    });
+
     it('does not report an in-flight request failure after application shutdown begins', async () => {
         const completion = Promise.withResolvers<{
             protocolVersion: 2;

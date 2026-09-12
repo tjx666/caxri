@@ -13,7 +13,7 @@ import type {
 } from '@caxri/protocol';
 import { agentProviderCatalog, agentProviderIds, CaxriError, errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog, mapWithConcurrency } from '@caxri/system';
+import { logEventCatalog, mapWithConcurrency, unixSocketPath } from '@caxri/system';
 
 import { atomicWrite } from '../../atomic-file';
 import { readBoundedRegularFileText } from '../../bounded-file-reader';
@@ -645,8 +645,15 @@ export class AgentHookManager {
             this.bridgePath = await this.withInstallLock(() =>
                 stageAgentHookBridge(this.options.sharedPath!),
             );
-            const socketPath = join(tmpdir(), `caxri-hooks-${this.profileId}-${process.pid}.sock`);
-            await pruneStaleAgentHookSockets(tmpdir(), this.profileId);
+            /**
+             * The socket may land outside `tmpdir()` when that directory is too deep for the `sun_path` limit, so the
+             * stale-socket sweep must follow it rather than assume the temp root.
+             */
+            const socketPath = unixSocketPath(
+                tmpdir(),
+                `caxri-hooks-${this.profileId}-${process.pid}.sock`,
+            );
+            await pruneStaleAgentHookSockets(dirname(socketPath), this.profileId);
             this.server = new AgentHookServer(
                 socketPath,
                 this.schemaVersions,

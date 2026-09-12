@@ -8,6 +8,7 @@ import process from 'node:process';
 
 import type { AgentProvider } from '@caxri/protocol';
 import { agentProviderIds } from '@caxri/protocol';
+import { ensureUnixSocketDirectory } from '@caxri/system';
 
 import { isOpaqueAgentSessionId } from '../contract';
 import type {
@@ -533,6 +534,7 @@ export class AgentHookServer {
 
     async start(): Promise<void> {
         if (this.server) return;
+        await ensureUnixSocketDirectory(this.socketPath);
         await rm(this.socketPath, { force: true });
         // Async PreToolUse provenance must finish before the acknowledgement, so keep the writable half open after the
         // bridge finishes sending its payload. Every accept path explicitly ends or destroys the socket.
