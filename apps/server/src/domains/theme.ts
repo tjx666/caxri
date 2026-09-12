@@ -47,12 +47,7 @@ const VSCODE_MAPPED_COLOR_KEYS = new Set([
     'editor.selectionBackground',
     'sideBar.background',
     'activityBar.background',
-    'tab.activeBackground',
-    'editorGroupHeader.tabsBackground',
-    'titleBar.activeBackground',
     'editorWidget.background',
-    'list.hoverBackground',
-    'list.activeSelectionBackground',
     'foreground',
     'descriptionForeground',
     'sideBar.border',
@@ -63,8 +58,6 @@ const VSCODE_MAPPED_COLOR_KEYS = new Set([
     'progressBar.background',
     'focusBorder',
     'charts.green',
-    'testing.iconPassed',
-    'notebookStatusSuccessIcon.foreground',
     'charts.purple',
     'editorWarning.foreground',
     'editorError.foreground',
@@ -218,8 +211,8 @@ function mixHex(from: string, toward: string, amount: number): string {
 }
 
 /**
- * Caxri chrome seams are only `bg-surface` vs `bg-background`. When a theme paints those two the same color, nudge
- * surface toward the opposite pole so the workbench regions stay distinguishable.
+ * Caxri chrome seams are only `bg-surface` vs `bg-background`. When the fallback surface matches the editor canvas,
+ * nudge the fallback so the workbench regions remain distinguishable without rewriting an explicit theme color.
  */
 function separateSurfaceFromBackground(background: string, surface: string): string {
     if (surface === background) {
@@ -325,35 +318,13 @@ function parseVsCode(value: Record<string, unknown>, name: string): ThemeTokens 
         ? VSCODE_DEFAULTS.light
         : VSCODE_DEFAULTS.dark;
     /**
-     * Chrome seams are only `bg-surface` vs `bg-background`. Fall back to VS Code's own `sideBar.background` default
-     * rather than the editor canvas just assigned above; otherwise an import that omitted the sidebar key painted the
-     * whole workbench one color. Tab strip and title-bar fills map onto the same chrome role because Caxri has no extra
-     * schema tokens for them.
+     * Fall back to VS Code's own sidebar default rather than the editor canvas. Only a fallback collision may be
+     * adjusted; an explicit sidebar or activity-bar color is the theme author's choice.
      */
-    theme.colors.surface = separateSurfaceFromBackground(
-        theme.colors.background,
-        firstHex(
-            colors,
-            [
-                'sideBar.background',
-                'activityBar.background',
-                'tab.activeBackground',
-                'editorGroupHeader.tabsBackground',
-                'titleBar.activeBackground',
-            ],
-            defaults.surface,
-        ),
-    );
-    /**
-     * `editorWidget.background` is the popover fill. `--elevated` also paints hover states, so `list.hoverBackground`
-     * is next; active-selection is last because it is often a saturated accent that would fail the muted-contrast gate
-     * if it became the panel color.
-     */
-    theme.colors.elevated = firstHex(
-        colors,
-        ['editorWidget.background', 'list.hoverBackground', 'list.activeSelectionBackground'],
-        defaults.elevated,
-    );
+    const explicitSurface = firstHex(colors, ['sideBar.background', 'activityBar.background'], '');
+    theme.colors.surface =
+        explicitSurface || separateSurfaceFromBackground(theme.colors.background, defaults.surface);
+    theme.colors.elevated = firstHex(colors, ['editorWidget.background'], defaults.elevated);
     theme.colors.foreground = firstHex(
         colors,
         ['foreground', 'editor.foreground'],
@@ -386,20 +357,7 @@ function parseVsCode(value: Record<string, unknown>, name: string): ThemeTokens 
         ],
         theme.colors.accent,
     );
-    /**
-     * `charts.green` is the named success swatch, but most themes never set `charts.*`. Passed-test and added-file
-     * greens are the keys authors actually write.
-     */
-    theme.colors.success = firstHex(
-        colors,
-        [
-            'charts.green',
-            'testing.iconPassed',
-            'notebookStatusSuccessIcon.foreground',
-            'gitDecoration.addedResourceForeground',
-        ],
-        defaults.success,
-    );
+    theme.colors.success = firstHex(colors, ['charts.green'], defaults.success);
     theme.colors.warning = firstHex(colors, ['editorWarning.foreground'], defaults.warning);
     theme.colors.danger = firstHex(colors, ['editorError.foreground'], defaults.danger);
     /**

@@ -192,7 +192,7 @@ describe('theme import mapping', () => {
         expect(theme.colors.surface).not.toBe(theme.colors.background);
     });
 
-    it('nudges surface away from background when a VS Code theme paints them the same color', async () => {
+    it('preserves a VS Code theme that explicitly paints surface and background the same color', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-same-surface-'));
         temporaryDirectories.push(directory);
         const path = join(directory, 'dark.json');
@@ -211,10 +211,10 @@ describe('theme import mapping', () => {
 
         const theme = await importTheme(path, draculaTheme);
         expect(theme.colors.background).toBe('#1e1e1e');
-        expect(theme.colors.surface).toBe('#303030');
+        expect(theme.colors.surface).toBe('#1e1e1e');
     });
 
-    it('maps tab strip and title-bar fills onto surface when sidebar keys are absent', async () => {
+    it('keeps the surface fallback when only tab and title-bar fills are supplied', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-tab-surface-'));
         temporaryDirectories.push(directory);
         const path = join(directory, 'dark.json');
@@ -232,10 +232,10 @@ describe('theme import mapping', () => {
             'utf8',
         );
 
-        expect((await importTheme(path, draculaTheme)).colors.surface).toBe('#2d2d30');
+        expect((await importTheme(path, draculaTheme)).colors.surface).toBe('#252526');
     });
 
-    it('maps list hover and selection fills onto elevated when the widget key is absent', async () => {
+    it('keeps the elevated fallback when only list fills are supplied', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-list-elevated-'));
         temporaryDirectories.push(directory);
         const hover = join(directory, 'hover.json');
@@ -252,7 +252,7 @@ describe('theme import mapping', () => {
             }),
             'utf8',
         );
-        expect((await importTheme(hover, draculaTheme)).colors.elevated).toBe('#2a2d2e');
+        expect((await importTheme(hover, draculaTheme)).colors.elevated).toBe('#252526');
 
         const selection = join(directory, 'selection.json');
         await writeFile(
@@ -267,7 +267,7 @@ describe('theme import mapping', () => {
             }),
             'utf8',
         );
-        expect((await importTheme(selection, draculaTheme)).colors.elevated).toBe('#2c2c32');
+        expect((await importTheme(selection, draculaTheme)).colors.elevated).toBe('#252526');
     });
 
     it('maps string-scoped tokenColors and terminal.selectionBackground', async () => {
@@ -448,7 +448,7 @@ describe('theme import mapping', () => {
         );
     });
 
-    it('reads success from a passed-test green when charts.green is absent', async () => {
+    it('keeps the success fallback when charts.green is absent', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-success-'));
         temporaryDirectories.push(directory);
         const path = join(directory, 'dark.json');
@@ -465,7 +465,7 @@ describe('theme import mapping', () => {
             'utf8',
         );
 
-        expect((await importTheme(path, draculaTheme)).colors.success).toBe('#73c991');
+        expect((await importTheme(path, draculaTheme)).colors.success).toBe('#89d185');
     });
 
     it('reads badge and Git decoration colors from their VS Code keys', async () => {

@@ -16,6 +16,25 @@ afterEach(async () => {
 });
 
 describe('theme import include, zero-hit, and vsix', () => {
+    it('separates the fallback surface when it matches the editor canvas', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-fallback-seam-'));
+        temporaryDirectories.push(directory);
+        const path = join(directory, 'light.json');
+        await writeFile(
+            path,
+            JSON.stringify({
+                name: 'Fallback seam',
+                type: 'light',
+                colors: { 'editor.background': '#f3f3f3' },
+            }),
+            'utf8',
+        );
+
+        const theme = await importTheme(path, draculaTheme);
+        expect(theme.colors.background).toBe('#f3f3f3');
+        expect(theme.colors.surface).not.toBe(theme.colors.background);
+    });
+
     it('merges a same-directory include parent under the child theme', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-include-'));
         temporaryDirectories.push(directory);
