@@ -1,8 +1,27 @@
 import { useEffect } from 'react';
 
+import type { GitSummary } from '@caxri/protocol';
+
 import { setGitDecorationSummary } from '../stores/git-decorations';
 import { useSelectedSession } from '../stores/selectors';
 import { useCaxriQuery } from './client';
+
+export type GitDecorationSummaryUpdate =
+    { kind: 'keep' } | { kind: 'replace'; summary: GitSummary | undefined };
+
+/**
+ * Session switches change the `git.summary` query key, so the next snapshot is `undefined` until it arrives. Writing
+ * that gap into the decoration store flashes every file letter empty. Keep the last summary while a Session is still
+ * selected; clear only when there is no Session.
+ */
+export function gitDecorationSummaryUpdate(
+    hasSession: boolean,
+    summary: GitSummary | undefined,
+): GitDecorationSummaryUpdate {
+    if (!hasSession) return { kind: 'replace', summary: undefined };
+    if (summary === undefined) return { kind: 'keep' };
+    return { kind: 'replace', summary };
+}
 
 /**
  * The app's single subscriber to the selected Session's working-tree status, feeding `stores/git-decorations.ts`.
@@ -21,6 +40,8 @@ export function useGitDecorationSync(): void {
         { enabled: Boolean(session), retry: false, staleTime: 60_000 },
     ).data;
     useEffect(() => {
-        setGitDecorationSummary(summary);
-    }, [summary]);
+        const update = gitDecorationSummaryUpdate(Boolean(session), summary);
+        if (update.kind === 'keep') return;
+        setGitDecorationSummary(update.summary);
+    }, [session, summary]);
 }
