@@ -7,13 +7,15 @@ A process that exits before the dispatch obtains running-process and Endpoint pr
 `launch_failed`, including exit code zero. Once running, a normal exit remains `stopped`.
 Intentional suspension or detach settles the receipt as `interrupted`; a later launch rejection
 must not overwrite an outcome already delivered to a waiter.
-Explicit Terminal closure and orderly Server shutdown retain their intentional stopped outcome
-even if launch proof was still pending; these are not process-start failures.
+Explicit Terminal closure (`terminalClosed`) and a `serverShutdown` observation delivered while
+launch proof is still pending retain their intentional `stopped` outcome; these are not
+process-start failures. Orderly Server shutdown of live Terminals settles them as
+`interrupted`. A later Core restart cannot preserve process ownership proof, so still-active
+receipts recover as `failed` with `host_reset` and do not automatically spawn a replacement.
 
 Terminal restart retires the previous Agent generation through the existing lifecycle event.
 It does not depend on a synthetic `starting` event. Terminal Host loss and Terminal restart
-carry distinct causes. A Server Core restart cannot preserve process ownership proof, so its
-recovery remains `failed` with `host_reset`, without automatically spawning a replacement.
+carry distinct causes.
 
 Every receipt status transition emits `agent_dispatch.transitioned`. Fields contain the dispatch
 and Terminal identifiers, previous and current statuses, a closed reason, and elapsed lifetime.

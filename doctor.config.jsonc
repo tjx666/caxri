@@ -12,6 +12,7 @@
                 // forms), so the static monaco imports stay inside the lazily loaded chunk
                 // and never run at startup. The rule only inspects import syntax per file.
                 "files": [
+                    "apps/desktop/src/renderer/src/features/editor/agent-transcript-editor.tsx",
                     "apps/desktop/src/renderer/src/features/editor/code-editor.tsx",
                     "apps/desktop/src/renderer/src/features/editor/git-diff-editor.tsx",
                     "apps/desktop/src/renderer/src/features/editor/git-single-diff-editor.tsx",
@@ -44,7 +45,7 @@
                     "apps/server/src/domains/files/mutation-journal.ts",
                     "apps/server/src/domains/files/mutations-copy.ts",
                     "apps/server/src/domains/terminal/file-links.ts",
-                    "apps/server/src/domains/terminal/screen.ts",
+                    "apps/server/src/terminal-host/engine/screen.ts",
                     "packages/client/src/supervise/binary-stream-client.ts",
                     "packages/system/src/observability/process-manifest.ts",
                     "src/main/menu-refresh.ts",
@@ -122,6 +123,7 @@
                 // 100 causal capsules). Keeping filter/map separate preserves the validation and
                 // cloning stages without creating a meaningful hot-path allocation.
                 "files": [
+                    "apps/desktop/src/renderer/src/stores/selectors.ts",
                     "packages/protocol/src/transport/event-journal.ts",
                     "packages/system/src/observability/causal-chain.ts",
                     "src/renderer/src/stores/selectors.ts",
