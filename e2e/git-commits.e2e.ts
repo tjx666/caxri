@@ -23,7 +23,7 @@ test('Git repositories lazy-load pageable commits and subtree history', async ()
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-git-commits-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
-    const nested = join(root, 'nested');
+    const nested = join(root, 'nested-repository-with-a-long-name');
     await initializeRepo(root);
     await execFileAsync('mkdir', ['-p', join(root, 'scope')]);
     for (let index = 1; index <= 7; index += 1) {
@@ -56,6 +56,17 @@ test('Git repositories lazy-load pageable commits and subtree history', async ()
         });
         await expect(primary.locator('.git-repository-kind')).toHaveCount(0);
         await expect(nestedSection.locator('.git-repository-kind')).toHaveText('nested');
+        // Repository identity must remain recognizable when long labels compete with metadata.
+        const identityIcons = nestedSection.locator('.git-repository-identity > svg');
+        expect(
+            await identityIcons.nth(0).evaluate((icon) => icon.getBoundingClientRect().width),
+        ).toBe(13);
+        expect(
+            await identityIcons.nth(1).evaluate((icon) => icon.getBoundingClientRect().width),
+        ).toBe(16);
+        await running.page
+            .locator('.git-panel')
+            .screenshot({ path: test.info().outputPath('repository-icons.png') });
         await expect(primary.locator('.git-repository-name')).toHaveCSS(
             'text-overflow',
             'ellipsis',

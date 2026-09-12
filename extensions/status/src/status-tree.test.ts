@@ -40,6 +40,12 @@ describe('Status extension tree', () => {
                 );
             expect(rows).toHaveLength(3);
             for (const row of rows) {
+                const stateLabel = state === 'neutral' ? 'canceled' : state;
+                expect(row.item.accessibilityInformation?.label).toContain(stateLabel);
+                expect(row.item.tooltip).toMatchObject({ badge: { label: stateLabel } });
+                if (row.item.label !== deployment.hostname) {
+                    expect(row.item.description).toBe(deployment.hostname);
+                }
                 if (state === 'neutral') {
                     expect(row.item.iconPath?.id).toBe('circle-slash');
                     expect(row.item.accessibilityInformation?.label).toContain('canceled');
@@ -376,13 +382,13 @@ describe('Status extension tree', () => {
             badge: { label: 'pending', tone: 'warning' },
             rows: [{ label: 'alias', value: 'preview-branch.vercel.app' }],
         });
-        expect(children[7].item.description).toBe('success · caxri.app');
+        expect(children[7].item.description).toBe('caxri.app');
         expect(children[7].item.tooltip).toMatchObject({
             title: 'Production',
             badge: { label: 'success', tone: 'success' },
             rows: [{ label: 'alias' }, { label: 'inspect', value: 'details' }],
         });
-        expect(children[8].item.description).toBe('failure · preview.caxri.app');
+        expect(children[8].item.description).toBe('preview.caxri.app');
         expect(children[9].item.collapsibleState).toBe(TreeItemCollapsibleState.Expanded);
         expect(children[9].children?.map(({ item }) => item.label)).toEqual([
             'Test / App',
