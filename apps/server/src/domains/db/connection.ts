@@ -33,7 +33,22 @@ function restrictPath(path: string, mode: number): void {
     }
 }
 
+const FOREIGN_KEYS_PRAGMA_PATTERN = /\bPRAGMA\s+foreign_keys\b/iu;
+
+/**
+ * Migrations run inside one SQLite transaction ({@link initializeSchema}), so `PRAGMA foreign_keys` is a no-op there. A
+ * migration that needs to rebuild a table with foreign keys must use create-copy-drop-rename instead of toggling the
+ * pragma.
+ */
+export function assertMigrationSqlOmitsForeignKeysPragma(sql: string): void {
+    if (!FOREIGN_KEYS_PRAGMA_PATTERN.test(sql)) return;
+    throw new Error(
+        'Migration SQL cannot contain PRAGMA foreign_keys; SQLite ignores it inside the migration transaction. Rebuild the table with create-copy-drop-rename instead.',
+    );
+}
+
 function runGeneratedSql(database: Database.Database, sql: string): void {
+    assertMigrationSqlOmitsForeignKeysPragma(sql);
     database.exec(sql.replaceAll('--> statement-breakpoint', ''));
 }
 
@@ -125,6 +140,8 @@ function initializeSchema(database: Database.Database): void {
             `Database uses newer schema version ${version}; Caxri supports ${CURRENT_SCHEMA_VERSION}`,
         );
     }
+    // The entire migration body runs in one transaction. SQLite ignores PRAGMA foreign_keys
+    // inside a transaction, and openDatabase already enables foreign keys before this runs.
     database.transaction(() => {
         if (version > 0 && version < PRESERVED_SCHEMA_VERSION) {
             /**
