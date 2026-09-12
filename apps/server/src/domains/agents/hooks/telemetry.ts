@@ -73,18 +73,23 @@ export class AgentHookTelemetry {
         // discriminated diagnostic rather than on the widened remainder.
         const reason = diagnostic.outcome === 'accepted' ? undefined : diagnostic.reason;
         const { handlingMs, outcome, ...fields } = diagnostic;
+        const phaseKey =
+            fields.phase ??
+            (outcome === 'ignored' && reason === 'unknownPhase' ? 'unknown' : undefined);
         /**
          * A rejection is rare and security-relevant, so every one is logged. An accepted or ignored signal repeats for
          * the whole life of an Agent Terminal, so only the first of each shape is. Keep cwd and creation intent in that
-         * shape: an ordinary shell command must not hide the later worktree-following evidence.
+         * shape: an ordinary shell command must not hide the later worktree-following evidence. Unknown phases share
+         * one shape so the received token cannot become an unbounded diagnostic key.
          */
+        const terminalId = fields.terminalId;
         if (
             outcome !== 'rejected' &&
-            fields.terminalId &&
-            fields.phase &&
+            terminalId !== undefined &&
+            phaseKey !== undefined &&
             !this.claimFirst(
-                fields.terminalId,
-                `${outcome}:${reason ?? ''}:${fields.provider}:${fields.phase}:${fields.hasAgentSessionId}:${fields.hasAgentCwd}:${fields.worktreeCreateIntent}`,
+                terminalId,
+                `${outcome}:${reason ?? ''}:${fields.provider}:${phaseKey}:${fields.hasAgentSessionId}:${fields.hasAgentCwd}:${fields.worktreeCreateIntent}`,
             )
         )
             return;
