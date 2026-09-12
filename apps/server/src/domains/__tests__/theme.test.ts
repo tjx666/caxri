@@ -83,7 +83,14 @@ describe('theme import mapping', () => {
         expect((await importTheme(withPurple, draculaTheme)).colors.merged).toBe('#8250df');
 
         const without = join(directory, 'plain.json');
-        await writeFile(without, JSON.stringify({ name: 'Plain', colors: {} }), 'utf8');
+        await writeFile(
+            without,
+            JSON.stringify({
+                name: 'Plain',
+                colors: { 'editor.background': '#1e1e1e' },
+            }),
+            'utf8',
+        );
         expect((await importTheme(without, draculaTheme)).colors.merged).toBe(
             draculaTheme.colors.merged,
         );
@@ -543,7 +550,7 @@ describe('theme import mapping', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-at-limit-'));
         temporaryDirectories.push(directory);
         const path = join(directory, 'at-limit.json');
-        const prefix = '{"name":"At limit","padding":"';
+        const prefix = '{"name":"At limit","colors":{"editor.background":"#123456"},"padding":"';
         const suffix = '"}';
         await writeFile(
             path,

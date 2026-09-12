@@ -1,3 +1,4 @@
+import { themeImportExtensions } from '@caxri/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const electronMock = vi.hoisted(() => ({
@@ -182,6 +183,18 @@ describe('theme.import', () => {
             tokens: {},
         });
         expect(request).toHaveBeenCalledWith('theme.importPath', { path: '/themes/dark.json' });
+        expect(electronMock.dialog.showOpenDialog).toHaveBeenCalledWith(
+            expect.anything(),
+            expect.objectContaining({
+                filters: [
+                    {
+                        name: 'Theme files',
+                        extensions: [...themeImportExtensions, 'vsix'],
+                    },
+                    { name: 'All Files', extensions: ['*'] },
+                ],
+            }),
+        );
     });
 });
 

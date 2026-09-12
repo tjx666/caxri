@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { ServerEvent } from '@caxri/protocol';
 import { solarizedLightTheme } from '@caxri/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -50,5 +51,50 @@ describe('ConfigurationService built-in themes', () => {
         expect(normalizedSource).toContain('"id": "custom-solarized-light"');
         expect(normalizedSource).toContain('"source": "custom"');
         await normalized.close();
+    });
+
+    it('keeps theme state, source, file, and events unchanged after a zero-hit import', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-theme-zero-hit-'));
+        temporaryDirectories.push(directory);
+        const events: ServerEvent[] = [];
+        const service = new ConfigService(directory, (event) => events.push(event));
+        await service.initialize();
+        events.length = 0;
+        const before = service.getTheme();
+        const beforeFile = await readFile(service.themePath, 'utf8');
+        const path = join(directory, 'empty-colors.json');
+        await writeFile(path, JSON.stringify({ name: 'Empty colors', colors: {} }), 'utf8');
+
+        await expect(service.importTheme(path)).rejects.toMatchObject({ code: 'VALIDATION' });
+        expect(service.getTheme()).toEqual(before);
+        expect(await readFile(service.themePath, 'utf8')).toBe(beforeFile);
+        expect(events).toEqual([]);
+        await service.close();
+    });
+
+    it('keeps import warnings in memory while persisting an empty warnings array', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-theme-warnings-'));
+        temporaryDirectories.push(directory);
+        const service = new ConfigService(directory, () => {});
+        await service.initialize();
+        const path = join(directory, 'editor-only.json');
+        await writeFile(
+            path,
+            JSON.stringify({
+                name: 'Editor only',
+                type: 'dark',
+                colors: { 'editor.background': '#1e1e1e' },
+            }),
+            'utf8',
+        );
+
+        const imported = await service.importTheme(path);
+        expect(imported.warnings.length).toBeGreaterThan(0);
+        expect(service.getTheme().value.warnings).toEqual(imported.warnings);
+        expect(JSON.parse(await readFile(service.themePath, 'utf8'))).toMatchObject({
+            warnings: [],
+        });
+        expect(service.getTheme().source).not.toContain('Syntax colors');
+        await service.close();
     });
 });

@@ -1,6 +1,8 @@
+import { useState } from 'react';
+
 import type { ThemeTokens } from '@caxri/protocol';
 import { builtinThemes, findMatchingBuiltinTheme } from '@caxri/protocol';
-import { Import } from 'lucide-react';
+import { Import, X } from 'lucide-react';
 
 import { Alert } from '../../components/ui/alert';
 import { Button } from '../../components/ui/button';
@@ -12,6 +14,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '../../components/ui/select';
+import { Tooltip } from '../../components/ui/tooltip';
 import { ThemePreview } from './theme-preview';
 import { humanizeThemeTokenLabel } from './theme-token-labels';
 
@@ -100,12 +103,46 @@ export function ThemeForm({
                         ))}
                     </fieldset>
                 ))}
-                {theme.warnings.map((warning) => (
-                    <Alert key={warning} variant="warning" className="text-[11px]">
-                        {warning}
-                    </Alert>
-                ))}
+                <ThemeImportWarnings key={theme.id} warnings={theme.warnings} />
             </div>
         </div>
+    );
+}
+
+function ThemeImportWarnings({ warnings }: { warnings: readonly string[] }) {
+    const [dismissedWarnings, setDismissedWarnings] = useState<ReadonlySet<string>>(
+        () => new Set(),
+    );
+    return (
+        <>
+            {warnings.map((warning) =>
+                dismissedWarnings.has(warning) ? null : (
+                    <Alert
+                        key={warning}
+                        variant="warning"
+                        className="flex items-start justify-between gap-2 text-[11px]"
+                    >
+                        <span>{warning}</span>
+                        <Tooltip content="Dismiss warning">
+                            <Button
+                                size="icon"
+                                variant="ghost"
+                                className="size-6 shrink-0"
+                                aria-label="Dismiss warning"
+                                onClick={() =>
+                                    setDismissedWarnings((current) => {
+                                        const next = new Set(current);
+                                        next.add(warning);
+                                        return next;
+                                    })
+                                }
+                            >
+                                <X aria-hidden="true" size={12} />
+                            </Button>
+                        </Tooltip>
+                    </Alert>
+                ),
+            )}
+        </>
     );
 }

@@ -772,7 +772,10 @@ export class ConfigService {
         this.assertOpen();
         const theme = await importTheme(path, this.theme);
         await this.update('theme', serializeTheme(theme));
-        return theme;
+        // Warnings stay on the in-memory tokens for this process so Settings can show them; serializeTheme already
+        // stripped them from theme.json.
+        this.theme = { ...this.theme, warnings: theme.warnings };
+        return this.theme;
     }
 
     close(): Promise<void> {
