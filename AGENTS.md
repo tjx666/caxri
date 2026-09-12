@@ -172,7 +172,7 @@ directories.
 | Process, IPC, package, persistence, or toolchain contract | `project-architecture` |
 | File placement, naming, splits, test location             | `source-layout`        |
 | React composition, hooks, shared helpers                  | `react`                |
-| Renderer styling tokens                                   | `DESIGN.md`            |
+| Renderer visual and interaction design                    | `DESIGN.md`            |
 | React render-count audit over CDP with react-scan         | `react-rerender-audit` |
 | Focused lint / type / test / knip; formatting             | `quality-check`        |
 | Vitest unit/integration regressions                       | `unit-testing`         |

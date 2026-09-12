@@ -25,6 +25,20 @@ reference this file; deviations require updating this spec first.
    shadcn pattern. The default Tailwind palette is unregistered (`--color-*: initial`): `bg-blue-500`
    or arbitrary color literals must not compile, which makes rule 4 a build-time guarantee instead
    of a convention. Non-color scales (spacing, type, radius) use stock Tailwind defaults.
+6. **Say each meaning once.** An icon, a reserved slot, or a control that already names a state
+   does not also get an adjacent visual label repeating that state. Accessible names and tooltips
+   stay complete — they are not the duplication this rule forbids. The Panel caption that omits the
+   owning tab's icon is the same contract applied to a heading.
+7. **Finish the likely action where it starts.** If the control or anchored picker already on
+   screen can complete the next step, reuse it. Do not open a second list or a centered modal for a
+   choice the first surface already has. Keep the next step next to the current pointer or focus.
+8. **Keep recurring chrome geometrically stable.** Optional status that comes and goes occupies a
+   reserved slot. An empty slot stays empty rather than collapsing, so neighbouring titles,
+   timestamps, and actions do not shift. Encode the geometry, not a particular column index.
+9. **Non-happy paths are product states.** Empty, loading, a missing prerequisite, and a failure
+   each have honest copy, the matching semantic tone, and a recovery action the user can take. Do
+   not render them as a blank surface, and do not relabel a failed probe as a successful negative
+   (a Git error is not "not a repository").
 
 `apps/desktop/src/renderer/src/styles/theme.css` is the single Tailwind/default-theme/bootstrap
 source imported by both `styles.css` (main workbench) and `process-explorer.css`. Entry
