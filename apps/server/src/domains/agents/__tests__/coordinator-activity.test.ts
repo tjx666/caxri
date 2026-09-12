@@ -98,4 +98,85 @@ describe('AgentCoordinator Session Activity', () => {
             database.close();
         }
     });
+
+    it('distinguishes a stale Codex running baseline from reliable and newer activity', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-running-baseline-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const project = database.createProject(directory);
+        const session = database.createSession(project.id, 'codex');
+        const claudeSession = database.createSession(project.id, 'claude');
+        database.updateAgentLifecycle({
+            launchId: 'completed-launch',
+            phase: 'turnFinished',
+            provider: 'codex',
+            terminalId: session.terminal!.id,
+        });
+        const snapshot = vi
+            .fn<AgentAdapter['snapshot']>()
+            .mockImplementationOnce(() =>
+                Promise.resolve({
+                    provider: 'codex',
+                    activitySource: 'latestTurn',
+                    activityTurnId: 'stale-turn',
+                    status: 'running',
+                    observedAt: Date.now(),
+                    available: true,
+                }),
+            )
+            .mockImplementationOnce(() =>
+                Promise.resolve({
+                    provider: 'codex',
+                    activitySource: 'latestTurn',
+                    activityTurnId: 'new-turn',
+                    status: 'running',
+                    observedAt: Date.now(),
+                    available: true,
+                }),
+            );
+        const renameSession: AgentAdapter['renameSession'] = () => new Promise<never>(() => {});
+        const claudeSnapshot = vi.fn<AgentAdapter['snapshot']>(() =>
+            Promise.resolve({
+                provider: 'claude',
+                status: 'running',
+                observedAt: Date.now(),
+                available: true,
+            }),
+        );
+        const adapters: Record<AgentProvider, AgentAdapter> = {
+            claude: { provider: 'claude', renameSession, snapshot: claudeSnapshot },
+            codex: { provider: 'codex', renameSession, snapshot },
+            grok: { provider: 'grok', renameSession, snapshot },
+        };
+        const coordinator = new AgentCoordinator(
+            database,
+            new AgentService(undefined, adapters),
+            () => {},
+            createLogger(join(directory, 'logs')),
+        );
+
+        try {
+            coordinator.probeTerminal(session.terminal!.id);
+            await vi.waitFor(() => expect(snapshot).toHaveBeenCalledOnce());
+            expect(database.getSession(session.session.id)).toMatchObject({
+                lastActivityState: 'completed',
+                lastSessionActivityReason: 'agent_completed',
+            });
+            coordinator.probeTerminal(session.terminal!.id);
+            await vi.waitFor(() => expect(snapshot).toHaveBeenCalledTimes(2));
+            expect(database.getSession(session.session.id)).toMatchObject({
+                lastActivityState: 'running',
+                lastSessionActivityReason: 'agent_started',
+            });
+            coordinator.probeTerminal(claudeSession.terminal!.id);
+            await vi.waitFor(() => expect(claudeSnapshot).toHaveBeenCalledOnce());
+            expect(database.getSession(claudeSession.session.id)).toMatchObject({
+                lastActivityState: 'running',
+                lastSessionActivityReason: 'created',
+            });
+        } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
 });

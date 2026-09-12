@@ -4,7 +4,6 @@ import type {
     AgentActivityState,
     AgentLaunchSettings,
     AgentProvider,
-    AgentSnapshot,
     SessionAttentionKind,
 } from '@caxri/protocol';
 import { agentProviderCatalog, agentProviderIds, CaxriError } from '@caxri/protocol';
@@ -15,6 +14,7 @@ import { SingleFlight } from '../single-flight';
 import type {
     AgentEnvironment,
     AgentPasteSummaryGenerationContext,
+    AgentProbeSnapshot,
     AgentSessionRenameContext,
     AgentSessionRenameResult,
     AgentSnapshotContext,
@@ -39,7 +39,7 @@ export interface AgentAdapter {
     generateTitle?(context: AgentPasteSummaryGenerationContext): Promise<string>;
     provider: AgentProvider;
     renameSession(context: AgentSessionRenameContext): Promise<AgentSessionRenameResult>;
-    snapshot(context: AgentSnapshotContext): Promise<AgentSnapshot>;
+    snapshot(context: AgentSnapshotContext): Promise<AgentProbeSnapshot>;
     summarizePaste?(context: AgentPasteSummaryGenerationContext): Promise<string>;
 }
 
@@ -132,7 +132,7 @@ function createCliAdapter(
                 version,
             });
         },
-        async snapshot(context): Promise<AgentSnapshot> {
+        async snapshot(context): Promise<AgentProbeSnapshot> {
             const observedAt = Date.now();
             const [executable, localState] = await Promise.all([
                 discoverExecutable(provider, launchSettings().executable),
@@ -141,6 +141,8 @@ function createCliAdapter(
             const version = executable ? await readVersion(provider, executable) : undefined;
             return {
                 provider,
+                activitySource: localState?.activitySource,
+                activityTurnId: localState?.activityTurnId,
                 attentionKind: reliableAttentionKind(localState?.status),
                 status: localState?.status ?? processStateToAgentActivity(context.processState),
                 observedAt,
@@ -179,7 +181,7 @@ export function createLocalAgentAdapters(
 export const SLOW_AGENT_PROBE_MS = 250;
 
 export class AgentService {
-    private readonly requests = new SingleFlight<string, AgentSnapshot>();
+    private readonly requests = new SingleFlight<string, AgentProbeSnapshot>();
     /**
      * Tracks the last observed `available` per provider so `snapshot()` can log at 'info' only on a real availability
      * transition, not on every probe. See `snapshot()`'s rationale below.
@@ -201,7 +203,7 @@ export class AgentService {
             : Promise.reject(new CaxriError('UNAVAILABLE', 'Title generation is unavailable'));
     }
 
-    snapshot(provider: AgentProvider, context?: AgentSnapshotContext): Promise<AgentSnapshot> {
+    snapshot(provider: AgentProvider, context?: AgentSnapshotContext): Promise<AgentProbeSnapshot> {
         const resolvedContext = context ?? { rootPath: process.cwd() };
         return this.requests.run(snapshotRequestKey(provider, resolvedContext), async () => {
             const startedAt = performance.now();

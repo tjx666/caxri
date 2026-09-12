@@ -3,7 +3,12 @@ import { homedir } from 'node:os';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import process from 'node:process';
 
-import type { AgentActivityState, AgentProvider, ProcessState } from '@caxri/protocol';
+import type {
+    AgentActivityState,
+    AgentProvider,
+    AgentSnapshot,
+    ProcessState,
+} from '@caxri/protocol';
 
 import type { AgentDelegationAdapter } from './delegation-contract';
 import type { AgentHookAdapter } from './hooks/contract';
@@ -40,11 +45,21 @@ export interface AgentSnapshotContext {
 }
 
 export interface LocalAgentState {
+    /**
+     * Provider-owned opaque turn identity used only to distinguish durable activity observations inside Server Core.
+     */
+    activityTurnId?: string;
+    activitySource?: 'exactTurn' | 'latestTurn';
     titleSource?: 'automatic' | 'explicit';
     sessionId?: string;
     status?: AgentActivityState;
     title?: string;
     usage?: Array<{ label: string; value: string }>;
+}
+
+export interface AgentProbeSnapshot extends AgentSnapshot {
+    activityTurnId?: string;
+    activitySource?: LocalAgentState['activitySource'];
 }
 
 export interface AgentSessionRenameContext {

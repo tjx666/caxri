@@ -11,6 +11,11 @@ interface HookTurn {
     timer?: NodeJS.Timeout;
 }
 
+interface HookAuthority {
+    launchId: string;
+    settledTurnId?: string;
+}
+
 /**
  * Final bound for a hook-reported turn whose completion never arrives. Repeated unknown probes also have a shorter
  * evidence-based recovery path; neither expiry fabricates a completed turn or interrupts the process.
@@ -56,8 +61,9 @@ export function createRecoveringHookLaunchTracker(
  *
  * Two facts are kept per Terminal, both scoped to a launch id so a relaunch of the same Terminal never inherits them:
  *
- * - **authoritative**: the hook reported a turn boundary (`turnFinished`, or the equivalent lifecycle end). A probe then
- *   preserves the current activity state instead of re-deriving it from provider metadata.
+ * - **authoritative**: the hook reported a turn boundary or an attention request. A probe then preserves the current
+ *   activity state instead of re-deriving it from provider metadata. Settled boundaries retain their opaque turn ID so
+ *   a later ordered Codex turn can recover a missing start hook without weakening attention authority.
  * - **turn in flight**: the hook reported `turnStarted` and no `turnFinished` has been applied yet. A probe that only
  *   proves the process is alive (`unknown`) preserves running until three unknown observations and two minutes without
  *   evidence. A real, silent generation with no hooks or readable metadata can also lose its running cue: unknown is
@@ -65,7 +71,7 @@ export function createRecoveringHookLaunchTracker(
  *   fallback; {@link HOOK_TURN_PRESERVE_MS} remains the hard bound.
  */
 export class HookLaunchTracker {
-    private readonly authoritativeLaunchIds = new Map<string, string>();
+    private readonly authorities = new Map<string, HookAuthority>();
     private readonly turns = new Map<string, HookTurn>();
 
     constructor(
@@ -172,23 +178,38 @@ export class HookLaunchTracker {
         terminalId: string,
         launchId: string | undefined,
         status: AgentActivityState,
+        latestTurnId?: string,
     ): boolean {
         if (status === 'unknown') this.observeUnknown(terminalId, launchId);
         else if (status === 'running') this.observeEvidence(terminalId, launchId);
         else this.observeSettled(terminalId, launchId);
+        const authority = this.authorities.get(terminalId);
+        /**
+         * Codex's latest durable turn can prove that work advanced beyond an earlier hooked completion even when the
+         * next `turnStarted` was lost. Exact hook turn probes never take this path, and other providers do not expose
+         * the same ordered turn history.
+         */
+        if (
+            latestTurnId !== undefined &&
+            status === 'running' &&
+            authority?.settledTurnId !== undefined &&
+            authority.settledTurnId !== latestTurnId &&
+            authority.launchId === launchId
+        )
+            this.authorities.delete(terminalId);
         return (
             this.isAuthoritative(terminalId, launchId) ||
             (status === 'unknown' && this.isTurnInFlight(terminalId, launchId))
         );
     }
 
-    markAuthoritative(terminalId: string, launchId: string): void {
-        this.authoritativeLaunchIds.set(terminalId, launchId);
+    markAuthoritative(terminalId: string, launchId: string, settledTurnId?: string): void {
+        this.authorities.set(terminalId, { launchId, settledTurnId });
         this.clearTurn(terminalId);
     }
 
     markTurnStarted(terminalId: string, launchId: string): void {
-        this.authoritativeLaunchIds.delete(terminalId);
+        this.authorities.delete(terminalId);
         this.clearTurn(terminalId);
         const turn = {
             launchId,
@@ -222,8 +243,8 @@ export class HookLaunchTracker {
     }
 
     isAuthoritative(terminalId: string, launchId: string | undefined): boolean {
-        const hookLaunchId = this.authoritativeLaunchIds.get(terminalId);
-        return hookLaunchId !== undefined && hookLaunchId === launchId;
+        const authority = this.authorities.get(terminalId);
+        return authority !== undefined && authority.launchId === launchId;
     }
 
     isTurnInFlight(terminalId: string, launchId: string | undefined): boolean {
@@ -235,12 +256,12 @@ export class HookLaunchTracker {
     }
 
     forget(terminalId: string): void {
-        this.authoritativeLaunchIds.delete(terminalId);
+        this.authorities.delete(terminalId);
         this.clearTurn(terminalId);
     }
 
     clear(): void {
-        this.authoritativeLaunchIds.clear();
+        this.authorities.clear();
         for (const terminalId of this.turns.keys()) this.clearTurn(terminalId);
     }
 }
