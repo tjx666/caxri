@@ -90,6 +90,41 @@ describe('concurrent CI validation', () => {
         expect(summary).not.toContain('parallelSafe');
     });
 
+    it('omits unstarted E2E components when checks fail before they spawn', () => {
+        const summary = formatConcurrentValidationFailureSummary({
+            ...greenReceipt,
+            checks: 1,
+            ciParity: null,
+            desktopExclusive: null,
+            e2eSetup: null,
+            failureCensus: null,
+            failureIsolation: null,
+            manifest: null,
+            parallelSafe: null,
+        });
+        expect(summary).toContain('- checks: exit 1.');
+        expect(summary).not.toContain('e2eSetup');
+        expect(summary).not.toContain('failureIsolation');
+        expect(summary).not.toContain('failureCensus');
+        expect(summary).not.toContain('parallelSafe');
+        expect(summary).not.toContain('desktopExclusive');
+        expect(summary).not.toContain('ciParity');
+        expect(summary).not.toContain('manifest');
+        expect(
+            parseConcurrentValidationReceipt({
+                ...greenReceipt,
+                checks: 1,
+                ciParity: null,
+                desktopExclusive: null,
+                e2eSetup: null,
+                failureCensus: null,
+                failureIsolation: null,
+                manifest: null,
+                parallelSafe: null,
+            }),
+        ).toMatchObject({ checks: 1, e2eSetup: null });
+    });
+
     it('terminates a sibling process group after a non-zero child exit', async () => {
         // eslint-disable-next-line unicorn/prefer-event-target -- ChildProcess exposes Node EventEmitter events.
         const failedChild = new EventEmitter() as ChildProcess;
@@ -127,7 +162,7 @@ describe('concurrent CI validation', () => {
             siblingChild.emit('exit', null, 'SIGTERM');
 
             await expect(sibling).resolves.toBe(1);
-            await expect(runner.run('skipped', [], { stdio: 'ignore' })).resolves.toBe(1);
+            await expect(runner.run('skipped', [], { stdio: 'ignore' })).resolves.toBeNull();
             expect(signals).toEqual([
                 { signal: 'SIGTERM', target: siblingChild },
                 { signal: 'SIGKILL', target: siblingChild },
@@ -273,6 +308,21 @@ describe('concurrent CI validation', () => {
         ]);
     });
 
+    it('does not spawn a child that was aborted before start', async () => {
+        const runner = new ConcurrentValidationProcesses({
+            spawnProcess: () => {
+                throw new Error('aborted components must not spawn');
+            },
+        });
+        const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+        try {
+            runner.abort('full platform checks failed with exit 1');
+            await expect(runner.run('e2e-setup', [], { stdio: 'ignore' })).resolves.toBeNull();
+        } finally {
+            error.mockRestore();
+        }
+    });
+
     it('builds the standalone Server artifact before probing it', async () => {
         const labels: string[] = [];
         const result = await runE2ESetup((label) => {
@@ -292,6 +342,17 @@ describe('concurrent CI validation', () => {
         });
 
         expect(result).toBe(7);
+        expect(labels).toEqual(['Electron Vite build']);
+    });
+
+    it('does not probe a Server artifact when setup was skipped before spawn', async () => {
+        const labels: string[] = [];
+        const result = await runE2ESetup((label) => {
+            labels.push(label);
+            return Promise.resolve(null);
+        });
+
+        expect(result).toBeNull();
         expect(labels).toEqual(['Electron Vite build']);
     });
 
@@ -368,6 +429,13 @@ describe('concurrent CI validation', () => {
         expect(
             isVerificationPassed(
                 { ...greenReceipt, failureCensus: 1 },
+                'e2e-auxiliary',
+                greenReceipt.provenance,
+            ),
+        ).toBe(false);
+        expect(
+            isVerificationPassed(
+                { ...greenReceipt, e2eSetup: null },
                 'e2e-auxiliary',
                 greenReceipt.provenance,
             ),

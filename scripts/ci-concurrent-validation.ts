@@ -33,7 +33,7 @@ interface ConcurrentValidationReceipt {
     checks: number;
     ciParity: number | null;
     desktopExclusive: number | null;
-    e2eSetup: number;
+    e2eSetup: number | null;
     failureCensus: number | null;
     failureIsolation: number | null;
     manifest: number | null;
@@ -138,8 +138,8 @@ export class ConcurrentValidationProcesses {
         arguments_: readonly string[],
         options: SpawnOptions,
         policy: ConcurrentValidationRunPolicy = {},
-    ): Promise<number> {
-        if (this.isAborted) return 1;
+    ): Promise<number | null> {
+        if (this.isAborted) return null;
         const child = this.operations.spawnProcess(command, arguments_, {
             ...options,
             detached: process.platform !== 'win32',
@@ -281,7 +281,7 @@ export function parseConcurrentValidationReceipt(value: unknown): ConcurrentVali
         !/^[1-9]\d*$/u.test(provenance.runAttempt ?? '') ||
         !/^[1-9]\d*$/u.test(provenance.runId ?? '') ||
         !isExitCode(receipt.checks) ||
-        !isExitCode(receipt.e2eSetup) ||
+        !isOptionalExitCode(receipt.e2eSetup) ||
         ![
             receipt.ciParity,
             receipt.desktopExclusive,
@@ -306,7 +306,7 @@ async function run(
         environment?: NodeJS.ProcessEnv;
         label: string;
     },
-): Promise<number> {
+): Promise<number | null> {
     try {
         const result = await processes.run(
             command,
@@ -320,6 +320,7 @@ async function run(
                 abortOnFailure: options.abortOnFailure,
             },
         );
+        if (result === null) return null;
         if (result !== 0) {
             console.error(`${options.label} failed with exit ${result}.`);
             if (options.abortOnFailure !== false) {
@@ -343,7 +344,7 @@ function runReceiptedE2E(
     command: string,
     arguments_: string[],
     options: { environment: NodeJS.ProcessEnv; label: string },
-): Promise<number> {
+): Promise<number | null> {
     return run(processes, command, arguments_, { ...options, abortOnFailure: false });
 }
 
@@ -351,10 +352,14 @@ function measured(label: string, command: string, arguments_: string[]): string[
     return ['run', 'scripts/ci-metrics.ts', '--label', label, '--', command, ...arguments_];
 }
 
-type E2ESetupRunner = (label: string, command: string, arguments_: string[]) => Promise<number>;
+type E2ESetupRunner = (
+    label: string,
+    command: string,
+    arguments_: string[],
+) => Promise<number | null>;
 
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- regression-tested by the concurrent CI contract
-export async function runE2ESetup(execute: E2ESetupRunner): Promise<number> {
+export async function runE2ESetup(execute: E2ESetupRunner): Promise<number | null> {
     const build = await execute('Electron Vite build', 'bun', ['run', 'build']);
     if (build !== 0) return build;
     return execute('Electron native compatibility', 'bun', ['run', 'spike:native']);
@@ -525,18 +530,20 @@ async function execute(): Promise<void> {
             const { baseRevision, worktree } = await prepareChecksWorktree(process.env, {
                 execFile: (command, arguments_, options) =>
                     processes.capture(command, arguments_, options),
-                runChildProcess: (command, arguments_, options) =>
-                    processes.run(command, arguments_, options ?? {}),
+                runChildProcess: async (command, arguments_, options) =>
+                    (await processes.run(command, arguments_, options ?? {})) ?? 1,
             });
-            return await run(
-                processes,
-                'bun',
-                ['run', 'scripts/ci-platform-checks.ts', '--skip-node-pty-preparation'],
-                {
-                    cwd: worktree,
-                    environment: { ...safeEnvironment, CAXRI_REACT_DOCTOR_BASE: baseRevision },
-                    label: 'Full platform checks',
-                },
+            return (
+                (await run(
+                    processes,
+                    'bun',
+                    ['run', 'scripts/ci-platform-checks.ts', '--skip-node-pty-preparation'],
+                    {
+                        cwd: worktree,
+                        environment: { ...safeEnvironment, CAXRI_REACT_DOCTOR_BASE: baseRevision },
+                        label: 'Full platform checks',
+                    },
+                )) ?? 1
             );
         } catch (error) {
             console.error('Full platform checks could not prepare:', error);
