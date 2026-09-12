@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { applySourceControlHistoryPage } from '../source-control-history-state';
+import {
+    applySourceControlHistoryPage,
+    areSourceControlHistoryActionsCurrent,
+} from '../source-control-history-state';
 
 function item(id: string) {
     return {
@@ -30,7 +33,7 @@ describe('applySourceControlHistoryPage', () => {
         };
         const next = applySourceControlHistoryPage(
             current,
-            { items: [item('new-1')], nextOffset: undefined },
+            { items: [item('new-1')], nextOffset: undefined, revision: '2' },
             true,
         );
 
@@ -49,7 +52,7 @@ describe('applySourceControlHistoryPage', () => {
         expect(
             applySourceControlHistoryPage(
                 current,
-                { items: [item('commit-1'), item('commit-2')], nextOffset: 2 },
+                { items: [item('commit-1'), item('commit-2')], nextOffset: 2, revision: '1' },
                 true,
             ).selectedId,
         ).toBe('commit-1');
@@ -63,12 +66,46 @@ describe('applySourceControlHistoryPage', () => {
         };
         const next = applySourceControlHistoryPage(
             current,
-            { items: [item('commit-2')], nextOffset: 2 },
+            { items: [item('commit-2')], nextOffset: 2, path: '/project/file.ts', revision: '1' },
             false,
         );
 
         expect(next.items.map((entry) => entry.id)).toEqual(['commit-1', 'commit-2']);
         expect(next.selectedId).toBe('commit-1');
         expect(next.nextOffset).toBe(2);
+        expect(next.committedRevision).toBe('1');
+        expect(next.committedPath).toBe('/project/file.ts');
+    });
+
+    it('disables kept-page actions until the replacement identity commits', () => {
+        const current = applySourceControlHistoryPage(
+            { items: [], nextOffset: undefined, selectedId: undefined },
+            {
+                items: [item('commit-1')],
+                nextOffset: undefined,
+                path: '/project/file.ts',
+                revision: '1',
+            },
+            true,
+        );
+
+        expect(
+            areSourceControlHistoryActionsCurrent(current, {
+                path: '/project/file.ts',
+                revision: '1',
+            }),
+        ).toBe(true);
+        expect(
+            areSourceControlHistoryActionsCurrent(current, {
+                path: '/project/file.ts',
+                revision: '2',
+            }),
+        ).toBe(false);
+        expect(
+            areSourceControlHistoryActionsCurrent(current, {
+                path: '/project/other.ts',
+                revision: '1',
+            }),
+        ).toBe(false);
     });
 });

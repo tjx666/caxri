@@ -7,7 +7,7 @@ import { getSelectedSession } from '../../stores/selectors';
 import { useSessionViewStore } from '../../stores/session-view';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { dispatchCoreViewCommand } from './core-view-commands';
-import { isControlledViewOperationQuery } from './view-operation-client';
+import { invalidateControlledViewSnapshotQueries } from './view-operation-client';
 
 function findViewCatalogCommand(
     catalog: ViewCatalogSnapshot | undefined,
@@ -69,10 +69,7 @@ export async function retryExtension(extensionId: string): Promise<void> {
  * Reconciles command-owned provider state even when its one-shot change event raced the view's first subscription.
  */
 export async function invalidateControlledViewSnapshot(viewId: string): Promise<void> {
-    await queryClient.invalidateQueries({
-        predicate: ({ queryKey }) =>
-            isControlledViewOperationQuery(queryKey, viewId, 'source.snapshot'),
-    });
+    await invalidateControlledViewSnapshotQueries(queryClient, viewId);
 }
 
 function revealViewContainer(catalog: ViewCatalogSnapshot, containerId: string): void {

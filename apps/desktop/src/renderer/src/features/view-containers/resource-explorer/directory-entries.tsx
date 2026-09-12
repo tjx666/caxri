@@ -1,5 +1,5 @@
 import type { SubmitEvent } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { FileEntry } from '@caxri/protocol';
 import { useQuery } from '@tanstack/react-query';
@@ -17,7 +17,11 @@ import { useToastOnQueryError } from '../../../queries/client';
 import { useGitChildRepo, useGitDecoration } from '../../../stores/git-decorations';
 import { describeFailure } from '../../../stores/toasts';
 import { useResourceExplorerClient } from '../controlled-view-context';
-import { isViewContainerQueryEnabled, useIsViewContainerActive } from '../view-container-activity';
+import {
+    isViewContainerQueryEnabled,
+    useCancelViewContainerQueryWhenHidden,
+    useIsViewContainerActive,
+} from '../view-container-activity';
 import { controlledViewQueryKey } from '../view-operation-client';
 import { createItem, rememberFile, renameFile } from './file-actions';
 import { FileTreeItemMenu } from './file-tree-item-menu';
@@ -159,10 +163,16 @@ export function DirectoryEntries({
     // Listings are cached per Project, not per Session: every Session of a Project shares the same root, so a
     // Session switch reuses the loaded tree instead of clearing it and refetching each directory. Hidden keep-alive
     // panels keep that cache on screen and pause the listing until the Files tab is selected again.
+    const queryKey = useMemo(
+        () => controlledViewQueryKey(client.viewId, 'files.list', { directory }, projectId),
+        [client.viewId, directory, projectId],
+    );
+    useCancelViewContainerQueryWhenHidden(queryKey, isContainerActive);
     const { data, isError, isPending, error } = useQuery({
-        queryKey: controlledViewQueryKey(client.viewId, 'files.list', { directory }, projectId),
+        queryKey,
         queryFn: ({ signal }) => client.listDirectory(directory, signal),
         enabled: isViewContainerQueryEnabled(isContainerActive),
+        staleTime: 0,
     });
     const entries = data?.entries ?? [];
     useToastOnQueryError(isError, error, 'Unable to read directory');

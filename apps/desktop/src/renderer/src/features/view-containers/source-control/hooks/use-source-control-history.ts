@@ -9,7 +9,10 @@ import { describeFailure } from '../../../../stores/toasts';
 import { useSourceControlClient } from '../../controlled-view-context';
 import { useIsViewContainerActive } from '../../view-container-activity';
 import type { SourceControlHistoryItemsState } from '../source-control-history-state';
-import { applySourceControlHistoryPage } from '../source-control-history-state';
+import {
+    applySourceControlHistoryPage,
+    areSourceControlHistoryActionsCurrent,
+} from '../source-control-history-state';
 
 export interface SourceControlHistoryScope {
     kind: 'file';
@@ -71,7 +74,11 @@ export function useSourceControlHistory(
                 if (request !== activeRequest.current || page.revision !== descriptor.revision)
                     return;
                 setPageState((current) =>
-                    applySourceControlHistoryPage(current, page, shouldReplace),
+                    applySourceControlHistoryPage(
+                        current,
+                        { ...page, path: scopePath },
+                        shouldReplace,
+                    ),
                 );
             } catch (error_) {
                 if (request === activeRequest.current)
@@ -108,6 +115,10 @@ export function useSourceControlHistory(
     }, []);
 
     return {
+        areActionsCurrent: areSourceControlHistoryActionsCurrent(pageState, {
+            path: scopePath,
+            revision: descriptor.revision,
+        }),
         debouncedPath,
         error,
         expanded,

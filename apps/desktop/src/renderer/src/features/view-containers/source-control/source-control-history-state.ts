@@ -2,10 +2,32 @@ import type { SourceControlHistoryPage } from '@caxri/protocol';
 
 type SourceControlHistoryItem = SourceControlHistoryPage['items'][number];
 
+export interface SourceControlHistoryPageIdentity {
+    path: string | undefined;
+    revision: string | undefined;
+}
+
 export interface SourceControlHistoryItemsState {
+    committedPath?: string;
+    committedRevision?: string;
     items: readonly SourceControlHistoryItem[];
     nextOffset: number | undefined;
     selectedId: string | undefined;
+}
+
+/**
+ * A kept page is still on screen after snapshot revision or path moves. Its action IDs belong to the committed
+ * identity, so clicks and details must wait until the replacement page commits.
+ */
+export function areSourceControlHistoryActionsCurrent(
+    state: Pick<SourceControlHistoryItemsState, 'committedPath' | 'committedRevision'>,
+    identity: SourceControlHistoryPageIdentity,
+): boolean {
+    return (
+        identity.revision !== undefined &&
+        state.committedRevision === identity.revision &&
+        state.committedPath === identity.path
+    );
 }
 
 /**
@@ -14,7 +36,9 @@ export interface SourceControlHistoryItemsState {
  */
 export function applySourceControlHistoryPage(
     current: SourceControlHistoryItemsState,
-    page: Pick<SourceControlHistoryPage, 'items' | 'nextOffset'>,
+    page: Pick<SourceControlHistoryPage, 'items' | 'nextOffset' | 'revision'> & {
+        path?: string;
+    },
     shouldReplace: boolean,
 ): SourceControlHistoryItemsState {
     const items = shouldReplace ? page.items : [...current.items, ...page.items];
@@ -22,5 +46,11 @@ export function applySourceControlHistoryPage(
         current.selectedId !== undefined && items.some((item) => item.id === current.selectedId)
             ? current.selectedId
             : undefined;
-    return { items, nextOffset: page.nextOffset, selectedId };
+    return {
+        committedPath: page.path,
+        committedRevision: page.revision,
+        items,
+        nextOffset: page.nextOffset,
+        selectedId,
+    };
 }
