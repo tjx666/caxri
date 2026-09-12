@@ -28,6 +28,7 @@ export class SessionAutoNamingService {
     private readonly deferred = new Map<string, AgentLifecycleSignal>();
     private readonly retryTimers = new Map<string, NodeJS.Timeout>();
     private readonly blockedLaunches = new Map<string, string>();
+    private readonly retryDeferredCounts = new Map<string, number>();
     private closed = false;
 
     constructor(
@@ -79,6 +80,12 @@ export class SessionAutoNamingService {
         if (state?.status === 'complete' || state?.status === 'stopped') return;
         const delay = (this.retryAfter.get(session.id) ?? 0) - Date.now();
         if (delay > 0) {
+            this.retryDeferredCounts.set(
+                session.id,
+                (this.retryDeferredCounts.get(session.id) ?? 0) + 1,
+            );
+            if (this.retryDeferredCounts.size > 128)
+                this.retryDeferredCounts.delete(this.retryDeferredCounts.keys().next().value!);
             clearTimeout(this.retryTimers.get(session.id));
             const timer = setTimeout(() => {
                 this.retryTimers.delete(session.id);
@@ -176,12 +183,19 @@ export class SessionAutoNamingService {
                 /**
                  * Only enums and timing enter diagnostics; neither prompts, generated names nor provider error text do.
                  */
+                const retryDeferredCount = this.retryDeferredCounts.get(session.id) ?? 0;
+                this.retryDeferredCounts.delete(session.id);
                 this.logger.write(
                     reason === 'failed' ? 'warn' : 'info',
                     logEventCatalog.agent.automaticNamingFinished,
                     {
                         durationMs: performance.now() - startedAt,
-                        fields: { provider: target.provider, reason },
+                        fields: {
+                            provider: target.provider,
+                            reason,
+                            sessionId: session.id,
+                            ...(retryDeferredCount > 0 && { retryDeferredCount }),
+                        },
                     },
                 );
                 if (!controller.signal.aborted && !this.blockedLaunches.has(session.id))
@@ -204,6 +218,7 @@ export class SessionAutoNamingService {
         for (const task of this.running.values()) task.controller.abort();
         await Promise.allSettled(this.running.values().map((task) => task.promise));
         this.retryAfter.clear();
+        this.retryDeferredCounts.clear();
         this.deferred.clear();
         this.blockedLaunches.clear();
     }
