@@ -31,14 +31,14 @@ type ThemeImportFormat = (typeof themeImportFormats)[number];
  */
 export const MAX_THEME_IMPORT_FILE_BYTES = 1 * 1024 * 1024;
 const ZERO_HIT_THEME_MESSAGE =
-    'This theme file does not define any workbench colors. Caxri could not find the colors it needs — check that you picked the theme JSON and not a package manifest.';
+    'This theme file does not define any colors Caxri can import. Check that you picked the theme JSON and not a package manifest.';
 const VSIX_THEME_MESSAGE =
     'Caxri cannot read a .vsix package yet. Unzip it and pick the theme JSON under themes/.';
 const INCLUDE_DIRECTORY_MESSAGE = 'Theme include must be a file in the same directory.';
 
 /**
- * VS Code `colors` keys `parseVsCode` actually maps. Zero-hit rejection uses this set so a file that only has
- * `tokenColors` or an empty `colors` object cannot import as a renamed Dracula.
+ * VS Code `colors` keys `parseVsCode` actually maps. Zero-hit rejection also counts syntax roles mapped from
+ * `tokenColors`; semantic token colors are omitted because Caxri does not import them.
  */
 const VSCODE_MAPPED_COLOR_KEYS = new Set([
     'editor.background',
@@ -310,7 +310,8 @@ function hasMappedVsCodeColor(colors: Record<string, unknown>): boolean {
 function parseVsCode(value: Record<string, unknown>, name: string): ThemeTokens {
     const theme = cloneFallback('vscode', name);
     const colors = (value.colors ?? {}) as Record<string, unknown>;
-    if (!hasMappedVsCodeColor(colors)) {
+    const missingSyntax = applyVsCodeTokenColors(theme, value.tokenColors);
+    if (!hasMappedVsCodeColor(colors) && missingSyntax.length === SYNTAX_EDITOR_ROLES.length) {
         throw new CaxriError('VALIDATION', ZERO_HIT_THEME_MESSAGE);
     }
     /**
@@ -478,7 +479,6 @@ function parseVsCode(value: Record<string, unknown>, name: string): ThemeTokens 
     ];
     for (const [target, source] of ansiMap)
         theme.terminal[target] = firstHex(colors, [source], theme.terminal[target]);
-    const missingSyntax = applyVsCodeTokenColors(theme, value.tokenColors);
     if (missingSyntax.length > 0) theme.warnings.push(formatMissingSyntaxWarning(missingSyntax));
     if (value.semanticTokenColors != null)
         theme.warnings.push('Semantic token colors were not imported.');

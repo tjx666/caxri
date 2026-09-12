@@ -87,7 +87,7 @@ describe('theme import include, zero-hit, and vsix', () => {
         });
     });
 
-    it('rejects a VS Code theme whose colors object maps no workbench keys', async () => {
+    it('rejects a VS Code theme with no importable colors', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-zero-hit-'));
         temporaryDirectories.push(directory);
         const emptyColors = join(directory, 'empty-colors.json');
@@ -101,15 +101,31 @@ describe('theme import include, zero-hit, and vsix', () => {
             }),
             'utf8',
         );
+        const semanticOnly = join(directory, 'semantic-only.json');
+        await writeFile(
+            semanticOnly,
+            JSON.stringify({
+                name: 'Semantic only',
+                semanticTokenColors: { comment: '#6a9955' },
+            }),
+            'utf8',
+        );
 
         await expect(importTheme(emptyColors, draculaTheme)).rejects.toMatchObject({
             code: 'VALIDATION',
-            message: expect.stringContaining('does not define any workbench colors') as string,
+            message: expect.stringContaining(
+                'does not define any colors Caxri can import',
+            ) as string,
         } satisfies Partial<CaxriError>);
-        await expect(importTheme(tokenOnly, draculaTheme)).rejects.toMatchObject({
+        await expect(importTheme(semanticOnly, draculaTheme)).rejects.toMatchObject({
             code: 'VALIDATION',
-            message: expect.stringContaining('does not define any workbench colors') as string,
+            message: expect.stringContaining(
+                'does not define any colors Caxri can import',
+            ) as string,
         } satisfies Partial<CaxriError>);
+        await expect(importTheme(tokenOnly, draculaTheme)).resolves.toMatchObject({
+            editor: { comment: '#6a9955' },
+        });
     });
 
     it('rejects a .vsix package without unpacking it', async () => {
