@@ -16,6 +16,20 @@ import {
 
 const created: string[] = [];
 
+/**
+ * Returns a directory under the temp root deep enough that `name` provably cannot fit beside it.
+ *
+ * How deep that is depends on the machine: the macOS per-user temp root is 49 bytes, while CI points `TMPDIR` at a
+ * deliberately short `/private/tmp` symlink (see `scripts/self-hosted-runner.ts`) where one worker directory still
+ * fits. Nesting until the limit is actually exceeded keeps these tests about the fallback rather than about one
+ * machine's temp path.
+ */
+function tooDeepDirectory(name: string): string {
+    let directory = join(tmpdir(), 'caxri-e2e-parallel-safe-0');
+    while (isWithinUnixSocketLimit(join(directory, name))) directory = join(directory, 'nested');
+    return directory;
+}
+
 afterEach(async () => {
     const paths = [...created];
     created.length = 0;
@@ -33,8 +47,8 @@ describe('unixSocketPath', () => {
      * temp root, which is the shape that pushed both private sockets past `sun_path`.
      */
     it('falls back to the short private root when the preferred directory is too deep', () => {
-        const workerDirectory = join(tmpdir(), 'caxri-e2e-parallel-safe-0');
         const name = 'caxri-hooks-0123456789abcdef-12345.sock';
+        const workerDirectory = tooDeepDirectory(name);
 
         // Proves the fallback is what keeps this under the limit rather than the name happening to be short.
         expect(isWithinUnixSocketLimit(join(workerDirectory, name))).toBe(false);
@@ -76,10 +90,8 @@ describe('unixSocketPath', () => {
 
 describe('ensureUnixSocketDirectory', () => {
     it('creates a private directory that can then be bound', async () => {
-        const socketPath = unixSocketPath(
-            join(tmpdir(), 'caxri-e2e-parallel-safe-0'),
-            `caxri-hooks-${process.pid}-bind.sock`,
-        );
+        const name = `caxri-hooks-${process.pid}-bind.sock`;
+        const socketPath = unixSocketPath(tooDeepDirectory(name), name);
         created.push(socketPath);
 
         await ensureUnixSocketDirectory(socketPath);
