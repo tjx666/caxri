@@ -250,13 +250,18 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
             isTrustedRenderer = true;
             /**
              * Refuse queued Renderer work; explicit quit owns final Server I/O and shutdown.
+             *
+             * Classified as a cancellation rather than an outage because nothing is unavailable and there is nothing to
+             * retry: the window that issued the request is being torn down. `UNAVAILABLE` made the Renderer's failure
+             * funnel raise a real error notification over a closing window — a read still in flight when the user quits
+             * surfaced as "Unable to read directory: Application is quitting".
              */
             if (options.isQuitting())
                 return {
                     protocolVersion: CAXRI_PROTOCOL_VERSION,
                     id: requestIdFromEnvelope(raw),
                     ok: false,
-                    error: toWireError(new CaxriError('UNAVAILABLE', 'Application is quitting')),
+                    error: toWireError(new CaxriError('CANCELLED', 'Application is quitting')),
                 };
             const reply = await options.transport.dispatch(raw);
             /**

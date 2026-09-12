@@ -193,6 +193,16 @@ export function describeFailure(error: unknown, label: string): string {
     return errorMessage(error, label);
 }
 
+/**
+ * A cancelled request is an expected outcome rather than a failure the user can act on, and often arrives when there is
+ * no longer anywhere to show it: Main refuses queued Renderer work as soon as quit starts, and the Host client cancels
+ * everything in flight when a lease is replaced or a connection is disposed. `shouldToastQueryError` applies the same
+ * rule to reads; this keeps writes consistent with it.
+ */
+function isCancelledRequest(error: unknown): boolean {
+    return isCaxriError(error) && error.code === 'CANCELLED';
+}
+
 export interface TryCommandOptions {
     /**
      * Re-reads the Server snapshot after the operation succeeds.
@@ -215,7 +225,7 @@ export async function tryCommand<T>(
         if (options.refresh) await options.refresh();
         return result;
     } catch (error) {
-        pushToast('error', describeFailure(error, label));
+        if (!isCancelledRequest(error)) pushToast('error', describeFailure(error, label));
         return undefined;
     }
 }
