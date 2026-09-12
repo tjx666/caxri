@@ -103,16 +103,26 @@ const APP_COLOR_SURFACE_LABELS = {
     surface: 'sidebar and status bar background',
 } satisfies Record<(typeof APP_COLOR_SURFACES)[number], string>;
 
-function normalizedHex(value: unknown, fallback: string): string {
+function normalizedHex(
+    value: unknown,
+    fallback: string,
+    options: { preserveAlpha?: boolean } = {},
+): string {
     if (typeof value !== 'string') return fallback;
     const candidate = value.startsWith('#') ? value : `#${value}`;
-    if (/^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/i.test(candidate))
-        return candidate.slice(0, 7).toLowerCase();
+    if (/^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/i.test(candidate)) {
+        const hex = candidate.toLowerCase();
+        return options.preserveAlpha ? hex : hex.slice(0, 7);
+    }
     // VS Code themes may use CSS shorthand (`#fff`, `#fff8`); expand it rather than silently dropping the color.
     const shorthand = /^#([0-9a-f]{3,4})$/i.exec(candidate);
     if (!shorthand) return fallback;
-    const [red, green, blue] = shorthand[1];
-    return `#${red}${red}${green}${green}${blue}${blue}`.toLowerCase();
+    const digits = shorthand[1].toLowerCase();
+    const [red, green, blue] = digits;
+    const rgb = `#${red}${red}${green}${green}${blue}${blue}`;
+    if (!options.preserveAlpha || digits.length === 3) return rgb;
+    const alpha = digits[3];
+    return `${rgb}${alpha}${alpha}`;
 }
 
 /**
@@ -126,9 +136,10 @@ function firstHex(
     colors: Record<string, unknown>,
     keys: readonly string[],
     fallback: string,
+    options: { preserveAlpha?: boolean } = {},
 ): string {
     for (const key of keys) {
-        const hex = normalizedHex(colors[key], '');
+        const hex = normalizedHex(colors[key], '', options);
         if (hex) return hex;
     }
     return fallback;
@@ -445,6 +456,7 @@ function parseVsCode(value: Record<string, unknown>, name: string): ThemeTokens 
         colors,
         ['terminal.selectionBackground'],
         theme.terminal.selectionBackground,
+        { preserveAlpha: true },
     );
     const ansiMap: Array<[keyof ThemeTokens['terminal'], string]> = [
         ['black', 'terminal.ansiBlack'],

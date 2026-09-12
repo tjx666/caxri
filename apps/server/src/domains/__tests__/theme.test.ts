@@ -305,6 +305,27 @@ describe('theme import mapping', () => {
         expect(theme.editor.comment).not.toBe(draculaTheme.editor.comment);
     });
 
+    it('preserves 8-digit and shorthand alpha on terminal.selectionBackground', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-selection-alpha-'));
+        temporaryDirectories.push(directory);
+        const write = async (name: string, colors: Record<string, string>) => {
+            const path = join(directory, name);
+            await writeFile(path, JSON.stringify({ name, colors }), 'utf8');
+            return importTheme(path, draculaTheme);
+        };
+        const dark = await write('dark.json', {
+            'editor.background': '#1e1e1e',
+            'editor.selectionBackground': '#3994BC33',
+            'terminal.selectionBackground': '#3994BC33',
+        });
+        expect(dark.terminal.selectionBackground).toBe('#3994bc33');
+        expect(dark.editor.selection).toBe('#3994bc');
+        expect(
+            (await write('light.json', { 'terminal.selectionBackground': '#06c2' })).terminal
+                .selectionBackground,
+        ).toBe('#0066cc22');
+    });
+
     it('maps array-scoped tokenColors onto the matching editor syntax role', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-token-array-'));
         temporaryDirectories.push(directory);
