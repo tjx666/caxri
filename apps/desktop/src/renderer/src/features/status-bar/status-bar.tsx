@@ -18,6 +18,7 @@ import { ActiveTerminalStatus } from './active-terminal-status';
 import { BranchPicker } from './branch-picker';
 import { resolveChipVisibility } from './chip-priority';
 import { ScreencastModeChip } from './screencast-mode-chip';
+import { StatusInfo } from './status-info';
 import { StatusItem } from './status-item';
 import { WorkbenchRootPicker } from './workbench-root-picker';
 
@@ -204,6 +205,17 @@ export function StatusBar() {
                     >
                         #{repo.pullRequest.number}
                     </StatusItem>
+                )}
+                {repo?.pullRequestUnavailable && chipVisibility.pullRequest && (
+                    <StatusInfo
+                        icon={GitPullRequest}
+                        ariaLabel={`PR unknown. ${repo.pullRequestUnavailable.hint}`}
+                        title={repo.pullRequestUnavailable.hint}
+                        className="bg-elevated text-muted"
+                        focusable
+                    >
+                        PR unknown
+                    </StatusInfo>
                 )}
                 {repo && (
                     <RepoChangesStatus additions={repo.additions} deletions={repo.deletions} />

@@ -2,6 +2,7 @@ import type {
     AppSettings,
     GitSummary,
     ProjectStatusState,
+    PullRequestUnavailable,
     ServerEvent,
     SessionPullRequest,
     SessionPullRequests,
@@ -36,6 +37,7 @@ import {
 } from './external-status';
 import type { GitService } from './git';
 import { parseGitHubPullRequest } from './project-status-parse';
+import { pullRequestUnavailable } from './pull-request-unavailable';
 
 /**
  * Merge state moves on human timescales, so an open PR refreshes once a minute while a merged or closed one only
@@ -46,10 +48,10 @@ const OPEN_TTL_MS = 60_000;
 const SETTLED_TTL_MS = 15 * 60_000;
 const MISSING_TTL_MS = 5 * 60_000;
 /**
- * A failed lookup must not retry sooner than a successful one would refresh. Two minutes was already longer than the
- * open-PR TTL, but a rate-limited `gh` needs the source-level circuit breaker, not a per-Session timer, to recover.
+ * A failed lookup retries on the status-bar's minute cadence so recovery clears the unknown state automatically.
+ * Rate-limited calls still use the source-level circuit breaker to avoid wasteful requests.
  */
-const FAILURE_TTL_MS = 5 * 60_000;
+const FAILURE_TTL_MS = 60_000;
 const MAX_CONCURRENT_LOOKUPS = 4;
 const MAX_TRANSCRIPT_SCANS = 128;
 const MAX_PULL_REQUEST_ENTRIES = 256;
@@ -90,6 +92,7 @@ interface PullRequestEntry {
 interface BranchLookupEntry {
     expiresAt: number;
     value?: SessionPullRequest;
+    unavailable?: PullRequestUnavailable;
 }
 
 interface SessionEntry {
@@ -99,6 +102,7 @@ interface SessionEntry {
      */
     key?: string;
     value?: SessionPullRequest;
+    unavailable?: PullRequestUnavailable;
 }
 
 interface ScopedSessionEntry extends SessionEntry {
@@ -294,7 +298,8 @@ export class SessionPullRequestService {
                 if (
                     result.entry.value?.state !== previous?.value?.state ||
                     result.entry.value?.checks !== previous?.value?.checks ||
-                    result.entry.value?.url !== previous?.value?.url
+                    result.entry.value?.url !== previous?.value?.url ||
+                    result.entry.unavailable?.reason !== previous?.unavailable?.reason
                 )
                     changed.push(session.id);
             });
@@ -372,11 +377,20 @@ export class SessionPullRequestService {
                     MAX_PULL_REQUEST_ENTRIES,
                 );
                 return { entry: { expiresAt, key, value }, lookedUp: true };
-            } catch {
+            } catch (error) {
                 // Transient `gh` failure: keep the last projection and retry after a short back-off.
                 const previousValue = previous?.key === key ? previous.value : cached?.value;
+                const unavailable = pullRequestUnavailable(error);
+                this.logger.write('warn', logEventCatalog.sessionPullRequests.lookupUnavailable, {
+                    fields: { reason: unavailable.reason },
+                });
                 return {
-                    entry: { expiresAt: now + FAILURE_TTL_MS, key, value: previousValue },
+                    entry: {
+                        expiresAt: now + FAILURE_TTL_MS,
+                        key,
+                        value: previousValue,
+                        unavailable,
+                    },
                     lookedUp: true,
                 };
             }
@@ -385,7 +399,11 @@ export class SessionPullRequestService {
             return { entry: previous, lookedUp: false };
         const branch = await this.branchPullRequest(session);
         return {
-            entry: { expiresAt: branch.expiresAt, value: branch.value },
+            entry: {
+                expiresAt: branch.expiresAt,
+                value: branch.value,
+                unavailable: branch.unavailable,
+            },
             lookedUp: branch.lookedUp,
         };
     }
@@ -476,6 +494,7 @@ export class SessionPullRequestService {
     ): Promise<SessionPullRequest | undefined> {
         try {
             const output = await this.github.view({
+                allowStaleOnFailure: false,
                 cwd,
                 number: reference.number,
                 owner: reference.owner,
@@ -490,9 +509,12 @@ export class SessionPullRequestService {
         }
     }
 
-    private async branchPullRequest(
-        session: SessionRecord,
-    ): Promise<{ expiresAt: number; lookedUp: boolean; value?: SessionPullRequest }> {
+    private async branchPullRequest(session: SessionRecord): Promise<{
+        expiresAt: number;
+        lookedUp: boolean;
+        value?: SessionPullRequest;
+        unavailable?: PullRequestUnavailable;
+    }> {
         const now = this.now();
         const missing = {
             expiresAt: now + (this.options.missingTtlMs ?? MISSING_TTL_MS),
@@ -503,8 +525,14 @@ export class SessionPullRequestService {
         const key = `${github.owner}/${github.repo}\0${github.branch}`;
         const cached = this.branchLookups.get(key);
         if (cached && cached.expiresAt > now)
-            return { expiresAt: cached.expiresAt, lookedUp: false, value: cached.value };
+            return {
+                expiresAt: cached.expiresAt,
+                lookedUp: false,
+                value: cached.value,
+                unavailable: cached.unavailable,
+            };
         let value: SessionPullRequest | undefined;
+        let unavailable: PullRequestUnavailable | undefined;
         let ttl = this.options.missingTtlMs ?? MISSING_TTL_MS;
         try {
             // A transient failure below keeps the previous branch projection instead of blanking the row.
@@ -551,11 +579,20 @@ export class SessionPullRequestService {
             if (!isNoPullRequest(error)) {
                 ttl = FAILURE_TTL_MS;
                 value = cached?.value;
+                unavailable = pullRequestUnavailable(error);
+                this.logger.write('warn', logEventCatalog.sessionPullRequests.lookupUnavailable, {
+                    fields: { reason: unavailable.reason },
+                });
             }
         }
         const expiresAt = now + ttl;
-        rememberBounded(this.branchLookups, key, { expiresAt, value }, MAX_PULL_REQUEST_ENTRIES);
-        return { expiresAt, lookedUp: true, value };
+        rememberBounded(
+            this.branchLookups,
+            key,
+            { expiresAt, value, unavailable },
+            MAX_PULL_REQUEST_ENTRIES,
+        );
+        return { expiresAt, lookedUp: true, value, unavailable };
     }
 
     private async optionalGit(
@@ -604,19 +641,25 @@ export class SessionPullRequestService {
         this.expireOnIgnoredChecksChange();
         const now = this.now();
         const pullRequests: SessionPullRequests['pullRequests'] = {};
+        const unavailable: NonNullable<SessionPullRequests['unavailable']> = {};
         let isStale = false;
         for (const session of this.activeSessions()) {
             const cached = this.sessions.get(session.id);
             const entry = cached?.context === this.discoveryContext(session) ? cached : undefined;
             if (!entry || entry.expiresAt <= now) isStale = true;
             if (entry?.value) pullRequests[session.id] = entry.value;
+            if (entry?.unavailable) unavailable[session.id] = entry.unavailable;
         }
         if (isStale) {
             // Fire-and-forget: the sweep logs its own failure and emits the change event.
             // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void this.refresh();
         }
-        return { pullRequests, refreshedAt: this.refreshedAt };
+        return {
+            pullRequests,
+            ...(Object.keys(unavailable).length > 0 && { unavailable }),
+            refreshedAt: this.refreshedAt,
+        };
     }
 
     async refresh(): Promise<void> {

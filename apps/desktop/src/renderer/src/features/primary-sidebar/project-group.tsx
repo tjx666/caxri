@@ -3,6 +3,7 @@ import { useState } from 'react';
 
 import type {
     ProjectRecord,
+    PullRequestUnavailable,
     SessionPullRequest,
     SessionRecord,
     TerminalRecord,
@@ -54,6 +55,7 @@ interface ActiveSessionRowProperties {
     onRenameValueChange: (value: string) => void;
     project: ProjectRecord;
     pullRequest?: SessionPullRequest;
+    pullRequestUnavailable?: PullRequestUnavailable;
     renameError?: string;
     renameValue: string;
     renaming: boolean;
@@ -89,6 +91,7 @@ function ActiveSessionRow({
     onRenameValueChange,
     project,
     pullRequest,
+    pullRequestUnavailable,
     renameError,
     renameValue,
     renaming,
@@ -181,7 +184,7 @@ function ActiveSessionRow({
                         !renaming && (
                             <SessionPullRequestIndicator
                                 className="transition-opacity group-hover/session-row:opacity-0"
-                                pullRequest={pullRequest}
+                                pullRequest={pullRequestUnavailable ? undefined : pullRequest}
                             />
                         )
                     }
@@ -213,6 +216,7 @@ function ActiveSessionRow({
                 <SessionActivityCard
                     project={project}
                     pullRequest={pullRequest}
+                    pullRequestUnavailable={pullRequestUnavailable}
                     session={session}
                     suppressed={menuOpen || sessionOrder.draggedId !== undefined}
                     terminal={terminal}
@@ -283,6 +287,7 @@ interface ProjectGroupProperties {
      * Discovered pull requests keyed by Session id; absent entries render no glyph.
      */
     pullRequests?: Record<string, SessionPullRequest>;
+    pullRequestUnavailable?: Record<string, PullRequestUnavailable>;
     renameError?: string;
     renameValue: string;
     renamingSessionId?: string;
@@ -328,6 +333,7 @@ export function ProjectGroup({
     project,
     projectDropTarget,
     pullRequests,
+    pullRequestUnavailable,
     renameError,
     renameValue,
     renamingSessionId,
@@ -481,6 +487,7 @@ export function ProjectGroup({
                                 onRenameValueChange={onRenameValueChange}
                                 project={project}
                                 pullRequest={pullRequests?.[session.id]}
+                                pullRequestUnavailable={pullRequestUnavailable?.[session.id]}
                                 renameError={renameError}
                                 renameValue={renameValue}
                                 renaming={session.id === renamingSessionId}
