@@ -30,7 +30,7 @@ import { IgnoredChecksForm } from './ignored-checks-form';
 import { IntegerControl } from './integer-control';
 import { MobileAccessForm } from './mobile-access-form';
 import { hasProviderAutonomy, withProviderAutonomy } from './provider-autonomy';
-import { hookHealthLabel } from './provider-health';
+import { hookHealthLabel, hookHealthTone } from './provider-health';
 import { ProviderRecoveryEditor } from './provider-recovery-editor';
 import { ProviderSkillHealth } from './provider-skill-health';
 import type { SettingRowDescriptor } from './settings-registry';
@@ -244,7 +244,10 @@ function rowControl(properties: SettingRowProperties): {
             const isEnabled = supported && providerSettings[binding.field].enabled;
             const status =
                 binding.field === 'hooks' ? (
-                    <FieldDescription role="status">
+                    <FieldDescription
+                        role="status"
+                        tone={hookHealthTone(isEnabled, agentHookHealth?.[binding.provider])}
+                    >
                         {hookHealthLabel(isEnabled, agentHookHealth?.[binding.provider])}
                     </FieldDescription>
                 ) : !supported ? (
