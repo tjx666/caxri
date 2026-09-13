@@ -40,7 +40,13 @@ export function ActiveFileStatus({
     return (
         <>
             {/* The existing 420px cap becomes a shrinkable slot so loading and changing blame text cannot move
-                the selection and language chips beside it. */}
+                the selection and language chips beside it.
+
+                While the query is pending the slot renders empty, and that costs nothing: `w-full` resolves against
+                `.statusbar-actions`, which is itself content-sized, so an empty slot measures 0px rather than
+                reserving 420. Measured over CDP at the 960px minimum window width — Workbench Root and branch keep
+                740px either way, and the only pending-to-settled shift is the language chip's own text. Do not
+                "fix" this by giving the slot a fixed width. See issue #894. */}
             {(Boolean(blame) || blameQuery.isPending) && (
                 <div className="statusbar-blame-slot flex w-full max-w-[420px] min-w-0 shrink items-center">
                     {blame && (
