@@ -57,8 +57,7 @@ export function beginHang(previous: HangState, nowMs: number): HangStartResult {
  * process that was serving it.
  *
  * @param previous Hang state carried forward from this window's last transition.
- * @param nowMs Timestamp of the `responsive` or `render-process-gone` event, injected by the caller instead of read
- *   here.
+ * @param nowMs Timestamp of the event that ended it, injected by the caller instead of read here.
  */
 export function endHang(previous: HangState, nowMs: number): HangEndResult {
     if (previous.startedAtMs === undefined) return { state: previous };
