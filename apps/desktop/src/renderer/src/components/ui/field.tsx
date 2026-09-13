@@ -91,7 +91,7 @@ export function FieldDescription({
                 <>
                     <span
                         aria-hidden="true"
-                        className="mt-[5px] size-1.5 flex-none rounded-full bg-current"
+                        className="mt-1 size-1.5 flex-none rounded-full bg-current"
                     />
                     <span className="min-w-0">{children}</span>
                 </>
