@@ -1,3 +1,5 @@
+import { createElement } from 'react';
+
 import { errorMessage, isCaxriError } from '@caxri/protocol';
 import type { ToastT } from 'sonner';
 import { toast } from 'sonner';
@@ -42,6 +44,7 @@ export type ToastKind = 'info' | 'success' | 'error';
 interface ToastAction {
     label: string;
     onSelect: () => void;
+    accessibleLabel?: string;
 }
 
 export interface ToastOptions {
@@ -143,7 +146,23 @@ export function pushToast(kind: ToastKind, message: string, options?: ToastOptio
               })
             : undefined,
         action: options?.action
-            ? { label: options.action.label, onClick: options.action.onSelect }
+            ? {
+                  label: options.action.accessibleLabel
+                      ? [
+                            createElement(
+                                'span',
+                                { className: 'sr-only', key: 'accessible' },
+                                options.action.accessibleLabel,
+                            ),
+                            createElement(
+                                'span',
+                                { 'aria-hidden': true, 'key': 'visible' },
+                                options.action.label,
+                            ),
+                        ]
+                      : options.action.label,
+                  onClick: options.action.onSelect,
+              }
             : undefined,
     });
     if (type) activeReminderToasts.set(toastId, type);
@@ -175,22 +194,60 @@ export function dismissToast(id?: number | string): void {
     toast.dismiss(id);
 }
 
+const errnoReasons: Record<string, string> = {
+    ENOENT: 'The file no longer exists.',
+    ENOTDIR: 'The path is not a directory.',
+    EISDIR: 'The path is a directory, not a file.',
+    EACCES: 'Permission was denied.',
+    EPERM: 'Permission was denied.',
+    ENOSPC: 'The disk is full.',
+    EEXIST: 'A file with that name already exists.',
+    EPIPE: 'The connection was interrupted.',
+    ECONNREFUSED: 'The service refused the connection.',
+};
+
 /**
- * Renders any rejection as one sentence. `CaxriError` messages are already user-facing, so the reported reason is
- * always the Server's own. `UNAVAILABLE` and `TIMEOUT` additionally keep the caller's label, because "Codex could not
- * rename the Agent session" does not by itself say which action the user just attempted; the generic sentences below
- * are only for the rare error that carries no message at all. Replacing a specific reason with "Caxri is not ready
- * yet." used to mislabel every provider-side failure as an app-startup problem.
+ * Keeps a rejected filesystem path out of fallback copy while retaining the rest of an unknown reason.
+ */
+function redactAbsolutePaths(message: string): string {
+    return message
+        .replaceAll(/(['"])(?:file:\/\/\/|\/|[A-Za-z]:[\\/])[^'"]+\1/gu, 'a file')
+        .replaceAll(/file:\/\/\/[^\s'",;)\]]+/gu, 'a file')
+        .replaceAll(/(?<![A-Za-z0-9:/])\/[^\s'",;)\]]+/gu, 'a file')
+        .replaceAll(/(?<![A-Za-z0-9])[A-Za-z]:[\\/][^\s'",;)\]]+/gu, 'a file');
+}
+
+/**
+ * Preserves the caller's operation label and turns low-level failures into a path-free reason.
  */
 export function describeFailure(error: unknown, label: string): string {
-    if (isCaxriError(error)) {
-        if (error.code === 'UNAVAILABLE')
-            return `${label}: ${error.message || 'Caxri is not ready yet.'}`;
-        if (error.code === 'TIMEOUT')
-            return `${label}: ${error.message || 'Caxri did not respond in time.'}`;
-        return error.message;
-    }
-    return errorMessage(error, label);
+    const rawMessage = errorMessage(error, '');
+    const errorCode = (error as { code?: unknown } | null)?.code;
+    const errno =
+        typeof errorCode === 'string' && errnoReasons[errorCode]
+            ? errorCode
+            : /\b(?:ENOENT|ENOTDIR|EISDIR|EACCES|EPERM|ENOSPC|EEXIST|EPIPE|ECONNREFUSED)\b/u.exec(
+                  rawMessage,
+              )?.[0];
+    const fallback = isCaxriError(error)
+        ? error.code === 'UNAVAILABLE'
+            ? 'Caxri is not ready yet.'
+            : error.code === 'TIMEOUT'
+              ? 'Caxri did not respond in time.'
+              : 'The operation could not be completed.'
+        : 'The operation could not be completed.';
+    const reason = errno
+        ? errnoReasons[errno]
+        : redactAbsolutePaths(rawMessage)
+              .replaceAll(
+                  /\b(?:VALIDATION|NOT_FOUND|PATH_DENIED|CAPACITY|UNAVAILABLE|TIMEOUT|CANCELLED|CONFLICT|FORBIDDEN|IO|GIT|INTERNAL)\b:?\s*/gu,
+                  '',
+              )
+              .replaceAll(/\bE[A-Z0-9]{2,}\b:?\s*/gu, '')
+              .replaceAll(/\s+/gu, ' ')
+              .trim() || fallback;
+    const sentence = /[.!?]$/u.test(reason) ? reason : `${reason}.`;
+    return `${redactAbsolutePaths(label).replaceAll(/[.:!?\s]+$/gu, '')}. ${sentence}`;
 }
 
 /**
@@ -208,6 +265,10 @@ export interface TryCommandOptions {
      * Re-reads the Server snapshot after the operation succeeds.
      */
     refresh?: () => Promise<void>;
+    /**
+     * Builds a recovery button that retains this failure's operation context.
+     */
+    recovery?: (error: unknown) => ToastAction;
 }
 
 /**
@@ -225,7 +286,15 @@ export async function tryCommand<T>(
         if (options.refresh) await options.refresh();
         return result;
     } catch (error) {
-        if (!isCancelledRequest(error)) pushToast('error', describeFailure(error, label));
+        if (!isCancelledRequest(error)) {
+            const recovery = options.recovery?.(error);
+            pushToast('error', describeFailure(error, label), {
+                action: recovery && {
+                    ...recovery,
+                    accessibleLabel: `${recovery.label} ${redactAbsolutePaths(label)}`,
+                },
+            });
+        }
         return undefined;
     }
 }

@@ -1,6 +1,7 @@
 import type { PaneSplitSide, TerminalKind } from '@caxri/protocol';
 import {
     findResourceTabs,
+    isCaxriError,
     moveTab,
     openResource,
     selectTab,
@@ -51,49 +52,80 @@ interface CreateTerminalOptions {
 
 export async function createTerminal(
     kind: TerminalKind = 'shell',
-    { cwd, paneId, split }: CreateTerminalOptions = {},
+    options: CreateTerminalOptions = {},
 ): Promise<void> {
     const session = getSelectedSession();
     if (!session) return;
-    await tryCommand('Terminal creation failed', async () => {
-        const terminal = await caxri.request('terminal.create', {
-            sessionId: session.id,
-            kind,
-            ...(cwd && { cwd }),
-        });
-        /**
-         * Every Root the Session has already arranged gets this Terminal placed into it as a background tab before
-         * `terminal.create` even resolves (`SessionsModel.addTerminalToAllRootStates`), including the active Root this
-         * caller is about to update. Refreshing first, instead of mutating the caller's stale cached layout, means
-         * `openResource` below finds that placement already there and reuses its tab id — computing a second, competing
-         * tab id here would fight the server's for the same Terminal and flash a duplicate.
-         */
-        await refreshWorkbench();
-        /**
-         * `Cmd+T` immediately followed by `Cmd+W` can close this Terminal while the refresh above is still in flight.
-         * Placing it afterwards would open a tab for a Terminal the Server has already deleted, which renders as a
-         * permanently blank pane no close can reach.
-         */
-        if (!getBootstrap()?.terminals.some((candidate) => candidate.id === terminal.id)) return;
-        const currentState = getSessionState();
-        if (currentState) {
-            const resource = { kind: 'terminal' as const, terminalId: terminal.id };
-            const placed = findResourceTabs(currentState.paneLayout, resource).at(0);
-            const opened = placed
-                ? paneId && placed.pane.id !== paneId
-                    ? moveTab(currentState.paneLayout, placed.tab.id, paneId)
-                    : selectTab(currentState.paneLayout, placed.tab.id)
-                : openResource(currentState.paneLayout, resource, { paneId });
-            const target = findResourceTabs(opened, resource).at(0);
-            patchSessionState({
-                ...currentState,
-                paneLayout:
-                    split && target
-                        ? splitTabIntoPane(opened, target.tab.id, target.pane.id, split)
-                        : opened,
+    await createTerminalForSession(session.id, kind, options);
+}
+
+async function createTerminalForSession(
+    sessionId: string,
+    kind: TerminalKind,
+    { cwd, paneId, split }: CreateTerminalOptions,
+): Promise<void> {
+    await tryCommand(
+        'Terminal creation failed',
+        async () => {
+            const terminal = await caxri.request('terminal.create', {
+                sessionId,
+                kind,
+                ...(cwd && { cwd }),
             });
-        }
-    });
+            /**
+             * Every Root the Session has already arranged gets this Terminal placed into it as a background tab before
+             * `terminal.create` even resolves (`SessionsModel.addTerminalToAllRootStates`), including the active Root
+             * this caller is about to update. Refreshing first, instead of mutating the caller's stale cached layout,
+             * means `openResource` below finds that placement already there and reuses its tab id — computing a second,
+             * competing tab id here would fight the server's for the same Terminal and flash a duplicate.
+             */
+            await refreshWorkbench();
+            /**
+             * `Cmd+T` immediately followed by `Cmd+W` can close this Terminal while the refresh above is still in
+             * flight. Placing it afterwards would open a tab for a Terminal the Server has already deleted, which
+             * renders as a permanently blank pane no close can reach.
+             */
+            if (!getBootstrap()?.terminals.some((candidate) => candidate.id === terminal.id))
+                return;
+            const currentState = getSessionState();
+            if (currentState?.sessionId === sessionId) {
+                const resource = { kind: 'terminal' as const, terminalId: terminal.id };
+                const placed = findResourceTabs(currentState.paneLayout, resource).at(0);
+                const opened = placed
+                    ? paneId && placed.pane.id !== paneId
+                        ? moveTab(currentState.paneLayout, placed.tab.id, paneId)
+                        : selectTab(currentState.paneLayout, placed.tab.id)
+                    : openResource(currentState.paneLayout, resource, { paneId });
+                const target = findResourceTabs(opened, resource).at(0);
+                patchSessionState({
+                    ...currentState,
+                    paneLayout:
+                        split && target
+                            ? splitTabIntoPane(opened, target.tab.id, target.pane.id, split)
+                            : opened,
+                });
+            }
+        },
+        {
+            // These errors come from directory/session validation before Server creates a Terminal. A lost response
+            // could follow a successful durable create, so an uncertain result may only refresh the current state.
+            recovery: (error) =>
+                isCaxriError(error) &&
+                ['IO', 'VALIDATION', 'PATH_DENIED', 'NOT_FOUND'].includes(error.code)
+                    ? {
+                          label: 'Retry',
+                          onSelect: () => {
+                              // eslint-disable-next-line no-void -- tryCommand reports retry failures through the toast
+                              void createTerminalForSession(sessionId, kind, {
+                                  cwd,
+                                  paneId,
+                                  split,
+                              });
+                          },
+                      }
+                    : { label: 'Refresh', onSelect: refreshTerminalState },
+        },
+    );
 }
 
 export function closeTerminal(terminalId: string): void {
@@ -111,7 +143,16 @@ export function closeTerminal(terminalId: string): void {
     );
 }
 
-async function requestTerminalRestart(terminalId: string, mode: 'resume' | 'fresh'): Promise<void> {
+function refreshTerminalState(): void {
+    // eslint-disable-next-line no-void -- tryCommand reports refresh failures through the toast
+    void tryCommand('Terminal refresh failed', refreshWorkbench);
+}
+
+async function requestTerminalRestart(
+    terminalId: string,
+    mode: 'resume' | 'fresh',
+    onRestartSubmitted?: () => void,
+): Promise<void> {
     const terminal = getBootstrap()?.terminals.find((entry) => entry.id === terminalId);
     /**
      * A stopped PTY lost Server attachment ownership, while a running PTY must not be reattached because replaying its
@@ -119,26 +160,42 @@ async function requestTerminalRestart(terminalId: string, mode: 'resume' | 'fres
      */
     if (terminal?.lastProcessState !== 'running')
         await caxri.request('terminal.attach', { terminalId });
+    onRestartSubmitted?.();
     await caxri.request('terminal.restart', { terminalId, mode });
+}
+
+function restartTerminalWithRecovery(terminalId: string): void {
+    let isRestartSubmitted = false;
+    // eslint-disable-next-line no-void -- tryCommand reports restart failures through the toast
+    void tryCommand(
+        'Terminal restart failed',
+        () =>
+            requestTerminalRestart(terminalId, 'resume', () => {
+                isRestartSubmitted = true;
+            }),
+        {
+            refresh: refreshWorkbench,
+            // Restart replaces a live PTY. Repeating a submitted request after a lost reply would kill the new process.
+            recovery: () =>
+                isRestartSubmitted
+                    ? { label: 'Refresh', onSelect: refreshTerminalState }
+                    : {
+                          label: 'Retry',
+                          onSelect: () => restartTerminalWithRecovery(terminalId),
+                      },
+        },
+    );
 }
 
 /**
  * Recovery path used by the in-pane Restart action.
  */
 export function restartTerminal(terminalId: string): void {
-    // This is a sync UI handler; tryCommand already routes any failure into a toast.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-    void tryCommand('Terminal restart failed', () => requestTerminalRestart(terminalId, 'resume'), {
-        refresh: refreshWorkbench,
-    });
+    restartTerminalWithRecovery(terminalId);
 }
 
 export function restartActiveTerminal(terminalId: string): void {
-    // This is a sync UI handler; tryCommand already routes any failure into a toast.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-    void tryCommand('Terminal restart failed', () => requestTerminalRestart(terminalId, 'resume'), {
-        refresh: refreshWorkbench,
-    });
+    restartTerminalWithRecovery(terminalId);
 }
 
 /**

@@ -72,7 +72,9 @@ describe('Sonner notification adapter', () => {
         });
         await muteNotification('worktree-fallback');
         expect(getToasts().map((entry) => entry.title)).not.toContain('Returned to Project');
-        expect(getToasts().map((entry) => entry.title)).toContain('Could not save settings');
+        expect(getToasts().map((entry) => entry.title)).toContain(
+            'Unable to mute notifications. Could not save settings.',
+        );
         expect(useNotificationStore.getState().mutedTypes).toEqual(['worktree-fallback']);
     });
 
@@ -172,33 +174,77 @@ describe('Sonner notification adapter', () => {
                 new CaxriError('UNAVAILABLE', 'Codex could not rename the Agent session'),
                 'Session rename failed',
             ),
-        ).toBe('Session rename failed: Codex could not rename the Agent session');
+        ).toBe('Session rename failed. Codex could not rename the Agent session.');
         expect(
             describeFailure(new CaxriError('TIMEOUT', 'Codex Session rename timed out'), 'Rename'),
-        ).toBe('Rename: Codex Session rename timed out');
+        ).toBe('Rename. Codex Session rename timed out.');
     });
 
     it('falls back to generic copy only when the classified error carries no message', () => {
         expect(describeFailure(new CaxriError('UNAVAILABLE', ''), 'Save file')).toBe(
-            'Save file: Caxri is not ready yet.',
+            'Save file. Caxri is not ready yet.',
         );
         expect(describeFailure(new CaxriError('TIMEOUT', ''), 'Save file')).toBe(
-            'Save file: Caxri did not respond in time.',
+            'Save file. Caxri did not respond in time.',
         );
     });
 
-    it('falls back to the CaxriError message for any other code', () => {
+    it('keeps the operation label for other CaxriError codes', () => {
         expect(describeFailure(new CaxriError('NOT_FOUND', 'File is gone'), 'Save file')).toBe(
-            'File is gone',
+            'Save file. File is gone.',
         );
     });
 
     it('falls back to the label for a non-Error rejection', () => {
-        expect(describeFailure('not an Error instance', 'Save file')).toBe('Save file');
+        expect(describeFailure('not an Error instance', 'Save file')).toBe(
+            'Save file. The operation could not be completed.',
+        );
     });
 
     it('uses the plain Error message for a non-CaxriError rejection', () => {
-        expect(describeFailure(new Error('disk is full'), 'Save file')).toBe('disk is full');
+        expect(describeFailure(new Error('disk is full'), 'Save file')).toBe(
+            'Save file. disk is full.',
+        );
+    });
+
+    it.each([
+        ['ENOENT', 'The file no longer exists.'],
+        ['EACCES', 'Permission was denied.'],
+        ['EPERM', 'Permission was denied.'],
+        ['ENOSPC', 'The disk is full.'],
+        ['EEXIST', 'A file with that name already exists.'],
+    ])('turns %s into a human-readable reason', (code, reason) => {
+        const error = Object.assign(new Error(`${code}: open '/Users/jing/project/note.txt'`), {
+            code,
+        });
+        expect(describeFailure(error, 'Save failed')).toBe(`Save failed. ${reason}`);
+    });
+
+    it('redacts Unix, Windows, and file URL paths from unknown reasons', () => {
+        expect(
+            describeFailure(
+                new CaxriError(
+                    'IO',
+                    String.raw`Could not open '/Users/jing/private/note.txt' or C:\Users\jing\private\note.txt`,
+                ),
+                'Save failed',
+            ),
+        ).toBe('Save failed. Could not open a file or a file.');
+        expect(
+            describeFailure(
+                new Error('Failed at file:///Users/jing/private/note.txt'),
+                'Save failed',
+            ),
+        ).toBe('Save failed. Failed at a file.');
+        expect(
+            describeFailure(new Error('Access denied'), 'Open /Users/jing/private/note.txt failed'),
+        ).toBe('Open a file failed. Access denied.');
+    });
+
+    it('does not show a protocol error enum in the toast', () => {
+        expect(describeFailure(new CaxriError('IO', 'IO: write failed'), 'Save failed')).toBe(
+            'Save failed. write failed.',
+        );
     });
 
     it('tryCommand resolves with the run() result on success without refreshing', async () => {
@@ -228,7 +274,30 @@ describe('Sonner notification adapter', () => {
         expect(mocks.refreshWorkbench).not.toHaveBeenCalled();
         const toasts = getToasts();
         expect(toasts).toHaveLength(1);
-        expect(toasts[0]).toMatchObject({ type: 'error', title: 'disk is full', duration: 4_000 });
+        expect(toasts[0]).toMatchObject({
+            type: 'error',
+            title: 'Save file. disk is full.',
+            duration: 4_000,
+        });
+    });
+
+    it('attaches the recovery action to the failed operation', async () => {
+        const error = new Error('disk is full');
+        const retry = vi.fn();
+        await tryCommand('Save failed', () => Promise.reject(error), {
+            recovery: (failure) => {
+                expect(failure).toBe(error);
+                return { label: 'Retry', onSelect: retry };
+            },
+        });
+
+        const action = getToasts()[0].action as {
+            label: unknown;
+            onClick: () => void;
+        };
+        expect(action.label).toBeDefined();
+        action.onClick();
+        expect(retry).toHaveBeenCalledOnce();
     });
 
     /**

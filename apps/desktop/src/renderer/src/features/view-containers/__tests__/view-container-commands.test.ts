@@ -203,7 +203,10 @@ describe('didExecuteViewCatalogCommand', () => {
 
         await vi.waitFor(() =>
             expect(getToasts()).toEqual([
-                expect.objectContaining({ type: 'error', title: 'fixture failed' }),
+                expect.objectContaining({
+                    type: 'error',
+                    title: 'Unable to run Refresh Fixture. fixture failed.',
+                }),
             ]),
         );
     });
