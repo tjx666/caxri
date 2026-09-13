@@ -1,7 +1,10 @@
 import process from 'node:process';
 
 /**
- * Fixed synthetic TUI for Grok acceptance; no host provider discovery or model calls.
+ * Fixed synthetic TUI for Grok acceptance; no host provider discovery or model calls. Its title files follow Grok's cwd
+ * encoding and long-path pointer contract so a resumed Session can prove the same visible title.
+ *
+ * @see https://github.com/xai-org/grok-build/blob/37949780/crates/codegen/xai-grok-config/src/paths.rs
  */
 export function grokAcceptanceSource(): string {
     return String.raw`#!${process.execPath}
@@ -23,8 +26,18 @@ function hook(event, extra = {}) {
       env: { ...process.env, GROK_SESSION_ID: sessionId }, stdio: ['pipe', 'ignore', 'ignore'] });
 }
 function identify(source) {
-  const folder = path.join(home, 'sessions', encodeURIComponent(fs.realpathSync(process.cwd())), sessionId);
-  fs.mkdirSync(folder, { recursive: true }); fs.writeFileSync(path.join(folder, 'summary.json'), '{}');
+  const cwd = fs.realpathSync(process.cwd());
+  const encoded = encodeURIComponent(cwd).replace(/[!'()*]/g, value =>
+    '%' + value.codePointAt(0).toString(16).toUpperCase());
+  // The .cwd pointer is the long-path identity; the synthetic hash never authorizes host Grok data.
+  const dirname = encoded.length <= 255 ? encoded : 'synthetic-' + crypto.createHash('sha256').update(cwd).digest('hex').slice(0, 16);
+  const projectRoot = path.join(home, 'sessions', dirname);
+  fs.mkdirSync(projectRoot, { recursive: true });
+  if (encoded.length > 255) fs.writeFileSync(path.join(projectRoot, '.cwd'), cwd + '\n');
+  const folder = path.join(projectRoot, sessionId);
+  fs.mkdirSync(folder, { recursive: true });
+  const summary = path.join(folder, 'summary.json');
+  if (!fs.existsSync(summary)) fs.writeFileSync(summary, JSON.stringify({ generated_title: 'Synthetic Grok Title ' + sessionId.slice(0, 8) }));
   hook('SessionStart', { source }); receipt({ kind: 'identity', sessionId, resumed: source === 'load' });
 }
 function render() {
