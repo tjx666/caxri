@@ -52,6 +52,10 @@ describe('consoleErrorLogFields', () => {
     it.each([
         { expected: 'TypeError', message: 'Uncaught TypeError: x is not a function' },
         { expected: 'DOMException', message: 'DOMException: The operation was aborted.' },
+        // The two members with no prefix in front of `Error`, and the most common Renderer fault of all.
+        { expected: 'Error', message: 'Uncaught Error: boom' },
+        { expected: 'Error', message: 'Error: boom' },
+        { expected: 'ErrorEvent', message: 'ErrorEvent: Script error.' },
         { expected: 'Unknown', message: 'Warning: something a library printed' },
         // A name read out of untrusted text is only logged when it matches the closed set.
         { expected: 'Unknown', message: 'CustomlyNamedError: leaked detail here' },

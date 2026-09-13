@@ -94,7 +94,18 @@ test('arrow keys reach the empty-Project New Session row and follow the Session 
         await projectRow.focus();
         await running.page.keyboard.press('ArrowDown');
         await expect(emptyRow).toBeFocused();
+        /**
+         * The row has to be leavable the same way it was reached. Base UI opens a root menu on ArrowUp/ArrowDown and
+         * stops the event at the trigger, so without the suppression in `create-session-menu.tsx` these two keys pop
+         * the Terminal menu open and the row becomes a keyboard trap: the only way out is Escape or the pointer.
+         */
+        await running.page.keyboard.press('ArrowUp');
+        await expect(
+            running.page.getByRole('menu', { name: `New Session in ${project.displayTitle}` }),
+        ).toHaveCount(0);
+        await expect(projectRow).toBeFocused();
         // No children of its own: Left returns to the Project heading, Right does nothing.
+        await running.page.keyboard.press('ArrowDown');
         await running.page.keyboard.press('ArrowLeft');
         await expect(projectRow).toBeFocused();
         await running.page.keyboard.press('ArrowDown');

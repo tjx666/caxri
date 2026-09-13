@@ -2,8 +2,9 @@ import { pushToast, tryCommand } from '../stores/toasts';
 import { projectRelativePath } from './file-path';
 
 /**
- * Base directory `Copy Relative Path` measures from, shared by the Files tree rows and the editor tab menu so one file
- * yields one path from either entry.
+ * Base directory `Copy Relative Path` measures from when a resource has more than one candidate root, which today is
+ * only the editor's Git diff tabs: a Files tree row and an ordinary editor tab both sit under the Project root by
+ * construction and pass it directly.
  *
  * The Project root wins, matching VS Code's workspace-relative output and the directory a user's Terminal is usually
  * sitting in. A submodule or nested repository deliberately does not get its own base: the two menus used to disagree

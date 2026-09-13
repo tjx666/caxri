@@ -33,6 +33,7 @@ import {
     CaxriError,
     errorMessage,
     isCaxriMethod,
+    isConcurrentRead,
     isDesktopServerOperation,
     SERVER_DESKTOP_LAUNCH_ENVIRONMENT_KEY,
 } from '@caxri/protocol';
@@ -528,10 +529,17 @@ export class DesktopServerConnection extends EventTarget {
      * Refuses an ordinary Server request issued from inside a Desktop command handler, where it can only deadlock; see
      * `desktop-command-scope.ts`. `forward` is deliberately not guarded: it carries a Renderer-originated request that
      * already owns a request id, so it is unreachable from a handler.
+     *
+     * A read is exempt because the deadlock is an ordering fact, not a re-entrancy one: Server Core settles a read
+     * outside the connection's ordered admission lane (`isConcurrentRead`), so it never queues behind the command being
+     * serviced and answers while that command is still open. Refusing reads too would break a path Main already depends
+     * on — the `focus` and `open` commands reach `openMainWindow`, which reads `app.windowState.get` to restore the
+     * window's saved geometry, and a refusal there silently substitutes the hardcoded default size and then persists it
+     * over the user's own on the next close.
      */
     private desktopCommandCallbackError(method: string): CaxriError | undefined {
         const command = activeDesktopCommand();
-        if (command === undefined) return undefined;
+        if (command === undefined || isConcurrentRead(method)) return undefined;
         this.options.logger.write(
             'error',
             logEventCatalog.serverConnection.desktopCommandCallbackRejected,

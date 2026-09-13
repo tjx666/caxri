@@ -45,7 +45,11 @@ export interface ConsoleErrorDetails {
 
 function errorNameOf(message: string): string {
     const firstLine = message.slice(0, message.indexOf('\n') + 1 || undefined);
-    const match = /\b([A-Za-z]+Error|DOMException)\b/.exec(firstLine);
+    /**
+     * `[A-Za-z]*` rather than `+`: a bare `Error:` is the most common Renderer fault of all, and requiring a prefix
+     * made both it and `ErrorEvent` unreachable members of the closed set below.
+     */
+    const match = /\b([A-Za-z]*Error(?:Event)?|DOMException)\b/.exec(firstLine);
     return match && ERROR_NAMES.has(match[1]) ? match[1] : 'Unknown';
 }
 
