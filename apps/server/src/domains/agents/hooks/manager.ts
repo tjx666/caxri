@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { lstat, mkdir, readFile, rm, stat } from 'node:fs/promises';
+import { lstat, mkdir, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import process from 'node:process';
@@ -34,6 +34,7 @@ import type {
 import type { HookExecutableDiscovery } from './executable-gate';
 import { gateHookSettingsOnExecutables } from './executable-gate';
 import { defaultHookHealth, hookHealthFor } from './health';
+import { withAgentHookInstallLock } from './install-lock';
 import { HookLaunchRegistry } from './launch-registry';
 import { parseProfileIntents, serializeProfileIntents } from './profile-intents';
 import { AgentHookServer, pruneStaleAgentHookSockets } from './server';
@@ -41,15 +42,12 @@ import { AgentHookTelemetry } from './telemetry';
 
 const CONFIG_WATCH_SETTLE_MS = 100;
 const CONFIG_FALLBACK_POLL_INTERVAL_MS = 30_000;
-const LOCK_RETRY_MS = 25;
-const LOCK_TIMEOUT_MS = 2_000;
 const MAX_CONCURRENT_PROFILE_STATS = 8;
 /**
  * Provider-owned hook configs are small user-authored documents; never hand unbounded input to their syntax adapters or
  * let reconciliation rewrite a file it could not safely inspect.
  */
 export const MAX_AGENT_HOOK_CONFIG_BYTES = 1 * 1024 * 1024;
-const STALE_LOCK_MS = 30_000;
 
 interface HookConfigWatcher {
     handle: WatchHandle;
@@ -581,41 +579,8 @@ export class AgentHookManager {
         this.configReconcileTimer.unref();
     }
 
-    private async withInstallLock<T>(operation: () => Promise<T>): Promise<T> {
-        const lockPath = join(this.options.sharedPath!, 'install.lock');
-        const deadline = Date.now() + LOCK_TIMEOUT_MS;
-        /**
-         * Lock acquisition is inherently sequential: each retry must observe the previous attempt's outcome (mkdir
-         * success/EEXIST, staleness check, timeout) before deciding whether to wait and retry.
-         */
-        while (true) {
-            try {
-                // eslint-disable-next-line no-await-in-loop -- see doc comment above: retries are sequential by design
-                await mkdir(lockPath);
-                break;
-            } catch (error) {
-                if (!isFileSystemError(error, 'EEXIST')) throw error;
-                try {
-                    // eslint-disable-next-line no-await-in-loop -- see doc comment above: retries are sequential by design
-                    if (Date.now() - (await stat(lockPath)).mtimeMs > STALE_LOCK_MS)
-                        // eslint-disable-next-line no-await-in-loop -- see doc comment above: retries are sequential by design
-                        await rm(lockPath, { recursive: true, force: true });
-                } catch (statError) {
-                    if (!isFileSystemError(statError, 'ENOENT')) throw statError;
-                }
-                if (Date.now() >= deadline)
-                    throw new Error('Timed out waiting for the lifecycle hook install lock', {
-                        cause: error,
-                    });
-                // eslint-disable-next-line no-await-in-loop -- see doc comment above: retries are sequential by design
-                await new Promise((resolve) => setTimeout(resolve, LOCK_RETRY_MS));
-            }
-        }
-        try {
-            return await operation();
-        } finally {
-            await rm(lockPath, { recursive: true, force: true });
-        }
+    private withInstallLock<T>(operation: () => Promise<T>): Promise<T> {
+        return withAgentHookInstallLock(this.options.sharedPath!, operation);
     }
 
     private launchEnvironment(
