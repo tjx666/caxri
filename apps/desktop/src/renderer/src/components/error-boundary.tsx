@@ -69,9 +69,9 @@ function formatErrorDetails(error: unknown, componentStack?: string): string {
  * state lives in the Server, while Process Explorer is a read-only diagnostic projection.
  *
  * The fallback shows the error message and keeps its stack and component stack in a collapsed disclosure so a crash is
- * diagnosable without covering the recovery actions. Error values stay inside the Renderer (only `console.error`
- * mirrors them into local logs) — they may contain source or workspace data and must never travel through diagnostics
- * IPC.
+ * diagnosable without covering the recovery actions. The error value itself never leaves the Renderer: it may contain
+ * source or workspace data, which diagnostics must exclude, so the `console.error` below is mirrored into local logs as
+ * a bounded classification rather than as its text.
  *
  * React 18/19 has no hook equivalent for `componentDidCatch`, so this stays a class component rather than pulling in
  * the `react-error-boundary` dependency for one boundary.
@@ -107,8 +107,10 @@ export class ErrorBoundary extends Component<ErrorBoundaryProperties, ErrorBound
 
     componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
         // Desktop mirrors renderer `console.error` calls into `logs/desktop.jsonl` (see
-        // `window.webContents.on('console-message', ...)` in `apps/desktop/src/main/index.ts`), so this is
-        // enough to make a blank-window crash triageable without a dedicated IPC error channel.
+        // `window.webContents.on('console-message', ...)` in `apps/desktop/src/main/index.ts`). The text is not
+        // recorded — `console-error-fields.ts` reduces it to error class, source, size, and a stable identity, which is
+        // what makes a blank-window crash triageable without a dedicated IPC error channel. The full text stays here,
+        // on screen and behind the Copy action, for the user to hand over deliberately.
         console.error(
             `${this.props.logScope ?? 'Renderer'} render error`,
             error,
