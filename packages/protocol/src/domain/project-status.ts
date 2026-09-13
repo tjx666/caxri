@@ -1,7 +1,10 @@
 import { z } from 'zod';
 
 import { projectStatusStateSchema } from './project-status-state.js';
-import { sessionPullRequestStateSchema } from './session-pull-request.js';
+import {
+    pullRequestUnavailableSchema,
+    sessionPullRequestStateSchema,
+} from './session-pull-request.js';
 
 /**
  * Project Status wire shapes: the per-repository rollup the Status panel renders and the compact overview the Session
@@ -119,6 +122,7 @@ const projectStatusOverviewRepoSchema = z.object({
     additions: z.number().int().nonnegative(),
     deletions: z.number().int().nonnegative(),
     pullRequest: projectStatusOverviewPullRequestSchema.optional(),
+    pullRequestUnavailable: pullRequestUnavailableSchema.optional(),
 });
 
 export const projectStatusOverviewSchema = z.object({

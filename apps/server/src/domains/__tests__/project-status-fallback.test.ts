@@ -22,7 +22,13 @@ afterEach(async () => {
     await Promise.all(pendingDirectories.map((path) => rm(path, { recursive: true, force: true })));
 });
 
-async function loadFallback(hasLocalLink: boolean, hasTeam: boolean, hasInvalidResponse = false) {
+async function loadFallback(
+    hasLocalLink: boolean,
+    hasTeam: boolean,
+    hasInvalidResponse = false,
+    ghFailureKind: 'not-found' | 'other' = 'other',
+    options: { gh?: () => Promise<string>; now?: () => number } = {},
+) {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-project-status-fallback-'));
     directories.push(directory);
     const rootPath = join(directory, 'project');
@@ -63,8 +69,15 @@ async function loadFallback(hasLocalLink: boolean, hasTeam: boolean, hasInvalidR
             return Promise.resolve('https://github.com/lobehub/project.git');
         if (command === 'git') return Promise.resolve('');
         if (command === 'gh')
-            return Promise.reject(
-                new ExternalStatusCliError('gh', 'other', 'No pull requests found'),
+            return (
+                options.gh?.() ??
+                Promise.reject(
+                    new ExternalStatusCliError(
+                        'gh',
+                        ghFailureKind,
+                        ghFailureKind === 'other' ? 'No pull requests found' : 'missing',
+                    ),
+                )
             );
         return Promise.resolve(
             hasInvalidResponse
@@ -79,6 +92,7 @@ async function loadFallback(hasLocalLink: boolean, hasTeam: boolean, hasInvalidR
         logger,
         runner,
         {
+            now: options.now,
             emit: (event) => {
                 if (event.event === 'projectStatus.changed') refreshed.resolve();
             },
@@ -87,8 +101,47 @@ async function loadFallback(hasLocalLink: boolean, hasTeam: boolean, hasInvalidR
 
     await service.summary('session-1');
     await refreshed.promise;
-    return { repo: (await service.summary('session-1')).repositories[0], logger };
+    return { repo: (await service.summary('session-1')).repositories[0], logger, service };
 }
+
+it('distinguishes an unavailable GitHub CLI from a branch without a pull request', async () => {
+    const { service } = await loadFallback(false, false, false, 'not-found');
+    expect((await service.overview('session-1')).repository).toMatchObject({
+        pullRequestUnavailable: {
+            reason: 'not-found',
+            hint: 'GitHub CLI is not installed. Install gh, then refresh.',
+        },
+    });
+});
+
+it('shows an unavailable PR after a previously successful lookup fails', async () => {
+    let now = 0;
+    let isUnavailable = false;
+    const { service } = await loadFallback(false, false, false, 'other', {
+        now: () => now,
+        gh: () =>
+            isUnavailable
+                ? Promise.reject(new ExternalStatusCliError('gh', 'rate-limited', 'API rate limit'))
+                : Promise.resolve(
+                      JSON.stringify({
+                          number: 42,
+                          title: 'Fix status',
+                          url: 'https://github.com/lobehub/project/pull/42',
+                          state: 'OPEN',
+                          isDraft: false,
+                          body: '',
+                          statusCheckRollup: [],
+                      }),
+                  ),
+    });
+    expect((await service.overview('session-1')).repository?.pullRequest?.number).toBe(42);
+
+    now += 91_000;
+    isUnavailable = true;
+    expect((await service.overview('session-1')).repository).toMatchObject({
+        pullRequestUnavailable: { reason: 'rate-limited' },
+    });
+});
 
 it('reports an unlinked Vercel repository instead of hiding Deployments', async () => {
     const { repo } = await loadFallback(false, false);

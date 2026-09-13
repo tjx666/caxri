@@ -166,6 +166,7 @@ export const logEventCatalog = {
     },
     sessionPullRequests: {
         cli: 'session_pull_requests.cli',
+        lookupUnavailable: 'session_pull_requests.lookup_unavailable',
         refresh: 'session_pull_requests.refresh',
         refreshFailed: 'session_pull_requests.refresh_failed',
     },
