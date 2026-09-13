@@ -524,4 +524,22 @@ export default defineConfig(
             'caxri/server-reads-through-query': 'error',
         },
     },
+    /**
+     * DESIGN.md principle 5 claimed unregistering Tailwind's palette made a literal color utility fail the build. It
+     * does not: Tailwind simply emits no rule, so `bg-white` stays on the element and styles nothing. Three such class
+     * names had already survived into the bundle, one of them the quiet zone around the pairing QR code. This rule is
+     * the check the comment described.
+     */
+    {
+        files: [
+            'apps/desktop/src/renderer/src/**/*.{ts,tsx}',
+            'scripts/fixtures/eslint/color-utilities/**/*.ts',
+        ],
+        plugins: {
+            caxri,
+        },
+        rules: {
+            'caxri/registered-color-utilities': 'error',
+        },
+    },
 );

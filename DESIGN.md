@@ -27,9 +27,14 @@ reference this file; deviations require updating this spec first.
 5. **Tailwind v4 utilities over the semantic runtime tokens — and only those tokens.** The color
    roles below are bridged to Tailwind via `@theme inline`, so utilities like `bg-surface` resolve
    to the runtime theme variables and imported themes restyle the whole app live — the standard
-   shadcn pattern. The default Tailwind palette is unregistered (`--color-*: initial`): `bg-blue-500`
-   or arbitrary color literals must not compile, which makes rule 4 a build-time guarantee instead
-   of a convention. Non-color scales (spacing, type, radius) use stock Tailwind defaults.
+   shadcn pattern. The default Tailwind palette is unregistered (`--color-*: initial`), so
+   `bg-blue-500` resolves to nothing. Unregistering does not reject it: Tailwind emits no rule and
+   says nothing, and the class name ships on the element styling nothing, which is how the pairing
+   QR code lost its white quiet zone. `caxri/registered-color-utilities` is what turns rule 4 into a
+   check — a color utility whose token is absent from the `@theme inline` bridge is a lint error,
+   including one that names a raw theme color such as `--selection`, which is referenced as
+   `bg-[var(--selection)]` instead. Non-color scales (spacing, type, radius) use stock Tailwind
+   defaults.
 6. **Say each meaning once.** An icon, a reserved slot, or a control that already names a state
    does not also get an adjacent visual label repeating that state. Accessible names and tooltips
    stay complete — they are not the duplication this rule forbids. The Panel caption that omits the

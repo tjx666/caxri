@@ -38,7 +38,8 @@ Server `structure`, and Renderer `design-contract` tests already used.
 | protocol/CLI locked domain lists and barrels                                                     | `scripts/__tests__/workspace-contract.test.ts`                                      |
 | CLI tests live in `__tests__/`, not loose beside production files                                | `scripts/__tests__/workspace-contract.test.ts`                                      |
 | Server domains with 3+ modules need a barrel; no cross-domain deep import                        | `apps/server/src/domains/__tests__/structure.test.ts`                               |
-| Tailwind utilities are token-only, no literal colors, guarded arbitrary-value allowlist          | `apps/desktop/src/renderer/__tests__/renderer-design-contract.test.ts`              |
+| Tailwind arbitrary typography, spacing, and radius values stay on the DESIGN.md allowlist        | `apps/desktop/src/renderer/__tests__/renderer-design-contract.test.ts`              |
+| Tailwind color utilities name a token registered in `theme.css`'s `@theme inline` bridge         | `eslint.config.ts` `caxri/registered-color-utilities`                               |
 
 ### New in this stage (issue #177 stage 5)
 
