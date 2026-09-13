@@ -48,6 +48,57 @@ test('a missing file save shows a safe reason and retries after the file is rest
     }
 });
 
+test('a failed save retries at the renamed editor path', async () => {
+    allowE2EErrors([
+        { source: 'renderer', event: 'toast', code: 'ERROR_TOAST', count: 1 },
+        { source: 'server-core', event: 'ipc.request_failed', code: 'NOT_FOUND', count: 1 },
+    ]);
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-save-renamed-recovery-'));
+    const root = join(testDirectory, 'project');
+    const path = join(root, 'note.txt');
+    const renamedPath = join(root, 'renamed.txt');
+    await mkdir(root);
+    await writeFile(path, 'original\n');
+    const running = await launchCaxri({
+        userDataDir: join(testDirectory, 'profile'),
+        testRootPath: root,
+    });
+
+    try {
+        await createProjectSession(running.page);
+        await running.page.getByRole('treeitem', { name: 'note.txt', exact: true }).dblclick();
+        const editor = running.page.locator('.monaco-editor').last();
+        await expect(editor.locator('.view-lines')).toContainText('original');
+        await editor.click();
+        await running.page.keyboard.press('Meta+End');
+        await running.page.keyboard.type('updated');
+        await unlink(path);
+        await running.page.keyboard.press('Meta+S');
+
+        const failure = running.page.locator('.toast', { hasText: 'Save failed.' });
+        await expect(failure).toBeVisible();
+        const retry = failure.getByRole('button', { name: 'Retry Save failed' });
+        await expect(retry).toBeVisible();
+        await failure.hover();
+
+        await writeFile(path, 'original\n');
+        const row = running.page.getByRole('treeitem', { name: 'note.txt', exact: true });
+        await expect(row).toBeVisible();
+        await row.focus();
+        await running.page.keyboard.press('Enter');
+        const rename = running.page.getByRole('textbox', { name: 'Rename note.txt' });
+        await rename.fill('renamed.txt');
+        await rename.press('Enter');
+        await expect(running.page.locator('.work-tab', { hasText: 'renamed.txt' })).toBeVisible();
+
+        await retry.click();
+        await expect.poll(() => readFile(renamedPath, 'utf8')).toContain('updated');
+    } finally {
+        await running.app.close();
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
 test('a failed Terminal launch can retry after its folder becomes available', async () => {
     allowE2EErrors([
         { source: 'renderer', event: 'toast', code: 'ERROR_TOAST', count: 1 },
