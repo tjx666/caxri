@@ -8,7 +8,7 @@ import type {
     SessionRecord,
     TerminalRecord,
 } from '@caxri/protocol';
-import { Archive, ChevronDown, Paintbrush, SquarePen } from 'lucide-react';
+import { Archive, ChevronDown, Paintbrush } from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';
 import { CommandTooltip } from '../../components/command-tooltip';
@@ -18,7 +18,7 @@ import { Tooltip } from '../../components/ui/tooltip';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { WorktreeIcon } from '../../icons/codicons/worktree-icon';
 import { cn } from '../../lib/utilities';
-import { CreateSessionMenu } from '../session/create-session-menu';
+import { CreateSessionMenu, EmptyProjectSessionMenu } from '../session/create-session-menu';
 import { archiveSession } from '../session/session-actions';
 import type { SessionOrderController } from './hooks/use-session-order';
 import { useSessionTitleScroll } from './hooks/use-session-title-scroll';
@@ -274,7 +274,6 @@ interface ProjectGroupProperties {
     onBlurRename: () => void;
     onCancelRename: () => void;
     onCommitRename: () => void;
-    onCreateSession: () => void;
     onDragEnd: () => void;
     onDragOver: (event: DragEvent<HTMLElement>) => void;
     onDragStart: (event: DragEvent<HTMLElement>) => void;
@@ -327,7 +326,6 @@ export function ProjectGroup({
     onBlurRename,
     onCancelRename,
     onCommitRename,
-    onCreateSession,
     onDragEnd,
     onDragOver,
     onDragStart,
@@ -524,13 +522,7 @@ export function ProjectGroup({
                             </div>
                         )}
                         {visibleSessions.length === 0 && (
-                            <button
-                                className="empty-project flex h-7 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-muted hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] hover:text-foreground"
-                                tabIndex={-1}
-                                onClick={onCreateSession}
-                            >
-                                <SquarePen size={13} /> New Session
-                            </button>
+                            <EmptyProjectSessionMenu project={project} />
                         )}
                     </div>
                 )}

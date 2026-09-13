@@ -18,7 +18,6 @@ import {
 } from '../../stores/selectors';
 import {
     archiveSession,
-    beginSessionCreation,
     SESSION_PULL_REQUESTS_REFETCH_INTERVAL_MS,
 } from '../session/session-actions';
 import { activeSessionsInSidebarOrder } from '../session/session-activity-order';
@@ -293,7 +292,6 @@ export function PrimarySidebar() {
                             onBlurRename={sessionRename.blurRename}
                             onCancelRename={sessionRename.cancelRename}
                             onCommitRename={sessionRename.commitRename}
-                            onCreateSession={() => beginSessionCreation(project.id)}
                             onDragEnd={projectOrder.endDrag}
                             onDragOver={(event) => projectOrder.updateDropTarget(event, project.id)}
                             onDragStart={(event) => projectOrder.startDrag(event, project.id)}
