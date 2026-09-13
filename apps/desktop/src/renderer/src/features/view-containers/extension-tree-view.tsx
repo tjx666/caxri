@@ -3,10 +3,11 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 
 import type { ExtensionTreeViewState, TreeItemDto, ViewActionDescriptor } from '@caxri/protocol';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { AlertTriangle, LoaderCircle } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';
 import { Button } from '../../components/ui/button';
+import { Spinner } from '../../components/ui/spinner';
 import { openExternalUrl } from '../../lib/external-link';
 import { cn } from '../../lib/utilities';
 import { useSessionState } from '../../stores/selectors';
@@ -567,7 +568,7 @@ function ExtensionTreeViewContent({
                                         role="treeitem"
                                         style={{ paddingLeft: `${8 + row.depth * 14}px` }}
                                     >
-                                        <LoaderCircle className="animate-spin" size={14} /> Loading
+                                        <Spinner aria-hidden="true" className="size-3.5" /> Loading
                                         view…
                                     </div>
                                 ) : row.kind === 'error' ? (
