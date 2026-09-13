@@ -57,6 +57,14 @@ function MaybeTooltip({
 interface WorkTabProperties {
     active: boolean;
     accessory?: ReactNode;
+    /**
+     * Whether the tab offers its own close affordance — the button and the middle-click shortcut. The Workbench's lone
+     * tab sets `false`: closing it leaves an empty pane whose only content is the "New Terminal" button it just
+     * replaced, so the X is an invitation to undo the workspace rather than to tidy it. This is the same threshold that
+     * already drops the active accent and the bar's "+" (see `PaneTabBar`), and `cmd+w` plus the tab's context menu
+     * keep the command reachable.
+     */
+    closable?: boolean;
     closeLabel: string;
     dirty?: boolean;
     fileIconName?: string;
@@ -88,6 +96,11 @@ interface WorkTabProperties {
      * already says where focus is. Mirrors iTerm2, which hides its tab chrome at one tab.
      */
     showActiveAccent?: boolean;
+    /**
+     * Whether the tab draws the 1px rule on its right edge. The rail's last tab has nothing to its right to be
+     * separated from, so the rule would only paint a stray dark line down the pane's top-right corner.
+     */
+    showTrailingSeparator?: boolean;
     preview?: boolean;
     tabId: string;
     /**
@@ -217,45 +230,57 @@ function WorkTabLabel({
  * or keyboard focus.
  */
 function WorkTabTail({
+    closable,
     closeLabel,
     dirty,
     isVisuallyActive,
     onClose,
-}: Pick<WorkTabProperties, 'closeLabel' | 'dirty' | 'onClose'> & { isVisuallyActive: boolean }) {
+}: Pick<WorkTabProperties, 'closeLabel' | 'dirty' | 'onClose'> & {
+    closable: boolean;
+    isVisuallyActive: boolean;
+}) {
+    // Nothing left to reserve the trailing slot for: no close button to reveal and no unsaved state to report.
+    if (!closable && !dirty) return null;
     return (
         <span className="tab-tail relative h-6 w-6 flex-none">
             {dirty && (
                 <b
                     aria-hidden="true"
-                    className="dirty-dot absolute inset-0 m-auto grid h-fit place-items-center text-[10px] text-warning group-focus-within:opacity-0 group-hover:opacity-0"
+                    className={cn(
+                        'dirty-dot absolute inset-0 m-auto grid h-fit place-items-center text-[10px] text-warning',
+                        // The dot only yields to the close button when there is one to swap in.
+                        closable && 'group-focus-within:opacity-0 group-hover:opacity-0',
+                    )}
                 >
                     ●
                 </b>
             )}
-            <Tooltip content={closeLabel}>
-                <button
-                    type="button"
-                    className={cn(
-                        'tab-close absolute inset-0 m-auto grid h-5 w-5 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 hover:bg-[var(--selection)] hover:text-foreground',
-                        /*
-                         * VS Code's rule: the active tab always offers its close button, and an inactive tab reveals a
-                         * dimmer one only under the pointer or keyboard focus. Hunting for a control that is always
-                         * there on the tab you are actually working in is the friction this removes; keeping the
-                         * inactive ones muted is what stops a crowded rail from reading as a row of X's.
-                         */
-                        'pointer-events-none text-muted opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100',
-                        // A dirty tab still shows its dot instead, and swaps to the button on hover/focus above.
-                        isVisuallyActive &&
-                            !dirty &&
-                            'pointer-events-auto text-inherit opacity-100',
-                    )}
-                    aria-label={closeLabel}
-                    tabIndex={-1}
-                    onClick={onClose}
-                >
-                    <X size={12} />
-                </button>
-            </Tooltip>
+            {closable && (
+                <Tooltip content={closeLabel}>
+                    <button
+                        type="button"
+                        className={cn(
+                            'tab-close absolute inset-0 m-auto grid h-5 w-5 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 hover:bg-[var(--selection)] hover:text-foreground',
+                            /*
+                             * VS Code's rule: the active tab always offers its close button, and an inactive tab reveals a
+                             * dimmer one only under the pointer or keyboard focus. Hunting for a control that is always
+                             * there on the tab you are actually working in is the friction this removes; keeping the
+                             * inactive ones muted is what stops a crowded rail from reading as a row of X's.
+                             */
+                            'pointer-events-none text-muted opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100',
+                            // A dirty tab still shows its dot instead, and swaps to the button on hover/focus above.
+                            isVisuallyActive &&
+                                !dirty &&
+                                'pointer-events-auto text-inherit opacity-100',
+                        )}
+                        aria-label={closeLabel}
+                        tabIndex={-1}
+                        onClick={onClose}
+                    >
+                        <X size={12} />
+                    </button>
+                </Tooltip>
+            )}
         </span>
     );
 }
@@ -350,6 +375,7 @@ function WorkTabSelect({
 export function WorkTab({
     active,
     accessory,
+    closable = true,
     closeLabel,
     dirty,
     fileIconName,
@@ -361,6 +387,7 @@ export function WorkTab({
     keepLabelAsAccessibleName,
     motionIdentity,
     showActiveAccent,
+    showTrailingSeparator = true,
     preview,
     tabId,
     paneTabId,
@@ -393,8 +420,9 @@ export function WorkTab({
         <m.div
             style={style}
             className={cn(
-                'work-tab group relative flex items-center border-r border-border bg-surface text-muted [-webkit-app-region:no-drag] hover:bg-elevated hover:text-foreground',
+                'work-tab group relative flex items-center bg-surface text-muted [-webkit-app-region:no-drag] hover:bg-elevated hover:text-foreground',
                 'min-w-0',
+                showTrailingSeparator && 'border-r border-border',
                 fill
                     ? // `basis-0` is what makes the division even: without it flex distributes only the
                       // leftover space, so a long label would still win a wider slot than a short one.
@@ -428,7 +456,7 @@ export function WorkTab({
             // still needs the explicit check because some platforms also fire it for the
             // secondary (right) button when `contextmenu` is not prevented.
             onAuxClick={(event: ReactMouseEvent<HTMLDivElement>) => {
-                if (event.button === 1) onClose();
+                if (closable && event.button === 1) onClose();
             }}
             // `maxWidth` is animated from 0 (rather than set as static CSS) because CSS resolves `min-width` above
             // `max-width`: a static floor would override the `maxWidth: 0` enter keyframe and the enter/exit width
@@ -469,6 +497,7 @@ export function WorkTab({
                 </span>
             )}
             <WorkTabTail
+                closable={closable}
                 closeLabel={closeLabel}
                 dirty={dirty}
                 isVisuallyActive={isVisuallyActive}

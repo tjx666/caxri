@@ -8,7 +8,7 @@ import type {
     SessionRecord,
     TerminalRecord,
 } from '@caxri/protocol';
-import { Archive, ChevronDown, FolderSymlink, Paintbrush, SquarePen } from 'lucide-react';
+import { Archive, ChevronDown, Paintbrush, SquarePen } from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';
 import { CommandTooltip } from '../../components/command-tooltip';
@@ -16,6 +16,7 @@ import { DisclosureMotion } from '../../components/disclosure-motion';
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
+import { WorktreeIcon } from '../../icons/codicons/worktree-icon';
 import { cn } from '../../lib/utilities';
 import { CreateSessionMenu } from '../session/create-session-menu';
 import { archiveSession } from '../session/session-actions';
@@ -130,11 +131,11 @@ function ActiveSessionRow({
                  * line instead of trailing whichever title happened to be shortest. It sits outside the
                  * `.session-indicators` track at the row's other end, which is sized for exactly one status glyph.
                  *
-                 * `FolderSymlink` rather than the `FolderGit2` this used to render: that glyph already means
-                 * "Workbench Root" in the root picker and "repository" in Source Control, and at 12px it read as a
-                 * third Git mark next to the violet pull request glyph 14px away. What this marker actually says is
-                 * that the Session's files live in a folder other than its Project root, which is the arrow-on-folder
-                 * idiom the file tree already uses for a link.
+                 * VS Code's `worktree` codicon — a branch splitting off a trunk — rather than a second folder glyph.
+                 * `FolderGit2` and `FolderSymlink` both read as one more folder mark next to the violet pull request
+                 * glyph 14px away, and `FolderGit2` already means "Workbench Root" in the root picker. What the marker
+                 * says is that this Session works in a linked worktree, and the codicon is the mark the user already
+                 * reads that way elsewhere.
                  *
                  * Decorative on purpose: the row already opens the Session hover card, which names the worktree, and
                  * its accessible description carries the same sentence. A second hover popup on one row would compete
@@ -144,7 +145,7 @@ function ActiveSessionRow({
                     className="session-worktree flex size-3.5 flex-none items-center justify-center text-muted"
                     data-session-worktree={worktreeProject?.displayTitle}
                 >
-                    {worktreeProject && <FolderSymlink aria-hidden="true" size={12} />}
+                    {worktreeProject && <WorktreeIcon aria-hidden="true" size={12} />}
                 </span>
             )}
             <AgentIdentityIcon identity={terminal?.kind ?? 'shell'} size={14} />

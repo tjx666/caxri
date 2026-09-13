@@ -116,9 +116,9 @@ test('Editor title actions open the file last-commit and pull-request diffs', as
         };
         await copyTabPaths('tracked.txt');
 
-        const fileTab = running.page.locator('.work-tabs .work-tab').first();
-        await fileTab.hover();
-        await fileTab.getByRole('button', { name: 'Close Editor' }).click();
+        // This file is now the Workbench's only tab, which renders no close button — closing it would just swap it for
+        // the empty pane. `cmd+w` is the affordance that stays.
+        await running.page.keyboard.press('Meta+w');
         await expect(running.page.locator('.work-tab')).toHaveCount(0);
         await running.page.getByRole('treeitem', { name: 'tracked.txt', exact: true }).click();
         await expect(lastCommit).toBeVisible();

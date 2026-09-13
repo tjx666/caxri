@@ -133,7 +133,7 @@ esac
         await expect
             .poll(() =>
                 repo.evaluate((element) => {
-                    const icon = element.querySelector<SVGElement>('[data-theme-icon="monitor"]');
+                    const icon = element.querySelector<SVGElement>('[data-theme-icon="repo"]');
                     const style = getComputedStyle(element);
                     return {
                         columnGap: style.columnGap,
@@ -166,7 +166,7 @@ esac
         ).toBeVisible();
         await running.page.mouse.move(0, 0);
         const pullRequestA = tree.getByRole('treeitem', {
-            name: '#42 Status A, Merged · CI failed',
+            name: '#42 Status A, Merged, CI failed',
             exact: true,
         });
         /**
@@ -305,7 +305,7 @@ esac
         });
         await expect(pullRequestA).toHaveCSS('cursor', 'pointer');
         const collapsePullRequest = pullRequestA.getByRole('button', {
-            name: 'Collapse #42 Status A, Merged · CI failed',
+            name: 'Collapse #42 Status A, Merged, CI failed',
             exact: true,
         });
         await expect(collapsePullRequest).toHaveAttribute('aria-expanded', 'true');
@@ -321,7 +321,7 @@ esac
         await expect(pullRequestTooltip).toHaveAttribute('data-side', hoverSide!);
         await pullRequestA
             .getByRole('button', {
-                name: 'Expand #42 Status A, Merged · CI failed',
+                name: 'Expand #42 Status A, Merged, CI failed',
                 exact: true,
             })
             .click();
@@ -345,7 +345,7 @@ esac
         await expect(pullRequestTooltip).toHaveCount(0);
         await pullRequestA
             .getByRole('button', {
-                name: 'Expand #42 Status A, Merged · CI failed',
+                name: 'Expand #42 Status A, Merged, CI failed',
                 exact: true,
             })
             .click();
@@ -367,7 +367,7 @@ esac
         await expect.poll(() => treeCommandOpenedUrls(running)).toHaveLength(1);
         await pullRequestA
             .getByRole('button', {
-                name: 'Expand #42 Status A, Merged · CI failed',
+                name: 'Expand #42 Status A, Merged, CI failed',
                 exact: true,
             })
             .click();
@@ -653,7 +653,7 @@ esac
         await expect(refreshButton).toHaveAttribute('aria-busy', 'true');
         await expect(
             tree.getByRole('treeitem', {
-                name: '#42 Status B, Merged · CI failed',
+                name: '#42 Status B, Merged, CI failed',
                 exact: true,
             }),
         ).toBeVisible();
@@ -693,7 +693,7 @@ esac
          */
         await expect(
             restoredTree.getByRole('treeitem', {
-                name: '#42 Status B, Merged · CI failed',
+                name: '#42 Status B, Merged, CI failed',
                 exact: true,
             }),
         ).toBeVisible();
@@ -706,7 +706,7 @@ esac
         await running.page.getByText('Refresh Project Status', { exact: true }).click();
         await expect(
             restoredTree.getByRole('treeitem', {
-                name: '#42 Status C, Merged · CI failed',
+                name: '#42 Status C, Merged, CI failed',
                 exact: true,
             }),
         ).toBeVisible();

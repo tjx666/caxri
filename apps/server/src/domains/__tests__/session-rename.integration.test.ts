@@ -237,7 +237,13 @@ describe('Session rename', () => {
             () => {},
             createLogger(join(directory, 'logs')),
         );
-        const service = new SessionRenameService(database, agents, coordinator, () => {});
+        const service = new SessionRenameService(
+            database,
+            agents,
+            coordinator,
+            () => {},
+            createLogger(join(directory, 'rename-logs')),
+        );
 
         try {
             const pendingRename = service.rename(created.session.id, 'Requested title');
@@ -253,6 +259,65 @@ describe('Session rename', () => {
                 2,
                 expect.objectContaining({ agentSessionId: 'agent-session-b' }),
             );
+        } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
+
+    /**
+     * Naming a brand new Agent Session is the very first thing a user does to it, and until the Agent CLI reports a
+     * session id there is nothing to synchronize — not a failure to report. Refusing the rename here made that first
+     * action fail with "The primary Agent session has not been identified yet" and discarded the typed name with it.
+     */
+    it('commits a rename locally while the Agent has not reported a session id yet', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-session-rename-unidentified-'));
+        temporaryDirectories.push(directory);
+        const projectRoot = join(directory, 'project');
+        await mkdir(projectRoot);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(
+            database.createProject(projectRoot).id,
+            'codex',
+            projectRoot,
+        );
+        const renameSession = vi.fn();
+        const agents = new AgentService(
+            undefined,
+            createPendingAgentAdapters({
+                codex: {
+                    provider: 'codex',
+                    renameSession,
+                    snapshot: () =>
+                        Promise.resolve({
+                            available: true,
+                            observedAt: Date.now(),
+                            provider: 'codex',
+                            status: 'unknown',
+                        }),
+                },
+            }),
+        );
+        const coordinator = new AgentCoordinator(
+            database,
+            agents,
+            () => {},
+            createLogger(join(directory, 'logs')),
+        );
+        const service = new SessionRenameService(
+            database,
+            agents,
+            coordinator,
+            () => {},
+            createLogger(join(directory, 'rename-logs')),
+        );
+
+        try {
+            await expect(
+                service.rename(created.session.id, 'Untitled no more'),
+            ).resolves.toMatchObject({ displayTitle: 'Untitled no more', titleMode: 'manual' });
+            expect(renameSession).not.toHaveBeenCalled();
+            expect(database.getSession(created.session.id)?.displayTitle).toBe('Untitled no more');
         } finally {
             coordinator.close();
             database.close();
@@ -292,7 +357,13 @@ describe('Session rename', () => {
             () => {},
             createLogger(join(directory, 'logs')),
         );
-        const service = new SessionRenameService(database, agents, coordinator, () => {});
+        const service = new SessionRenameService(
+            database,
+            agents,
+            coordinator,
+            () => {},
+            createLogger(join(directory, 'rename-logs')),
+        );
 
         try {
             const earlier = service.rename(created.session.id, 'Earlier title');

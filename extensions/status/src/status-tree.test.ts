@@ -98,7 +98,7 @@ describe('Status extension tree', () => {
                 });
                 const pr = root.children!.find((node) => node.item.id?.endsWith(':pr'))!;
                 expect(iconId(pr)).toBe('git-merge');
-                expect(pr.item.description).toBe(`Merged · ${checkLabel}`);
+                expect(pr.item.description).toBe(checkLabel);
                 expect(pr.item.accessibilityInformation?.label).toContain('Merged');
                 expect(pr.item.tooltip).toMatchObject({ badge: { label: 'Merged' } });
                 expect((pr.item.tooltip as TreeItemRichTooltip).rows).toContainEqual({
@@ -140,7 +140,8 @@ describe('Status extension tree', () => {
          * neutral — a check cancelled by concurrency is not a closed PR and not a failure.
          */
         expect(pr?.item.iconPath?.id).toBe('git-pull-request-open');
-        expect(pr?.item.description).toBe('Open · CI cancelled');
+        expect(pr?.item.description).toBe('CI cancelled');
+        expect(pr?.item.accessibilityInformation?.label).toContain('Open');
         expect((pr?.item.tooltip as TreeItemRichTooltip).rows).toContainEqual({
             label: 'checks',
             value: 'cancelled',
@@ -177,7 +178,15 @@ describe('Status extension tree', () => {
             });
             const pr = root.children!.find((node) => node.item.id?.endsWith(':pr'))!;
             expect(iconId(pr)).toBe(icon);
-            expect(pr.item.description).toBe(`${label} · CI passed`);
+            /**
+             * The lifecycle word is deliberately not in the row description — the icon already carries it in GitHub's
+             * own colors — so it has to remain reachable through the accessible name for a reader who cannot use
+             * color.
+             */
+            expect(pr.item.description).toBe('CI passed');
+            expect(pr.item.accessibilityInformation?.label).toBe(
+                `#42 Lifecycle fixture, ${label}, CI passed`,
+            );
         },
     );
 
@@ -327,7 +336,7 @@ describe('Status extension tree', () => {
             collapsibleState: TreeItemCollapsibleState.Expanded,
             variant: 'header',
         });
-        expect(iconId(root)).toBe('monitor');
+        expect(iconId(root)).toBe('repo');
         expect(children.map(({ item }) => item.label)).toEqual([
             'feature/status',
             'CAX-1 Completed',
@@ -344,7 +353,7 @@ describe('Status extension tree', () => {
         expect(children.slice(1, 6).map(iconId)).toEqual([
             'linear-completed',
             'linear-canceled',
-            'linear-canceled',
+            'linear-duplicate',
             'linear-started',
             'linear-backlog',
         ]);
@@ -439,7 +448,7 @@ describe('Status extension tree', () => {
             'linear-started',
             'linear-completed',
             'linear-canceled',
-            'linear-canceled',
+            'linear-duplicate',
         ]);
         expect(children[7].children?.[0]?.item.iconPath?.id).toBe('loading');
     });
@@ -542,7 +551,7 @@ describe('Status extension tree', () => {
         expect(issue.item.tooltip).toEqual({
             kind: 'rich',
             title: 'CAX-4 Started',
-            badge: { label: 'In Progress', tone: 'warning' },
+            badge: { label: 'In Progress', tone: 'neutral' },
             rows: [
                 {
                     label: 'link',
@@ -709,7 +718,43 @@ describe('Status extension tree', () => {
         });
     });
 
-    it('uses the package semantic for submodule repositories', () => {
+    /**
+     * Linear files "In Progress", "In Review", and "Ready to Merge" all under the `started` type, and each workspace
+     * picks their colors itself. Quantizing that back to a Caxri tone is what made a state Linear shows green render
+     * yellow, so the workspace's own color rides through to the icon untouched.
+     */
+    it('tints a Linear issue icon with the workflow color the workspace configured', () => {
+        const [inReview, inProgress] =
+            buildRepoNode({
+                id: 'repo',
+                kind: 'primary',
+                name: 'caxri',
+                branch: 'main',
+                linearIssues: [
+                    {
+                        identifier: 'CAX-1',
+                        title: 'Review',
+                        state: 'In Review',
+                        stateType: 'started',
+                        stateColor: '#4CB782',
+                    },
+                    {
+                        identifier: 'CAX-2',
+                        title: 'Progress',
+                        state: 'In Progress',
+                        stateType: 'started',
+                    },
+                ],
+                errors: [],
+            }).children?.slice(1, 3) ?? [];
+
+        expect(inReview.item.iconPath).toMatchObject({ id: 'linear-started', color: '#4CB782' });
+        expect(inReview.item.tooltip).toMatchObject({ badge: { label: 'In Review' } });
+        // Without a workspace color the icon inherits the row's theme color, exactly like every Caxri-owned glyph.
+        expect(inProgress.item.iconPath?.color).toBeUndefined();
+    });
+
+    it('uses the VS Code archive codicon for submodule repositories', () => {
         const node = buildRepoNode({
             id: 'repo-submodule',
             kind: 'submodule',
@@ -720,6 +765,6 @@ describe('Status extension tree', () => {
         });
 
         expect(node.item.description).toBe('submodule');
-        expect(iconId(node)).toBe('package');
+        expect(iconId(node)).toBe('archive');
     });
 });

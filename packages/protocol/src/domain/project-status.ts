@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { hexColorSchema } from './color.js';
 import { projectStatusStateSchema } from './project-status-state.js';
 import {
     pullRequestUnavailableSchema,
@@ -25,6 +26,12 @@ const projectStatusLinearIssueSchema = z.object({
     stateType: z
         .enum(['backlog', 'canceled', 'completed', 'duplicate', 'started', 'triage', 'unstarted'])
         .optional(),
+    /**
+     * The color this Linear workspace assigned to the workflow state. `stateType` cannot stand in for it: Linear groups
+     * "In Progress", "In Review" and "Ready to Merge" under the single `started` type while letting each workspace
+     * color and name them separately, so the type decides the glyph and this decides its tint.
+     */
+    stateColor: hexColorSchema.optional(),
 });
 
 const projectStatusDeploymentSchema = z.object({

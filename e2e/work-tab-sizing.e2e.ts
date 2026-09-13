@@ -583,9 +583,11 @@ test('the bar hides "+" with no tabs at all and reserves its drag corner only wi
         // Closing the last Terminal used to bring "+" back, because the rule keyed off "exactly one tab" and an empty
         // Workbench is not one tab. The empty pane offers its own New Terminal button, so the bar stays bare.
         const onlyTab = running.page.locator('.work-tabs .work-tab').first();
-        // The active tab already shows `tab-close`; hovering keeps this robust for the inactive case too.
+        // With nothing to switch to, the close button is the same noise as "+" and the active accent: closing the lone
+        // tab only swaps it for the empty pane's own New Terminal button. `cmd+w` keeps the command reachable.
         await onlyTab.hover();
-        await onlyTab.getByRole('button', { name: 'Close Terminal' }).click();
+        await expect(onlyTab.getByRole('button', { name: 'Close Terminal' })).toHaveCount(0);
+        await running.page.keyboard.press('Meta+w');
         await expect(running.page.getByText('No Terminal in this Session.')).toBeVisible();
         await expect(running.page.locator('.work-tabs .work-tab')).toHaveCount(0);
         await expect(actions).toHaveCount(0);

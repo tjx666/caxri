@@ -39,6 +39,17 @@ export function SessionRenameInput({
                 onClick={(event) => event.stopPropagation()}
                 onDoubleClick={(event) => event.stopPropagation()}
                 onKeyDown={(event) => {
+                    /*
+                     * While an IME is composing, Enter and Escape belong to the candidate window — Enter accepts the
+                     * highlighted candidate, Escape abandons the composition — and the browser dispatches them here
+                     * anyway. Committing the rename on that Enter ended the rename on the keystroke the user meant to
+                     * finish typing Chinese with, before the accepted text had even reached the input. `isComposing`
+                     * is the spec's signal for this; `keyCode === 229` covers the same keystroke on the engines that
+                     * report the composition only that way.
+                     * https://www.w3.org/TR/uievents/#events-composition-key-events
+                     */
+                    // oxlint-disable-next-line typescript/no-deprecated -- 229 is the only signal for this keystroke; see comment above
+                    if (event.nativeEvent.isComposing || event.keyCode === 229) return; // eslint-disable-line unicorn/prefer-keyboard-event-key -- `.key` reports "Process" or the composed text here
                     if (event.key === 'Enter') {
                         event.preventDefault();
                         onCommit();
