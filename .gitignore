@@ -9,6 +9,10 @@ dist/
 test-results/
 playwright-report/
 coverage/
+# `rtk vitest run` writes its report here; a parse failure leaves it behind
+.vitest/
+# Temporary oxlint config written per-process by scripts/__tests__/oxlint-toolchain-contract.test.ts
+.oxlintrc.contract-*.json
 .cache/
 .records/
 *.tsbuildinfo
