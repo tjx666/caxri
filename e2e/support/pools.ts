@@ -18,6 +18,7 @@ export const clipboardCapabilitySpecs = [
     'e2e/clipboard-restoration.e2e.ts',
     'e2e/file-operations.e2e.ts',
     'e2e/path-browser.e2e.ts',
+    'e2e/process-explorer-recovery.e2e.ts',
     'e2e/settings.e2e.ts',
     'e2e/terminal-osc52-clipboard.e2e.ts',
     'e2e/terminal-long-paste.e2e.ts',
