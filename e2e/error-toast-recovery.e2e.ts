@@ -51,7 +51,8 @@ test('a missing file save shows a safe reason and retries after the file is rest
 test('a failed save retries at the renamed editor path', async () => {
     allowE2EErrors([
         { source: 'renderer', event: 'toast', code: 'ERROR_TOAST', count: 1 },
-        { source: 'server-core', event: 'ipc.request_failed', code: 'NOT_FOUND', count: 1 },
+        { source: 'desktop', event: 'ipc.request_failed', code: 'INTERNAL', count: 1 },
+        { source: 'server-core', event: 'ipc.request_failed', code: 'INTERNAL', count: 1 },
     ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-save-renamed-recovery-'));
     const root = join(testDirectory, 'project');
@@ -72,7 +73,7 @@ test('a failed save retries at the renamed editor path', async () => {
         await editor.click();
         await running.page.keyboard.press('Meta+End');
         await running.page.keyboard.type('updated');
-        await unlink(path);
+        await chmod(root, 0o500);
         await running.page.keyboard.press('Meta+S');
 
         const failure = running.page.locator('.toast', { hasText: 'Save failed.' });
@@ -81,7 +82,7 @@ test('a failed save retries at the renamed editor path', async () => {
         await expect(retry).toBeVisible();
         await failure.hover();
 
-        await writeFile(path, 'original\n');
+        await chmod(root, 0o700);
         const row = running.page.getByRole('treeitem', { name: 'note.txt', exact: true });
         await expect(row).toBeVisible();
         await row.focus();
@@ -94,6 +95,7 @@ test('a failed save retries at the renamed editor path', async () => {
         await retry.click();
         await expect.poll(() => readFile(renamedPath, 'utf8')).toContain('updated');
     } finally {
+        await chmod(root, 0o700);
         await running.app.close();
         await rm(testDirectory, { recursive: true, force: true });
     }
