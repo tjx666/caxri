@@ -68,6 +68,16 @@ test('the empty-Project New Session row anchors the Terminal menu to itself', as
 
         // The pencil only becomes clickable while its heading is hovered or focused.
         await heading.hover();
+        /**
+         * The pencil keeps its `session.create` tooltip. Base UI's tooltip trigger reaches its child through `render`,
+         * so wrapping a plain function component instead of the trigger element silently drops the props it injects and
+         * the tooltip never opens — which is exactly what splitting this file into two anchors first did.
+         */
+        await pencil.hover();
+        await expect(running.page.locator('.tooltip-popup[data-open]')).toContainText(
+            'Create a Session in the selected Project',
+        );
+
         await pencil.click();
         await expect(menu).toBeVisible();
         await expect(pencil).toHaveAttribute('aria-expanded', 'true');
