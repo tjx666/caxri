@@ -1,7 +1,12 @@
 import type { AgentSkillHealth } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { hookHealthLabel, skillScopeHealth, skillScopeSummary } from '../provider-health';
+import {
+    hookHealthLabel,
+    hookHealthTone,
+    skillScopeHealth,
+    skillScopeSummary,
+} from '../provider-health';
 
 describe('hookHealthLabel', () => {
     it('reports disabled and pending states before health arrives', () => {
@@ -18,6 +23,21 @@ describe('hookHealthLabel', () => {
         expect(hookHealthLabel(true, { kind: 'error', message: 'EPERM' })).toBe(
             'Setup failed — restart Agent Terminals to try again — EPERM',
         );
+    });
+});
+
+describe('hookHealthTone', () => {
+    it('marks intervention states while leaving healthy and informational states muted', () => {
+        expect(hookHealthTone(false, { kind: 'error' })).toBe('muted');
+        expect(hookHealthTone(true, undefined)).toBe('muted');
+        expect(hookHealthTone(true, { kind: 'active' })).toBe('muted');
+        expect(hookHealthTone(true, { kind: 'installedPending' })).toBe('muted');
+        expect(hookHealthTone(true, { kind: 'notInstalled' })).toBe('warning');
+        expect(hookHealthTone(true, { kind: 'incompatible', installedSchema: 99 })).toBe('warning');
+        expect(hookHealthTone(true, { kind: 'stale' })).toBe('warning');
+        expect(hookHealthTone(true, { kind: 'drifted' })).toBe('warning');
+        expect(hookHealthTone(true, { kind: 'conflict' })).toBe('danger');
+        expect(hookHealthTone(true, { kind: 'error' })).toBe('danger');
     });
 });
 
