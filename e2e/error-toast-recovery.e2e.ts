@@ -1,0 +1,102 @@
+import { mkdir, mkdtemp, readFile, rm, unlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { allowE2EErrors, expect, test } from './support/fixtures.ts';
+import { createProjectSession, launchCaxri } from './support/helpers.ts';
+
+test('a missing file save shows a safe reason and retries after the file is restored', async () => {
+    allowE2EErrors([
+        { source: 'renderer', event: 'toast', code: 'ERROR_TOAST', count: 1 },
+        { source: 'server-core', event: 'ipc.request_failed', code: 'NOT_FOUND', count: 1 },
+    ]);
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-save-toast-recovery-'));
+    const root = join(testDirectory, 'project');
+    const path = join(root, 'note.txt');
+    await mkdir(root);
+    await writeFile(path, 'original\n');
+    const running = await launchCaxri({
+        userDataDir: join(testDirectory, 'profile'),
+        testRootPath: root,
+    });
+
+    try {
+        await createProjectSession(running.page);
+        await running.page.getByRole('treeitem', { name: 'note.txt', exact: true }).dblclick();
+        const editor = running.page.locator('.monaco-editor').last();
+        await expect(editor.locator('.view-lines')).toContainText('original');
+        await editor.click();
+        await running.page.keyboard.press('Meta+End');
+        await running.page.keyboard.type('updated');
+        await unlink(path);
+        await running.page.keyboard.press('Meta+S');
+
+        const failure = running.page.locator('.toast', { hasText: 'Save failed.' });
+        await expect(failure).toContainText('Requested path no longer exists.');
+        await expect(failure).not.toContainText('ENOENT');
+        await expect(failure).not.toContainText(root);
+        const retry = failure.getByRole('button', { name: 'Retry Save failed' });
+        await expect(retry).toBeVisible();
+        await failure.screenshot({ path: test.info().outputPath('save-enoent-toast.png') });
+
+        await writeFile(path, 'original\n');
+        await retry.click();
+        await expect.poll(() => readFile(path, 'utf8')).toContain('updated');
+    } finally {
+        await running.app.close();
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('a failed Terminal launch can retry after its folder becomes available', async () => {
+    allowE2EErrors([
+        { source: 'renderer', event: 'toast', code: 'ERROR_TOAST', count: 1 },
+        { source: 'desktop', event: 'ipc.request_failed', code: 'IO', count: 1 },
+        { source: 'server-core', event: 'ipc.request_failed', code: 'IO', count: 1 },
+    ]);
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-toast-recovery-'));
+    const root = join(testDirectory, 'project');
+    const folder = join(root, 'volatile');
+    await mkdir(folder, { recursive: true });
+    const running = await launchCaxri({
+        userDataDir: join(testDirectory, 'profile'),
+        testRootPath: root,
+    });
+
+    try {
+        await createProjectSession(running.page);
+        await expect(running.page.locator('.work-tab[data-terminal-id]')).toHaveCount(1);
+        await running.page
+            .getByRole('treeitem', { name: 'volatile', exact: true })
+            .click({ button: 'right' });
+        await expect(
+            running.page.getByRole('menuitem', { name: 'Open in Terminal' }),
+        ).toBeVisible();
+        await rm(folder, { recursive: true });
+        await running.page.getByRole('menuitem', { name: 'Open in Terminal' }).click();
+
+        const failure = running.page.locator('.toast', { hasText: 'Terminal creation failed.' });
+        await expect(failure).toBeVisible();
+        await expect(failure).not.toContainText(folder);
+        const retry = failure.getByRole('button', { name: 'Retry Terminal creation failed' });
+        await expect(retry).toBeVisible();
+        const [toastBounds, retryBounds] = await Promise.all([
+            failure.boundingBox(),
+            retry.boundingBox(),
+        ]);
+        if (!toastBounds || !retryBounds) throw new Error('Terminal failure action has no bounds');
+        expect(retryBounds.x + retryBounds.width).toBeLessThanOrEqual(
+            toastBounds.x + toastBounds.width,
+        );
+        await failure.screenshot({
+            path: test.info().outputPath('terminal-launch-failure-toast.png'),
+        });
+
+        await mkdir(folder);
+        await retry.click();
+        await expect(running.page.locator('.work-tab[data-terminal-id]')).toHaveCount(2);
+    } finally {
+        await running.app.close();
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
