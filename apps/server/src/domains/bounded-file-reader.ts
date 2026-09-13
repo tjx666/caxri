@@ -16,23 +16,29 @@ export interface BoundedRegularFileReadOptions {
     openFile?: OpenRegularFile;
 }
 
+function capacityError(maxBytes: number, message?: string): CaxriError {
+    return new CaxriError('CAPACITY', message ?? `File exceeds the ${maxBytes} byte safety limit`);
+}
+
 /**
- * Reads text from one opened regular-file handle without trusting a pathname's pre-read metadata.
+ * Reads bytes from one opened regular-file handle without trusting a pathname's pre-read metadata.
  *
  * Final symlinks are intentionally followed because user-selected themes and provider-owned configuration commonly
- * point at dotfile-managed regular files. The opened handle is still `fstat`-validated as a regular file, read with
- * `O_NONBLOCK`, and capped before parser input is exposed. The extra byte detects a file that grows after it is opened
- * while keeping parser input bounded.
+ * point at dotfile-managed regular files. The opened handle is still `fstat`-validated as a regular file, rejected when
+ * that size already exceeds the cap, read with `O_NONBLOCK`, and capped before parser input is exposed. The extra byte
+ * detects a file that grows after it is opened while keeping parser input bounded.
  */
-export async function readBoundedRegularFileText(
+export async function readBoundedRegularFile(
     path: string,
     maxBytes: number,
     options: BoundedRegularFileReadOptions = {},
-): Promise<string> {
+): Promise<Buffer> {
     const openFile = options.openFile ?? open;
     const file = await openFile(path, constants.O_RDONLY | constants.O_NONBLOCK);
     try {
-        if (!(await file.stat()).isFile()) throw new CaxriError('IO', 'Path is not a regular file');
+        const stats = await file.stat();
+        if (!stats.isFile()) throw new CaxriError('IO', 'Path is not a regular file');
+        if (stats.size > maxBytes) throw capacityError(maxBytes, options.capacityMessage);
         await options.beforeRead?.();
 
         const buffer = Buffer.allocUnsafe(maxBytes + 1);
@@ -45,13 +51,17 @@ export async function readBoundedRegularFileText(
             if (result.bytesRead === 0) break;
             bytesRead += result.bytesRead;
         }
-        if (bytesRead > maxBytes)
-            throw new CaxriError(
-                'CAPACITY',
-                options.capacityMessage ?? `File exceeds the ${maxBytes} byte safety limit`,
-            );
-        return buffer.subarray(0, bytesRead).toString('utf8');
+        if (bytesRead > maxBytes) throw capacityError(maxBytes, options.capacityMessage);
+        return buffer.subarray(0, bytesRead);
     } finally {
         await file.close();
     }
+}
+
+export async function readBoundedRegularFileText(
+    path: string,
+    maxBytes: number,
+    options: BoundedRegularFileReadOptions = {},
+): Promise<string> {
+    return (await readBoundedRegularFile(path, maxBytes, options)).toString('utf8');
 }

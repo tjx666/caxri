@@ -167,6 +167,10 @@ export interface SourceControlViewModel {
     fileHistory?: SourceControlFileHistory;
     providers: SourceControlProviderModel[];
     emptyMessage?: string;
+    /**
+     * Distinguishes a missing repository from a failed Git read for the panel's recovery state.
+     */
+    emptyKind?: 'no-repository' | 'unavailable';
     truncationMessage?: string;
 }
 

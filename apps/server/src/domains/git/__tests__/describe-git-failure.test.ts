@@ -14,8 +14,11 @@ describe('describeGitFailure', () => {
         const notARepoError = Object.assign(new Error('exit 128'), {
             stderr: 'fatal: not a git repository',
         });
-        expect(describeGitFailure(notARepoError)).toBe(
+        expect(describeGitFailure(notARepoError, { missingRepoRoot: true })).toBe(
             ProjectStatusSummaryErrorMessage.missingGitRepository,
+        );
+        expect(describeGitFailure(notARepoError)).toBe(
+            'The Git operation failed. Open Logs for details.',
         );
     });
 });

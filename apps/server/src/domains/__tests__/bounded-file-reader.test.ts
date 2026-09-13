@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import type { CaxriError } from '@caxri/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { readBoundedRegularFileText } from '../bounded-file-reader';
+import { readBoundedRegularFile, readBoundedRegularFileText } from '../bounded-file-reader';
 
 const temporaryDirectories: string[] = [];
 
@@ -31,7 +31,9 @@ function createChunkedFileHandle(content: Buffer, chunkSizes: number[]): FileHan
     let chunkIndex = 0;
     return {
         stat: () =>
-            Promise.resolve({ isFile: () => true }) as unknown as ReturnType<FileHandle['stat']>,
+            Promise.resolve({ isFile: () => true, size: content.length }) as unknown as ReturnType<
+                FileHandle['stat']
+            >,
         read: (buffer: Buffer, offset: number, length: number, filePosition: number) => {
             const chunkSize = chunkSizes[chunkIndex] ?? 0;
             chunkIndex += 1;
@@ -114,6 +116,35 @@ describe('readBoundedRegularFileText', () => {
         await expect(readBoundedRegularFileText('unused-path', 1024, { openFile })).resolves.toBe(
             'hello world',
         );
+    });
+
+    it('rejects from fstat size before reading file bytes', async () => {
+        const openFile = () =>
+            Promise.resolve({
+                stat: () =>
+                    Promise.resolve({ isFile: () => true, size: 100 }) as unknown as ReturnType<
+                        FileHandle['stat']
+                    >,
+                read: () => {
+                    throw new Error('bounded reader must not read after an oversized fstat');
+                },
+                close: () => Promise.resolve(),
+            } as unknown as FileHandle);
+
+        await expect(readBoundedRegularFile('unused-path', 10, { openFile })).rejects.toMatchObject(
+            {
+                code: 'CAPACITY',
+            } satisfies Partial<CaxriError>,
+        );
+    });
+
+    it('returns the raw bytes so callers can inspect them before decoding', async () => {
+        const directory = await makeTemporaryDirectory('caxri-bounded-read-bytes-');
+        const path = join(directory, 'file.bin');
+        const content = Buffer.from([0, 1, 2, 3]);
+        await writeFile(path, content);
+
+        await expect(readBoundedRegularFile(path, 1024)).resolves.toEqual(content);
     });
 
     it('bounds a file that grows past the cap while the handle is open', async () => {

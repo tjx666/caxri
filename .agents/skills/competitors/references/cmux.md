@@ -2,6 +2,8 @@
 
 _Researched 2026-08-06._
 
+Codex hook follow-up, 2026-09-13: [current injection implementation](https://github.com/manaflow-ai/cmux/blob/309513b40839520d239aed67d420b6e4e06f4e41/CLI/CMUXCLI%2BCodexFireAndForgetHooks.swift#L175-L240) inventories persistent hooks and injects missing events through `-c hooks.<event>=...` plus `--dangerously-bypass-hook-trust`. A complete persistent channel emits no overrides. For Codex 0.154.0, the injected launch flags disable implicit daemon reuse; this is source-based inference, not a local cmux runtime verification. Do not describe this as a demonstrated solution for an environment-less shared daemon.
+
 - **Positioning**: Native macOS terminal (explicitly not Electron) built on libghostty, purpose-built for running many parallel agent sessions, with a notification system that answers "which agent needs me" across many tabs/panes.
 - **Company/traction**: Manaflow, Inc. X `@manaflowai`, Discord; Sparkle auto-updates; DMG + Homebrew cask. Users adopt it primarily for the notification system and parallel workspaces despite UI complaints.
 - **Tech stack**: Swift + AppKit, libghostty rendering, Go daemon (`daemon/remote`) for SSH/remote-tmux, Bun/TypeScript + React 19 webviews, Biome.

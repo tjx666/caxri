@@ -378,6 +378,23 @@ describe('Git source-control view model', () => {
         });
 
         expect(model.emptyMessage).toBe('This folder is not a Git repository.');
+        expect(model.emptyKind).toBe('no-repository');
+    });
+
+    it('does not mislabel an unknown Git failure as a missing repository', () => {
+        const model = buildSourceControlViewModel({
+            mode: 'working',
+            summary: {
+                isRepository: false,
+                repositories: [],
+                error: 'The Git operation failed. Open Logs for details.',
+            },
+        });
+
+        expect(model.emptyKind).toBe('unavailable');
+        expect(model.emptyMessage).toBe(
+            'Source Control is unavailable right now. The Git operation failed. Open Logs for details.',
+        );
     });
 
     it('filters working files while preserving totals and exposes an accessible toggle', () => {

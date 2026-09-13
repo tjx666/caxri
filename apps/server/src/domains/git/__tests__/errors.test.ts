@@ -50,7 +50,7 @@ describe('describeGitFailure sync mappings', () => {
 
     it('falls back to the generic wording for unrecognized remote stderr', () => {
         expect(describeGitFailure(failureWithStderr('remote: internal server error'))).toBe(
-            'The Git operation failed. See Runtime logs for details.',
+            'The Git operation failed. Open Logs for details.',
         );
     });
 

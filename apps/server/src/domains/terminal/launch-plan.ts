@@ -116,7 +116,10 @@ export class TerminalLaunchPlanner {
                     launch,
                     this.options.resolveExecutable,
                 );
-                const agentArguments = [...launch.args];
+                const agentArguments = [
+                    ...(agentProviders[record.kind].managedLaunchArguments ?? []),
+                    ...launch.args,
+                ];
                 if (start?.resumeAgentSessionId && !agentProviders[record.kind].prepareLaunch) {
                     agentArguments.push(
                         ...agentProviders[record.kind].resumeArguments(start.resumeAgentSessionId),

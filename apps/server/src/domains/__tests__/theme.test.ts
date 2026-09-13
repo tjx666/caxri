@@ -350,7 +350,7 @@ describe('theme import mapping', () => {
         expect(theme.editor.keyword).toBe('#569cd6');
         expect(theme.editor.comment).toBe(draculaTheme.editor.comment);
         expect(theme.warnings).toContain(
-            'Syntax colors for comment, string, and number were not imported.',
+            'Syntax colors for comments, strings, numbers were not imported.',
         );
     });
 
@@ -420,9 +420,7 @@ describe('theme import mapping', () => {
 
         const theme = await importTheme(path, draculaTheme);
         expect(theme.editor.comment).toBe(draculaTheme.editor.comment);
-        expect(theme.warnings).toContain(
-            'Syntax colors for comment, keyword, string, and number were not imported.',
-        );
+        expect(theme.warnings).toContain('Syntax colors were not imported.');
         expect(theme.warnings).not.toContain(
             'Unsupported VS Code tokens and extension metadata were ignored.',
         );

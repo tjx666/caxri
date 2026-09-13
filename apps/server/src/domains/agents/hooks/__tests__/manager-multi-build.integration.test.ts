@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { codexHookAdapter } from '../../providers/codex/hooks';
 import type { AgentLifecycleSignal, AgentSignalDecision } from '../contract';
 import { AgentHookManager } from '../manager';
+import { hookBridgeEnvironment } from './server.fixture';
 
 const loggers: StructuredLogger[] = [];
 
@@ -108,7 +109,7 @@ describe('AgentHookManager across concurrently running Caxri builds', () => {
                 const result = await execFileAsync(
                     bridge,
                     ['--source', 'caxri', '--provider', 'codex', '--phase', 'turnFinished'],
-                    { env: { ...process.env, ...environment } },
+                    { env: hookBridgeEnvironment(environment) },
                 );
                 expect(result.stderr).toBe('');
             }
