@@ -654,6 +654,13 @@ describe('theme import mapping', () => {
                 await expect(importTheme(path, draculaTheme)).rejects.toMatchObject({
                     code: 'VALIDATION',
                     message: `Secondary text in the imported theme must have at least 4.5:1 contrast against the ${surfaceLabels[surface]}. Choose a lighter or darker secondary text color and try again.`,
+                    details: {
+                        kind: 'theme-contrast',
+                        foregroundRole: 'muted',
+                        backgroundRole: surface,
+                        actualRatio: 1,
+                        requiredRatio: 4.5,
+                    },
                 } satisfies Partial<CaxriError>);
             }),
         );

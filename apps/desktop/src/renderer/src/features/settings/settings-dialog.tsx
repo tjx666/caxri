@@ -32,12 +32,14 @@ function SettingsDialogView(controller: SettingsDialogController) {
 
     const sourceView = state.theme.value && (
         <ConfigSourceView
+            key={tab}
             error={sourceErrors[tab]}
             kind={tab}
             source={state[tab].source}
             theme={state.theme.value}
             onBlur={() => commitSource(tab)}
             onChange={(source) => updateSource(tab, source)}
+            onRevert={() => updateSource(tab, state[tab].appliedSource)}
         />
     );
 

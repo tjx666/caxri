@@ -269,10 +269,37 @@ interface ConfigValues {
     theme: ThemeTokens;
 }
 
-export type ConfigParseResult<Kind extends ConfigKind> =
-    { ok: true; value: ConfigValues[Kind] } | { ok: false; error: string };
+export interface ConfigSourceError {
+    error: string;
+    line?: number;
+}
 
-function parseJsonc(source: string): { ok: true; value: unknown } | { ok: false; error: string } {
+export type ConfigParseResult<Kind extends ConfigKind> =
+    { ok: true; value: ConfigValues[Kind] } | ({ ok: false } & ConfigSourceError);
+
+const PARSE_ERROR_DESCRIPTIONS: Record<ReturnType<typeof printParseErrorCode>, string> = {
+    'InvalidSymbol': 'An invalid symbol was found',
+    'InvalidNumberFormat': 'This number is not valid',
+    'PropertyNameExpected': 'A property name is missing',
+    'ValueExpected': 'A value is missing',
+    'ColonExpected': 'A colon : is missing',
+    'CommaExpected': 'A comma , is missing',
+    'CloseBraceExpected': 'A closing brace } is missing',
+    'CloseBracketExpected': 'A closing bracket ] is missing',
+    'EndOfFileExpected': 'Extra content appears after the JSON value',
+    'InvalidCommentToken': 'This comment is not valid',
+    'UnexpectedEndOfComment': 'This comment is not closed',
+    'UnexpectedEndOfString': 'This string is not closed',
+    'UnexpectedEndOfNumber': 'This number is incomplete',
+    'InvalidUnicode': 'This Unicode escape is not valid',
+    'InvalidEscapeCharacter': 'This escape character is not valid',
+    'InvalidCharacter': 'An invalid character was found',
+    '<unknown ParseErrorCode>': 'Invalid JSON syntax',
+};
+
+function parseJsonc(
+    source: string,
+): { ok: true; value: unknown } | { ok: false; error: string; line: number } {
     const errors: ParseError[] = [];
     const value: unknown = parse(source, errors, {
         allowTrailingComma: true,
@@ -285,7 +312,8 @@ function parseJsonc(source: string): { ok: true; value: unknown } | { ok: false;
     const before = source.slice(0, first.offset).split('\n');
     return {
         ok: false,
-        error: `${printParseErrorCode(first.error)} at line ${before.length}, column ${(before.at(-1)?.length ?? 0) + 1}`,
+        error: `${PARSE_ERROR_DESCRIPTIONS[printParseErrorCode(first.error)]} on line ${before.length}, column ${(before.at(-1)?.length ?? 0) + 1}`,
+        line: before.length,
     };
 }
 
@@ -297,7 +325,12 @@ export function parseConfigSource<Kind extends ConfigKind>(
     source: string,
 ): ConfigParseResult<Kind> {
     const parsed = parseJsonc(source);
-    if (!parsed.ok) return { ok: false, error: `${CONFIG_FILE_NAMES[kind]}: ${parsed.error}` };
+    if (!parsed.ok)
+        return {
+            ok: false,
+            error: `${CONFIG_FILE_NAMES[kind]}: ${parsed.error}`,
+            line: parsed.line,
+        };
     const schema =
         kind === 'settings'
             ? appSettingsFileSchema

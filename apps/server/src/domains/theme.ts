@@ -569,10 +569,18 @@ function assertImportedThemeContrast(theme: ThemeTokens): void {
     const muted = opaqueColor(theme.colors.muted);
     for (const surface of APP_COLOR_SURFACES) {
         const backdrop = opaqueColor(theme.colors[surface]);
-        if (muted && backdrop && contrastRatio(muted, backdrop) >= MIN_MUTED_CONTRAST) continue;
+        const actualRatio = muted && backdrop ? contrastRatio(muted, backdrop) : null;
+        if (actualRatio !== null && actualRatio >= MIN_MUTED_CONTRAST) continue;
         throw new CaxriError(
             'VALIDATION',
             `Secondary text in the imported theme must have at least ${MIN_MUTED_CONTRAST}:1 contrast against the ${APP_COLOR_SURFACE_LABELS[surface]}. Choose a lighter or darker secondary text color and try again.`,
+            {
+                kind: 'theme-contrast',
+                foregroundRole: 'muted',
+                backgroundRole: surface,
+                actualRatio,
+                requiredRatio: MIN_MUTED_CONTRAST,
+            },
         );
     }
 }

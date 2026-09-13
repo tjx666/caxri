@@ -99,6 +99,18 @@ describe('parseConfigSource', () => {
         expect(result.ok).toBe(false);
         if (result.ok) throw new Error('Expected invalid JSONC');
         expect(result.error).toMatch(/settings\.jsonc: .*line 2, column 24/);
+        expect(result.error).not.toContain('ValueExpected');
+        expect(result.line).toBe(2);
+    });
+
+    it('explains a missing closing brace without exposing the parser enum', () => {
+        const result = parseConfigSource('settings', '{\n  "terminal.fontSize": 17');
+
+        expect(result.ok).toBe(false);
+        if (result.ok) throw new Error('Expected invalid JSONC');
+        expect(result.error).toContain('A closing brace } is missing');
+        expect(result.error).not.toContain('CloseBraceExpected');
+        expect(result.line).toBe(2);
     });
 
     it('validates keybinding source before the structured editor consumes it', () => {
