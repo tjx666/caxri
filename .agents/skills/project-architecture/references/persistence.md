@@ -30,9 +30,14 @@ Snapshots retain at most 2,000 lines and 2 MiB per Terminal. Each live PTY owns 
 headless xterm screen whose ordered write and resize queue preserves cursor-addressed state. A live
 attach first moves that screen and PTY to the receiving Renderer grid, then crosses an exact queue
 barrier and replays a bounded serialized screen before later output. A Renderer subscribes before
-attaching, then replays that bounded snapshot ahead of output received during attachment. Bytes already
-represented by that snapshot are removed from the live-output queue before replay to prevent
-duplication. Detached Terminals retain the parsed screen in memory without broadcasting output to an
+attaching, then replays that bounded snapshot ahead of output received during attachment. Two rules
+keep that snapshot and that replay disjoint, because either alone leaves a duplicate. Bytes still
+queued in Terminal Host are removed from the live-output queue before replay, and Server Core stops
+forwarding output from the moment it accepts a re-attachment rather than when it rotates the
+attachment id — a byte the Host flushed just before the snapshot is already on the parsed screen, so
+forwarding it during that window would replay what the snapshot is about to write. Server Core
+therefore gates output on the view the Renderer asked for, not on the attachment the Host is still
+using. Detached Terminals retain the parsed screen in memory without broadcasting output to an
 invisible view. Exit, restart, and orderly or terminate shutdown persist that same parsed screen plus
 its exact source grid as encoding 3 after excluding interaction modes; raw PTY bytes are never durable
 recovery data. Renderer recovery disconnects normal resize observation, restores the serialized

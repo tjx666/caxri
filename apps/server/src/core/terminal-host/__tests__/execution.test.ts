@@ -164,6 +164,53 @@ describe('architecture-a3b-terminal-host: RemoteTerminalExecution', () => {
         });
     });
 
+    /**
+     * Re-attaching over a live attachment takes a snapshot of the screen, and the Renderer replays only what arrives
+     * after it. Anything forwarded between accepting the re-attachment and rotating the attachment id is therefore
+     * already inside the snapshot the Renderer is about to write, and lands on screen twice. A held resize is what
+     * makes the window observable here; in production it is `identity.ready` plus the Host's own attach round trip.
+     */
+    it('stops forwarding live output when it accepts a re-attachment, not when the rotation lands', async () => {
+        const { control, execution } = createExecution();
+        const output = vi.fn();
+        execution.onEvent(output);
+        await execution.reserve(terminal);
+        await execution.start({
+            args: ['-l'],
+            environment: { TERM: 'xterm-256color' },
+            executable: '/bin/zsh',
+            initialSnapshot: null,
+            record: terminal,
+        });
+        await execution.attach(terminal.id, { cols: 120, rows: 40 });
+        const attached = control.requests.find(
+            ({ request }) => request.method === 'terminal.attach',
+        )!.request as Extract<TerminalHostRequest, { method: 'terminal.attach' }>;
+
+        control.holdResizeRequests = true;
+        expect(execution.resize(terminal.id, 100, 30)).toBe(true);
+        await vi.waitFor(() => expect(control.requestCount('terminal.resize')).toBe(1));
+        const reattaching = execution.attach(terminal.id, { cols: 100, rows: 30 });
+        // One macrotask is past every microtask in `attach`, so the re-attachment is now parked in `settleHotPaths`.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        control.emit({
+            type: 'event',
+            event: 'terminal.output',
+            identity: {
+                scope: 'terminal',
+                sessionId: terminal.sessionId,
+                terminalId: terminal.id,
+                ptyGeneration: 1,
+                attachmentId: attached.params.attachmentId,
+            },
+            data: 'already inside the snapshot',
+        });
+        control.releaseResize();
+        await reattaching;
+
+        expect(output).not.toHaveBeenCalled();
+    });
+
     it('projects only the current managed Agent launch and signals it by exact identity', async () => {
         const { control, execution } = createExecution();
         const events = vi.fn();
