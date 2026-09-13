@@ -92,6 +92,7 @@ const missingGitRepoErrors = new Set<string>([
     ProjectStatusSummaryErrorMessage.missingGitRepository,
     ProjectStatusSummaryErrorMessage.missingPrimaryRepository,
 ]);
+const networkProviderListFormatter = new Intl.ListFormat('en', { type: 'conjunction' });
 
 /**
  * The parts a row contributes to its hover card. `title` defaults to the row label; the row's own `url` is appended as
@@ -558,7 +559,7 @@ export function buildStatusRootNodes(summary: ProjectStatusSummary): StatusNode[
     const networkTitle = sources.length > 1 ? 'No network connection' : networkErrors[0]?.message;
     const networkDescription =
         sources.length > 1
-            ? `Caxri could not reach ${new Intl.ListFormat('en', { type: 'conjunction' }).format(providerNames)}. Reconnect, then refresh.`
+            ? `Caxri could not reach ${networkProviderListFormatter.format(providerNames)}. Reconnect, then refresh.`
             : networkErrors[0]?.hint;
     return [
         ...(networkErrors.length > 0
