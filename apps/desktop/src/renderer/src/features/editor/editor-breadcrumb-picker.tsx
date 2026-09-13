@@ -1,12 +1,16 @@
 import type { MouseEvent } from 'react';
+import { useId } from 'react';
 
 import type { FileEntry } from '@caxri/protocol';
 import { ChevronRight } from 'lucide-react';
 
+import { GitFileStatusLetter } from '../../components/git-file-status-letter';
 import { Spinner } from '../../components/ui/spinner';
 import { FileTypeIcon } from '../../icons/files/file-type-icon';
 import { isDirectoryEntry } from '../../lib/file-entry';
+import { gitDecorationClassName, gitDecorationDescription } from '../../lib/git-decorations';
 import { cn } from '../../lib/utilities';
+import { useGitDecoration } from '../../stores/git-decorations';
 import { describeFailure } from '../../stores/toasts';
 import type { EditorBreadcrumbSegment } from './editor-breadcrumbs-model';
 import { useEditorBreadcrumbPicker } from './use-editor-breadcrumb-picker';
@@ -31,9 +35,13 @@ function EditorBreadcrumbPickerOption({
     onClick: () => void;
     onPointerMove: () => void;
 }) {
+    const pathDecoration = useGitDecoration(entry.path);
+    const decoration = !isDirectoryEntry(entry) && !entry.gitIgnored ? pathDecoration : undefined;
+    const decorationDescriptionId = useId();
     return (
         <button
             aria-label={entry.name}
+            aria-describedby={decoration ? decorationDescriptionId : undefined}
             aria-selected={active}
             id={id}
             role="option"
@@ -48,7 +56,22 @@ function EditorBreadcrumbPickerOption({
             onPointerMove={onPointerMove}
         >
             <FileTypeIcon entry={entry} />
-            <span className="min-w-0 flex-1 truncate">{entry.name}</span>
+            <span
+                className={cn(
+                    'min-w-0 flex-1 truncate',
+                    decoration && gitDecorationClassName(decoration.kind),
+                )}
+            >
+                {entry.name}
+            </span>
+            {decoration && (
+                <>
+                    <GitFileStatusLetter decoration={decoration} />
+                    <span id={decorationDescriptionId} className="sr-only">
+                        {gitDecorationDescription(decoration.kind)}
+                    </span>
+                </>
+            )}
             {isDirectoryEntry(entry) && (
                 <ChevronRight aria-hidden="true" className="flex-none text-muted" size={12} />
             )}

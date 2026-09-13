@@ -1,12 +1,16 @@
 import type { KeyboardEvent } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 import { editorModelPath } from '@desktop-shared/editor-state';
 import { ChevronRight } from 'lucide-react';
 
+import { GitFileStatusLetter } from '../../components/git-file-status-letter';
 import type { PopoverActions } from '../../components/ui/popover';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { FileTypeIcon } from '../../icons/files/file-type-icon';
+import { gitDecorationClassName, gitDecorationDescription } from '../../lib/git-decorations';
+import { cn } from '../../lib/utilities';
+import { useGitDecoration } from '../../stores/git-decorations';
 import { sessionViewScope } from '../../stores/session-view';
 import { openFileForSession } from './document-actions';
 import { EditorBreadcrumbPicker } from './editor-breadcrumb-picker';
@@ -28,6 +32,8 @@ export function EditorBreadcrumbs({
     workbenchProjectId: string;
 }) {
     const segments = editorBreadcrumbSegments(path, projectRoot);
+    const decoration = useGitDecoration(path);
+    const decorationDescriptionId = useId();
     const [requestedTabStopPath, setRequestedTabStopPath] = useState(path);
     const actionsReference = useRef<PopoverActions>(null);
     const segmentReferences = useRef(new Map<string, HTMLButtonElement>());
@@ -123,6 +129,11 @@ export function EditorBreadcrumbs({
                                                 segment.kind === 'file' ? 'page' : undefined
                                             }
                                             aria-label={`Browse ${segment.relativePath}`}
+                                            aria-describedby={
+                                                decoration && segment.kind === 'file'
+                                                    ? decorationDescriptionId
+                                                    : undefined
+                                            }
                                             tabIndex={segment.path === tabStopPath ? 0 : -1}
                                             type="button"
                                             className="flex h-6 max-w-64 items-center gap-1 rounded border-0 bg-transparent px-1 text-inherit outline-none hover:bg-elevated hover:text-foreground focus-visible:bg-[var(--selection)] focus-visible:text-foreground aria-current:text-foreground"
@@ -134,7 +145,27 @@ export function EditorBreadcrumbs({
                                                     entry={{ kind: 'file', name: segment.label }}
                                                 />
                                             )}
-                                            <span className="truncate">{segment.label}</span>
+                                            <span
+                                                className={cn(
+                                                    'truncate',
+                                                    segment.kind === 'file' &&
+                                                        decoration &&
+                                                        gitDecorationClassName(decoration.kind),
+                                                )}
+                                            >
+                                                {segment.label}
+                                            </span>
+                                            {segment.kind === 'file' && decoration && (
+                                                <>
+                                                    <GitFileStatusLetter decoration={decoration} />
+                                                    <span
+                                                        id={decorationDescriptionId}
+                                                        className="sr-only"
+                                                    >
+                                                        {gitDecorationDescription(decoration.kind)}
+                                                    </span>
+                                                </>
+                                            )}
                                         </button>
                                     }
                                 />
