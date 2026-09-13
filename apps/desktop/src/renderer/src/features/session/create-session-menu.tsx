@@ -63,7 +63,24 @@ function SessionCreationMenu({
                 nextOpen ? beginSessionCreation(project.id, anchor) : closeCreateSessionMenu()
             }
         >
-            <MenuTrigger render={trigger} />
+            <MenuTrigger
+                /**
+                 * Base UI opens a root menu on ArrowUp/ArrowDown and stops the event there. That is the right default
+                 * for the heading's pencil, but the empty-Project row is also a row of the PrimarySidebar's ARIA tree,
+                 * where those two keys are how the user walks to the rows above and below it. Suppressing Base UI's own
+                 * handler lets the key bubble to the tree's handler instead, so the row can be left the same way it was
+                 * reached (github.com/tjx666/caxri/issues/608).
+                 */
+                onKeyDown={
+                    anchor === 'emptyProject'
+                        ? (event) => {
+                              if (event.key === 'ArrowDown' || event.key === 'ArrowUp')
+                                  event.preventBaseUIHandler();
+                          }
+                        : undefined
+                }
+                render={trigger}
+            />
             <MenuContent aria-label={`New Session in ${project.displayTitle}`}>
                 {order.map((kind) => (
                     <MenuItem

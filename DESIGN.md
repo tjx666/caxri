@@ -331,7 +331,10 @@ persisted settings, and they are deliberately not mirrored into Settings: they a
 controls that belong beside the diff being read. `Collapse Unchanged Regions` starts at each
 surface's own default — collapsed for a multi-file diff, expanded for a single file — and only
 becomes one shared value once the user sets it. Ordinary file and single-file diff tab menus offer `Copy Path` and `Copy Relative Path`;
-relative paths use the containing repository, falling back to the Workbench Project for non-Git files.
+relative paths measure from the Workbench Project root, so one file yields one path wherever it is copied from — the
+tab menu and the Files tree row agree, and a submodule or nested repository does not get a base of its own. The
+containing repository is only a fallback for a resource with no Project-relative path at all, such as a diff opened
+from a linked repository outside the Project.
 Internal virtual tab identifiers are never copied as filesystem paths.
 Session bootstrap and switching still mount without structural motion; actual close keeps the exit
 animation. Transient Agent operations may temporarily use the existing text accessory after the

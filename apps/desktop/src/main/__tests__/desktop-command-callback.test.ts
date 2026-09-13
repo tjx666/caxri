@@ -44,7 +44,7 @@ describe('Desktop command callback guard', () => {
         mockServerRound();
         let callback: Promise<unknown> | undefined;
         const { connection, logger } = createConnection({}, () => {
-            callback = connection.request('settings.get');
+            callback = connection.request('settings.update', { source: 'user' });
             return callback;
         });
         await connection.start();
@@ -58,7 +58,7 @@ describe('Desktop command callback guard', () => {
             'server_connection.desktop_command_callback_rejected',
             {
                 fields: {
-                    method: 'settings.get',
+                    method: 'settings.update',
                     operation: 'openInEditor',
                     reason: 'ordinaryRequestFromDesktopCommand',
                 },
@@ -82,6 +82,31 @@ describe('Desktop command callback guard', () => {
         command.resolve(null);
 
         await expect(dispatched).resolves.toBeNull();
+        expect(logger.write).not.toHaveBeenCalledWith(
+            'error',
+            'server_connection.desktop_command_callback_rejected',
+            expect.anything(),
+        );
+    });
+
+    /**
+     * `focus` and `open` reach `openMainWindow`, which reads `app.windowState.get` to restore the window's saved
+     * geometry. Server Core settles a read outside the ordered admission lane, so that request answers while the
+     * command it was issued from is still open and never deadlocks. Refusing it made a window reopened from the
+     * background fall back to the hardcoded default size — and persist that default over the user's own on close.
+     */
+    it('admits a read-only Server request issued from a Desktop command handler', async () => {
+        const client = mockServerRound();
+        client.requestServerOperation.mockResolvedValue({ bounds: {}, isMaximized: false });
+        let callback: Promise<unknown> | undefined;
+        const { connection, logger } = createConnection({}, () => {
+            callback = connection.request('app.windowState.get');
+            return callback;
+        });
+        await connection.start();
+
+        await expect(dispatchedHandler()(OPEN_IN_EDITOR, consumeTarget)).resolves.toBeDefined();
+        await expect(callback).resolves.toBeDefined();
         expect(logger.write).not.toHaveBeenCalledWith(
             'error',
             'server_connection.desktop_command_callback_rejected',

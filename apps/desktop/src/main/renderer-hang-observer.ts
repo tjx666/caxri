@@ -43,15 +43,29 @@ export function observeRendererHangs(
     });
     webContents.on('responsive', () => {
         if (!isCurrent()) return;
+        closeHang('WINDOW_RESPONSIVE');
+    });
+    /**
+     * A Renderer that dies while hung never fires `responsive`. Left open, the hang would outlive the process that
+     * caused it and `beginHang` would read every `unresponsive` on the reloaded window as a repeat of it, so the window
+     * would silently stop reporting hangs for the rest of its life. The crash itself is recorded by the
+     * `render-process-gone` handler that owns recovery; this only closes the hang and names how it ended.
+     */
+    webContents.on('render-process-gone', () => {
+        if (!isCurrent()) return;
+        closeHang('WINDOW_HANG_ABANDONED');
+    });
+
+    function closeHang(code: 'WINDOW_HANG_ABANDONED' | 'WINDOW_RESPONSIVE'): void {
         const ended = endHang(state, Date.now());
         state = ended.state;
         if (!ended.record) return;
         logger()?.write('info', events.responsive, {
             fields: {
-                code: 'WINDOW_RESPONSIVE',
+                code,
                 hangCount: ended.record.hangCount,
                 durationMs: ended.record.durationMs,
             },
         });
-    });
+    }
 }

@@ -41,7 +41,8 @@ export interface DocumentTabPathResolution {
  * Server-provided repository root. External documents use only the Main-authorized cached display path; their opaque
  * URI is not a filesystem path. Multi-file changes and transcripts have no one file to copy.
  *
- * The relative root itself is `relativePathRoot`'s decision, shared with the Files tree rows.
+ * A Git diff tab is the one case with two candidate roots, so it is the one that defers to `relativePathRoot`; an
+ * ordinary tab, like a Files tree row, is under the Project root by construction and measures from it directly.
  */
 export function resolveDocumentTabPath(
     path: string,
