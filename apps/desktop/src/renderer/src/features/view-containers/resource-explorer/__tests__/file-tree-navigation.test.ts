@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { adjacentTreeItemIndex, parentTreeItemIndex } from '../file-tree-navigation';
+import {
+    adjacentTreeItemIndex,
+    parentTreeItemIndex,
+    treeNavigationAction,
+} from '../file-tree-navigation';
 
 describe('adjacentTreeItemIndex', () => {
     it('returns the next index within bounds', () => {
@@ -44,5 +48,22 @@ describe('parentTreeItemIndex', () => {
         const items = [{ level: 1 }];
 
         expect(parentTreeItemIndex(items, 5)).toBeUndefined();
+    });
+});
+
+describe('treeNavigationAction', () => {
+    it('moves through visible rows and their parent without wrapping', () => {
+        expect(treeNavigationAction('ArrowDown', false, false)).toBe('next');
+        expect(treeNavigationAction('ArrowUp', false, false)).toBe('previous');
+        expect(treeNavigationAction('Home', false, false)).toBe('first');
+        expect(treeNavigationAction('End', false, false)).toBe('last');
+        expect(treeNavigationAction('ArrowLeft', false, false)).toBe('parent');
+    });
+
+    it('expands, enters, and collapses a directory in sequence', () => {
+        expect(treeNavigationAction('ArrowRight', true, false)).toBe('expand');
+        expect(treeNavigationAction('ArrowRight', true, true)).toBe('child');
+        expect(treeNavigationAction('ArrowLeft', true, true)).toBe('collapse');
+        expect(treeNavigationAction('ArrowRight', false, false)).toBeUndefined();
     });
 });
