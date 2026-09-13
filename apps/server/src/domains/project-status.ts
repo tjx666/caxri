@@ -22,6 +22,7 @@ import {
     GitHubPullRequestStore,
     isNoPullRequest,
     observeExternalStatusCommand,
+    pullRequestUnavailable as describePullRequestUnavailable,
     runExternalStatusCommand,
 } from './external-status';
 import type { GitService } from './git';
@@ -47,7 +48,6 @@ import {
     vercelTeamListSchema,
 } from './project-status-parse';
 import { mapProjectStatusDeployment } from './project-status-vercel';
-import { pullRequestUnavailable as describePullRequestUnavailable } from './pull-request-unavailable';
 import { SingleFlight } from './single-flight';
 
 export { extractLinearReferences } from './project-status-external';
