@@ -22,7 +22,10 @@ import { CreateSessionMenu, EmptyProjectSessionMenu } from '../session/create-se
 import { archiveSession } from '../session/session-actions';
 import type { SessionOrderController } from './hooks/use-session-order';
 import { useSessionTitleScroll } from './hooks/use-session-title-scroll';
-import { primarySidebarRevealRowId } from './primary-sidebar-tree';
+import {
+    primarySidebarCreateSessionRowId,
+    primarySidebarRevealRowId,
+} from './primary-sidebar-tree';
 import { ProjectIcon } from './project-icon';
 import type { ProjectDropTarget } from './project-order';
 import { hasProjectDragType } from './project-order';
@@ -350,6 +353,7 @@ export function ProjectGroup({
 }: ProjectGroupProperties) {
     const projectDisclosureId = `project-sessions-${project.id}`;
     const revealRowId = primarySidebarRevealRowId(project.id);
+    const createSessionRowId = primarySidebarCreateSessionRowId(project.id);
     /**
      * The worktree marker's column is reserved for the whole group at once, so markers align and titles do not shift
      * sideways as Sessions come and go. Scoped to the group because a Project without one should not be indented for a
@@ -522,7 +526,18 @@ export function ProjectGroup({
                             </div>
                         )}
                         {visibleSessions.length === 0 && (
-                            <EmptyProjectSessionMenu project={project} />
+                            <div
+                                aria-level={2}
+                                aria-selected={false}
+                                className="empty-project-row"
+                                role="treeitem"
+                            >
+                                <EmptyProjectSessionMenu
+                                    project={project}
+                                    roving={createSessionRowId === rovingRowId}
+                                    rowId={createSessionRowId}
+                                />
+                            </div>
                         )}
                     </div>
                 )}

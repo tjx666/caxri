@@ -107,6 +107,7 @@ vi.mock('../../../stores/workbench', () => ({
     useWorkbenchStore: { getState: () => ({ bootstrap: undefined }) },
 }));
 
+import type { CreateSessionAnchor } from '../../../stores/dialogs';
 import {
     archiveSelectedSession,
     archiveSession,
@@ -178,7 +179,7 @@ describe('Session actions', () => {
      * The claim names the trigger as well as the Project: a Project with no Sessions renders a second New Session
      * button below its heading, and marking only the Project would let both rows open a popup over one choice.
      */
-    it.each([
+    it.each<{ anchor?: CreateSessionAnchor; basis: string; expected: CreateSessionAnchor }>([
         { basis: 'the Project heading by default', expected: 'heading' },
         { basis: 'the caller-named trigger', anchor: 'emptyProject', expected: 'emptyProject' },
     ])('anchors the menu to $basis when no default Agent is configured', ({ anchor, expected }) => {
