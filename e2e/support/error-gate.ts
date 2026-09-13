@@ -33,11 +33,18 @@ function observeErrorToasts(binding: string): void {
     const classify = (element: Element): string => {
         const title = element.querySelector('[data-title]')?.textContent ?? '';
         if (title.startsWith('Unable to attach to the Runtime')) return 'runtime.attach';
+        if (title.startsWith('Session layout could not be saved')) return 'session.layout';
+        if (title.startsWith('Session selection failed')) return 'session.select';
+        if (title.startsWith('Session creation failed')) return 'session.create';
+        if (title.startsWith('Project creation failed')) return 'project.create';
+        if (title.startsWith('Another Caxri window took over this profile')) return 'host.replaced';
         if (title.startsWith('Source Control refresh failed')) return 'source-control.refresh';
         if (title.startsWith('Unable to read directory')) return 'files.directory';
         if (title.startsWith('Unable to list Workbench Roots')) return 'workbench.roots';
         if (title.startsWith('Unable to activate Terminal')) return 'terminal.activate';
         if (title.startsWith('Terminal creation failed')) return 'terminal.create';
+        if (title.startsWith('Terminal close failed')) return 'terminal.close';
+        if (title.startsWith('Terminal input failed')) return 'terminal.input';
         if (title.startsWith('Unable to send Agent command or skill')) return 'agent.action';
         if (title.startsWith('Unable to save recent Agent action')) return 'agent.recent';
         if (title.startsWith('Project icon update failed')) return 'project.icon';
