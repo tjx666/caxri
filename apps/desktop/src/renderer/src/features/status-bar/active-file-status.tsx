@@ -42,7 +42,7 @@ export function ActiveFileStatus({
             {/* The existing 420px cap becomes a shrinkable slot so loading and changing blame text cannot move
                 the selection and language chips beside it. */}
             {(Boolean(blame) || blameQuery.isPending) && (
-                <div className="statusbar-blame-slot flex w-[420px] min-w-0 shrink items-center">
+                <div className="statusbar-blame-slot flex w-full max-w-[420px] min-w-0 shrink items-center">
                     {blame && (
                         <StatusInfo
                             ariaLabel={
