@@ -284,13 +284,23 @@ complete, so a busy Project never buries the Projects below it. The selected Ses
 renders even when it sits below that window. The revealed count is per-Renderer-lifetime: a relaunch starts from the short list
 the same way it starts scrolled to the top.
 
-A Session working in a Git worktree rather than its Project root is marked by a `FolderSymlink`
-glyph in a leading fixed-width 14px column, reserved for the whole Project group at once so every
+A Session working in a Git worktree rather than its Project root is marked by the VS Code `worktree`
+codicon in a leading fixed-width 14px column, reserved for the whole Project group at once so every
 marker in a group lands on one vertical line and titles never shift sideways as Sessions come and
-go. A Project with no such Session reserves nothing. The glyph is deliberately not `FolderGit2`,
-which already means "Workbench Root" in the root picker and "repository" in Source Control: at 12px
-beside the trailing pull request glyph it read as a third Git mark on the same row. The full
-worktree name stays in the Session hover card.
+go. A Project with no such Session reserves nothing. It is a second fixed track rather than a share
+of the trailing one, which is sized for exactly one glyph and already arbitrates between lifecycle
+status and the pull request. The glyph is deliberately neither `FolderGit2`, which already means
+"Workbench Root" in the root picker and "repository" in Source Control, nor `FolderSymlink`: at 12px
+beside the trailing pull request glyph either one read as a third folder or Git mark on the same
+row. The full worktree name stays in the Session hover card.
+
+Adopting a worktree as a Workbench Root auto-registers a Project for it, and that Project never
+occupies a top-level slot in the PrimarySidebar. The list shows the Projects the user added; a
+worktree is a property of the Session working in it, which the marker above already says on the
+Session's own row. A second top-level row per worktree would double the list without naming
+anything new, and no PrimarySidebar affordance — reorder, delete, disclosure — applies to a row the
+user never created. The consequence is that such a Project is reachable only through its owner:
+deleting the owner deletes it, and the confirmation names the ones about to go.
 
 Pull request lifecycle owns the glyph color: open is `--success`, closed is `--danger`, merged
 is `--merged`, and draft is `--muted`. Checks appear as text in the hover card, with failures in

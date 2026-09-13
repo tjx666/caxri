@@ -163,6 +163,46 @@ describe('delete prompts', () => {
         expect(deleteProjectPrompt('caxri', count).message).toBe(message);
         expect(deleteSessionPrompt('caxri', count).message).toBe(message);
     });
+
+    it('says nothing about worktree Projects when none cascade', () => {
+        expect(deleteProjectPrompt('caxri', 0).detail).not.toContain('worktree');
+    });
+
+    it('names the cascaded worktree Projects and that this is their only delete path', () => {
+        const options = deleteProjectPrompt('caxri', 0, ['feature-a', 'feature-b']);
+        expect(options.detail).toContain(
+            "2 linked worktree Projects are removed with it: 'feature-a', 'feature-b'.",
+        );
+        expect(options.detail).toContain('a cascade like this is the only way they are removed');
+        // The metadata-only promise still has to survive the added sentence.
+        expect(options.detail).toContain('The Project folder and its files are never touched.');
+    });
+
+    /**
+     * An auto-registered worktree Project can never hold a Session of its own, so the only Sessions this cascade
+     * touches are the ones adopting the worktree as a Workbench Root — and those are kept, not deleted. Copy that said
+     * "and their Sessions" would name an always-empty set while implying the one set that survives.
+     */
+    it('says the Sessions working in those worktrees survive rather than implying they go too', () => {
+        const detail = deleteProjectPrompt('caxri', 0, ['feature-a', 'feature-b']).detail ?? '';
+        expect(detail).toContain(
+            'Any Session still working in one of them survives, with its Workbench Root back at its own Project root.',
+        );
+        expect(detail).not.toContain('along with their Sessions');
+    });
+
+    it('uses singular wording for one cascaded worktree Project', () => {
+        expect(deleteProjectPrompt('caxri', 0, ['feature-a']).detail).toContain(
+            "1 linked worktree Project is removed with it: 'feature-a'. Caxri registered it automatically when a Session adopted the worktree, and a cascade like this is the only way it is removed. Any Session still working in it survives",
+        );
+    });
+
+    it('counts the tail instead of listing every title, so the dialog stays readable', () => {
+        const detail = deleteProjectPrompt('caxri', 0, ['a', 'b', 'c', 'd', 'e', 'f', 'g']).detail;
+        expect(detail).toContain("'a', 'b', 'c', 'd', 'e', and 2 more.");
+        expect(detail).toContain('7 linked worktree Projects');
+        expect(detail).not.toContain("'f'");
+    });
 });
 
 describe('bulk delete Sessions prompt', () => {

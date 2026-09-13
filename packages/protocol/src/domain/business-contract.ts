@@ -12,8 +12,9 @@ import { commandPolicy } from '../transport/method-spec.js';
 import { principalSchema } from '../transport/principal.js';
 import { protocolVersionSchema } from '../transport/version.js';
 import {
+    humanProjectSchema,
     identifierSchema,
-    projectRecordSchema,
+    scopedProjectSchema,
     sessionRecordSchema,
     terminalRecordSchema,
 } from './domain.js';
@@ -50,12 +51,6 @@ export const terminalQuerySchema = z.discriminatedUnion('mode', [
     showQuerySchema.extend({ sessionId: identifierSchema.optional() }),
 ]);
 
-const humanProjectSchema = projectRecordSchema.pick({
-    id: true,
-    displayTitle: true,
-    rootPath: true,
-});
-const scopedProjectSchema = projectRecordSchema.pick({ id: true, displayTitle: true });
 export const projectQueryResultSchema = z.union([
     z.object({
         view: z.enum(['desktop', 'human-cli']),
