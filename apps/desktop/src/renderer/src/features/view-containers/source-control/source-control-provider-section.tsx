@@ -15,6 +15,7 @@ import { SourceControlHistory } from './source-control-history';
 import { SourceControlIcon } from './source-control-icon';
 import { buildSourceControlResourceTree } from './source-control-tree';
 import { SourceControlTreeItems } from './source-control-tree-items';
+import { SourceControlTreeRow } from './source-control-tree-row';
 
 type ReadyController = Extract<SourceControlController, { status: 'ready' }>;
 type ProviderModel = SourceControlViewModel['providers'][number];
@@ -48,10 +49,17 @@ function ProviderHeader({
     };
     return (
         <div className="git-repository-header group flex items-center bg-surface hover:bg-elevated">
-            <button
+            <SourceControlTreeRow
+                rowId={`provider:${provider.id}`}
+                level={1}
                 className="git-repository-row flex min-w-0 flex-1 cursor-pointer items-center gap-2 overflow-hidden border-0 bg-transparent p-2 text-left text-foreground"
                 aria-expanded={expanded}
                 title={provider.tooltip}
+                menuActions={provider.actions}
+                onMenuAction={(action) => {
+                    // eslint-disable-next-line no-void -- run owns progress and the controller owns errors
+                    void run(action);
+                }}
                 onClick={() => controller.setProviderExpanded(provider.id, !expanded)}
             >
                 {/*
@@ -88,13 +96,14 @@ function ProviderHeader({
                         {provider.countLabel}
                     </span>
                 </span>
-            </button>
+            </SourceControlTreeRow>
             {uncommittedMode && provider.uncommittedNotice && (
                 <Tooltip content={provider.uncommittedNotice.tooltip}>
                     <Button
                         className="git-uncommitted-notice mr-1 flex size-6 flex-none"
                         size="icon"
                         variant="ghost"
+                        tabIndex={-1}
                         aria-label={provider.uncommittedNotice.accessibilityLabel}
                         onClick={() => controller.selectMode(uncommittedMode)}
                     >
@@ -110,6 +119,7 @@ function ProviderHeader({
                             className="git-sync mr-1 flex size-6 flex-none"
                             size="icon"
                             variant="ghost"
+                            tabIndex={-1}
                             aria-label={
                                 isRunning
                                     ? (action.progressLabel ??
@@ -149,22 +159,28 @@ function GroupCaption({
     controller,
     expanded,
     group,
+    providerId,
 }: {
     controller: ReadyController;
     expanded: boolean;
     group: GroupModel;
+    providerId: string;
 }) {
     return (
         <div className="git-changes-caption flex items-center justify-between pr-2 text-[10px] font-bold tracking-[0.06em] text-muted uppercase">
-            <button
+            <SourceControlTreeRow
+                rowId={`group:${providerId}:${group.id}`}
+                level={2}
                 type="button"
                 className="flex h-7 min-w-0 flex-1 cursor-pointer items-center gap-1 border-0 bg-transparent px-2 text-left text-[10px] font-bold tracking-[0.06em] text-muted uppercase hover:text-foreground"
                 aria-expanded={expanded}
+                menuActions={group.actions}
+                onMenuAction={controller.runAction}
                 onClick={() => controller.setGroupExpanded(group.id, !expanded)}
             >
                 {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                 <span className="truncate">{group.label}</span>
-            </button>
+            </SourceControlTreeRow>
             <span className="git-changes-actions flex items-center gap-1">
                 {group.actions.map((action) => (
                     <Tooltip content={action.tooltip ?? action.label} key={action.id}>
@@ -177,6 +193,7 @@ function GroupCaption({
                             )}
                             size="icon"
                             variant="ghost"
+                            tabIndex={-1}
                             aria-label={action.accessibilityLabel ?? action.label}
                             disabled={action.disabled}
                             onClick={() => {
@@ -230,6 +247,7 @@ export function SourceControlProviderSection({
                                         controller={controller}
                                         expanded={groupExpanded}
                                         group={group}
+                                        providerId={provider.id}
                                     />
                                     <DisclosureMotion
                                         animate

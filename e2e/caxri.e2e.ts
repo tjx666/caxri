@@ -432,10 +432,10 @@ test('Git secondarySidebar shows child repositories, submodule state, and change
         await expect(primary.locator('.git-files')).toContainText('root.txt');
         await expect(submodule.locator('.git-files')).toContainText('submodule.txt');
         await nestedRepo.locator('.git-repository-row').click();
-        await nestedRepo.getByRole('button', { name: 'packages', exact: true }).click();
-        await expect(nestedRepo.getByRole('button', { name: 'nested.txt' })).toHaveCount(0);
-        await nestedRepo.getByRole('button', { name: 'packages', exact: true }).click();
-        await nestedRepo.getByRole('button', { name: 'nested.txt' }).click();
+        await nestedRepo.getByRole('treeitem', { name: 'packages', exact: true }).click();
+        await expect(nestedRepo.getByRole('treeitem', { name: 'nested.txt' })).toHaveCount(0);
+        await nestedRepo.getByRole('treeitem', { name: 'packages', exact: true }).click();
+        await nestedRepo.getByRole('treeitem', { name: 'nested.txt' }).click();
         await expect(running.page.locator('.work-tab', { hasText: 'nested.txt' })).toBeVisible();
         await expect(running.page.locator('.monaco-diff-editor')).toBeVisible();
         await expect(running.page.locator('.monaco-diff-editor')).toContainText('before');
