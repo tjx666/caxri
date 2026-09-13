@@ -1,4 +1,5 @@
 export * from './agent-transcript.js';
+export * from './bootstrap.js';
 export * from './bug-report-contract.js';
 export * from './business-contract.js';
 export * from './color.js';

@@ -170,7 +170,11 @@ describe('Automatic Session rename synchronization', () => {
             await vi.advanceTimersByTimeAsync(120_000);
             service.observe(event);
             expect(generate).toHaveBeenCalledOnce();
-            expect(notice).toHaveBeenCalledWith(f.sessionId, 'sandboxBoundaryConflict');
+            expect(notice).toHaveBeenCalledWith({
+                launchId: 'first',
+                reason: 'sandboxBoundaryConflict',
+                sessionId: f.sessionId,
+            });
             service.observe({ ...event, launchId: 'second' });
             await vi.waitFor(() => expect(generate).toHaveBeenCalledTimes(2));
         } finally {
@@ -500,7 +504,9 @@ describe('Automatic Session naming sandbox suppression', () => {
      * Puts one Session's naming attempt into the suppressed state and resolves once the sandbox notice for it has been
      * delivered, so the caller can retire that Session and move to the next one without racing the service.
      */
-    async function suppressionFixture() {
+    async function suppressionFixture(
+        isCurrentLaunch: (terminalId: string, launchId: string) => boolean = () => true,
+    ) {
         const f = await fixture();
         vi.spyOn(agentFunctions, 'locateAgentTranscript').mockResolvedValue({
             baseRoot: f.directory,
@@ -524,7 +530,7 @@ describe('Automatic Session naming sandbox suppression', () => {
             f.agents,
             f.renames,
             { homeDirectory: f.directory, variables: {} },
-            () => true,
+            isCurrentLaunch,
             logger,
             notice,
         );
@@ -586,6 +592,67 @@ describe('Automatic Session naming sandbox suppression', () => {
             await settle();
 
             expect(generate).toHaveBeenCalledTimes(attempts);
+        } finally {
+            await dispose();
+        }
+    });
+
+    /**
+     * The reason a window that was closed when the failure happened can still show it. The live notice is transient, so
+     * with no Renderer attached it is simply dropped; the replay list is what a reconnecting client reads instead.
+     */
+    it('offers a still-applicable suppression to a client that connects after the failure', async () => {
+        const { f, service, block, dispose } = await suppressionFixture();
+        try {
+            await block(f.terminalId);
+
+            expect(service.automaticNamingNotices()).toEqual([
+                {
+                    launchId: 'launch',
+                    reason: 'sandboxBoundaryConflict',
+                    sessionId: f.sessionId,
+                },
+            ]);
+        } finally {
+            await dispose();
+        }
+    });
+
+    it('stops offering a suppression once its launch has ended', async () => {
+        const launch = { isCurrent: true };
+        const { f, service, block, dispose } = await suppressionFixture(() => launch.isCurrent);
+        try {
+            await block(f.terminalId);
+            expect(service.automaticNamingNotices()).toHaveLength(1);
+
+            launch.isCurrent = false;
+
+            expect(service.automaticNamingNotices()).toEqual([]);
+        } finally {
+            await dispose();
+        }
+    });
+
+    it.each([
+        {
+            basis: 'archived',
+            retire: (f: Awaited<ReturnType<typeof suppressionFixture>>['f']) =>
+                f.database.archiveSession(f.sessionId),
+        },
+        {
+            basis: 'deleted',
+            retire: (f: Awaited<ReturnType<typeof suppressionFixture>>['f']) =>
+                f.database.deleteSession(f.sessionId),
+        },
+    ])('stops offering a suppression whose Session was $basis', async ({ retire }) => {
+        const { f, service, block, dispose } = await suppressionFixture();
+        try {
+            await block(f.terminalId);
+            expect(service.automaticNamingNotices()).toHaveLength(1);
+
+            retire(f);
+
+            expect(service.automaticNamingNotices()).toEqual([]);
         } finally {
             await dispose();
         }

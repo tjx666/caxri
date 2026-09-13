@@ -250,6 +250,7 @@ export async function createDomainServices(
         const keybindings = configuration.getKeybindings();
         const theme = configuration.getTheme();
         const terminalRecords = database.listTerminals();
+        const notices = agentRuntime.automaticNaming.automaticNamingNotices();
         return {
             projects: database.listProjects(),
             sessions: database.listSessions(),
@@ -263,6 +264,7 @@ export async function createDomainServices(
             configurationErrors: configuration.getErrors(),
             theme: theme.value,
             runtime: { status: 'ready', restartCount: 0 },
+            ...(notices.length > 0 && { automaticNamingUnavailable: notices }),
         };
     }
     function recordState(sessionIds: readonly string[], terminalIds: readonly string[]) {
