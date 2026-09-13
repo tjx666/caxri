@@ -26,11 +26,12 @@ export function ActiveFileStatus({
     const editorStatus = useEditorStatusStore((state) => state.statuses[key]);
     const line = useDebouncedValue(editorStatus?.line ?? 1, 150);
     const now = useNow(30_000);
-    const blame = useCaxriQuery(
+    const blameQuery = useCaxriQuery(
         'git.blame',
         { sessionId, path, line },
         { staleTime: 60_000, retry: false },
-    ).data;
+    );
+    const blame = blameQuery.data;
     const language = editorLanguageLabel(editorStatus?.languageId ?? 'plaintext');
     const cursor = editorStatus
         ? `Ln ${editorStatus.line}, Col ${editorStatus.column}`
@@ -38,32 +39,38 @@ export function ActiveFileStatus({
     const selection = editorStatus?.selectedCharacters ?? 0;
     return (
         <>
-            {blame && (
-                <StatusInfo
-                    ariaLabel={
-                        blame.uncommitted
-                            ? `Git blame: uncommitted changes on line ${line}`
-                            : `Git blame: ${blame.author}, ${relativeTime(blame.authoredAt, now)}, ${blame.subject}`
-                    }
-                    className="statusbar-blame max-w-[420px]"
-                    icon={GitCommitHorizontal}
-                    title={
-                        blame.uncommitted ? (
-                            `Uncommitted changes · line ${line}`
-                        ) : (
-                            // The tooltip primitive doesn't collapse `\n` like a native `title`
-                            // attribute would, so the three-line author/sha/subject summary needs
-                            // an explicit `whitespace-pre-line` wrapper to keep its line breaks.
-                            <span className="whitespace-pre-line">
-                                {`${blame.author} · ${new Date(blame.authoredAt).toLocaleString()}\n${blame.sha}\n${blame.subject}`}
-                            </span>
-                        )
-                    }
-                >
-                    {blame.uncommitted
-                        ? 'Uncommitted changes'
-                        : `${blame.author}, ${relativeTime(blame.authoredAt, now)} · ${blame.subject}`}
-                </StatusInfo>
+            {/* The existing 420px cap becomes a shrinkable slot so loading and changing blame text cannot move
+                the selection and language chips beside it. */}
+            {(Boolean(blame) || blameQuery.isPending) && (
+                <div className="statusbar-blame-slot flex w-full max-w-[420px] min-w-0 shrink items-center">
+                    {blame && (
+                        <StatusInfo
+                            ariaLabel={
+                                blame.uncommitted
+                                    ? `Git blame: uncommitted changes on line ${line}`
+                                    : `Git blame: ${blame.author}, ${relativeTime(blame.authoredAt, now)}, ${blame.subject}`
+                            }
+                            className="statusbar-blame w-full"
+                            icon={GitCommitHorizontal}
+                            title={
+                                blame.uncommitted ? (
+                                    `Uncommitted changes · line ${line}`
+                                ) : (
+                                    // The tooltip primitive doesn't collapse `\n` like a native `title`
+                                    // attribute would, so the three-line author/sha/subject summary needs
+                                    // an explicit `whitespace-pre-line` wrapper to keep its line breaks.
+                                    <span className="whitespace-pre-line">
+                                        {`${blame.author} · ${new Date(blame.authoredAt).toLocaleString()}\n${blame.sha}\n${blame.subject}`}
+                                    </span>
+                                )
+                            }
+                        >
+                            {blame.uncommitted
+                                ? 'Uncommitted changes'
+                                : `${blame.author}, ${relativeTime(blame.authoredAt, now)} · ${blame.subject}`}
+                        </StatusInfo>
+                    )}
+                </div>
             )}
             <StatusInfo
                 ariaLabel={`Editor position: ${cursor}${selection > 0 ? `, ${selection} characters selected` : ''}`}

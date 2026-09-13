@@ -12,6 +12,54 @@ import {
 afterEach(cleanupExecutionFixtures);
 
 describe('architecture-a3b-terminal-host: RemoteTerminalExecution', () => {
+    it('accepts exact Agent input for a live background Terminal without a Renderer attachment', async () => {
+        const { control, execution } = createExecution();
+        await execution.reserve(terminal);
+        await execution.start({
+            args: ['-l'],
+            environment: { TERM: 'xterm-256color' },
+            executable: '/bin/zsh',
+            initialSnapshot: null,
+            record: terminal,
+            agent: {
+                launchId: 'launch-1',
+                provider: 'claude',
+                executable: '/usr/local/bin/claude',
+                args: ['--resume', 'session-1'],
+                environment: {},
+            },
+        });
+        control.emit({
+            type: 'event',
+            event: 'terminal.agent.started',
+            identity: {
+                scope: 'terminal',
+                sessionId: terminal.sessionId,
+                terminalId: terminal.id,
+                ptyGeneration: 1,
+            },
+            launchId: 'launch-1',
+            processId: 4244,
+        });
+
+        expect(execution.writeAgentExact(terminal.id, 'stale', 'old-launch')).toBe(false);
+        expect(execution.writeAgentExact(terminal.id, 'follow-up\r', 'launch-1')).toBe(true);
+        await vi.waitFor(() =>
+            expect(control.requests.at(-1)?.request).toEqual({
+                method: 'terminal.agent.input',
+                params: { data: 'follow-up\r', launchId: 'launch-1' },
+            }),
+        );
+        expect(control.requests.at(-1)?.scope).not.toHaveProperty('attachmentId');
+        expect(execution.writeAgentExact(terminal.id, '\u{1B}', 'launch-1')).toBe(true);
+        await vi.waitFor(() =>
+            expect(control.requests.at(-1)?.request).toEqual({
+                method: 'terminal.agent.input',
+                params: { data: '\u{1B}', launchId: 'launch-1' },
+            }),
+        );
+    });
+
     it('replays a pre-launch view reservation and preserves synchronous input acceptance', async () => {
         const { control, execution } = createExecution();
         const output = vi.fn();

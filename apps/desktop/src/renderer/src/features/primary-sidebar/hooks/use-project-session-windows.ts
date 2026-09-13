@@ -7,6 +7,7 @@ import { nextRevealedSessionCount, sessionListWindow } from '../session-list-win
 
 export interface ProjectSessionWindow extends SessionListWindow<SessionRecord> {
     project: ProjectRecord;
+    projectSessions: SessionRecord[];
 }
 
 interface UseProjectSessionWindowsInput {
@@ -39,6 +40,7 @@ export function useProjectSessionWindows({
                     if (session.projectId === project.id) projectSessions.push(session);
                 return {
                     project,
+                    projectSessions,
                     ...sessionListWindow(
                         projectSessions,
                         revealedCounts[project.id],

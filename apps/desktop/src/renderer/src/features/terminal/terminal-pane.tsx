@@ -7,6 +7,7 @@ import {
     CircleX,
     MessageSquarePlus,
     RotateCcw,
+    Settings2,
     TriangleAlert,
     Unplug,
 } from 'lucide-react';
@@ -25,6 +26,7 @@ import { Tooltip } from '../../components/ui/tooltip';
 import { useCommandShortcut } from '../../lib/keybindings';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
+import { openSettings } from '../../stores/dialogs';
 import { useSelectedSession, useSettings, useTerminal, useTheme } from '../../stores/selectors';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { useTerminalLinkPicker } from './hooks/use-terminal-link-picker';
@@ -70,7 +72,7 @@ const terminalRecoveryToneClassName = {
 const terminalRecoveryMessageClassName =
     'terminal-recovery-message inline-flex items-center gap-2 overflow-hidden whitespace-nowrap text-ellipsis';
 
-function TerminalRecoveryBar({
+function TerminalRecoveryActions({
     failureReason,
     processState,
     resumesAgentSession,
@@ -82,12 +84,76 @@ function TerminalRecoveryBar({
     terminalId: string;
 }) {
     /**
-     * `terminal.restart` drives both labels below; only the visible word ("Resume" vs "Restart") changes, so the
-     * tooltip text is composed locally instead of reusing `CommandTooltip`'s fixed catalog title, which used to show
-     * "Restart Terminal" while hovering a button labeled Resume.
+     * `terminal.restart` owns the shortcut; the tooltip title follows the visible Resume or Restart action.
      */
     const restartShortcut = useCommandShortcut('terminal.restart');
-    const exitPresentation = getTerminalExitPresentation(processState, failureReason);
+    // Automatic restore owns the Terminal until it settles into a state requiring user action.
+    if (processState === 'interrupted' || processState === 'suspended') return null;
+    const isNeedsSettings = processState === 'failed' && failureReason === 'executable_not_found';
+    const restartDescription =
+        !isNeedsSettings && resumesAgentSession ? 'Resume Agent Session' : 'Restart Terminal';
+    return (
+        <>
+            {isNeedsSettings && (
+                <CommandTooltip commandId="settings.open">
+                    <Button
+                        aria-label="Open Settings"
+                        className="terminal-recovery-action min-h-6 flex-none px-2 text-inherit"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => openSettings()}
+                    >
+                        <Settings2 size={12} /> Open Settings
+                    </Button>
+                </CommandTooltip>
+            )}
+            <Tooltip content={restartDescription} shortcut={restartShortcut}>
+                <Button
+                    aria-label={restartDescription}
+                    className="terminal-recovery-action min-h-6 flex-none px-2 text-inherit"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => restartTerminal(terminalId)}
+                >
+                    <RotateCcw size={12} />{' '}
+                    {!isNeedsSettings && resumesAgentSession ? 'Resume' : 'Restart'}
+                </Button>
+            </Tooltip>
+            {resumesAgentSession && !isNeedsSettings && (
+                <CommandTooltip commandId="terminal.startNewAgentSession">
+                    <Button
+                        aria-label="Start New Agent Session"
+                        className="terminal-recovery-action min-h-6 flex-none px-2 text-inherit"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => startNewAgentSession(terminalId)}
+                    >
+                        <MessageSquarePlus size={12} /> New session
+                    </Button>
+                </CommandTooltip>
+            )}
+        </>
+    );
+}
+
+function TerminalRecoveryBar({
+    failureDetail,
+    failureReason,
+    processState,
+    resumesAgentSession,
+    terminalId,
+}: {
+    failureDetail: string | undefined;
+    failureReason: TerminalFailureReason | undefined;
+    processState: ProcessState;
+    resumesAgentSession: boolean;
+    terminalId: string;
+}) {
+    const exitPresentation = getTerminalExitPresentation(
+        processState,
+        failureReason,
+        failureDetail,
+    );
     if (!exitPresentation) return null;
     const ExitIcon =
         exitPresentation.icon === 'completed'
@@ -99,13 +165,6 @@ function TerminalRecoveryBar({
                 : exitPresentation.icon === 'pending'
                   ? undefined
                   : CircleX;
-    /**
-     * An automatic restore is already in flight for `interrupted`; racing it with a manual click can hand two restart
-     * requests to the same Terminal, so the actions stand down until it settles into a state
-     * (`failed`/`dead`/`stopped`) that actually needs a user decision.
-     */
-    const isAwaitingAutomaticRestore =
-        processState === 'interrupted' || processState === 'suspended';
     return (
         <div
             aria-live="polite"
@@ -126,37 +185,12 @@ function TerminalRecoveryBar({
                 )}
                 {exitPresentation.label}
             </span>
-            {!isAwaitingAutomaticRestore && (
-                <Tooltip
-                    content={resumesAgentSession ? 'Resume Agent Session' : 'Restart Terminal'}
-                    shortcut={restartShortcut}
-                >
-                    <Button
-                        aria-label={
-                            resumesAgentSession ? 'Resume Agent Session' : 'Restart Terminal'
-                        }
-                        className="terminal-recovery-action min-h-6 flex-none px-2 text-inherit"
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => restartTerminal(terminalId)}
-                    >
-                        <RotateCcw size={12} /> {resumesAgentSession ? 'Resume' : 'Restart'}
-                    </Button>
-                </Tooltip>
-            )}
-            {!isAwaitingAutomaticRestore && resumesAgentSession && (
-                <CommandTooltip commandId="terminal.startNewAgentSession">
-                    <Button
-                        aria-label="Start New Agent Session"
-                        className="terminal-recovery-action min-h-6 flex-none px-2 text-inherit"
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => startNewAgentSession(terminalId)}
-                    >
-                        <MessageSquarePlus size={12} /> New session
-                    </Button>
-                </CommandTooltip>
-            )}
+            <TerminalRecoveryActions
+                failureReason={failureReason}
+                processState={processState}
+                resumesAgentSession={resumesAgentSession}
+                terminalId={terminalId}
+            />
         </div>
     );
 }
@@ -389,6 +423,7 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
                 </div>
             )}
             <TerminalRecoveryBar
+                failureDetail={terminal?.failureDetail}
                 failureReason={terminal?.failureReason}
                 processState={processState}
                 resumesAgentSession={isResumesAgentSession}

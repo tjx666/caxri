@@ -6,7 +6,7 @@ import { Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
 
 const statusInfoClassName =
-    'statusbar-info inline-flex h-5 min-w-0 flex-none items-center gap-[5px] overflow-hidden rounded px-[5px] text-foreground [&>svg]:flex-none [&>span]:overflow-hidden [&>span]:text-ellipsis [&>span]:whitespace-nowrap';
+    'statusbar-info inline-flex h-5 min-w-0 flex-none items-center gap-[5px] overflow-hidden rounded px-[5px] text-foreground tabular-nums [&>svg]:flex-none [&>span]:overflow-hidden [&>span]:text-ellipsis [&>span]:whitespace-nowrap';
 
 /**
  * A read-only status-bar reading. DESIGN.md requires explanatory prose in both the accessible name and a hover tooltip:

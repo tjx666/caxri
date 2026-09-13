@@ -20,6 +20,7 @@ import type {
     TerminalExecutionLaunch,
     TerminalExecutionPort,
 } from '../../domains/terminal';
+import { sendAgentInput } from './agent-input';
 import type {
     RemoteResizeQueue,
     RemoteTerminalIdentity,
@@ -483,33 +484,27 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
     }
 
     writeAgentExact(terminalId: string, data: string, launchId: string): boolean {
-        if (this.identities.get(terminalId)?.agent?.launchId !== launchId) return false;
+        const identity = this.identities.get(terminalId);
+        if (identity?.agent?.launchId !== launchId) return false;
+        if (!identity.attachmentId) {
+            if (
+                !identity.processId ||
+                !identity.agent.processId ||
+                data.length > MAX_TERMINAL_INPUT_LENGTH
+            )
+                return false;
+            /**
+             * Background delegations use Host's exact-launch Agent capability without a Renderer attachment.
+             */
+            this.background(this.writeAgent(terminalId, data), 'terminal.agent.input', terminalId);
+            return true;
+        }
         return this.acceptInput(terminalId, data, MAX_TERMINAL_INPUT_LENGTH, false, launchId)
             .accepted;
     }
 
     async writeAgent(terminalId: string, data: string): Promise<boolean> {
-        const identity = this.identities.get(terminalId);
-        const agentLaunchId = identity?.agent?.processId ? identity.agent.launchId : undefined;
-        if (!agentLaunchId || !identity?.processId) return false;
-        if (data.length > MAX_TERMINAL_INPUT_LENGTH) return false;
-        if (data.length === 0) return true;
-        await identity.ready;
-        const current = this.identities.get(terminalId);
-        if (
-            current !== identity ||
-            current.agent?.launchId !== agentLaunchId ||
-            current.agent.processId === undefined ||
-            current.processId === undefined
-        )
-            return false;
-        const result = (await this.supervisor.request(
-            {
-                method: 'terminal.agent.input',
-                params: { data, launchId: agentLaunchId },
-            },
-            terminalScope(identity, 'terminal.agent.input'),
-        )) as { accepted: boolean };
+        const result = await sendAgentInput(this.supervisor, this.identities, terminalId, data);
         return result.accepted;
     }
 

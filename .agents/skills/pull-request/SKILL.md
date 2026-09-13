@@ -17,6 +17,11 @@ readback. Do not end again at local validation or PR creation. A status-only que
 1. Refresh the current branch, working tree, remote refs, linked issue state, existing PR state,
    and required checks before making a delivery decision. Remote mutations require explicit user or
    owning-workflow authorization.
+   For an authorized multi-issue batch sharing one scarce CI runner, prefer one reviewable integration
+   PR and one exact-head validation when the changes can be assessed together. Reassess an earlier
+   per-issue PR plan when runner capacity becomes clear: preserve completed green checks, then
+   consolidate the remaining branches and retire their duplicate queued runs and PRs after the
+   integration PR is published. Keep unrelated contributors' PRs outside this consolidation.
 2. Require a clean working tree before rebasing; never rely on implicit autostash. Before opening a
    PR, fetch `origin/main` and verify the topic branch base. If `origin/main` has advanced, rebase
    onto the latest `origin/main`, resolve conflicts without discarding user changes, and rerun every

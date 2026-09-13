@@ -272,8 +272,13 @@ export function PrimarySidebar() {
                 onPointerLeave={() => projectCollapse.setIsHovered(false)}
             >
                 {projectWindows.map((sessionWindow) => {
-                    const { hiddenCount, nextRevealCount, project, visibleSessions } =
-                        sessionWindow;
+                    const {
+                        hiddenCount,
+                        nextRevealCount,
+                        project,
+                        projectSessions,
+                        visibleSessions,
+                    } = sessionWindow;
                     return (
                         <ProjectGroup
                             key={project.id}
@@ -300,6 +305,7 @@ export function PrimarySidebar() {
                             onRevealMoreSessions={() => revealMoreSessions(sessionWindow)}
                             onToggle={() => toggleProject(project.id)}
                             project={project}
+                            projectSessions={projectSessions}
                             pullRequests={pullRequestSnapshot?.pullRequests}
                             pullRequestUnavailable={pullRequestSnapshot?.unavailable}
                             projectDropTarget={

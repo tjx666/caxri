@@ -55,7 +55,7 @@ test('the default E2E launch cannot resolve a host Agent executable', async () =
     try {
         await createProjectSession(running.page, 'codex');
         await expect(
-            running.page.getByText('Agent CLI executable was not found', { exact: true }),
+            running.page.getByText('Codex CLI was not found', { exact: true }),
         ).toBeVisible();
         await expect.poll(() => isPathPresent(launchMarker)).toBe(false);
         const launchRecord = (await readFile(join(userData, 'logs', 'desktop.jsonl'), 'utf8'))
