@@ -431,6 +431,13 @@ const sourceControlProviderModelSchema = z.object({
     kindLabel: z.string().min(1).max(1_024).optional(),
     icon: sourceControlViewIconSchema,
     tooltip: z.string().min(1).max(4_096),
+    /**
+     * Absolute filesystem root of the repository this provider owns, used only to resolve a provider-relative resource
+     * path back to an absolute one. `tooltip` is free display text and must never be read as a path. Omit it when the
+     * provider has no filesystem root; consumers then disable path-dependent affordances such as drag-to-Terminal
+     * instead of guessing.
+     */
+    rootPath: z.string().min(1).max(4_096).optional(),
     description: z.string().max(4_096),
     /**
      * Whether `description` is a `reference` — a branch name or short SHA, atomic enough that an ellipsis destroys it —

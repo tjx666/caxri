@@ -145,6 +145,28 @@ describe('Git source-control view model', () => {
         });
     });
 
+    it('publishes each repository root as an explicit provider field', () => {
+        const nestedRepo = {
+            ...summary.repositories[0],
+            id: 'repo-nested',
+            kind: 'submodule' as const,
+            name: 'library',
+            rootPath: '/authorized/project/vendor/library',
+        };
+        const model = buildSourceControlViewModel({
+            mode: 'working',
+            summary: {
+                isRepository: true,
+                repositories: [summary.repositories[0], nestedRepo],
+            },
+        });
+
+        expect(model.providers.map((provider) => provider.rootPath)).toEqual([
+            '/authorized/project',
+            '/authorized/project/vendor/library',
+        ]);
+    });
+
     it('preserves a macOS backslash filename in the history path', () => {
         const model = buildSourceControlViewModel({
             activeResource: String.raw`/authorized/project/src/a\b.ts`,
