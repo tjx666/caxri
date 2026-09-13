@@ -1,5 +1,5 @@
 import type { WorkbenchRootOption } from '@caxri/protocol';
-import { Check, FolderGit2, LoaderCircle } from 'lucide-react';
+import { Check, FolderGit2 } from 'lucide-react';
 
 import {
     Command,
@@ -10,6 +10,7 @@ import {
 } from '../../components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { Separator } from '../../components/ui/separator';
+import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
 import { useSelectedSession, useSelectedWorkbenchProject } from '../../stores/selectors';
@@ -125,7 +126,7 @@ function WorkbenchRootPickerContent({ branch, sessionId }: WorkbenchRootPickerPr
                     <CommandList className="max-h-[min(360px,var(--available-height))]">
                         {picker.rootsQuery.isLoading && (
                             <div className="flex items-center gap-2 px-2 py-2 text-muted">
-                                <LoaderCircle size={12} className="animate-spin" />
+                                <Spinner aria-hidden="true" className="size-3" />
                                 Loading worktrees…
                             </div>
                         )}
