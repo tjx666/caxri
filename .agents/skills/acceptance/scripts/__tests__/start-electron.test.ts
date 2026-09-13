@@ -101,6 +101,25 @@ describe('Acceptance Electron launcher seams', () => {
         },
     );
 
+    it.each([
+        [undefined, undefined],
+        ['other-case', undefined],
+        ['issue-826-surface-seam', 'issue-826-surface-seam'],
+        ['issue-824-syntax-and-terminal-selection', 'issue-824-syntax-and-terminal-selection'],
+        ['issue-825-include-zero-hit-vsix', 'issue-825-include-zero-hit-vsix'],
+    ])('binds theme import fixture authority to case %s', (caseId, expected) => {
+        const spec = createElectronLaunchSpec({
+            caseId,
+            port: 9222,
+            testRootPath: '/tmp/project',
+            testRootPaths: ['/tmp/project'],
+            userDataDir: '/tmp/caxri-acceptance-owned',
+            environment: { CAXRI_ACCEPTANCE_THEME_IMPORT: 'issue-826-surface-seam' },
+            agentEnvironment: { CAXRI_ACCEPTANCE_THEME_IMPORT: 'issue-826-surface-seam' },
+        });
+        expect(spec.options.env.CAXRI_ACCEPTANCE_THEME_IMPORT).toBe(expected);
+    });
+
     it('protects a reused profile as soon as verified process ownership is inherited', () => {
         expect(shouldPreserveInheritedRuntimeState(runtime.ownedProcesses)).toBe(true);
         expect(shouldPreserveInheritedRuntimeState([])).toBe(false);

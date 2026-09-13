@@ -54,6 +54,14 @@ Android, and iOS Simulator product surfaces.
   UI may the agent prefix each native command with
   `CAXRI_ACCEPTANCE_NATIVE_DIALOG_AUTHORIZATION=explicit-user-request` and add `--native-dialog`;
   the launcher and native helpers otherwise fail closed.
+  For `issue-826-surface-seam`, `issue-824-syntax-and-terminal-selection`, and
+  `issue-825-include-zero-hit-vsix`, the launcher enables a narrower theme-file selection fixture.
+  Put the import file inside the first `--test-root`, then write
+  `{ "caseId": "<current case>", "relativePath": "<path within test root>", "sequence": 1 }`
+  to `acceptance-theme-import-command.json` in the owned runtime's `userDataDir` before clicking
+  **Import Theme**. Increase `sequence` for each selection. Main records
+  `acceptance-theme-import-receipt.jsonl`; copy it into the case assets before stopping the app.
+  This controls only the file choice, not the import or its native dialog appearance.
 
 - **Restart with the same isolated profile:** create an empty temporary directory whose basename
   starts with `caxri-acceptance-user-<profile-id-length>-<profile-id>-`, pass the same `--case-id`,
