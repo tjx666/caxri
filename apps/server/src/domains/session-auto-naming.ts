@@ -15,6 +15,22 @@ import type { CaxriDatabase } from './db';
 import type { SessionRenameService } from './session-rename';
 
 /**
+ * Entries kept per Session-keyed bookkeeping map. A workbench holds far fewer live Sessions than this, so the bound
+ * only stops a long-running Server from growing without limit; it is not the expected working-set size.
+ */
+const SESSION_RECORD_CAPACITY = 128;
+
+/**
+ * One suppressed naming attempt. The Terminal is stored beside the launch because a record is only in force while the
+ * Session still owns that Terminal and the Terminal is still on that launch, and the eviction path has to decide that
+ * without a live turn to read it from.
+ */
+interface BlockedLaunch {
+    launchId: string;
+    terminalId: string;
+}
+
+/**
  * Generates once after a completed main turn; persistent synchronization state, not provider title equality, ends
  * naming.
  */
@@ -27,7 +43,7 @@ export class SessionAutoNamingService {
     private readonly retryAfter = new Map<string, number>();
     private readonly deferred = new Map<string, AgentLifecycleSignal>();
     private readonly retryTimers = new Map<string, NodeJS.Timeout>();
-    private readonly blockedLaunches = new Map<string, string>();
+    private readonly blockedLaunches = new Map<string, BlockedLaunch>();
     private readonly retryDeferredCounts = new Map<string, number>();
     private closed = false;
 
@@ -43,6 +59,42 @@ export class SessionAutoNamingService {
             reason: NonNullable<ReturnType<typeof lowCostSandboxFailureReason>>,
         ) => void,
     ) {}
+
+    /**
+     * Whether a suppression record still describes something that can be retried. It stops being in force the moment
+     * its launch ends, its Terminal stops being the Session's primary Agent Terminal, or the Session is archived or
+     * deleted — in each case the next completed turn arrives under a new identity that the record cannot match.
+     */
+    private isBlockedLaunchInForce(sessionId: string, blocked: BlockedLaunch): boolean {
+        const session = this.database.getSession(sessionId);
+        if (!session || session.archivedAt !== undefined) return false;
+        return (
+            session.primaryAgentTerminalId === blocked.terminalId &&
+            this.isCurrentLaunch(blocked.terminalId, blocked.launchId)
+        );
+    }
+
+    /**
+     * Suppresses further naming attempts for one failed launch and keeps the map bounded.
+     *
+     * Capacity is applied to records that are still in force, never to the map as it was last left: a Session that has
+     * since been retired leaves behind an entry that can never be matched again, and evicting a live entry to make room
+     * for it would re-admit an attempt already known to fail — the user would be asked about the same unavailable
+     * sandbox again on the very next completed turn. Re-inserting the current Session also moves it to the end of the
+     * insertion order, so when every remaining record is in force the oldest one loses and the launch just recorded is
+     * never the one dropped. `MAX_TERMINALS_GLOBAL` keeps the in-force set well under the bound today, which leaves
+     * that last eviction as a backstop rather than the path a long session actually takes.
+     */
+    private blockLaunch(sessionId: string, blocked: BlockedLaunch): void {
+        for (const [blockedSessionId, record] of this.blockedLaunches) {
+            if (!this.isBlockedLaunchInForce(blockedSessionId, record))
+                this.blockedLaunches.delete(blockedSessionId);
+        }
+        this.blockedLaunches.delete(sessionId);
+        this.blockedLaunches.set(sessionId, blocked);
+        while (this.blockedLaunches.size > SESSION_RECORD_CAPACITY)
+            this.blockedLaunches.delete(this.blockedLaunches.keys().next().value!);
+    }
 
     observe(event: AgentLifecycleSignal): void {
         if (this.closed || event.agentId) return;
@@ -70,7 +122,7 @@ export class SessionAutoNamingService {
         /**
          * A boundary failure cannot be repaired by retrying the same launch after every completed turn.
          */
-        if (this.blockedLaunches.get(session.id) === event.launchId) return;
+        if (this.blockedLaunches.get(session.id)?.launchId === event.launchId) return;
         this.blockedLaunches.delete(session.id);
         const state = this.database.automaticSessionNaming(session.id);
         if (this.running.has(session.id)) {
@@ -84,7 +136,7 @@ export class SessionAutoNamingService {
                 session.id,
                 (this.retryDeferredCounts.get(session.id) ?? 0) + 1,
             );
-            if (this.retryDeferredCounts.size > 128)
+            if (this.retryDeferredCounts.size > SESSION_RECORD_CAPACITY)
                 this.retryDeferredCounts.delete(this.retryDeferredCounts.keys().next().value!);
             clearTimeout(this.retryTimers.get(session.id));
             const timer = setTimeout(() => {
@@ -174,9 +226,10 @@ export class SessionAutoNamingService {
                 const sandboxReason = lowCostSandboxFailureReason(error);
                 reason = controller.signal.aborted ? 'ineligible' : (sandboxReason ?? 'failed');
                 if (sandboxReason && !controller.signal.aborted) {
-                    this.blockedLaunches.set(session.id, event.launchId);
-                    if (this.blockedLaunches.size > 128)
-                        this.blockedLaunches.delete(this.blockedLaunches.keys().next().value!);
+                    this.blockLaunch(session.id, {
+                        launchId: event.launchId,
+                        terminalId: terminal.id,
+                    });
                     this.onSandboxUnavailable?.(session.id, sandboxReason);
                 }
             } finally {
@@ -200,7 +253,7 @@ export class SessionAutoNamingService {
                 );
                 if (!controller.signal.aborted && !this.blockedLaunches.has(session.id))
                     this.retryAfter.set(session.id, Date.now() + 60_000);
-                if (this.retryAfter.size > 128)
+                if (this.retryAfter.size > SESSION_RECORD_CAPACITY)
                     this.retryAfter.delete(this.retryAfter.keys().next().value!);
                 this.running.delete(session.id);
                 const deferred = this.deferred.get(session.id);
