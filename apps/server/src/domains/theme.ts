@@ -38,16 +38,16 @@ const APP_COLOR_SURFACE_LABELS = {
     surface: 'sidebar and status bar background',
 } satisfies Record<(typeof APP_COLOR_SURFACES)[number], string>;
 
-function normalizedHex(value: unknown, fallback: string): string {
+function normalizedHex(value: unknown, fallback: string, shouldPreserveAlpha = false): string {
     if (typeof value !== 'string') return fallback;
     const candidate = value.startsWith('#') ? value : `#${value}`;
     if (/^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/i.test(candidate))
-        return candidate.slice(0, 7).toLowerCase();
+        return (shouldPreserveAlpha ? candidate : candidate.slice(0, 7)).toLowerCase();
     // VS Code themes may use CSS shorthand (`#fff`, `#fff8`); expand it rather than silently dropping the color.
     const shorthand = /^#([0-9a-f]{3,4})$/i.exec(candidate);
     if (!shorthand) return fallback;
-    const [red, green, blue] = shorthand[1];
-    return `#${red}${red}${green}${green}${blue}${blue}`.toLowerCase();
+    const [red, green, blue, alpha] = shorthand[1];
+    return `#${red}${red}${green}${green}${blue}${blue}${shouldPreserveAlpha && alpha ? `${alpha}${alpha}` : ''}`.toLowerCase();
 }
 
 /**
@@ -61,9 +61,10 @@ function firstHex(
     colors: Record<string, unknown>,
     keys: readonly string[],
     fallback: string,
+    shouldPreserveAlpha = false,
 ): string {
     for (const key of keys) {
-        const hex = normalizedHex(colors[key], '');
+        const hex = normalizedHex(colors[key], '', shouldPreserveAlpha);
         if (hex) return hex;
     }
     return fallback;
@@ -237,9 +238,62 @@ function parseVsCode(value: Record<string, unknown>, name: string): ThemeTokens 
         ['editor.selectionBackground'],
         theme.editor.selection,
     );
+    const syntaxMappings = [
+        ['comment', 'comment', 'comments'],
+        ['keyword', 'keyword', 'keywords'],
+        ['string', 'string', 'strings'],
+        ['constant.numeric', 'number', 'numbers'],
+    ] as const;
+    const mappedSyntaxScopes = new Set<string>(syntaxMappings.map(([selector]) => selector));
+    const importedSyntaxRoles = new Set<keyof ThemeTokens['editor']>();
+    let hasOtherSyntaxRules = false;
+    /**
+     * Caxri has four broad syntax roles, so only their matching TextMate selectors can be represented. VS Code themes
+     * allow comma-separated selectors in either a string or an array. Later matching rules override earlier ones.
+     * https://code.visualstudio.com/api/language-extensions/syntax-highlight-guide
+     */
+    if (Array.isArray(value.tokenColors)) {
+        for (const entry of value.tokenColors) {
+            if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+            const rule = entry as Record<string, unknown>;
+            const settings = rule.settings;
+            if (!settings || typeof settings !== 'object' || Array.isArray(settings)) continue;
+            const foreground = normalizedHex((settings as Record<string, unknown>).foreground, '');
+            if (!foreground) continue;
+            const scopeValues =
+                typeof rule.scope === 'string'
+                    ? [rule.scope]
+                    : Array.isArray(rule.scope)
+                      ? rule.scope
+                      : [];
+            const scopes = new Set<string>();
+            for (const scope of scopeValues) {
+                if (typeof scope === 'string') {
+                    for (const selector of scope.split(',')) scopes.add(selector.trim());
+                }
+            }
+            syntaxMappings.forEach(([selector, role]) => {
+                if (!scopes.has(selector)) {
+                    return;
+                }
+
+                theme.editor[role] = foreground;
+                importedSyntaxRoles.add(role);
+            });
+            if (scopes.size === 0 || [...scopes].some((scope) => !mappedSyntaxScopes.has(scope)))
+                hasOtherSyntaxRules = true;
+        }
+    }
     theme.terminal.background = firstHex(colors, ['terminal.background'], theme.editor.background);
     theme.terminal.foreground = firstHex(colors, ['terminal.foreground'], theme.editor.foreground);
     theme.terminal.cursor = firstHex(colors, ['terminalCursor.foreground'], theme.terminal.cursor);
+    // Unlike opaque workbench colors, a translucent selection must retain its alpha for xterm to blend it correctly.
+    theme.terminal.selectionBackground = firstHex(
+        colors,
+        ['terminal.selectionBackground'],
+        theme.terminal.selectionBackground,
+        true,
+    );
     const ansiMap: Array<[keyof ThemeTokens['terminal'], string]> = [
         ['black', 'terminal.ansiBlack'],
         ['red', 'terminal.ansiRed'],
@@ -260,7 +314,19 @@ function parseVsCode(value: Record<string, unknown>, name: string): ThemeTokens 
     ];
     for (const [target, source] of ansiMap)
         theme.terminal[target] = firstHex(colors, [source], theme.terminal[target]);
-    theme.warnings.push('Unsupported VS Code tokens and extension metadata were ignored.');
+    if (importedSyntaxRoles.size === 0) {
+        theme.warnings.push('Syntax colors were not imported.');
+    } else {
+        const missingRoles: string[] = [];
+        for (const [, role, label] of syntaxMappings) {
+            if (!importedSyntaxRoles.has(role)) missingRoles.push(label);
+        }
+        if (missingRoles.length > 0)
+            theme.warnings.push(`Syntax colors for ${missingRoles.join(', ')} were not imported.`);
+    }
+    if (hasOtherSyntaxRules) theme.warnings.push('Other syntax token colors were not imported.');
+    if (value.semanticTokenColors !== undefined)
+        theme.warnings.push('Semantic token colors were not imported.');
     return theme;
 }
 
