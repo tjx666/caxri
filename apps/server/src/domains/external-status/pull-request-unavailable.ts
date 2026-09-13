@@ -1,0 +1,34 @@
+import type { PullRequestUnavailable } from '@caxri/protocol';
+
+import { ExternalStatusCliError, failureReason } from './command';
+
+/**
+ * Only closed reasons and fixed recovery copy cross to the Renderer; CLI stderr can contain private repository data.
+ */
+export function pullRequestUnavailable(error: unknown): PullRequestUnavailable {
+    const classified = error instanceof ExternalStatusCliError ? error.kind : failureReason(error);
+    let reason: PullRequestUnavailable['reason'];
+    switch (classified) {
+        case 'permission-denied':
+        case 'invalid-arguments':
+        case 'no-pull-request': {
+            reason = 'other';
+            break;
+        }
+        default: {
+            reason = classified;
+        }
+    }
+    const hint: Record<PullRequestUnavailable['reason'], string> = {
+        'not-found': 'GitHub CLI is not installed. Install gh, then refresh.',
+        'not-logged-in': 'GitHub CLI is not signed in. Run gh auth login, then refresh.',
+        'not-linked':
+            'GitHub CLI is not configured for this repository. Check gh auth status, then refresh.',
+        'rate-limited': 'GitHub API rate limit reached. Refresh after the limit resets.',
+        'timeout': 'GitHub CLI timed out. Check the connection, then refresh.',
+        'network': 'GitHub is unreachable. Check the connection, then refresh.',
+        'tls': 'GitHub secure connection failed. Check proxy or certificates, then refresh.',
+        'other': 'Could not check pull requests. Open Logs for details, then refresh.',
+    };
+    return { reason, hint: hint[reason] };
+}

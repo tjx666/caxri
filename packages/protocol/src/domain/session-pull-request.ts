@@ -6,6 +6,20 @@ import { projectStatusStateSchema } from './project-status-state.js';
 
 export const sessionPullRequestStateSchema = z.enum(['draft', 'open', 'merged', 'closed']);
 
+export const pullRequestUnavailableSchema = z.object({
+    reason: z.enum([
+        'not-found',
+        'not-logged-in',
+        'not-linked',
+        'rate-limited',
+        'timeout',
+        'network',
+        'tls',
+        'other',
+    ]),
+    hint: z.string(),
+});
+
 /**
  * The GitHub pull request a Session is delivering, projected onto the PrimarySidebar row. `source` records how the link
  * was discovered: `agent` when the Session's primary Agent created or discussed it in its transcript, `branch` when it
@@ -28,11 +42,16 @@ export const sessionPullRequestsSchema = z.object({
      * Keyed by Session id; Sessions without a discovered pull request are omitted.
      */
     pullRequests: z.record(identifierSchema, sessionPullRequestSchema),
+    /**
+     * A failed lookup is separate from a confirmed branch without a pull request.
+     */
+    unavailable: z.record(identifierSchema, pullRequestUnavailableSchema).optional(),
     refreshedAt: z.number(),
 });
 
 export type SessionPullRequest = z.infer<typeof sessionPullRequestSchema>;
 export type SessionPullRequestState = z.infer<typeof sessionPullRequestStateSchema>;
+export type PullRequestUnavailable = z.infer<typeof pullRequestUnavailableSchema>;
 export type SessionPullRequests = z.infer<typeof sessionPullRequestsSchema>;
 
 /**

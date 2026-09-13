@@ -92,10 +92,10 @@ export function PrimarySidebar() {
     const [focusedRowId, setFocusedRowId] = useState<string>();
     const treeReference = useRef<HTMLDivElement>(null);
     const sessionRename = useSessionRename(sessions);
-    const pullRequests = usePolledQuery('session.pullRequests', undefined, {
+    const pullRequestSnapshot = usePolledQuery('session.pullRequests', undefined, {
         label: 'session.pullRequests',
         intervalMs: SESSION_PULL_REQUESTS_REFETCH_INTERVAL_MS,
-    }).data?.pullRequests;
+    }).data;
     const orderedSessions = useMemo(
         () => activeSessionsInSidebarOrder(projects, sessions),
         [projects, sessions],
@@ -300,7 +300,8 @@ export function PrimarySidebar() {
                             onRevealMoreSessions={() => revealMoreSessions(sessionWindow)}
                             onToggle={() => toggleProject(project.id)}
                             project={project}
-                            pullRequests={pullRequests}
+                            pullRequests={pullRequestSnapshot?.pullRequests}
+                            pullRequestUnavailable={pullRequestSnapshot?.unavailable}
                             projectDropTarget={
                                 projectOrder.projectDropTarget?.projectId === project.id
                                     ? projectOrder.projectDropTarget

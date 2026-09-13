@@ -19,6 +19,7 @@ export function StatusInfo({
     ariaLabel,
     children,
     className,
+    focusable = false,
     icon: Icon,
     title,
 }: {
@@ -26,6 +27,7 @@ export function StatusInfo({
     ariaLabel: string;
     children: ReactNode;
     className?: string;
+    focusable?: boolean;
     icon?: LucideIcon;
     title: ReactNode;
 }) {
@@ -34,8 +36,14 @@ export function StatusInfo({
             <span
                 aria-label={ariaLabel}
                 aria-live={announce ? 'polite' : undefined}
-                className={cn(statusInfoClassName, className)}
-                role={announce ? 'status' : undefined}
+                className={cn(
+                    statusInfoClassName,
+                    focusable &&
+                        'focus-visible:shadow-[0_0_0_1px_var(--foreground)] focus-visible:outline-none',
+                    className,
+                )}
+                role={announce ? 'status' : focusable ? 'note' : undefined}
+                tabIndex={focusable ? 0 : undefined}
             >
                 {Icon && <Icon size={12} />}
                 <span>{children}</span>

@@ -132,6 +132,25 @@ describe('GitHubPullRequestStore', () => {
         await expect(store.view(lookup)).resolves.toBe(pullRequest({ state: 'MERGED' }));
     });
 
+    it('lets an availability-sensitive reader see a failure while another reader keeps stale data', async () => {
+        const pending = Promise.withResolvers<string>();
+        const runner = vi.fn<ExternalStatusRunner>(() => Promise.resolve(pullRequest()));
+        let now = 0;
+        const store = createStore(runner, () => now);
+        const lookup = { branch: 'feat/search', cwd: '/project', owner: OWNER, repo: REPO };
+        await store.view(lookup);
+
+        now += 120_000;
+        runner.mockImplementation(() => pending.promise);
+        const strict = store.view({ ...lookup, allowStaleOnFailure: false });
+        const lenient = store.view(lookup);
+        pending.reject(new ExternalStatusCliError('gh', 'not-logged-in', 'auth required'));
+
+        await expect(strict).rejects.toMatchObject({ kind: 'not-logged-in' });
+        await expect(lenient).resolves.toBe(pullRequest());
+        expect(runner).toHaveBeenCalledTimes(2);
+    });
+
     it('outlives the Renderer poll interval so a single surface still hits the record', async () => {
         const runner = vi.fn<ExternalStatusRunner>(() => Promise.resolve(pullRequest()));
         let now = 0;

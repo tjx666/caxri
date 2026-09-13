@@ -3,6 +3,7 @@ import { useEffect, useId, useState } from 'react';
 
 import type {
     ProjectRecord,
+    PullRequestUnavailable,
     SessionPullRequest,
     SessionRecord,
     TerminalRecord,
@@ -98,9 +99,30 @@ function SessionPullRequestLink({
     );
 }
 
+function SessionPullRequestDetails({
+    pullRequest,
+    presentation,
+    unavailable,
+}: {
+    pullRequest?: SessionPullRequest;
+    presentation?: ReturnType<typeof sessionPullRequestPresentation>;
+    unavailable?: PullRequestUnavailable;
+}) {
+    if (unavailable)
+        return (
+            <div className="mt-2 text-[10px] leading-[1.45] text-muted">
+                <span className="font-medium">PR unknown</span>
+                <p className="mt-0.5 mb-0">{unavailable.hint}</p>
+            </div>
+        );
+    if (!pullRequest || !presentation) return null;
+    return <SessionPullRequestLink pullRequest={pullRequest} presentation={presentation} />;
+}
+
 export function SessionActivityCard({
     project,
     pullRequest,
+    pullRequestUnavailable,
     session,
     suppressed = false,
     terminal,
@@ -109,6 +131,7 @@ export function SessionActivityCard({
 }: {
     project: ProjectRecord;
     pullRequest?: SessionPullRequest;
+    pullRequestUnavailable?: PullRequestUnavailable;
     session: SessionRecord;
     /**
      * Keeps the card closed while another popup (the row's context menu) owns the pointer.
@@ -141,7 +164,8 @@ export function SessionActivityCard({
         `Project ${project.displayTitle}.`,
         `Agent ${agentLabel}.`,
         activity.ariaLabel,
-        pullRequestPresentation?.ariaLabel,
+        !pullRequestUnavailable && pullRequestPresentation?.ariaLabel,
+        pullRequestUnavailable && `Pull request unknown. ${pullRequestUnavailable.hint}`,
         worktreeProject && `Working in worktree ${worktreeProject.displayTitle}.`,
         `Last opened ${lastOpened}.`,
         unread ? `${unread}.` : undefined,
@@ -211,12 +235,11 @@ export function SessionActivityCard({
                         {activity.description}
                     </p>
                 </div>
-                {pullRequest && pullRequestPresentation && (
-                    <SessionPullRequestLink
-                        pullRequest={pullRequest}
-                        presentation={pullRequestPresentation}
-                    />
-                )}
+                <SessionPullRequestDetails
+                    pullRequest={pullRequest}
+                    presentation={pullRequestPresentation}
+                    unavailable={pullRequestUnavailable}
+                />
                 {worktreeProject && (
                     <div className="session-card-worktree mt-2 flex items-center justify-between gap-3 text-[10px] text-muted">
                         <span className="flex-none">Worktree</span>

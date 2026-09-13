@@ -3,3 +3,4 @@ export { ExternalStatusCliError, isNoPullRequest, runExternalStatusCommand } fro
 export { observeExternalStatusCommand } from './diagnostics';
 export { GitHubPullRequestStore } from './github';
 export { ExternalStatusHub } from './hub';
+export { pullRequestUnavailable } from './pull-request-unavailable';

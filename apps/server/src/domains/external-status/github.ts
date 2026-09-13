@@ -49,6 +49,11 @@ const recordIdentitySchema = z.object({
 
 export interface GitHubPullRequestLookup {
     /**
+     * Availability indicators need the failed refresh even when a previous PR record exists. Other readers may keep
+     * showing that record while GitHub is temporarily unavailable.
+     */
+    allowStaleOnFailure?: boolean;
+    /**
      * Branch to resolve when the pull request number is not known yet. Ignored once `number` is set.
      */
     branch?: string;
@@ -163,40 +168,39 @@ export class GitHubPullRequestStore {
          * across Sessions. The miss costs one extra query and heals immediately: the answer registers a branch alias
          * onto the record, so every later lookup of either shape joins it.
          */
-        return this.requests.run(lookupKey, async () => {
-            /**
-             * A sibling-key lookup may have produced this record while this call was queued behind the single-flight,
-             * so re-check before spending a query.
-             */
-            const settled = this.cached(lookupKey, lookup.maxAgeMs);
-            if (settled) return settled.json;
-            let json: string | undefined;
-            try {
-                const output = await this.runner(
-                    'gh',
-                    ['pr', 'view', reference, '--repo', slug, '--json', PULL_REQUEST_FIELDS],
-                    lookup.cwd,
-                );
-                json = output.trim() || undefined;
-            } catch (error) {
-                // Only a confirmed "no pull request" is cacheable. A transport, auth, or quota failure must not be
-                // remembered as absence, or the surfaces would render "no PR" until the TTL expired.
-                if (!isNoPullRequest(error)) {
-                    /**
-                     * A stale record beats an error banner. Without this, one rate-limited refresh would replace a good
-                     * pull request with `gh: rate limited` on every surface for the entire pause — the exact symptom
-                     * this store exists to stop. `fetchedAt` is deliberately left untouched, so the record stays stale
-                     * and the first read after the circuit closes refetches it; while the circuit is open the retry
-                     * costs nothing, because the limiter rejects before spawning `gh`.
-                     */
-                    const stale = this.stored(lookupKey);
-                    if (stale) return stale.json;
-                    throw error;
+        try {
+            return await this.requests.run(lookupKey, async () => {
+                /**
+                 * A sibling-key lookup may have produced this record while this call was queued behind the
+                 * single-flight, so re-check before spending a query.
+                 */
+                const settled = this.cached(lookupKey, lookup.maxAgeMs);
+                if (settled) return settled.json;
+                let json: string | undefined;
+                try {
+                    const output = await this.runner(
+                        'gh',
+                        ['pr', 'view', reference, '--repo', slug, '--json', PULL_REQUEST_FIELDS],
+                        lookup.cwd,
+                    );
+                    json = output.trim() || undefined;
+                } catch (error) {
+                    // Only a confirmed "no pull request" is cacheable. A transport, auth, or quota failure must not be
+                    // remembered as absence, or the surfaces would render "no PR" until the TTL expired.
+                    if (!isNoPullRequest(error)) throw error;
                 }
+                this.remember(lookupKey, slug, json);
+                return json;
+            });
+        } catch (error) {
+            // Apply the caller's policy after single-flight, so concurrent availability indicators can observe the
+            // same failed request that other surfaces are allowed to serve from the last known record.
+            if (lookup.allowStaleOnFailure !== false) {
+                const stale = this.stored(lookupKey);
+                if (stale) return stale.json;
             }
-            this.remember(lookupKey, slug, json);
-            return json;
-        });
+            throw error;
+        }
     }
 
     clear(): void {

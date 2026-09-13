@@ -22,6 +22,7 @@ import {
     GitHubPullRequestStore,
     isNoPullRequest,
     observeExternalStatusCommand,
+    pullRequestUnavailable as describePullRequestUnavailable,
     runExternalStatusCommand,
 } from './external-status';
 import type { GitService } from './git';
@@ -197,13 +198,16 @@ export class ProjectStatusService {
         const github = parseGitHubRemote(remote);
         const githubUrl = github ? `https://github.com/${github.owner}/${github.repo}` : undefined;
         let pullRequest: NonNullable<ProjectStatusOverview['repository']>['pullRequest'];
+        let pullRequestUnavailable: NonNullable<
+            ProjectStatusOverview['repository']
+        >['pullRequestUnavailable'];
         if (github) {
             try {
                 /**
-                 * The shared store, not a direct `gh` spawn: the status bar polls every minute and refetches on window
-                 * focus, and the Status panel wants the same pull request. One record serves both.
+                 * Share one PR record across the status bar's polls and the Status panel.
                  */
                 const output = await this.github.view({
+                    allowStaleOnFailure: false,
                     branch: repo.branch,
                     cwd: repo.rootPath,
                     owner: github.owner,
@@ -221,9 +225,11 @@ export class ProjectStatusService {
                 }
             } catch (error) {
                 if (!isNoPullRequest(error)) {
+                    pullRequestUnavailable = describePullRequestUnavailable(error);
                     this.logger.write(
-                        'debug',
+                        'warn',
                         logEventCatalog.projectStatus.overviewGithubUnavailable,
+                        { fields: { reason: pullRequestUnavailable.reason } },
                     );
                 }
             }
@@ -239,6 +245,7 @@ export class ProjectStatusService {
                 additions: repo.additions,
                 deletions: repo.deletions,
                 pullRequest,
+                ...(pullRequestUnavailable && { pullRequestUnavailable }),
             },
             refreshedAt: this.now(),
         };
