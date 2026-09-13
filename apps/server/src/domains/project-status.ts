@@ -41,7 +41,7 @@ import {
     githubPullRequestSchema,
     LINEAR_ISSUE_QUERY,
     linearIssueResponseSchema,
-    linearStateType,
+    mapLinearIssue,
     parseExternalJson,
     parseGitHubPullRequest,
     parseVercelList,
@@ -403,14 +403,7 @@ export class ProjectStatusService {
                         linearIssueResponseSchema,
                         'Linear issue',
                     );
-                    const issue = raw.data?.issue;
-                    return {
-                        identifier: issue?.identifier ?? reference.identifier,
-                        title: issue?.title,
-                        url: issue?.url,
-                        state: issue?.state?.name,
-                        stateType: linearStateType(issue?.state?.type),
-                    };
+                    return mapLinearIssue(raw, reference.identifier);
                 } catch (error) {
                     this.logExternalParseFailure('linear', error);
                     const failure =

@@ -93,7 +93,12 @@ describe('Git source-control view model', () => {
             selectedModeId: 'working',
             providers: [{ id: 'repo-1', label: 'project' }],
         });
+        /**
+         * A bare branch name is the one description the panel must never ellipsize, so Working mode marks it a
+         * `reference` and the narrow header spends its spare width on the repository name instead.
+         */
         expect(model.providers[0].description).toContain('feature/product-extensions');
+        expect(model.providers[0].descriptionKind).toBe('reference');
         const group = model.providers[0].groups[0];
         expect(group).toMatchObject({ id: 'repo-1:changes', label: 'Changes', count: 1 });
         expect(group.resources[0]).toMatchObject({
@@ -205,6 +210,7 @@ describe('Git source-control view model', () => {
 
         expect(model.providers[0]).toMatchObject({
             description: '0123456 Move Git projection',
+            descriptionKind: 'prose',
             // The repository's own uncommitted work is invisible in this mode, so the row keeps a route back to it.
             uncommittedNotice: {
                 modeId: 'working',
@@ -253,6 +259,7 @@ describe('Git source-control view model', () => {
 
         expect(model.providers[0]).toMatchObject({
             description: '#42 Make Source Control generic',
+            descriptionKind: 'prose',
             descriptionAccessibilityLabel: 'Pull request #42: Make Source Control generic',
             groups: [
                 {
@@ -320,6 +327,30 @@ describe('Git source-control view model', () => {
         const model = buildSourceControlViewModel({ mode: 'working', summary });
         expect(model.providers[0].countLabel).not.toContain('uncommitted');
         expect(model.providers[0].uncommittedNotice).toBeUndefined();
+    });
+
+    /**
+     * VS Code's own glyph vocabulary, so a repository row reads the same in both apps: `repo` for a checkout,
+     * `worktree` for a linked worktree, `archive` for a submodule. A nested repository is still a checkout, so it keeps
+     * `repo`.
+     */
+    it('names each repository kind with the VS Code codicon for it', () => {
+        const model = buildSourceControlViewModel({
+            mode: 'working',
+            summary: {
+                isRepository: true,
+                repositories: (['primary', 'worktree', 'nested', 'submodule'] as const).map(
+                    (kind) => ({ ...summary.repositories[0], id: `repo-${kind}`, kind }),
+                ),
+            },
+        });
+
+        expect(model.providers.map((provider) => provider.icon)).toEqual([
+            { kind: 'theme', id: 'repo' },
+            { kind: 'theme', id: 'worktree' },
+            { kind: 'theme', id: 'repo' },
+            { kind: 'theme', id: 'archive' },
+        ]);
     });
 
     it('binds submodule navigation and preserves working-tree truncation metadata', () => {

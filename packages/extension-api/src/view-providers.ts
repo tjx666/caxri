@@ -133,6 +133,12 @@ export interface SourceControlProviderModel {
     icon: SourceControlViewIcon;
     tooltip: string;
     description: string;
+    /**
+     * Whether `description` is a `reference` — a branch name or short SHA, atomic enough that an ellipsis destroys it —
+     * or `prose`, a pull request or commit subject that stays useful truncated. The panel gives the narrow header's
+     * spare width to whichever of the two can survive losing it.
+     */
+    descriptionKind: 'reference' | 'prose';
     descriptionAccessibilityLabel: string;
     descriptionTooltip: string;
     countLabel: string;

@@ -5,7 +5,7 @@ import type {
     ProjectStatusState,
     SessionPullRequestState,
 } from '@caxri/protocol';
-import { CaxriError, isIgnoredCheck } from '@caxri/protocol';
+import { CaxriError, hexColorSchema, isIgnoredCheck } from '@caxri/protocol';
 import { z } from 'zod';
 
 /**
@@ -68,6 +68,7 @@ export const vercelTeamListSchema = z.union([
 const linearIssueStateSchema = z.object({
     name: z.string().optional(),
     type: z.string().optional(),
+    color: z.string().optional(),
 });
 
 const linearIssueSchema = z.object({
@@ -82,7 +83,7 @@ export const linearIssueResponseSchema = z.object({
 });
 
 export const LINEAR_ISSUE_QUERY = `query IssueStatus($id:String!){
-  issue(id:$id){identifier title url state{name type}}
+  issue(id:$id){identifier title url state{name type color}}
 }`;
 
 const LINEAR_STATE_TYPES = new Set<ProjectStatusLinearIssue['stateType']>([
@@ -95,10 +96,38 @@ const LINEAR_STATE_TYPES = new Set<ProjectStatusLinearIssue['stateType']>([
     'unstarted',
 ]);
 
-export function linearStateType(value: string | undefined): ProjectStatusLinearIssue['stateType'] {
+function linearStateType(value: string | undefined): ProjectStatusLinearIssue['stateType'] {
     return LINEAR_STATE_TYPES.has(value as ProjectStatusLinearIssue['stateType'])
         ? (value as ProjectStatusLinearIssue['stateType'])
         : undefined;
+}
+
+/**
+ * Drops a workflow color Caxri cannot safely render instead of failing the issue: the state's name, type and link are
+ * the load-bearing parts of the row, and the icon falls back to the row's theme color without its tint.
+ */
+export function linearStateColor(value: string | undefined): string | undefined {
+    const parsed = hexColorSchema.safeParse(value);
+    return parsed.success ? parsed.data : undefined;
+}
+
+/**
+ * Projects one Linear GraphQL response onto the wire shape. `fallbackIdentifier` keeps the row addressable when the
+ * response omits the issue, which is what a permission-scoped workspace returns for an issue the token cannot read.
+ */
+export function mapLinearIssue(
+    response: z.infer<typeof linearIssueResponseSchema>,
+    fallbackIdentifier: string,
+): ProjectStatusLinearIssue {
+    const issue = response.data?.issue;
+    return {
+        identifier: issue?.identifier ?? fallbackIdentifier,
+        title: issue?.title,
+        url: issue?.url,
+        state: issue?.state?.name,
+        stateType: linearStateType(issue?.state?.type),
+        stateColor: linearStateColor(issue?.state?.color),
+    };
 }
 
 const SUCCESS_RESULTS = new Set(['SUCCESS', 'NEUTRAL', 'SKIPPED', 'COMPLETED']);

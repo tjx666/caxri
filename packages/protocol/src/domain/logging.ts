@@ -164,6 +164,9 @@ export const logEventCatalog = {
         refreshFailed: 'project_status.refresh_failed',
         summary: 'project_status.summary',
     },
+    sessionRename: {
+        providerSyncSkipped: 'session_rename.provider_sync_skipped',
+    },
     sessionPullRequests: {
         cli: 'session_pull_requests.cli',
         lookupUnavailable: 'session_pull_requests.lookup_unavailable',

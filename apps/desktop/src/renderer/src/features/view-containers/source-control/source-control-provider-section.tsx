@@ -63,12 +63,19 @@ function ProviderHeader({
                 onClick={() => controller.setProviderExpanded(provider.id, !expanded)}
             >
                 {/*
-                 * The identity shrinks and the name ellipsizes so the counts on the right survive a narrow panel:
-                 * a worktree-length repository name used to push the meta span to zero width, and the counts —
-                 * which are `shrink-0` — then overflowed leftward and printed on top of the name. The name is
-                 * recoverable from the row's path tooltip; the counts exist nowhere else on this row.
+                 * Exactly one of the identity and the meta span gives way, and it is always the one holding prose.
+                 * A bare branch name (`descriptionKind: 'reference'`) is unreadable ellipsized and appears nowhere
+                 * else on the row, so it holds its width and the repository name — recoverable from the row's path
+                 * tooltip — truncates instead; under a pull request or commit subject the roles swap. The 60% cap
+                 * keeps the protected side from starving the other, and the counts stay `shrink-0` inside the meta
+                 * span: before `min-w-0` was added there they overflowed leftward and printed on top of the name.
                  */}
-                <span className="git-repository-identity flex min-w-0 items-center gap-1">
+                <span
+                    className={cn(
+                        'git-repository-identity flex min-w-0 items-center gap-1',
+                        provider.descriptionKind === 'prose' && 'max-w-[60%] shrink-0',
+                    )}
+                >
                     {expanded ? (
                         <ChevronDown className="shrink-0" size={13} />
                     ) : (
@@ -85,7 +92,12 @@ function ProviderHeader({
                     )}
                 </span>
                 <span
-                    className="git-repository-meta flex min-w-0 flex-auto items-center justify-end gap-1 text-[11px] text-muted"
+                    className={cn(
+                        'git-repository-meta flex min-w-0 items-center justify-end gap-1 text-[11px] text-muted',
+                        provider.descriptionKind === 'reference'
+                            ? 'ml-auto max-w-[60%] shrink-0'
+                            : 'flex-auto',
+                    )}
                     aria-label={provider.descriptionAccessibilityLabel}
                     title={provider.descriptionTooltip}
                 >

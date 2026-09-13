@@ -16,6 +16,10 @@ export interface SessionRenameController {
     renamingSessionId?: string;
 }
 
+function sessionRow(sessionId: string): HTMLElement | null {
+    return document.querySelector<HTMLElement>(`[data-session-id="${CSS.escape(sessionId)}"]`);
+}
+
 /**
  * Session-rename state machine extracted from `PrimarySidebar` (react-doctor's giant-component threshold) so the
  * roving-tabindex tree layout stays the only concern left in that component. Owns the renaming Session id, the draft
@@ -27,6 +31,7 @@ export function useSessionRename(sessions: SessionRecord[]): SessionRenameContro
     const [renameError, setRenameError] = useState<string>();
     const renamingSessionIdReference = useRef<string | undefined>(undefined);
     const restoreFocusSessionIdReference = useRef<string | undefined>(undefined);
+    const restoreFocusVisibleReference = useRef(false);
 
     const focusRenameInput = useCallback((element: HTMLInputElement | null) => {
         element?.focus();
@@ -37,13 +42,18 @@ export function useSessionRename(sessions: SessionRecord[]): SessionRenameContro
         if (renamingSessionId) return;
         const sessionId = restoreFocusSessionIdReference.current;
         if (!sessionId) return;
-        document
-            .querySelector<HTMLElement>(`[data-session-id="${CSS.escape(sessionId)}"]`)
-            ?.focus();
+        sessionRow(sessionId)?.focus({ focusVisible: restoreFocusVisibleReference.current });
         restoreFocusSessionIdReference.current = undefined;
     }, [renamingSessionId, sessions]);
 
     const beginRename = (sessionId: string, displayTitle: string): void => {
+        /**
+         * Record how the row was focused before the input replaces it. `focus()` always applies `:focus-visible`, so
+         * restoring focus after a rename started by double-click drew a white ring around a row the user had only ever
+         * clicked — a focus indicator standing for keyboard navigation that never happened.
+         */
+        restoreFocusVisibleReference.current =
+            sessionRow(sessionId)?.matches(':focus-visible') === true;
         renamingSessionIdReference.current = sessionId;
         setRenamingSessionId(sessionId);
         setRenameValue(displayTitle);
