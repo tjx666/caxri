@@ -184,8 +184,8 @@ test('OSC 52 clipboard writes honor opt-out and remain bounded, write-only, and 
             running.page,
             `(sleep 0.5; ${osc52(encoded('CLOSED_TERMINAL_WRITE'))}) &`,
         );
-        await secondTerminalTab.hover();
-        await secondTerminalTab.getByRole('button', { name: 'Close Terminal' }).click();
+        // The new Session owns this one Terminal, and a lone tab renders no close button, so close it by chord.
+        await running.page.keyboard.press('Meta+w');
         await expect
             .poll(async () => {
                 const state = await pageRequest<{ terminals: Array<{ id: string }> }>(
