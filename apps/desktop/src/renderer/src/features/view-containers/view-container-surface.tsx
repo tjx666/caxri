@@ -95,13 +95,16 @@ export function ViewContainerSurface({
     location,
     onSelect,
     trailing,
+    hasUnscopedSelection = false,
 }: {
     ariaLabel: string;
     desiredId?: ViewContainerId;
     location: ViewContainerLocation;
     onSelect: (id: ViewContainerId) => void;
     trailing?: ReactNode;
+    hasUnscopedSelection?: boolean;
 }) {
+    const [unscopedDesiredId, setUnscopedDesiredId] = useState<ViewContainerId>();
     const [retryingExtensionIds, setRetryingExtensionIds] = useState<ReadonlySet<string>>(
         () => new Set(),
     );
@@ -124,7 +127,11 @@ export function ViewContainerSurface({
         );
     const catalog = catalogQuery.data;
     const containers = catalog.containers.filter((container) => container.location === location);
-    const resolvedId = resolveViewContainerId(desiredId, location, catalog);
+    const resolvedId = resolveViewContainerId(
+        hasUnscopedSelection ? unscopedDesiredId : desiredId,
+        location,
+        catalog,
+    );
     // A container stays mounted (hidden) once it has been shown, so switching back does not rebuild its content:
     // re-mounting a large Files tree costs hundreds of mounts, and every view keeps its scroll, focus, and expansion.
     // Hidden keep-alive still must pause Server reads; `ViewContainerActivityProvider` is that gate.
@@ -176,7 +183,10 @@ export function ViewContainerSurface({
                         location === 'panel' ? 'h-9 gap-1.5 px-3 text-[11px]' : 'h-9 w-full'
                     }
                     value={resolvedId ?? ''}
-                    onValueChange={onSelect}
+                    onValueChange={(id) => {
+                        if (hasUnscopedSelection) setUnscopedDesiredId(id);
+                        else onSelect(id);
+                    }}
                     renderTab={
                         location === 'secondarySidebar'
                             ? (item, tab) => {

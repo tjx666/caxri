@@ -459,6 +459,7 @@ export const sourceControlViewModelSchema = z.object({
     fileHistory: sourceControlFileHistorySchema.optional(),
     providers: z.array(sourceControlProviderModelSchema).max(1_000),
     emptyMessage: z.string().min(1).max(2_048).optional(),
+    emptyKind: z.enum(['no-repository', 'unavailable']).optional(),
     truncationMessage: z.string().min(1).max(2_048).optional(),
 });
 
