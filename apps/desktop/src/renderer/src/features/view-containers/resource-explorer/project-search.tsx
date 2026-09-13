@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useId, useMemo, useRef, useState } from 'react';
 
 import type { FileSearchMatch, FileSearchMode } from '@caxri/protocol';
 import { editorModelPath } from '@desktop-shared/editor-state';
@@ -9,11 +9,14 @@ import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useFocusOnRevision } from '@/hooks/use-focus-on-revision';
 
 import { DisclosureMotion } from '../../../components/disclosure-motion';
+import { GitFileStatusLetter } from '../../../components/git-file-status-letter';
 import { Input, InputGroup } from '../../../components/ui/input';
 import { Spinner } from '../../../components/ui/spinner';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { FileTypeIcon } from '../../../icons/files/file-type-icon';
+import { gitDecorationClassName, gitDecorationDescription } from '../../../lib/git-decorations';
 import { cn } from '../../../lib/utilities';
+import { useGitDecoration } from '../../../stores/git-decorations';
 import { sessionViewScope } from '../../../stores/session-view';
 import { openFile } from '../../editor/document-actions';
 import { revealEditorMatch } from '../../editor/editor-reveal';
@@ -100,17 +103,47 @@ function NameSearchTreeNode({
                 </DisclosureMotion>
             </div>
         );
+    return <NameSearchFileRow depth={depth} node={node} sessionId={sessionId} />;
+}
+
+function NameSearchFileRow({
+    depth,
+    node,
+    sessionId,
+}: {
+    depth: number;
+    node: Extract<NameSearchNode, { kind: 'file' }>;
+    sessionId: string;
+}) {
+    const decoration = useGitDecoration(node.match.path);
+    const decorationDescriptionId = useId();
     return (
         <button
             type="button"
             className="search-result flex h-7 w-full cursor-pointer items-center gap-2 border-0 bg-transparent pr-2 text-left text-foreground hover:bg-elevated"
             style={{ paddingLeft: 23 + depth * 12 }}
             title={node.match.path}
+            aria-describedby={decoration ? decorationDescriptionId : undefined}
             onClick={() => discard(openSearchMatch(sessionId, node.match))}
             onDoubleClick={() => discard(openSearchMatch(sessionId, node.match, false))}
         >
             <FileTypeIcon entry={{ kind: 'file', name: node.name }} />
-            <span className="truncate">{node.name}</span>
+            <span
+                className={cn(
+                    'min-w-0 flex-1 truncate',
+                    decoration && gitDecorationClassName(decoration.kind),
+                )}
+            >
+                {node.name}
+            </span>
+            {decoration && (
+                <>
+                    <GitFileStatusLetter decoration={decoration} />
+                    <span id={decorationDescriptionId} className="sr-only">
+                        {gitDecorationDescription(decoration.kind)}
+                    </span>
+                </>
+            )}
         </button>
     );
 }
@@ -158,6 +191,8 @@ function ContentResultGroup({
     sessionId: string;
 }) {
     const [expanded, setExpanded] = useState(true);
+    const decoration = useGitDecoration(matches[0]?.path);
+    const decorationDescriptionId = useId();
     const segments = relativePath.split('/');
     const name = segments.pop() ?? relativePath;
     const directory = segments.join('/');
@@ -167,11 +202,27 @@ function ContentResultGroup({
                 type="button"
                 className="sticky top-0 z-1 flex h-7 w-full min-w-0 cursor-pointer items-center gap-1.5 border-x-0 border-t-0 border-b border-border bg-surface px-2 text-left text-[11px] font-medium text-foreground hover:bg-elevated"
                 aria-expanded={expanded}
+                aria-describedby={decoration ? decorationDescriptionId : undefined}
                 onClick={() => setExpanded((value) => !value)}
             >
                 {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                 <FileTypeIcon entry={{ kind: 'file', name }} />
-                <span className="shrink-0">{name}</span>
+                <span
+                    className={cn(
+                        'shrink-0',
+                        decoration && gitDecorationClassName(decoration.kind),
+                    )}
+                >
+                    {name}
+                </span>
+                {decoration && (
+                    <>
+                        <GitFileStatusLetter decoration={decoration} />
+                        <span id={decorationDescriptionId} className="sr-only">
+                            {gitDecorationDescription(decoration.kind)}
+                        </span>
+                    </>
+                )}
                 {directory && (
                     <span className="min-w-0 flex-1 truncate text-muted">{directory}</span>
                 )}
