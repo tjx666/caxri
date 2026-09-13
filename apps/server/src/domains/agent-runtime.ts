@@ -83,7 +83,7 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
         },
         refreshDelayMs: dependencies.agentRefreshDelayMs,
     });
-    const sessionRenames = new SessionRenameService(database, agents, coordinator, send);
+    const sessionRenames = new SessionRenameService(database, agents, coordinator, send, logger);
     const automaticNaming = new SessionAutoNamingService(
         database,
         agents,

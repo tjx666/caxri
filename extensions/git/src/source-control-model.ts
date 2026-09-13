@@ -56,6 +56,18 @@ function themeIcon(id: string) {
     return { kind: 'theme' as const, id };
 }
 
+/**
+ * VS Code's own Source Control glyphs, by repository kind: `repo` for a checkout, `worktree` for a linked worktree (the
+ * arrow splitting off a trunk), and `archive` for a submodule. A nested repository is an ordinary checkout that happens
+ * to live inside another, so it shares `repo` and is distinguished by its `kindLabel`.
+ */
+const repoKindIcons: Record<GitRepositorySummary['kind'], string> = {
+    primary: 'repo',
+    worktree: 'worktree',
+    nested: 'repo',
+    submodule: 'archive',
+};
+
 function sourceControlModes(selectedCommitSha?: string) {
     return [
         {
@@ -482,6 +494,12 @@ export function buildSourceControlViewModel({
                 : details
                   ? `${details.commit.shortSha} ${details.commit.subject}`
                   : repo.branch;
+            /**
+             * A bare branch name is the one description the panel must never ellipsize: `feat/thing` and `feat/thing-2`
+             * both truncate to `feat/thi…`, and unlike the repository name it appears nowhere else on the row. A pull
+             * request or commit subject leads with its own identifier and reads fine clipped.
+             */
+            const descriptionKind = pullRequest || details ? 'prose' : 'reference';
             const descriptionAccessibilityLabel = pullRequest
                 ? `Pull request #${pullRequest.number}: ${pullRequest.title}`
                 : `${repo.ahead} ahead, ${repo.behind} behind`;
@@ -546,9 +564,10 @@ export function buildSourceControlViewModel({
                 id: repo.id,
                 label: repo.name,
                 ...(repo.kind !== 'primary' && { kindLabel: repo.kind }),
-                icon: themeIcon(repo.kind === 'primary' ? 'folder-git' : 'file-submodule'),
+                icon: themeIcon(repoKindIcons[repo.kind]),
                 tooltip: repo.rootPath,
                 description,
+                descriptionKind,
                 descriptionAccessibilityLabel,
                 descriptionTooltip,
                 countLabel:

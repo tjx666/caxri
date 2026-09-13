@@ -54,21 +54,31 @@ import { usePaneTabDrag } from './use-pane-tab-drag';
 
 interface PaneTabProperties {
     active: boolean;
+    /**
+     * Forwarded to `WorkTab`; `false` for the Workbench's lone tab. See `WorkTab`'s own property doc.
+     */
+    closable: boolean;
     onNavigate: (key: WorkTabNavigationKey) => void;
     paneId: string;
     /**
      * Forwarded to `WorkTab`; `false` for the Workbench's lone tab. See `WorkTab`'s own property doc.
      */
     showActiveAccent: boolean;
+    /**
+     * Forwarded to `WorkTab`; `false` for the last tab in this pane's rail. See `WorkTab`'s own property doc.
+     */
+    showTrailingSeparator: boolean;
     tab: PaneTab;
 }
 
 function TerminalPaneTab({
     active,
+    closable,
     isOnlySessionTerminal,
     onNavigate,
     paneId,
     showActiveAccent,
+    showTrailingSeparator,
     tab,
     terminal,
 }: PaneTabProperties & { isOnlySessionTerminal: boolean; terminal: TerminalRecord }) {
@@ -121,11 +131,13 @@ function TerminalPaneTab({
                     </span>
                 ) : undefined
             }
+            closable={closable}
             closeLabel="Close Terminal"
             icon={terminal.kind}
             label={terminalTabLabel(displayTitle)}
             labelTooltip={displayTitle}
             showActiveAccent={showActiveAccent}
+            showTrailingSeparator={showTrailingSeparator}
             tabId={workTabId(tab.id)}
             paneTabId={tab.id}
             terminalId={terminal.id}
@@ -171,10 +183,12 @@ function TerminalPaneTab({
  */
 function DocumentPaneTab({
     active,
+    closable,
     onNavigate,
     paneId,
     path,
     showActiveAccent,
+    showTrailingSeparator,
     tab,
 }: PaneTabProperties & { path: string }) {
     const session = useSelectedSession();
@@ -217,6 +231,7 @@ function DocumentPaneTab({
         <WorkTab
             active={active}
             fill={false}
+            closable={closable}
             closeLabel="Close Editor"
             dirty={document?.dirty}
             fileIconName={presentation.fileIconName}
@@ -230,6 +245,7 @@ function DocumentPaneTab({
             keepLabelAsAccessibleName
             motionIdentity={tab.id}
             showActiveAccent={showActiveAccent}
+            showTrailingSeparator={showTrailingSeparator}
             tabId={workTabId(tab.id)}
             paneTabId={tab.id}
             onDoubleClick={() => pinDocumentTab(tab.id)}
@@ -308,11 +324,11 @@ export function PaneTabBar({
     paneLabel,
 }: {
     /**
-     * Whether the Workbench holds more than one tab. Both affordances a tab bar adds on top of the tabs themselves —
-     * the active accent and the "New Terminal" button — are noise below that: with one tab there is nothing to switch
-     * between and with none there is nothing to mark, and the empty pane offers its own "New Terminal" button. iTerm2
-     * likewise shows neither until a second tab exists, and `cmd+t` plus the application menu keep the command
-     * reachable meanwhile.
+     * Whether the Workbench holds more than one tab. Every affordance a tab bar adds on top of the tabs themselves —
+     * the active accent, the "New Terminal" button, and each tab's close button — is noise below that: with one tab
+     * there is nothing to switch between, nothing to mark, and closing it only swaps the tab for the empty pane's own
+     * "New Terminal" button. iTerm2 likewise shows no tab chrome until a second tab exists, and `cmd+t` / `cmd+w` plus
+     * the application and context menus keep both commands reachable meanwhile.
      */
     hasTabsToSwitch: boolean;
     isOnlySessionTerminal: boolean;
@@ -440,14 +456,16 @@ export function PaneTabBar({
                         />
                         <LazyMotion strict features={domAnimation}>
                             <AnimatePresence initial={false}>
-                                {pane.tabs.map((tab) => (
+                                {pane.tabs.map((tab, index) => (
                                     <PaneTabEntry
                                         key={tab.id}
                                         active={tab.id === activeTabId}
+                                        closable={hasTabsToSwitch}
                                         isOnlySessionTerminal={isOnlySessionTerminal}
                                         onNavigate={(key) => navigate(tab.id, key)}
                                         paneId={pane.id}
                                         showActiveAccent={hasTabsToSwitch && isActivePane}
+                                        showTrailingSeparator={index < pane.tabs.length - 1}
                                         tab={tab}
                                     />
                                 ))}

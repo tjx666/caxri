@@ -123,7 +123,18 @@ export class CancellationTokenSource implements DisposableLike {
 }
 
 export class ThemeIcon {
-    constructor(readonly id: string) {}
+    constructor(
+        /**
+         * Workbench-owned glyph id. The Workbench, not the extension, decides what it looks like.
+         */
+        readonly id: string,
+        /**
+         * Optional `#RRGGBB` tint, for an icon standing in for content whose palette an external system owns — a Linear
+         * workflow state's configured color. Leave it unset for anything Caxri itself defines: those icons must follow
+         * the active theme, and the Extension Host rejects any other color literal at the boundary.
+         */
+        readonly color?: string,
+    ) {}
 }
 
 export const TreeItemCollapsibleState = {
@@ -249,6 +260,12 @@ export interface ProjectStatusLinearIssue {
     state?: string;
     stateType?:
         'backlog' | 'canceled' | 'completed' | 'duplicate' | 'started' | 'triage' | 'unstarted';
+    /**
+     * `#RRGGBB` color the Linear workspace configured for this workflow state. `stateType` cannot stand in for it:
+     * Linear files "In Progress", "In Review", and "Ready to Merge" all under `started`, and each workspace picks their
+     * colors independently, so a state Linear shows green renders as whatever tone the type is quantized to.
+     */
+    stateColor?: string;
 }
 
 export interface ProjectStatusDeployment {

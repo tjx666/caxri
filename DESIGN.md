@@ -18,7 +18,12 @@ reference this file; deviations require updating this spec first.
 3. **No implementation vocabulary in the UI.** Users see "Settings", "Session", "Restart" — never
    "Runtime", "hot reload", "last-known-good", "bytes".
 4. **Every color comes from a token.** Zero hardcoded hex in component CSS. Themes are
-   user-importable, so any literal color is a future light-theme bug.
+   user-importable, so any literal color is a future light-theme bug. The one exception is a color an
+   external system owns for its own content — a Linear workflow state, whose palette each workspace
+   configures. Caxri's semantic roles cannot express someone else's palette, and quantizing it back
+   to `success`/`warning` renders a state Linear shows green as yellow. Such a color arrives as data
+   through a schema-validated `#RRGGBB` field, never as a literal in source, tints exactly one glyph's
+   foreground, and is absent for every Caxri-owned icon, which inherits its row's theme color.
 5. **Tailwind v4 utilities over the semantic runtime tokens — and only those tokens.** The color
    roles below are bridged to Tailwind via `@theme inline`, so utilities like `bg-surface` resolve
    to the runtime theme variables and imported themes restyle the whole app live — the standard

@@ -23,12 +23,20 @@ import {
 } from 'lucide-react';
 
 import { Spinner } from '../../components/ui/spinner';
+import { ArchiveIcon } from '../../icons/codicons/archive-icon';
+import { RepoIcon } from '../../icons/codicons/repo-icon';
+import { WorktreeIcon } from '../../icons/codicons/worktree-icon';
 import { DeploymentPreviewIcon } from '../../icons/deployment-preview-icon';
 import type { LinearStatusKind } from '../../icons/linear/linear-status-icon';
 import { LinearStatusIcon } from '../../icons/linear/linear-status-icon';
 import { cn } from '../../lib/utilities';
 
+/**
+ * `repo`, `worktree` and `archive` are VS Code's own Source Control glyphs rather than lucide approximations, so a
+ * repository, a linked worktree and a submodule read the same here as in the editor most contributors also have open.
+ */
 const themeIcons = {
+    'archive': ArchiveIcon,
     'check': Check,
     'circle-check': CircleCheck,
     'circle-arrow-up': CircleArrowUp,
@@ -53,16 +61,18 @@ const themeIcons = {
     'package': Package,
     'pass': Check,
     'question': Circle,
-    'repo': Package,
+    'repo': RepoIcon,
     'rocket': Rocket,
     'symbol-string': File,
     'warning': AlertTriangle,
+    'worktree': WorktreeIcon,
 } as const;
 
 const linearStatusIconKinds = {
     'linear-backlog': 'backlog',
     'linear-canceled': 'canceled',
     'linear-completed': 'completed',
+    'linear-duplicate': 'duplicate',
     'linear-started': 'started',
     'linear-triage': 'triage',
     'linear-unstarted': 'unstarted',
@@ -83,12 +93,6 @@ const themeIconClassNames: Partial<Record<ThemeIconId, string>> = {
     'git-pull-request-open': 'text-success',
     'git-pull-request-closed': 'text-danger',
     'git-pull-request-draft': 'text-muted',
-    'linear-backlog': 'text-muted',
-    'linear-canceled': 'text-muted',
-    'linear-completed': 'text-success',
-    'linear-started': 'text-warning',
-    'linear-triage': 'text-warning',
-    'linear-unstarted': 'text-muted',
     'pass': 'text-success',
     'question': 'text-muted',
     'warning': 'text-warning',
@@ -100,6 +104,15 @@ function themeIconId(icon: TreeItemDto['icon']): string | undefined {
 
 function isLinearStatusIconId(iconId: string | undefined): iconId is LinearStatusIconId {
     return iconId !== undefined && iconId in linearStatusIconKinds;
+}
+
+/**
+ * The one place a tree icon may leave the theme's palette. The provider supplies this only for content whose colors an
+ * external system owns — a Linear workflow state, whose color each workspace configures — and the protocol has already
+ * checked it is a `#RRGGBB` literal (`viewIconSchema`). Everything Caxri defines stays on `themeIconClassNames`.
+ */
+function themeIconColor(icon: TreeItemDto['icon']): string | undefined {
+    return icon?.kind === 'theme' ? icon.color : undefined;
 }
 
 export function ExtensionTreeItemIcon({
@@ -122,19 +135,30 @@ export function ExtensionTreeItemIcon({
                 style={{ width: size, height: size }}
             />
         );
+    const color = themeIconColor(icon);
     const iconClassName = iconId ? themeIconClassNames[iconId as ThemeIconId] : undefined;
     if (isLinearStatusIconId(iconId))
         return (
             <LinearStatusIcon
                 kind={linearStatusIconKinds[iconId]}
-                className={cn(className, iconClassName)}
+                // Without the workspace's own color the glyph's shape still separates the states, so it falls back to
+                // the row's muted color rather than to a semantic token that would assert a meaning Linear never gave.
+                className={cn(className, !color && 'text-muted')}
                 data-theme-icon={iconId}
                 size={size}
+                style={color ? { color } : undefined}
             />
         );
     const Icon =
         iconId && iconId in themeIcons ? themeIcons[iconId as keyof typeof themeIcons] : File;
-    return <Icon className={cn(className, iconClassName)} data-theme-icon={iconId} size={size} />;
+    return (
+        <Icon
+            className={cn(className, iconClassName)}
+            data-theme-icon={iconId}
+            size={size}
+            style={color ? { color } : undefined}
+        />
+    );
 }
 
 export function ExtensionTreeTrailingIcon({ icon }: { icon: TreeItemDto['trailingIcon'] }) {
