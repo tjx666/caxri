@@ -59,17 +59,21 @@ const RECEIPT_EXIT_KEYS = [
  * Job-log search anchors for each receipted component. The concurrent `run` step inherits child stdio, so these strings
  * are the practical way to jump to the failing fragment without knowing the receipt file exists.
  */
+function componentLogHint(label: string, preparationFailure?: string): string {
+    const anchors = [`"${label} failed with exit"`, `"${label} could not start"`];
+    if (preparationFailure) anchors.push(`"${preparationFailure}"`);
+    return `Search the job log for ${anchors.join(' or ')}.`;
+}
+
 const RECEIPT_LOG_HINTS = {
-    checks: 'Search the job log for "Full platform checks failed with exit".',
-    ciParity: 'Search the job log for "Deterministic CI-parity cases failed with exit".',
-    desktopExclusive: 'Search the job log for "Desktop-exclusive E2E pool failed with exit".',
-    e2eSetup:
-        'Search the job log for "Electron Vite build failed with exit" or "Electron native compatibility failed with exit".',
-    failureCensus: 'Search the job log for "Bounded E2E failure census failed with exit".',
-    failureIsolation:
-        'Search the job log for "Desktop worker interruption recovery failed with exit".',
-    manifest: 'Search the job log for "E2E execution receipt failed with exit".',
-    parallelSafe: 'Search the job log for "Parallel-safe E2E pool failed with exit".',
+    checks: componentLogHint('Full platform checks', 'Full platform checks could not prepare'),
+    ciParity: componentLogHint('Deterministic CI-parity cases'),
+    desktopExclusive: componentLogHint('Desktop-exclusive E2E pool'),
+    e2eSetup: `${componentLogHint('Electron Vite build')} ${componentLogHint('Electron native compatibility')}`,
+    failureCensus: componentLogHint('Bounded E2E failure census'),
+    failureIsolation: componentLogHint('Desktop worker interruption recovery'),
+    manifest: componentLogHint('E2E execution receipt'),
+    parallelSafe: componentLogHint('Parallel-safe E2E pool'),
 } as const satisfies Record<(typeof RECEIPT_EXIT_KEYS)[number], string>;
 
 interface ConcurrentValidationProcessOperations {

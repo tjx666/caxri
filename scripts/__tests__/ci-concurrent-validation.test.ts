@@ -65,8 +65,12 @@ describe('concurrent CI validation', () => {
         expect(summary).toContain('- failureCensus: exit 2.');
         expect(summary).toContain('- parallelSafe: exit 1.');
         expect(summary).toContain('Full platform checks failed with exit');
+        expect(summary).toContain('Full platform checks could not prepare');
+        expect(summary).toContain('Full platform checks could not start');
         expect(summary).toContain('Bounded E2E failure census failed with exit');
+        expect(summary).toContain('Bounded E2E failure census could not start');
         expect(summary).toContain('Parallel-safe E2E pool failed with exit');
+        expect(summary).toContain('Parallel-safe E2E pool could not start');
         expect(summary).toContain('Receipt: /tmp/ci-concurrent-validation.json');
         expect(summary).not.toContain('e2eSetup');
         expect(summary).not.toContain('desktopExclusive');
