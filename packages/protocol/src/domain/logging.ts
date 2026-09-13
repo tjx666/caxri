@@ -210,6 +210,7 @@ export const logEventCatalog = {
         attachFailed: 'server_connection.attach_failed',
         attached: 'server_connection.attached',
         connectionLost: 'server_connection.lost',
+        desktopCommandCallbackRejected: 'server_connection.desktop_command_callback_rejected',
         desktopLeaseReplaced: 'server_connection.desktop_lease_replaced',
         desktopReadyFailed: 'server_connection.desktop_ready_failed',
         eventRecoveryFailed: 'server_connection.event_recovery_failed',
