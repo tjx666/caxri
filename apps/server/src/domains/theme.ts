@@ -176,28 +176,44 @@ function assignMatchingSyntaxRoles(
 
 /**
  * Maps VS Code `tokenColors` onto Caxri's four editor syntax roles. Only exact selectors count — `keyword.operator`
- * must not overwrite `keyword`. Later exact rules still win. Returns the roles that never received a foreground so the
- * import can warn specifically.
+ * must not overwrite `keyword`. Later exact rules still win. Report both missing roles and valid rules whose scopes
+ * Caxri cannot represent so the import warns without counting them as effective mappings. See
+ * https://code.visualstudio.com/api/extension-guides/color-theme#syntax-colors.
  */
-function applyVsCodeTokenColors(theme: ThemeTokens, tokenColors: unknown): SyntaxEditorRole[] {
-    if (!Array.isArray(tokenColors)) return [...SYNTAX_EDITOR_ROLES];
+function applyVsCodeTokenColors(
+    theme: ThemeTokens,
+    tokenColors: unknown,
+): { missing: SyntaxEditorRole[]; hasOtherSyntaxRules: boolean } {
+    if (!Array.isArray(tokenColors))
+        return { missing: [...SYNTAX_EDITOR_ROLES], hasOtherSyntaxRules: false };
     const assigned = new Set<SyntaxEditorRole>();
+    const mappedScopes = new Set<string>(Object.values(SYNTAX_SCOPE_PREFIX));
+    let hasOtherSyntaxRules = false;
     for (const entry of tokenColors) {
         if (!entry || typeof entry !== 'object') continue;
         const rule = entry as { scope?: unknown; settings?: { foreground?: unknown } };
         const scopes = tokenColorScopes(rule.scope);
-        if (scopes.length === 0) continue;
         const foreground = normalizedHex(rule.settings?.foreground, '');
         if (!foreground) continue;
+        if (scopes.length === 0 || scopes.some((scope) => !mappedScopes.has(scope)))
+            hasOtherSyntaxRules = true;
         assignMatchingSyntaxRoles(theme, scopes, foreground, assigned);
     }
-    return SYNTAX_EDITOR_ROLES.filter((role) => !assigned.has(role));
+    return {
+        missing: SYNTAX_EDITOR_ROLES.filter((role) => !assigned.has(role)),
+        hasOtherSyntaxRules,
+    };
 }
 
 function formatMissingSyntaxWarning(missing: readonly SyntaxEditorRole[]): string {
-    if (missing.length === 1) return `Syntax colors for ${missing[0]} were not imported.`;
-    const head = missing.slice(0, -1).join(', ');
-    return `Syntax colors for ${head}, and ${missing.at(-1)} were not imported.`;
+    if (missing.length === SYNTAX_EDITOR_ROLES.length) return 'Syntax colors were not imported.';
+    const labels = {
+        comment: 'comments',
+        keyword: 'keywords',
+        string: 'strings',
+        number: 'numbers',
+    };
+    return `Syntax colors for ${missing.map((role) => labels[role]).join(', ')} were not imported.`;
 }
 
 function mixHex(from: string, toward: string, amount: number): string {
@@ -303,8 +319,11 @@ function hasMappedVsCodeColor(colors: Record<string, unknown>): boolean {
 function parseVsCode(value: Record<string, unknown>, name: string): ThemeTokens {
     const theme = cloneFallback('vscode', name);
     const colors = (value.colors ?? {}) as Record<string, unknown>;
-    const missingSyntax = applyVsCodeTokenColors(theme, value.tokenColors);
-    if (!hasMappedVsCodeColor(colors) && missingSyntax.length === SYNTAX_EDITOR_ROLES.length) {
+    const syntaxMapping = applyVsCodeTokenColors(theme, value.tokenColors);
+    if (
+        !hasMappedVsCodeColor(colors) &&
+        syntaxMapping.missing.length === SYNTAX_EDITOR_ROLES.length
+    ) {
         throw new CaxriError('VALIDATION', ZERO_HIT_THEME_MESSAGE);
     }
     /**
@@ -411,6 +430,7 @@ function parseVsCode(value: Record<string, unknown>, name: string): ThemeTokens 
     theme.terminal.background = firstHex(colors, ['terminal.background'], theme.editor.background);
     theme.terminal.foreground = firstHex(colors, ['terminal.foreground'], theme.editor.foreground);
     theme.terminal.cursor = firstHex(colors, ['terminalCursor.foreground'], theme.terminal.cursor);
+    // Unlike opaque workbench colors, a translucent selection must retain its alpha for xterm to blend it correctly.
     theme.terminal.selectionBackground = firstHex(
         colors,
         ['terminal.selectionBackground'],
@@ -437,8 +457,11 @@ function parseVsCode(value: Record<string, unknown>, name: string): ThemeTokens 
     ];
     for (const [target, source] of ansiMap)
         theme.terminal[target] = firstHex(colors, [source], theme.terminal[target]);
-    if (missingSyntax.length > 0) theme.warnings.push(formatMissingSyntaxWarning(missingSyntax));
-    if (value.semanticTokenColors != null)
+    if (syntaxMapping.missing.length > 0)
+        theme.warnings.push(formatMissingSyntaxWarning(syntaxMapping.missing));
+    if (syntaxMapping.hasOtherSyntaxRules)
+        theme.warnings.push('Other syntax token colors were not imported.');
+    if (value.semanticTokenColors !== undefined)
         theme.warnings.push('Semantic token colors were not imported.');
     return theme;
 }

@@ -1,7 +1,12 @@
 import { CaxriError, isCaxriError } from '@caxri/protocol';
 import { ProjectStatusSummaryErrorMessage } from 'caxri';
 
-export function describeGitFailure(error: unknown): string {
+const GENERIC_GIT_FAILURE_MESSAGE = 'The Git operation failed. Open Logs for details.';
+
+export function describeGitFailure(
+    error: unknown,
+    { missingRepoRoot = false }: { missingRepoRoot?: boolean } = {},
+): string {
     // Deliberately not `NodeJS.ErrnoException` here: that type inherits `Error`'s required
     // `message: string`, but `error` is `unknown` at this catch boundary and a thrown value is not
     // guaranteed to be an `Error` instance with a `message` at runtime.
@@ -21,7 +26,7 @@ export function describeGitFailure(error: unknown): string {
         return 'Git output exceeded the safety limit.';
     }
     const stderr = failure.stderr?.toLowerCase() ?? '';
-    if (stderr.includes('not a git repository'))
+    if (missingRepoRoot && stderr.includes('not a git repository'))
         return ProjectStatusSummaryErrorMessage.missingGitRepository;
     // Sync (pull/push) failures the user can act on directly; anything else falls through to the
     // generic wording so raw remote stderr never leaks into the UI.
@@ -44,12 +49,22 @@ export function describeGitFailure(error: unknown): string {
         return 'Local and remote history diverged. Set a pull strategy (merge or rebase) and try again.';
     if (stderr.includes('could not read from remote') || stderr.includes('authentication failed'))
         return 'Unable to reach the remote repository. Check the remote URL and your credentials.';
-    return 'The Git operation failed. See Runtime logs for details.';
+    return GENERIC_GIT_FAILURE_MESSAGE;
 }
 
 /**
  * Wraps a raw `execFile` fault as a `GIT` error while keeping the user-facing wording.
  */
-export function toGitError(error: unknown): CaxriError {
-    return isCaxriError(error) ? error : new CaxriError('GIT', describeGitFailure(error));
+export function toGitError(error: unknown, options?: { missingRepoRoot?: boolean }): CaxriError {
+    return isCaxriError(error) ? error : new CaxriError('GIT', describeGitFailure(error, options));
+}
+
+/**
+ * Restores the structural missing-root diagnosis when the Git command boundary already wrapped its stderr.
+ */
+export function describeGitSummaryFailure(error: unknown, isMissingRepoRoot: boolean): string {
+    const message = toGitError(error, { missingRepoRoot: isMissingRepoRoot }).message;
+    return isMissingRepoRoot && message === GENERIC_GIT_FAILURE_MESSAGE
+        ? ProjectStatusSummaryErrorMessage.missingGitRepository
+        : message;
 }

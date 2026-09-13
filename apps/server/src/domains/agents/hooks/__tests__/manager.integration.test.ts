@@ -15,6 +15,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { codexHookAdapter } from '../../providers/codex/hooks';
 import type { AgentLifecycleSignal, AgentSignalDecision } from '../contract';
 import { AgentHookManager, MAX_AGENT_HOOK_CONFIG_BYTES } from '../manager';
+import { hookBridgeEnvironment } from './server.fixture';
 
 const loggers: StructuredLogger[] = [];
 
@@ -390,11 +391,9 @@ describe('AgentHookManager', () => {
                 bridge,
                 ['--source', 'caxri', '--provider', 'codex', '--phase', 'turnFinished'],
                 {
-                    env: {
-                        ...process.env,
-                        ...environment,
+                    env: hookBridgeEnvironment(environment, {
                         CAXRI_HOOK_TOKEN: 'test-token-never-log',
-                    },
+                    }),
                 },
             );
             expect(rejected.stderr).toBe('caxri-hook: signal_rejected\n');
@@ -411,7 +410,7 @@ describe('AgentHookManager', () => {
                     '--reply',
                     'empty-json',
                 ],
-                { env: { ...process.env, ...environment } },
+                { env: hookBridgeEnvironment(environment) },
             );
             expect(result.stdout).toBe('{}\n');
             await vi.waitFor(() => expect(signals).toHaveBeenCalledTimes(1));
@@ -423,7 +422,7 @@ describe('AgentHookManager', () => {
             const payloadInvocation = execFileAsync(
                 bridge,
                 ['--source', 'caxri', '--provider', 'codex', '--phase', 'turnStarted'],
-                { env: { ...process.env, ...environment } },
+                { env: hookBridgeEnvironment(environment) },
             );
             payloadInvocation.child.stdin?.end(
                 JSON.stringify({
@@ -445,7 +444,7 @@ describe('AgentHookManager', () => {
             await execFileAsync(
                 bridge,
                 ['--source', 'caxri', '--provider', 'codex', '--phase', 'turnStarted'],
-                { env: { ...process.env, ...environment } },
+                { env: hookBridgeEnvironment(environment) },
             );
             await vi.waitFor(() => expect(signals).toHaveBeenCalledTimes(3));
 
@@ -453,7 +452,7 @@ describe('AgentHookManager', () => {
             const ignored = await execFileAsync(
                 bridge,
                 ['--source', 'caxri', '--provider', 'codex', '--phase', 'sessionIdentified'],
-                { env: { ...process.env, ...environment } },
+                { env: hookBridgeEnvironment(environment) },
             );
             expect(ignored.stderr).toBe('');
             await vi.waitFor(() => expect(signals).toHaveBeenCalledTimes(4));
@@ -467,7 +466,7 @@ describe('AgentHookManager', () => {
             const providerMismatch = await execFileAsync(
                 bridge,
                 ['--source', 'caxri', '--provider', 'claude', '--phase', 'turnFinished'],
-                { env: { ...process.env, ...environment } },
+                { env: hookBridgeEnvironment(environment) },
             );
             expect(providerMismatch.stderr).toBe('');
             expect(signals).toHaveBeenCalledTimes(4);
@@ -555,7 +554,7 @@ describe('AgentHookManager', () => {
             await execFileAsync(
                 bridge,
                 ['--source', 'caxri', '--provider', 'codex', '--phase', 'turnFinished'],
-                { env: { ...process.env, ...environment } },
+                { env: hookBridgeEnvironment(environment) },
             );
             expect(signals).toHaveBeenCalledTimes(4);
             expect(events.some((event) => event.event === 'agentHooks.changed')).toBe(true);
@@ -790,10 +789,9 @@ describe('AgentHookManager', () => {
                 join(directory, 'shared', 'bin', 'caxri-agent-hook-bridge'),
                 ['--source', 'caxri', '--provider', 'codex', '--phase', 'turnFinished'],
                 {
-                    env: {
-                        ...process.env,
-                        ...manager.terminalEnvironment('newer-terminal', 'codex'),
-                    },
+                    env: hookBridgeEnvironment(
+                        manager.terminalEnvironment('newer-terminal', 'codex'),
+                    ),
                 },
             );
             expect(manager.getHealth().codex.kind).toBe('incompatible');

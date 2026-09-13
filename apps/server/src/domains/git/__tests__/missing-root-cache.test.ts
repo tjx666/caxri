@@ -63,7 +63,7 @@ describe('MissingRepoRootCache', () => {
         temporaryDirectories.push(container);
         await mkdir(join(container, '.git'));
 
-        await cache.remember(container, 'The Git operation failed. See Runtime logs for details.');
+        await cache.remember(container, 'The Git operation failed. Open Logs for details.');
 
         await expect(cache.lookup(container, false)).resolves.toBeUndefined();
     });

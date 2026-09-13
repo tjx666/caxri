@@ -31,6 +31,8 @@ import {
 import { subscribeViewEvents } from '../../view-event-bridge';
 import type { SourceControlClient } from '../../view-operation-client';
 import { controlledViewQueryKey } from '../../view-operation-client';
+import type { SourceControlPanelState } from '../source-control-panel-state';
+import { resolveSourceControlPanelState } from '../source-control-panel-state';
 import type { SourceControlViewNavigation } from '../source-control-state';
 import { setSourceControlDirectoriesExpanded } from '../source-control-state';
 import type { SourceControlNavigationScope } from './use-source-control-navigation';
@@ -47,10 +49,12 @@ function applyActionEffect(
     else pushToast(effect.tone, effect.message);
 }
 
-interface SourceControlViewEmptyController {
-    message: string;
-    status: 'empty';
-}
+type SourceControlViewEmptyController = Exclude<SourceControlPanelState, { status: 'ready' }> & {
+    isRefreshing: boolean;
+    loadingMessage: string;
+    noContextMessage: string;
+    refresh: () => void;
+};
 
 interface SourceControlViewReadyController {
     activeEditorResource: string | undefined;
@@ -310,18 +314,29 @@ export function useSourceControlController(
         },
         [updateNavigation],
     );
-    if (!session)
+    const panelState = resolveSourceControlPanelState({
+        hasSession: Boolean(session),
+        hasSnapshotError: snapshot.isError,
+        model: snapshot.data,
+    });
+    if (panelState.status !== 'ready')
         return {
-            message:
-                presentation?.noContextMessage ?? 'Select a context to inspect Source Control.',
-            status: 'empty',
+            ...panelState,
+            isRefreshing: snapshot.isFetching,
+            loadingMessage: presentation?.loadingMessage ?? 'Loading Git status…',
+            noContextMessage:
+                presentation?.noContextMessage ?? 'Pick a Session to inspect its Git state.',
+            refresh: requestRefresh,
         };
     if (!snapshot.data)
         return {
-            message: presentation?.loadingMessage ?? 'Loading Source Control…',
-            status: 'empty',
+            status: 'loading',
+            isRefreshing: true,
+            loadingMessage: presentation?.loadingMessage ?? 'Loading Git status…',
+            noContextMessage:
+                presentation?.noContextMessage ?? 'Pick a Session to inspect its Git state.',
+            refresh: requestRefresh,
         };
-    if (snapshot.data.emptyMessage) return { message: snapshot.data.emptyMessage, status: 'empty' };
 
     return {
         activeEditorResource: activeResource?.kind === 'file' ? activeResource.path : undefined,

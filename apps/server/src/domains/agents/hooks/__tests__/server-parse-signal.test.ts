@@ -180,14 +180,26 @@ describe('AgentHookServer parseSignal()', () => {
             }),
         ],
         [
-            'an unknown phase',
+            'a non-string phase',
             JSON.stringify({
                 protocolVersion: 1,
                 schemaVersion: 2,
                 launchId: 'l',
                 terminalId: 't',
                 provider: 'codex',
-                phase: 'bogus',
+                phase: 1,
+                token: 'tok',
+            }),
+        ],
+        [
+            'an overlong phase',
+            JSON.stringify({
+                protocolVersion: 1,
+                schemaVersion: 2,
+                launchId: 'l',
+                terminalId: 't',
+                provider: 'codex',
+                phase: 'x'.repeat(65),
                 token: 'tok',
             }),
         ],
@@ -387,6 +399,60 @@ describe('AgentHookServer parseSignal()', () => {
                 handlingMs: anyHandlingMs,
                 outcome: 'rejected',
                 reason: expectedRejectionReason(description),
+            });
+        } finally {
+            await server.close();
+        }
+    });
+
+    it('ignores an authenticated signal whose phase is outside the closed set', async () => {
+        const { server, socketPath, onDiagnostic, onSignal } = await createTestServer();
+        try {
+            const token = server.register('terminal-1', 'launch-1', 'codex');
+            const response = await send(
+                socketPath,
+                validPayload({ token, phase: 'sessionCompacted' }),
+            );
+
+            expect(response).toBe('{"ok":true,"ignored":true}\n');
+            expect(onSignal).not.toHaveBeenCalled();
+            expect(onDiagnostic).toHaveBeenCalledWith({
+                handlingMs: anyHandlingMs,
+                hasAgentCwd: false,
+                hasAgentSessionId: false,
+                hasAgentTurnId: false,
+                outcome: 'ignored',
+                provider: 'codex',
+                reason: 'unknownPhase',
+                receivedPhase: 'sessionCompacted',
+                terminalId: 'terminal-1',
+            });
+        } finally {
+            await server.close();
+        }
+    });
+
+    it('still rejects an unknown phase that does not authenticate', async () => {
+        const { server, socketPath, onDiagnostic, onSignal } = await createTestServer();
+        try {
+            server.register('terminal-1', 'launch-1', 'codex');
+            const response = await send(
+                socketPath,
+                validPayload({ token: 'unregistered-token', phase: 'sessionCompacted' }),
+            );
+
+            expect(response).toBe('{"ok":false}\n');
+            expect(onSignal).not.toHaveBeenCalled();
+            expect(onDiagnostic).toHaveBeenCalledWith({
+                handlingMs: anyHandlingMs,
+                hasAgentCwd: false,
+                hasAgentSessionId: false,
+                hasAgentTurnId: false,
+                outcome: 'rejected',
+                provider: 'codex',
+                reason: 'unknownToken',
+                receivedPhase: 'sessionCompacted',
+                terminalId: 'terminal-1',
             });
         } finally {
             await server.close();

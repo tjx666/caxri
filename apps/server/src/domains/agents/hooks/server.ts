@@ -19,6 +19,7 @@ import type {
 import { agentLifecyclePhases } from './contract';
 
 const MAX_SIGNAL_BYTES = 4_096;
+const MAX_PHASE_LENGTH = 64;
 const MAX_AGENT_CWD_LENGTH = 1_024;
 const MAX_AGENT_ID_LENGTH = 256;
 const MAX_AGENT_SESSION_ID_LENGTH = 256;
@@ -46,14 +47,17 @@ interface RegisteredLaunch {
     terminalId: string;
 }
 
-interface HookWireContext {
+interface HookWireAuth {
     launchId: string;
-    phase: AgentLifecyclePhase;
-    protocolVersion: number;
     provider: AgentProvider;
     schemaVersion: number;
     terminalId: string;
     token: string;
+}
+
+interface HookWireContext extends HookWireAuth {
+    phase: AgentLifecyclePhase;
+    protocolVersion: number;
 }
 
 interface HookWireSignal extends AgentLifecycleSignal, HookWireContext {
@@ -126,9 +130,13 @@ export type AgentHookSignalDiagnostic =
     | (AgentHookSignalPresence & {
           handlingMs?: number;
           outcome: 'ignored';
-          phase: AgentLifecyclePhase;
+          phase?: AgentLifecyclePhase;
           provider: AgentProvider;
           reason: AgentSignalIgnoredReason;
+          /**
+           * Bounded wire token when `reason` is `unknownPhase`. Never used as a metric label.
+           */
+          receivedPhase?: string;
           terminalId: string;
       })
     | (AgentHookSignalPresence & {
@@ -137,6 +145,7 @@ export type AgentHookSignalDiagnostic =
           phase?: AgentLifecyclePhase;
           provider?: AgentProvider;
           reason: AgentHookSignalRejectionReason;
+          receivedPhase?: string;
           terminalId?: string;
       });
 
@@ -203,7 +212,10 @@ export async function pruneStaleAgentHookSockets(
 
 function parsePacket(
     source: string,
-): { packet: HookWirePacket } | { reason: AgentHookSignalRejectionReason } {
+):
+    | { packet: HookWirePacket }
+    | { reason: AgentHookSignalRejectionReason }
+    | { context: HookWireAuth & AgentHookSignalPresence; unknownPhase: string } {
     let value: unknown;
     try {
         value = JSON.parse(source);
@@ -220,9 +232,74 @@ function parsePacket(
         typeof signal.terminalId !== 'string' ||
         typeof signal.token !== 'string' ||
         !isProvider(signal.provider) ||
-        !isPhase(signal.phase)
+        typeof signal.phase !== 'string' ||
+        signal.phase.length === 0 ||
+        signal.phase.length > MAX_PHASE_LENGTH
     ) {
         return { reason: 'invalidSignal' };
+    }
+    if (!isPhase(signal.phase)) {
+        if (signal.kind !== undefined) return { reason: 'invalidSignal' };
+        if (
+            signal.agentId !== undefined &&
+            (typeof signal.agentId !== 'string' ||
+                signal.agentId.length > MAX_AGENT_ID_LENGTH ||
+                !isOpaqueAgentSessionId(signal.agentId))
+        ) {
+            return { reason: 'invalidAgentId' };
+        }
+        if (
+            signal.agentSessionId !== undefined &&
+            (typeof signal.agentSessionId !== 'string' ||
+                signal.agentSessionId.length > MAX_AGENT_SESSION_ID_LENGTH ||
+                !isOpaqueAgentSessionId(signal.agentSessionId))
+        ) {
+            return { reason: 'invalidAgentSessionId' };
+        }
+        if (
+            signal.agentTurnId !== undefined &&
+            (typeof signal.agentTurnId !== 'string' ||
+                signal.agentTurnId.length > MAX_AGENT_TURN_ID_LENGTH ||
+                !isOpaqueAgentSessionId(signal.agentTurnId))
+        ) {
+            return { reason: 'invalidAgentTurnId' };
+        }
+        if (
+            signal.agentCwd !== undefined &&
+            (typeof signal.agentCwd !== 'string' ||
+                signal.agentCwd.length === 0 ||
+                signal.agentCwd.length > MAX_AGENT_CWD_LENGTH ||
+                !signal.agentCwd.startsWith('/') ||
+                signal.agentCwd.includes('\0'))
+        ) {
+            return { reason: 'invalidAgentCwd' };
+        }
+        if (signal.agentToolUseId !== undefined) return { reason: 'invalidAgentToolUseId' };
+        if (signal.worktreeCreateIntent !== undefined) return { reason: 'invalidSignal' };
+        if (
+            signal.agentPromptDigest !== undefined ||
+            signal.agentResponseDigest !== undefined ||
+            signal.agentContentOverflow !== undefined ||
+            signal.agentResponseByteLength !== undefined ||
+            signal.agentFailure !== undefined ||
+            signal.agentResponseStop !== undefined ||
+            signal.agentTurnContinues !== undefined
+        ) {
+            return { reason: 'invalidAgentDigest' };
+        }
+        return {
+            unknownPhase: signal.phase,
+            context: {
+                launchId: signal.launchId,
+                provider: signal.provider,
+                schemaVersion: signal.schemaVersion,
+                terminalId: signal.terminalId,
+                token: signal.token,
+                hasAgentCwd: signal.agentCwd !== undefined,
+                hasAgentSessionId: signal.agentSessionId !== undefined,
+                hasAgentTurnId: signal.agentTurnId !== undefined,
+            },
+        };
     }
     if (signal.kind === 'bridgeStarted')
         return { packet: signal as unknown as HookWireBridgeStarted };
@@ -428,6 +505,33 @@ export class AgentHookServer {
                 socket.end('{"ok":false}\n');
                 return;
             }
+            if ('unknownPhase' in parsed) {
+                const authorization = this.authorizationOutcome(parsed.context);
+                const presence = {
+                    hasAgentCwd: parsed.context.hasAgentCwd,
+                    hasAgentSessionId: parsed.context.hasAgentSessionId,
+                    hasAgentTurnId: parsed.context.hasAgentTurnId,
+                    provider: parsed.context.provider,
+                    receivedPhase: parsed.unknownPhase,
+                    terminalId: parsed.context.terminalId,
+                };
+                if (authorization?.disposition === 'rejected') {
+                    didSettle({
+                        ...presence,
+                        outcome: 'rejected',
+                        reason: authorization.reason,
+                    });
+                    socket.end('{"ok":false}\n');
+                    return;
+                }
+                didSettle({
+                    ...presence,
+                    outcome: 'ignored',
+                    reason: authorization?.reason ?? 'unknownPhase',
+                });
+                socket.end('{"ok":true,"ignored":true}\n');
+                return;
+            }
             const { packet } = parsed;
             const authorization = this.authorizationOutcome(packet);
             if (authorization?.disposition === 'rejected') {
@@ -514,7 +618,7 @@ export class AgentHookServer {
      * relying on schema rejection to gate compatibility.
      */
     private authorizationOutcome(
-        signal: HookWireContext,
+        signal: HookWireAuth,
     ):
         | { disposition: 'ignored'; reason: 'providerMismatch' }
         | { disposition: 'rejected'; reason: AgentHookSignalRejectionReason }

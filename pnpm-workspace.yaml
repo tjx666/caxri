@@ -50,6 +50,10 @@ minimumReleaseAgeExclude:
   - expo@57.0.21
 
 overrides:
+  # Security floor for monaco-editor's transitive DOMPurify, not a compatibility pin.
+  # Exact (not ^) per stack-baseline override policy; 3.4.8–3.4.14 closed
+  # GHSA-vxr8-fq34-vvx9, GHSA-cmwh-pvxp-8882, GHSA-c2j3-45gr-mqc4, and GHSA-55q2-fjhq-7xh7.
+  # https://github.com/advisories/GHSA-55q2-fjhq-7xh7
   dompurify: 3.4.14
   # Vitest 5.0.0 pins a tinybench release whose declarations require DOM types in Node projects.
   # https://github.com/tinylibs/tinybench/releases/tag/v6.1.6

@@ -46,7 +46,7 @@
                     "type": "source-control",
                     "badge": true,
                     "presentation": {
-                        "noContextMessage": "Create a Session to inspect Git.",
+                        "noContextMessage": "Pick a Session to inspect its Git state.",
                         "loadingMessage": "Loading Git status…",
                         "actionErrorMessage": "Git action failed",
                         "refreshErrorMessage": "Git refresh failed"

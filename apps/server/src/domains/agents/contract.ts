@@ -151,6 +151,10 @@ export interface AgentProviderDescriptor {
      */
     requiresLifecycleHooks?: boolean;
     /**
+     * Provider-owned arguments applied to every managed Agent Terminal launch, including custom settings and resume.
+     */
+    managedLaunchArguments?: readonly string[];
+    /**
      * Validates provider launch constraints and allocates an exact identity before the PTY starts.
      */
     prepareLaunch?(

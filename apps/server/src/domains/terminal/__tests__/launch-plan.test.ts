@@ -23,6 +23,33 @@ const record: TerminalRecord = {
 };
 
 describe('TerminalLaunchPlanner managed Agent launch', () => {
+    it.each([undefined, 'conversation-1'])(
+        'isolates Codex with custom settings when resuming %s',
+        async (resumeAgentSessionId) => {
+            const launch = { executable: 'codex', args: ['--profile', 'focused'] };
+            const planner = new TerminalLaunchPlanner({
+                logger: new StructuredLogger('/tmp/caxri-launch-plan-test-logs'),
+                resolveExecutable: (kind) =>
+                    Promise.resolve(kind === 'shell' ? '/bin/zsh' : '/usr/local/bin/codex'),
+            });
+            const resolved = await planner.resolve(record, {
+                launchSettings: launch,
+                resumeAgentSessionId,
+                initialPrompt: 'fixture prompt',
+            });
+            if (!resolved.ok) throw resolved.error;
+            expect(resolved.value.agent?.args).toEqual([
+                '-c',
+                'tui.auto_recap=false',
+                '--profile',
+                'focused',
+                ...(resumeAgentSessionId ? ['resume', resumeAgentSessionId] : []),
+                '--',
+                'fixture prompt',
+            ]);
+            expect(launch.args).toEqual(['--profile', 'focused']);
+        },
+    );
     it('keeps the long-lived Shell free of Agent credentials and launches the Agent as its child', async () => {
         const shellIntegration = vi.fn((_executable: string, environment: NodeJS.ProcessEnv) => ({
             args: ['--caxri-shell'],
@@ -63,7 +90,14 @@ describe('TerminalLaunchPlanner managed Agent launch', () => {
             agent: {
                 provider: 'codex',
                 executable: '/usr/local/bin/codex',
-                args: ['--profile', 'focused', 'resume', 'conversation-1'],
+                args: [
+                    '-c',
+                    'tui.auto_recap=false',
+                    '--profile',
+                    'focused',
+                    'resume',
+                    'conversation-1',
+                ],
                 environment: {
                     CAXRI_MANAGED_AGENT: '1',
                     CAXRI_AGENT_ENDPOINT_TOKEN: 'agent-secret',
@@ -112,7 +146,11 @@ describe('TerminalLaunchPlanner managed Agent launch', () => {
 
         const resolved = await planner.resolve(record);
         if (!resolved.ok) throw resolved.error;
-        expect(resolved.value.agent?.args).toEqual(defaultAgentProviderSettings.codex.launch.args);
+        expect(resolved.value.agent?.args).toEqual([
+            '-c',
+            'tui.auto_recap=false',
+            ...defaultAgentProviderSettings.codex.launch.args,
+        ]);
         const prepared = await planner.prepare(record, resolved.value);
         if (!prepared.ok) throw prepared.error;
 
