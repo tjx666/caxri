@@ -191,9 +191,8 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
             finish();
             return true;
         } catch (error: unknown) {
-            // Only the latest pending revision for this Session may roll back: an older
-            // request's failure must not clobber a newer optimistic write (or the newer
-            // write's own later success/failure) that has since superseded it.
+            // Only the latest pending revision may roll back or report a failure: an older
+            // request must not clobber or fault a newer optimistic write and its own outcome.
             const isLatestRevision = pendingSessionPatches.get(patchKey)?.revision === revision;
             /**
              * A durable file move cannot safely restore its old path. Retaining the latest optimistic patch also
@@ -229,7 +228,8 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
                 });
             }
             if (isLatestRevision && isRootIsStillVisible) onLatestFailure?.();
-            if (shouldReportFailure) pushToast('error', describeFailure(error, failureLabel));
+            if (shouldReportFailure && isLatestRevision)
+                pushToast('error', describeFailure(error, failureLabel));
             return false;
         }
     },

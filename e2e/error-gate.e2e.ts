@@ -154,7 +154,7 @@ errorGateSelfTest(
     async ({}, testInfo) => {
         await expectGateFailure(
             testInfo,
-            'Unexpected E2E errors: renderer/toast/ERROR_TOAST x1',
+            'Unexpected E2E errors: renderer/toast/ERROR_TOAST x1; toast categories: e2e.injected',
             () => observeDismissedErrorToast(),
         );
     },

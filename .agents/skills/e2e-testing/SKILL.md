@@ -143,6 +143,16 @@ Preserve the relevant CI viewport, font/locale/shell behavior, and long temporar
 Inject slowness at the owning async boundary or wait for an observable product invariant. Never use
 machine-wide throttling, fixed sleeps, random pressure, or a timeout-only change as the fix.
 
+If the exact CI-failing case passes three deterministic local repetitions and its failure is
+unrelated to the current change, stop investigating it in the current delivery. Add the case, CI
+run and failure evidence, local reproduction command and result to
+[issue #877](https://github.com/tjx666/caxri/issues/877) as one comment per exact test case. Search
+its existing comments first; append a new occurrence to the matching case comment instead of
+creating another comment for the same test. Do not treat that recorded intermittent case as a
+blocker for the remaining delivery; continue with the current change's own checks and review.
+Do not generalize this exception to an untested case,
+a local failure, or a failure in the changed behavior.
+
 CI retains screenshots, traces, the final viewport/grid, fixture ready markers, and content-free
 Main/Runtime logs for failures. Keep the failed CI run red while diagnosing it.
 
@@ -151,6 +161,9 @@ sufficient. Run the exact failed specs again under the repository-owned namespac
 because loaded-runner races can expose stale async state and hidden warmup surfaces that one worker
 cannot reproduce. Prefer stable observable locators and explicit busy-to-ready transitions over
 arbitrary delays.
+
+For an unrelated case already recorded under the three-repetition rule above, defer this loaded-pool
+reproduction to the later #877 investigation; it does not block the current delivery.
 
 Issue #116 CI evidence uses the repository-owned workflow dispatch instead of an ad-hoc command.
 `docs/ci-performance.md` owns the current profile, pool, receipt, and comparison contract; use the

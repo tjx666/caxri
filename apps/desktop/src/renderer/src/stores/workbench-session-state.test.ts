@@ -23,6 +23,7 @@ vi.mock('./notifications', () => ({
 
 import { resetExternalEditorStateForTests } from '../features/editor/external-editor-state';
 import { useSessionViewStore } from './session-view';
+import { dismissToast, getToasts } from './toasts';
 import { patchSessionState, refreshWorkbench, useWorkbenchStore } from './workbench';
 
 /**
@@ -47,6 +48,7 @@ afterEach(() => {
     useWorkbenchStore.setState({ bootstrap: undefined, attachEpoch: 0, isFullScreen: false });
     useSessionViewStore.setState({ documents: {}, recentDocuments: {} });
     resetExternalEditorStateForTests();
+    dismissToast();
 });
 
 describe('workbench Session state', () => {
@@ -421,6 +423,7 @@ describe('workbench Session state', () => {
                 .getState()
                 .patchSessionState(movedState, undefined, undefined, 'retain'),
         ).resolves.toBe(false);
+        expect(getToasts()).toHaveLength(1);
         await refreshWorkbench();
 
         expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([movedState]);
@@ -513,28 +516,25 @@ describe('workbench Session state', () => {
             ...filesState,
             desiredSecondarySidebarViewContainerId: 'caxri.project-status' as const,
         };
-        patchSessionState(statusState);
+        const olderPatch = useWorkbenchStore.getState().patchSessionState(statusState);
         const agentsState = {
             ...filesState,
             desiredSecondarySidebarViewContainerId: 'caxri.git' as const,
         };
-        patchSessionState(agentsState);
+        const newerPatch = useWorkbenchStore.getState().patchSessionState(agentsState);
         expect(updateRequests).toHaveLength(2);
 
         // The newer patch (revision for `agentsState`) confirms first.
         updateRequests[1].resolve(agentsState);
-        await updateRequests[1].promise;
+        await newerPatch;
         expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([agentsState]);
 
         // The older, now-superseded patch (`statusState`) fails afterwards; it must not roll
         // the Session back over the confirmed newer state.
         updateRequests[0].reject(new Error('stale failure'));
-        try {
-            await updateRequests[0].promise;
-        } catch {
-            // Expected: this test exercises the rejection path.
-        }
+        await olderPatch;
 
         expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([agentsState]);
+        expect(getToasts()).toEqual([]);
     });
 });
