@@ -21,9 +21,14 @@ async function fixture(submissionTimeoutMs = 1000) {
     const state = { epoch: 0, launch: 'launch' as string | undefined, isIdle: true };
     const pointers = new Map<string, string>();
     const readTranscript = vi.fn().mockResolvedValue(null);
-    const write = vi.fn<(terminalId: string, launchId: string, data: string) => boolean>(
-        () => true,
-    );
+    const write = vi.fn<
+        (
+            terminalId: string,
+            launchId: string,
+            data: string,
+            onDelivered?: (wasAccepted: boolean) => void,
+        ) => boolean
+    >(() => true);
     const start = vi.fn<AgentDispatchService['start']>((id, _principal, _input, options) => {
         options!.prepared(terminal!);
         pointers.set(id, options!.launch.args.at(-1)!);
@@ -106,7 +111,13 @@ async function fixture(submissionTimeoutMs = 1000) {
         return service.result(taskId, owner);
     };
     expect((await finish(id, 'Synthetic first answer')).receipt.status).toBe('completed');
+    /**
+     * Replays what the Terminal Host eventually said about the most recent write, which a background delegation only
+     * learns after its input was already admitted.
+     */
+    const deliver = (wasAccepted: boolean) => write.mock.calls.at(-1)![3]!(wasAccepted);
     return {
+        deliver,
         directory,
         database,
         terminal: terminal!,
@@ -328,8 +339,62 @@ describe('Visible same-Terminal follow-up', () => {
         const stopped = f.service.stop(id, owner);
         expect(stopped).toMatchObject({ status: 'interrupted', failure: 'caller_stopped' });
         expect(f.service.stop(id, owner)).toEqual(stopped);
-        expect(f.write.mock.calls.at(-1)).toEqual([f.terminal.id, 'launch', '\u{1B}']);
+        expect(f.write.mock.calls.at(-1)).toEqual([
+            f.terminal.id,
+            'launch',
+            '\u{1B}',
+            expect.any(Function),
+        ]);
         expect(f.write).toHaveBeenCalledTimes(2);
         expect((await f.finish(id, 'Late synthetic answer')).receipt).toEqual(stopped);
+    });
+
+    /**
+     * A background Terminal has no Renderer attachment, so its write is admitted before the Terminal Host has seen it:
+     * the launch can change while the Host is still starting, or the Host can refuse the request. Reported as success,
+     * the task sat in `submitting` for the full 15s timeout and then blamed `submission_unconfirmed`, and a Stop
+     * claimed `caller_stopped` for an Esc that was never written (github.com/tjx666/caxri/issues/893).
+     */
+    it('settles a follow-up the Terminal Host refused after its prompt was admitted', async () => {
+        const f = await fixture();
+        const id = randomUUID();
+        expect(await f.service.create(id, owner, { ...f.input, followUpOf: f.id })).toMatchObject({
+            status: 'submitting',
+        });
+
+        f.deliver(false);
+
+        expect(f.service.status(id, owner)).toMatchObject({
+            status: 'failed',
+            failure: 'target_changed',
+        });
+    });
+
+    it('leaves a follow-up waiting for its turn once the Host confirms the prompt', async () => {
+        const f = await fixture();
+        const id = randomUUID();
+        await f.service.create(id, owner, { ...f.input, followUpOf: f.id });
+
+        f.deliver(true);
+
+        expect(f.service.status(id, owner)).toMatchObject({ status: 'submitting' });
+    });
+
+    it('records a Stop the Terminal Host refused as a lost target, not a caller stop', async () => {
+        const f = await fixture();
+        const id = randomUUID();
+        await f.service.create(id, owner, { ...f.input, followUpOf: f.id });
+        f.deliver(true);
+        expect(f.service.stop(id, owner)).toMatchObject({
+            status: 'interrupted',
+            failure: 'caller_stopped',
+        });
+
+        f.deliver(false);
+
+        expect(f.service.status(id, owner)).toMatchObject({
+            status: 'interrupted',
+            failure: 'target_changed',
+        });
     });
 });

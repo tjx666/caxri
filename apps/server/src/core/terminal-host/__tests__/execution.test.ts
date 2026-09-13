@@ -6,6 +6,7 @@ import {
     cleanupExecutionFixtures,
     createExecution,
     snapshot,
+    startBackgroundAgent,
     terminal,
 } from './execution-fixtures';
 
@@ -58,6 +59,33 @@ describe('architecture-a3b-terminal-host: RemoteTerminalExecution', () => {
                 params: { data: '\u{1B}', launchId: 'launch-1' },
             }),
         );
+    });
+
+    /**
+     * The synchronous `true` above only means the input was admitted for delivery: without an attachment the write
+     * travels to the Terminal Host, which can still refuse it or fail outright. A caller that treats that admission as
+     * proof records a submission the Agent never received (github.com/tjx666/caxri/issues/893).
+     */
+    it('reports what the Host did with a background Agent input the caller was told was accepted', async () => {
+        const { control, execution } = createExecution();
+        await startBackgroundAgent(execution, control);
+        const delivered = vi.fn();
+
+        control.declineNextAgentInput = true;
+        expect(execution.writeAgentExact(terminal.id, 'refused\r', 'launch-1', delivered)).toBe(
+            true,
+        );
+        await vi.waitFor(() => expect(delivered).toHaveBeenLastCalledWith(false));
+
+        control.failNextAgentInput = new Error('Synthetic Host failure');
+        expect(execution.writeAgentExact(terminal.id, '\u{1B}', 'launch-1', delivered)).toBe(true);
+        await vi.waitFor(() => expect(delivered).toHaveBeenCalledTimes(2));
+        expect(delivered).toHaveBeenLastCalledWith(false);
+
+        expect(execution.writeAgentExact(terminal.id, 'accepted\r', 'launch-1', delivered)).toBe(
+            true,
+        );
+        await vi.waitFor(() => expect(delivered).toHaveBeenLastCalledWith(true));
     });
 
     it('replays a pre-launch view reservation and preserves synchronous input acceptance', async () => {

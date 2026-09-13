@@ -40,12 +40,13 @@ export function createAgentCommandRuntime(
                 : options.terminals.agentLaunchId(terminalId),
         isIdle: (terminalId, launchId, turnId) =>
             options.coordinator.hasIdleProof(terminalId, launchId, turnId),
-        write: (terminalId, launchId, data) => {
+        write: (terminalId, launchId, data, onDelivered) => {
             const accepted = options.terminals.writeAgentExact(
                 terminalId,
                 data,
                 launchId,
                 'delegation',
+                onDelivered,
             );
             if (accepted) options.coordinator.observeInput(terminalId, data);
             return accepted;

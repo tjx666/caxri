@@ -492,15 +492,19 @@ export class TerminalManager {
 
     /**
      * Checks and accepts a generated Agent input in one synchronous Server Core turn.
+     *
+     * `onDelivered` reports the Terminal Host's real answer for a Terminal with no Renderer attachment, whose write
+     * cannot be resolved inside that turn. See `TerminalExecutionPort.writeAgentExact`.
      */
     writeAgentExact(
         terminalId: string,
         data: string,
         expectedAgentLaunchId: string,
         origin: 'human' | 'delegation' = 'human',
+        onDelivered?: (wasAccepted: boolean) => void,
     ): boolean {
         if (origin === 'human') this.observeUserInput(terminalId, data);
-        return this.execution.writeAgentExact(terminalId, data, expectedAgentLaunchId);
+        return this.execution.writeAgentExact(terminalId, data, expectedAgentLaunchId, onDelivered);
     }
 
     /**
