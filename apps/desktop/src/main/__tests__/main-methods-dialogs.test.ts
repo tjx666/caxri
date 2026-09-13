@@ -160,6 +160,29 @@ describe('external.open trust wiring', () => {
 });
 
 describe('theme.import', () => {
+    it('uses the fixed Acceptance file selection without opening a native dialog', async () => {
+        const request = requestMock({ 'theme.importPath': () => Promise.resolve({ tokens: {} }) });
+        const choose = vi.fn().mockResolvedValue('/test-root/theme.json');
+        const handle = createMainMethodHandler({
+            ...options({ request }),
+            acceptanceThemeImportFixture: { choose },
+        });
+
+        await expect(handle({ method: 'theme.import', params: {} })).resolves.toEqual({
+            tokens: {},
+        });
+        expect(request).toHaveBeenCalledWith('theme.importPath', {
+            path: '/test-root/theme.json',
+        });
+        expect(electronMock.dialog.showOpenDialog).not.toHaveBeenCalled();
+
+        choose.mockRejectedValueOnce(new Error('Invalid command'));
+        await expect(handle({ method: 'theme.import', params: {} })).rejects.toThrow(
+            'Invalid command',
+        );
+        expect(electronMock.dialog.showOpenDialog).not.toHaveBeenCalled();
+    });
+
     it('returns null without importing when the dialog is dismissed', async () => {
         electronMock.dialog.showOpenDialog.mockResolvedValueOnce({ canceled: true, filePaths: [] });
         const request = requestMock({});

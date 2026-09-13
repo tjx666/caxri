@@ -198,6 +198,7 @@ export function createElectronLaunchSpec({
         ...e2eAgentEnvironmentKeys(),
         'CAXRI_E2E_AGENT_HOOKS',
         'CAXRI_ACCEPTANCE_EXTERNAL_OPEN',
+        'CAXRI_ACCEPTANCE_THEME_IMPORT',
         'CAXRI_REAL_AGENT_E2E',
         'CAXRI_REAL_AGENT_OK',
     ])
@@ -215,6 +216,13 @@ export function createElectronLaunchSpec({
                 CAXRI_E2E_WINDOW_MODE: 'visible',
                 CAXRI_ACCEPTANCE_EXTERNAL_OPEN:
                     caseId === 'session-pr-open-parity' ? 'session-pr-open-parity-v1' : undefined,
+                CAXRI_ACCEPTANCE_THEME_IMPORT: [
+                    'issue-826-surface-seam',
+                    'issue-824-syntax-and-terminal-selection',
+                    'issue-825-include-zero-hit-vsix',
+                ].includes(caseId ?? '')
+                    ? caseId
+                    : undefined,
                 ...(useTestRootFixture && {
                     CAXRI_TEST_ROOT_PATH: testRootPath,
                     CAXRI_TEST_ROOT_PATHS: JSON.stringify(testRootPaths),
