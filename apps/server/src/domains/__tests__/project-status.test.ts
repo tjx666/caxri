@@ -36,17 +36,26 @@ async function logger(): Promise<StructuredLogger> {
     loggers.push(instance);
     return instance;
 }
-
 /**
- * A runner where only the `gh pr view` payload varies: Git reports a GitHub remote and Vercel reports no team, so a
- * test can drive check state without also standing up a deployment fixture.
+ * A GitHub fixture that can provide a linked Vercel project for cache timing tests.
  */
-function githubOnlyRunner(pullRequest: () => unknown): ExternalStatusRunner {
+function githubOnlyRunner(
+    pullRequest: () => unknown,
+    hasLinkedVercel = false,
+): ExternalStatusRunner {
     return vi.fn<ExternalStatusRunner>((command, arguments_) => {
         if (command === 'git' && arguments_[0] === 'remote')
             return Promise.resolve('git@github.com:lobehub/project.git\n');
         if (command === 'git') return Promise.resolve('');
         if (command === 'gh') return Promise.resolve(JSON.stringify(pullRequest()));
+        if (hasLinkedVercel && command === 'vc') {
+            if (arguments_[0] === 'teams')
+                return Promise.resolve(JSON.stringify({ teams: [{ slug: 'team' }] }));
+            const query = arguments_[1] ?? '';
+            if (!query.includes('meta-githubCommit') && !query.includes('target='))
+                return Promise.resolve(JSON.stringify([{ name: 'project' }]));
+            return Promise.resolve('[]');
+        }
         return Promise.resolve(JSON.stringify({ teams: [] }));
     });
 }
@@ -578,7 +587,7 @@ describe('ProjectStatusService', () => {
             const service = new ProjectStatusService(
                 { summary: () => Promise.resolve(gitSummary) },
                 await logger(),
-                githubOnlyRunner(() => checkPayload(check)),
+                githubOnlyRunner(() => checkPayload(check), true),
                 {
                     clearTimer: () => {},
                     now: () => 1_000_000,
