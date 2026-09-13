@@ -313,6 +313,99 @@ function PaneTabEntry(properties: PaneTabProperties & { isOnlySessionTerminal: b
 }
 
 /**
+ * The path the tab actions operate on, or `undefined` when the active tab is not an editable document. A virtual tab
+ * has no file behind it and so offers no actions, except a Git diff, whose target is a real path the actions can
+ * reach.
+ */
+function activeEditorPath(tab: PaneTab | undefined): string | undefined {
+    if (tab?.resource.kind !== 'file') return undefined;
+    const { path } = tab.resource;
+    if (!isVirtualEditorTabPath(path)) return path;
+    return parseGitDiffTab(path) ? path : undefined;
+}
+
+/**
+ * The gradient cue for one end of the scrollable rail. It appears only on an edge that actually hides tabs, and fades
+ * to whatever background the bar itself currently wears (the drop-target tint included) so the cue never draws a
+ * visible seam against it. `motion-safe:` keeps the appear/disappear crossfade off entirely under reduced motion
+ * (DESIGN.md's motion layer contract), leaving an instant show/hide.
+ */
+function ScrollFade({ edge, onElevated }: { edge: 'end' | 'start'; onElevated: boolean }) {
+    return (
+        <div
+            aria-hidden="true"
+            className={cn(
+                'pointer-events-none absolute inset-y-0 z-[4] w-6 to-transparent motion-safe:transition-opacity motion-safe:duration-150',
+                edge === 'start' ? 'left-0 bg-gradient-to-r' : 'right-0 bg-gradient-to-l',
+                onElevated ? 'from-elevated' : 'from-surface',
+            )}
+        />
+    );
+}
+
+/**
+ * The strip at the trailing end of the bar. It exists only for what it actually holds: the editor actions when the
+ * active tab is an editable document, and "New Terminal" once there is more than one tab — below that the empty pane
+ * offers its own button, so an always-present strip would only reserve dead space beside the last tab.
+ */
+function PaneTabActions({
+    editorPath,
+    hasTabsToSwitch,
+    paneId,
+}: {
+    editorPath: string | undefined;
+    hasTabsToSwitch: boolean;
+    paneId: string;
+}) {
+    if (!editorPath && !hasTabsToSwitch) return null;
+    return (
+        <div className="tab-actions flex h-11 flex-none items-center bg-surface px-1 [-webkit-app-region:no-drag]">
+            {editorPath && <EditorTabActions paneId={paneId} path={editorPath} />}
+            {hasTabsToSwitch && (
+                <CommandTooltip commandId="terminal.new">
+                    <Button
+                        size="icon"
+                        variant="ghost"
+                        aria-label="New Terminal"
+                        onClick={() => {
+                            // eslint-disable-next-line no-void -- intentional floating-promise discard, createTerminal() reports its own errors via tryCommand
+                            void createTerminal('shell', { paneId });
+                        }}
+                    >
+                        <Plus size={14} />
+                    </Button>
+                </CommandTooltip>
+            )}
+        </div>
+    );
+}
+
+/**
+ * Moves roving tab focus one step through `tabs` and selects whatever it lands on, leaving focus where it was when the
+ * key has no target — the ends of the rail for `ArrowLeft`/`ArrowRight`.
+ */
+function navigatePaneTabs(tabs: PaneTab[], fromTabId: string, key: WorkTabNavigationKey): void {
+    const target = workTabNavigationTarget(
+        tabs.map((tab) => tab.id),
+        fromTabId,
+        key,
+    );
+    if (!target) return;
+    const targetTab = document.querySelector<HTMLElement>(`#${CSS.escape(workTabId(target))}`);
+    /**
+     * Terminal activation normally moves focus into xterm. The marker exists for activations that must not take the
+     * keyboard — roving tab navigation here, drag hover previews in `previewTab` — and is removed on blur, so the
+     * Terminal process effect can preserve the WAI-ARIA tab focus without changing mouse selection behavior.
+     */
+    if (targetTab) {
+        const tab = tabs.find((candidate) => candidate.id === target);
+        if (tab?.resource.kind === 'terminal') targetTab.dataset.preserveTerminalFocus = 'true';
+        targetTab.focus();
+    }
+    selectPaneTab(target);
+}
+
+/**
  * One pane's own tab bar. Every pane has one, split or not, and the bar never branches on what its tabs hold: the two
  * tab components differ only in what they render inside the same `WorkTab`.
  */
@@ -369,13 +462,7 @@ export function PaneTabBar({
     const isActivePane = useSessionState()?.paneLayout.activePaneId === pane.id;
     const activeTab = pane.tabs.find((tab) => tab.id === pane.activeTabId) ?? pane.tabs.at(0);
     const activeTabId = activeTab?.id;
-    const activeEditorPath =
-        activeTab?.resource.kind === 'file' &&
-        (!isVirtualEditorTabPath(activeTab.resource.path) ||
-            parseGitDiffTab(activeTab.resource.path))
-            ? activeTab.resource.path
-            : undefined;
-    const showTabActions = activeEditorPath !== undefined ? true : hasTabsToSwitch;
+    const editorPath = activeEditorPath(activeTab);
     /**
      * `overflow-x-auto` has no built-in cue for "the active tab is off to the side," so selecting or creating a tab
      * that lands outside the visible bar must scroll it into view itself.
@@ -385,26 +472,6 @@ export function PaneTabBar({
             ?.querySelector<HTMLElement>('[data-tab-active="true"]')
             ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     }, [activeTabId]);
-    const navigate = (fromTabId: string, key: WorkTabNavigationKey): void => {
-        const target = workTabNavigationTarget(
-            pane.tabs.map((tab) => tab.id),
-            fromTabId,
-            key,
-        );
-        if (!target) return;
-        const targetTab = document.querySelector<HTMLElement>(`#${CSS.escape(workTabId(target))}`);
-        /**
-         * Terminal activation normally moves focus into xterm. The marker exists for activations that must not take the
-         * keyboard — roving tab navigation here, drag hover previews in `previewTab` — and is removed on blur, so the
-         * Terminal process effect can preserve the WAI-ARIA tab focus without changing mouse selection behavior.
-         */
-        if (targetTab) {
-            const tab = pane.tabs.find((candidate) => candidate.id === target);
-            if (tab?.resource.kind === 'terminal') targetTab.dataset.preserveTerminalFocus = 'true';
-            targetTab.focus();
-        }
-        selectPaneTab(target);
-    };
     return (
         <div
             className={cn(
@@ -462,7 +529,9 @@ export function PaneTabBar({
                                         active={tab.id === activeTabId}
                                         closable={hasTabsToSwitch}
                                         isOnlySessionTerminal={isOnlySessionTerminal}
-                                        onNavigate={(key) => navigate(tab.id, key)}
+                                        onNavigate={(key) =>
+                                            navigatePaneTabs(pane.tabs, tab.id, key)
+                                        }
                                         paneId={pane.id}
                                         showActiveAccent={hasTabsToSwitch && isActivePane}
                                         showTrailingSeparator={index < pane.tabs.length - 1}
@@ -478,51 +547,14 @@ export function PaneTabBar({
                         />
                     </div>
                 </div>
-                {/* Fade cues only appear on an edge that actually hides tabs, and each edge fades to whatever
-                    background the bar itself currently wears (the drop-target tint included) so the cue never draws
-                    a visible seam against it. `motion-safe:` keeps the appear/disappear crossfade off entirely under
-                    reduced motion (DESIGN.md's motion layer contract), leaving an instant show/hide. */}
-                {canScrollStart && (
-                    <div
-                        aria-hidden="true"
-                        className={cn(
-                            'pointer-events-none absolute inset-y-0 left-0 z-[4] w-6 bg-gradient-to-r to-transparent motion-safe:transition-opacity motion-safe:duration-150',
-                            isDropTarget ? 'from-elevated' : 'from-surface',
-                        )}
-                    />
-                )}
-                {canScrollEnd && (
-                    <div
-                        aria-hidden="true"
-                        className={cn(
-                            'pointer-events-none absolute inset-y-0 right-0 z-[4] w-6 bg-gradient-to-l to-transparent motion-safe:transition-opacity motion-safe:duration-150',
-                            isDropTarget ? 'from-elevated' : 'from-surface',
-                        )}
-                    />
-                )}
+                {canScrollStart && <ScrollFade edge="start" onElevated={isDropTarget} />}
+                {canScrollEnd && <ScrollFade edge="end" onElevated={isDropTarget} />}
             </div>
-            {showTabActions && (
-                <div className="tab-actions flex h-11 flex-none items-center bg-surface px-1 [-webkit-app-region:no-drag]">
-                    {activeEditorPath && (
-                        <EditorTabActions paneId={pane.id} path={activeEditorPath} />
-                    )}
-                    {hasTabsToSwitch && (
-                        <CommandTooltip commandId="terminal.new">
-                            <Button
-                                size="icon"
-                                variant="ghost"
-                                aria-label="New Terminal"
-                                onClick={() => {
-                                    // eslint-disable-next-line no-void -- intentional floating-promise discard, createTerminal() reports its own errors via tryCommand
-                                    void createTerminal('shell', { paneId: pane.id });
-                                }}
-                            >
-                                <Plus size={14} />
-                            </Button>
-                        </CommandTooltip>
-                    )}
-                </div>
-            )}
+            <PaneTabActions
+                editorPath={editorPath}
+                hasTabsToSwitch={hasTabsToSwitch}
+                paneId={pane.id}
+            />
             {/* Evenly divided tabs reach the window's right edge, so with the primarySidebar hidden this bar is the
                 whole titlebar and nothing in it would be draggable. The corner inherits the bar's drag region and
                 stays just wide enough to grab. It exists only for that state: `primary-sidebar-title` is a drag

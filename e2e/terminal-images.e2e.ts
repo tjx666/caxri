@@ -235,9 +235,9 @@ test('inline images render real pixels, enforce budgets, and restore as content-
         );
         await expect(running.page.locator('.xterm-rows')).toContainText(RECOVERY_PLACEHOLDER);
 
-        const terminalTab = running.page.locator(`.work-tab[data-terminal-id="${terminalId}"]`);
-        await terminalTab.hover();
-        await terminalTab.getByRole('button', { name: 'Close Terminal' }).click();
+        // The lone remaining tab renders no close button — there is nothing to switch to — so close it the way the
+        // tab bar leaves available, with the `workbench.closeActiveTab` chord.
+        await running.page.keyboard.press('Meta+w');
         await expect
             .poll(async () => {
                 const state = await pageRequest<{ terminals: Array<{ id: string }> }>(
