@@ -47,7 +47,10 @@ describe('VS Code syntax import', () => {
             number: '#444444',
         });
         expect(theme.terminal.selectionBackground).toBe('#12345678');
-        expect(theme.warnings).toContain('Semantic token colors were not imported.');
+        expect(theme.warnings).toContainEqual({
+            id: 'semantic-token-colors',
+            message: 'Semantic token colors were not imported.',
+        });
     });
 
     it('imports syntax colors from array and comma-separated scopes', async () => {
@@ -76,8 +79,14 @@ describe('VS Code syntax import', () => {
             number: '#fedcba',
             comment: draculaTheme.editor.comment,
         });
-        expect(theme.warnings).toContain('Syntax colors for comments were not imported.');
-        expect(theme.warnings).toContain('Other syntax token colors were not imported.');
+        expect(theme.warnings).toContainEqual({
+            id: 'missing-syntax-colors',
+            message: 'Syntax colors for comments were not imported.',
+        });
+        expect(theme.warnings).toContainEqual({
+            id: 'other-syntax-colors',
+            message: 'Other syntax token colors were not imported.',
+        });
     });
 
     it('reports unmapped syntax without treating it as an effective color hit', async () => {
@@ -101,8 +110,14 @@ describe('VS Code syntax import', () => {
             string: draculaTheme.editor.string,
             number: draculaTheme.editor.number,
         });
-        expect(theme.warnings).toContain('Syntax colors were not imported.');
-        expect(theme.warnings).toContain('Other syntax token colors were not imported.');
+        expect(theme.warnings).toContainEqual({
+            id: 'missing-syntax-colors',
+            message: 'Syntax colors were not imported.',
+        });
+        expect(theme.warnings).toContainEqual({
+            id: 'other-syntax-colors',
+            message: 'Other syntax token colors were not imported.',
+        });
     });
 
     it('reports missing syntax colors when workbench colors still import', async () => {
@@ -118,6 +133,9 @@ describe('VS Code syntax import', () => {
         const theme = await importTheme(path, draculaTheme);
         expect(theme.source).toBe('vscode');
         expect(theme.editor.comment).toBe(draculaTheme.editor.comment);
-        expect(theme.warnings).toContain('Syntax colors were not imported.');
+        expect(theme.warnings).toContainEqual({
+            id: 'missing-syntax-colors',
+            message: 'Syntax colors were not imported.',
+        });
     });
 });

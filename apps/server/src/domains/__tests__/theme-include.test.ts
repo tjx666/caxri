@@ -5,7 +5,13 @@ import { join } from 'node:path';
 import type { CaxriError } from '@caxri/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { draculaTheme, importTheme, MAX_THEME_IMPORT_FILE_BYTES, serializeTheme } from '../theme';
+import {
+    draculaTheme,
+    importTheme,
+    MAX_THEME_IMPORT_FILE_BYTES,
+    parseCaxriTheme,
+    serializeTheme,
+} from '../theme';
 
 const temporaryDirectories: string[] = [];
 
@@ -174,11 +180,10 @@ describe('theme import include, zero-hit, and vsix', () => {
     });
 
     it('omits warnings from the persisted theme document', () => {
-        const serialized = serializeTheme({
-            ...draculaTheme,
-            warnings: ['Syntax colors for comment, keyword, string, and number were not imported.'],
-        });
-        expect(JSON.parse(serialized)).toMatchObject({ warnings: [] });
-        expect(serialized).not.toContain('Syntax colors');
+        const serialized = serializeTheme(
+            parseCaxriTheme(JSON.stringify({ ...draculaTheme, warnings: ['legacy warning'] })),
+        );
+        expect(JSON.parse(serialized)).not.toHaveProperty('warnings');
+        expect(serialized).not.toContain('legacy warning');
     });
 });

@@ -60,6 +60,7 @@ import {
     terminalKindSchema,
     terminalRecordSchema,
     terminalSnapshotSchema,
+    themeImportWarningSchema,
     themeTokensSchema,
     updateStateSchema,
 } from '../domain/domain.js';
@@ -147,6 +148,10 @@ const keybindingsResult = z.object({
     conflicts: z.array(keybindingConflictSchema).max(MAX_KEYBINDINGS),
 });
 const themeResult = z.object({ value: themeTokensSchema, source: configSourceSchema });
+const themeImportResult = z.object({
+    value: themeTokensSchema,
+    warnings: z.array(themeImportWarningSchema),
+});
 const exportedFile = z.object({ path: z.string() });
 const authorizedFileEntry = mutableFileEntrySchema.extend({
     device: z.string().regex(/^\d+$/),
@@ -694,7 +699,7 @@ export const methods = {
         params: z.object({ source: configSourceSchema }),
         result: themeResult,
     },
-    'theme.import': { ...desktopWrite, params: noParameters, result: themeTokensSchema.nullable() },
+    'theme.import': { ...desktopWrite, params: noParameters, result: themeImportResult.nullable() },
 } as const satisfies Record<string, MethodSpec>;
 
 /**
@@ -759,6 +764,6 @@ export const internalMethods = {
     'theme.importPath': {
         ...serverWrite,
         params: z.object({ path: pathSchema }),
-        result: themeTokensSchema,
+        result: themeImportResult,
     },
 } as const satisfies Record<string, MethodSpec>;

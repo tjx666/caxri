@@ -13,6 +13,7 @@ import type {
     ServerEvent,
     SettingsPatchChange,
     SettingsPatchResult,
+    ThemeImportWarning,
     ThemeTokens,
 } from '@caxri/protocol';
 import {
@@ -768,14 +769,13 @@ export class ConfigService {
         return this.update('theme', source);
     }
 
-    async importTheme(path: string): Promise<ThemeTokens> {
+    async importTheme(
+        path: string,
+    ): Promise<{ value: ThemeTokens; warnings: ThemeImportWarning[] }> {
         this.assertOpen();
-        const theme = await importTheme(path, this.theme);
-        await this.update('theme', serializeTheme(theme));
-        // Warnings stay on the in-memory tokens for this process so Settings can show them; serializeTheme already
-        // stripped them from theme.json.
-        this.theme = { ...this.theme, warnings: theme.warnings };
-        return this.theme;
+        const imported = await importTheme(path, this.theme);
+        await this.update('theme', serializeTheme(imported));
+        return { value: this.theme, warnings: imported.warnings };
     }
 
     close(): Promise<void> {

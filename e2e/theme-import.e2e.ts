@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -118,10 +118,72 @@ test('VS Code theme import updates editor syntax and reports missing syntax rule
     }
 });
 
-test('theme import contrast failure names the color roles and measured ratio', async (_fixtures, testInfo) => {
+test('theme import warnings can be dismissed and do not return after restart', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-warning-e2e-'));
+    const root = join(directory, 'project');
+    const userData = join(directory, 'user-data');
+    const themePath = join(directory, 'semantic-theme.json');
+    await mkdir(root);
+    await writeFile(
+        themePath,
+        JSON.stringify({
+            name: 'Semantic Theme',
+            type: 'dark',
+            colors: { 'editor.background': '#1e1e1e' },
+            semanticTokenColors: { comment: '#6a9955' },
+        }),
+    );
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    let isFirstClosed = false;
+    let restarted: Awaited<ReturnType<typeof launchCaxri>> | undefined;
+    try {
+        await running.app.evaluate(({ dialog }, path) => {
+            dialog.showOpenDialog = () => Promise.resolve({ canceled: false, filePaths: [path] });
+        }, themePath);
+        await createProjectSession(running.page);
+        await running.page.keyboard.press('Meta+,');
+        const settings = running.page.getByRole('dialog');
+        await settings.getByRole('tab', { name: 'Theme', exact: true }).click();
+        await settings.getByRole('button', { name: 'Import Theme' }).click();
+        const warning = settings
+            .getByRole('alert')
+            .filter({ hasText: 'Semantic token colors were not imported.' });
+        await expect(warning).toBeVisible();
+        expect(
+            (await pageRequest<{ value: ThemeTokens }>(running.page, 'theme.get')).value,
+        ).not.toHaveProperty('warnings');
+        const saved: unknown = JSON.parse(
+            await readFile(join(userData, 'config', 'theme.json'), 'utf8'),
+        );
+        expect(saved).not.toHaveProperty('warnings');
+        await warning.getByRole('button', { name: 'Dismiss warning' }).click();
+        await expect(warning).toHaveCount(0);
+        await settings.getByRole('tab', { name: 'Settings', exact: true }).click();
+        await settings.getByRole('tab', { name: 'Theme', exact: true }).click();
+        await expect(settings.getByText('Semantic token colors were not imported.')).toHaveCount(0);
+
+        await running.app.close();
+        isFirstClosed = true;
+        restarted = await launchCaxri({ userDataDir: userData, testRootPath: root });
+        await restarted.page.keyboard.press('Meta+,');
+        const reopened = restarted.page.getByRole('dialog');
+        await reopened.getByRole('tab', { name: 'Theme', exact: true }).click();
+        await expect(reopened.getByText('Semantic token colors were not imported.')).toHaveCount(0);
+        expect(
+            (await pageRequest<{ value: ThemeTokens }>(restarted.page, 'theme.get')).value,
+        ).not.toHaveProperty('warnings');
+    } finally {
+        await restarted?.app.close();
+        if (!isFirstClosed) await running.app.close();
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires object destructuring for its fixture argument
+test('theme import contrast failure names the color roles and measured ratio', async ({}, testInfo) => {
     allowE2EErrors([
         { source: 'renderer', event: 'toast', code: 'ERROR_TOAST', count: 1 },
-        { source: 'desktop', event: 'ipc.request_failed', code: 'VALIDATION', count: 1 },
         { source: 'server-core', event: 'ipc.request_failed', code: 'VALIDATION', count: 1 },
     ]);
     const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-contrast-e2e-'));
