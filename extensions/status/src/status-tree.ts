@@ -241,7 +241,10 @@ function linearIcon(
 /**
  * Preserves the screenshot-defined pre-extension ordering while assigning stable provider IDs to every row.
  */
-function buildRepoChildren(repo: ProjectStatusRepository): StatusNode[] {
+function buildRepoChildren(
+    repo: ProjectStatusRepository,
+    shouldHideNetworkErrors = false,
+): StatusNode[] {
     const prefix = `status:repo:${repo.id}`;
     const isDefaultBranch = repo.defaultBranch === repo.branch;
     const publication = repo.publication;
@@ -440,29 +443,52 @@ function buildRepoChildren(repo: ProjectStatusRepository): StatusNode[] {
         );
     }
     for (const error of repo.errors) {
-        nodes.push(
-            item(`${prefix}:error:${error.source}`, error.message, {
+        if (shouldHideNetworkErrors && error.reason === 'network') continue;
+        const isFailure = error.kind === 'failure';
+        const errorNode = item(`${prefix}:error:${error.source}`, error.message, {
+            variant: 'message',
+            description: error.hint,
+            icon: isFailure
+                ? 'circle-x'
+                : error.source === 'vercel'
+                  ? 'cloud'
+                  : error.source === 'github'
+                    ? 'git-branch'
+                    : 'issues',
+            tooltip: {
+                badge: { label: error.source, tone: isFailure ? 'danger' : 'neutral' },
                 description: error.hint,
-                icon: 'circle-x',
-                tooltip: {
-                    badge: { label: error.source, tone: 'danger' },
-                    description: error.hint,
-                },
-                ...(error.detailsView === 'logs' && {
-                    command: { command: 'caxri.showLogs', title: 'Show Logs' },
-                }),
-            }),
+            },
+            command:
+                error.detailsView === 'logs'
+                    ? { command: 'caxri.showLogs', title: 'Open Logs' }
+                    : {
+                          command: 'caxri.project-status.refresh',
+                          title: isFailure ? 'Retry' : 'Recheck',
+                      },
+        });
+        nodes.push(
+            error.source === 'vercel'
+                ? item(`${prefix}:deployments`, 'Deployments', {
+                      icon: 'rocket',
+                      children: [errorNode],
+                      collapsibleState: TreeItemCollapsibleState.Expanded,
+                  })
+                : errorNode,
         );
     }
     return nodes;
 }
 
-export function buildRepoNode(repo: ProjectStatusRepository): StatusNode {
+export function buildRepoNode(
+    repo: ProjectStatusRepository,
+    shouldHideNetworkErrors = false,
+): StatusNode {
     const presentation = repoPresentation[repo.kind];
     return item(`status:repo:${repo.id}`, repo.name, {
         description: presentation.description,
         icon: presentation.icon,
-        children: buildRepoChildren(repo),
+        children: buildRepoChildren(repo, shouldHideNetworkErrors),
         collapsibleState: TreeItemCollapsibleState.Expanded,
         variant: 'header',
         tooltip: {
@@ -520,5 +546,31 @@ export function buildStatusRootNodes(summary: ProjectStatusSummary): StatusNode[
                 },
             }),
         ];
-    return summary.repositories.map(buildRepoNode);
+    const networkErrors = summary.repositories.flatMap((repo) =>
+        repo.errors.filter((error) => error.reason === 'network'),
+    );
+    const sources = [...new Set(networkErrors.map((error) => error.source))].toSorted((a, b) =>
+        a.localeCompare(b),
+    );
+    const providerNames = sources.map((source) =>
+        source === 'github' ? 'GitHub' : source === 'linear' ? 'Linear' : 'Vercel',
+    );
+    const networkTitle = sources.length > 1 ? 'No network connection' : networkErrors[0]?.message;
+    const networkDescription =
+        sources.length > 1
+            ? `Caxri could not reach ${new Intl.ListFormat('en', { type: 'conjunction' }).format(providerNames)}. Reconnect, then refresh.`
+            : networkErrors[0]?.hint;
+    return [
+        ...(networkErrors.length > 0
+            ? [
+                  item('status:network', networkTitle, {
+                      variant: 'message',
+                      description: networkDescription,
+                      icon: 'cloud',
+                      command: { command: 'caxri.project-status.refresh', title: 'Recheck' },
+                  }),
+              ]
+            : []),
+        ...summary.repositories.map((repo) => buildRepoNode(repo, true)),
+    ];
 }

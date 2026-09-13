@@ -1,3 +1,8 @@
+import { Buffer } from 'node:buffer';
+import { constants } from 'node:fs';
+import { open } from 'node:fs/promises';
+import { join } from 'node:path';
+
 import type { ProjectStatusDeployment, ProjectStatusError } from '@caxri/protocol';
 
 import type { CliFailureKind, ExternalStatusSource } from './external-status';
@@ -41,64 +46,132 @@ const REFERENCE_IDENTIFIER_PATTERN = /^([a-z][a-z0-9]*-[1-9]\d*)(?![\w-])/iu;
 const REFERENCE_PREFIX_PATTERN = /^(?:[^\S\n]+|[:：]|issues?\b)/iu;
 const REFERENCE_SEPARATOR_PATTERN = /^(?:[^\S\n]+|[,;、&+]|and\b|issues?\b|#\d+\b)/iu;
 
+/**
+ * A deployment search cannot prove whether `vc link` succeeded: a newly linked project may have no deployments yet.
+ * Vercel writes the link IDs to this local file. Read a bounded regular file without following a symlink.
+ *
+ * @see https://vercel.com/docs/cli/project-linking
+ */
+export async function hasLocalVercelLink(rootPath: string): Promise<boolean> {
+    let file: Awaited<ReturnType<typeof open>>;
+    try {
+        file = await open(
+            join(rootPath, '.vercel', 'project.json'),
+            constants.O_RDONLY | constants.O_NOFOLLOW,
+        );
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+        throw error;
+    }
+    try {
+        const stats = await file.stat();
+        if (!stats.isFile() || stats.size > 16_384) return false;
+        const buffer = Buffer.alloc(16_385);
+        const { bytesRead } = await file.read(buffer, 0, buffer.length, 0);
+        if (bytesRead === buffer.length) return false;
+        const link: unknown = JSON.parse(buffer.toString('utf8', 0, bytesRead));
+        return (
+            link !== null &&
+            typeof link === 'object' &&
+            typeof (link as { orgId?: unknown }).orgId === 'string' &&
+            typeof (link as { projectId?: unknown }).projectId === 'string' &&
+            Boolean((link as { orgId: string }).orgId && (link as { projectId: string }).projectId)
+        );
+    } catch (error) {
+        if (error instanceof SyntaxError) return false;
+        throw error;
+    } finally {
+        await file.close();
+    }
+}
+
+export function projectStatusNoDeploymentsError(): ProjectStatusError {
+    return {
+        source: 'vercel',
+        kind: 'prerequisite',
+        message: 'No Vercel deployments found',
+        hint: 'This repository is linked to Vercel, but no matching deployments were found. Create one, then recheck.',
+    };
+}
+
 export function projectStatusCliError(
     command: ExternalStatusSource,
     kind: CliFailureKind,
     subject?: string,
 ): ProjectStatusError {
     const source = command === 'gh' ? 'github' : command === 'vc' ? 'vercel' : 'linear';
+    const displayName =
+        command === 'gh' ? 'GitHub CLI' : command === 'vc' ? 'Vercel CLI' : 'Linear CLI';
     if (kind === 'not-found') {
         return {
             source,
-            message: `${command} not installed`,
+            kind: 'prerequisite',
+            message: `${displayName} not installed`,
             hint:
                 command === 'gh'
-                    ? 'Install GitHub CLI to load pull requests.'
+                    ? 'Pull requests for this repository need the GitHub CLI. Install it, then recheck.'
                     : command === 'vc'
-                      ? 'Install Vercel CLI to load deployments.'
-                      : 'Install linear-cli to load linked issues.',
+                      ? 'Deployments for this repository need the Vercel CLI. Install it with npm i -g vercel, then recheck.'
+                      : 'Linked issues need the Linear CLI. Install it, then recheck.',
         };
     }
     if (kind === 'not-logged-in') {
         return {
             source,
-            message: `${command}: not logged in`,
-            hint: `Run \`${command} ${command === 'vc' ? 'login' : 'auth login'}\` in a Terminal.`,
+            kind: 'prerequisite',
+            message: `${displayName} not signed in`,
+            hint: `Run ${command} ${command === 'vc' ? 'login' : 'auth login'} in a Terminal, then recheck.`,
         };
     }
     if (kind === 'not-linked') {
         return {
             source,
-            message: `${command}: not linked`,
+            kind: 'prerequisite',
+            message:
+                command === 'vc' ? 'Repository not linked to Vercel' : `${displayName} not linked`,
             hint:
                 command === 'vc'
-                    ? 'Run `vc link` in the repository.'
-                    : 'Run `linear config` in the repository.',
+                    ? 'Run vc link in this repository, then recheck.'
+                    : 'Run linear config in this repository, then recheck.',
         };
     }
+    if (kind === 'network')
+        return {
+            source,
+            kind: 'failure',
+            reason: 'network',
+            message: `${displayName} connection failed`,
+            hint: `Caxri could not reach ${displayName}. Check the connection, then recheck.`,
+        };
+    if (kind === 'tls')
+        return {
+            source,
+            kind: 'failure',
+            reason: 'tls',
+            message: `${displayName} secure connection failed`,
+            hint: 'Check your proxy or certificates, then retry.',
+        };
     if (kind === 'rate-limited')
         return {
             source,
-            message: `${command}: rate limited`,
+            kind: 'failure',
+            message: `${displayName} rate limited`,
             hint: 'Refresh after the API limit resets.',
         };
     if (kind === 'timeout')
         return {
             source,
-            message: `${command} timed out`,
+            kind: 'failure',
+            message: `${displayName} timed out`,
             hint: 'Check the network or proxy, then refresh.',
         };
-    /**
-     * `diagnostics.ts` deliberately drops CLI stderr, so promising "details" in the logs was a lie: the only recorded
-     * fields are the failure classification, the exit code, and the subject below. Name what the logs actually hold,
-     * and name the failing subject here so a panel-level error points at the request that produced it.
-     */
+    const resource =
+        command === 'vc' ? 'deployments' : command === 'gh' ? 'pull requests' : 'linked issues';
     return {
         source,
-        message: subject ? `${command}: ${subject} failed` : `${command}: error`,
-        hint: subject
-            ? `Runtime logs record the failure kind and exit code for ${subject}. CLI output is never logged.`
-            : 'Runtime logs record the failure kind and exit code. CLI output is never logged.',
+        kind: 'failure',
+        message: subject ? `${displayName}: ${subject} failed` : `${displayName} failed`,
+        hint: `Something went wrong while loading ${resource}. Open Logs for details.`,
         detailsView: 'logs',
     };
 }
