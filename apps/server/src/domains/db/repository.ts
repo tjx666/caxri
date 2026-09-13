@@ -667,10 +667,11 @@ export class CaxriDatabase {
         id: string,
         state: ProcessState,
         failureReason?: TerminalFailureReason,
+        failureDetail?: string,
     ): void {
         this.db.transaction(() => {
             if (!this.db.terminals.get(id)) return;
-            this.db.terminals.updateState(id, state, failureReason);
+            this.db.terminals.updateState(id, state, failureReason, failureDetail);
         });
     }
 

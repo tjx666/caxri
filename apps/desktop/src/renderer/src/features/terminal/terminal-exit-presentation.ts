@@ -25,6 +25,7 @@ export const FAILURE_REASON_LABELS: Record<TerminalFailureReason, string> = {
 export function getTerminalExitPresentation(
     state: ProcessState,
     failureReason?: TerminalFailureReason,
+    failureDetail?: string,
 ): TerminalExitPresentation | undefined {
     switch (state) {
         case 'stopped':
@@ -32,9 +33,11 @@ export function getTerminalExitPresentation(
         case 'failed':
             return {
                 icon: 'failed',
-                label: failureReason
-                    ? FAILURE_REASON_LABELS[failureReason]
-                    : 'Terminal failed to start',
+                label:
+                    failureDetail ??
+                    (failureReason
+                        ? FAILURE_REASON_LABELS[failureReason]
+                        : 'Terminal failed to start'),
                 tone: 'danger',
             };
         case 'dead':
