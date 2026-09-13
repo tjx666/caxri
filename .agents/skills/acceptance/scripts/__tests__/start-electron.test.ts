@@ -290,10 +290,14 @@ describe('Acceptance Electron launcher seams', () => {
 
     it('can leave folder selection on the explicitly authorized native dialog boundary', () => {
         const launch = createElectronLaunchSpec({
+            caseId: 'issue-826-surface-seam',
             electronPath: '/repo/node_modules/.bin/electron',
             environment: {
                 PATH: '/usr/bin',
                 CAXRI_ACCEPTANCE_NATIVE_DIALOG_AUTHORIZATION: 'explicit-user-request',
+                CAXRI_ACCEPTANCE_THEME_IMPORT: 'issue-826-surface-seam',
+                CAXRI_TEST_ROOT_PATH: '/inherited-root',
+                CAXRI_TEST_ROOT_PATHS: '["/inherited-root"]',
             },
             port: 9333,
             projectRoot: '/repo',
@@ -305,6 +309,7 @@ describe('Acceptance Electron launcher seams', () => {
 
         expect(launch.options.env).not.toHaveProperty('CAXRI_TEST_ROOT_PATH');
         expect(launch.options.env).not.toHaveProperty('CAXRI_TEST_ROOT_PATHS');
+        expect(launch.options.env.CAXRI_ACCEPTANCE_THEME_IMPORT).toBeUndefined();
         expect(launch.options.env).toMatchObject({
             CAXRI_ACCEPTANCE: '1',
             CAXRI_ACCEPTANCE_NATIVE_DIALOG_AUTHORIZATION: 'explicit-user-request',
