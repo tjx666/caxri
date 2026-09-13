@@ -9,6 +9,8 @@ const CASE_IDS = new Set([
     'issue-826-surface-seam',
     'issue-824-syntax-and-terminal-selection',
     'issue-825-include-zero-hit-vsix',
+    'issue-851-transient-warnings',
+    'issue-854-contrast-error',
 ]);
 const commandSchema = z.strictObject({
     caseId: z.string(),
@@ -17,8 +19,8 @@ const commandSchema = z.strictObject({
 });
 
 /**
- * Supplies only the native file picker's result for the three fixed theme Acceptance cases. The real Main handler,
- * Server import, Renderer warning flow, and persistence remain in the path under test.
+ * Supplies only the native file picker's result for the fixed theme Acceptance cases. The real Main handler, Server
+ * import, Renderer warning flow, and persistence remain in the path under test.
  */
 export function createAcceptanceThemeImportFixture(options: {
     environment: NodeJS.ProcessEnv;

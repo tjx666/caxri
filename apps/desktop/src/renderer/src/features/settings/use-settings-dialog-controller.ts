@@ -22,11 +22,12 @@ import {
     removeKeybindingSource,
     updateKeybindingSource,
 } from './keybinding-editor';
-import type { ConfigAction } from './settings-drafts';
+import type { ConfigAction, ConfigSourceError } from './settings-drafts';
 import { configReducer, initialConfigState, parseConfigSource } from './settings-drafts';
 import { settingsRows } from './settings-registry';
 import { createSettingsWriteCoordinator } from './settings-write-coordinator';
 import { applyBuiltinTheme, applyThemeColorEdit } from './theme-edit';
+import { describeThemeImportFailure } from './theme-import-error';
 import { resetThemeImportWarningDismissals } from './theme-import-warnings';
 
 /**
@@ -122,7 +123,9 @@ export function useSettingsDialogController() {
     const onOpenChange = setSettingsOpen;
     const [tab, setTab] = useState<ConfigKind>('settings');
     const [view, setView] = useState<'ui' | 'source'>('ui');
-    const [sourceErrors, setSourceErrors] = useState<Partial<Record<ConfigKind, string>>>({});
+    const [sourceErrors, setSourceErrors] = useState<
+        Partial<Record<ConfigKind, ConfigSourceError>>
+    >({});
     const [loaded, setLoaded] = useState(false);
     const [agentHookHealth, setAgentHookHealth] = useState<AgentHookHealthMap>();
     const [agentSkillHealth, setAgentSkillHealth] = useState<AgentSkillHealth>();
@@ -150,15 +153,23 @@ export function useSettingsDialogController() {
         stateReference.current = configReducer(stateReference.current, action);
         dispatch(action);
     }, []);
-    const setSourceError = useCallback((kind: ConfigKind, error?: string): void => {
-        setSourceErrors((current) => {
-            if (current[kind] === error) return current;
-            const next = { ...current };
-            if (error) next[kind] = error;
-            else delete next[kind];
-            return next;
-        });
-    }, []);
+    const setSourceError = useCallback(
+        (kind: ConfigKind, error?: string | ConfigSourceError): void => {
+            setSourceErrors((current) => {
+                const nextError = typeof error === 'string' ? { error } : error;
+                if (
+                    current[kind]?.error === nextError?.error &&
+                    current[kind]?.line === nextError?.line
+                )
+                    return current;
+                const next = { ...current };
+                if (nextError) next[kind] = nextError;
+                else delete next[kind];
+                return next;
+            });
+        },
+        [],
+    );
 
     const writeCoordinatorReference = useRef<
         ReturnType<typeof createSettingsWriteCoordinator> | undefined
@@ -183,7 +194,7 @@ export function useSettingsDialogController() {
                     source: payload.source,
                     value: parsed.ok ? parsed.value : undefined,
                 });
-                setSourceError('settings', parsed.ok ? undefined : parsed.error);
+                setSourceError('settings', parsed.ok ? undefined : parsed);
                 return;
             }
             if (kind === 'keybindings') {
@@ -193,7 +204,7 @@ export function useSettingsDialogController() {
                     source: payload.source,
                     value: parsed.ok ? parsed.value : undefined,
                 });
-                setSourceError('keybindings', parsed.ok ? undefined : parsed.error);
+                setSourceError('keybindings', parsed.ok ? undefined : parsed);
                 return;
             }
             const parsed = parseConfigSource('theme', payload.source);
@@ -202,7 +213,7 @@ export function useSettingsDialogController() {
                 source: payload.source,
                 value: parsed.ok ? parsed.value : undefined,
             });
-            setSourceError('theme', parsed.ok ? undefined : parsed.error);
+            setSourceError('theme', parsed.ok ? undefined : parsed);
         },
         onOwnEcho: (kind, source, isCurrentDraft) => {
             if (kind === 'settings') dispatchConfig({ type: 'settings/echoApplied', source });
@@ -328,7 +339,7 @@ export function useSettingsDialogController() {
                 const entry = stateReference.current.settings;
                 const result = parseConfigSource('settings', entry.source);
                 if (!result.ok) {
-                    setSourceError('settings', result.error);
+                    setSourceError('settings', result);
                     return;
                 }
                 setSourceError('settings');
@@ -340,7 +351,7 @@ export function useSettingsDialogController() {
                 const entry = stateReference.current.keybindings;
                 const result = parseConfigSource('keybindings', entry.source);
                 if (!result.ok) {
-                    setSourceError('keybindings', result.error);
+                    setSourceError('keybindings', result);
                     return;
                 }
                 setSourceError('keybindings');
@@ -351,7 +362,7 @@ export function useSettingsDialogController() {
             const entry = stateReference.current.theme;
             const result = parseConfigSource('theme', entry.source);
             if (!result.ok) {
-                setSourceError('theme', result.error);
+                setSourceError('theme', result);
                 return;
             }
             setSourceError('theme');
@@ -473,7 +484,7 @@ export function useSettingsDialogController() {
             dispatchConfig({ type: 'keybindings/sourceChanged', source });
         else dispatchConfig({ type: 'theme/sourceChanged', source });
         const parsed = parseConfigSource(kind, source);
-        setSourceError(kind, parsed.ok ? undefined : parsed.error);
+        setSourceError(kind, parsed.ok ? undefined : parsed);
     };
 
     const updateSettingsField = <K extends keyof AppSettings>(
@@ -591,17 +602,17 @@ export function useSettingsDialogController() {
             // the generation so a stale response cannot clobber the just-imported theme afterward.
             writeCoordinator.supersede('theme');
             const result = await caxri.request('theme.get');
-            // Use the import payload for `value` so session-local warnings survive serializeTheme
-            // stripping them from theme.json / `theme.get`.
-            resetThemeImportWarningDismissals(imported.id);
+            // The import response is the only source of transient warnings; theme.get reads saved tokens only.
+            resetThemeImportWarningDismissals(imported.value.id);
             dispatchConfig({
                 type: 'theme/imported',
-                value: imported,
+                value: imported.value,
                 source: result.source,
+                warnings: imported.warnings,
             });
             onApplied();
         } catch (error) {
-            onSettingsError(error, 'Theme import failed');
+            pushToast('error', describeThemeImportFailure(error));
         }
     };
 

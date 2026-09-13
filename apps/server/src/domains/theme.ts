@@ -3,7 +3,7 @@ import { dirname, extname, join } from 'node:path';
 /**
  * The theme token shape lives in the IPC contract; importers reuse it instead of redeclaring it.
  */
-import type { ThemeTokens } from '@caxri/protocol';
+import type { ThemeImportWarning, ThemeTokens } from '@caxri/protocol';
 import {
     CaxriError,
     draculaTheme,
@@ -22,6 +22,7 @@ import { readBoundedRegularFileText } from './bounded-file-reader';
 export { draculaTheme } from '@caxri/protocol';
 
 type ThemeImportFormat = (typeof themeImportFormats)[number];
+type ParsedThemeImport = ThemeTokens & { warnings: ThemeImportWarning[] };
 
 /**
  * Ceiling for a theme file selected for import. Theme files (VS Code color themes, iTerm2 plists, Warp YAML, Caxri
@@ -241,7 +242,7 @@ function separateSurfaceFromBackground(background: string, surface: string): str
     return surface;
 }
 
-function cloneFallback(source: ThemeTokens['source'], name: string): ThemeTokens {
+function cloneFallback(source: ThemeTokens['source'], name: string): ParsedThemeImport {
     return structuredClone({
         ...draculaTheme,
         id: `${source}-${Date.now()}`,
@@ -316,7 +317,7 @@ function hasMappedVsCodeColor(colors: Record<string, unknown>): boolean {
     return false;
 }
 
-function parseVsCode(value: Record<string, unknown>, name: string): ThemeTokens {
+function parseVsCode(value: Record<string, unknown>, name: string): ParsedThemeImport {
     const theme = cloneFallback('vscode', name);
     const colors = (value.colors ?? {}) as Record<string, unknown>;
     const syntaxMapping = applyVsCodeTokenColors(theme, value.tokenColors);
@@ -458,11 +459,20 @@ function parseVsCode(value: Record<string, unknown>, name: string): ThemeTokens 
     for (const [target, source] of ansiMap)
         theme.terminal[target] = firstHex(colors, [source], theme.terminal[target]);
     if (syntaxMapping.missing.length > 0)
-        theme.warnings.push(formatMissingSyntaxWarning(syntaxMapping.missing));
+        theme.warnings.push({
+            id: 'missing-syntax-colors',
+            message: formatMissingSyntaxWarning(syntaxMapping.missing),
+        });
     if (syntaxMapping.hasOtherSyntaxRules)
-        theme.warnings.push('Other syntax token colors were not imported.');
+        theme.warnings.push({
+            id: 'other-syntax-colors',
+            message: 'Other syntax token colors were not imported.',
+        });
     if (value.semanticTokenColors !== undefined)
-        theme.warnings.push('Semantic token colors were not imported.');
+        theme.warnings.push({
+            id: 'semantic-token-colors',
+            message: 'Semantic token colors were not imported.',
+        });
     return theme;
 }
 
@@ -490,7 +500,7 @@ function plistColor(value: unknown, fallback: string): string {
         .join('')}`;
 }
 
-function parseIterm(source: string, name: string): ThemeTokens {
+function parseIterm(source: string, name: string): ParsedThemeImport {
     const value = parsePlist(source) as Record<string, unknown>;
     const theme = cloneFallback('iterm2', name);
     theme.terminal.background = plistColor(value['Background Color'], theme.terminal.background);
@@ -521,13 +531,14 @@ function parseIterm(source: string, name: string): ThemeTokens {
     targets.forEach((target, index) => {
         theme.terminal[target] = plistColor(value[`Ansi ${index} Color`], theme.terminal[target]);
     });
-    theme.warnings.push(
-        'iTerm2 is terminal-only; app and editor colors inherit from the active theme.',
-    );
+    theme.warnings.push({
+        id: 'iterm-terminal-only',
+        message: 'iTerm2 is terminal-only; app and editor colors inherit from the active theme.',
+    });
     return theme;
 }
 
-function parseWarp(source: string, name: string): ThemeTokens {
+function parseWarp(source: string, name: string): ParsedThemeImport {
     const value = YAML.parse(source) as Record<string, unknown>;
     const theme = cloneFallback('warp', typeof value.name === 'string' ? value.name : name);
     theme.colors.accent = normalizedHex(value.accent, theme.colors.accent);
@@ -552,7 +563,10 @@ function parseWarp(source: string, name: string): ThemeTokens {
             `bright${key[0].toUpperCase()}${key.slice(1)}` as keyof ThemeTokens['terminal'];
         theme.terminal[brightKey] = normalizedHex(bright[key], theme.terminal[brightKey]);
     }
-    theme.warnings.push('Warp gradients and background images were ignored.');
+    theme.warnings.push({
+        id: 'warp-visual-effects',
+        message: 'Warp gradients and background images were ignored.',
+    });
     return theme;
 }
 
@@ -569,10 +583,18 @@ function assertImportedThemeContrast(theme: ThemeTokens): void {
     const muted = opaqueColor(theme.colors.muted);
     for (const surface of APP_COLOR_SURFACES) {
         const backdrop = opaqueColor(theme.colors[surface]);
-        if (muted && backdrop && contrastRatio(muted, backdrop) >= MIN_MUTED_CONTRAST) continue;
+        const actualRatio = muted && backdrop ? contrastRatio(muted, backdrop) : null;
+        if (actualRatio !== null && actualRatio >= MIN_MUTED_CONTRAST) continue;
         throw new CaxriError(
             'VALIDATION',
             `Secondary text in the imported theme must have at least ${MIN_MUTED_CONTRAST}:1 contrast against the ${APP_COLOR_SURFACE_LABELS[surface]}. Choose a lighter or darker secondary text color and try again.`,
+            {
+                kind: 'theme-contrast',
+                foregroundRole: 'muted',
+                backgroundRole: surface,
+                actualRatio,
+                requiredRatio: MIN_MUTED_CONTRAST,
+            },
         );
     }
 }
@@ -582,7 +604,7 @@ function assertImportedThemeContrast(theme: ThemeTokens): void {
  * plain JSON. Try parsing as a Caxri theme first, and only fall back to the VS Code token mapping when that validation
  * fails.
  */
-function parseVsCodeOrCustom(source: string, name: string): ThemeTokens {
+function parseVsCodeOrCustom(source: string, name: string): ParsedThemeImport {
     const value = parseJsonc(source);
     // Upgrade first: a Caxri theme exported before a color role existed must still be recognized as one here, or it
     // would fall through to the VS Code mapping and import as a mangled theme rather than the one the user exported.
@@ -593,7 +615,7 @@ function parseVsCodeOrCustom(source: string, name: string): ThemeTokens {
         return theme;
     }
     assertImportedThemeContrast(parsed.data);
-    return { ...parsed.data, source: 'custom' };
+    return { ...parsed.data, source: 'custom', warnings: [] };
 }
 
 /**
@@ -601,7 +623,7 @@ function parseVsCodeOrCustom(source: string, name: string): ThemeTokens {
  */
 const parsersByFormatId: Record<
     ThemeImportFormat['id'],
-    (source: string, name: string) => ThemeTokens
+    (source: string, name: string) => ParsedThemeImport
 > = {
     iterm2: parseIterm,
     warp: parseWarp,
@@ -699,7 +721,7 @@ export async function importTheme(
     path: string,
     current: ThemeTokens,
     testSeam?: ThemeImportTestSeam,
-): Promise<ThemeTokens> {
+): Promise<ParsedThemeImport> {
     const extension = extname(path).toLowerCase();
     if (extension === '.vsix') throw new CaxriError('VALIDATION', VSIX_THEME_MESSAGE);
     const source = await readBoundedRegularFileText(path, MAX_THEME_IMPORT_FILE_BYTES, {
@@ -720,9 +742,9 @@ export async function importTheme(
         theme.colors = structuredClone(current.colors);
         theme.editor = structuredClone(current.editor);
     }
-    return themeSchema.parse(theme);
+    return { ...themeSchema.parse(theme), warnings: theme.warnings };
 }
 
 export function serializeTheme(theme: ThemeTokens): string {
-    return `${JSON.stringify({ ...theme, warnings: [] }, null, 2)}\n`;
+    return `${JSON.stringify(themeSchema.parse(theme), null, 2)}\n`;
 }

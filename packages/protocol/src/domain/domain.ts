@@ -487,7 +487,14 @@ export const themeTokensSchema = z.object({
         string: hex,
         number: hex,
     }),
-    warnings: z.array(z.string()),
+});
+
+/**
+ * Import diagnostics are transient and never part of a saved theme.
+ */
+export const themeImportWarningSchema = z.object({
+    id: z.string().min(1),
+    message: z.string().min(1),
 });
 
 export const fileEntrySchema = z.object({
@@ -763,6 +770,7 @@ export type PersistedWindowState = z.infer<typeof persistedWindowStateSchema>;
 export type Keybinding = z.infer<typeof keybindingSchema>;
 export type KeybindingConflict = z.infer<typeof keybindingConflictSchema>;
 export type ThemeTokens = z.infer<typeof themeTokensSchema>;
+export type ThemeImportWarning = z.infer<typeof themeImportWarningSchema>;
 export type FileEntry = z.infer<typeof fileEntrySchema>;
 export type MutableFileEntry = z.infer<typeof mutableFileEntrySchema>;
 export type MovedFileEntry = z.infer<typeof movedFileEntrySchema>;

@@ -22,7 +22,7 @@ export function applyBuiltinTheme(source: string, theme: ThemeTokens): ThemeEdit
         for (const [key, value] of entries)
             nextSource = applyFormEdit(nextSource, [section, key], value);
     }
-    nextSource = applyFormEdit(nextSource, ['warnings'], theme.warnings);
+    nextSource = applyFormEdit(nextSource, ['warnings'], undefined);
     return { value: structuredClone(theme), source: nextSource };
 }
 

@@ -199,7 +199,6 @@ describe('themeTokensSchema hex color validation', () => {
             string: '#000000',
             number: '#000000',
         },
-        warnings: [],
     };
 
     it('accepts a 6-digit and an 8-digit hex color with alpha', () => {

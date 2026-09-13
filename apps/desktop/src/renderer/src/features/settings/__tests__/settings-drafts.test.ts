@@ -99,6 +99,18 @@ describe('parseConfigSource', () => {
         expect(result.ok).toBe(false);
         if (result.ok) throw new Error('Expected invalid JSONC');
         expect(result.error).toMatch(/settings\.jsonc: .*line 2, column 24/);
+        expect(result.error).not.toContain('ValueExpected');
+        expect(result.line).toBe(2);
+    });
+
+    it('explains a missing closing brace without exposing the parser enum', () => {
+        const result = parseConfigSource('settings', '{\n  "terminal.fontSize": 17');
+
+        expect(result.ok).toBe(false);
+        if (result.ok) throw new Error('Expected invalid JSONC');
+        expect(result.error).toContain('A closing brace } is missing');
+        expect(result.error).not.toContain('CloseBraceExpected');
+        expect(result.line).toBe(2);
     });
 
     it('validates keybinding source before the structured editor consumes it', () => {
@@ -213,64 +225,59 @@ describe('configReducer theme import warnings', () => {
     const imported = {
         ...draculaTheme,
         id: 'imported-theme',
-        warnings: ['Unsupported syntax scope'],
     };
-    const persisted = { ...imported, warnings: [] };
+    const warnings = [{ id: 'unsupported-syntax', message: 'Unsupported syntax scope' }];
 
     function importedState(): ConfigState {
         return configReducer(loadedState(), {
             type: 'theme/imported',
             value: imported,
             source: 'imported source',
+            warnings,
         });
     }
 
     it.each([
-        { type: 'theme/applied', value: persisted, source: 'applied source' },
-        { type: 'theme/sourceParsed', value: persisted },
-        { type: 'theme/reconciled', value: persisted, source: 'reconciled source' },
-        { type: 'theme/externalChanged', value: persisted, source: 'external source' },
+        { type: 'theme/applied', value: imported, source: 'applied source' },
+        { type: 'theme/sourceParsed', value: imported },
+        { type: 'theme/reconciled', value: imported, source: 'reconciled source' },
+        { type: 'theme/externalChanged', value: imported, source: 'external source' },
     ] as const)('keeps session warnings after $type replaces the serialized theme', (action) => {
         const state = configReducer(importedState(), action);
-        expect(state.theme.value?.warnings).toEqual(imported.warnings);
+        expect(state.theme.warnings).toEqual(warnings);
     });
 
     it('does not attach warnings to a different theme or a new import', () => {
         const state = importedState();
         const different = configReducer(state, {
             type: 'theme/applied',
-            value: { ...persisted, id: 'different-theme' },
+            value: { ...imported, id: 'different-theme' },
             source: 'different source',
         });
-        expect(different.theme.value?.warnings).toEqual([]);
+        expect(different.theme.warnings).toEqual([]);
 
         const reimported = configReducer(state, {
             type: 'theme/imported',
-            value: persisted,
+            value: imported,
             source: 'reimported source',
+            warnings: [],
         });
-        expect(reimported.theme.value?.warnings).toEqual([]);
+        expect(reimported.theme.warnings).toEqual([]);
     });
 
-    it('keeps new diagnostics from the next value and preserves a pending draft during reconciliation', () => {
+    it('keeps a pending draft during reconciliation', () => {
         const current = importedState();
-        const withNewWarnings = configReducer(current, {
-            type: 'theme/applied',
-            value: { ...persisted, warnings: ['New diagnostic'] },
-            source: 'new source',
-        });
-        expect(withNewWarnings.theme.value?.warnings).toEqual(['New diagnostic']);
-
         const pending = configReducer(current, {
             type: 'theme/sourceChanged',
             source: 'pending source',
         });
         const reconciled = configReducer(pending, {
             type: 'theme/reconciled',
-            value: persisted,
+            value: imported,
             source: 'reconciled source',
         });
         expect(reconciled.theme.value).toBe(imported);
+        expect(reconciled.theme.warnings).toEqual(warnings);
     });
 
     it('keeps the current warnings when an invalid external edit has no value', () => {
@@ -279,22 +286,23 @@ describe('configReducer theme import warnings', () => {
             source: 'invalid source',
         });
         expect(state.theme.value).toBe(imported);
+        expect(state.theme.warnings).toEqual(warnings);
     });
 
     it('does not attach warnings to a manual edit or a fresh load', () => {
         const changed = configReducer(importedState(), {
             type: 'theme/changed',
-            value: persisted,
+            value: imported,
             source: 'edited source',
         });
-        expect(changed.theme.value?.warnings).toEqual([]);
+        expect(changed.theme.warnings).toEqual([]);
 
         const loaded = configReducer(importedState(), {
             type: 'loaded',
             settings: { value: {} as AppSettings, source: 'settings' },
             keybindings: { value: [], source: 'keybindings', conflicts: [] },
-            theme: { value: persisted, source: 'theme' },
+            theme: { value: imported, source: 'theme' },
         });
-        expect(loaded.theme.value?.warnings).toEqual([]);
+        expect(loaded.theme.warnings).toEqual([]);
     });
 });

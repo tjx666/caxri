@@ -79,7 +79,6 @@ function themeFixture(): ThemeTokens {
             string: '#333300',
             number: '#444400',
         },
-        warnings: [],
     };
 }
 
