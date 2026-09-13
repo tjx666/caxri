@@ -218,7 +218,7 @@ test('Git changed files dragged to Terminal insert shell-safe paths without exec
             expectedCwdPath: string,
             resultPath: string,
         ): Promise<void> => {
-            const source = gitPanel.getByRole('button', { name: fileName, exact: true });
+            const source = gitPanel.getByRole('treeitem', { name: fileName, exact: true });
             await expect(source).toBeVisible();
             await terminalInput.click();
             await running.page.keyboard.type("printf '%s' ");

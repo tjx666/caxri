@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useMemo, useState } from 'react';
 
 import type { SourceControlAction } from '@caxri/protocol';
 
@@ -23,11 +23,8 @@ export function SourceControlTreeFocusProvider({
     children,
     focusRow,
 }: TreeFocusContextValue & { children: ReactNode }) {
-    return (
-        <TreeFocusContext.Provider value={{ activeRowId, focusRow }}>
-            {children}
-        </TreeFocusContext.Provider>
-    );
+    const value = useMemo(() => ({ activeRowId, focusRow }), [activeRowId, focusRow]);
+    return <TreeFocusContext.Provider value={value}>{children}</TreeFocusContext.Provider>;
 }
 
 export function SourceControlTreeRow({
