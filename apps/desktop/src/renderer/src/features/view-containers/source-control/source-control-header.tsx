@@ -5,11 +5,33 @@ import { cn } from '../../../lib/utilities';
 import type { SourceControlController } from './hooks/use-source-control-controller';
 import { SourceControlIcon } from './source-control-icon';
 
-export function SourceControlHeader({
-    controller,
-}: {
-    controller: Extract<SourceControlController, { status: 'ready' }>;
-}) {
+export function SourceControlHeader({ controller }: { controller: SourceControlController }) {
+    if (controller.status !== 'ready')
+        return (
+            <PanelHeader
+                className="git-heading"
+                title="Source Control"
+                actions={
+                    <Tooltip content="Refresh Git">
+                        <Button
+                            size="icon"
+                            variant="ghost"
+                            aria-label="Refresh Git"
+                            aria-busy={controller.isRefreshing || undefined}
+                            disabled={
+                                controller.status === 'no-session' ||
+                                controller.status === 'loading' ||
+                                controller.isRefreshing
+                            }
+                            onClick={controller.refresh}
+                        >
+                            <SourceControlIcon icon={{ kind: 'theme', id: 'refresh' }} />
+                        </Button>
+                    </Tooltip>
+                }
+            />
+        );
+
     const { model, runAction, selectMode } = controller;
     const refreshLabel = controller.isRefreshing
         ? 'Refreshing Source Control'

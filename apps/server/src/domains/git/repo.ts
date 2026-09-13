@@ -15,9 +15,9 @@ import { isOutsideRoot } from '../path-security';
 import type { ProjectRootResolver } from '../project-roots';
 import { SingleFlight } from '../single-flight';
 import type { GitChangeTracker } from './change-tracker';
-import { toGitError } from './errors';
+import { describeGitSummaryFailure } from './errors';
 import type { GitMetadataWatcher } from './metadata-watcher';
-import { MissingRepoRootCache } from './missing-root-cache';
+import { isMissingRepoRoot, MissingRepoRootCache } from './missing-root-cache';
 import { registerGitProjection } from './projection';
 import { sharedGitRequest } from './request-signal';
 import type { RepoStatus } from './status';
@@ -560,7 +560,7 @@ export class GitRepoService {
              * A missing or unapproved repository is reported in the summary, never as a rejection. The cache stores
              * this exact message so a replayed failure is byte-identical to the one it stands in for.
              */
-            const failure = toGitError(error).message;
+            const failure = describeGitSummaryFailure(error, await isMissingRepoRoot(projectRoot));
             await this.missingRepositoryRoots.remember(projectRoot, failure);
             return { isRepository: false, repositories: [], error: failure };
         }

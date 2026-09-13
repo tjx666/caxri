@@ -363,15 +363,9 @@ function emptyMessageForMode(
 }
 
 function summaryErrorMessage(error: string | undefined): string {
-    const known: Readonly<Record<string, string>> = {
-        [ProjectStatusSummaryErrorMessage.missingGitRepository]:
-            'This folder is not a Git repository.',
-        'Git is not installed or is unavailable on PATH.':
-            'Git is not installed or is unavailable on PATH.',
-        'The Git operation timed out.': 'The Git operation timed out.',
-        'Git output exceeded the safety limit.': 'Git output exceeded the safety limit.',
-    };
-    return known[error ?? ''] ?? 'This folder is not a Git repository.';
+    if (error === ProjectStatusSummaryErrorMessage.missingGitRepository)
+        return 'This folder is not a Git repository.';
+    return `Source Control is unavailable right now.${error ? ` ${error}` : ''}`;
 }
 
 export function buildSourceControlViewModel({
@@ -393,6 +387,11 @@ export function buildSourceControlViewModel({
         : summary.repositories.length === 0
           ? 'No approved Git repositories found.'
           : undefined;
+    const emptyKind = emptyMessage
+        ? summary.error === ProjectStatusSummaryErrorMessage.missingGitRepository
+            ? 'no-repository'
+            : 'unavailable'
+        : undefined;
     const fileHistory = summary.isRepository
         ? fileHistoryModel(activeResource, fileHistoryRepositories, revision)
         : undefined;
@@ -622,6 +621,6 @@ export function buildSourceControlViewModel({
                 }),
             };
         }),
-        ...(emptyMessage && { emptyMessage }),
+        ...(emptyMessage && { emptyMessage, emptyKind }),
     };
 }

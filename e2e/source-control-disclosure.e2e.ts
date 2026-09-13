@@ -1,6 +1,7 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 
 import { execFileAsync } from '@caxri/system';
 
@@ -72,6 +73,71 @@ test('Git disclosure state survives Secondary Side Bar tab switches', async () =
         } catch {
             // Ignore close errors during test cleanup.
         }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('Source Control keeps its caption and recovery action without a repository', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-source-control-empty-e2e-'));
+    const root = join(testDirectory, 'project');
+    await mkdir(root);
+    const running = await launchCaxri({
+        userDataDir: join(testDirectory, 'user-data'),
+        testRootPath: root,
+    });
+    try {
+        await running.page.getByRole('tab', { name: 'Git', exact: true }).click();
+        const panel = running.page.locator('.git-panel');
+        await expect(panel.getByText('Source Control', { exact: true })).toBeVisible();
+        await expect(panel.getByText('No Session selected')).toBeVisible();
+        await expect(panel.getByRole('button', { name: 'Refresh Git' })).toBeDisabled();
+
+        await createShellSession(running.page);
+        await running.page.getByRole('tab', { name: 'Git', exact: true }).click();
+        await expect(panel.getByText('Source Control', { exact: true })).toBeVisible();
+        await expect(panel.getByText('No Git repository')).toBeVisible();
+        await expect(panel.getByText('This Project root is not a repository yet.')).toBeVisible();
+        await panel.getByRole('button', { name: 'Refresh', exact: true }).click();
+        await expect(panel.getByText('No Git repository')).toBeVisible();
+        await expect(panel.getByRole('button', { name: 'Refresh Git' })).toBeEnabled();
+    } finally {
+        await running.app.close();
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('Source Control reports a Git failure without calling the Project a non-repository', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-source-control-failure-e2e-'));
+    const root = join(testDirectory, 'project');
+    const bin = join(testDirectory, 'bin');
+    await mkdir(root);
+    await mkdir(bin);
+    await execFileAsync('git', ['init', '-b', 'main'], { cwd: root });
+    const git = join(bin, 'git');
+    await writeFile(
+        git,
+        '#!/bin/sh\n# 用于测试模拟 Git 命令失败，不修改仓库状态。\nprintf "simulated Git failure\\n" >&2\nexit 1\n',
+    );
+    await chmod(git, 0o755);
+    const running = await launchCaxri({
+        userDataDir: join(testDirectory, 'user-data'),
+        testRootPath: root,
+        env: { PATH: `${bin}:${process.env.PATH}` },
+    });
+    try {
+        await createShellSession(running.page);
+        await running.page.getByRole('tab', { name: 'Git', exact: true }).click();
+        const panel = running.page.locator('.git-panel');
+        await expect(panel.getByText('Source Control', { exact: true })).toBeVisible();
+        await expect(panel.getByText('Git is not available')).toBeVisible();
+        await expect(
+            panel.getByText('Source Control is unavailable right now.', { exact: false }),
+        ).toBeVisible();
+        await expect(panel.getByText('No Git repository')).toHaveCount(0);
+        await panel.getByRole('button', { name: 'Refresh', exact: true }).click();
+        await expect(panel.getByText('Git is not available')).toBeVisible();
+    } finally {
+        await running.app.close();
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
