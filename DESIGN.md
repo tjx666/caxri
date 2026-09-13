@@ -84,6 +84,16 @@ Derive `--accent-foreground`, `--danger-foreground`, `--badge-foreground`, `--ov
 `--shadow` in one place from theme colors. The status bar uses `--surface` plus a top hairline —
 never an accent fill.
 
+Tabs, list rows, and the title bar have no roles of their own yet, so they borrow `--surface`,
+`--elevated`, and `--background`, and a VS Code theme's `tab.*`, `list.*`, `titleBar.*`, and
+`widget.shadow` are dropped on import. Adding eighteen roles for them, plus a theme value for the
+existing `--shadow`, is decided but not implemented — including which VS Code key each one reads and
+the rule that an explicitly given color is never rewritten just because it matches another role.
+Read the decision on [issue caxri#852](https://github.com/tjx666/caxri/issues/852#issuecomment-5656606135)
+before styling one of these surfaces, and do not widen `--elevated` or `--surface` to cover a state
+they already refuse: [issue caxri#903](https://github.com/tjx666/caxri/issues/903) owns the
+migration.
+
 `--badge` and the five `--git-*` roles exist so the theme, not the component, decides these colors.
 Both mirror a VS Code key a theme author already writes — `activityBarBadge.background` and the Git
 extension's `gitDecoration.*ResourceForeground` — so a built-in preset carries the exact value VS
