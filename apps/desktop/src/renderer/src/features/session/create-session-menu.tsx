@@ -1,3 +1,4 @@
+import type { ReactElement } from 'react';
 import { useEffect } from 'react';
 
 import type { ProjectRecord } from '@caxri/protocol';
@@ -9,67 +10,60 @@ import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '../../c
 import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { cn } from '../../lib/utilities';
+import type { CreateSessionAnchor } from '../../stores/dialogs';
 import { closeCreateSessionMenu, useDialogStore } from '../../stores/dialogs';
 import { beginSessionCreation, chooseSessionTerminalKind } from './session-actions';
 import { useTerminalKindRecencyStore } from './terminal-kind-recency';
 
 /**
- * The Project row's New Session control: the button plus the Terminal-choice menu it anchors.
+ * The Terminal-choice menu for a new Session, hung from whichever control opened it.
  *
  * The menu replaces a centered modal so the choice lands where the pointer already is. Its open state lives in the
  * dialog store rather than locally so the `session.create` command reaches this same menu — a keyboard path that opened
- * a different picker would be the "two ways to do one thing" this repository forbids.
+ * a different picker would be the "two ways to do one thing" this repository forbids. That store entry names the
+ * trigger as well as the Project, because one Project can render more than one of these at a time.
  */
-export function CreateSessionMenu({ project }: { project: ProjectRecord }) {
-    const open = useDialogStore((state) => state.createSessionMenuProjectId === project.id);
+function SessionCreationMenu({
+    anchor,
+    project,
+    trigger,
+}: {
+    anchor: CreateSessionAnchor;
+    project: ProjectRecord;
+    trigger: ReactElement;
+}) {
+    const open = useDialogStore(
+        (state) =>
+            state.createSessionMenu?.projectId === project.id &&
+            state.createSessionMenu.anchor === anchor,
+    );
     const order = useTerminalKindRecencyStore((state) => state.order);
     /**
      * A Project can leave the bootstrap while its menu is open — removed from another window, or dropped by a Server
-     * state change. React then unmounts the only component that renders this id, so Base UI never reports a close and
-     * the store would keep a claim that silently re-opens the menu, stealing focus, the next time that row mounts.
+     * state change. React then unmounts the only component that renders this claim, so Base UI never reports a close
+     * and the store would keep a claim that silently re-opens the menu, stealing focus, the next time that row mounts.
      */
     useEffect(
         () => () => {
-            if (useDialogStore.getState().createSessionMenuProjectId === project.id)
+            const claim = useDialogStore.getState().createSessionMenu;
+            if (claim?.projectId === project.id && claim.anchor === anchor)
                 closeCreateSessionMenu();
         },
-        [project.id],
+        [anchor, project.id],
     );
     return (
         <Menu
             open={open}
             /**
              * The trigger only _requests_ an open; `beginSessionCreation` decides. With a configured
-             * `session.defaultAgent` it creates the Session outright and never sets the store's menu Project, so the
+             * `session.defaultAgent` it creates the Session outright and never sets the store's menu claim, so the
              * fully controlled `open` stays false and the button keeps its one-click behavior.
              */
             onOpenChange={(nextOpen) =>
-                nextOpen ? beginSessionCreation(project.id) : closeCreateSessionMenu()
+                nextOpen ? beginSessionCreation(project.id, anchor) : closeCreateSessionMenu()
             }
         >
-            <CommandTooltip commandId="session.create">
-                <MenuTrigger
-                    render={
-                        <Button
-                            /**
-                             * Base UI moves focus into the portalled popup, so the row loses `:focus-within` while the
-                             * menu is open. Without the open-state override the trigger would fade out from under its
-                             * own menu the moment it was used.
-                             */
-                            className={cn(
-                                'pointer-events-none opacity-0 transition-opacity group-focus-within/project-heading:pointer-events-auto group-focus-within/project-heading:opacity-100 group-hover/project-heading:pointer-events-auto group-hover/project-heading:opacity-100',
-                                open && 'pointer-events-auto opacity-100',
-                            )}
-                            size="icon"
-                            variant="ghost"
-                            aria-label={`New Session in ${project.displayTitle}`}
-                            tabIndex={-1}
-                        />
-                    }
-                >
-                    <SquarePen size={13} />
-                </MenuTrigger>
-            </CommandTooltip>
+            <MenuTrigger render={trigger} />
             <MenuContent aria-label={`New Session in ${project.displayTitle}`}>
                 {order.map((kind) => (
                     <MenuItem
@@ -94,5 +88,66 @@ export function CreateSessionMenu({ project }: { project: ProjectRecord }) {
                 </MenuItem>
             </MenuContent>
         </Menu>
+    );
+}
+
+/**
+ * The Project heading's New Session control: the pencil button plus the menu it anchors.
+ */
+export function CreateSessionMenu({ project }: { project: ProjectRecord }) {
+    const open = useDialogStore(
+        (state) =>
+            state.createSessionMenu?.projectId === project.id &&
+            state.createSessionMenu.anchor === 'heading',
+    );
+    return (
+        <CommandTooltip commandId="session.create">
+            <SessionCreationMenu
+                anchor="heading"
+                project={project}
+                trigger={
+                    <Button
+                        /**
+                         * Base UI moves focus into the portalled popup, so the row loses `:focus-within` while the menu
+                         * is open. Without the open-state override the trigger would fade out from under its own menu
+                         * the moment it was used.
+                         */
+                        className={cn(
+                            'pointer-events-none opacity-0 transition-opacity group-focus-within/project-heading:pointer-events-auto group-focus-within/project-heading:opacity-100 group-hover/project-heading:pointer-events-auto group-hover/project-heading:opacity-100',
+                            open && 'pointer-events-auto opacity-100',
+                        )}
+                        size="icon"
+                        variant="ghost"
+                        aria-label={`New Session in ${project.displayTitle}`}
+                        tabIndex={-1}
+                    >
+                        <SquarePen size={13} />
+                    </Button>
+                }
+            />
+        </CommandTooltip>
+    );
+}
+
+/**
+ * The row a Project with no Sessions shows in its place, and the menu it anchors.
+ *
+ * It renders its own menu rather than reusing the heading's so the choice opens under the button the user clicked;
+ * before that, this button borrowed the heading's menu and the popup appeared several rows above the pointer.
+ */
+export function EmptyProjectSessionMenu({ project }: { project: ProjectRecord }) {
+    return (
+        <SessionCreationMenu
+            anchor="emptyProject"
+            project={project}
+            trigger={
+                <button
+                    className="empty-project flex h-7 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-muted hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] hover:text-foreground"
+                    tabIndex={-1}
+                >
+                    <SquarePen size={13} /> New Session
+                </button>
+            }
+        />
     );
 }

@@ -174,12 +174,20 @@ describe('Session actions', () => {
         expect(mocks.openCreateSessionMenu).not.toHaveBeenCalled();
     });
 
-    it('marks the Project whose anchored menu should open when no default Agent is configured', () => {
+    /**
+     * The claim names the trigger as well as the Project: a Project with no Sessions renders a second New Session
+     * button below its heading, and marking only the Project would let both rows open a popup over one choice.
+     */
+    it.each([
+        { basis: 'the Project heading by default', expected: 'heading' },
+        { basis: 'the caller-named trigger', anchor: 'emptyProject', expected: 'emptyProject' },
+    ])('anchors the menu to $basis when no default Agent is configured', ({ anchor, expected }) => {
         mocks.getBootstrap.mockReturnValue({ settings: { 'session.defaultAgent': null } });
 
-        beginSessionCreation('project-1');
+        if (anchor) beginSessionCreation('project-1', anchor);
+        else beginSessionCreation('project-1');
 
-        expect(mocks.openCreateSessionMenu).toHaveBeenCalledWith('project-1');
+        expect(mocks.openCreateSessionMenu).toHaveBeenCalledWith('project-1', expected);
         expect(mocks.caxriRequest).not.toHaveBeenCalled();
         expect(mocks.setPrimarySidebarVisible).not.toHaveBeenCalled();
     });
@@ -196,7 +204,7 @@ describe('Session actions', () => {
         beginSessionCreation('project-1');
 
         expect(mocks.setPrimarySidebarVisible).toHaveBeenCalledWith(true);
-        expect(mocks.openCreateSessionMenu).toHaveBeenCalledWith('project-1');
+        expect(mocks.openCreateSessionMenu).toHaveBeenCalledWith('project-1', 'heading');
     });
 
     it('leaves the Primary Side Bar alone when the default Agent short-circuits the choice', async () => {

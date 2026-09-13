@@ -11,6 +11,13 @@ export type SettingsView =
     | 'notifications'
     | 'git-exclusions';
 
+/**
+ * Which control the open Session-creation menu belongs under. The Project heading's New Session button and the
+ * empty-Project row's own New Session button are separate anchors for the same menu, and several rows of one Project
+ * can render a trigger at once.
+ */
+export type CreateSessionAnchor = 'heading' | 'emptyProject';
+
 interface DialogState {
     archivedSessionsOpen: boolean;
     settingsOpen: boolean;
@@ -31,12 +38,13 @@ interface DialogState {
      */
     pendingProjectId?: string;
     /**
-     * Project whose Session-creation menu is open. The menu is anchored to that Project row's New Session button, so
-     * the id — not a boolean — is what identifies the one row allowed to render it. Kept in the store rather than in
-     * the row so the `session.create` command can open the same menu the pointer does, instead of falling back to a
-     * second, centered picker.
+     * The open Session-creation menu, named by its Project _and_ the trigger it hangs from rather than by a boolean.
+     * Both halves are load-bearing: the menu must appear under the control the user actually clicked, and a Project
+     * with no Sessions renders a second New Session button below its heading, so a Project id alone would let both rows
+     * claim the same menu and stack two popups over one choice. Kept in the store rather than in the row so the
+     * `session.create` command opens the same menu the pointer does, instead of a second, centered picker.
      */
-    createSessionMenuProjectId?: string;
+    createSessionMenu?: { anchor: CreateSessionAnchor; projectId: string };
     /**
      * IDs of currently mounted-and-open modals, registered by `useModalRegistration` (see `components/ui/dialog.tsx`)
      * from every consumer of the shared `Dialog` primitive. `isModalOpen` used to be a hand-maintained OR of one
@@ -61,7 +69,7 @@ interface DialogState {
     askAgentForRoot(rootPath: string): void;
     askAgentForProject(projectId: string): void;
     clearPending(): void;
-    openCreateSessionMenu(projectId: string): void;
+    openCreateSessionMenu(projectId: string, anchor: CreateSessionAnchor): void;
     closeCreateSessionMenu(): void;
     /**
      * Registers an open modal's id; called by `useModalRegistration` on open/mount.
@@ -90,7 +98,7 @@ export const useDialogStore = create<DialogState>((set, get) => ({
     projectIconProjectId: undefined,
     pendingRoot: undefined,
     pendingProjectId: undefined,
-    createSessionMenuProjectId: undefined,
+    createSessionMenu: undefined,
     openModalIds: new Set(),
     setArchivedSessionsOpen: (archivedSessionsOpen) => set({ archivedSessionsOpen }),
     openSettings: (view = 'ui', provider) =>
@@ -115,8 +123,8 @@ export const useDialogStore = create<DialogState>((set, get) => ({
     askAgentForRoot: (rootPath) => set({ pendingRoot: rootPath, pendingProjectId: undefined }),
     askAgentForProject: (projectId) => set({ pendingProjectId: projectId, pendingRoot: undefined }),
     clearPending: () => set({ pendingRoot: undefined, pendingProjectId: undefined }),
-    openCreateSessionMenu: (createSessionMenuProjectId) => set({ createSessionMenuProjectId }),
-    closeCreateSessionMenu: () => set({ createSessionMenuProjectId: undefined }),
+    openCreateSessionMenu: (projectId, anchor) => set({ createSessionMenu: { anchor, projectId } }),
+    closeCreateSessionMenu: () => set({ createSessionMenu: undefined }),
     registerModal: (id) =>
         set((state) => {
             if (state.openModalIds.has(id)) return state;
