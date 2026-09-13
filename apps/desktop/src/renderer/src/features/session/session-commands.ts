@@ -301,6 +301,14 @@ export function resumeSelectedSession(): void {
 }
 
 /**
+ * Acknowledges one attention generation. Rejection is the caller's to handle: the same generation stays unread on the
+ * Server, so the next focus or visibility event can retry it without the Renderer tracking anything of its own.
+ */
+export async function markSessionRead(sessionId: string, attentionEpoch: number): Promise<void> {
+    await caxri.request('session.markRead', { sessionId, attentionEpoch });
+}
+
+/**
  * The Server sweep owns delivery-CLI pacing per Session; the PrimarySidebar poll only asks for the latest projection at
  * this cadence, and the `sessionPullRequests.changed` event refetches early when a sweep changes something. The palette
  * uses the same number as its `staleTime`, so a hidden sidebar still leaves the palette self-refreshing at that rate.

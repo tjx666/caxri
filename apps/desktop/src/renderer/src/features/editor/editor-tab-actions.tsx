@@ -11,7 +11,7 @@ import { Tooltip } from '../../components/ui/tooltip';
 import { resolveRepositoryFilePath as resolveRepoFilePath } from '../../lib/repository-file-path';
 import { useCaxriQuery } from '../../queries/client';
 import { useSelectedSession } from '../../stores/selectors';
-import { openEditorTab, openFileForSession } from './document-actions';
+import { openEditorTab, openFileForSession } from './document-commands';
 import { didNavigateDiffEditor, useDiffEditorActionState } from './git-diff-actions';
 import { GitDiffViewOptions } from './git-diff-view-options';
 

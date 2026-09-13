@@ -6,7 +6,7 @@ vi.mock('../../../stores/toasts', () => ({
     tryCommand: (_title: string, action: () => unknown) => action(),
 }));
 
-import { openProjectRoot } from '../project-path-actions';
+import { openProjectRoot } from '../project-path-commands';
 
 describe('Project root actions', () => {
     it.each(['finder', 'editor'] as const)(

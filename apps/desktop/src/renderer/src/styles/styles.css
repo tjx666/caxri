@@ -278,7 +278,7 @@
 .terminal-command-decoration {
     /*
      * Pointer events are enabled only so the element's native `title` attribute can show the command's exit status
-     * on hover (see `TerminalCommandTracker.decorate` in terminal-commands.ts); it carries no click handler.
+     * on hover (see `TerminalCommandTracker.decorate` in terminal-command-tracker.ts); it carries no click handler.
      */
     pointer-events: auto;
 }

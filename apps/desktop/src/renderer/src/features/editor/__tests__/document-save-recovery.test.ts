@@ -15,7 +15,7 @@ vi.mock('../editor-reveal', () => ({
 import { useSessionViewStore } from '../../../stores/session-view';
 import { dismissToast, getToasts } from '../../../stores/toasts';
 import { useWorkbenchStore } from '../../../stores/workbench';
-import { closeDocumentTabs, remapOpenEditors, saveActiveEditor } from '../document-actions';
+import { closeDocumentTabs, remapOpenEditors, saveActiveEditor } from '../document-commands';
 
 function installDirtyDocument(path: string): void {
     const sessionState: SessionState = {

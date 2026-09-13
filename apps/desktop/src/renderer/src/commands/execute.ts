@@ -3,7 +3,7 @@ import './definitions';
 import type { CommandId } from '@caxri/protocol';
 import { errorMessage, listPaneTerminalIds, paneSplitBlockedReason } from '@caxri/protocol';
 
-import { closeDocumentTabs, saveActiveEditor } from '../features/editor/document-actions';
+import { closeDocumentTabs, saveActiveEditor } from '../features/editor/document-commands';
 import {
     canSendActiveFileReference,
     sendActiveFileReferenceToTerminal,
@@ -24,8 +24,9 @@ import {
     resumeSelectedSession,
     selectAdjacentSession,
     switchMruSession,
-} from '../features/session/session-actions';
+} from '../features/session/session-commands';
 import { cycleActiveTab } from '../features/tabs/tab-navigation';
+import { isAgentProcessRunning } from '../features/terminal/terminal-agent-runtime';
 import {
     clearActiveTerminal,
     closeTerminal,
@@ -37,10 +38,9 @@ import {
     restartActiveTerminal,
     sendTerminalSequence,
     startNewAgentSession,
-} from '../features/terminal/terminal-actions';
-import { isAgentProcessRunning } from '../features/terminal/terminal-agent-runtime';
+} from '../features/terminal/terminal-commands';
 import { openTerminalLinkPicker } from '../features/terminal/terminal-link-actions';
-import { checkForUpdates } from '../features/updates/update-actions';
+import { checkForUpdates } from '../features/updates/update-commands';
 import {
     executeEditableViewCatalogShortcut,
     executeViewCatalogShortcut,

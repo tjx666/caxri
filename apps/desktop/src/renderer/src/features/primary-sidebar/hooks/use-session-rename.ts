@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { SessionRecord } from '@caxri/protocol';
 
-import { didRenameSession } from '../../session/session-actions';
+import { didRenameSession } from '../../session/session-commands';
 
 export interface SessionRenameController {
     beginRename: (sessionId: string, displayTitle: string) => void;

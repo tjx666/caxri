@@ -20,7 +20,7 @@ import {
 import { useToastOnQueryError } from '../../../../queries/client';
 import { useSelectedSession, useSettings } from '../../../../stores/selectors';
 import { pushToast, tryCommand } from '../../../../stores/toasts';
-import { openEditorTab } from '../../../editor/document-actions';
+import { openEditorTab } from '../../../editor/document-commands';
 import { useActivePaneTab } from '../../../workbench/pane-actions';
 import { useControlledView, useSourceControlClient } from '../../controlled-view-context';
 import {

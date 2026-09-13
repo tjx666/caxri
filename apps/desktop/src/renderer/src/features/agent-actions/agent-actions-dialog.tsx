@@ -1,7 +1,12 @@
 import type { KeyboardEvent } from 'react';
 import { useId, useMemo, useRef, useState } from 'react';
 
-import type { AgentAction, AgentActionRecentSettings, AgentProvider } from '@caxri/protocol';
+import type {
+    AgentAction,
+    AgentActionRecentSettings,
+    AgentActionsSettings,
+    AgentProvider,
+} from '@caxri/protocol';
 import {
     agentProviderCatalog,
     mergeAgentActions,
@@ -21,21 +26,22 @@ import {
 } from '../../components/ui/command';
 import { Dialog, DialogTitle, PickerDialogContent } from '../../components/ui/dialog';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
-import { caxri } from '../../lib/caxri';
 import { useCaxriQuery } from '../../queries/client';
 import { setAgentActionsOpen, useDialogStore } from '../../stores/dialogs';
 import { getBootstrap, useSessions, useSettings, useTerminal } from '../../stores/selectors';
-import { pushToast, tryCommand } from '../../stores/toasts';
-import { canSendTerminalInput, focusTerminalById } from '../terminal/terminal-actions';
+import { pushToast } from '../../stores/toasts';
 import { isAgentProcessRunning } from '../terminal/terminal-agent-runtime';
-import type { AgentActionSubmitMode, AgentActionTerminalInputStep } from './agent-action-input';
+import { focusTerminalById } from '../terminal/terminal-commands';
+import type { AgentActionSubmitMode } from './agent-action-input';
 import {
     agentActionSubmitModes,
     agentActionTerminalInputSteps,
     canExecuteAgentAction,
+    isAlternateAgentActionChord,
 } from './agent-action-input';
 import { searchAgentActions } from './agent-action-search';
 import { describeAgentActionTarget, resolveAgentActionTargetTitle } from './agent-action-target';
+import { didSendAgentActionInputSteps, recordRecentAgentAction } from './agent-actions-commands';
 
 const sourceLabels: Record<AgentAction['source'], string> = {
     builtIn: 'Built-in',
@@ -44,29 +50,6 @@ const sourceLabels: Record<AgentAction['source'], string> = {
     legacy: 'Legacy',
     custom: 'Custom',
 };
-
-/**
- * Input steps are intentionally serialized because the delay before a Codex skill's completion keys is part of the
- * provider contract. A failed step leaves the append-only draft visible and prevents the action from being recorded.
- */
-async function didSendAgentActionInputSteps(
-    terminalId: string,
-    steps: readonly AgentActionTerminalInputStep[],
-): Promise<boolean> {
-    for (const step of steps) {
-        if (step.delayBeforeMs) {
-            // eslint-disable-next-line no-await-in-loop -- the provider protocol requires ordered delays and writes
-            await new Promise<void>((resolve) => setTimeout(resolve, step.delayBeforeMs));
-        }
-        if (!canSendTerminalInput(terminalId)) return false;
-        // eslint-disable-next-line no-await-in-loop -- the next step must not overtake this PTY write
-        const receipt = await tryCommand('Unable to send Agent command or skill', () =>
-            caxri.request('terminal.input', { terminalId, data: step.data }),
-        );
-        if (receipt === undefined) return false;
-    }
-    return true;
-}
 
 interface AgentActionRowProperties {
     action: AgentAction;
@@ -98,6 +81,74 @@ function AgentActionRow({ action, location, onSelect }: AgentActionRowProperties
             </span>
             <small className="shrink-0 text-[10px] text-muted">{sourceLabels[action.source]}</small>
         </CommandItem>
+    );
+}
+
+/**
+ * The recents to render. `recordRecent` returns the list the Server just persisted, which arrives before the settings
+ * push that carries it, so an override wins over `actionSettings` — but only for the provider it was recorded against,
+ * since switching Terminals can change the provider before that push lands.
+ */
+function visibleRecentActions(
+    actions: readonly AgentAction[],
+    actionSettings: AgentActionsSettings | undefined,
+    provider: AgentProvider | undefined,
+    override: { provider: AgentProvider; recent: AgentActionRecentSettings } | undefined,
+): AgentAction[] {
+    if (!actionSettings) return [];
+    return resolveRecentAgentActions(actions, {
+        ...actionSettings,
+        recent:
+            override && override.provider === provider ? override.recent : actionSettings.recent,
+    });
+}
+
+/**
+ * The dialog's target line: which Agent is about to receive the action, and which Session or Terminal it belongs to.
+ * Its own component so the branch between a shared title and a Session/Terminal pair stays out of the picker's control
+ * flow — the picker only decides _what_ to submit, never how the target is described.
+ */
+function AgentActionTargetNote({
+    id,
+    provider,
+    sessionTitle,
+    terminalTitle,
+}: {
+    id: string;
+    provider: AgentProvider | undefined;
+    sessionTitle: string | undefined;
+    terminalTitle: string | undefined;
+}) {
+    const providerName = provider ? agentProviderCatalog[provider].displayName : 'Agent';
+    const targetTitle = resolveAgentActionTargetTitle(sessionTitle, terminalTitle);
+    return (
+        <div
+            id={id}
+            aria-label={describeAgentActionTarget(providerName, targetTitle)}
+            className="flex items-center gap-2 border-b border-border px-4 py-2 text-[11px] text-muted"
+            data-agent-action-target=""
+            data-target-title-kind={targetTitle.kind}
+            role="note"
+        >
+            {provider && <AgentIdentityIcon identity={provider} size={14} />}
+            <span className="font-medium text-foreground">{providerName}</span>
+            <span aria-hidden="true">·</span>
+            {targetTitle.kind === 'shared' ? (
+                <span className="min-w-0 truncate" data-agent-action-target-title="shared">
+                    {targetTitle.title}
+                </span>
+            ) : (
+                <>
+                    <span className="min-w-0 truncate" data-agent-action-target-title="session">
+                        Session: {targetTitle.sessionTitle}
+                    </span>
+                    <span aria-hidden="true">·</span>
+                    <span className="min-w-0 truncate" data-agent-action-target-title="terminal">
+                        Terminal: {targetTitle.terminalTitle}
+                    </span>
+                </>
+            )}
+        </div>
     );
 }
 
@@ -147,15 +198,7 @@ export function AgentActionsDialog() {
         return [...groupedActions].map(([kind, grouped]) => ({ grouped, kind }));
     }, [actions, search]);
     const actionSettings = provider ? settings?.['agents.providers'][provider].actions : undefined;
-    const recentActions = actionSettings
-        ? resolveRecentAgentActions(actions, {
-              ...actionSettings,
-              recent:
-                  recentOverride && recentOverride.provider === provider
-                      ? recentOverride.recent
-                      : actionSettings.recent,
-          })
-        : [];
+    const recentActions = visibleRecentActions(actions, actionSettings, provider, recentOverride);
     const shouldShowRecent = search.trim() === '' && recentActions.length > 0;
 
     const closePicker = (shouldRestoreTerminalFocus = true): void => {
@@ -191,18 +234,10 @@ export function AgentActionsDialog() {
             inputSequenceInFlightReference.current = false;
             closePicker();
             if (!inputSucceeded) return;
-            const recent = await tryCommand('Unable to save recent Agent action', () =>
-                caxri.request('agentActions.recordRecent', {
-                    terminalId: current.id,
-                    invocation: action.invocation,
-                }),
-            );
+            const recent = await recordRecentAgentAction(current.id, action.invocation);
             if (recent) setRecentOverride({ provider: currentProvider, recent });
         })();
     };
-
-    const providerName = provider ? agentProviderCatalog[provider].displayName : 'Agent';
-    const targetTitle = resolveAgentActionTargetTitle(session?.displayTitle, terminal?.title);
 
     return (
         <Dialog
@@ -223,52 +258,18 @@ export function AgentActionsDialog() {
                 }}
             >
                 <DialogTitle className="sr-only">Agent Commands &amp; Skills</DialogTitle>
-                <div
+                <AgentActionTargetNote
                     id={targetDescriptionId}
-                    aria-label={describeAgentActionTarget(providerName, targetTitle)}
-                    className="flex items-center gap-2 border-b border-border px-4 py-2 text-[11px] text-muted"
-                    data-agent-action-target=""
-                    data-target-title-kind={targetTitle.kind}
-                    role="note"
-                >
-                    {provider && <AgentIdentityIcon identity={provider} size={14} />}
-                    <span className="font-medium text-foreground">{providerName}</span>
-                    <span aria-hidden="true">·</span>
-                    {targetTitle.kind === 'shared' ? (
-                        <span className="min-w-0 truncate" data-agent-action-target-title="shared">
-                            {targetTitle.title}
-                        </span>
-                    ) : (
-                        <>
-                            <span
-                                className="min-w-0 truncate"
-                                data-agent-action-target-title="session"
-                            >
-                                Session: {targetTitle.sessionTitle}
-                            </span>
-                            <span aria-hidden="true">·</span>
-                            <span
-                                className="min-w-0 truncate"
-                                data-agent-action-target-title="terminal"
-                            >
-                                Terminal: {targetTitle.terminalTitle}
-                            </span>
-                        </>
-                    )}
-                </div>
+                    provider={provider}
+                    sessionTitle={session?.displayTitle}
+                    terminalTitle={terminal?.title}
+                />
                 <Command
                     className="w-full"
                     label="Agent Commands & Skills"
                     shouldFilter={false}
                     onKeyDownCapture={(event: KeyboardEvent<HTMLDivElement>) => {
-                        if (
-                            !event.metaKey ||
-                            event.altKey ||
-                            event.ctrlKey ||
-                            event.shiftKey ||
-                            event.key !== 'Enter'
-                        )
-                            return;
+                        if (!isAlternateAgentActionChord(event)) return;
                         /**
                          * Always consume the alternate insert chord before cmdk can reinterpret it as ordinary Enter. A
                          * missing selection is a no-op, never an accidental insertion.

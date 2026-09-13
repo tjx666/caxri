@@ -8,7 +8,7 @@ import { AgentIdentityIcon } from '../../../../icons/agents/agent-identity-icon'
 import { cn } from '../../../../lib/utilities';
 import { useCaxriQuery } from '../../../../queries/client';
 import { useSelectedSession, useSessionTerminals } from '../../../../stores/selectors';
-import { openEditorTab } from '../../../editor/document-actions';
+import { openEditorTab } from '../../../editor/document-commands';
 import { FAILURE_REASON_LABELS } from '../../../terminal/terminal-exit-presentation';
 
 function processStateLabel(state: TerminalRecord['lastProcessState']): string {

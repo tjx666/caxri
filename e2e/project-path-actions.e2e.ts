@@ -14,7 +14,7 @@ function quotePath(path: string): string {
 }
 
 test('Project path actions work without Sessions and drag absolute shell-safe roots into Terminal', async () => {
-    const created = await mkdtemp(join(tmpdir(), 'caxri-project-path-actions-'));
+    const created = await mkdtemp(join(tmpdir(), 'caxri-project-path-commands-'));
     const directory = await realpath(created);
     const root = join(directory, "project with 'quotes'");
     const emptyRoot = join(directory, 'empty-project');

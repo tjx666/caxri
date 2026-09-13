@@ -13,7 +13,7 @@ import {
     focusTerminalById,
     sendTerminalSequence,
     whenTerminalAttached,
-} from '../terminal/terminal-actions';
+} from '../terminal/terminal-commands';
 import { getActivePaneTab } from '../workbench/pane-actions';
 import { editorStatusKey, useEditorStatusStore } from './editor-status';
 import { chooseReferenceTerminal, formatFileReference } from './file-reference';

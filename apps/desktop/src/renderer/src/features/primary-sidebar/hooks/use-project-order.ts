@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ProjectRecord } from '@caxri/protocol';
 
 import { PROJECT_PATH_DRAG_TYPE } from '../../../lib/file-drag';
-import { didReorderProject } from '../../session/session-actions';
+import { didReorderProject } from '../../session/session-commands';
 import type { ProjectDropTarget } from '../project-order';
 import {
     adjacentProjectOrder,

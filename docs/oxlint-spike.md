@@ -118,7 +118,7 @@ positives specific to oxlint's rule implementation (not fixed, per this spike's 
   `scripts/__tests__/eslint-toolchain-contract.test.ts:54` that ESLint's own implementation of the
   same rule does not flag.
 - `no-new` flags `new TerminalCommandTracker(...)` used purely for its constructor side effect in
-  `terminal-commands.test.ts:138` — a legitimate pattern; core ESLint's `no-new` is not part of
+  `terminal-command-tracker.test.ts:138` — a legitimate pattern; core ESLint's `no-new` is not part of
   this repository's rule set at all, so this is only visible because of oxlint's broader default
   category, not a shared-rule regression.
 

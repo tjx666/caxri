@@ -3,7 +3,7 @@ import { useState } from 'react';
 import type { WorkbenchRootOption } from '@caxri/protocol';
 
 import { useCaxriQuery, useToastOnQueryError } from '../../queries/client';
-import { selectWorkbenchRoot } from './workbench-root-actions';
+import { selectWorkbenchRoot } from './workbench-root-commands';
 
 export function useWorkbenchRootPicker(sessionId: string) {
     const [open, setOpen] = useState(false);

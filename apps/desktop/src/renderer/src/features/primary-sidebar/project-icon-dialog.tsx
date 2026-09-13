@@ -15,7 +15,7 @@ import { cn } from '../../lib/utilities';
 import { closeProjectIconDialog, useDialogStore } from '../../stores/dialogs';
 import { useProjects } from '../../stores/selectors';
 import { ProjectIcon } from './project-icon';
-import { didSaveProjectIcon } from './project-icon-actions';
+import { didSaveProjectIcon } from './project-icon-commands';
 import { projectIconColorPresentation, projectIconRegistry } from './project-icon-registry';
 
 interface ProjectIconDraft {

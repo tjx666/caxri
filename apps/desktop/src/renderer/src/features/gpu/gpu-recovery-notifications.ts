@@ -1,7 +1,7 @@
-import { caxri } from '../../lib/caxri';
 import type { ToastKind, ToastOptions } from '../../stores/toasts';
-import { pushToast, tryCommand } from '../../stores/toasts';
+import { pushToast } from '../../stores/toasts';
 import type { TerminalRendererStatus } from '../terminal/terminal-renderer';
+import { restartInGpuSafeMode } from './gpu-commands';
 
 const GPU_PROCESS_RECOVERY_MESSAGE =
     'A GPU process crash interrupted rendering. Caxri switched affected Terminals to software rendering.';
@@ -174,12 +174,6 @@ export const gpuRecoveryNotificationCoordinator = createGpuRecoveryNotificationC
     clearTimer: (handle) => clearTimeout(handle),
     now: () => Date.now(),
     pushToast,
-    restartInGpuSafeMode: () => {
-        // The shared command funnel turns a failed Desktop restart request into one actionable toast.
-        // eslint-disable-next-line no-void -- the action is synchronous by the Toast contract
-        void tryCommand('Unable to restart in GPU Safe Mode', () =>
-            caxri.request('gpu.restartInSafeMode'),
-        );
-    },
+    restartInGpuSafeMode,
     setTimer: (callback, delayMs) => setTimeout(callback, delayMs),
 });

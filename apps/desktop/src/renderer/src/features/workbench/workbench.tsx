@@ -2,7 +2,7 @@ import { Code2, Plus } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import { useSelectedSession } from '../../stores/selectors';
-import { chooseProjectFolder } from '../session/session-actions';
+import { chooseProjectFolder } from '../session/session-commands';
 import { PaneView } from './pane-view';
 
 function Welcome() {

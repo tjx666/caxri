@@ -18,7 +18,7 @@ import { gitDecorationClassName, gitDecorationDescription } from '../../../lib/g
 import { cn } from '../../../lib/utilities';
 import { useGitDecoration } from '../../../stores/git-decorations';
 import { sessionViewScope } from '../../../stores/session-view';
-import { openFile } from '../../editor/document-actions';
+import { openFile } from '../../editor/document-commands';
 import { revealEditorMatch } from '../../editor/editor-reveal';
 import { useResourceExplorerClient } from '../controlled-view-context';
 import {
