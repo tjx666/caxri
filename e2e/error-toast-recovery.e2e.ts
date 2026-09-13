@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, unlink, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -72,7 +72,8 @@ test('a failed Terminal launch can retry after its folder becomes available', as
         await expect(
             running.page.getByRole('menuitem', { name: 'Open in Terminal' }),
         ).toBeVisible();
-        await rm(folder, { recursive: true });
+        // Keep the tree row mounted while making its cwd inaccessible; deleting it closes the context menu.
+        await chmod(folder, 0o000);
         await running.page.getByRole('menuitem', { name: 'Open in Terminal' }).click();
 
         const failure = running.page.locator('.toast', { hasText: 'Terminal creation failed.' });
@@ -92,10 +93,11 @@ test('a failed Terminal launch can retry after its folder becomes available', as
             path: test.info().outputPath('terminal-launch-failure-toast.png'),
         });
 
-        await mkdir(folder);
+        await chmod(folder, 0o700);
         await retry.click();
         await expect(running.page.locator('.work-tab[data-terminal-id]')).toHaveCount(2);
     } finally {
+        await chmod(folder, 0o700);
         await running.app.close();
         await rm(testDirectory, { recursive: true, force: true });
     }
