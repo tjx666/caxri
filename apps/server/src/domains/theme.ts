@@ -18,6 +18,7 @@ import YAML from 'yaml';
 
 import type { BoundedRegularFileReadOptions } from './bounded-file-reader';
 import { readBoundedRegularFileText } from './bounded-file-reader';
+import { parseThemeDocument, themeDocumentRoot } from './theme-import-source';
 
 export { draculaTheme } from '@caxri/protocol';
 
@@ -35,6 +36,22 @@ const ZERO_HIT_THEME_MESSAGE =
     'This theme file does not define any colors Caxri can import. Check that you picked the theme JSON and not a package manifest.';
 const VSIX_THEME_MESSAGE =
     'Caxri cannot read a .vsix package yet. Unzip it and pick the theme JSON under themes/.';
+const ITERM_PARSE_MESSAGE =
+    'This file is not a readable iTerm2 color preset. Export it again from iTerm2 > Settings > Profiles > Colors > Color Presets.';
+const ITERM_ROOT_MESSAGE =
+    'This iTerm2 color preset is empty. Its property list must have a dictionary root holding the color entries.';
+const ITERM_ZERO_HIT_MESSAGE =
+    'This iTerm2 color preset does not define any colors Caxri can import. It needs at least one background, foreground, cursor, selection, or ANSI color.';
+const WARP_PARSE_MESSAGE =
+    'This file is not a readable Warp theme. Warp themes are YAML documents; check the file for an indentation or quoting error.';
+const WARP_ROOT_MESSAGE =
+    'This Warp theme is empty. A Warp theme is a YAML mapping with top-level color keys such as background, foreground, and terminal_colors.';
+const WARP_ZERO_HIT_MESSAGE =
+    'This Warp theme does not define any colors Caxri can import. It needs at least one of accent, background, foreground, cursor, or terminal_colors.';
+const JSON_THEME_PARSE_MESSAGE =
+    'This theme file is not readable JSON. Check it for a syntax error such as an unclosed brace or a missing comma.';
+const JSON_THEME_ROOT_MESSAGE =
+    'This theme file is not a JSON object. Pick the theme JSON that holds the "colors" object, not a list or a bare value.';
 const INCLUDE_DIRECTORY_MESSAGE = 'Theme include must be a file in the same directory.';
 
 /**
@@ -482,15 +499,19 @@ interface PlistColor {
     'Blue Component'?: number;
 }
 
-function plistColor(value: unknown, fallback: string): string {
-    if (!value || typeof value !== 'object') return fallback;
+/**
+ * `undefined` rather than a fallback so `parseIterm` can tell an imported color from a seeded one: a preset that maps
+ * nothing must be rejected, not silently imported as a renamed copy of the fallback theme.
+ */
+function plistColor(value: unknown): string | undefined {
+    if (!value || typeof value !== 'object') return undefined;
     const color = value as PlistColor;
     if (
         [color['Red Component'], color['Green Component'], color['Blue Component']].some(
             (part) => typeof part !== 'number',
         )
     )
-        return fallback;
+        return undefined;
     return `#${[color['Red Component'], color['Green Component'], color['Blue Component']]
         .map((part) =>
             Math.round((part ?? 0) * 255)
@@ -501,13 +522,21 @@ function plistColor(value: unknown, fallback: string): string {
 }
 
 function parseIterm(source: string, name: string): ParsedThemeImport {
-    const value = parsePlist(source) as Record<string, unknown>;
+    const document = parseThemeDocument(() => parsePlist(source), ITERM_PARSE_MESSAGE);
+    const value = themeDocumentRoot(document, ITERM_ROOT_MESSAGE);
     const theme = cloneFallback('iterm2', name);
-    theme.terminal.background = plistColor(value['Background Color'], theme.terminal.background);
-    theme.terminal.foreground = plistColor(value['Foreground Color'], theme.terminal.foreground);
-    theme.terminal.cursor = plistColor(value['Cursor Color'], theme.terminal.cursor);
-    theme.terminal.selectionBackground = plistColor(
-        value['Selection Color'],
+    let mapped = 0;
+    const importColor = (key: string, fallback: string): string => {
+        const color = plistColor(value[key]);
+        if (color === undefined) return fallback;
+        mapped += 1;
+        return color;
+    };
+    theme.terminal.background = importColor('Background Color', theme.terminal.background);
+    theme.terminal.foreground = importColor('Foreground Color', theme.terminal.foreground);
+    theme.terminal.cursor = importColor('Cursor Color', theme.terminal.cursor);
+    theme.terminal.selectionBackground = importColor(
+        'Selection Color',
         theme.terminal.selectionBackground,
     );
     const targets: Array<keyof ThemeTokens['terminal']> = [
@@ -529,8 +558,9 @@ function parseIterm(source: string, name: string): ParsedThemeImport {
         'brightWhite',
     ];
     targets.forEach((target, index) => {
-        theme.terminal[target] = plistColor(value[`Ansi ${index} Color`], theme.terminal[target]);
+        theme.terminal[target] = importColor(`Ansi ${index} Color`, theme.terminal[target]);
     });
+    if (mapped === 0) throw new CaxriError('VALIDATION', ITERM_ZERO_HIT_MESSAGE);
     theme.warnings.push({
         id: 'iterm-terminal-only',
         message: 'iTerm2 is terminal-only; app and editor colors inherit from the active theme.',
@@ -539,12 +569,20 @@ function parseIterm(source: string, name: string): ParsedThemeImport {
 }
 
 function parseWarp(source: string, name: string): ParsedThemeImport {
-    const value = YAML.parse(source) as Record<string, unknown>;
+    const document = parseThemeDocument(() => YAML.parse(source), WARP_PARSE_MESSAGE);
+    const value = themeDocumentRoot(document, WARP_ROOT_MESSAGE);
     const theme = cloneFallback('warp', typeof value.name === 'string' ? value.name : name);
-    theme.colors.accent = normalizedHex(value.accent, theme.colors.accent);
-    theme.terminal.background = normalizedHex(value.background, theme.terminal.background);
-    theme.terminal.foreground = normalizedHex(value.foreground, theme.terminal.foreground);
-    theme.terminal.cursor = normalizedHex(value.cursor, theme.colors.accent);
+    let mapped = 0;
+    const importColor = (raw: unknown, fallback: string): string => {
+        const hex = normalizedHex(raw, '');
+        if (!hex) return fallback;
+        mapped += 1;
+        return hex;
+    };
+    theme.colors.accent = importColor(value.accent, theme.colors.accent);
+    theme.terminal.background = importColor(value.background, theme.terminal.background);
+    theme.terminal.foreground = importColor(value.foreground, theme.terminal.foreground);
+    theme.terminal.cursor = importColor(value.cursor, theme.colors.accent);
     const terminalColors = (value.terminal_colors ?? {}) as Record<string, unknown>;
     const normal = (terminalColors.normal ?? {}) as Record<string, unknown>;
     const bright = (terminalColors.bright ?? {}) as Record<string, unknown>;
@@ -558,11 +596,12 @@ function parseWarp(source: string, name: string): ParsedThemeImport {
         'cyan',
         'white',
     ] as const) {
-        theme.terminal[key] = normalizedHex(normal[key], theme.terminal[key]);
+        theme.terminal[key] = importColor(normal[key], theme.terminal[key]);
         const brightKey =
             `bright${key[0].toUpperCase()}${key.slice(1)}` as keyof ThemeTokens['terminal'];
-        theme.terminal[brightKey] = normalizedHex(bright[key], theme.terminal[brightKey]);
+        theme.terminal[brightKey] = importColor(bright[key], theme.terminal[brightKey]);
     }
+    if (mapped === 0) throw new CaxriError('VALIDATION', WARP_ZERO_HIT_MESSAGE);
     theme.warnings.push({
         id: 'warp-visual-effects',
         message: 'Warp gradients and background images were ignored.',
@@ -605,12 +644,13 @@ function assertImportedThemeContrast(theme: ThemeTokens): void {
  * fails.
  */
 function parseVsCodeOrCustom(source: string, name: string): ParsedThemeImport {
-    const value = parseJsonc(source);
+    const document = parseThemeDocument(() => parseJsonc(source), JSON_THEME_PARSE_MESSAGE);
+    const value = themeDocumentRoot(document, JSON_THEME_ROOT_MESSAGE);
     // Upgrade first: a Caxri theme exported before a color role existed must still be recognized as one here, or it
     // would fall through to the VS Code mapping and import as a mangled theme rather than the one the user exported.
     const parsed = themeSchema.safeParse(upgradeThemeColors(value));
     if (!parsed.success) {
-        const theme = parseVsCode(value as Record<string, unknown>, name);
+        const theme = parseVsCode(value, name);
         assertImportedThemeContrast(theme);
         return theme;
     }
@@ -710,7 +750,7 @@ async function resolveVsCodeInclude(
         beforeRead: testSeam?.beforeRead,
         capacityMessage: `Theme file exceeds the ${MAX_THEME_IMPORT_FILE_BYTES} byte import limit`,
     });
-    const parent = parseJsonc(parentSource);
+    const parent = parseThemeDocument(() => parseJsonc(parentSource), JSON_THEME_PARSE_MESSAGE);
     if (!parent || typeof parent !== 'object' || Array.isArray(parent)) {
         throw new CaxriError('VALIDATION', INCLUDE_DIRECTORY_MESSAGE);
     }
