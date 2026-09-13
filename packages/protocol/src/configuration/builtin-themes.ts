@@ -79,7 +79,6 @@ export const draculaTheme: ThemeTokens = {
         string: '#f1fa8c',
         number: '#bd93f9',
     },
-    warnings: [],
 };
 
 /**
@@ -146,7 +145,6 @@ export const monokaiTheme: ThemeTokens = {
         string: '#e6db74',
         number: '#ae81ff',
     },
-    warnings: [],
 };
 
 /**
@@ -209,7 +207,6 @@ export const oneDarkProTheme: ThemeTokens = {
         string: '#98c379',
         number: '#d19a66',
     },
-    warnings: [],
 };
 
 const solarizedTerminal = {
@@ -285,7 +282,6 @@ export const solarizedDarkTheme: ThemeTokens = {
         string: '#2aa198',
         number: '#d33682',
     },
-    warnings: [],
 };
 
 /**
@@ -357,7 +353,6 @@ export const solarizedLightTheme: ThemeTokens = {
         string: '#2aa198',
         number: '#d33682',
     },
-    warnings: [],
 };
 
 /**
@@ -427,7 +422,6 @@ export const tokyoNightTheme: ThemeTokens = {
         string: '#9ece6a',
         number: '#ff9e64',
     },
-    warnings: [],
 };
 
 /**
@@ -499,7 +493,6 @@ export const oscuraMidnightTheme: ThemeTokens = {
         string: '#e6e6e6',
         number: '#f9b98c',
     },
-    warnings: [],
 };
 
 /**
@@ -563,7 +556,6 @@ export const vscodeDarkPlusTheme: ThemeTokens = {
         string: '#ce9178',
         number: '#b5cea8',
     },
-    warnings: [],
 };
 
 /**

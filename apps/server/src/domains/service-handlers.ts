@@ -301,9 +301,9 @@ export function createServiceHandlers(services: {
             return configuration.getTheme();
         },
         'theme.importPath': async ({ path }) => {
-            const theme = await configuration.importTheme(path);
-            database.setAppState('activeThemeId', theme.id);
-            return theme;
+            const result = await configuration.importTheme(path);
+            database.setAppState('activeThemeId', result.value.id);
+            return result;
         },
         'config.paths': () => ({
             settings: configuration.settingsPath,

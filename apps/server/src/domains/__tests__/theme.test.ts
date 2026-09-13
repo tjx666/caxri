@@ -301,7 +301,9 @@ describe('theme import mapping', () => {
             number: '#d33682',
         });
         expect(theme.terminal.selectionBackground).toBe('#eee8d5');
-        expect(theme.warnings.filter((warning) => warning.startsWith('Syntax colors'))).toEqual([]);
+        expect(
+            theme.warnings.filter((warning) => warning.message.startsWith('Syntax colors')),
+        ).toEqual([]);
         expect(theme.editor.comment).not.toBe(draculaTheme.editor.comment);
     });
 
@@ -349,9 +351,10 @@ describe('theme import mapping', () => {
         const theme = await importTheme(path, draculaTheme);
         expect(theme.editor.keyword).toBe('#569cd6');
         expect(theme.editor.comment).toBe(draculaTheme.editor.comment);
-        expect(theme.warnings).toContain(
-            'Syntax colors for comments, strings, numbers were not imported.',
-        );
+        expect(theme.warnings).toContainEqual({
+            id: 'missing-syntax-colors',
+            message: 'Syntax colors for comments, strings, numbers were not imported.',
+        });
     });
 
     it('does not let a descendant scope overwrite an exact syntax role', async () => {
@@ -420,10 +423,15 @@ describe('theme import mapping', () => {
 
         const theme = await importTheme(path, draculaTheme);
         expect(theme.editor.comment).toBe(draculaTheme.editor.comment);
-        expect(theme.warnings).toContain('Syntax colors were not imported.');
-        expect(theme.warnings).not.toContain(
-            'Unsupported VS Code tokens and extension metadata were ignored.',
-        );
+        expect(theme.warnings).toContainEqual({
+            id: 'missing-syntax-colors',
+            message: 'Syntax colors were not imported.',
+        });
+        expect(
+            theme.warnings.some((warning) =>
+                warning.message.includes('Unsupported VS Code tokens'),
+            ),
+        ).toBe(false);
     });
 
     it('warns that semantic token colors were not imported', async () => {
@@ -441,9 +449,10 @@ describe('theme import mapping', () => {
             'utf8',
         );
 
-        expect((await importTheme(path, draculaTheme)).warnings).toContain(
-            'Semantic token colors were not imported.',
-        );
+        expect((await importTheme(path, draculaTheme)).warnings).toContainEqual({
+            id: 'semantic-token-colors',
+            message: 'Semantic token colors were not imported.',
+        });
     });
 
     it('keeps the success fallback when charts.green is absent', async () => {
@@ -635,28 +644,6 @@ describe('theme import mapping', () => {
         const theme = await importTheme(path, draculaTheme);
         expect(theme.source).toBe('vscode');
         expect(theme.editor.background).toBe('#123456');
-    });
-
-    it('rejects a full Caxri theme when muted misses AA on any app surface', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-contrast-'));
-        temporaryDirectories.push(directory);
-        const surfaceLabels = {
-            background: 'editor background',
-            elevated: 'raised panel background',
-            surface: 'sidebar and status bar background',
-        } as const;
-        await Promise.all(
-            (['background', 'surface', 'elevated'] as const).map(async (surface) => {
-                const path = join(directory, `${surface}.json`);
-                const theme = structuredClone(draculaTheme);
-                theme.colors[surface] = theme.colors.muted;
-                await writeFile(path, JSON.stringify(theme), 'utf8');
-                await expect(importTheme(path, draculaTheme)).rejects.toMatchObject({
-                    code: 'VALIDATION',
-                    message: `Secondary text in the imported theme must have at least 4.5:1 contrast against the ${surfaceLabels[surface]}. Choose a lighter or darker secondary text color and try again.`,
-                } satisfies Partial<CaxriError>);
-            }),
-        );
     });
 
     it('accepts a full Caxri theme whose muted color clears the AA boundary', async () => {

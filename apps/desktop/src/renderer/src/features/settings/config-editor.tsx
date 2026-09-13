@@ -16,6 +16,7 @@ interface ConfigEditorProperties {
     value: string;
     onBlur: () => void;
     onChange: (value: string) => void;
+    goToLineRequest?: { line: number };
 }
 
 export function ConfigEditor({
@@ -25,6 +26,7 @@ export function ConfigEditor({
     value,
     onBlur,
     onChange,
+    goToLineRequest,
 }: ConfigEditorProperties) {
     useEffect(() => applyEditorTheme(theme), [theme]);
     const fontFamily = useEditorFontFamily();
@@ -34,11 +36,20 @@ export function ConfigEditor({
     // across renders without re-mounting the editor: `onMount` only runs once, so a stale
     // closure over an early `onBlur` prop would keep committing against outdated state.
     const onBlurReference = useRef(onBlur);
+    const editorReference = useRef<Parameters<OnMount>[0] | null>(null);
+    const goToLineReference = useRef(goToLineRequest);
     useEffect(() => {
         onBlurReference.current = onBlur;
     }, [onBlur]);
+    useEffect(() => {
+        goToLineReference.current = goToLineRequest;
+        if (goToLineRequest && editorReference.current)
+            revealLine(editorReference.current, goToLineRequest.line);
+    }, [goToLineRequest]);
     const handleMount: OnMount = (editor) => {
+        editorReference.current = editor;
         editor.onDidBlurEditorText(() => onBlurReference.current());
+        if (goToLineReference.current) revealLine(editor, goToLineReference.current.line);
     };
 
     return (
@@ -65,4 +76,10 @@ export function ConfigEditor({
             />
         </div>
     );
+}
+
+function revealLine(editor: Parameters<OnMount>[0], line: number): void {
+    editor.setPosition({ lineNumber: line, column: 1 });
+    editor.revealLineInCenter(line);
+    editor.focus();
 }

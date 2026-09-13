@@ -224,6 +224,8 @@ export function createElectronLaunchSpec({
                         'issue-826-surface-seam',
                         'issue-824-syntax-and-terminal-selection',
                         'issue-825-include-zero-hit-vsix',
+                        'issue-851-transient-warnings',
+                        'issue-854-contrast-error',
                     ].includes(caseId ?? '')
                         ? caseId
                         : undefined,

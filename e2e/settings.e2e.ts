@@ -331,6 +331,27 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
             })
             .toBe(17);
 
+        await dialog.getByRole('button', { name: 'Source' }).click();
+        sourceEditor = configSource(dialog, 'settings');
+        await replaceMonacoText(
+            running,
+            running.page,
+            sourceEditor,
+            '{\n  "terminal.fontSize": 17',
+        );
+        await expect(dialog.getByRole('alert')).toContainText('A closing brace } is missing');
+        await sourceEditor.locator('.monaco-editor').click();
+        await running.page.keyboard.press('Meta+ArrowUp');
+        await dialog.getByRole('button', { name: 'Go to line 2' }).click();
+        await running.page.keyboard.type('// jump');
+        await expect(sourceEditor.locator('.view-line').nth(1)).toContainText('// jump');
+        await dialog.getByRole('button', { name: 'Revert changes' }).click();
+        await expect(dialog.getByRole('alert')).toHaveCount(0);
+        await sourceEditor.locator('.monaco-editor').click();
+        await running.page.keyboard.press('Meta+ArrowDown');
+        await expect(sourceEditor.locator('.view-lines')).toContainText('keep-source-comment');
+        await dialog.getByRole('button', { name: 'UI' }).click();
+
         // Re-enter source mode and fix it while still in the view, then confirm the fix survives a
         // tab switch away and back (the "preserves drafts across tabs" half of this test).
         await dialog.getByRole('button', { name: 'Source' }).click();
