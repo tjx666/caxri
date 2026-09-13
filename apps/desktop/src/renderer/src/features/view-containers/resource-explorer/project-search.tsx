@@ -301,7 +301,6 @@ export function ProjectSearch({
         queryKey,
         queryFn: ({ signal }) => client.search(searchOptions, signal),
         enabled: isViewContainerQueryEnabled(isContainerActive, debouncedQuery.length > 0),
-        staleTime: 0,
     });
     const groups = useMemo(
         () => groupSearchMatches(result.data?.matches ?? []),
