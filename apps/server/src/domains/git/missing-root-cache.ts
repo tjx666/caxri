@@ -24,12 +24,12 @@ interface CachedFailure {
  * Caxri discovery, because `git status` cannot run without a work tree, and suppressing its retries is the desired
  * outcome — so the probe reaches the right answer there for a reason this rule does not name.
  */
-async function isMissingRepoRoot(projectRoot: string): Promise<boolean> {
+export async function isMissingRepoRoot(projectRoot: string): Promise<boolean> {
     try {
         await lstat(resolve(projectRoot, '.git'));
         return false;
-    } catch {
-        return true;
+    } catch (error) {
+        return (error as NodeJS.ErrnoException).code === 'ENOENT';
     }
 }
 
