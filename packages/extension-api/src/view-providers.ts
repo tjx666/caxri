@@ -132,6 +132,13 @@ export interface SourceControlProviderModel {
     kindLabel?: string;
     icon: SourceControlViewIcon;
     tooltip: string;
+    /**
+     * Absolute filesystem root of the repository this provider owns, used only to resolve a provider-relative resource
+     * path back to an absolute one. `tooltip` is free display text and must never be read as a path. Omit it when the
+     * provider has no filesystem root; consumers then disable path-dependent affordances such as drag-to-Terminal
+     * instead of guessing.
+     */
+    rootPath?: string;
     description: string;
     /**
      * Whether `description` is a `reference` — a branch name or short SHA, atomic enough that an ellipsis destroys it —
